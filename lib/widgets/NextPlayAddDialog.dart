@@ -137,14 +137,19 @@ class _NextPlayAddFormState extends State<_NextPlayAddForm> {
             const SizedBox(height: 6),
             ...widget.difficulties.map((option) {
               final selected = _selected.contains(option.index);
-              final background = AppColors.difficultyBackgroundByIndex(
-                option.index,
-                brightness: brightness,
-              );
-              final foreground = AppColors.difficultyForegroundByIndex(
-                option.index,
-                brightness: brightness,
-              );
+              final isUtage = option.index == 5;
+              final background = isUtage
+                  ? AppColors.utageBackground(brightness: brightness)
+                  : AppColors.difficultyBackgroundByIndex(
+                      option.index,
+                      brightness: brightness,
+                    );
+              final foreground = isUtage
+                  ? AppColors.utageAccent(brightness: brightness)
+                  : AppColors.difficultyForegroundByIndex(
+                      option.index,
+                      brightness: brightness,
+                    );
               final suffix = option.constant == null || option.constant!.isEmpty
                   ? ''
                   : ' ${option.constant}';

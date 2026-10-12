@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -8,6 +9,7 @@ import 'package:permission_handler/permission_handler.dart';
 
 import 'package:my_first_flutter_app/constant/VersionListConstant.dart';
 import 'package:my_first_flutter_app/utils/StringUtil.dart';
+import 'package:my_first_flutter_app/utils/NavigationPreferences.dart';
 import '../widgets/AnimatedChoiceBar.dart';
 import '../widgets/BackgroundPageScaffold.dart';
 
@@ -179,6 +181,24 @@ class VersionView extends StatefulWidget {
 class _VersionViewState extends State<VersionView> {
   bool _isJapaneseVersion = false;
 
+  @override
+  void initState() {
+    super.initState();
+    _applySystemUiMode();
+  }
+
+  @override
+  void dispose() {
+    // 图片预览或上一个页面可能改变过窗口焦点，离开时再应用一次全局偏好，
+    // 避免返回后状态栏仍停留在错误的隐藏状态。
+    _applySystemUiMode();
+    super.dispose();
+  }
+
+  void _applySystemUiMode() {
+    unawaited(NavigationPreferences.instance.applySystemUiMode());
+  }
+
   static const Map<String, VersionData> _catalog = {
     'maimai': VersionData(
       key: 'maimai',
@@ -266,6 +286,12 @@ class _VersionViewState extends State<VersionView> {
       chineseImagePath: 'assets/version/maimai_2020.webp',
       chineseCode: '熊/華',
     ),
+    'maimai でらっくす PLUS': VersionData(
+      key: 'maimai でらっくす PLUS',
+      japaneseName: 'DX PLUS',
+      imagePath: 'assets/version/maimai_DX_PLUS.webp',
+      code: '華',
+    ),
     'maimai でらっくす Splash': VersionData(
       key: 'maimai でらっくす Splash',
       japaneseName: 'Splash',
@@ -273,6 +299,12 @@ class _VersionViewState extends State<VersionView> {
       code: '爽',
       chineseImagePath: 'assets/version/maimai_2021.webp',
       chineseCode: '爽/煌',
+    ),
+    'maimai でらっくす Splash PLUS': VersionData(
+      key: 'maimai でらっくす Splash PLUS',
+      japaneseName: 'Splash PLUS',
+      imagePath: 'assets/version/maimai_DX_Splash_PLUS.webp',
+      code: '煌',
     ),
     'maimai でらっくす UNiVERSE': VersionData(
       key: 'maimai でらっくす UNiVERSE',
@@ -282,6 +314,12 @@ class _VersionViewState extends State<VersionView> {
       chineseImagePath: 'assets/version/maimai_2022.webp',
       chineseCode: '宙/星',
     ),
+    'maimai でらっくす UNiVERSE PLUS': VersionData(
+      key: 'maimai でらっくす UNiVERSE PLUS',
+      japaneseName: 'UNiVERSE PLUS',
+      imagePath: 'assets/version/maimai_DX_UNiVERSE_PLUS.webp',
+      code: '星',
+    ),
     'maimai でらっくす FESTiVAL': VersionData(
       key: 'maimai でらっくす FESTiVAL',
       japaneseName: 'FESTiVAL',
@@ -290,6 +328,12 @@ class _VersionViewState extends State<VersionView> {
       chineseImagePath: 'assets/version/maimai_2023.webp',
       chineseCode: '祭/祝',
     ),
+    'maimai でらっくす FESTiVAL PLUS': VersionData(
+      key: 'maimai でらっくす FESTiVAL PLUS',
+      japaneseName: 'FESTiVAL PLUS',
+      imagePath: 'assets/version/maimai_DX_FESTiVAL_PLUS.webp',
+      code: '祝',
+    ),
     'maimai でらっくす BUDDiES': VersionData(
       key: 'maimai でらっくす BUDDiES',
       japaneseName: 'BUDDiES',
@@ -297,6 +341,12 @@ class _VersionViewState extends State<VersionView> {
       code: '双',
       chineseImagePath: 'assets/version/maimai_2024.webp',
       chineseCode: '双/宴',
+    ),
+    'maimai でらっくす BUDDiES PLUS': VersionData(
+      key: 'maimai でらっくす BUDDiES PLUS',
+      japaneseName: 'BUDDiES PLUS',
+      imagePath: 'assets/version/maimai_DX_BUDDiES_PLUS.webp',
+      code: '宴',
     ),
     'maimai でらっくす PRiSM': VersionData(
       key: 'maimai でらっくす PRiSM',
@@ -339,9 +389,23 @@ class _VersionViewState extends State<VersionView> {
         for (final key in VersionListConstant.versionOrderList) _catalog[key]!,
       ];
 
-  List<VersionData> get _versions => _isJapaneseVersion
-      ? [..._standardVersions, ..._japaneseTail]
-      : _standardVersions;
+  List<VersionData> get _versions {
+    if (!_isJapaneseVersion) return _standardVersions;
+    final versions = <VersionData>[];
+    for (final version in _standardVersions) {
+      versions.add(version);
+      final plusKey = switch (version.key) {
+        'maimai でらっくす' => 'maimai でらっくす PLUS',
+        'maimai でらっくす Splash' => 'maimai でらっくす Splash PLUS',
+        'maimai でらっくす UNiVERSE' => 'maimai でらっくす UNiVERSE PLUS',
+        'maimai でらっくす FESTiVAL' => 'maimai でらっくす FESTiVAL PLUS',
+        'maimai でらっくす BUDDiES' => 'maimai でらっくす BUDDiES PLUS',
+        _ => null,
+      };
+      if (plusKey != null) versions.add(_catalog[plusKey]!);
+    }
+    return [...versions, ..._japaneseTail];
+  }
 
   void _showPreview(VersionData version) {
     final imagePath = version.imagePathFor(_isJapaneseVersion);

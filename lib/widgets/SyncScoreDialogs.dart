@@ -968,20 +968,23 @@ class SyncScoreDialogs {
                                 setState(() {
                                   isBinding = false;
                                   isSyncing = false;
-                                  bindingError = '绑定失败，请检查用户名密码是否正确';
+                                  bindingError = '绑定水鱼账号失败，请稍后重试';
                                 });
                                 return;
                               }
 
                               // 绑定成功 → 同步缓存水鱼 JWT（用于后续 fetchBindQQ）
-                              final loginResult = await DivingFishProbeManager()
+                              final manager = DivingFishProbeManager();
+                              final loginResult = await manager
                                   .loginDivingFishDirect(username, password);
                               if (loginResult == null) {
                                 finishAttempt(ok: false);
                                 setState(() {
                                   isBinding = false;
                                   isSyncing = false;
-                                  bindingError = '水鱼登录成功但获取账号资料失败，请稍后重试';
+                                  bindingError =
+                                      manager.lastLoginFailure?.message ??
+                                          '水鱼登录失败，请稍后重试';
                                 });
                                 return;
                               }
@@ -1206,10 +1209,21 @@ class SyncScoreDialogs {
                               isLoggingIn = true;
                               errorMsg = null;
                             });
-                            final result = await DivingFishProbeManager()
-                                .loginDivingFishDirect(username, password);
+                            final manager = DivingFishProbeManager();
+                            final result = await manager.loginDivingFishDirect(
+                                username, password);
                             if (result != null &&
                                 result.tryGet<String>('importToken') != null) {
+                              final bindQQ =
+                                  result.tryGet<String>('bind_qq')?.trim() ??
+                                      '';
+                              if (bindQQ.isEmpty) {
+                                setState(() {
+                                  isLoggingIn = false;
+                                  errorMsg = divingFishMissingBindQqMessage;
+                                });
+                                return;
+                              }
                               final token =
                                   result.tryGet<String>('importToken') ?? '';
                               final nickname =
@@ -1225,16 +1239,13 @@ class SyncScoreDialogs {
                                 statusText =
                                     '欢迎，$nickname${plate.isNotEmpty ? " ($plate)" : ""}';
                               });
-                              final bindQQ =
-                                  result.tryGet<String>('bind_qq') ?? '';
-                              if (bindQQ.isNotEmpty) {
-                                await callbacks.onSaveQQ(bindQQ);
-                              }
+                              await callbacks.onSaveQQ(bindQQ);
                               await callbacks.onLoginStateChanged();
                             } else {
                               setState(() {
                                 isLoggingIn = false;
-                                errorMsg = '登录失败：用户名或密码错误';
+                                errorMsg = manager.lastLoginFailure?.message ??
+                                    '登录失败，请稍后再试';
                               });
                             }
                           },

@@ -109,6 +109,41 @@ class SyncResult {
   }
 }
 
+/// 水鱼直登失败原因。
+enum DivingFishLoginFailureKind {
+  invalidCredentials,
+  rateLimited,
+  serverUnavailable,
+  network,
+  malformedResponse,
+  sessionUnavailable,
+  profileUnavailable,
+  missingImportToken,
+}
+
+/// 直登失败时给界面使用的安全提示，不直接展示服务端原始响应。
+class DivingFishLoginFailure {
+  final DivingFishLoginFailureKind kind;
+  final int? statusCode;
+
+  const DivingFishLoginFailure(this.kind, {this.statusCode});
+
+  String get message => switch (kind) {
+        DivingFishLoginFailureKind.invalidCredentials => '用户名或密码错误，请检查后重试',
+        DivingFishLoginFailureKind.rateLimited => '登录请求过于频繁，请稍后再试',
+        DivingFishLoginFailureKind.serverUnavailable => '水鱼登录服务暂时不可用，请稍后再试',
+        DivingFishLoginFailureKind.network => '网络连接失败，请检查网络后重试',
+        DivingFishLoginFailureKind.malformedResponse => '水鱼登录接口返回异常，请稍后再试',
+        DivingFishLoginFailureKind.sessionUnavailable => '登录成功但未建立会话，请稍后再试',
+        DivingFishLoginFailureKind.profileUnavailable => '登录成功但无法获取账号资料，请稍后再试',
+        DivingFishLoginFailureKind.missingImportToken =>
+          '登录成功但未获取到 ImportToken，请前往水鱼官网轮换并保存',
+      };
+}
+
+/// 账号密码正确、但水鱼资料尚未绑定 QQ 时的页面提示。
+const String divingFishMissingBindQqMessage = '登录成功但未获取到绑定QQ号，请前往水鱼官网填入并保存';
+
 // =============================================================================
 // DivingFishProbeManager（单例）
 // =============================================================================
@@ -142,6 +177,13 @@ class DivingFishProbeManager {
   bool _cancelled = false;
   String? _authToken;
   String? _friendCode;
+
+  /// 最近一次直登失败原因，成功后会清空。
+  DivingFishLoginFailure? lastLoginFailure;
+
+  void _setLoginFailure(DivingFishLoginFailure failure) {
+    lastLoginFailure = failure;
+  }
 
   // ---- 配置 ----
   static const _pollInterval = Duration(seconds: 3);
@@ -958,6 +1000,7 @@ class DivingFishProbeManager {
     String password,
   ) async {
     _log('loginDivingFishDirect: username=$username');
+    lastLoginFailure = null;
 
     // ===== Step 1: 登录拿 JWT =====
     _log('── Step 1: 登录 ──');
@@ -980,14 +1023,54 @@ class DivingFishProbeManager {
 
       if (loginResponse.statusCode != 200) {
         _log('  ✗ 登录失败: HTTP ${loginResponse.statusCode}');
+        _setLoginFailure(
+          loginResponse.statusCode == 429
+              ? const DivingFishLoginFailure(
+                  DivingFishLoginFailureKind.rateLimited)
+              : loginResponse.statusCode >= 500
+                  ? const DivingFishLoginFailure(
+                      DivingFishLoginFailureKind.serverUnavailable)
+                  : (loginResponse.statusCode == 401 ||
+                          loginResponse.statusCode == 403)
+                      ? const DivingFishLoginFailure(
+                          DivingFishLoginFailureKind.invalidCredentials)
+                      : DivingFishLoginFailure(
+                          DivingFishLoginFailureKind.serverUnavailable,
+                          statusCode: loginResponse.statusCode),
+        );
         return null;
       }
 
-      final data = json.decode(loginResponse.body) as Map<String, dynamic>;
+      final dynamic decoded;
+      try {
+        decoded = json.decode(loginResponse.body);
+      } catch (e) {
+        _log('  ✗ 登录响应解析失败: $e');
+        _setLoginFailure(const DivingFishLoginFailure(
+            DivingFishLoginFailureKind.malformedResponse));
+        return null;
+      }
+      if (decoded is! Map<String, dynamic>) {
+        _setLoginFailure(const DivingFishLoginFailure(
+            DivingFishLoginFailureKind.malformedResponse));
+        return null;
+      }
+      final data = decoded;
       final errcode = data.tryGet<int>('errcode');
       if (errcode != null && errcode != 0) {
         final msg = data.tryGet<String>('message') ?? '未知错误';
         _log('  ✗ 登录失败 (errcode=$errcode): $msg');
+        final credentialMessage = RegExp(
+          r'用户名|密码|账号|password|credential|username',
+          caseSensitive: false,
+        ).hasMatch(msg);
+        _setLoginFailure(
+          credentialMessage
+              ? const DivingFishLoginFailure(
+                  DivingFishLoginFailureKind.invalidCredentials)
+              : const DivingFishLoginFailure(
+                  DivingFishLoginFailureKind.serverUnavailable),
+        );
         return null;
       }
 
@@ -998,12 +1081,19 @@ class DivingFishProbeManager {
 
       if (jwtToken == null) {
         _log('  ✗ 登录成功但未在 Cookie 中找到 jwt_token');
+        _setLoginFailure(const DivingFishLoginFailure(
+            DivingFishLoginFailureKind.sessionUnavailable));
         return null;
       }
       _log('  ✓ JWT 提取成功 (长度: ${jwtToken.length})');
     } catch (e, stack) {
       _log('  ✗ 登录异常: $e');
       _log('  Stack: $stack');
+      _setLoginFailure(DivingFishLoginFailure(
+        e is FormatException || e is TypeError
+            ? DivingFishLoginFailureKind.malformedResponse
+            : DivingFishLoginFailureKind.network,
+      ));
       return null;
     }
 
@@ -1039,6 +1129,8 @@ class DivingFishProbeManager {
 
         if (importToken.isEmpty) {
           _log('  ✗ 未找到 import_token');
+          _setLoginFailure(const DivingFishLoginFailure(
+              DivingFishLoginFailureKind.missingImportToken));
           return null;
         }
 
@@ -1065,18 +1157,33 @@ class DivingFishProbeManager {
         };
       } else {
         _log('  ✗ profile 请求失败: ${profileResponse.statusCode}');
+        _setLoginFailure(
+          profileResponse.statusCode >= 500
+              ? const DivingFishLoginFailure(
+                  DivingFishLoginFailureKind.serverUnavailable)
+              : profileResponse.statusCode == 401 ||
+                      profileResponse.statusCode == 403
+                  ? const DivingFishLoginFailure(
+                      DivingFishLoginFailureKind.sessionUnavailable)
+                  : const DivingFishLoginFailure(
+                      DivingFishLoginFailureKind.profileUnavailable),
+        );
         return null;
       }
     } catch (e, stack) {
       _log('  ✗ profile 请求异常: $e');
       _log('  Stack: $stack');
+      _setLoginFailure(DivingFishLoginFailure(
+        e is FormatException || e is TypeError
+            ? DivingFishLoginFailureKind.malformedResponse
+            : DivingFishLoginFailureKind.network,
+      ));
       return null;
     }
   }
 
   /// 获取本地缓存的水鱼 importToken（如果有）
   Future<String?> getCachedDivingFishImportToken() async {
-    final prefs = await SharedPreferences.getInstance();
     final t = await SecureCredentialStore.read(
         CacheKeyConstant.probeDivingFishImportToken);
     _log('getCachedDivingFishImportToken → ${t != null ? "***" : "null"}');

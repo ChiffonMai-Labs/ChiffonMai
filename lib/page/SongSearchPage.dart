@@ -532,6 +532,13 @@ class _SongSearchPageState extends State<SongSearchPage> {
   }
 
   Future<void> _changeHistory({String? remove, bool clear = false}) async {
+    final previous = List<String>.of(_searchHistory);
+    final optimistic = clear
+        ? <String>[]
+        : _searchHistory.where((item) => item != remove).toList();
+    if (mounted) {
+      setState(() => _searchHistory = optimistic);
+    }
     try {
       final items = clear
           ? await _historyStore.clear()
@@ -539,6 +546,13 @@ class _SongSearchPageState extends State<SongSearchPage> {
       if (mounted) setState(() => _searchHistory = items);
     } catch (e) {
       if (mounted) {
+        // 写盘失败时以磁盘内容为准，避免恢复一个已经被后续操作删除的旧列表。
+        try {
+          final items = await _historyStore.load();
+          if (mounted) setState(() => _searchHistory = items);
+        } catch (_) {
+          if (mounted) setState(() => _searchHistory = previous);
+        }
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('搜索历史更新失败，请重试')),
         );

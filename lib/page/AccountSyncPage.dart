@@ -39,8 +39,8 @@ class _AccountSyncPageState extends State<AccountSyncPage> {
     final prefs = await SharedPreferences.getInstance();
     final jwt =
         await SecureCredentialStore.read(CacheKeyConstant.probeDivingFishToken);
-    final awmcToken = await SecureCredentialStore.read(
-        CacheKeyConstant.awmcNetImportToken);
+    final awmcToken =
+        await SecureCredentialStore.read(CacheKeyConstant.awmcNetImportToken);
     if (!mounted) return;
     _awmcTokenController.text = awmcToken ?? '';
     setState(() {
@@ -81,37 +81,25 @@ class _AccountSyncPageState extends State<AccountSyncPage> {
   }
 
   Future<void> _login() async {
-    final result = await showDialog<Map<String, String>?>(
+    final loggedIn = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => _LoginDialog(
-        onSubmit: (username, password) => Navigator.pop(dialogContext, {
-          'username': username,
-          'password': password,
-        }),
+      builder: (_) => _LoginDialog(
+        onSubmit: (username, password) async {
+          final manager = DivingFishProbeManager();
+          final response = await manager.loginDivingFishDirect(
+            username,
+            password,
+          );
+          if (response == null) {
+            return manager.lastLoginFailure?.message ?? '登录失败，请稍后再试';
+          }
+          final bindQQ = response.tryGet<String>('bind_qq')?.trim() ?? '';
+          if (bindQQ.isEmpty) return divingFishMissingBindQqMessage;
+          return null;
+        },
       ),
     );
-
-    if (result == null ||
-        result['username']!.isEmpty ||
-        result['password']!.isEmpty) {
-      return;
-    }
-    if (!mounted) return;
-    setState(() => _loading = true);
-    final response = await DivingFishProbeManager().loginDivingFishDirect(
-      result['username']!,
-      result['password']!,
-    );
-    if (!mounted) return;
-    if (response == null) {
-      setState(() => _loading = false);
-      await showErrorMessageDialog(
-        context,
-        title: '登录失败',
-        message: '请检查用户名和密码',
-      );
-      return;
-    }
+    if (loggedIn != true || !mounted) return;
     await _loadAccountState();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -168,9 +156,7 @@ class _AccountSyncPageState extends State<AccountSyncPage> {
             const SizedBox(height: 24),
             HubSection(
               title: 'AWMC NET',
-              subtitle: _awmcToken == null
-                  ? '未设置成绩导入 Token'
-                  : '成绩导入 Token 已设置',
+              subtitle: _awmcToken == null ? '未设置成绩导入 Token' : '成绩导入 Token 已设置',
               icon: Icons.cloud_outlined,
               children: [
                 Padding(
@@ -241,7 +227,8 @@ class _AccountSyncPageState extends State<AccountSyncPage> {
 }
 
 class _LoginDialog extends StatefulWidget {
-  final void Function(String username, String password) onSubmit;
+  /// 返回 null 表示成功，否则返回要在输入框下方显示的红色错误提示。
+  final Future<String?> Function(String username, String password) onSubmit;
 
   const _LoginDialog({required this.onSubmit});
 
@@ -252,12 +239,37 @@ class _LoginDialog extends StatefulWidget {
 class _LoginDialogState extends State<_LoginDialog> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
+  bool _isLoggingIn = false;
+  String? _errorMessage;
 
   @override
   void dispose() {
     _usernameController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final username = _usernameController.text.trim();
+    final password = _passwordController.text.trim();
+    if (username.isEmpty || password.isEmpty) {
+      setState(() => _errorMessage = '请输入用户名和密码');
+      return;
+    }
+    setState(() {
+      _isLoggingIn = true;
+      _errorMessage = null;
+    });
+    final error = await widget.onSubmit(username, password);
+    if (!mounted) return;
+    if (error != null) {
+      setState(() {
+        _isLoggingIn = false;
+        _errorMessage = error;
+      });
+      return;
+    }
+    Navigator.pop(context, true);
   }
 
   @override
@@ -277,6 +289,16 @@ class _LoginDialogState extends State<_LoginDialog> {
             obscureText: true,
             decoration: const InputDecoration(labelText: '密码'),
           ),
+          if (_errorMessage != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              _errorMessage!,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.error,
+                fontSize: 12,
+              ),
+            ),
+          ],
         ],
       ),
       actions: [
@@ -285,11 +307,14 @@ class _LoginDialogState extends State<_LoginDialog> {
           child: const Text('取消'),
         ),
         FilledButton(
-          onPressed: () => widget.onSubmit(
-            _usernameController.text.trim(),
-            _passwordController.text.trim(),
-          ),
-          child: const Text('登录'),
+          onPressed: _isLoggingIn ? null : _submit,
+          child: _isLoggingIn
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('登录'),
         ),
       ],
     );
