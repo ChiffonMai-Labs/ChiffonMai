@@ -8,6 +8,7 @@ import 'DailyRecommendPage.dart';
 import 'RandomChartPage.dart';
 import 'RecommendByTagsPage.dart';
 import 'RatingRecommendPage.dart';
+import 'GainRecommendPage.dart';
 import 'DsRangeRecommendPage.dart';
 import 'SingleRatingCalculatorPage.dart';
 import 'AchievementRateCalculatorPage.dart';
@@ -147,8 +148,8 @@ class _ToolsHubPageState extends State<ToolsHubPage> {
           HubSection(
             title: '选曲推荐',
             icon: Icons.explore_outlined,
-            subtitle: '每日 · 随机 · 标签 · Rating · 定数',
-            badgeCount: 6,
+            subtitle: '每日 · 随机 · 吃分 · 标签 · Rating · 定数',
+            badgeCount: 7,
             children: [
               HubActionTile(
                 title: '每日推荐',
@@ -173,6 +174,14 @@ class _ToolsHubPageState extends State<ToolsHubPage> {
                 isFavorited: _isFavorited('出勤转盘'),
                 onToggleFavorite: () => _toggleFavorite('出勤转盘'),
                 onTap: () => _open(context, const AttendanceWheelPage()),
+              ),
+              HubActionTile(
+                title: '吃分推荐',
+                subtitle: '按 B50 净收益挑谱 · AWMC 提供算法支持',
+                icon: Icons.ramen_dining_rounded,
+                isFavorited: _isFavorited('吃分推荐'),
+                onToggleFavorite: () => _toggleFavorite('吃分推荐'),
+                onTap: () => _open(context, const GainRecommendPage()),
               ),
               HubActionTile(
                 title: '基于标签推荐',

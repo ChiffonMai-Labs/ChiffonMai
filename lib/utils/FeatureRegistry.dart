@@ -34,6 +34,7 @@ class FeatureRegistry {
     '每日推荐': '选曲推荐',
     '随机乐曲': '选曲推荐',
     '出勤转盘': '选曲推荐',
+    '吃分推荐': '选曲推荐',
     '基于标签推荐': '选曲推荐',
     '基于目标 Rating 推荐': '选曲推荐',
     '基于定数区间推荐': '选曲推荐',
@@ -186,6 +187,10 @@ class FeatureRegistry {
               icon: Icons.queue_music, title: '下次想玩', subtitle: '排好下次去机台想玩的歌曲'),
           const ButtonItem(
               icon: Icons.arrow_circle_up, title: '段位表', subtitle: '挑战你的下一段位'),
+          const ButtonItem(
+              icon: Icons.ramen_dining,
+              title: '吃分推荐',
+              subtitle: '按 B50 净收益挑谱 · AWMC 提供算法支持'),
           const ButtonItem(
               icon: Icons.label, title: '基于标签推荐', subtitle: '基于你的游玩谱面标签推荐曲目'),
           const ButtonItem(

@@ -68,6 +68,7 @@ import 'RankTable/RankTablePage.dart';
 import 'RandomChartPage.dart';
 import 'AttendanceWheelPage.dart';
 import 'RatingRecommendPage.dart';
+import 'GainRecommendPage.dart';
 import 'DsRangeRecommendPage.dart';
 import 'RecommendByTagsPage.dart';
 import 'SingleRatingCalculatorPage.dart';
@@ -2878,6 +2879,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
       '曲绘快闪猜歌' => const GuessChartByFlashCoverPage(),
       '曲绘拼图猜歌' => const GuessChartByTileRevealPage(),
       '谱面片段猜歌' => const GuessChartByChartPeekPage(),
+      '吃分推荐' => const GainRecommendPage(),
       _ => null,
     };
     if (extraPage != null) {
