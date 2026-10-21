@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/foundation.dart';
 import 'package:my_first_flutter_app/manager/DivingFish/UserPlayDataManager.dart';
 import 'package:my_first_flutter_app/manager/DivingFish/MaimaiMusicDataManager.dart';
@@ -7,7 +8,8 @@ import 'package:my_first_flutter_app/utils/SongFilterUtil.dart';
 
 class PersonalizedBest50Service {
   // 单例模式
-  static final PersonalizedBest50Service _instance = PersonalizedBest50Service._internal();
+  static final PersonalizedBest50Service _instance =
+      PersonalizedBest50Service._internal();
   factory PersonalizedBest50Service() => _instance;
   PersonalizedBest50Service._internal();
 
@@ -24,8 +26,9 @@ class PersonalizedBest50Service {
 
       // 过滤出fc字段为app的记录
       final appRecords = userPlayData['records']?.where((record) {
-        return record['fc'] == 'app';
-      }).toList() ?? [];
+            return record['fc'] == 'app';
+          }).toList() ??
+          [];
 
       // 按ra值降序排序
       appRecords.sort((a, b) {
@@ -195,9 +198,10 @@ class PersonalizedBest50Service {
       // 过滤出achievements字段在[100.4800-100.4999]或[99.9800-99.9999]范围内的记录
       final cunRecords = records.where((record) {
         if (record is Map<String, dynamic>) {
-          double achievements = double.tryParse(record['achievements'].toString()) ?? 0.0;
-          return (achievements >= 100.4800 && achievements <= 100.4999) || 
-                 (achievements >= 99.9800 && achievements <= 99.9999);
+          double achievements =
+              double.tryParse(record['achievements'].toString()) ?? 0.0;
+          return (achievements >= 100.4800 && achievements <= 100.4999) ||
+              (achievements >= 99.9800 && achievements <= 99.9999);
         }
         return false;
       }).toList();
@@ -241,9 +245,10 @@ class PersonalizedBest50Service {
       // 过滤出achievements字段在[100.0000,100.0500]或[100.5000,100.5500]范围内的记录
       final mingDaoRecords = records.where((record) {
         if (record is Map<String, dynamic>) {
-          double achievements = double.tryParse(record['achievements'].toString()) ?? 0.0;
-          return (achievements >= 100.0000 && achievements <= 100.0500) || 
-                 (achievements >= 100.5000 && achievements <= 100.5500);
+          double achievements =
+              double.tryParse(record['achievements'].toString()) ?? 0.0;
+          return (achievements >= 100.0000 && achievements <= 100.0500) ||
+              (achievements >= 100.5000 && achievements <= 100.5500);
         }
         return false;
       }).toList();
@@ -287,7 +292,8 @@ class PersonalizedBest50Service {
       // 过滤出achievements字段在[100.4800-100.4999]范围内的记录
       final cuniaoPlusRecords = records.where((record) {
         if (record is Map<String, dynamic>) {
-          double achievements = double.tryParse(record['achievements'].toString()) ?? 0.0;
+          double achievements =
+              double.tryParse(record['achievements'].toString()) ?? 0.0;
           return achievements >= 100.4800 && achievements <= 100.4999;
         }
         return false;
@@ -332,7 +338,8 @@ class PersonalizedBest50Service {
       // 过滤出achievements字段在[100.5000,100.5500]范围内的记录
       final suoxuePlusRecords = records.where((record) {
         if (record is Map<String, dynamic>) {
-          double achievements = double.tryParse(record['achievements'].toString()) ?? 0.0;
+          double achievements =
+              double.tryParse(record['achievements'].toString()) ?? 0.0;
           return achievements >= 100.5000 && achievements <= 100.5500;
         }
         return false;
@@ -377,7 +384,8 @@ class PersonalizedBest50Service {
       // 过滤出achievements字段在[99.9800-99.9999]范围内的记录
       final cuniaoRecords = records.where((record) {
         if (record is Map<String, dynamic>) {
-          double achievements = double.tryParse(record['achievements'].toString()) ?? 0.0;
+          double achievements =
+              double.tryParse(record['achievements'].toString()) ?? 0.0;
           return achievements >= 99.9800 && achievements <= 99.9999;
         }
         return false;
@@ -422,7 +430,8 @@ class PersonalizedBest50Service {
       // 过滤出achievements字段在[100.0000,100.0500]范围内的记录
       final suoxueRecords = records.where((record) {
         if (record is Map<String, dynamic>) {
-          double achievements = double.tryParse(record['achievements'].toString()) ?? 0.0;
+          double achievements =
+              double.tryParse(record['achievements'].toString()) ?? 0.0;
           return achievements >= 100.0000 && achievements <= 100.0500;
         }
         return false;
@@ -454,14 +463,15 @@ class PersonalizedBest50Service {
   }
 
   // 为记录添加歌曲信息
-  Future<List<Map<String, dynamic>>> enrichRecordsWithSongInfo(dynamic records) async {
+  Future<List<Map<String, dynamic>>> enrichRecordsWithSongInfo(
+      dynamic records) async {
     try {
       // 获取所有歌曲数据
       final allSongs = await MaimaiMusicDataManager().getCachedSongs();
       if (allSongs == null) return [];
 
       // 构建歌曲ID到歌曲信息的映射
-      final songMap = { for (var song in allSongs) song.id: song };
+      final songMap = {for (var song in allSongs) song.id: song};
 
       // 确保records是List类型
       final List<dynamic> recordsList = records is List ? records : [];
@@ -472,7 +482,7 @@ class PersonalizedBest50Service {
         if (record is Map<String, dynamic>) {
           final songId = record['song_id'];
           final song = songMap[songId.toString()];
-          
+
           if (song != null) {
             // 获取 level_index
             final levelIndex = record['level_index'] ?? 0;
@@ -481,7 +491,7 @@ class PersonalizedBest50Service {
             if (levelIndex >= 0 && levelIndex < song.ds.length) {
               dsValue = song.ds[levelIndex];
             }
-            
+
             result.add({
               ...record,
               'title': song.title,
@@ -544,7 +554,7 @@ class PersonalizedBest50Service {
       if (allSongs == null) return null;
 
       // 构建歌曲ID到歌曲信息的映射
-      final songMap = { for (var song in allSongs) song.id: song };
+      final songMap = {for (var song in allSongs) song.id: song};
 
       // 过滤出该charter的谱面的记录
       final charterRecords = records.where((record) {
@@ -552,9 +562,12 @@ class PersonalizedBest50Service {
           final songId = record['song_id'];
           final levelIndex = record['level_index'] ?? 0;
           final song = songMap[songId.toString()];
-          
-          if (song != null && levelIndex >= 0 && levelIndex < song.charts.length) {
-            return song.charts[levelIndex].charter == charter && !SongFilterUtil.isExtra(song);
+
+          if (song != null &&
+              levelIndex >= 0 &&
+              levelIndex < song.charts.length) {
+            return song.charts[levelIndex].charter == charter &&
+                !SongFilterUtil.isExtra(song);
           }
         }
         return false;
@@ -626,16 +639,17 @@ class PersonalizedBest50Service {
       if (allSongs == null) return null;
 
       // 构建歌曲ID到歌曲信息的映射
-      final songMap = { for (var song in allSongs) song.id: song };
+      final songMap = {for (var song in allSongs) song.id: song};
 
       // 过滤出该版本的歌曲的记录（排除从maidata追加的歌曲）
       final versionRecords = records.where((record) {
         if (record is Map<String, dynamic>) {
           final songId = record['song_id'];
           final song = songMap[songId.toString()];
-          
+
           if (song != null) {
-            return song.basicInfo.from == version && !SongFilterUtil.isExtra(song);
+            return song.basicInfo.from == version &&
+                !SongFilterUtil.isExtra(song);
           }
         }
         return false;
@@ -683,14 +697,14 @@ class PersonalizedBest50Service {
       if (allSongs == null) return null;
 
       // 构建歌曲ID到歌曲信息的映射
-      final songMap = { for (var song in allSongs) song.id: song };
+      final songMap = {for (var song in allSongs) song.id: song};
 
       // 过滤出类型为DX的歌曲的记录
       final dxRecords = records.where((record) {
         if (record is Map<String, dynamic>) {
           final songId = record['song_id'];
           final song = songMap[songId.toString()];
-          
+
           if (song != null) {
             return song.type == 'DX' && !SongFilterUtil.isExtra(song);
           }
@@ -739,14 +753,14 @@ class PersonalizedBest50Service {
       if (allSongs == null) return null;
 
       // 构建歌曲ID到歌曲信息的映射
-      final songMap = { for (var song in allSongs) song.id: song };
+      final songMap = {for (var song in allSongs) song.id: song};
 
       // 过滤出类型为SD的歌曲的记录
       final stRecords = records.where((record) {
         if (record is Map<String, dynamic>) {
           final songId = record['song_id'];
           final song = songMap[songId.toString()];
-          
+
           if (song != null) {
             return song.type == 'SD' && !SongFilterUtil.isExtra(song);
           }
@@ -1097,12 +1111,12 @@ class PersonalizedBest50Service {
       if (allSongs == null) return null;
 
       // 构建歌曲ID到歌曲信息的映射
-      final songMap = { for (var song in allSongs) song.id: song };
+      final songMap = {for (var song in allSongs) song.id: song};
 
       // 根据星数标签确定达成率范围
       double minRate;
       double maxRate = 1.0; // 最大达成率为100%
-      
+
       switch (starLabel) {
         case '\u27266':
           minRate = 0.99;
@@ -1145,11 +1159,11 @@ class PersonalizedBest50Service {
           final levelIndex = record['level_index'] ?? 0;
           final dxScore = record['dxScore'] ?? 0;
           final song = songMap[songId.toString()];
-          
+
           if (song != null) {
             // 计算最大DX分数
             int maxDxScore = _calculateMaxDxScore(song, levelIndex);
-            
+
             if (maxDxScore > 0) {
               // 计算DX分数达成率
               double dxRate = dxScore / maxDxScore;
@@ -1238,16 +1252,17 @@ class PersonalizedBest50Service {
       if (allSongs == null) return null;
 
       // 构建歌曲ID到歌曲信息的映射
-      final songMap = { for (var song in allSongs) song.id: song };
+      final songMap = {for (var song in allSongs) song.id: song};
 
       // 过滤出该流派的歌曲的记录
       final genreRecords = records.where((record) {
         if (record is Map<String, dynamic>) {
           final songId = record['song_id'];
           final song = songMap[songId.toString()];
-          
+
           if (song != null) {
-            return song.basicInfo.genre == genre && !SongFilterUtil.isExtra(song);
+            return song.basicInfo.genre == genre &&
+                !SongFilterUtil.isExtra(song);
           }
         }
         return false;
@@ -1257,8 +1272,10 @@ class PersonalizedBest50Service {
       if (genre == '\u5bb4\u4f1a\u5834') {
         genreRecords.sort((a, b) {
           if (a is Map<String, dynamic> && b is Map<String, dynamic>) {
-            double achievementsB = double.tryParse(b['achievements'].toString()) ?? 0.0;
-            double achievementsA = double.tryParse(a['achievements'].toString()) ?? 0.0;
+            double achievementsB =
+                double.tryParse(b['achievements'].toString()) ?? 0.0;
+            double achievementsA =
+                double.tryParse(a['achievements'].toString()) ?? 0.0;
             return achievementsB.compareTo(achievementsA);
           }
           return 0;
@@ -1306,13 +1323,13 @@ class PersonalizedBest50Service {
       if (allSongs == null) return null;
 
       // 构建歌曲ID到歌曲信息的映射
-      final songMap = { for (var song in allSongs) song.id: song };
+      final songMap = {for (var song in allSongs) song.id: song};
 
       // 获取标签-歌曲映射
       final songIdToTagIdsMap = await MaiTagsManager().getSongIdToTagIdsMap();
 
       // 难度索引 → 难度字符串映射（需与标签API中的格式一致：全小写）
-      const diffNames = ['basic', 'advanced', 'expert', 'master', 'remaster'];
+      const diffNames = ChartDifficulty.apiNames;
 
       // 过滤出具有指定标签的记录
       final tagRecords = records.where((record) {
@@ -1416,7 +1433,7 @@ class PersonalizedBest50Service {
 
       final allSongs = await MaimaiMusicDataManager().getCachedSongs();
       if (allSongs == null) return null;
-      final songMap = { for (var song in allSongs) song.id: song };
+      final songMap = {for (var song in allSongs) song.id: song};
 
       final pool = records.where((r) {
         if (r is Map<String, dynamic>) {
@@ -1453,8 +1470,8 @@ class PersonalizedBest50Service {
 
   /// PC50：游玩次数（`playCount`）最高的 50 张**谱面**（一张谱面 = 曲目 + 难度）。
   ///
-  /// `playCount` 是机台真实数据，App 里只有一个来源：**AWMC 网关的
-  /// `/v1/user/music`** —— 线路1 同步时必拉，线路2 / AWMC NET 同步时顺带静默刷新。
+  /// `playCount` 是机台真实数据，App 通过独立的 AWMC 游玩次数接口读取；
+  /// 服务端内部再转发到 `/v1/user/music`。
   /// 拿到后把 `(musicId, level) → playCount` 落进 [AwmcPlayCountStore]。
   /// 所以这里是「用户成绩记录 × 游玩次数缓存」的连接：
   ///
@@ -1467,7 +1484,7 @@ class PersonalizedBest50Service {
     try {
       await AwmcPlayCountStore.ensureLoaded();
       if (!AwmcPlayCountStore.hasData) {
-        debugPrint('PC50：还没有游玩次数缓存（需要先用线路1 · AWMC 网关同步一次成绩）');
+        debugPrint('PC50：还没有游玩次数缓存（需要先在系统页单独刷新机台游玩次数）');
         return null;
       }
 
@@ -1478,7 +1495,7 @@ class PersonalizedBest50Service {
 
       final allSongs = await MaimaiMusicDataManager().getCachedSongs();
       if (allSongs == null) return null;
-      final songMap = { for (var song in allSongs) song.id: song };
+      final songMap = {for (var song in allSongs) song.id: song};
 
       final pool = <Map<String, dynamic>>[];
       for (final record in records) {
@@ -1532,7 +1549,7 @@ class PersonalizedBest50Service {
 
       final allSongs = await MaimaiMusicDataManager().getCachedSongs();
       if (allSongs == null) return null;
-      final songMap = { for (var song in allSongs) song.id: song };
+      final songMap = {for (var song in allSongs) song.id: song};
 
       final pool = records.where((r) {
         if (r is Map<String, dynamic>) {
@@ -1576,7 +1593,7 @@ class PersonalizedBest50Service {
 
       final allSongs = await MaimaiMusicDataManager().getCachedSongs();
       if (allSongs == null) return null;
-      final songMap = { for (var song in allSongs) song.id: song };
+      final songMap = {for (var song in allSongs) song.id: song};
 
       final filtered = records.where((r) {
         if (r is Map<String, dynamic>) {
@@ -1584,7 +1601,8 @@ class PersonalizedBest50Service {
           if (song == null) return false;
           // extra 歌曲不参与（越级是给正式曲库用的）
           if (SongFilterUtil.isExtra(song)) return false;
-          final ach = double.tryParse(r['achievements']?.toString() ?? '') ?? 0.0;
+          final ach =
+              double.tryParse(r['achievements']?.toString() ?? '') ?? 0.0;
           return ach <= 95.0;
         }
         return false;
@@ -1620,7 +1638,7 @@ class PersonalizedBest50Service {
 
       final allSongs = await MaimaiMusicDataManager().getCachedSongs();
       if (allSongs == null) return null;
-      final songMap = { for (var song in allSongs) song.id: song };
+      final songMap = {for (var song in allSongs) song.id: song};
 
       final filtered = records.where((r) {
         if (r is Map<String, dynamic>) {
@@ -1663,13 +1681,7 @@ class PersonalizedBest50Service {
       final parsed = int.tryParse(v);
       if (parsed != null) return parsed;
     }
-    const map = {
-      'BASIC': 0,
-      'ADVANCED': 1,
-      'EXPERT': 2,
-      'MASTER': 3,
-      'Re:MASTER': 4,
-    };
+    const map = ChartDifficulty.standardIndexByLabel;
     // 回退到 `level` 或 `level_label` 字符串
     for (final key in const ['level', 'level_label']) {
       final level = record[key];
@@ -1688,7 +1700,7 @@ class PersonalizedBest50Service {
 
       final allSongs = await MaimaiMusicDataManager().getCachedSongs();
       if (allSongs == null) return null;
-      final songMap = { for (var song in allSongs) song.id: song };
+      final songMap = {for (var song in allSongs) song.id: song};
 
       final filtered = records.where((r) {
         if (r is Map<String, dynamic>) {
@@ -1701,12 +1713,18 @@ class PersonalizedBest50Service {
       }).toList();
 
       filtered.sort((a, b) {
-        final aSong = songMap[(a is Map<String, dynamic> ? a['song_id'] : '').toString()];
-        final bSong = songMap[(b is Map<String, dynamic> ? b['song_id'] : '').toString()];
+        final aSong =
+            songMap[(a is Map<String, dynamic> ? a['song_id'] : '').toString()];
+        final bSong =
+            songMap[(b is Map<String, dynamic> ? b['song_id'] : '').toString()];
         final aLevel = a is Map<String, dynamic> ? (a['level_index'] ?? 0) : 0;
         final bLevel = b is Map<String, dynamic> ? (b['level_index'] ?? 0) : 0;
-        final aDs = (aSong != null && aLevel < aSong.ds.length) ? aSong.ds[aLevel] : 0.0;
-        final bDs = (bSong != null && bLevel < bSong.ds.length) ? bSong.ds[bLevel] : 0.0;
+        final aDs = (aSong != null && aLevel < aSong.ds.length)
+            ? aSong.ds[aLevel]
+            : 0.0;
+        final bDs = (bSong != null && bLevel < bSong.ds.length)
+            ? bSong.ds[bLevel]
+            : 0.0;
         return bDs.compareTo(aDs);
       });
 

@@ -104,7 +104,10 @@ class Song {
       title: json['title'] ?? '',
       type: json['type'] ?? '',
       // 解析 double 数组
-      ds: (json['ds'] as List<dynamic>?)?.map((e) => e as double).toList() ?? [],
+      ds: (json['ds'] as List<dynamic>?)
+              ?.map((e) => (e as num).toDouble())
+              .toList() ??
+          [],
       // 解析 String 数组
       level: (json['level'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
       // 解析 int 数组

@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:my_first_flutter_app/entity/Multiplayer/GameType.dart';
@@ -45,13 +46,7 @@ class _RoomCreatePageState extends State<RoomCreatePage> {
 
   /// chartPeek 难度池可选值（inote 编号 → 显示名，与单人谱面片段猜歌一致：
   /// BASIC 是 '2'，没有 '1'）
-  static const Map<String, String> _difficultyLabels = {
-    '2': 'BASIC',
-    '3': 'ADVANCED',
-    '4': 'EXPERT',
-    '5': 'MASTER',
-    '6': 'Re:MASTER',
-  };
+  static const Map<String, String> _difficultyLabels = ChartDifficulty.standardMaidataLabels;
 
   // 所有版本和流派列表
   List<String> _allVersions = [];
@@ -486,7 +481,7 @@ class _RoomCreatePageState extends State<RoomCreatePage> {
       child: _isLoading
                       ? const Center(child: CircularProgressIndicator())
                       : SingleChildScrollView(
-                          padding: EdgeInsets.all(paddingM),
+                          padding: EdgeInsets.fromLTRB(paddingM, 8, paddingM, paddingM),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [

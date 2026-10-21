@@ -1,6 +1,7 @@
 /**
  * 落雪数据 → 水鱼数据工具类
  * */
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/foundation.dart';
 import 'package:my_first_flutter_app/entity/DivingFish/RecordItem.dart';
 import 'package:my_first_flutter_app/entity/LuoXue/Collection.dart';
@@ -95,20 +96,7 @@ class LuoXueToDivingFishUtil {
 
   // 根据 levelIndex 获取对应的难度标签
   static String _getLevelLabel(int levelIndex) {
-    switch (levelIndex) {
-      case 0:
-        return 'Basic';
-      case 1:
-        return 'Advanced';
-      case 2:
-        return 'Expert';
-      case 3:
-        return 'Master';
-      case 4:
-        return 'Re:MASTER';
-      default:
-        return '';
-    }
+    return ChartDifficulty.labelOf(levelIndex, fallback: '');
   }
   
   // 根据类型字符串获取标准化的类型标签
@@ -119,7 +107,7 @@ class LuoXueToDivingFishUtil {
       case 'dx':
         return 'DX';
       case 'utage':
-        return 'UTAGE';
+        return ChartDifficulty.utageLabel;
       default:
         return type;
     }

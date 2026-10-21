@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:my_first_flutter_app/page/SongInfoPage.dart';
@@ -83,15 +84,15 @@ class _RatingRecommendPageState extends State<RatingRecommendPage> {
       return const Color(0xFFE9D8FF);
     }
     switch (diffIndex) {
-      case 0:
+      case ChartDifficulty.basic:
         return const Color(0xFFE8F5E8);
-      case 1:
+      case ChartDifficulty.advanced:
         return const Color(0xFFFFF8E1);
-      case 2:
+      case ChartDifficulty.expert:
         return const Color(0xFFFCE4EC);
-      case 3:
+      case ChartDifficulty.master:
         return const Color(0xFFE9D8FF);
-      case 4:
+      case ChartDifficulty.reMaster:
         return const Color(0xFFF3E5F5);
       default:
         return const Color(0xFFE9D8FF);
@@ -107,15 +108,15 @@ class _RatingRecommendPageState extends State<RatingRecommendPage> {
   Color _getDifficultyBgColor(int levelIndex, Brightness brightness) {
     final isDark = brightness == Brightness.dark;
     switch (levelIndex) {
-      case 0:
+      case ChartDifficulty.basic:
         return isDark ? const Color(0xFF1B3D1B) : Colors.green.shade100;
-      case 1:
+      case ChartDifficulty.advanced:
         return isDark ? const Color(0xFF3D2E00) : Colors.orange.shade100;
-      case 2:
+      case ChartDifficulty.expert:
         return isDark ? const Color(0xFF4A2020) : Colors.red.shade100;
-      case 3:
+      case ChartDifficulty.master:
         return isDark ? const Color(0xFF2A1A3D) : Colors.purple.shade100;
-      case 4:
+      case ChartDifficulty.reMaster:
         return isDark ? const Color(0xFF352545) : Colors.purple.shade50;
       default:
         return isDark ? const Color(0xFF2A2A2A) : Colors.grey.shade100;
@@ -125,15 +126,15 @@ class _RatingRecommendPageState extends State<RatingRecommendPage> {
   Color _getDifficultyTextColor(int levelIndex, Brightness brightness) {
     final isDark = brightness == Brightness.dark;
     switch (levelIndex) {
-      case 0:
+      case ChartDifficulty.basic:
         return isDark ? const Color(0xFF66BB6A) : Colors.green.shade700;
-      case 1:
+      case ChartDifficulty.advanced:
         return isDark ? const Color(0xFFFFB74D) : Colors.orange.shade700;
-      case 2:
+      case ChartDifficulty.expert:
         return isDark ? const Color(0xFFEF5350) : Colors.red;
-      case 3:
+      case ChartDifficulty.master:
         return isDark ? const Color(0xFFCE93D8) : Colors.purple.shade700;
-      case 4:
+      case ChartDifficulty.reMaster:
         return isDark ? const Color(0xFFE1BEE7) : Colors.purple.shade400;
       default:
         return isDark ? Colors.grey.shade400 : Colors.grey.shade700;
@@ -155,7 +156,7 @@ class _RatingRecommendPageState extends State<RatingRecommendPage> {
       title: '基于目标Rating推荐',
       resizeToAvoidBottomInset: false,
       contentPadding: EdgeInsets.only(
-        bottom: MediaQuery.paddingOf(context).bottom + 10,
+        bottom: MediaQuery.paddingOf(context).bottom,
       ),
       child: Column(
         children: [

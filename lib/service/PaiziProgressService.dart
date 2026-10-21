@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:my_first_flutter_app/manager/LuoXue/CollectionsManager.dart';
 import 'package:my_first_flutter_app/manager/DivingFish/UserPlayDataManager.dart';
@@ -253,14 +254,7 @@ class PaiziProgressService {
     if (difficulty == -1) {
       return 'ALL';
     }
-    switch (difficulty) {
-      case 0: return 'BASIC';
-      case 1: return 'ADVANCED';
-      case 2: return 'EXPERT';
-      case 3: return 'MASTER';
-      case 4: return 'Re:MASTER';
-      default: return difficulty.toString();
-    }
+    return ChartDifficulty.labelOf(difficulty, fallback: difficulty.toString());
   }
 
   // 获取歌曲的达成率

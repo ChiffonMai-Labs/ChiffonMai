@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'AccountSwitchService.dart';
 
 // ignore_for_file: slash_for_doc_comments
@@ -32,13 +33,7 @@ class RecommendByTagsService {
     "SD": "std",
     "DX": "dx",
   };
-  static const Map<int, String> LEVEL_INDEX_MAP = {
-    0: "basic",
-    1: "advanced",
-    2: "expert",
-    3: "master",
-    4: "remaster",
-  };
+  static const Map<int, String> LEVEL_INDEX_MAP = ChartDifficulty.apiNameByIndex;
   static const List<double> RATING_WEIGHT = [
     0.224,
     0.222,

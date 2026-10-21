@@ -153,9 +153,9 @@ class _AchievementFullReverseCalculatorState
     return BackgroundPageScaffold(
       title: '达成率反推',
       resizeToAvoidBottomInset: false,
-      contentPadding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom + 10),
+      contentPadding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
       child: SingleChildScrollView(
-        padding: EdgeInsets.all(screenWidth * 0.04), // padding 为屏幕宽度的4%
+        padding: EdgeInsets.fromLTRB(screenWidth * 0.04, 8, screenWidth * 0.04, screenWidth * 0.04),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [

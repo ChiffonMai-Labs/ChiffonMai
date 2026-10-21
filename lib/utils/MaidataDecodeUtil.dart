@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/foundation.dart';
 import '../entity/DivingFish/Song.dart';
 
@@ -621,7 +622,7 @@ class MaidataDecodeUtil {
     } else if (cabinet.toUpperCase() == 'SD') {
       return 'SD';
     } else {
-      return 'UTAGE';
+      return ChartDifficulty.utageLabel;
     }
   }
   
@@ -737,15 +738,7 @@ class ChartData {
   });
 
   String get difficultyName {
-    switch (difficultyIndex) {
-      case 1: return 'EASY';
-      case 2: return 'BASIC';
-      case 3: return 'ADVANCED';
-      case 4: return 'EXPERT';
-      case 5: return 'MASTER';
-      case 6: return 'Re:MASTER';
-      default: return 'UNKNOWN';
-    }
+    return ChartDifficulty.maidataLabelOf(difficultyIndex);
   }
 }
 

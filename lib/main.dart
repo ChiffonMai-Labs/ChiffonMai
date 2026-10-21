@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:just_audio_background/just_audio_background.dart';
 import 'package:my_first_flutter_app/manager/LZYCheckUpdateManager.dart';
+import 'package:my_first_flutter_app/page/AppEntryPage.dart';
 import 'package:my_first_flutter_app/page/AppShell.dart';
 import 'package:my_first_flutter_app/page/SplashPage.dart';
 import 'package:my_first_flutter_app/service/Portable/PortablePlayerController.dart';
@@ -15,7 +16,7 @@ import 'package:my_first_flutter_app/utils/FavoriteFeaturesNotifier.dart';
 import 'package:my_first_flutter_app/utils/FavoriteImportFlow.dart';
 import 'package:my_first_flutter_app/utils/LoginStateNotifier.dart';
 import 'package:my_first_flutter_app/utils/SecureCredentialStore.dart';
-import 'package:my_first_flutter_app/utils/PlayerThemeScope.dart';
+
 import 'package:my_first_flutter_app/utils/ThemeManager.dart';
 import 'package:my_first_flutter_app/utils/UpdateNotifier.dart';
 import 'package:my_first_flutter_app/utils/UserProfileNotifier.dart';
@@ -93,6 +94,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   /// 正在处理导入（避免冷启动时 pending + 实时推送把同一个文件导两次）
   bool _handlingIncoming = false;
+  bool _initialImportChecked = false;
   String? _lastHandledPath;
 
   @override
@@ -129,8 +131,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   /// App 进入时检查一次更新，把结果写进 [UpdateNotifier]。
   ///
   /// 作用只是**点亮「发现新版本」按钮**（系统 Hub 页的「检查更新」会变成绿色圆环
-  /// 箭头），不弹窗 —— 弹窗仍由 `HomePage._autoCheckUpdate` 按「3 天内不提示」
-  /// 的规则决定；两处共用同一次网络请求（`checkUpdate()` 内部做了去重）。
+  /// 箭头），不弹窗 —— AppEntryPage 在引导、公告结束后按「3 天内不提示」
+  /// 的规则处理弹窗；两处共用同一次网络请求（checkUpdate 内部做了去重）。
   ///
   /// 刻意**不 await**：检查要联网，不能拖慢启动。
   void _checkUpdateForBadge() {
@@ -171,6 +173,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       // 非 Android 平台没有这个通道，正常忽略
     } catch (e) {
       debugPrint('[open_file] 读取启动导入文件失败: $e');
+    } finally {
+      _initialImportChecked = true;
     }
   }
 
@@ -286,72 +290,70 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
               ? AppTheme.pureBlackTheme(seedColor: seedColor)
               : AppTheme.darkTheme(seedColor: seedColor),
         );
-        // 播放页存活期间，在 MaterialApp 层强制深色主题（详见 PlayerThemeScope）。
-        // 必须在 theme/themeMode 上强制，而不是在 builder 里包一层 Theme：
-        // simai_flutter 的游玩/导出页没有自己的背景色，浅色主题下会透出后面全黑的
-        // 播放器，出现「黑底 + 深色文字」看不清的情况。
-        return ValueListenableBuilder<bool>(
-          valueListenable: PlayerThemeScope.forceDarkTheme,
-          builder: (context, forceDark, _) {
-            return MaterialApp(
-              debugShowCheckedModeBanner: false,
-              navigatorKey: _navigatorKey,
-              navigatorObservers: [_FocusClearingNavigatorObserver()],
-              home: AppShell(onFirstFrameRendered: _loadFonts),
-              theme: forceDark ? darkThemeData : lightThemeData,
-              darkTheme: darkThemeData,
-              themeMode: forceDark ? ThemeMode.dark : themeMode,
-              localizationsDelegates: const [
-                GlobalMaterialLocalizations.delegate,
-                GlobalWidgetsLocalizations.delegate,
-                GlobalCupertinoLocalizations.delegate,
-              ],
-              supportedLocales: const [Locale('zh', 'CN'), Locale('en', 'US')],
-              // 强制深色时立即切换，避免主题渐变在播放器页面上再闪一下
-              themeAnimationDuration:
-                  forceDark ? Duration.zero : kThemeAnimationDuration,
-              builder: (context, child) {
-                return MediaQuery(
-                  data: MediaQuery.of(context).copyWith(textScaleFactor: 1.0),
-                  child: DefaultTextStyle(
-                    style: _fontsLoaded ? AppTheme.font() : const TextStyle(),
-                    // 随身听悬浮球挂在**这里**（MaterialApp.builder），而不是
-                    // AppShell 的 body 里 —— 这是关键：
-                    //   MaterialApp.builder 包住的是 Navigator，所以悬浮球在**所有
-                    //   路由之上**，任何 push 出来的功能页（乐曲查询、Best50、随身听…）
-                    //   都能看到它。
-                    //   之前放在 AppShell.body 里，功能页是 push 到 AppShell 之上的
-                    //   新路由，球会被完全盖住 —— 表现就是「进具体功能页只听到声音、
-                    //   看不到球」。
-                    child: Stack(
-                      children: [
-                        if (child != null) child,
-                        // 随身听悬浮球：自己判断该不该显示（没在放歌、
-                        // 或随身听页面正开着时都返回空盒子）。
-                        Positioned.fill(
-                          child: PortablePlayerBall(
-                            // 这里的 context（builder 的）在 Navigator **之上**，
-                            // 弹层/跳转都得用 Navigator 自己的 overlay context，
-                            // 否则 `Navigator.of` 会抛「does not include a
-                            // Navigator」—— 表现就是「点球没反应」。
-                            navigatorKey: _navigatorKey,
-                            onOpenLibrary: () {
-                              final navigatorContext =
-                                  _navigatorKey.currentState?.overlay?.context;
-                              if (navigatorContext == null) {
-                                return Future<void>.value();
-                              }
-                              return AppShell.openPortablePlayerPage(
-                                navigatorContext,
-                              );
-                            },
-                          ),
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          navigatorKey: _navigatorKey,
+          navigatorObservers: [_FocusClearingNavigatorObserver()],
+          home: AppEntryPage(
+              onFirstFrameRendered: _loadFonts,
+              canPresentStartup: () =>
+                  _initialImportChecked && !_handlingIncoming),
+          theme: lightThemeData,
+          darkTheme: darkThemeData,
+          themeMode: themeMode,
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: const [Locale('zh', 'CN'), Locale('en', 'US')],
+          builder: (context, child) {
+            final theme = Theme.of(context);
+            return MediaQuery(
+              data: MediaQuery.of(context).copyWith(textScaleFactor: 1.0),
+              child: AnnotatedRegion<SystemUiOverlayStyle>(
+                value: AppTheme.systemUiOverlayStyle(
+                  theme.brightness,
+                  navigationBarColor: theme.colorScheme.surface,
+                ),
+                child: DefaultTextStyle(
+                  style: _fontsLoaded ? AppTheme.font() : const TextStyle(),
+                  // 随身听悬浮球挂在**这里**（MaterialApp.builder），而不是
+                  // AppShell 的 body 里 —— 这是关键：
+                  //   MaterialApp.builder 包住的是 Navigator，所以悬浮球在**所有
+                  //   路由之上**，任何 push 出来的功能页（乐曲查询、Best50、随身听…）
+                  //   都能看到它。
+                  //   之前放在 AppShell.body 里，功能页是 push 到 AppShell 之上的
+                  //   新路由，球会被完全盖住 —— 表现就是「进具体功能页只听到声音、
+                  //   看不到球」。
+                  child: Stack(
+                    children: [
+                      if (child != null) child,
+                      // 随身听悬浮球：自己判断该不该显示（没在放歌、
+                      // 或随身听页面正开着时都返回空盒子）。
+                      Positioned.fill(
+                        child: PortablePlayerBall(
+                          // 这里的 context（builder 的）在 Navigator **之上**，
+                          // 弹层/跳转都得用 Navigator 自己的 overlay context，
+                          // 否则 `Navigator.of` 会抛「does not include a
+                          // Navigator」—— 表现就是「点球没反应」。
+                          navigatorKey: _navigatorKey,
+                          onOpenLibrary: () {
+                            final navigatorContext =
+                                _navigatorKey.currentState?.overlay?.context;
+                            if (navigatorContext == null) {
+                              return Future<void>.value();
+                            }
+                            return AppShell.openPortablePlayerPage(
+                              navigatorContext,
+                            );
+                          },
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                );
-              },
+                ),
+              ),
             );
           },
         );

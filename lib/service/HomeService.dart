@@ -64,7 +64,7 @@ class HomeService {
       await maidataManager.initialize();
       
       // 如果缓存未就绪或过期，获取全量maidata
-      if (!maidataManager.isCacheReady) {
+      if (!maidataManager.isFullCacheReady) {
         debugPrint('Maidata缓存未就绪，开始获取全量maidata...');
         onProgress('正在获取全量Maidata数据...\n（首次加载可能较慢，请耐心等待）');
         await maidataManager.fetchAndCacheFullMaidata();

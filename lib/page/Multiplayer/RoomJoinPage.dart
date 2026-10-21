@@ -64,7 +64,7 @@ class _RoomJoinPageState extends State<RoomJoinPage> {
       contentPadding:
           EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom + 10),
       child: SingleChildScrollView(
-        padding: EdgeInsets.all(paddingM),
+        padding: EdgeInsets.fromLTRB(paddingM, 8, paddingM, paddingM),
         child: Padding(
           padding: EdgeInsets.only(
               bottom: MediaQuery.of(context).viewInsets.bottom + paddingL),

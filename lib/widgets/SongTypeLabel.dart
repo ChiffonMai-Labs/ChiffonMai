@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import '../utils/AppTheme.dart';
 
@@ -9,10 +10,10 @@ class SongTypeLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final brightness = Theme.of(context).brightness;
-    final utage = songId.length == 6 || type == 'UTAGE';
+    final utage = songId.length == 6 || type == ChartDifficulty.utageLabel;
     return Text(
         utage
-            ? 'UTAGE'
+            ? ChartDifficulty.utageLabel
             : type == 'DX'
                 ? 'DX'
                 : 'ST',

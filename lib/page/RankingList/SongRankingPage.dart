@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -33,8 +34,7 @@ class SongRankingPage extends StatefulWidget {
 
   /// 该曲是否 extra（宴会场 / maidata 追加 / union 独有）。
   ///
-  /// 版本显示必须带上它：extra 曲目没有国服世代年号，
-  /// 漏判就会显示成 `DX 2026 彩` 这种官方世代名（详见 StringUtil 的 extra 口径）。
+  /// 其它追加曲使用 extra 版本名；宴谱虽属于非正曲，版本仍按常规世代显示。
   final bool isExtra;
   final double difficultyDs;
 
@@ -400,15 +400,15 @@ class _SongRankingPageState extends State<SongRankingPage> {
     }
 
     switch (difficultyIndex) {
-      case 0: // BASIC
+      case ChartDifficulty.basic: // BASIC
         return Color(0xFF4CAF50); // 绿色
-      case 1: // ADVANCED
+      case ChartDifficulty.advanced: // ADVANCED
         return Color(0xFFFF9800); // 橙色
-      case 2: // EXPERT
+      case ChartDifficulty.expert: // EXPERT
         return Color(0xFFE91E63); // 红色
-      case 3: // MASTER
+      case ChartDifficulty.master: // MASTER
         return Color(0xFF9966CC); // 紫色
-      case 4: // Re:MASTER
+      case ChartDifficulty.reMaster: // Re:MASTER
         return Color(0xFF9C27B0); // 深紫色
       default:
         return Color(0xFF9966CC);
@@ -422,15 +422,15 @@ class _SongRankingPageState extends State<SongRankingPage> {
     }
 
     switch (difficultyIndex) {
-      case 0: // BASIC
+      case ChartDifficulty.basic: // BASIC
         return Color(0xFFE8F5E9); // 浅绿色
-      case 1: // ADVANCED
+      case ChartDifficulty.advanced: // ADVANCED
         return Color(0xFFFFF3E0); // 浅橙色
-      case 2: // EXPERT
+      case ChartDifficulty.expert: // EXPERT
         return Color(0xFFFCE4EC); // 浅红色
-      case 3: // MASTER
+      case ChartDifficulty.master: // MASTER
         return Color(0xFFE9D8FF); // 浅紫色
-      case 4: // Re:MASTER
+      case ChartDifficulty.reMaster: // Re:MASTER
         return Color(0xFFF3E5F5); // 浅粉色
       default:
         return Color(0xFFE9D8FF);
@@ -457,7 +457,7 @@ class _SongRankingPageState extends State<SongRankingPage> {
                 // UTAGE歌曲全部显示为UTAGE，否则按下标显示标准标签
                 final bool isUtage = widget.songId.length == 6;
                 String levelLabel =
-                    isUtage ? 'UTAGE' : _getDifficultyLabelByIndex(index);
+                    isUtage ? ChartDifficulty.utageLabel : _getDifficultyLabelByIndex(index);
                 double ds = dsList[index] is num
                     ? (dsList[index] as num).toDouble()
                     : 0.0;
@@ -543,36 +543,18 @@ class _SongRankingPageState extends State<SongRankingPage> {
   }
 
   String _getDifficultyLabelByIndex(int index) {
-    switch (index) {
-      case 0:
-        return 'BASIC';
-      case 1:
-        return 'ADVANCED';
-      case 2:
-        return 'EXPERT';
-      case 3:
-        return 'MASTER';
-      case 4:
-        return 'Re:MASTER';
-      default:
-        return 'BASIC';
-    }
+    return ChartDifficulty.labelOf(index, fallback: ChartDifficulty.basicLabel);
   }
 
   String _formatDifficultyLabel(String label) {
-    String lowerLabel = label.toLowerCase();
-    if (lowerLabel.contains('basic')) {
-      return 'BASIC';
-    } else if (lowerLabel.contains('advanced')) {
-      return 'ADVANCED';
-    } else if (lowerLabel.contains('expert')) {
-      return 'EXPERT';
-    } else if (lowerLabel.contains('master') && !lowerLabel.contains('re:')) {
-      return 'MASTER';
-    } else if (lowerLabel.contains('re:master')) {
-      return 'Re:MASTER';
-    } else if (lowerLabel.contains('utage')) {
-      return 'UTAGE';
+    final index = ChartDifficulty.indexOf(label);
+    if (index != null) return ChartDifficulty.labelOf(index);
+    // 兼容调用方传入“难度名 + 等级”的旧文案，先检查 Re:MASTER，避免误认成 MASTER。
+    final compact = label.toUpperCase().replaceAll(':', '');
+    for (final index in [ChartDifficulty.reMaster, ...ChartDifficulty.indices]) {
+      if (compact.contains(ChartDifficulty.labelOf(index).toUpperCase().replaceAll(':', ''))) {
+        return ChartDifficulty.labelOf(index);
+      }
     }
     return label.toUpperCase();
   }
@@ -881,7 +863,7 @@ class _SongRankingPageState extends State<SongRankingPage> {
 
     if (isUtage) {
       return Text(
-        'UTAGE',
+        ChartDifficulty.utageLabel,
         style: TextStyle(
           fontSize: 16,
           fontWeight: FontWeight.bold,
@@ -932,7 +914,7 @@ class _SongRankingPageState extends State<SongRankingPage> {
           ),
       ],
       contentPadding:
-          EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom + 10),
+          EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
       child: Column(children: [
         // 歌曲信息区域 - 固定宽高，左侧曲绘，右侧信息
         Container(
@@ -991,7 +973,9 @@ class _SongRankingPageState extends State<SongRankingPage> {
                           Expanded(
                             child: Text(
                               StringUtil.formatVersion2WithFlag(
-                                  widget.from, widget.isExtra),
+                                  widget.from,
+                                  widget.isExtra && !ChartDifficulty.isUtageSong(
+                                      widget.songId, type: widget.songType)),
                               style: TextStyle(
                                 fontSize: 12,
                                 color: AppColors.greyHint(brightness),

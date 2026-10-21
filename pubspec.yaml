@@ -18,7 +18,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # of the product and file versions while build-number is used as the build suffix.
 
 # version: 1.12.2+35
-version: 2.7.2+48
+version: 2.8.0-beta+50
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -78,7 +78,7 @@ dependencies:
   pinyin: ^3.3.0
   kana_kit: ^2.1.1
   jp_transliterate: ^1.0.5
-  simai_flutter: ^0.4.1
+  simai_flutter: 0.5.0
   flame: 1.37.0
   redis: ^4.0.0
   flutter_map: ^7.0.2
@@ -102,6 +102,7 @@ dependencies:
   # _ColorPickerDialog / _ColorPickerArea）。
   http_parser: ^4.0.2  # multipart/form-data 媒体类型（ApiClient + OcrService）
   path: ^1.9.0  # 文件路径处理（SettingsPage 后台图片）
+  video_player: ^2.11.1
 
 dev_dependencies:
   flutter_test:

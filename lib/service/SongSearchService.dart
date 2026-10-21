@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
@@ -57,16 +58,14 @@ class SongSearchService {
   }
 
   // 获取所有谱师列表（去重，按名称排序）
-  static Future<List<String>> getCharterList() async {
+  static Future<List<String>> getCharterList({bool extraOnly = false}) async {
     try {
       final allSongs = await loadAllSongs();
       if (allSongs == null) return [];
 
       final Set<String> charters = {};
       for (final song in allSongs) {
-        if (song.id.length == 6 && int.tryParse(song.id) != null) continue;
-        if (song.isExtra) continue;
-        if (song.cids.isNotEmpty && song.cids.every((cid) => cid == 0)) continue;
+        if (!_includeInFilterList(song, extraOnly)) continue;
         for (final chart in song.charts) {
           final charter = chart.charter.trim();
           if (charter.isNotEmpty) {
@@ -82,16 +81,14 @@ class SongSearchService {
   }
 
   // 获取所有曲师列表（去重，按名称排序）
-  static Future<List<String>> getArtistList() async {
+  static Future<List<String>> getArtistList({bool extraOnly = false}) async {
     try {
       final allSongs = await loadAllSongs();
       if (allSongs == null) return [];
 
       final Set<String> artists = {};
       for (final song in allSongs) {
-        if (song.id.length == 6 && int.tryParse(song.id) != null) continue;
-        if (song.isExtra) continue;
-        if (song.cids.isNotEmpty && song.cids.every((cid) => cid == 0)) continue;
+        if (!_includeInFilterList(song, extraOnly)) continue;
         final artist = song.basicInfo.artist.trim();
         if (artist.isNotEmpty) {
           artists.add(artist);
@@ -102,6 +99,15 @@ class SongSearchService {
       debugPrint('获取曲师列表时出错: $e');
       return [];
     }
+  }
+
+  /// 非国服入口只认 isExtra，不把宴谱或 maidata 的其它判定混入这个范围。
+  static bool _includeInFilterList(Song song, bool extraOnly) {
+    if (extraOnly) return song.isExtra;
+    if (song.id.length == 6 && int.tryParse(song.id) != null) return false;
+    if (song.isExtra) return false;
+    if (song.cids.isNotEmpty && song.cids.every((cid) => cid == 0)) return false;
+    return true;
   }
 
   // 根据标签筛选歌曲（支持复选，满足所选标签集中的一个即可）
@@ -127,21 +133,21 @@ class SongSearchService {
       // ST歌曲（song.id长度为5）
       if (song.id.length == 5) {
         // ST歌曲有4个难度：Basic, Advanced, Expert, Master
-        for (String diff in ['Basic', 'Advanced', 'Expert', 'Master']) {
+        for (String diff in ChartDifficulty.legacyLabels.take(4)) {
           possibleKeys.add('${song.id}#ST#$diff');
         }
       }
       // DX歌曲（song.id长度为5，type为'DX'）
       if (song.id.length == 5 && song.type == 'DX') {
         // DX歌曲额外有4个难度：Basic, Advanced, Expert, Master
-        for (String diff in ['Basic', 'Advanced', 'Expert', 'Master']) {
+        for (String diff in ChartDifficulty.legacyLabels.take(4)) {
           possibleKeys.add('${song.id}#DX#$diff');
         }
       }
       // UTAGE歌曲（song.id长度为6）
       if (song.id.length == 6) {
         // UTAGE歌曲通常只有一个谱面类型
-        for (String diff in ['Basic', 'Advanced', 'Expert', 'Master']) {
+        for (String diff in ChartDifficulty.legacyLabels.take(4)) {
           possibleKeys.add('${song.id}#UTAGE#$diff');
         }
       }

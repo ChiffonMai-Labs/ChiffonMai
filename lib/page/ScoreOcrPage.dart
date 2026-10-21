@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:my_first_flutter_app/widgets/NoRipple.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -263,31 +264,11 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
 
   /// 难度名 → 索引
   static int? _difficultyIndexOf(String? difficulty) {
-    switch (difficulty?.toLowerCase()) {
-      case 'basic':
-        return 0;
-      case 'advanced':
-        return 1;
-      case 'expert':
-        return 2;
-      case 'master':
-        return 3;
-      case 'remaster':
-        return 4;
-      default:
-        return null; // utage 不在 0-4 里（宴谱是独立 song_id，不走这套索引）
-    }
+    return ChartDifficulty.standardIndexOf(difficulty);
   }
 
   /// 索引 → 玩家看到的难度名
-  static String _difficultyNameOf(int index) => switch (index) {
-        0 => 'BASIC',
-        1 => 'ADVANCED',
-        2 => 'EXPERT',
-        3 => 'MASTER',
-        4 => 'Re:MASTER',
-        _ => '难度 $index',
-      };
+  static String _difficultyNameOf(int index) => ChartDifficulty.labelOf(index, fallback: '难度 $index');
 
   /// 该歌曲在 [index] 这个难度上的等级（没有则为 null）
   static String? _levelAtIndex(Song song, int index) {
@@ -1525,7 +1506,7 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
   Widget _buildPickerRow(BuildContext ctx, Song song, Brightness brightness) {
     final bool isUtage = song.id.length == 6;
     final String typeLabel =
-        isUtage ? 'UTAGE' : (song.type == 'SD' ? 'ST' : 'DX');
+        isUtage ? ChartDifficulty.utageLabel : (song.type == 'SD' ? 'ST' : 'DX');
     final Color typeColor = isUtage
         ? const Color(0xFFFF6B8B)
         : (song.type == 'SD'
@@ -1589,7 +1570,7 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
 
   Widget _buildContent(double sw, Color c) {
     return SingleChildScrollView(
-      padding: EdgeInsets.all(sw * 0.04),
+      padding: EdgeInsets.fromLTRB(sw * 0.04, 8, sw * 0.04, sw * 0.04),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
@@ -2350,41 +2331,14 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
 
   /// 服务端 difficulty → 展示文案；未知值返回 null（不渲染徽章）
   String? _difficultyLabel(String? difficulty) {
-    switch (difficulty) {
-      case 'basic':
-        return 'BASIC';
-      case 'advanced':
-        return 'ADVANCED';
-      case 'expert':
-        return 'EXPERT';
-      case 'master':
-        return 'MASTER';
-      case 'remaster':
-        return 'Re:MASTER';
-      case 'utage':
-        return '宴会场';
-      default:
-        return null;
-    }
+    final index = ChartDifficulty.indexOf(difficulty);
+    return index == null ? null : ChartDifficulty.labelOf(index);
   }
 
   /// 服务端 difficulty → 难度色索引（0-4）。
   /// 宴会场不在这个体系里，返回 null 由调用方兜底。
   int? _difficultyIndex(String? difficulty) {
-    switch (difficulty) {
-      case 'basic':
-        return 0;
-      case 'advanced':
-        return 1;
-      case 'expert':
-        return 2;
-      case 'master':
-        return 3;
-      case 'remaster':
-        return 4;
-      default:
-        return null;
-    }
+    return ChartDifficulty.standardIndexOf(difficulty);
   }
 
   /// 达成率 → 评级文案（阈值沿用项目里 UserScoreSearchPage 的口径）。

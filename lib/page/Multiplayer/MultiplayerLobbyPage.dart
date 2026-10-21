@@ -200,15 +200,13 @@ class _MultiplayerLobbyPageState extends State<MultiplayerLobbyPage> {
       title: '多人游戏',
       contentPadding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom + 10),
       child: SingleChildScrollView(
-                    padding: EdgeInsets.all(paddingM),
+                    padding: EdgeInsets.fromLTRB(paddingM, 8, paddingM, paddingM),
                     child: Column(
                       children: [
                         // 还在房间里（切后台/被杀重开后被服务端接回座位）→ 给一个返回入口
                         if (_manager.currentRoom != null)
                           _buildReturnRoomBanner(_manager.currentRoom!),
 
-                        SizedBox(height: screenHeight * 0.15),
-                        
                         SizedBox(
                           width: double.infinity,
                           height: 150 * scaleFactor,

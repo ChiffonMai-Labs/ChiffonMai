@@ -7,6 +7,7 @@ import 'PersonalizedScorePage.dart';
 import 'PaiziProgressPage.dart';
 import 'Collection/CollectionSearchPage.dart';
 import 'UnionUpdateComparePage.dart';
+import 'History/ScoreImprovementHistoryPage.dart';
 
 class LibraryHubPage extends StatefulWidget {
   const LibraryHubPage({super.key});
@@ -16,8 +17,10 @@ class LibraryHubPage extends StatefulWidget {
 }
 
 class _LibraryHubPageState extends State<LibraryHubPage> {
-  void _open(BuildContext context, Widget page) =>
-      Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+  void _open(BuildContext context, Widget page) {
+    FocusManager.instance.primaryFocus?.unfocus();
+    Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+  }
 
   bool _isFavorited(String title) =>
       FavoriteFeaturesNotifier.titles.contains(title);
@@ -38,7 +41,7 @@ class _LibraryHubPageState extends State<LibraryHubPage> {
             title: '曲库入口',
             icon: Icons.search_rounded,
             subtitle: '搜索与浏览舞萌曲库',
-            badgeCount: 2,
+            badgeCount: 3,
             children: [
               HubActionTile(
                 title: '乐曲查询',
@@ -47,6 +50,14 @@ class _LibraryHubPageState extends State<LibraryHubPage> {
                 isFavorited: _isFavorited('乐曲查询'),
                 onToggleFavorite: () => _toggleFavorite('乐曲查询'),
                 onTap: () => _open(context, const SongSearchPage()),
+              ),
+              HubActionTile(
+                title: '非国服乐曲查询',
+                subtitle: '搜索与筛选非国服曲库',
+                icon: Icons.travel_explore_rounded,
+                isFavorited: _isFavorited('非国服乐曲查询'),
+                onToggleFavorite: () => _toggleFavorite('非国服乐曲查询'),
+                onTap: () => _open(context, const SongSearchPage(extraOnly: true)),
               ),
               HubActionTile(
                 title: '国服更新对照',
@@ -62,8 +73,8 @@ class _LibraryHubPageState extends State<LibraryHubPage> {
           HubSection(
             title: '数据查询',
             icon: Icons.analytics_outlined,
-            subtitle: '成绩 · 个性化成绩 · 牌子进度 · 收藏品',
-            badgeCount: 4,
+            subtitle: '成绩 · 提升历史 · 牌子进度 · 收藏品',
+            badgeCount: 5,
             children: [
               HubActionTile(
                 title: '成绩查询',
@@ -80,6 +91,17 @@ class _LibraryHubPageState extends State<LibraryHubPage> {
                 isFavorited: _isFavorited('个性化成绩查询'),
                 onToggleFavorite: () => _toggleFavorite('个性化成绩查询'),
                 onTap: () => _open(context, const PersonalizedScorePage()),
+              ),
+              HubActionTile(
+                title: '成绩提升历史',
+                subtitle: '按日回顾最佳成绩的变化与提升',
+                icon: Icons.auto_graph_rounded,
+                isFavorited: _isFavorited('成绩提升历史'),
+                onToggleFavorite: () => _toggleFavorite('成绩提升历史'),
+                onTap: () {
+                  FocusManager.instance.primaryFocus?.unfocus();
+                  _open(context, const ScoreImprovementHistoryPage());
+                },
               ),
               HubActionTile(
                 title: '牌子进度',

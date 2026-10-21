@@ -567,18 +567,21 @@ class B50GameCardWidget extends StatelessWidget {
   /// 0 / 5.5 / 6 等其他星数用 SizedBox 强制占位为同图片尺寸，保证与有星卡片右边界对齐。
   /// [fontSize] 同时决定图片高度（fontSize * heightMultiplier）与占位尺寸。
   /// dxstars/*.png 实测尺寸 60×36，宽高比 = 5/3。
+  /// [compact] 用于前后变化对照：去掉图片左右透明边距和文本等宽占位。
+  /// 默认仍保留 B50 卡片需要的固定占位，不改变原有布局。
   static Widget buildStarsWidget(
     String stars,
     Color starsColor,
     double fontSize, {
     double heightMultiplier = 1.8,
+    bool compact = false,
   }) {
     const double starsAspect = 5 / 3;
     final match = RegExp(r'✦(\d+(?:\.\d+)?)').firstMatch(stars);
     if (match != null) {
       final n = double.tryParse(match.group(1)!);
       if (n != null && n >= 1 && n <= 5 && n == n.truncateToDouble()) {
-        return Image.asset(
+        final image = Image.asset(
           'assets/dxstars/${n.toInt()}.png',
           height: fontSize * heightMultiplier,
           fit: BoxFit.contain,
@@ -597,6 +600,23 @@ class B50GameCardWidget extends StatelessWidget {
             ),
           ),
         );
+        if (!compact) return image;
+        // 原图左右透明边距并不一致，按可见像素范围裁切，避免箭头旁出现额外空隙。
+        const bounds = {
+          1: (left: 20.0, width: 20.0),
+          2: (left: 12.0, width: 36.0),
+          3: (left: 12.0, width: 36.0),
+          4: (left: 8.0, width: 45.0),
+          5: (left: 3.0, width: 57.0),
+        };
+        final crop = bounds[n.toInt()]!;
+        return ClipRect(
+          child: Align(
+            widthFactor: crop.width / 60,
+            alignment: Alignment(2 * crop.left / (60 - crop.width) - 1, 0),
+            child: image,
+          ),
+        );
       }
     }
     // ✦0 / ✦5.5 / ✦6 等情况：用占位 SizedBox 保持与有星卡片对齐；
@@ -606,45 +626,80 @@ class B50GameCardWidget extends StatelessWidget {
     // 只描上下左右 4 个方向时，字形的斜角会露出缝隙，补上 4 个对角方向才是完整一圈。
     // ✦ 与数字拆成 Row 用 baseline 对齐，避免 ✦ 与数字上下错位。
     final bool needsStroke = stars == '✦6' || stars == '✦5.5';
-    final String digits =
-        stars.startsWith('✦') ? stars.substring(1) : stars;
+    final String digits = stars.startsWith('✦') ? stars.substring(1) : stars;
     final TextStyle starStyle = TextStyle(
       fontSize: fontSize * 1.5,
       color: starsColor,
       fontWeight: FontWeight.w900,
-      height: 1.0,
+      // height=1.0 会把 5.5 / 6 的上下字形和描边压进紧边界，
+      // 在部分 dpr 下看起来像上下各缺了一小段黑边。
+      height: 1.12,
       shadows: needsStroke
           ? const [
-              Shadow(color: Colors.black87, offset: Offset(-1.0, 0), blurRadius: 0),
-              Shadow(color: Colors.black87, offset: Offset(1.0, 0), blurRadius: 0),
-              Shadow(color: Colors.black87, offset: Offset(0, -1.0), blurRadius: 0),
-              Shadow(color: Colors.black87, offset: Offset(0, 1.0), blurRadius: 0),
-              Shadow(color: Colors.black87, offset: Offset(-1.0, -1.0), blurRadius: 0),
-              Shadow(color: Colors.black87, offset: Offset(1.0, -1.0), blurRadius: 0),
-              Shadow(color: Colors.black87, offset: Offset(-1.0, 1.0), blurRadius: 0),
-              Shadow(color: Colors.black87, offset: Offset(1.0, 1.0), blurRadius: 0),
+              Shadow(
+                  color: Colors.black87,
+                  offset: Offset(-1.0, 0),
+                  blurRadius: 0),
+              Shadow(
+                  color: Colors.black87, offset: Offset(1.0, 0), blurRadius: 0),
+              Shadow(
+                  color: Colors.black87,
+                  offset: Offset(0, -1.0),
+                  blurRadius: 0),
+              Shadow(
+                  color: Colors.black87, offset: Offset(0, 1.0), blurRadius: 0),
+              Shadow(
+                  color: Colors.black87,
+                  offset: Offset(-1.0, -1.0),
+                  blurRadius: 0),
+              Shadow(
+                  color: Colors.black87,
+                  offset: Offset(1.0, -1.0),
+                  blurRadius: 0),
+              Shadow(
+                  color: Colors.black87,
+                  offset: Offset(-1.0, 1.0),
+                  blurRadius: 0),
+              Shadow(
+                  color: Colors.black87,
+                  offset: Offset(1.0, 1.0),
+                  blurRadius: 0),
             ]
           : null,
     );
+    // 给描边留出与字号成比例的上下安全区；固定高度刚好等于图片高度时，
+    // 5.5 / 6 的上下阴影会在小卡片和高 dpr 下被父级裁掉。
+    final double textBoxHeight = fontSize * (heightMultiplier + 0.35);
     return SizedBox(
-      width: fontSize * heightMultiplier * starsAspect,
-      height: fontSize * heightMultiplier,
+      width: compact ? null : fontSize * heightMultiplier * starsAspect,
+      height: textBoxHeight,
       child: Center(
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              // ✦ 在很多字体里视觉重心偏低，整体上移 1.5 让它和数字看起来一样高
-              Transform.translate(
-                offset: const Offset(0, -1.5),
-                child: Text('✦', style: starStyle),
+        widthFactor: compact ? 1 : null,
+        // 紧凑模式只移除多余占位，缩放上限仍与原星数文本一致。
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+              maxWidth: compact
+                  ? fontSize * heightMultiplier * starsAspect
+                  : double.infinity),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: fontSize * 0.08),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  // ✦ 在很多字体里视觉重心偏低，按字号比例轻微上移。
+                  Transform.translate(
+                    offset: Offset(0, -fontSize * 0.08),
+                    child: Text('✦', style: starStyle),
+                  ),
+                  const SizedBox(width: 1.5),
+                  Text(digits, style: starStyle),
+                ],
               ),
-              const SizedBox(width: 1.5),
-              Text(digits, style: starStyle),
-            ],
+            ),
           ),
         ),
       ),

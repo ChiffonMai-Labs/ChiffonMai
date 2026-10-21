@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -5,13 +6,14 @@ import 'package:my_first_flutter_app/widgets/ExportSuccessDialog.dart';
 import 'package:flutter/services.dart';
 import 'package:archive/archive.dart';
 import 'package:image/image.dart' as img;
-import 'package:path_provider/path_provider.dart';
 import '../utils/CoverUtil.dart';
 import '../utils/AppTheme.dart';
 import '../utils/ExportPathUtil.dart';
 import '../service/SongMaidataPageService.dart';
 import '../service/DxRatingCoverService.dart';
-import '../service/SongPlayService.dart';
+import '../service/SongMediaCache.dart';
+import '../api/ApiUrls.dart';
+import '../service/ChartPlaySettingsStore.dart';
 import '../manager/MaidataManager.dart';
 import '../widgets/BackgroundPageScaffold.dart';
 import 'ChartPlayPage.dart';
@@ -39,13 +41,14 @@ class SongMaidataPage extends StatefulWidget {
 
 class _SongMaidataPageState extends State<SongMaidataPage> {
   bool _isLoading = true;
-  bool _isFetchingFullCache = false;
   bool _isExporting = false;
   String _maidataContent = '';
   String? _errorMessage;
   List<String> _inoteList = [];
   String? _selectedInote;
   String? _displayedInote; // 当前显示的难度
+  bool _loadAudio = true;
+
   /// 公开目录不可写时，记录实际落盘的私有路径，用于在成功弹窗里提示用户
   String? _fallbackPath;
   final ScrollController _scrollController = ScrollController();
@@ -61,35 +64,24 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
       genre: widget.genre,
       songType: widget.songType,
     );
-    _checkAndFetchFullCache();
+    _loadAudioPreference();
+    _loadMaidata();
   }
 
-  Future<void> _checkAndFetchFullCache() async {
+  Future<void> _loadAudioPreference() async {
+    final value = await ChartPlayAudioPreference.load();
+    if (mounted) setState(() => _loadAudio = value);
+  }
+
+  Future<void> _loadMaidata() async {
+    // 单曲页面按需读取，不因缺少全量缓存而先下载整个谱面库。
     await MaidataManager().initialize();
-
-    if (!MaidataManager().isCacheReady) {
-      setState(() {
-        _isFetchingFullCache = true;
-      });
-
-      debugPrint('[DEBUG][SongMaidataPage] 全量缓存不存在，开始拉取...');
-
-      try {
-        await MaidataManager().fetchAndCacheFullMaidata();
-        debugPrint('[DEBUG][SongMaidataPage] 全量缓存拉取成功');
-      } catch (e) {
-        debugPrint('[DEBUG][SongMaidataPage] 全量缓存拉取失败，将使用独立缓存或网络请求: $e');
-      } finally {
-        setState(() {
-          _isFetchingFullCache = false;
-        });
-      }
-    }
-
-    _fetchMaidata();
+    if (!mounted) return;
+    await _fetchMaidata();
   }
 
   Future<void> _fetchMaidata() async {
+    if (!mounted) return;
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -98,6 +90,7 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
     try {
       String? content = await _service.fetchMaidata(
         onInoteParsed: (inoteList) {
+          if (!mounted) return;
           setState(() {
             _inoteList = inoteList;
             _selectedInote = null;
@@ -105,6 +98,7 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
         },
       );
 
+      if (!mounted) return;
       if (content != null) {
         setState(() {
           _maidataContent = content;
@@ -115,13 +109,12 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
         });
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _errorMessage = '获取谱面代码失败: $e';
       });
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -195,9 +188,8 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
     // 本地曲绘资源通常是 WebP，网络兜底也可能返回 PNG/JPEG。
     // 导出文件名固定为 bg.jpg 时必须同步转码，否则只是改后缀，
     // AstroDX 和文件管理器会按 JPEG 解码失败。
-    final coverBytes = rawCoverBytes == null
-        ? null
-        : _encodeCoverAsJpeg(rawCoverBytes);
+    final coverBytes =
+        rawCoverBytes == null ? null : _encodeCoverAsJpeg(rawCoverBytes);
     final audioBytes = await _getAudioBytes();
     return _ChartExportAssets(
       maidataBytes: maidataBytes,
@@ -423,96 +415,20 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
   /// 获取音源字节数据
   Future<Uint8List?> _getAudioBytes() async {
     try {
-      // 使用SongPlayService查找落雪歌曲ID
-      final songPlayService = SongPlayService();
-      String? luoXueSongId;
-
-      // 宴会场歌曲（6 位数 songId）：曲绘实际用的是 cover id，
-      // 落雪那边的歌曲 ID 与曲绘 ID 一致，所以用 cover id 就能找到对应的落雪歌曲。
-      // 例如: songId=100018 -> coverId=18 -> 落雪歌曲 id=18
-      if (widget.songId.length == 6) {
-        final coverId = CoverUtil.extractCoverId(widget.songId);
-        if (coverId.isNotEmpty && coverId != '0') {
-          luoXueSongId =
-              await songPlayService.findLuoXueSongIdByCoverId(coverId);
-        }
-      }
-
-      // 兜底：通过 title 和 type 查找（非宴会场歌曲，或宴会场 cover id 查不到时）
-      luoXueSongId ??= await songPlayService.findLuoXueSongId(
-        widget.songTitle,
-        widget.songType,
-      );
-
-      if (luoXueSongId == null) {
-        debugPrint('[DEBUG][SongMaidataPage] 未找到落雪歌曲ID，跳过音源导出');
-        return null;
-      }
-
-      final audioUrl =
-          'https://assets2.lxns.net/maimai/music/$luoXueSongId.mp3';
-
-      // 先检查本地缓存
-      final directory = await getApplicationDocumentsDirectory();
-      final cacheDir = Directory('${directory.path}/music_cache');
-      final cacheFilePath = '${cacheDir.path}/$luoXueSongId.mp3';
-      final cacheFile = File(cacheFilePath);
-
-      if (await cacheFile.exists()) {
-        debugPrint('[DEBUG][SongMaidataPage] 使用缓存的音源: $cacheFilePath');
-        return await cacheFile.readAsBytes();
-      }
-
-      // 从网络下载
-      debugPrint('[DEBUG][SongMaidataPage] 从网络下载音源: $audioUrl');
-      final response = await ApiClient.get(Uri.parse(audioUrl));
-      if (response.statusCode == 200) {
-        // 保存到缓存
-        if (!await cacheDir.exists()) {
-          await cacheDir.create(recursive: true);
-        }
-        try {
-          await cacheFile.writeAsBytes(response.bodyBytes);
-        } catch (_) {
-          // 缓存写入失败不影响使用
-        }
-        return response.bodyBytes;
-      } else {
-        debugPrint(
-            '[DEBUG][SongMaidataPage] 下载音源失败，状态码: ${response.statusCode}');
-      }
-    } catch (e) {
-      debugPrint('[DEBUG][SongMaidataPage] 获取音源失败: $e');
+      final id = SongMediaCache.audioIdFor(widget.songId);
+      final file = await SongMediaCache.instance.ensureAudio(widget.songId,
+          urls: [
+            if (id > 0) 'https://assets2.lxns.net/maimai/music/$id.mp3',
+            ApiUrls.wmcAudioUrl(widget.songId),
+          ]);
+      return await file.readAsBytes();
+    } catch (error) {
+      debugPrint('导出谱面包时准备音源失败: $error');
+      return null;
     }
-
-    return null;
   }
-
   void _navigateToChartPlay() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('提示'),
-          content: const Text('该功能对设备要求较高，可能会造成应用卡顿或闪退，是否继续？'),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: const Text('取消'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                _showDifficultySelector();
-              },
-              child: const Text('确定'),
-            ),
-          ],
-        );
-      },
-    );
+    _showDifficultySelector();
   }
 
   void _showDifficultySelector() {
@@ -526,12 +442,14 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
             songId: widget.songId,
             songType: widget.songType,
             selectedInote: null,
+            loadAudio: _loadAudio,
           ),
         ),
       );
       return;
     }
 
+    var loadAudio = _loadAudio;
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -551,6 +469,20 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
                     textAlign: TextAlign.center,
                   ),
                 ),
+                StatefulBuilder(
+                  builder: (context, setDialogState) => CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: loadAudio,
+                    title: const Text('加载音频'),
+                    subtitle: const Text('取消勾选可直接加载谱面，跳过音源下载'),
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setDialogState(() => loadAudio = value);
+                      _loadAudio = value;
+                      ChartPlayAudioPreference.save(value);
+                    },
+                  ),
+                ),
                 ..._inoteList.map((inote) {
                   String difficultyName = _getInoteDifficulty(inote);
                   Color inoteColor = _getInoteColor(inote);
@@ -568,6 +500,7 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
                               songId: widget.songId,
                               songType: widget.songType,
                               selectedInote: inote,
+                              loadAudio: loadAudio,
                             ),
                           ),
                         );
@@ -670,7 +603,7 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
 
     if (isUtage) {
       return Text(
-        'UTAGE',
+        ChartDifficulty.utageLabel,
         style: TextStyle(
           fontSize: 18,
           fontWeight: FontWeight.bold,
@@ -780,7 +713,7 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
               ),
             ],
       contentPadding:
-          EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom + 10),
+          EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
       child: Column(children: [
         Container(
           margin: const EdgeInsets.fromLTRB(4, 0, 4, 8),
@@ -922,34 +855,7 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
           ),
         ),
         Expanded(
-            child: _isFetchingFullCache
-                ? Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const CircularProgressIndicator(),
-                          const SizedBox(height: 16),
-                          const Text(
-                            '正在获取全量谱面缓存...',
-                            style: TextStyle(fontSize: 16),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            '首次进入需要拉取大量数据，请耐心等待',
-                            style: TextStyle(
-                                fontSize: 12,
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .onSurfaceVariant),
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
-                      ),
-                    ),
-                  )
-                : _isLoading
+            child: _isLoading
                     ? const Center(
                         child: CircularProgressIndicator(),
                       )

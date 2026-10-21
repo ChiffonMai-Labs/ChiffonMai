@@ -147,14 +147,12 @@ class ExportUserInfoWidget {
                                         ? nickname
                                         : '未知玩家'),
                                     fontSize: 36,
-                                    blurRadius: 7,
                                   ),
                                   const SizedBox(height: 5),
                                   // Best35 + Best15 — 字号 27，白色背景小标签
                                   _buildWhiteChip(
                                     'Best35: $best35Rating  |  Best15: $best15Rating',
                                     fontSize: 27,
-                                    blurRadius: 7,
                                   ),
                                 ],
                               ),
@@ -177,11 +175,9 @@ class ExportUserInfoWidget {
   /// 让文字在姓名框图片上仍清晰可读，同时不破坏整体设计风格。
   /// 自动内边距 + 圆角，长文本撑满父宽度（Expanded 上下文内）。
   /// 边框宽度跟字体大小成比例，避免大字号下边框太细。
-  /// [blurRadius] 文字阴影模糊半径，3x 姓名框统一用 8。
   static Widget _buildWhiteChip(
     String text, {
     required double fontSize,
-    double blurRadius = 7,
   }) {
     final borderWidth = (fontSize / 18).clamp(1.5, 4.0);
     return Container(
@@ -200,13 +196,8 @@ class ExportUserInfoWidget {
           fontSize: fontSize,
           color: Colors.black,
           fontWeight: FontWeight.w700,
-          shadows: [
-            Shadow(
-              color: Colors.black87,
-              blurRadius: blurRadius,
-              offset: const Offset(0, 1),
-            ),
-          ],
+          shadows: const [],
+          decoration: TextDecoration.none,
         ),
       ),
     );

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import '../widgets/AnimatedReveal.dart';
+import '../widgets/FavoriteStarButton.dart';
 import '../widgets/MainNavigationInsets.dart';
 import '../widgets/SmoothLinearProgressIndicator.dart';
 import '../utils/AppDesignTokens.dart';
+import '../utils/NavigationPreferences.dart';
 import '../widgets/MarqueeText.dart';
 
 /// Hub 页面通用组件库：Section、ActionTile、Scaffold。
@@ -73,6 +76,7 @@ class HubSection extends StatelessWidget {
   final IconData icon;
   final List<Widget> children;
   final int? badgeCount;
+  final Widget? trailing;
 
   const HubSection({
     super.key,
@@ -81,6 +85,7 @@ class HubSection extends StatelessWidget {
     required this.children,
     this.subtitle,
     this.badgeCount,
+    this.trailing,
   });
 
   @override
@@ -162,6 +167,10 @@ class HubSection extends StatelessWidget {
                   ],
                 ),
               ),
+              if (trailing != null) ...[
+                const SizedBox(width: 8),
+                trailing!,
+              ],
             ],
           ),
         ),
@@ -204,6 +213,9 @@ class HubActionTile extends StatelessWidget {
   /// 仅禁用（不显示 spinner / 不换文案）。用于「别的按钮在跑、暂时不让点」
   /// 的互斥场景。
   final bool disabled;
+  final String? disabledReason;
+  final Widget? trailingOverride;
+  final bool sorting;
 
   /// 处于「待二次确认」状态：标题 / 图标变 error 色（醒目提示），
   /// 但点击仍生效（onTap 触发父组件的确认逻辑）。5 秒内未再点会自动复位。
@@ -259,6 +271,9 @@ class HubActionTile extends StatelessWidget {
     this.loading = false,
     this.loadingText,
     this.disabled = false,
+    this.disabledReason,
+    this.trailingOverride,
+    this.sorting = false,
     this.awaitingConfirm = false,
     this.progressCurrent,
     this.progressTotal,
@@ -286,6 +301,42 @@ class HubActionTile extends StatelessWidget {
     final bool _hasProgress =
         loading && (progressTotal ?? 0) > 0 && progressCurrent != null;
     final hasProgressBar = loading && (_hasProgress || showProgress);
+    final trailing = trailingOverride ??
+        (loading
+            ? hasProgressBar
+                ? const SizedBox(width: 20, height: 20) // 进度条替代 spinner
+                : SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.2,
+                      color: scheme.primary,
+                    ),
+                  )
+            : _showStar
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      FavoriteStarButton(
+                        isFavorited: isFavorited!,
+                        onTap: onToggleFavorite!,
+                      ),
+                      const SizedBox(width: 2),
+                      Icon(
+                        Icons.chevron_right,
+                        color: scheme.onSurfaceVariant.withValues(alpha: 0.55),
+                        size: 20,
+                      ),
+                    ],
+                  )
+                : Icon(
+                    Icons.chevron_right,
+                    color: scheme.onSurfaceVariant.withValues(alpha: 0.55),
+                    size: 20,
+                  ));
+    final trailingAnimationDuration = MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : const Duration(milliseconds: 260);
     final tile = ListTile(
       contentPadding: EdgeInsets.symmetric(
         horizontal: 14,
@@ -367,57 +418,72 @@ class HubActionTile extends StatelessWidget {
                 fontSize: 12,
               ),
             ),
-      trailing: loading
-          ? hasProgressBar
-              ? const SizedBox(width: 20, height: 20) // 进度条替代 spinner
-              : SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.2,
-                    color: scheme.primary,
-                  ),
-                )
-          : _showStar
-              ? Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _StarToggleButton(
-                      isFavorited: isFavorited!,
-                      onTap: onToggleFavorite!,
-                    ),
-                    const SizedBox(width: 2),
-                    Icon(
-                      Icons.chevron_right,
-                      color: scheme.onSurfaceVariant.withValues(alpha: 0.55),
-                      size: 20,
-                    ),
-                  ],
-                )
-              : Icon(
-                  Icons.chevron_right,
-                  color: scheme.onSurfaceVariant.withValues(alpha: 0.55),
-                  size: 20,
-                ),
-      onTap: _isInactive ? null : onTap,
+      trailing: AnimatedSwitcher(
+        duration: trailingAnimationDuration,
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeInCubic,
+        transitionBuilder: (child, animation) =>
+            FadeTransition(opacity: animation, child: child),
+        layoutBuilder: (currentChild, previousChildren) => Stack(
+          alignment: Alignment.centerRight,
+          fit: StackFit.passthrough,
+          children: [
+            ...previousChildren,
+            if (currentChild != null) currentChild,
+          ],
+        ),
+        child: KeyedSubtree(
+          key: ValueKey(sorting),
+          child: trailing,
+        ),
+      ),
+      onTap: _isInactive || sorting ? null : onTap,
     );
 
-    if (footer == null) return tile;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         tile,
-        Padding(
-          // 上提多少，底部内边距就减多少：footer 下方留白与整体高度都不变
-          padding: EdgeInsets.fromLTRB(14, 0, 14, 10 - footerLift),
-          child: footerLift == 0
-              ? footer!
-              : Transform.translate(
-                  offset: Offset(0, -footerLift),
-                  child: footer!,
+        // 利用 ListTile 底部已有的留白上提提示，同时收掉原来的尾部间距。
+        Transform.translate(
+          offset: const Offset(0, -10),
+          // 红字原因是否显示由「主题与交互偏好」里的开关决定（默认关闭），
+          // 这里就地订阅偏好，调用方不用逐个透传。
+          child: ListenableBuilder(
+            listenable: NavigationPreferences.instance,
+            builder: (context, _) => AnimatedReveal(
+              visible: disabled &&
+                  !loading &&
+                  disabledReason != null &&
+                  NavigationPreferences.instance.busyHintEnabled,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: Text(disabledReason ?? '',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 11, color: scheme.error)),
                 ),
+              ),
+            ),
+          ),
         ),
+        // 排序时也保留同步/自动同步的状态摘要，但禁用点击避免误触。
+        if (footer != null)
+          Padding(
+            // 上提多少，底部内边距就减多少：footer 下方留白与整体高度都不变
+            padding: EdgeInsets.fromLTRB(14, 0, 14, 10 - footerLift),
+            child: IgnorePointer(
+              ignoring: sorting,
+              child: footerLift == 0
+                  ? footer!
+                  : Transform.translate(
+                      offset: Offset(0, -footerLift),
+                      child: footer!,
+                    ),
+            ),
+          ),
       ],
     );
   }
@@ -473,36 +539,6 @@ class UpdateAvailableIcon extends StatelessWidget {
   }
 }
 
-/// 星标按钮：仅 UI，点击行为由父组件通过 onTap 控制
-class _StarToggleButton extends StatelessWidget {
-  final bool isFavorited;
-  final VoidCallback onTap;
-
-  const _StarToggleButton({
-    required this.isFavorited,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(20),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(6),
-          child: Icon(
-            isFavorited ? Icons.star : Icons.star_border,
-            size: 24,
-            color: isFavorited ? Colors.amber : Colors.grey,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 /// 副标题：宽度够就静态显示；超长才自动横向滚动，
 /// 短文本不会被无意义的循环动画干扰。
 ///
@@ -526,7 +562,9 @@ class _MarqueeSubtitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: fontSize * 1.35,
+      // 1.35 会把 Latin 字母的下行（例如 g）裁掉约 1~2px，
+      // 尤其在副标题使用 12px 字号时很明显；给默认行高留出完整下行空间。
+      height: fontSize * 1.5,
       child: MarqueeText(
         text: text,
         style: TextStyle(

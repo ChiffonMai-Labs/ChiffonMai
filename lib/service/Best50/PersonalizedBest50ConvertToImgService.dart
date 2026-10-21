@@ -25,29 +25,42 @@ class PersonalizedB50ConvertToImg {
   // 导出为图片的方法
   // [warningText] 非空时在标题与统计区之间插入红色告警文案（自定义 Best50 非法数据提示）。
   // [sortLabel] 非空时在标题下方标注当前排序状态（自定义 Best50 一键排序）。
-  static Future<File?> convertToImage(BuildContext context, String title, List<Map<String, dynamic>> personalizedSongs, List<dynamic>? maimaiMusicData, {int? jpegQuality, String? warningText, String? sortLabel, bool thunderMode = false, bool thunderVertical = true}) async {
+  static Future<File?> convertToImage(
+      BuildContext context,
+      String title,
+      List<Map<String, dynamic>> personalizedSongs,
+      List<dynamic>? maimaiMusicData,
+      {int? jpegQuality,
+      String? warningText,
+      String? sortLabel,
+      bool thunderMode = false,
+      bool thunderVertical = true}) async {
     OverlayEntry? overlayEntry;
     try {
       debugPrint('=== STARTING PERSONALIZED B50 IMAGE CONVERSION ===');
-      debugPrint('Current platform: ${Platform.operatingSystem} ${Platform.version}');
-      
+      debugPrint(
+          'Current platform: ${Platform.operatingSystem} ${Platform.version}');
+
       // 首先请求存储权限（在导出前请求）
       debugPrint('Step 1: Requesting storage permission...');
       PermissionStatus status = await _requestStoragePermission();
       debugPrint('Step 1 completed: Storage permission status: $status');
       debugPrint('Is granted: ${status.isGranted}');
-      
+
       // 创建一个GlobalKey
       GlobalKey globalKey = GlobalKey();
 
       // 创建一个Widget，用于生成图片
       Widget imageWidget = RepaintBoundary(
         key: globalKey,
-        child: await _buildExportImageWidget(context, title, personalizedSongs, maimaiMusicData, warningText, sortLabel, thunderMode: thunderMode, thunderVertical: thunderVertical),
+        child: await _buildExportImageWidget(context, title, personalizedSongs,
+            maimaiMusicData, warningText, sortLabel,
+            thunderMode: thunderMode, thunderVertical: thunderVertical),
       );
 
       final exportWidth = thunderMode
-          ? ThunderBest50Export.widthFor(personalizedSongs.length, thunderVertical)
+          ? ThunderBest50Export.widthFor(
+              personalizedSongs.length, thunderVertical)
           : 1700.0;
       // 创建一个屏幕外的OverlayEntry，避免影响主UI
       // 使用Positioned将Widget定位到屏幕外，确保它被渲染但不可见
@@ -76,14 +89,15 @@ class PersonalizedB50ConvertToImg {
       debugPrint('Render wait completed');
 
       // 创建一个RenderRepaintBoundary
-      final RenderRepaintBoundary? boundary = globalKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      final RenderRepaintBoundary? boundary = globalKey.currentContext
+          ?.findRenderObject() as RenderRepaintBoundary?;
       if (boundary == null) {
         debugPrint('Error: RenderRepaintBoundary not found');
         overlayEntry.remove();
         return null;
       }
       debugPrint('RenderRepaintBoundary found successfully');
-      
+
       // 额外等待确保边界框已准备好
       await Future.delayed(Duration(milliseconds: 100));
 
@@ -92,17 +106,22 @@ class PersonalizedB50ConvertToImg {
       ui.Image image;
       try {
         // 尝试直接捕获图片，使用更高的pixelRatio提高清晰度
-        image = await boundary.toImage(pixelRatio: ImageEncodeUtil.safeCapturePixelRatio(boundary.size.width, boundary.size.height));
+        image = await boundary.toImage(
+            pixelRatio: ImageEncodeUtil.safeCapturePixelRatio(
+                boundary.size.width, boundary.size.height));
         debugPrint('Image captured successfully');
       } catch (e) {
         debugPrint('First capture failed: $e');
         // 重试一次
         await Future.delayed(Duration(milliseconds: 200));
-        image = await boundary.toImage(pixelRatio: ImageEncodeUtil.safeCapturePixelRatio(boundary.size.width, boundary.size.height));
+        image = await boundary.toImage(
+            pixelRatio: ImageEncodeUtil.safeCapturePixelRatio(
+                boundary.size.width, boundary.size.height));
         debugPrint('Image captured on retry');
       }
-      
-      ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+
+      ByteData? byteData =
+          await image.toByteData(format: ui.ImageByteFormat.png);
       if (byteData == null) {
         debugPrint('Error: ByteData is null');
         overlayEntry.remove();
@@ -110,7 +129,8 @@ class PersonalizedB50ConvertToImg {
         return null;
       }
 
-      Uint8List pngBytes = byteData.buffer.asUint8List(byteData.offsetInBytes, byteData.lengthInBytes);
+      Uint8List pngBytes = byteData.buffer
+          .asUint8List(byteData.offsetInBytes, byteData.lengthInBytes);
       // 立刻释放 ui.Image：它本身也是上百 MB 的原生位图，而下面的 JPEG
       // 转码还要再分配上百 MB（decodePng + copyResize）。等转码完再释放，
       // 峰值内存会白白多一份 —— 低内存机就是这样被 OOM 掉的。
@@ -120,46 +140,49 @@ class PersonalizedB50ConvertToImg {
       Uint8List finalBytes;
       String extension;
       if (jpegQuality != null) {
-        finalBytes = await ImageEncodeUtil.pngToJpegAsync(pngBytes, quality: jpegQuality);
+        finalBytes = await ImageEncodeUtil.pngToJpegAsync(pngBytes,
+            quality: jpegQuality);
         extension = 'jpg';
       } else {
         finalBytes = pngBytes;
         extension = 'png';
       }
 
-      
       // 立即移除Overlay，避免占用资源
       overlayEntry.remove();
 
       // 优先使用相册目录（需要存储权限）
       Directory? directory;
-      debugPrint('Step 4: Saving image. Permission granted: ${status.isGranted}');
-      
+      debugPrint(
+          'Step 4: Saving image. Permission granted: ${status.isGranted}');
+
       if (status.isGranted) {
-        debugPrint('Step 4a: Permission granted, trying to use Pictures directory');
+        debugPrint(
+            'Step 4a: Permission granted, trying to use Pictures directory');
         try {
           // 直接使用标准的相册目录路径
           String picturesPath = '/storage/emulated/0/Pictures';
           directory = Directory(picturesPath);
           debugPrint('Pictures directory path: $picturesPath');
-          
+
           // 检查目录是否存在
           bool exists = directory.existsSync();
           debugPrint('Pictures directory exists: $exists');
-          
+
           // 确保相册目录存在
           if (!exists) {
             debugPrint('Creating Pictures directory...');
             directory.createSync(recursive: true);
             debugPrint('Created Pictures directory successfully');
           }
-          
+
           // 验证目录是否可写
           bool canWrite = await _checkDirectoryWritable(directory);
           debugPrint('Pictures directory writable: $canWrite');
-          
+
           if (!canWrite) {
-            debugPrint('Warning: Pictures directory is not writable, will fall back');
+            debugPrint(
+                'Warning: Pictures directory is not writable, will fall back');
             directory = null;
           }
         } catch (e) {
@@ -167,7 +190,7 @@ class PersonalizedB50ConvertToImg {
           directory = null;
         }
       }
-      
+
       // 如果相册目录获取失败或没有权限，使用应用文档目录
       if (directory == null) {
         debugPrint('Step 4b: Using fallback directory');
@@ -185,19 +208,20 @@ class PersonalizedB50ConvertToImg {
           }
         }
       }
-      
+
       if (directory == null) {
         debugPrint('Error: No storage directory found');
         overlayEntry.remove();
         return null;
       }
-      
+
       debugPrint('Selected directory: ${directory.path}');
 
       // 尝试使用 MediaStore API 保存到相册（Android 13+）
       if (Platform.isAndroid && status.isGranted) {
         debugPrint('Step 5: Trying to save via MediaStore API...');
-        String? galleryPath = await _saveImageToGallery(finalBytes, 'personalized_b50_${DateTime.now().millisecondsSinceEpoch}.$extension');
+        String? galleryPath = await _saveImageToGallery(finalBytes,
+            'personalized_b50_${DateTime.now().millisecondsSinceEpoch}.$extension');
         if (galleryPath != null) {
           debugPrint('Image saved to gallery via MediaStore: $galleryPath');
           // 调用媒体扫描器
@@ -212,7 +236,8 @@ class PersonalizedB50ConvertToImg {
         directory.createSync(recursive: true);
       }
 
-      final file = File('${directory.path}/personalized_b50_${DateTime.now().millisecondsSinceEpoch}.$extension');
+      final file = File(
+          '${directory.path}/personalized_b50_${DateTime.now().millisecondsSinceEpoch}.$extension');
       await file.writeAsBytes(finalBytes);
       debugPrint('Image saved to file system: ${file.path}');
 
@@ -229,22 +254,57 @@ class PersonalizedB50ConvertToImg {
     }
   }
 
+  /// 构建与实际导出相同的预览 Widget。
+  static Future<Widget> buildPreviewWidget(
+    BuildContext context,
+    String title,
+    List<Map<String, dynamic>> personalizedSongs,
+    List<dynamic>? maimaiMusicData,
+    String? warningText,
+    String? sortLabel, {
+    bool thunderMode = false,
+    bool thunderVertical = true,
+  }) =>
+      _buildExportImageWidget(
+        context,
+        title,
+        personalizedSongs,
+        maimaiMusicData,
+        warningText,
+        sortLabel,
+        thunderMode: thunderMode,
+        thunderVertical: thunderVertical,
+      );
+
   // 构建用于导出的Widget
-  static Future<Widget> _buildExportImageWidget(BuildContext context, String title, List<Map<String, dynamic>> personalizedSongs, List<dynamic>? maimaiMusicData, String? warningText, String? sortLabel, {bool thunderMode = false, bool thunderVertical = true}) async {
+  static Future<Widget> _buildExportImageWidget(
+      BuildContext context,
+      String title,
+      List<Map<String, dynamic>> personalizedSongs,
+      List<dynamic>? maimaiMusicData,
+      String? warningText,
+      String? sortLabel,
+      {bool thunderMode = false,
+      bool thunderVertical = true}) async {
     if (thunderMode) {
-      final sum = personalizedSongs.fold<int>(0, (sum, song) => sum + ((song['ra'] as num?)?.toInt() ?? 0));
+      final sum = personalizedSongs.fold<int>(
+          0, (sum, song) => sum + ((song['ra'] as num?)?.toInt() ?? 0));
       final scoreRateSum = personalizedSongs.fold<double>(0, (sum, song) {
-        return sum + _calculateScoreRate(
-          (song['song_id'] as num?)?.toInt() ?? 0,
-          (song['level_index'] as num?)?.toInt() ?? 0,
-          (song['dxScore'] as num?)?.toInt() ?? 0,
-          maimaiMusicData,
-        );
+        return sum +
+            _calculateScoreRate(
+              (song['song_id'] as num?)?.toInt() ?? 0,
+              (song['level_index'] as num?)?.toInt() ?? 0,
+              (song['dxScore'] as num?)?.toInt() ?? 0,
+              maimaiMusicData,
+            );
       });
       final averageScoreRate = personalizedSongs.isEmpty
           ? 0.0
           : scoreRateSum / personalizedSongs.length;
-      final maxIdLength = personalizedSongs.any((song) => '${song['song_id']}'.length == 6) ? 6 : 5;
+      final maxIdLength =
+          personalizedSongs.any((song) => '${song['song_id']}'.length == 6)
+              ? 6
+              : 5;
       return ThunderBest50Export.build(
         title: title,
         vertical: thunderVertical,
@@ -253,7 +313,12 @@ class PersonalizedB50ConvertToImg {
             '平均 DX 分达成率 ${(averageScoreRate * 100).toStringAsFixed(2)}%',
         warning: warningText,
         sortLabel: sortLabel,
-        cardBuilder: (index) => _buildGameCard(context: context, songData: personalizedSongs[index], maimaiMusicData: maimaiMusicData, index: index, maxIdLength: maxIdLength),
+        cardBuilder: (index) => _buildGameCard(
+            context: context,
+            songData: personalizedSongs[index],
+            maimaiMusicData: maimaiMusicData,
+            index: index,
+            maxIdLength: maxIdLength),
       );
     }
     double containerWidth = thunderMode && !thunderVertical ? 17000 : 1700;
@@ -283,16 +348,16 @@ class PersonalizedB50ConvertToImg {
                     ExportUserInfoWidget.buildUserInfoSection(context),
                     const SizedBox(width: 16),
                     SizedBox(
-                      height: 230,
+                      height: 215,
                       child: Align(
                         alignment: Alignment.center,
-                        child: MetaRowWidget(width: 494, height: 230),
+                        child: MetaRowWidget(width: 494, height: 215),
                       ),
                     ),
                   ],
                 ),
                 SizedBox(height: 16.0),
-                
+
                 // 标题区域
                 _buildSectionTitle(context, title),
 
@@ -341,7 +406,12 @@ class PersonalizedB50ConvertToImg {
                 SizedBox(height: 16.0),
 
                 // 歌曲卡片网格
-                _buildDataCardGrid(context, personalizedSongs, thunderMode ? 1.25 : 1.85, thunderMode ? (thunderVertical ? 1 : 50) : 5, maimaiMusicData),
+                _buildDataCardGrid(
+                    context,
+                    personalizedSongs,
+                    thunderMode ? 1.25 : 1.85,
+                    thunderMode ? (thunderVertical ? 1 : 50) : 5,
+                    maimaiMusicData),
               ],
             ),
           ),
@@ -354,7 +424,7 @@ class PersonalizedB50ConvertToImg {
   static Widget _buildSectionTitle(BuildContext context, String title) {
     const double containerWidth = 1200.0;
     double fontSize = containerWidth * 0.03; // 约36px
-    
+
     return Container(
       decoration: BoxDecoration(
         border: Border.all(color: Colors.black, width: 2.0),
@@ -376,18 +446,24 @@ class PersonalizedB50ConvertToImg {
   }
 
   // 构建统计区域
-  static Widget _buildStatsSection(BuildContext context, List<Map<String, dynamic>> songs) {
+  static Widget _buildStatsSection(
+      BuildContext context, List<Map<String, dynamic>> songs) {
     const double containerWidth = 1200.0;
-    
+
     double titleFontSize = containerWidth * 0.025; // 约30px
     double mainFontSize = containerWidth * 0.03; // 约36px
     double subFontSize = containerWidth * 0.02; // 约24px
 
     int totalSongs = songs.length;
-    int totalRa = songs.fold(0, (sum, song) => sum + ((song['ra'] ?? 0) as int));
+    int totalRa =
+        songs.fold(0, (sum, song) => sum + ((song['ra'] ?? 0) as int));
     double avgRa = totalSongs > 0 ? totalRa / totalSongs : 0.0;
-    double totalAchievement = songs.fold(0.0, (sum, song) => sum + (double.tryParse(song['achievements'].toString()) ?? 0.0));
-    double avgAchievement = totalSongs > 0 ? totalAchievement / totalSongs : 0.0;
+    double totalAchievement = songs.fold(
+        0.0,
+        (sum, song) =>
+            sum + (double.tryParse(song['achievements'].toString()) ?? 0.0));
+    double avgAchievement =
+        totalSongs > 0 ? totalAchievement / totalSongs : 0.0;
 
     return Container(
       decoration: BoxDecoration(
@@ -510,7 +586,12 @@ class PersonalizedB50ConvertToImg {
   }
 
   // 构建卡片网格
-  static Widget _buildDataCardGrid(BuildContext context, List<Map<String, dynamic>> songs, double aspectRatio, int crossAxisCount, List<dynamic>? maimaiMusicData) {
+  static Widget _buildDataCardGrid(
+      BuildContext context,
+      List<Map<String, dynamic>> songs,
+      double aspectRatio,
+      int crossAxisCount,
+      List<dynamic>? maimaiMusicData) {
     // 计算谱面 ID 对齐宽度：若存在 6 位 ID 则按 6 位对齐，否则按 5 位
     int maxIdLength = 5;
     for (final song in songs) {
@@ -555,7 +636,8 @@ class PersonalizedB50ConvertToImg {
     int maxIdLength = 5,
   }) {
     // 解析数据
-    double achievementRate = double.tryParse(songData['achievements'].toString()) ?? 0.0;
+    double achievementRate =
+        double.tryParse(songData['achievements'].toString()) ?? 0.0;
     int score = songData['dxScore'] ?? 0;
     String fc = songData['fc'] ?? '';
     String fs = songData['fs'] ?? '';
@@ -571,7 +653,8 @@ class PersonalizedB50ConvertToImg {
     int maxScore = _calculateMaxScore(songId, levelIndex, maimaiMusicData);
 
     // 计算星星等级
-    double scoreRate = _calculateScoreRate(songId, levelIndex, score, maimaiMusicData);
+    double scoreRate =
+        _calculateScoreRate(songId, levelIndex, score, maimaiMusicData);
     String stars = StringUtil.formatStars(scoreRate);
     Color starsColor = ColorUtil.getStarsColor(stars);
 
@@ -617,13 +700,15 @@ class PersonalizedB50ConvertToImg {
   }
 
   // 计算maxScore
-  static int _calculateMaxScore(int songId, int levelIndex, List<dynamic>? maimaiMusicData) {
+  static int _calculateMaxScore(
+      int songId, int levelIndex, List<dynamic>? maimaiMusicData) {
     try {
       if (maimaiMusicData == null || maimaiMusicData.isEmpty) return 0;
 
       dynamic songData;
       try {
-        songData = maimaiMusicData.firstWhere((song) => song['id'] == songId.toString());
+        songData = maimaiMusicData
+            .firstWhere((song) => song['id'] == songId.toString());
       } catch (_) {
         return 0;
       }
@@ -646,13 +731,15 @@ class PersonalizedB50ConvertToImg {
   }
 
   // 计算scoreRate
-  static double _calculateScoreRate(int songId, int levelIndex, int score, List<dynamic>? maimaiMusicData) {
+  static double _calculateScoreRate(
+      int songId, int levelIndex, int score, List<dynamic>? maimaiMusicData) {
     try {
       if (maimaiMusicData == null) return 0.0;
 
       dynamic songData;
       try {
-        songData = maimaiMusicData.firstWhere((item) => item['id'] == songId.toString());
+        songData = maimaiMusicData
+            .firstWhere((item) => item['id'] == songId.toString());
       } catch (e) {
         return 0.0;
       }
@@ -680,25 +767,27 @@ class PersonalizedB50ConvertToImg {
   static Future<PermissionStatus> _requestStoragePermission() async {
     if (Platform.isAndroid) {
       debugPrint('Android platform detected');
-      
+
       // 策略：同时请求 storage、photos 和 videos 权限
       // 这样可以覆盖所有 Android 版本，不需要检测 API 级别
-      
+
       // 先检查已有权限状态
       PermissionStatus storageStatus = await Permission.storage.status;
       PermissionStatus photosStatus = await Permission.photos.status;
       PermissionStatus videosStatus = await Permission.videos.status;
-      
+
       debugPrint('Storage status: $storageStatus');
       debugPrint('Photos status: $photosStatus');
       debugPrint('Videos status: $videosStatus');
-      
+
       // 如果任何一个权限已授予，直接返回成功
-      if (storageStatus.isGranted || photosStatus.isGranted || videosStatus.isGranted) {
+      if (storageStatus.isGranted ||
+          photosStatus.isGranted ||
+          videosStatus.isGranted) {
         debugPrint('At least one permission already granted');
         return PermissionStatus.granted;
       }
-      
+
       // 请求权限：同时请求 storage、photos 和 videos
       debugPrint('Requesting storage, photos and videos permissions...');
       Map<Permission, PermissionStatus> statuses = await [
@@ -706,21 +795,22 @@ class PersonalizedB50ConvertToImg {
         Permission.photos,
         Permission.videos,
       ].request();
-      
+
       bool storageGranted = statuses[Permission.storage]?.isGranted ?? false;
       bool photosGranted = statuses[Permission.photos]?.isGranted ?? false;
       bool videosGranted = statuses[Permission.videos]?.isGranted ?? false;
-      
+
       debugPrint('Storage granted: $storageGranted');
       debugPrint('Photos granted: $photosGranted');
       debugPrint('Videos granted: $videosGranted');
-      
-      return (storageGranted || photosGranted || videosGranted) 
-          ? PermissionStatus.granted 
+
+      return (storageGranted || photosGranted || videosGranted)
+          ? PermissionStatus.granted
           : PermissionStatus.denied;
     } else {
       // 对于其他平台，使用 storage 权限
-      debugPrint('Non-Android platform detected, requesting storage permission');
+      debugPrint(
+          'Non-Android platform detected, requesting storage permission');
       PermissionStatus status = await Permission.storage.request();
       debugPrint('Storage permission result: $status');
       return status;
@@ -731,12 +821,13 @@ class PersonalizedB50ConvertToImg {
   static Future<bool> _checkDirectoryWritable(Directory directory) async {
     try {
       // 创建一个临时文件来测试写入权限
-      String testFileName = 'test_write_permission_${DateTime.now().millisecondsSinceEpoch}.tmp';
+      String testFileName =
+          'test_write_permission_${DateTime.now().millisecondsSinceEpoch}.tmp';
       File testFile = File('${directory.path}/$testFileName');
-      
+
       await testFile.writeAsString('test');
       await testFile.delete();
-      
+
       debugPrint('Directory writable test passed: ${directory.path}');
       return true;
     } catch (e) {
@@ -746,9 +837,11 @@ class PersonalizedB50ConvertToImg {
   }
 
   // 使用 MediaStore API 将图片保存到系统相册（Android 13+）
-  static Future<String?> _saveImageToGallery(Uint8List imageBytes, String fileName) async {
+  static Future<String?> _saveImageToGallery(
+      Uint8List imageBytes, String fileName) async {
     try {
-      const MethodChannel channel = MethodChannel('com.example.app/media_store');
+      const MethodChannel channel =
+          MethodChannel('com.example.app/media_store');
       final String? result = await channel.invokeMethod('saveImage', {
         'imageBytes': imageBytes,
         'fileName': fileName,

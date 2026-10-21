@@ -5,13 +5,16 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../constant/CacheKeyConstant.dart';
+import '../manager/DivingFishProbeManager.dart';
 import '../page/Awmc/AwmcSyncFlow.dart';
+import '../page/Awmc/AwmcUi.dart';
 import '../page/AwmcNet/AwmcNetSyncFlow.dart';
 import '../page/AwmcNet/SyncToAwmcNetPage.dart' show AwmcNetSyncInput;
 import '../service/AccountStore.dart';
 import '../service/SyncRouteStore.dart';
 import '../service/SyncStatsService.dart';
 import '../service/MultiScoreSyncRunner.dart';
+import '../service/AWMC/AwmcQuickSyncService.dart';
 import '../utils/SyncRouteNotifier.dart';
 import '../utils/SecureCredentialStore.dart';
 import 'SyncScoreDialogs.dart'
@@ -27,6 +30,8 @@ import 'SyncScoreDialogs.dart'
         executeLuoXueSync,
         showMultiScoreSyncInputDialog;
 import 'ErrorMessageDialog.dart';
+import 'ConfettiEffect.dart';
+import 'MaimaiHubLoginGate.dart';
 
 /// 「同步成绩到水鱼 / 落雪 / AWMC NET」三个入口的**按钮上进度**编排。
 ///
@@ -240,6 +245,10 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
     }
 
     if (!mounted) return;
+    // 线路2 复用 maimai Score Hub 已有登录态；本次二维码只用于机台抓取，
+    // 不再拿它去登录（一张二维码只处理一个上游请求）。
+    if (!await ensureMaimaiHubLogin(context, reason: '水鱼线路2')) return;
+    if (!mounted) return;
     final input = await showDivingFishSyncInputDialog(context);
     if (input == null || !mounted) return;
 
@@ -256,6 +265,9 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
         syncCallbacks,
         input,
         onSyncFinished: (durationMs) => syncDurationMs = durationMs,
+        onSyncSucceeded: () {
+          if (mounted) ConfettiEffect.show(context);
+        },
         onProgress: (p, t) => _updateSyncState(
           divingFishText: '$t ${(p * 100).round()}%',
           divingFishProgress: p,
@@ -271,14 +283,14 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
       if (!mounted) return;
       await showErrorMessageDialog(context, message: e.message);
       if (!mounted) return;
-      // 需要 ImportToken 时按钮上没法输入账号密码，回到原有的对话框完成绑定；
-      // 二维码已经抓过一次，直接复用，避免让用户重新粘贴。
+      // 需要 ImportToken 时按钮上没法输入账号密码，回到原有的对话框完成绑定。
+      // 本次二维码可能已经用于创建抓取任务（一张二维码只能处理一个请求），
+      // 不能在补绑定对话框里复用，让用户重新输入一张新的二维码。
       if (e.message.contains('ImportToken')) {
         handedOffToDialog = true;
         await SyncScoreDialogs.showDivingFishSyncDialog(
           context,
           syncCallbacks,
-          presetQrCode: input.qrCode,
         );
       }
     } catch (e) {
@@ -287,7 +299,7 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
       }
     } finally {
       stopwatch.stop();
-      if (!handedOffToDialog) {
+      if (!handedOffToDialog && !input.quickUpdate) {
         unawaited(SyncStatsService.record(
           line: SyncLine.scoreHub,
           platform: SyncPlatform.divingFish,
@@ -315,6 +327,7 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
     );
     if (!mounted || outcome.cancelled) return;
     if (outcome.ok) {
+      ConfettiEffect.show(context);
       Fluttertoast.showToast(
           msg: AwmcSyncFlow.successToast(AwmcSyncTarget.divingFish, outcome));
       if (outcome.refreshError != null && mounted) {
@@ -335,6 +348,9 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
   /// 同步成绩到落雪（线路2 maimai Score Hub）：输入在对话框完成，进度显示在按钮上。
   Future<void> syncToLuoXueWithButton() async {
     if (anyBusy) return;
+    // 同水鱼线路2：先复用 Score Hub 登录态，本次二维码只用于抓取。
+    if (!await ensureMaimaiHubLogin(context, reason: '落雪线路2')) return;
+    if (!mounted) return;
     final input = await showLuoXueSyncInputDialog(context);
     if (input == null || !mounted) return;
 
@@ -346,6 +362,9 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
       final count = await executeLuoXueSync(
         input,
         onSyncFinished: (durationMs) => syncDurationMs = durationMs,
+        onSyncSucceeded: () {
+          if (mounted) ConfettiEffect.show(context);
+        },
         onProgress: (p, t) {
           _updateSyncState(
               luoXueText: '$t ${(p * 100).round()}%', luoXueProgress: p);
@@ -364,12 +383,13 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
       }
     } finally {
       stopwatch.stop();
-      unawaited(SyncStatsService.record(
-        line: SyncLine.scoreHub,
-        platform: SyncPlatform.luoXue,
-        durationMs: syncDurationMs ?? stopwatch.elapsedMilliseconds,
-        ok: syncOk,
-      ));
+      if (!input.quickUpdate)
+        unawaited(SyncStatsService.record(
+          line: SyncLine.scoreHub,
+          platform: SyncPlatform.luoXue,
+          durationMs: syncDurationMs ?? stopwatch.elapsedMilliseconds,
+          ok: syncOk,
+        ));
       SyncRouteNotifier.instance.refreshStatsSoon();
       _updateSyncState(luoXue: false, luoXueText: '');
     }
@@ -388,6 +408,7 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
     );
     if (!mounted || outcome.cancelled) return;
     if (outcome.ok) {
+      ConfettiEffect.show(context);
       Fluttertoast.showToast(
           msg: AwmcSyncFlow.successToast(AwmcSyncTarget.luoXue, outcome));
       if (outcome.refreshError != null && mounted) {
@@ -415,9 +436,11 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
           awmcNetText: '$text ${(p * 100).round()}%', awmcNetProgress: p),
       onIdle: () => _updateSyncState(awmcNet: false, awmcNetText: ''),
     );
+    if (!outcome.cancelled) SyncRouteNotifier.instance.refreshStatsSoon();
     if (!mounted || outcome.cancelled) return;
     final message = AwmcNetSyncFlow.toastFor(outcome);
     if (outcome.ok) {
+      ConfettiEffect.show(context);
       Fluttertoast.showToast(msg: message);
       if (outcome.refreshError != null && mounted) {
         await showErrorMessageDialog(
@@ -440,32 +463,88 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
     _updateSyncState(multi: true, multiText: '准备同步…');
     final successes = <String>[];
     final failures = <String>[];
+    var anySynchronized = false;
     try {
       final prefs = await SharedPreferences.getInstance();
       final participate =
           prefs.getBool(CacheKeyConstant.participateRankings) ?? false;
       final nickname = prefs.getBool(CacheKeyConstant.showNickname) ?? false;
       var completedPlatforms = 0;
+      final quickReadSession = AwmcQuickReadSession();
+      // 多端同步里只要有一个线路2目标，就先复用/建立 Score Hub 登录态。
+      // 若这次确实需要登录，对话框里提前输入的二维码可能已经过期，
+      // 必须重新输入；否则本次二维码仍只用于第一个需要它的目标。
+      final needsHubSession = input.platforms.any((platform) =>
+          !input.quickUpdateFor(platform) &&
+          platform != SyncPlatform.awmc &&
+          input.routeOf(platform) == SyncRouteStore.routeScoreHub);
+      var pendingQr = input.qrCode;
+      if (needsHubSession) {
+        final hadSession = await DivingFishProbeManager().hasValidHubSession();
+        if (!mounted) return;
+        if (!hadSession) pendingQr = '';
+        if (!await ensureMaimaiHubLogin(context, reason: '多端同步的线路2')) {
+          return;
+        }
+        if (!mounted) return;
+      }
+      // 普通同步每个目标都要用一张新的二维码：对话框里输入的那张只给
+      // 第一个需要二维码的目标，后续目标在开始前单独询问。
+      Future<String?> takeQr(String label, String routeLabel) async {
+        if (pendingQr.isNotEmpty) {
+          final qr = pendingQr;
+          pendingQr = '';
+          return qr;
+        }
+        if (!mounted) return null;
+        _updateSyncState(multiText: '请为$label（$routeLabel）输入新的二维码…');
+        return AwmcUi.askQrcode(
+          context,
+          title: '为$label输入新的二维码',
+          body: '这张二维码只用于$label（$routeLabel）的这一次请求；'
+              '不能和其它目标用过的二维码相同。',
+        );
+      }
 
       final results = await MultiScoreSyncRunner.run(
         platforms: input.platforms,
         execute: (platform) async {
-          final routeLabel = platform == SyncPlatform.awmc
-              ? '二维码直传'
-              : input.routeOf(platform) == SyncRouteStore.routeAwmc
-                  ? '线路1'
-                  : '线路2';
+          final routeLabel = input.quickUpdateFor(platform)
+              ? '快速同步'
+              : platform == SyncPlatform.awmc
+                  ? '二维码直传'
+                  : input.routeOf(platform) == SyncRouteStore.routeAwmc
+                      ? '线路1'
+                      : '线路2';
           _updateSyncState(
               multiText: '正在同步到${platform.label}（$routeLabel）…',
               multiProgress: completedPlatforms / input.platforms.length);
           try {
+            if (input.quickUpdateFor(platform)) {
+              final result = await AwmcQuickSyncService.run(
+                platform: platform,
+                readSession: quickReadSession,
+                onProgress: (p, text) => _updateSyncState(
+                    multiText: '${platform.label}：$text',
+                    multiProgress:
+                        (completedPlatforms + p) / input.platforms.length),
+              );
+              anySynchronized = true;
+              return result.submitted == 0
+                  ? '${platform.label}（成绩已是最新）'
+                  : '${platform.label}（快速同步，更新 ${result.submitted} 条）';
+            }
             if (platform != SyncPlatform.awmc &&
                 input.routeOf(platform) == SyncRouteStore.routeAwmc) {
+              final qrCode = await takeQr(platform.label, '线路1');
+              if (qrCode == null) {
+                throw const SyncFlowException('已取消输入二维码');
+              }
               final target = platform == SyncPlatform.divingFish
                   ? AwmcSyncTarget.divingFish
                   : AwmcSyncTarget.luoXue;
               final outcome = await AwmcSyncFlow.runWithInput(
-                qrCode: input.qrCode,
+                qrCode: qrCode,
                 target: target,
                 onBusy: (text) =>
                     _updateSyncState(multiText: '${platform.label}（线路1）：$text'),
@@ -478,23 +557,27 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
               if (!outcome.ok) {
                 throw SyncFlowException(outcome.message ?? '线路1同步失败');
               }
-              final count = outcome.cachedRecords > 0
-                  ? '，${outcome.cachedRecords} 条'
-                  : '';
-              final warning = outcome.readErrorMessage == null
-                  ? ''
-                  : '（游玩次数未更新：${outcome.readErrorMessage}）';
-              return '${platform.label}（线路1$count）$warning';
+              anySynchronized = true;
+              return '${platform.label}（线路1）';
             }
             switch (platform) {
               case SyncPlatform.divingFish:
+                if (!await ensureMaimaiHubLogin(context, reason: '水鱼线路2')) {
+                  throw const SyncFlowException(
+                      '未登录 maimai Score Hub，已跳过水鱼线路2同步');
+                }
+                final qrCode = await takeQr('水鱼', '线路2');
+                if (qrCode == null) {
+                  throw const SyncFlowException('已取消输入二维码');
+                }
                 final result = await executeDivingFishSync(
                   syncCallbacks,
                   DivingFishSyncInput(
-                    qrCode: input.qrCode,
+                    qrCode: qrCode,
                     participateRankings: participate,
                     showNickname: nickname,
                   ),
+                  onSyncSucceeded: () => anySynchronized = true,
                   onProgress: (p, text) => _updateSyncState(
                       multiText: '水鱼（线路2）：$text ${(p * 100).round()}%',
                       multiProgress:
@@ -502,10 +585,19 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
                 );
                 return '水鱼（线路2，${result.exportedCount} 条）';
               case SyncPlatform.luoXue:
+                if (!await ensureMaimaiHubLogin(context, reason: '落雪线路2')) {
+                  throw const SyncFlowException(
+                      '未登录 maimai Score Hub，已跳过落雪线路2同步');
+                }
+                final qrCode = await takeQr('落雪', '线路2');
+                if (qrCode == null) {
+                  throw const SyncFlowException('已取消输入二维码');
+                }
                 final token = await SecureCredentialStore.read(
                     CacheKeyConstant.probeLxnsImportToken);
                 final count = await executeLuoXueSync(
-                  LuoXueSyncInput(qrCode: input.qrCode, lxnsImportToken: token),
+                  LuoXueSyncInput(qrCode: qrCode, lxnsImportToken: token),
+                  onSyncSucceeded: () => anySynchronized = true,
                   onProgress: (p, text) => _updateSyncState(
                       multiText: '落雪（线路2）：$text ${(p * 100).round()}%',
                       multiProgress:
@@ -513,13 +605,17 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
                 );
                 return '落雪（线路2，$count 条）';
               case SyncPlatform.awmc:
+                final qrCode = await takeQr('AWMC NET', '二维码直传');
+                if (qrCode == null) {
+                  throw const SyncFlowException('已取消输入二维码');
+                }
                 final token = await SecureCredentialStore.read(
                     CacheKeyConstant.awmcNetImportToken);
                 if (token == null || token.isEmpty) {
                   throw const SyncFlowException('未设置 AWMC NET 成绩导入 Token');
                 }
                 final outcome = await AwmcNetSyncFlow.runWithInput(
-                  AwmcNetSyncInput(qr: input.qrCode, importToken: token),
+                  AwmcNetSyncInput(qr: qrCode, importToken: token),
                   onBusy: (label) =>
                       _updateSyncState(multiText: 'AWMC NET：$label'),
                   onIdle: () {},
@@ -527,6 +623,7 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
                 if (!outcome.ok) {
                   throw SyncFlowException(AwmcNetSyncFlow.toastFor(outcome));
                 }
+                anySynchronized = true;
                 return 'AWMC NET';
             }
           } finally {
@@ -545,6 +642,7 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
       }
 
       if (!mounted) return;
+      if (anySynchronized) ConfettiEffect.show(context);
       if (failures.isEmpty) {
         Fluttertoast.showToast(msg: '多端同步完成：${successes.join('、')}');
       } else {

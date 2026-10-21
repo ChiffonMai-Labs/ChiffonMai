@@ -56,7 +56,7 @@ void main() {
     ['maimai でらっくす PRiSM', 83, 'PRiSM', 'PRiSM 鏡', 'DX 2025 鏡'],
     ['maimai でらっくす PRiSM PLUS', 99, 'PRiSM+', 'PRiSM+ 彩', 'DX 2026 彩'],
     ['maimai でらっくす CiRCLE', 89, 'CiRCLE', 'CiRCLE 丸', 'CiRCLE 丸'],
-    ['maimai でらっくす CiRCLE PLUS', 89, 'CiRCLE+', 'CiRCLE+ 廻', 'CiRCLE+'],
+    ['maimai でらっくす CiRCLE PLUS', 89, 'CiRCLE+', 'CiRCLE+ 廻', 'CiRCLE+ 廻'],
   ];
 
   /// maidata 抽样实测：[`&version` 原文, 样本数, extra 短名, extra 详名]
@@ -197,7 +197,7 @@ void main() {
           'Splash+ 煌');
       expect(StringUtil.formatVersion2('maimai でらっくす CiRCLE'), 'CiRCLE 丸');
       expect(StringUtil.formatVersion2('maimai でらっくす CiRCLE PLUS'),
-          'CiRCLE+');
+          'CiRCLE+ 廻');
       // union 写 'maimai MiLK PLUS'（带前缀），水鱼写 'MiLK PLUS'，两种都要收
       expect(StringUtil.formatVersion2('maimai MiLK PLUS'), 'MiLK+ 雪');
       expect(

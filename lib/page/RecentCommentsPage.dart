@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import '../api/ApiUrls.dart';
@@ -159,7 +160,8 @@ class _RecentCommentsPageState extends State<RecentCommentsPage> {
   Widget _buildDifficultyTag(int difficultyIndex, String songId, Brightness brightness) {
     Color bgColor;
     Color textColor;
-    final label = _getDifficultyLabel(difficultyIndex);
+    final label = ChartDifficulty.labelOf(difficultyIndex,
+        isUtage: ChartDifficulty.isUtageSong(songId));
 
     if (songId.length == 6) {
       bgColor = brightness == Brightness.dark
@@ -170,7 +172,7 @@ class _RecentCommentsPageState extends State<RecentCommentsPage> {
           : Colors.red;
     } else {
       switch (difficultyIndex) {
-        case 0:
+        case ChartDifficulty.basic:
           bgColor = brightness == Brightness.dark
               ? Colors.green.withValues(alpha: 0.2)
               : Colors.green.shade100;
@@ -178,7 +180,7 @@ class _RecentCommentsPageState extends State<RecentCommentsPage> {
               ? Colors.green[300]!
               : Colors.green.shade700;
           break;
-        case 1:
+        case ChartDifficulty.advanced:
           bgColor = brightness == Brightness.dark
               ? Colors.orange.withValues(alpha: 0.2)
               : Colors.orange.shade100;
@@ -186,7 +188,7 @@ class _RecentCommentsPageState extends State<RecentCommentsPage> {
               ? Colors.orange[300]!
               : Colors.orange.shade700;
           break;
-        case 2:
+        case ChartDifficulty.expert:
           bgColor = brightness == Brightness.dark
               ? Colors.red.withValues(alpha: 0.2)
               : Colors.red.shade100;
@@ -194,7 +196,7 @@ class _RecentCommentsPageState extends State<RecentCommentsPage> {
               ? Colors.red[300]!
               : Colors.red;
           break;
-        case 3:
+        case ChartDifficulty.master:
           bgColor = brightness == Brightness.dark
               ? Colors.purple.withValues(alpha: 0.2)
               : Colors.purple.shade100;
@@ -202,13 +204,12 @@ class _RecentCommentsPageState extends State<RecentCommentsPage> {
               ? Colors.purple[200]!
               : Colors.purple.shade700;
           break;
-        case 4:
-          bgColor = brightness == Brightness.dark
-              ? Colors.purple.withValues(alpha: 0.2)
-              : Colors.purple.shade100;
-          textColor = brightness == Brightness.dark
-              ? Colors.purple[200]!
-              : Colors.purple.shade300;
+        case ChartDifficulty.reMaster:
+          // 复用公共明暗配色，深色背景下保留浅紫文字。
+          bgColor = AppColors.difficultyBackgroundByIndex(
+              ChartDifficulty.reMaster, brightness: brightness);
+          textColor = AppColors.difficultyForegroundByIndex(
+              ChartDifficulty.reMaster, brightness: brightness);
           break;
         default:
           bgColor = brightness == Brightness.dark
@@ -252,15 +253,6 @@ class _RecentCommentsPageState extends State<RecentCommentsPage> {
       return timestamp;
     }
   }
-
-  String _getDifficultyLabel(int? levelIndex) {
-    const labels = ['BASIC', 'ADVANCED', 'EXPERT', 'MASTER', 'Re:MASTER'];
-    if (levelIndex == null || levelIndex < 0 || levelIndex >= labels.length) {
-      return '?';
-    }
-    return labels[levelIndex];
-  }
-
   void _navigateToSong(String songId, int? levelIndex) {
     Navigator.push(
       context,
@@ -289,7 +281,7 @@ class _RecentCommentsPageState extends State<RecentCommentsPage> {
 ],
       resizeToAvoidBottomInset: false,
       contentPadding: EdgeInsets.only(
-        bottom: MediaQuery.paddingOf(context).bottom + 10,
+        bottom: MediaQuery.paddingOf(context).bottom,
       ),
       child: _isLoading
           ? _buildLoading(brightness)

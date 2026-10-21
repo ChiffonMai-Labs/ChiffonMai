@@ -202,16 +202,17 @@ void main() {
     });
 
     test('槽位是显式列表，不是线路 × 平台的叉乘', () {
-      // 叉乘 = 3 线路 × 3 平台 = 9 个，其中 5 个没意义：
-      // AWMC NET 只有机台二维码直传，不该挂在线路1/线路2 下面
-      // （它一次要 30 多秒，混进网关那条会把平均耗时整体拉高）。
-      expect(SyncStatsService.allSlots.length, 5);
+      // 普通同步五个槽位、快速同步三个槽位，不创建无意义的线路组合。
+      expect(SyncStatsService.allSlots.length, 8);
       expect(
         SyncStatsService.allSlots
             .where((slot) => slot.$2 == SyncPlatform.awmc)
             .toList(),
-        [(SyncLine.direct, SyncPlatform.awmc)],
-        reason: 'AWMC NET 只有直传一个槽位',
+        [
+          (SyncLine.direct, SyncPlatform.awmc),
+          (SyncLine.quick, SyncPlatform.awmc)
+        ],
+        reason: 'AWMC NET 的普通直传与快速同步分别统计',
       );
       expect(
         SyncStatsService.allSlots
@@ -231,6 +232,18 @@ void main() {
         SyncStatsService.slotOf(SyncLine.direct, SyncPlatform.awmc),
         'direct:awmc',
       );
+    });
+
+    test('快速同步按平台独立，与原有普通统计键隔离', () {
+      expect(
+          SyncStatsService.allSlots.where((s) => s.$1 == SyncLine.quick).length,
+          3);
+      for (final platform in SyncPlatform.values) {
+        expect(SyncStatsService.keyFor(SyncLine.quick, platform),
+            'chiffonmai:sync_stats:quick:${platform.key}');
+        expect(SyncStatsService.slotOf(SyncLine.quick, platform),
+            isNot(SyncStatsService.slotOf(SyncLine.awmc, platform)));
+      }
     });
 
     test('线路与平台的显示名', () {

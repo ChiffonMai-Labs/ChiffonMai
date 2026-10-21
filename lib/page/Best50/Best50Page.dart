@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'dart:async';
@@ -45,22 +46,24 @@ class _B50PageState extends State<B50Page> {
   List<Map<String, dynamic>> _theoreticalDxSongs = [];
   List<Map<String, dynamic>> _theoreticalSdSongs = [];
   // 存储被截断的相同定数歌曲
-  Map<String, dynamic>? _remainingSdSongsInfo; // {ds: 14.7, count: 5, songs: [...]}
+  Map<String, dynamic>?
+      _remainingSdSongsInfo; // {ds: 14.7, count: 5, songs: [...]}
   Map<String, dynamic>? _remainingDxSongsInfo;
   bool _isLoading = true;
   bool _isTheoreticalMode = false;
-  
+
   // 标签统计相关
   MaiTagsEntity? _tagsEntity;
   Map<String, Map<String, int>> _tagStats = {}; // 标签分组 → (标签名 → 统计次数)
   bool _isLoadingTags = false;
+  bool _isTagStatsExpanded = false; // 标签统计默认收起
 
   @override
   void initState() {
     super.initState();
     _loadB50Data();
   }
-  
+
   @override
   void dispose() {
     super.dispose();
@@ -83,28 +86,30 @@ class _B50PageState extends State<B50Page> {
         final songs = await MaimaiMusicDataManager().getCachedSongs();
         if (songs != null) {
           setState(() {
-            _maimaiMusicData = songs.map((song) => {
-              'id': song.id,
-              'title': song.title,
-              'type': song.type,
-              'ds': song.ds,
-              'level': song.level,
-              'cids': song.cids,
-              'is_extra': song.isExtra,
-              'charts': song.charts.map((chart) => {
-                'notes': chart.notes,
-                'charter': chart.charter
-              }).toList(),
-              'basic_info': {
-                'title': song.basicInfo.title,
-                'artist': song.basicInfo.artist,
-                'genre': song.basicInfo.genre,
-                'bpm': song.basicInfo.bpm,
-                'release_date': song.basicInfo.releaseDate,
-                'from': song.basicInfo.from,
-                'is_new': song.basicInfo.isNew
-              }
-            }).toList();
+            _maimaiMusicData = songs
+                .map((song) => {
+                      'id': song.id,
+                      'title': song.title,
+                      'type': song.type,
+                      'ds': song.ds,
+                      'level': song.level,
+                      'cids': song.cids,
+                      'is_extra': song.isExtra,
+                      'charts': song.charts
+                          .map((chart) =>
+                              {'notes': chart.notes, 'charter': chart.charter})
+                          .toList(),
+                      'basic_info': {
+                        'title': song.basicInfo.title,
+                        'artist': song.basicInfo.artist,
+                        'genre': song.basicInfo.genre,
+                        'bpm': song.basicInfo.bpm,
+                        'release_date': song.basicInfo.releaseDate,
+                        'from': song.basicInfo.from,
+                        'is_new': song.basicInfo.isNew
+                      }
+                    })
+                .toList();
           });
         }
       } else {
@@ -124,7 +129,7 @@ class _B50PageState extends State<B50Page> {
         // 尝试加载缓存的Best50数据
         final best50Manager = UserBest50Manager();
         final cachedBest50Data = await best50Manager.getCachedBest50Data();
-        
+
         if (cachedBest50Data != null) {
           _updateB50Data(cachedBest50Data);
         } else {
@@ -145,7 +150,7 @@ class _B50PageState extends State<B50Page> {
     try {
       final userPlayDataManager = UserPlayDataManager();
       final userPlayData = await userPlayDataManager.getCachedUserPlayData();
-      
+
       if (userPlayData == null || userPlayData['records'] == null) {
         setState(() {
           _b50Data = null;
@@ -174,7 +179,7 @@ class _B50PageState extends State<B50Page> {
 
       // 根据歌曲的is_new字段分组
       List<RecordItem> oldSongs = []; // is_new = false
-      List<RecordItem> newSongs = [];  // is_new = true
+      List<RecordItem> newSongs = []; // is_new = true
 
       for (var record in recordItems) {
         bool isNew = _isSongNew(record.songId);
@@ -195,12 +200,14 @@ class _B50PageState extends State<B50Page> {
       List<RecordItem> best15 = newSongs.take(15).toList();
 
       // 计算总rating
-      int totalRating = best35.fold(0, (sum, item) => sum + item.ra) + 
-                         best15.fold(0, (sum, item) => sum + item.ra);
+      int totalRating = best35.fold(0, (sum, item) => sum + item.ra) +
+          best15.fold(0, (sum, item) => sum + item.ra);
 
       // 转换为Map格式
-      List<Map<String, dynamic>> sdSongsMap = best35.map((item) => item.toJson()).toList();
-      List<Map<String, dynamic>> dxDongsMap = best15.map((item) => item.toJson()).toList();
+      List<Map<String, dynamic>> sdSongsMap =
+          best35.map((item) => item.toJson()).toList();
+      List<Map<String, dynamic>> dxDongsMap =
+          best15.map((item) => item.toJson()).toList();
 
       setState(() {
         _b50Data = {
@@ -219,7 +226,8 @@ class _B50PageState extends State<B50Page> {
       _calculateTheoreticalBest50();
       _loadTagDataAndCalculateStats();
 
-      debugPrint('✅ 从游玩数据计算Best50完成: Best35=${best35.length}首, Best15=${best15.length}首, 总Rating=$totalRating');
+      debugPrint(
+          '✅ 从游玩数据计算Best50完成: Best35=${best35.length}首, Best15=${best15.length}首, 总Rating=$totalRating');
     } catch (e) {
       debugPrint('Error calculating Best50 from play data: $e');
       setState(() {
@@ -231,13 +239,13 @@ class _B50PageState extends State<B50Page> {
   /// 根据歌曲ID判断是否为新曲（is_new=true）
   bool _isSongNew(int songId) {
     if (_maimaiMusicData == null) return false;
-    
+
     try {
       // 使用 where() 和 firstWhereOrNull 替代 orElse 返回 null
       var song = _maimaiMusicData!.firstWhere(
         (item) => item['id'] == songId.toString(),
       );
-      
+
       if (song['basic_info'] != null) {
         return song['basic_info']['is_new'] == true;
       }
@@ -245,7 +253,7 @@ class _B50PageState extends State<B50Page> {
       // 歌曲未找到时返回 false
       debugPrint('Song $songId not found in music data');
     }
-    
+
     return false;
   }
 
@@ -320,23 +328,27 @@ class _B50PageState extends State<B50Page> {
     }
 
     // 按is_new分组（DX新歌和SD老歌）
-    List<Map<String, dynamic>> newSongs = allSongs.where((s) => s['is_new'] == true).toList();
-    List<Map<String, dynamic>> oldSongs = allSongs.where((s) => s['is_new'] == false).toList();
+    List<Map<String, dynamic>> newSongs =
+        allSongs.where((s) => s['is_new'] == true).toList();
+    List<Map<String, dynamic>> oldSongs =
+        allSongs.where((s) => s['is_new'] == false).toList();
 
     // 按ra降序排序
     newSongs.sort((a, b) => b['ra'].compareTo(a['ra']));
     oldSongs.sort((a, b) => b['ra'].compareTo(a['ra']));
 
     // 取Best15和Best35，并计算剩余相同定数的歌曲
-    _theoreticalDxSongs = _takeWithRemaining(newSongs, 15, (info) => _remainingDxSongsInfo = info);
-    _theoreticalSdSongs = _takeWithRemaining(oldSongs, 35, (info) => _remainingSdSongsInfo = info);
+    _theoreticalDxSongs = _takeWithRemaining(
+        newSongs, 15, (info) => _remainingDxSongsInfo = info);
+    _theoreticalSdSongs = _takeWithRemaining(
+        oldSongs, 35, (info) => _remainingSdSongsInfo = info);
   }
 
   // 取前limit个元素，并计算剩余相同定数的歌曲
   List<Map<String, dynamic>> _takeWithRemaining(
-      List<Map<String, dynamic>> songs,
-      int limit,
-      void Function(Map<String, dynamic>?) onRemaining,
+    List<Map<String, dynamic>> songs,
+    int limit,
+    void Function(Map<String, dynamic>?) onRemaining,
   ) {
     if (songs.length <= limit) {
       onRemaining(null);
@@ -345,10 +357,10 @@ class _B50PageState extends State<B50Page> {
 
     // 取前limit个
     List<Map<String, dynamic>> taken = songs.take(limit).toList();
-    
+
     // 获取最后一个元素的ds值
     double lastDs = taken.last['ds'] ?? 0.0;
-    
+
     // 找出所有被截断的相同ds的歌曲
     List<Map<String, dynamic>> remaining = songs.skip(limit).where((s) {
       return (s['ds'] ?? 0.0) == lastDs;
@@ -379,11 +391,11 @@ class _B50PageState extends State<B50Page> {
     setState(() {
       _isLoadingTags = true;
     });
-    
+
     try {
       final maiTagsManager = MaiTagsManager();
       _tagsEntity = await maiTagsManager.getTags();
-      
+
       if (_tagsEntity != null) {
         await _calculateTagGroupStats();
       }
@@ -401,55 +413,58 @@ class _B50PageState extends State<B50Page> {
     if (_tagsEntity == null || _maimaiMusicData == null) {
       return;
     }
-    
+
     final maiTagsManager = MaiTagsManager();
     final tagIdToNameMap = await maiTagsManager.getTagIdToNameMap();
     final groupIdToNameMap = await maiTagsManager.getGroupIdToNameMap();
-    
+
     // 构建标签ID → 分组名称 的映射
     Map<int, String> tagIdToGroupName = {};
     for (var tag in _tagsEntity!.tags) {
       tagIdToGroupName[tag.id] = groupIdToNameMap[tag.groupId] ?? '未分类';
     }
-    
+
     // 获取所有歌曲标题到标签的映射
     Map<String, Set<int>> songTitleToTagIds = {};
     for (var tagSong in _tagsEntity!.tagSongs) {
-      String key = '${tagSong.songId}|${tagSong.sheetType}|${tagSong.sheetDifficulty}';
+      String key =
+          '${tagSong.songId}|${tagSong.sheetType}|${tagSong.sheetDifficulty}';
       if (!songTitleToTagIds.containsKey(key)) {
         songTitleToTagIds[key] = {};
       }
       songTitleToTagIds[key]!.add(tagSong.tagId);
     }
-    
+
     // 统计各标签的出现次数
     Map<String, Map<String, int>> stats = {};
     List<Map<String, dynamic>> allSongs = [
       ...(_isTheoreticalMode ? _theoreticalSdSongs : _sdSongs),
       ...(_isTheoreticalMode ? _theoreticalDxSongs : _dxSongs)
     ];
-    
+
     for (var song in allSongs) {
       int songId = song['song_id'];
       int levelIndex = song['level_index'];
-      
-      int index = _maimaiMusicData!.indexWhere((m) => int.parse(m['id']) == songId);
-      Map<String, dynamic> songData = index >= 0 ? _maimaiMusicData![index] : {};
-      
+
+      int index =
+          _maimaiMusicData!.indexWhere((m) => int.parse(m['id']) == songId);
+      Map<String, dynamic> songData =
+          index >= 0 ? _maimaiMusicData![index] : {};
+
       String songTitle = songData['basic_info']?['title'] ?? '';
       String songType = songData['type'] ?? 'SD';
-      
+
       String sheetType = songType == 'DX' ? 'dx' : 'std';
       String difficulty = _getDifficultyByIndex(levelIndex);
-      
+
       String key = '$songTitle|$sheetType|$difficulty';
       Set<int>? tagIds = songTitleToTagIds[key];
-      
+
       if (tagIds != null && tagIds.isNotEmpty) {
         for (int tagId in tagIds) {
           String tagName = tagIdToNameMap[tagId] ?? '未知标签';
           String groupName = tagIdToGroupName[tagId] ?? '未分类';
-          
+
           if (!stats.containsKey(groupName)) {
             stats[groupName] = {};
           }
@@ -460,7 +475,7 @@ class _B50PageState extends State<B50Page> {
         }
       }
     }
-    
+
     setState(() {
       _tagStats = stats;
     });
@@ -468,20 +483,7 @@ class _B50PageState extends State<B50Page> {
 
   // 根据难度索引获取难度名称
   String _getDifficultyByIndex(int index) {
-    switch (index) {
-      case 0:
-        return 'basic';
-      case 1:
-        return 'advanced';
-      case 2:
-        return 'expert';
-      case 3:
-        return 'master';
-      case 4:
-        return 'remaster';
-      default:
-        return 'unknown';
-    }
+    return ChartDifficulty.apiNameOf(index, fallback: 'unknown');
   }
 
   @override
@@ -499,76 +501,85 @@ class _B50PageState extends State<B50Page> {
     if (_b50Data == null || (_dxSongs.isEmpty && _sdSongs.isEmpty)) {
       // 空状态与正常内容共用背景和顶部栏。
       return BackgroundPageScaffold(
-      title: 'Best50 查询',
-      resizeToAvoidBottomInset: false,
-      contentPadding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom + 10),
-      child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.refresh,
-                          size: 64,
-                          color: AppColors.greyHint(brightness),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          '暂无Best50数据',
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          '请返回首页点击"刷新数据"按钮获取',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ),
-                  ),
-    );
+        title: 'Best50 查询',
+        resizeToAvoidBottomInset: false,
+        contentPadding:
+            EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.refresh,
+                size: 64,
+                color: AppColors.greyHint(brightness),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                '暂无Best50数据',
+                style: TextStyle(
+                  fontSize: 18,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '请返回首页点击"刷新数据"按钮获取',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
     }
 
     return BackgroundPageScaffold(
       title: _isTheoreticalMode ? '理论Rating Best50' : 'Best50查询',
       resizeToAvoidBottomInset: false,
-      contentPadding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom + 10),
+      contentPadding:
+          EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
       child: SingleChildScrollView(
-                    padding:
-                        EdgeInsets.all(MediaQuery.of(context).size.width * 0.03),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _buildRatingSection(),
-                        SizedBox(height: 12.0),
-                        if (!_isTheoreticalMode) _buildTagStatsSection(context),
-                        if (!_isTheoreticalMode) SizedBox(height: 12.0),
-                        _buildActionButtons(),
-                        SizedBox(height: 12.0),
-                        _buildSectionTitle(_isTheoreticalMode ? '理论Best35 | 非当前版本最高定数' : 'Best35 | 非当前版本最好成绩', context),
-                        SizedBox(
-                            height: MediaQuery.of(context).size.height * 0.015),
-                        _buildDataCardGrid(
-                          _isTheoreticalMode ? _theoreticalSdSongs : _sdSongs, 
-                          B50GameCardWidget.designAspectRatio,
-                          remainingInfo: _isTheoreticalMode ? _remainingSdSongsInfo : null,
-                        ),
-                        SizedBox(height: MediaQuery.of(context).size.height * 0.02),
-                        _buildSectionTitle(_isTheoreticalMode ? '理论Best15 | 当前版本最高定数' : 'Best15 | 当前版本最好成绩', context),
-                        SizedBox(height: 12.0),
-                        _buildDataCardGrid(
-                          _isTheoreticalMode ? _theoreticalDxSongs : _dxSongs, 
-                          B50GameCardWidget.designAspectRatio,
-                          remainingInfo: _isTheoreticalMode ? _remainingDxSongsInfo : null,
-                        ),
-                      ],
-                    ),
-                  ),
+        padding: EdgeInsets.fromLTRB(MediaQuery.of(context).size.width * 0.03, 8,
+            MediaQuery.of(context).size.width * 0.03, MediaQuery.of(context).size.width * 0.03),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildRatingSection(),
+            SizedBox(height: 12.0),
+            if (!_isTheoreticalMode) _buildTagStatsSection(context),
+            if (!_isTheoreticalMode) SizedBox(height: 12.0),
+            _buildActionButtons(),
+            SizedBox(height: 12.0),
+            _buildSectionTitle(
+                _isTheoreticalMode
+                    ? '理论Best35 | 非当前版本最高定数'
+                    : 'Best35 | 非当前版本最好成绩',
+                context),
+            SizedBox(height: MediaQuery.of(context).size.height * 0.015),
+            _buildDataCardGrid(
+              _isTheoreticalMode ? _theoreticalSdSongs : _sdSongs,
+              B50GameCardWidget.designAspectRatio,
+              remainingInfo: _isTheoreticalMode ? _remainingSdSongsInfo : null,
+            ),
+            SizedBox(height: MediaQuery.of(context).size.height * 0.02),
+            _buildSectionTitle(
+                _isTheoreticalMode
+                    ? '理论Best15 | 当前版本最高定数'
+                    : 'Best15 | 当前版本最好成绩',
+                context),
+            SizedBox(height: 12.0),
+            _buildDataCardGrid(
+              _isTheoreticalMode ? _theoreticalDxSongs : _dxSongs,
+              B50GameCardWidget.designAspectRatio,
+              remainingInfo: _isTheoreticalMode ? _remainingDxSongsInfo : null,
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -584,24 +595,28 @@ class _B50PageState extends State<B50Page> {
       _snapshots = [];
       final jsonStr = prefs.getString(_snapshotKey!);
       if (jsonStr != null && jsonStr.isNotEmpty) {
-        _snapshots = (json.decode(jsonStr) as List).map((e) => e as Map<String, dynamic>).toList();
+        _snapshots = (json.decode(jsonStr) as List)
+            .map((e) => e as Map<String, dynamic>)
+            .toList();
       }
     } catch (_) {}
   }
 
   Future<void> _saveSnapshot() async {
     if (_b50Data == null) return;
-    if (AccountSwitchService.isBusy || _snapshotRevision != AccountSwitchService.revision) {
+    if (AccountSwitchService.isBusy ||
+        _snapshotRevision != AccountSwitchService.revision) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('账号数据已更新，请重新打开 Best50 后保存')));
+            const SnackBar(content: Text('账号数据已更新，请重新打开 Best50 后保存')));
       }
       return;
     }
     try {
       await _loadSnapshots();
       final now = DateTime.now();
-      final dateStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')} '
+      final dateStr =
+          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')} '
           '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
       _snapshots.insert(0, {
         'date': dateStr,
@@ -615,8 +630,9 @@ class _B50PageState extends State<B50Page> {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_snapshotKey!, json.encode(_snapshots));
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Best50 记录已保存 ($dateStr)'), duration: Duration(seconds: 1)));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Best50 记录已保存 ($dateStr)'),
+            duration: Duration(seconds: 1)));
       }
     } catch (e) {
       debugPrint('保存快照失败: $e');
@@ -638,93 +654,124 @@ class _B50PageState extends State<B50Page> {
         builder: (ctx, setDialogState) {
           final dialogBrightness = Theme.of(ctx).brightness;
           return AlertDialog(
-          title: Row(
-            children: [
-              Icon(Icons.history, size: 22, color: Theme.of(ctx).colorScheme.onSurface),
-              SizedBox(width: 8),
-              Text('Best50 历史记录'),
+            title: Row(
+              children: [
+                Icon(Icons.history,
+                    size: 22, color: Theme.of(ctx).colorScheme.onSurface),
+                SizedBox(width: 8),
+                Text('Best50 历史记录'),
+              ],
+            ),
+            content: SizedBox(
+              width: MediaQuery.of(context).size.width * 0.85,
+              child: _snapshots.isEmpty
+                  ? Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Text('暂无保存的记录，点击"保存当前记录"按钮保存',
+                          style: TextStyle(
+                              color:
+                                  Theme.of(ctx).colorScheme.onSurfaceVariant)),
+                    )
+                  : ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: _snapshots.length,
+                      itemBuilder: (ctx, i) {
+                        final s = _snapshots[i];
+                        return Container(
+                          margin: EdgeInsets.only(bottom: 6),
+                          padding:
+                              EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                                color: AppColors.tableBorder(dialogBrightness)),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.bookmark,
+                                  color: AppColors.linkBlue(dialogBrightness),
+                                  size: 18),
+                              SizedBox(width: 8),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text('Rating: ${s['rating']}',
+                                        style: TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.bold),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis),
+                                    Text(s['date'] ?? '',
+                                        style: TextStyle(
+                                            fontSize: 11,
+                                            color: Theme.of(ctx)
+                                                .colorScheme
+                                                .onSurfaceVariant),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis),
+                                  ],
+                                ),
+                              ),
+                              GestureDetector(
+                                onTap: () async {
+                                  Navigator.pop(ctx);
+                                  final charts = s['charts'];
+                                  setState(() {
+                                    _b50Data = {
+                                      'rating': s['rating'],
+                                      'charts': charts
+                                    };
+                                    _sdSongs = List<Map<String, dynamic>>.from(
+                                        charts['sd'] ?? []);
+                                    _dxSongs = List<Map<String, dynamic>>.from(
+                                        charts['dx'] ?? []);
+                                  });
+                                },
+                                child: Padding(
+                                  padding: EdgeInsets.all(6),
+                                  child: Icon(Icons.remove_red_eye,
+                                      size: 18,
+                                      color:
+                                          AppColors.linkBlue(dialogBrightness)),
+                                ),
+                              ),
+                              GestureDetector(
+                                onTap: () async {
+                                  await _deleteSnapshot(i);
+                                  setDialogState(() {});
+                                },
+                                child: Padding(
+                                  padding: EdgeInsets.all(6),
+                                  child: Icon(Icons.delete_outline,
+                                      size: 18,
+                                      color:
+                                          AppColors.errorRed(dialogBrightness)),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+            ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx), child: Text('关闭')),
             ],
-          ),
-          content: SizedBox(
-            width: MediaQuery.of(context).size.width * 0.85,
-            child: _snapshots.isEmpty
-                ? Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Text('暂无保存的记录，点击"保存当前记录"按钮保存', style: TextStyle(color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
-                  )
-                : ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: _snapshots.length,
-                    itemBuilder: (ctx, i) {
-                      final s = _snapshots[i];
-                      return Container(
-                        margin: EdgeInsets.only(bottom: 6),
-                        padding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: AppColors.tableBorder(dialogBrightness)),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.bookmark, color: AppColors.linkBlue(dialogBrightness), size: 18),
-                            SizedBox(width: 8),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text('Rating: ${s['rating']}',
-                                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
-                                    maxLines: 1, overflow: TextOverflow.ellipsis),
-                                  Text(s['date'] ?? '',
-                                    style: TextStyle(fontSize: 11, color: Theme.of(ctx).colorScheme.onSurfaceVariant),
-                                    maxLines: 1, overflow: TextOverflow.ellipsis),
-                                ],
-                              ),
-                            ),
-                            GestureDetector(
-                              onTap: () async {
-                                Navigator.pop(ctx);
-                                final charts = s['charts'];
-                                setState(() {
-                                  _b50Data = {'rating': s['rating'], 'charts': charts};
-                                  _sdSongs = List<Map<String, dynamic>>.from(charts['sd'] ?? []);
-                                  _dxSongs = List<Map<String, dynamic>>.from(charts['dx'] ?? []);
-                                });
-                              },
-                              child: Padding(
-                                padding: EdgeInsets.all(6),
-                                child: Icon(Icons.remove_red_eye, size: 18, color: AppColors.linkBlue(dialogBrightness)),
-                              ),
-                            ),
-                            GestureDetector(
-                              onTap: () async {
-                                await _deleteSnapshot(i);
-                                setDialogState(() {});
-                              },
-                              child: Padding(
-                                padding: EdgeInsets.all(6),
-                                child: Icon(Icons.delete_outline, size: 18, color: AppColors.errorRed(dialogBrightness)),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: Text('关闭')),
-          ],
-        );},
+          );
+        },
       ),
     );
   }
 
   Widget _buildRatingSection() {
     // 选择显示的数据
-    List<Map<String, dynamic>> currentSdSongs = _isTheoreticalMode ? _theoreticalSdSongs : _sdSongs;
-    List<Map<String, dynamic>> currentDxSongs = _isTheoreticalMode ? _theoreticalDxSongs : _dxSongs;
+    List<Map<String, dynamic>> currentSdSongs =
+        _isTheoreticalMode ? _theoreticalSdSongs : _sdSongs;
+    List<Map<String, dynamic>> currentDxSongs =
+        _isTheoreticalMode ? _theoreticalDxSongs : _dxSongs;
 
     // 计算Rating
     int best35Sum =
@@ -737,7 +784,8 @@ class _B50PageState extends State<B50Page> {
     double best15Average =
         currentDxSongs.isNotEmpty ? best15Sum / currentDxSongs.length : 0.0;
 
-    int rating = _isTheoreticalMode ? best35Sum + best15Sum : (_b50Data?['rating'] ?? 0);
+    int rating =
+        _isTheoreticalMode ? best35Sum + best15Sum : (_b50Data?['rating'] ?? 0);
     double ratingAverage = (best35Sum + best15Sum) / 50;
 
     // 理论模式下使用固定值
@@ -761,12 +809,14 @@ class _B50PageState extends State<B50Page> {
       double dxAchievementsSum = currentDxSongs.fold(0.0,
           (sum, song) => sum + (double.parse(song['achievements'].toString())));
 
-      best50AchievementAverage =
-          (sdAchievementsSum + dxAchievementsSum) / (currentSdSongs.length + currentDxSongs.length);
-      best35AchievementAverage =
-          currentSdSongs.isNotEmpty ? sdAchievementsSum / currentSdSongs.length : 0.0;
-      best15AchievementAverage =
-          currentDxSongs.isNotEmpty ? dxAchievementsSum / currentDxSongs.length : 0.0;
+      best50AchievementAverage = (sdAchievementsSum + dxAchievementsSum) /
+          (currentSdSongs.length + currentDxSongs.length);
+      best35AchievementAverage = currentSdSongs.isNotEmpty
+          ? sdAchievementsSum / currentSdSongs.length
+          : 0.0;
+      best15AchievementAverage = currentDxSongs.isNotEmpty
+          ? dxAchievementsSum / currentDxSongs.length
+          : 0.0;
 
       double sdScoreRateSum = currentSdSongs.fold(0.0, (sum, song) {
         int songId = song['song_id'];
@@ -782,20 +832,24 @@ class _B50PageState extends State<B50Page> {
         return sum + _calculateScoreRate(songId, levelIndex, score);
       });
 
-      best50ScoreRateAverage = (currentSdSongs.length + currentDxSongs.length) > 0
-          ? (sdScoreRateSum + dxScoreRateSum) /
-              (currentSdSongs.length + currentDxSongs.length)
-          : 0.0;
+      best50ScoreRateAverage =
+          (currentSdSongs.length + currentDxSongs.length) > 0
+              ? (sdScoreRateSum + dxScoreRateSum) /
+                  (currentSdSongs.length + currentDxSongs.length)
+              : 0.0;
 
-      best35ScoreRateAverage =
-          currentSdSongs.isNotEmpty ? sdScoreRateSum / currentSdSongs.length : 0.0;
-      best15ScoreRateAverage =
-          currentDxSongs.isNotEmpty ? dxScoreRateSum / currentDxSongs.length : 0.0;
+      best35ScoreRateAverage = currentSdSongs.isNotEmpty
+          ? sdScoreRateSum / currentSdSongs.length
+          : 0.0;
+      best15ScoreRateAverage = currentDxSongs.isNotEmpty
+          ? dxScoreRateSum / currentDxSongs.length
+          : 0.0;
     }
 
     return Container(
       decoration: BoxDecoration(
-        border: Border.all(color: Theme.of(context).colorScheme.onSurface, width: 2.0),
+        border: Border.all(
+            color: Theme.of(context).colorScheme.onSurface, width: 2.0),
         borderRadius: BorderRadius.circular(8.0),
       ),
       padding: EdgeInsets.all(12.0),
@@ -856,16 +910,20 @@ class _B50PageState extends State<B50Page> {
                               TextStyleUtil.span(
                                 best35Sum.toString(),
                                 TextStyle(
-                                  fontSize: MediaQuery.of(context).size.width * 0.04,
-                                  color: Theme.of(context).colorScheme.onSurface,
+                                  fontSize:
+                                      MediaQuery.of(context).size.width * 0.04,
+                                  color:
+                                      Theme.of(context).colorScheme.onSurface,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
                               TextStyleUtil.span(
                                 ' (平均${best35Average.toStringAsFixed(1)})',
                                 TextStyle(
-                                  fontSize: MediaQuery.of(context).size.width * 0.028,
-                                  color: Theme.of(context).colorScheme.onSurface,
+                                  fontSize:
+                                      MediaQuery.of(context).size.width * 0.028,
+                                  color:
+                                      Theme.of(context).colorScheme.onSurface,
                                 ),
                               ),
                             ],
@@ -891,16 +949,20 @@ class _B50PageState extends State<B50Page> {
                               TextStyleUtil.span(
                                 best15Sum.toString(),
                                 TextStyle(
-                                  fontSize: MediaQuery.of(context).size.width * 0.04,
-                                  color: Theme.of(context).colorScheme.onSurface,
+                                  fontSize:
+                                      MediaQuery.of(context).size.width * 0.04,
+                                  color:
+                                      Theme.of(context).colorScheme.onSurface,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
                               TextStyleUtil.span(
                                 ' (平均${best15Average.toStringAsFixed(1)})',
                                 TextStyle(
-                                  fontSize: MediaQuery.of(context).size.width * 0.028,
-                                  color: Theme.of(context).colorScheme.onSurface,
+                                  fontSize:
+                                      MediaQuery.of(context).size.width * 0.028,
+                                  color:
+                                      Theme.of(context).colorScheme.onSurface,
                                 ),
                               ),
                             ],
@@ -933,7 +995,8 @@ class _B50PageState extends State<B50Page> {
                             TextStyleUtil.span(
                               rating.toString(),
                               TextStyle(
-                                fontSize: MediaQuery.of(context).size.width * 0.04,
+                                fontSize:
+                                    MediaQuery.of(context).size.width * 0.04,
                                 color: Theme.of(context).colorScheme.onSurface,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -941,7 +1004,8 @@ class _B50PageState extends State<B50Page> {
                             TextStyleUtil.span(
                               '(平均${ratingAverage.toStringAsFixed(1)})',
                               TextStyle(
-                                fontSize: MediaQuery.of(context).size.width * 0.03,
+                                fontSize:
+                                    MediaQuery.of(context).size.width * 0.03,
                                 color: Theme.of(context).colorScheme.onSurface,
                               ),
                             ),
@@ -963,7 +1027,8 @@ class _B50PageState extends State<B50Page> {
                             TextStyleUtil.span(
                               best35Sum.toString(),
                               TextStyle(
-                                fontSize: MediaQuery.of(context).size.width * 0.04,
+                                fontSize:
+                                    MediaQuery.of(context).size.width * 0.04,
                                 color: Theme.of(context).colorScheme.onSurface,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -971,7 +1036,8 @@ class _B50PageState extends State<B50Page> {
                             TextStyleUtil.span(
                               '(平均${best35Average.toStringAsFixed(1)})',
                               TextStyle(
-                                fontSize: MediaQuery.of(context).size.width * 0.03,
+                                fontSize:
+                                    MediaQuery.of(context).size.width * 0.03,
                                 color: Theme.of(context).colorScheme.onSurface,
                               ),
                             ),
@@ -993,7 +1059,8 @@ class _B50PageState extends State<B50Page> {
                             TextStyleUtil.span(
                               best15Sum.toString(),
                               TextStyle(
-                                fontSize: MediaQuery.of(context).size.width * 0.04,
+                                fontSize:
+                                    MediaQuery.of(context).size.width * 0.04,
                                 color: Theme.of(context).colorScheme.onSurface,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -1001,7 +1068,8 @@ class _B50PageState extends State<B50Page> {
                             TextStyleUtil.span(
                               '(平均${best15Average.toStringAsFixed(1)})',
                               TextStyle(
-                                fontSize: MediaQuery.of(context).size.width * 0.03,
+                                fontSize:
+                                    MediaQuery.of(context).size.width * 0.03,
                                 color: Theme.of(context).colorScheme.onSurface,
                               ),
                             ),
@@ -1023,8 +1091,7 @@ class _B50PageState extends State<B50Page> {
                           color: Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
-                      _buildDualDecimalText(
-                          best50AchievementAverage,
+                      _buildDualDecimalText(best50AchievementAverage,
                           best50ScoreRateAverage * 100,
                           scoreRate: best50ScoreRateAverage),
                       SizedBox(height: 8.0),
@@ -1036,8 +1103,7 @@ class _B50PageState extends State<B50Page> {
                           color: Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
-                      _buildDualDecimalText(
-                          best35AchievementAverage,
+                      _buildDualDecimalText(best35AchievementAverage,
                           best35ScoreRateAverage * 100,
                           scoreRate: best35ScoreRateAverage),
                       SizedBox(height: 8.0),
@@ -1049,8 +1115,7 @@ class _B50PageState extends State<B50Page> {
                           color: Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
-                      _buildDualDecimalText(
-                          best15AchievementAverage,
+                      _buildDualDecimalText(best15AchievementAverage,
                           best15ScoreRateAverage * 100,
                           scoreRate: best15ScoreRateAverage),
                     ],
@@ -1064,40 +1129,8 @@ class _B50PageState extends State<B50Page> {
   // 构建标签统计区域
   Widget _buildTagStatsSection(BuildContext context) {
     final tagBrightness = Theme.of(context).brightness;
-
-    if (_isLoadingTags) {
-      return Container(
-        decoration: BoxDecoration(
-          border: Border.all(color: Theme.of(context).colorScheme.onSurface, width: 2.0),
-          borderRadius: BorderRadius.circular(8.0),
-        ),
-        padding: EdgeInsets.all(16.0),
-        child: Center(
-          child: CircularProgressIndicator(
-            color: Theme.of(context).colorScheme.onSurface,
-          ),
-        ),
-      );
-    }
-
-    if (_tagStats.isEmpty) {
-      return Container(
-        decoration: BoxDecoration(
-          border: Border.all(color: Theme.of(context).colorScheme.onSurface, width: 2.0),
-          borderRadius: BorderRadius.circular(8.0),
-        ),
-        padding: EdgeInsets.all(16.0),
-        child: Center(
-          child: Text(
-            '暂无标签数据',
-            style: TextStyle(
-              fontSize: MediaQuery.of(context).size.width * 0.035,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ),
-      );
-    }
+    final colorScheme = Theme.of(context).colorScheme;
+    final canExpand = !_isLoadingTags && _tagStats.isNotEmpty;
 
     // 分组颜色映射
     Map<String, Color> groupColors = {
@@ -1108,106 +1141,179 @@ class _B50PageState extends State<B50Page> {
 
     return Container(
       decoration: BoxDecoration(
-        border: Border.all(color: Theme.of(context).colorScheme.onSurface, width: 2.0),
+        border: Border.all(
+            color: Theme.of(context).colorScheme.onSurface, width: 2.0),
         borderRadius: BorderRadius.circular(8.0),
       ),
       padding: EdgeInsets.all(12.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '标签统计',
-            style: TextStyle(
-              fontSize: MediaQuery.of(context).size.width * 0.04,
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.onSurface,
+          Semantics(
+            button: canExpand,
+            expanded: canExpand ? _isTagStatsExpanded : null,
+            label: '标签统计',
+            child: InkWell(
+              onTap: canExpand
+                  ? () => setState(() {
+                        _isTagStatsExpanded = !_isTagStatsExpanded;
+                      })
+                  : null,
+              borderRadius: BorderRadius.circular(6.0),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2.0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '标签统计',
+                        style: TextStyle(
+                          fontSize: MediaQuery.of(context).size.width * 0.04,
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.onSurface,
+                        ),
+                      ),
+                    ),
+                    if (_isLoadingTags)
+                      SizedBox(
+                        width: 18.0,
+                        height: 18.0,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.0,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      )
+                    else if (_tagStats.isEmpty)
+                      Text(
+                        '暂无标签数据',
+                        style: TextStyle(
+                          fontSize: MediaQuery.of(context).size.width * 0.03,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      )
+                    else
+                      AnimatedRotation(
+                        turns: _isTagStatsExpanded ? 0.5 : 0.0,
+                        duration: const Duration(milliseconds: 240),
+                        curve: Curves.easeOutCubic,
+                        child: Icon(Icons.expand_more_rounded,
+                            color: colorScheme.onSurfaceVariant),
+                      ),
+                  ],
+                ),
+              ),
             ),
           ),
-          SizedBox(height: 8.0),
-          ..._tagStats.entries.map((groupEntry) {
-            String groupName = groupEntry.key;
-            Map<String, int> tagCounts = groupEntry.value;
-            Color groupColor = groupColors[groupName] ?? Theme.of(context).colorScheme.onSurfaceVariant;
+          AnimatedSize(
+            duration: const Duration(milliseconds: 260),
+            curve: Curves.easeInOutCubic,
+            alignment: Alignment.topCenter,
+            child: SizedBox(
+              width: double.infinity,
+              child: _isTagStatsExpanded && canExpand
+                  ? Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: _tagStats.entries.map((groupEntry) {
+                        String groupName = groupEntry.key;
+                        Map<String, int> tagCounts = groupEntry.value;
+                        Color groupColor = groupColors[groupName] ??
+                            colorScheme.onSurfaceVariant;
 
-            // 对组内标签按数量降序排序
-            List<MapEntry<String, int>> sortedTags = tagCounts.entries.toList()
-              ..sort((a, b) => b.value.compareTo(a.value));
+                        // 对组内标签按数量降序排序
+                        List<MapEntry<String, int>> sortedTags =
+                            tagCounts.entries.toList()
+                              ..sort((a, b) => b.value.compareTo(a.value));
 
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 分组标题
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-                  margin: EdgeInsets.only(top: 8.0),
-                  decoration: BoxDecoration(
-                    color: groupColor.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(6.0),
-                    border: Border.all(color: groupColor.withOpacity(0.3)),
-                  ),
-                  child: Text(
-                    groupName,
-                    style: TextStyle(
-                      fontSize: MediaQuery.of(context).size.width * 0.035,
-                      fontWeight: FontWeight.bold,
-                      color: groupColor,
-                    ),
-                  ),
-                ),
-                SizedBox(height: 6.0),
-                // 该分组下的标签统计条
-                ...sortedTags.map((tagEntry) {
-                  double percentage = (tagEntry.value / 50) * 100;
-                  Color barColor = groupColor.withOpacity(0.7);
-
-                  return Padding(
-                    padding: EdgeInsets.only(bottom: 4.0),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          flex: 2,
-                          child: Text(
-                            tagEntry.key,
-                            style: TextStyle(
-                              fontSize: MediaQuery.of(context).size.width * 0.03,
-                              color: Theme.of(context).colorScheme.onSurface,
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              padding: EdgeInsets.symmetric(
+                                  horizontal: 8.0, vertical: 4.0),
+                              margin: EdgeInsets.only(top: 8.0),
+                              decoration: BoxDecoration(
+                                color: groupColor.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(6.0),
+                                border: Border.all(
+                                    color: groupColor.withOpacity(0.3)),
+                              ),
+                              child: Text(
+                                groupName,
+                                style: TextStyle(
+                                  fontSize:
+                                      MediaQuery.of(context).size.width * 0.035,
+                                  fontWeight: FontWeight.bold,
+                                  color: groupColor,
+                                ),
+                              ),
                             ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        SizedBox(width: 8.0),
-                        Expanded(
-                          flex: 6,
-                          child: SmoothLinearProgressIndicator(
-                            value: (percentage / 100).clamp(0.0, 1.0),
-                            minHeight: 20.0,
-                            color: barColor,
-                            backgroundColor: Theme.of(context)
-                                .colorScheme
-                                .surfaceContainerHighest,
-                            borderRadius: BorderRadius.circular(10.0),
-                          ),
-                        ),
-                        SizedBox(width: 8.0),
-                        Expanded(
-                          flex: 2,
-                          child: Text(
-                            '${tagEntry.value}(${(percentage).toStringAsFixed(0)}%)',
-                            style: TextStyle(
-                              fontSize: MediaQuery.of(context).size.width * 0.03,
-                              color: Theme.of(context).colorScheme.onSurface,
-                            ),
-                            textAlign: TextAlign.right,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }).toList(),
-                SizedBox(height: 4.0),
-              ],
-            );
-          }).toList(),
+                            SizedBox(height: 6.0),
+                            ...sortedTags.map((tagEntry) {
+                              double percentage = (tagEntry.value / 50) * 100;
+                              Color barColor = groupColor.withOpacity(0.7);
+
+                              return Padding(
+                                padding: EdgeInsets.only(bottom: 4.0),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      flex: 2,
+                                      child: Text(
+                                        tagEntry.key,
+                                        style: TextStyle(
+                                          fontSize: MediaQuery.of(context)
+                                                  .size
+                                                  .width *
+                                              0.03,
+                                          color: colorScheme.onSurface,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    SizedBox(width: 8.0),
+                                    Expanded(
+                                      flex: 6,
+                                      child: SmoothLinearProgressIndicator(
+                                        value: (percentage / 100)
+                                            .clamp(0.0, 1.0),
+                                        minHeight: 20.0,
+                                        color: barColor,
+                                        backgroundColor:
+                                            colorScheme.surfaceContainerHighest,
+                                        borderRadius:
+                                            BorderRadius.circular(10.0),
+                                      ),
+                                    ),
+                                    SizedBox(width: 8.0),
+                                    Expanded(
+                                      flex: 2,
+                                      child: Text(
+                                        '${tagEntry.value}(${percentage.toStringAsFixed(0)}%)',
+                                        style: TextStyle(
+                                          fontSize: MediaQuery.of(context)
+                                                  .size
+                                                  .width *
+                                              0.03,
+                                          color: colorScheme.onSurface,
+                                        ),
+                                        textAlign: TextAlign.right,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                            SizedBox(height: 4.0),
+                          ],
+                        );
+                        }).toList(),
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+          ),
         ],
       ),
     );
@@ -1216,7 +1322,8 @@ class _B50PageState extends State<B50Page> {
   Widget _buildSectionTitle(String title, BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        border: Border.all(color: Theme.of(context).colorScheme.onSurface, width: 2.0),
+        border: Border.all(
+            color: Theme.of(context).colorScheme.onSurface, width: 2.0),
         borderRadius: BorderRadius.circular(8.0),
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
       ),
@@ -1242,7 +1349,8 @@ class _B50PageState extends State<B50Page> {
 
     return Container(
       decoration: BoxDecoration(
-        border: Border.all(color: Theme.of(context).colorScheme.onSurface, width: 2.0),
+        border: Border.all(
+            color: Theme.of(context).colorScheme.onSurface, width: 2.0),
         borderRadius: BorderRadius.circular(8.0),
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
       ),
@@ -1260,7 +1368,9 @@ class _B50PageState extends State<B50Page> {
           mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.music_note, color: AppColors.linkBlue(remainingBrightness), size: MediaQuery.of(context).size.width * 0.06),
+            Icon(Icons.music_note,
+                color: AppColors.linkBlue(remainingBrightness),
+                size: MediaQuery.of(context).size.width * 0.06),
             SizedBox(height: 4.0),
             Text(
               '剩余$count首',
@@ -1285,10 +1395,11 @@ class _B50PageState extends State<B50Page> {
   }
 
   // 显示剩余歌曲对话框
-  void _showRemainingSongsDialog(Map<String, dynamic> remainingInfo, String sectionName) {
+  void _showRemainingSongsDialog(
+      Map<String, dynamic> remainingInfo, String sectionName) {
     double ds = remainingInfo['ds'] ?? 0.0;
     List<Map<String, dynamic>> songs = remainingInfo['songs'] ?? [];
-    
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -1306,13 +1417,16 @@ class _B50PageState extends State<B50Page> {
               itemCount: songs.length,
               itemBuilder: (context, index) {
                 var song = songs[index];
-                String difficultyLabel = _getDifficultyLabel(song['level_index'] ?? 0);
+                String difficultyLabel =
+                    _getDifficultyLabel(song['level_index'] ?? 0);
                 String type = song['type'] ?? '';
                 bool isDxMode = type == 'DX';
-                
+
                 return ListTile(
-                  contentPadding: EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
-                  leading: CoverUtil.buildCoverWidgetWithContext(context, song['song_id'].toString(), 50),
+                  contentPadding:
+                      EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
+                  leading: CoverUtil.buildCoverWidgetWithContext(
+                      context, song['song_id'].toString(), 50),
                   title: Row(
                     children: [
                       Text(
@@ -1320,7 +1434,11 @@ class _B50PageState extends State<B50Page> {
                         style: TextStyle(
                           fontSize: MediaQuery.of(context).size.width * 0.04,
                           fontWeight: FontWeight.bold,
-                          color: isDxMode ? AppColors.warningOrange(Theme.of(context).brightness) : AppColors.linkBlue(Theme.of(context).brightness),
+                          color: isDxMode
+                              ? AppColors.warningOrange(
+                                  Theme.of(context).brightness)
+                              : AppColors.linkBlue(
+                                  Theme.of(context).brightness),
                         ),
                       ),
                       SizedBox(width: 8.0),
@@ -1337,7 +1455,8 @@ class _B50PageState extends State<B50Page> {
                       ),
                     ],
                   ),
-                  subtitle: Text('$difficultyLabel | ${song['ds']} | RA: ${song['ra']}'),
+                  subtitle: Text(
+                      '$difficultyLabel | ${song['ds']} | RA: ${song['ra']}'),
                 );
               },
             ),
@@ -1355,8 +1474,10 @@ class _B50PageState extends State<B50Page> {
 
   // 获取难度标签
   String _getDifficultyLabel(int levelIndex) {
-    List<String> labels = ['Basic', 'Advanced', 'Expert', 'Master', 'Re:Master'];
-    return levelIndex >= 0 && levelIndex < labels.length ? labels[levelIndex] : 'Unknown';
+    List<String> labels = ChartDifficulty.standardLabels;
+    return levelIndex >= 0 && levelIndex < labels.length
+        ? labels[levelIndex]
+        : 'Unknown';
   }
 
   Widget _buildGameCard({
@@ -1449,7 +1570,8 @@ class _B50PageState extends State<B50Page> {
         final resolvedColor = color ?? Theme.of(context).colorScheme.onSurface;
         double fontSize = MediaQuery.of(context).size.width * 0.04;
 
-        final starsText = scoreRate != null ? StringUtil.formatStars(scoreRate) : null;
+        final starsText =
+            scoreRate != null ? StringUtil.formatStars(scoreRate) : null;
         final starsColor =
             scoreRate != null ? ColorUtil.getStarsColor(starsText!) : null;
 
@@ -1464,7 +1586,6 @@ class _B50PageState extends State<B50Page> {
                 fontSize: fontSize,
                 fontWeight: FontWeight.bold,
                 color: resolvedColor,
-
               ),
             ),
             _buildDecimalText(value2, context,
@@ -1495,8 +1616,7 @@ class _B50PageState extends State<B50Page> {
   }
 
   Widget _buildDataCardGrid(
-      List<Map<String, dynamic>> songs,
-      double childAspectRatio,
+      List<Map<String, dynamic>> songs, double childAspectRatio,
       {Map<String, dynamic>? remainingInfo}) {
     int itemCount = songs.length + (remainingInfo != null ? 1 : 0);
     // 按当前列表里实际最大 ID 位数作为占位宽度：无 6 位则严格用 5 位，5 位 ID 与 chip 之间不留空
@@ -1528,7 +1648,8 @@ class _B50PageState extends State<B50Page> {
     );
   }
 
-  Widget _buildDataGameCard(Map<String, dynamic> songData, {required int maxIdLength}) {
+  Widget _buildDataGameCard(Map<String, dynamic> songData,
+      {required int maxIdLength}) {
     double achievementRate = double.parse(songData['achievements'].toString());
     int score = songData['dxScore'];
     String fc = songData['fc'] ?? '';
@@ -1546,19 +1667,23 @@ class _B50PageState extends State<B50Page> {
     int songId = songData['song_id'];
 
     // 理论模式下使用固定值
-    double scoreRate = _isTheoreticalMode ? 1.0 : _calculateScoreRate(songId, levelIndex, score);
-    String stars = _isTheoreticalMode ? '\u27266' : StringUtil.formatStars(scoreRate);
-    Color starsColor = _isTheoreticalMode ? Colors.yellow : ColorUtil.getStarsColor(stars);
+    double scoreRate = _isTheoreticalMode
+        ? 1.0
+        : _calculateScoreRate(songId, levelIndex, score);
+    String stars =
+        _isTheoreticalMode ? '\u27266' : StringUtil.formatStars(scoreRate);
+    Color starsColor =
+        _isTheoreticalMode ? Colors.yellow : ColorUtil.getStarsColor(stars);
 
-      Color cardColor;
-      if (songId.toString().length == 6) {
-        cardColor = AppColors.utageCard();
-      } else {
-        cardColor = ColorUtil.getCardColor(levelIndex);
-      }
+    Color cardColor;
+    if (songId.toString().length == 6) {
+      cardColor = AppColors.utageCard();
+    } else {
+      cardColor = ColorUtil.getCardColor(levelIndex);
+    }
 
-      bool dxMode = type == 'DX';
-      bool isUtage = songId.toString().length == 6;
+    bool dxMode = type == 'DX';
+    bool isUtage = songId.toString().length == 6;
 
     return GestureDetector(
       onTap: () {
@@ -1649,13 +1774,18 @@ class _B50PageState extends State<B50Page> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.linkBlue(actionBrightness),
                   padding: EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
                 ),
-                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                child:
+                    Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                   Icon(Icons.save, color: Colors.white, size: 18),
                   SizedBox(width: 6),
-                  Text('保存当前记录', style: TextStyle(fontSize: MediaQuery.of(context).size.width * 0.033,
-                      color: Colors.white, fontWeight: FontWeight.bold)),
+                  Text('保存当前记录',
+                      style: TextStyle(
+                          fontSize: MediaQuery.of(context).size.width * 0.033,
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold)),
                 ]),
               ),
             ),
@@ -1669,13 +1799,18 @@ class _B50PageState extends State<B50Page> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.linkBlue(actionBrightness),
                   padding: EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
                 ),
-                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                child:
+                    Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                   Icon(Icons.history, color: Colors.white, size: 18),
                   SizedBox(width: 6),
-                  Text('历史记录', style: TextStyle(fontSize: MediaQuery.of(context).size.width * 0.033,
-                      color: Colors.white, fontWeight: FontWeight.bold)),
+                  Text('历史记录',
+                      style: TextStyle(
+                          fontSize: MediaQuery.of(context).size.width * 0.033,
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold)),
                 ]),
               ),
             ),
@@ -1687,68 +1822,70 @@ class _B50PageState extends State<B50Page> {
             Expanded(
               child: ElevatedButton(
                 onPressed: () async {
-              debugPrint('=== EXPORT BUTTON CLICKED ===');
-              try {
-                await _exportToImage();
-              } catch (e) {
-                debugPrint('Error in export: $e');
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.linkBlue(actionBrightness),
-              padding: EdgeInsets.symmetric(vertical: 12.0),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8.0),
-              ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.image, color: Colors.white),
-                SizedBox(width: 8.0),
-                Text(
-                  '导出为图片',
-                  style: TextStyle(
-                    fontSize: MediaQuery.of(context).size.width * 0.035,
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
+                  debugPrint('=== EXPORT BUTTON CLICKED ===');
+                  try {
+                    await _exportToImage();
+                  } catch (e) {
+                    debugPrint('Error in export: $e');
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.linkBlue(actionBrightness),
+                  padding: EdgeInsets.symmetric(vertical: 12.0),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8.0),
                   ),
                 ),
-              ],
-            ),
-          ),
-        ),
-        SizedBox(width: 8.0),
-        Expanded(
-          child: ElevatedButton(
-            onPressed: _toggleTheoreticalMode,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _isTheoreticalMode ? AppColors.warningOrange(actionBrightness) : AppColors.successGreen(actionBrightness),
-              padding: EdgeInsets.symmetric(vertical: 12.0),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.image, color: Colors.white),
+                    SizedBox(width: 8.0),
+                    Text(
+                      '导出为图片',
+                      style: TextStyle(
+                        fontSize: MediaQuery.of(context).size.width * 0.035,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.trending_up, color: Colors.white),
-                SizedBox(width: 8.0),
-                Text(
-                  _isTheoreticalMode ? '返回实际Best50' : '查看理论Rating B50',
-                  style: TextStyle(
-                    fontSize: MediaQuery.of(context).size.width * 0.035,
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
+            SizedBox(width: 8.0),
+            Expanded(
+              child: ElevatedButton(
+                onPressed: _toggleTheoreticalMode,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _isTheoreticalMode
+                      ? AppColors.warningOrange(actionBrightness)
+                      : AppColors.successGreen(actionBrightness),
+                  padding: EdgeInsets.symmetric(vertical: 12.0),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8.0),
                   ),
                 ),
-              ],
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.trending_up, color: Colors.white),
+                    SizedBox(width: 8.0),
+                    Text(
+                      _isTheoreticalMode ? '返回实际Best50' : '查看理论Rating B50',
+                      style: TextStyle(
+                        fontSize: MediaQuery.of(context).size.width * 0.035,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
-          ),
+          ],
         ),
       ],
-    ),
-    ],
     );
   }
 
@@ -1756,30 +1893,32 @@ class _B50PageState extends State<B50Page> {
   Future<bool> _requestStoragePermission() async {
     debugPrint('Page: _requestStoragePermission called');
     debugPrint('Page: Platform.isAndroid = ${Platform.isAndroid}');
-    
+
     if (Platform.isAndroid) {
       debugPrint('Page: Running on Android');
-      
+
       // 策略：同时请求 storage 和 photos 权限，确保覆盖所有 Android 版本
       // Android 13+ 需要 photos/videos 权限
       // Android 12 及以下需要 storage 权限
-      
+
       // 先检查已有权限状态
       debugPrint('Page: Checking existing permissions...');
       PermissionStatus storageStatus = await Permission.storage.status;
       PermissionStatus photosStatus = await Permission.photos.status;
       PermissionStatus videosStatus = await Permission.videos.status;
-      
+
       debugPrint('Page: Storage status = $storageStatus');
       debugPrint('Page: Photos status = $photosStatus');
       debugPrint('Page: Videos status = $videosStatus');
-      
+
       // 如果任何一个权限已授予，直接返回成功
-      if (storageStatus.isGranted || photosStatus.isGranted || videosStatus.isGranted) {
+      if (storageStatus.isGranted ||
+          photosStatus.isGranted ||
+          videosStatus.isGranted) {
         debugPrint('Page: At least one permission already granted');
         return true;
       }
-      
+
       // 请求权限：同时请求 storage 和 photos
       debugPrint('Page: Requesting storage, photos and videos permissions...');
       Map<Permission, PermissionStatus> statuses = await [
@@ -1787,15 +1926,15 @@ class _B50PageState extends State<B50Page> {
         Permission.photos,
         Permission.videos,
       ].request();
-      
+
       bool storageGranted = statuses[Permission.storage]?.isGranted ?? false;
       bool photosGranted = statuses[Permission.photos]?.isGranted ?? false;
       bool videosGranted = statuses[Permission.videos]?.isGranted ?? false;
-      
+
       debugPrint('Page: Storage granted = $storageGranted');
       debugPrint('Page: Photos granted = $photosGranted');
       debugPrint('Page: Videos granted = $videosGranted');
-      
+
       return storageGranted || photosGranted || videosGranted;
     } else {
       // 非 Android 平台
@@ -1809,12 +1948,12 @@ class _B50PageState extends State<B50Page> {
     try {
       debugPrint('=== EXPORT TO IMAGE STARTED ===');
       debugPrint('Current context: $context');
-      
+
       // 先请求存储权限
       debugPrint('Step 1: Requesting storage permission from page...');
       bool hasPermission = await _requestStoragePermission();
       debugPrint('Step 1 completed: hasPermission = $hasPermission');
-      
+
       if (!hasPermission) {
         showDialog(
           context: context,
@@ -1833,8 +1972,25 @@ class _B50PageState extends State<B50Page> {
       }
 
       // Show quality selector first
-      final estimatedPngSize = ImageEncodeUtil.estimatePngSize(songCount: 50, hasHeader: true, hasUserInfo: !_isTheoreticalMode);
-      final quality = await ExportQualitySelector.show(context, estimatedPngSize: estimatedPngSize, exportingLabel: _isTheoreticalMode ? '拟合 Best50' : 'Best50', enableThunderMode: true);
+      final estimatedPngSize = ImageEncodeUtil.estimatePngSize(
+          songCount: 50, hasHeader: true, hasUserInfo: !_isTheoreticalMode);
+      final quality = await ExportQualitySelector.show(
+        context,
+        estimatedPngSize: estimatedPngSize,
+        exportingLabel: _isTheoreticalMode ? '拟合 Best50' : 'Best50',
+        enableThunderMode: true,
+        previewBuilder: (previewContext, previewQuality) =>
+            B50ConvertToImg.buildPreviewWidget(
+          previewContext,
+          _b50Data,
+          _isTheoreticalMode ? _theoreticalSdSongs : _sdSongs,
+          _isTheoreticalMode ? _theoreticalDxSongs : _dxSongs,
+          _maimaiMusicData,
+          isTheoreticalMode: _isTheoreticalMode,
+          thunderMode: previewQuality.thunderMode,
+          thunderVertical: previewQuality.thunderVertical,
+        ),
+      );
       if (quality == null) return; // user cancelled
 
       showDialog(
@@ -1884,7 +2040,8 @@ class _B50PageState extends State<B50Page> {
                 child: Text('复制路径'),
               ),
               TextButton(
-                onPressed: () => Navigator.of(context, rootNavigator: true).pop(),
+                onPressed: () =>
+                    Navigator.of(context, rootNavigator: true).pop(),
                 child: Text('确定'),
               ),
             ],
@@ -1898,7 +2055,8 @@ class _B50PageState extends State<B50Page> {
             content: Text('图片导出失败，请重试'),
             actions: [
               TextButton(
-                onPressed: () => Navigator.of(context, rootNavigator: true).pop(),
+                onPressed: () =>
+                    Navigator.of(context, rootNavigator: true).pop(),
                 child: Text('确定'),
               ),
             ],

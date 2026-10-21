@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import '../widgets/SmoothLinearProgressIndicator.dart';
 import 'dart:async';
@@ -58,19 +59,19 @@ class PaiziProgressPage extends StatefulWidget {
 
 class _PaiziProgressPageState extends State<PaiziProgressPage> {
   final PaiziProgressService _service = PaiziProgressService();
-  
+
   // 选择状态
   List<String> _firstCharOptions = [];
   List<String> _titleTypeOptions = [];
   List<int> _difficultyOptions = [];
-  
+
   String? _selectedFirstChar;
   String? _selectedTitleType;
   int? _selectedDifficulty;
-  
+
   Collection? _currentPlate;
   bool _isLoading = true;
-  
+
   // 缓存的歌曲完成状态数据
   List<Map<String, dynamic>>? _cachedSongsWithStatus;
   bool _isSongsLoading = false;
@@ -121,32 +122,37 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
         _firstCharOptions = await _service.getFirstCharOptions();
       }
 
-      _titleTypeOptions = _service.getTitleTypeOptions(firstChar: _firstCharOptions.isNotEmpty ? _firstCharOptions[0] : null);
+      _titleTypeOptions = _service.getTitleTypeOptions(
+          firstChar:
+              _firstCharOptions.isNotEmpty ? _firstCharOptions[0] : null);
 
       // 获取保存的用户选项
       final savedOptions = await _service.getSavedOptions();
-      
+
       // 设置保存的选项，如果有效则使用，否则使用默认值
       if (_firstCharOptions.isNotEmpty) {
         final savedFirstChar = savedOptions['firstChar'] as String;
-        _selectedFirstChar = _firstCharOptions.contains(savedFirstChar) && savedFirstChar.isNotEmpty
+        _selectedFirstChar = _firstCharOptions.contains(savedFirstChar) &&
+                savedFirstChar.isNotEmpty
             ? savedFirstChar
             : (_firstCharOptions.contains('真') ? '真' : _firstCharOptions[0]);
       }
-      
+
       // 根据选中的首字更新称号类型选项（确保正确显示霸者按钮）
-      _titleTypeOptions = _service.getTitleTypeOptions(firstChar: _selectedFirstChar);
-      
+      _titleTypeOptions =
+          _service.getTitleTypeOptions(firstChar: _selectedFirstChar);
+
       if (_titleTypeOptions.isNotEmpty) {
         final savedTitleType = savedOptions['titleType'] as String;
-        _selectedTitleType = _titleTypeOptions.contains(savedTitleType) && savedTitleType.isNotEmpty
+        _selectedTitleType = _titleTypeOptions.contains(savedTitleType) &&
+                savedTitleType.isNotEmpty
             ? savedTitleType
             : _titleTypeOptions[0];
       }
 
       // 更新难度选项
       await _updateDifficultyOptions();
-      
+
       // 设置保存的难度选项
       final savedDifficulty = savedOptions['difficulty'] as int;
       if (_difficultyOptions.contains(savedDifficulty)) {
@@ -156,10 +162,13 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
       // 设置保存的显示模式
       _showListMode = savedOptions['showListMode'] as bool;
       _useLevelDisplay = savedOptions['useLevelDisplay'] as bool;
-      
+
       // 设置保存的筛选模式
       final savedFilterMode = savedOptions['filterMode'] as String;
-      _filterMode = ['all', 'completed', 'uncompleted'].contains(savedFilterMode) ? savedFilterMode : 'all';
+      _filterMode =
+          ['all', 'completed', 'uncompleted'].contains(savedFilterMode)
+              ? savedFilterMode
+              : 'all';
 
       await _loadCurrentPlate();
       // 加载歌曲完成状态数据
@@ -194,15 +203,16 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
         _selectedFirstChar!,
         _selectedTitleType!,
       );
-      
+
       // 保存当前选中的难度
       final currentDifficulty = _selectedDifficulty;
-      
+
       _difficultyOptions = newDifficultyOptions;
-      
+
       // 如果当前选中的难度仍然在新列表中，则保持选中；否则选择第一个
       if (_difficultyOptions.isNotEmpty) {
-        if (currentDifficulty != null && _difficultyOptions.contains(currentDifficulty)) {
+        if (currentDifficulty != null &&
+            _difficultyOptions.contains(currentDifficulty)) {
           _selectedDifficulty = currentDifficulty;
         } else {
           _selectedDifficulty = _difficultyOptions[0];
@@ -226,7 +236,9 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
 
   // 加载歌曲完成状态（带缓存）
   Future<void> _loadSongsWithStatus() async {
-    if (_selectedFirstChar == null || _selectedTitleType == null || _selectedDifficulty == null) {
+    if (_selectedFirstChar == null ||
+        _selectedTitleType == null ||
+        _selectedDifficulty == null) {
       return;
     }
 
@@ -277,12 +289,18 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
   Color _getDifficultyColor(int difficulty) {
     if (difficulty == -1) return Colors.black;
     switch (difficulty) {
-      case 0: return Colors.green;
-      case 1: return Color(0xFFFFCC00); // ADVANCED - 深黄色
-      case 2: return Colors.pink;
-      case 3: return Colors.purple;
-      case 4: return Colors.purple.shade200; // Re:MASTER - 紫色浅色调
-      default: return Colors.grey;
+      case ChartDifficulty.basic:
+        return Colors.green;
+      case ChartDifficulty.advanced:
+        return Color(0xFFFFCC00); // ADVANCED - 深黄色
+      case ChartDifficulty.expert:
+        return Colors.pink;
+      case ChartDifficulty.master:
+        return Colors.purple;
+      case ChartDifficulty.reMaster:
+        return Colors.purple.shade200; // Re:MASTER - 紫色浅色调
+      default:
+        return Colors.grey;
     }
   }
 
@@ -312,54 +330,81 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
       title: '牌子进度',
       resizeToAvoidBottomInset: false,
       contentPadding: EdgeInsets.only(
-        bottom: MediaQuery.paddingOf(context).bottom + 10,
+        bottom: MediaQuery.paddingOf(context).bottom,
       ),
-      child: _isLoading
-                      ? Center(child: CircularProgressIndicator())
-                      : SingleChildScrollView(
-                          padding: EdgeInsets.all(_paddingM),
-                          child: Column(
-                            children: [
-                              // 选择区域
-                              _buildSelectionSection(),
+      child: SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(_paddingM, 8, _paddingM, _paddingM),
+              child: Column(
+                children: [
+                  // 选择区域
+                  _buildSelectionSection(),
 
-                              SizedBox(height: _paddingL),
+                  SizedBox(height: _paddingL),
 
-                              // 导出为图片按钮
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton.icon(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.linkBlue(brightness),
-                                    foregroundColor: Colors.white,
-                                    padding: EdgeInsets.symmetric(vertical: _paddingS),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(_borderRadiusSmall),
-                                    ),
-                                  ),
-                                  icon: Icon(Icons.image, size: _textSizeL + 4),
-                                  label: Text(
-                                    '导出为图片',
-                                    style: TextStyle(fontSize: _textSizeM, fontWeight: FontWeight.bold),
-                                  ),
-                                  onPressed: () async {
-                                    debugPrint('=== PAIZI EXPORT BUTTON CLICKED ===');
-                                    try {
-                                      await _exportToImage();
-                                    } catch (e) {
-                                      debugPrint('Error in export: $e');
-                                    }
-                                  },
-                                ),
-                              ),
-
-                              SizedBox(height: _paddingL),
-
-                              // 曲绘和完成情况显示区域
-                              _buildSongListSection(),
-                            ],
-                          ),
+                  // 导出为图片按钮
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.linkBlue(brightness),
+                        foregroundColor: Colors.white,
+                        padding: EdgeInsets.symmetric(vertical: _paddingS),
+                        shape: RoundedRectangleBorder(
+                          borderRadius:
+                              BorderRadius.circular(_borderRadiusSmall),
                         ),
+                      ),
+                      icon: Icon(Icons.image, size: _textSizeL + 4),
+                      label: Text(
+                        '导出为图片',
+                        style: TextStyle(
+                            fontSize: _textSizeM, fontWeight: FontWeight.bold),
+                      ),
+                      onPressed: () async {
+                        debugPrint('=== PAIZI EXPORT BUTTON CLICKED ===');
+                        try {
+                          await _exportToImage();
+                        } catch (e) {
+                          debugPrint('Error in export: $e');
+                        }
+                      },
+                    ),
+                  ),
+
+                  SizedBox(height: _paddingL),
+
+                  // 曲绘和完成情况显示区域
+                  AnimatedSwitcher(
+                    duration: MediaQuery.disableAnimationsOf(context)
+                        ? Duration.zero
+                        : const Duration(milliseconds: 240),
+                    switchInCurve: Curves.easeOutCubic,
+                    switchOutCurve: Curves.easeInCubic,
+                    child: (_isLoading || _isSongsLoading)
+                        ? _buildDataLoadingPanel()
+                        : _buildSongListSection(),
+                  ),
+                ],
+              ),
+            ),
+    );
+  }
+
+  Widget _buildDataLoadingPanel() {
+    return SizedBox(
+      key: const ValueKey('paizi-data-loading'),
+      height: 180,
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(color: Theme.of(context).colorScheme.primary),
+            const SizedBox(height: 12),
+            Text('正在加载牌子进度…',
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          ],
+        ),
+      ),
     );
   }
 
@@ -550,10 +595,14 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
                         _selectedFirstChar = char;
                         _cachedSongsWithStatus = null; // 清空缓存
                         // 更新称号类型选项
-                        _titleTypeOptions = _service.getTitleTypeOptions(firstChar: char);
+                        _titleTypeOptions =
+                            _service.getTitleTypeOptions(firstChar: char);
                         // 如果当前选中的称号类型不在新选项中，重置为第一个选项
-                        if (_selectedTitleType != null && !_titleTypeOptions.contains(_selectedTitleType)) {
-                          _selectedTitleType = _titleTypeOptions.isNotEmpty ? _titleTypeOptions[0] : null;
+                        if (_selectedTitleType != null &&
+                            !_titleTypeOptions.contains(_selectedTitleType)) {
+                          _selectedTitleType = _titleTypeOptions.isNotEmpty
+                              ? _titleTypeOptions[0]
+                              : null;
                         }
                       });
                       await _updateDifficultyOptions();
@@ -568,7 +617,9 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
-                          color: _selectedFirstChar == char ? Colors.white : Theme.of(context).colorScheme.onSurfaceVariant,
+                          color: _selectedFirstChar == char
+                              ? Colors.white
+                              : Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ),
@@ -584,7 +635,9 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
 
   // 构建歌曲列表区域
   Widget _buildSongListSection() {
-    if (_currentPlate == null || _currentPlate!.required == null || _currentPlate!.required!.isEmpty) {
+    if (_currentPlate == null ||
+        _currentPlate!.required == null ||
+        _currentPlate!.required!.isEmpty) {
       return Center(
         child: Text(
           '暂无数据',
@@ -616,518 +669,549 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
 
     final songsWithStatus = _cachedSongsWithStatus!;
 
-            // 根据筛选模式过滤歌曲
-            List<Map<String, dynamic>> filteredSongs = songsWithStatus;
-            if (_filterMode == 'completed') {
-              filteredSongs = songsWithStatus.where((item) => item['completed'] as bool).toList();
-            } else if (_filterMode == 'uncompleted') {
-              filteredSongs = songsWithStatus.where((item) => !(item['completed'] as bool)).toList();
-            }
+    // 根据筛选模式过滤歌曲
+    List<Map<String, dynamic>> filteredSongs = songsWithStatus;
+    if (_filterMode == 'completed') {
+      filteredSongs =
+          songsWithStatus.where((item) => item['completed'] as bool).toList();
+    } else if (_filterMode == 'uncompleted') {
+      filteredSongs = songsWithStatus
+          .where((item) => !(item['completed'] as bool))
+          .toList();
+    }
 
-        // 按等级/定数分组歌曲
-            Map<String, List<Map<String, dynamic>>> groupedSongs = {};
-            for (final item in filteredSongs) {
+    // 按等级/定数分组歌曲
+    Map<String, List<Map<String, dynamic>>> groupedSongs = {};
+    for (final item in filteredSongs) {
+      final dynamic song = item['song'];
+      final diffIndex = item['difficulty'] as int;
+      String levelKey = '未知';
+      if (song is Song) {
+        if (song.ds != null && song.ds.length > diffIndex) {
+          final ds = song.ds[diffIndex];
+          // 根据显示模式选择分组方式
+          levelKey =
+              _useLevelDisplay ? _getLevelDisplay(ds) : ds.toStringAsFixed(1);
+        }
+      }
+      if (!groupedSongs.containsKey(levelKey)) {
+        groupedSongs[levelKey] = [];
+      }
+      groupedSongs[levelKey]!.add(item);
+    }
+
+    // 按等级/定数降序排序
+    final sortedLevelKeys = groupedSongs.keys.toList()
+      ..sort((a, b) {
+        double parseLevel(String level) {
+          if (_useLevelDisplay) {
+            // Level 格式：15, 14+, 14 等
+            if (level == '15') return 15.0;
+            if (level.endsWith('+')) {
+              return double.parse(level.substring(0, level.length - 1)) + 0.5;
+            }
+            return double.tryParse(level) ?? 0.0;
+          } else {
+            // 定数格式：15.0, 14.5 等
+            return double.tryParse(level) ?? 0.0;
+          }
+        }
+
+        return parseLevel(b).compareTo(parseLevel(a)); // 降序
+      });
+
+    // 构建带等级分隔线的歌曲列表
+    List<Widget> songWidgets = [];
+    for (final levelKey in sortedLevelKeys) {
+      // 对每个定数内的歌曲按定数降序排序
+      final levelSongs = groupedSongs[levelKey]!
+        ..sort((a, b) {
+          double getDs(Map<String, dynamic> item) {
+            final dynamic song = item['song'];
+            final diffIndex = item['difficulty'] as int;
+            if (song is Song) {
+              if (song.ds != null && song.ds.length > diffIndex) {
+                return song.ds[diffIndex];
+              }
+            }
+            return 0.0;
+          }
+
+          return getDs(b).compareTo(getDs(a)); // 降序
+        });
+
+      // 添加等级/定数分隔线
+      songWidgets.add(
+        Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            border: Border.all(
+                color: AppColors.tableBorder(Theme.of(context).brightness),
+                width: 1),
+            borderRadius: BorderRadius.circular(_borderRadiusSmall),
+          ),
+          padding:
+              EdgeInsets.symmetric(vertical: _paddingXS, horizontal: _paddingM),
+          margin: EdgeInsets.only(bottom: _paddingXS),
+          child: Text(
+            '${_useLevelDisplay ? 'Lv.' : ''}${levelKey} | 共 ${levelSongs.length} 首歌曲',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: _textSizeM,
+              color: Theme.of(context).colorScheme.onSurface,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      );
+
+      // 添加该等级的歌曲卡片
+      songWidgets.add(
+        Container(
+          margin: EdgeInsets.only(bottom: _paddingXS),
+          child: GridView.builder(
+            shrinkWrap: true,
+            physics: NeverScrollableScrollPhysics(),
+            padding: EdgeInsets.zero,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: _paddingXS,
+              mainAxisSpacing: _paddingXS,
+              childAspectRatio: 2.0,
+            ),
+            itemCount: levelSongs.length,
+            itemBuilder: (context, index) {
+              final item = levelSongs[index];
               final dynamic song = item['song'];
-              final diffIndex = item['difficulty'] as int;
-              String levelKey = '未知';
+              final isCompleted = item['completed'] as bool;
+
+              // 获取歌曲ID（支持 Song 和 CollectionRequiredSong）
+              String songId;
+              String songTitle;
+              String songType;
+              String songDs = '';
+              int initialLevelIndex = _selectedDifficulty ?? 3;
               if (song is Song) {
+                songId = song.id;
+                songTitle = song.title;
+                songType = song.type;
+                // 获取当前难度对应的定数
+                final diffIndex = item['difficulty'] as int;
+                initialLevelIndex = diffIndex;
                 if (song.ds != null && song.ds.length > diffIndex) {
-                  final ds = song.ds[diffIndex];
-                  // 根据显示模式选择分组方式
-                  levelKey = _useLevelDisplay ? _getLevelDisplay(ds) : ds.toStringAsFixed(1);
+                  songDs = song.ds[diffIndex].toStringAsFixed(1);
                 }
+              } else if (song is CollectionRequiredSong) {
+                songId = song.id.toString();
+                songTitle = song.title;
+                songType = song.type;
+              } else {
+                songId = '';
+                songTitle = '未知';
+                songType = '';
               }
-              if (!groupedSongs.containsKey(levelKey)) {
-                groupedSongs[levelKey] = [];
-              }
-              groupedSongs[levelKey]!.add(item);
-            }
 
-            // 按等级/定数降序排序
-            final sortedLevelKeys = groupedSongs.keys.toList()
-              ..sort((a, b) {
-                double parseLevel(String level) {
-                  if (_useLevelDisplay) {
-                    // Level 格式：15, 14+, 14 等
-                    if (level == '15') return 15.0;
-                    if (level.endsWith('+')) {
-                      return double.parse(level.substring(0, level.length - 1)) + 0.5;
-                    }
-                    return double.tryParse(level) ?? 0.0;
-                  } else {
-                    // 定数格式：15.0, 14.5 等
-                    return double.tryParse(level) ?? 0.0;
-                  }
-                }
-                return parseLevel(b).compareTo(parseLevel(a)); // 降序
-              });
-
-            // 构建带等级分隔线的歌曲列表
-            List<Widget> songWidgets = [];
-            for (final levelKey in sortedLevelKeys) {
-              // 对每个定数内的歌曲按定数降序排序
-              final levelSongs = groupedSongs[levelKey]!
-                ..sort((a, b) {
-                  double getDs(Map<String, dynamic> item) {
-                    final dynamic song = item['song'];
-                    final diffIndex = item['difficulty'] as int;
-                    if (song is Song) {
-                      if (song.ds != null && song.ds.length > diffIndex) {
-                        return song.ds[diffIndex];
-                      }
-                    }
-                    return 0.0;
-                  }
-                  return getDs(b).compareTo(getDs(a)); // 降序
-                });
-              
-              // 添加等级/定数分隔线
-              songWidgets.add(
-                Container(
-                  width: double.infinity,
+              return GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => SongInfoPage(
+                        songId: songId,
+                        initialLevelIndex: initialLevelIndex,
+                      ),
+                    ),
+                  );
+                },
+                child: Container(
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surface,
-                    border: Border.all(color: AppColors.tableBorder(Theme.of(context).brightness), width: 1),
+                    color: isCompleted
+                        ? Colors.lightGreen[100]!
+                        : Theme.of(context).colorScheme.surface,
                     borderRadius: BorderRadius.circular(_borderRadiusSmall),
-                  ),
-                  padding: EdgeInsets.symmetric(vertical: _paddingXS, horizontal: _paddingM),
-                  margin: EdgeInsets.only(bottom: _paddingXS),
-                  child: Text(
-                    '${_useLevelDisplay ? 'Lv.' : ''}${levelKey} | 共 ${levelSongs.length} 首歌曲',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: _textSizeM,
-                      color: Theme.of(context).colorScheme.onSurface,
-                      fontWeight: FontWeight.bold,
+                    border: Border.all(
+                      color: isCompleted
+                          ? Colors.green
+                          : AppColors.tableBorder(Theme.of(context).brightness),
+                      width: 1,
                     ),
                   ),
-                ),
-              );
-
-              // 添加该等级的歌曲卡片
-              songWidgets.add(
-                Container(
-                  margin: EdgeInsets.only(bottom: _paddingXS),
-                  child: GridView.builder(
-                    shrinkWrap: true,
-                    physics: NeverScrollableScrollPhysics(),
-                    padding: EdgeInsets.zero,
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      crossAxisSpacing: _paddingXS,
-                      mainAxisSpacing: _paddingXS,
-                      childAspectRatio: 2.0,
-                    ),
-                    itemCount: levelSongs.length,
-                  itemBuilder: (context, index) {
-                    final item = levelSongs[index];
-                    final dynamic song = item['song'];
-                    final isCompleted = item['completed'] as bool;
-
-                    // 获取歌曲ID（支持 Song 和 CollectionRequiredSong）
-                    String songId;
-                    String songTitle;
-                    String songType;
-                    String songDs = '';
-                    int initialLevelIndex = _selectedDifficulty ?? 3;
-                    if (song is Song) {
-                      songId = song.id;
-                      songTitle = song.title;
-                      songType = song.type;
-                      // 获取当前难度对应的定数
-                      final diffIndex = item['difficulty'] as int;
-                      initialLevelIndex = diffIndex;
-                      if (song.ds != null && song.ds.length > diffIndex) {
-                        songDs = song.ds[diffIndex].toStringAsFixed(1);
-                      }
-                    } else if (song is CollectionRequiredSong) {
-                      songId = song.id.toString();
-                      songTitle = song.title;
-                      songType = song.type;
-                    } else {
-                      songId = '';
-                      songTitle = '未知';
-                      songType = '';
-                    }
-
-                    return GestureDetector(
-                      onTap: () {
-                        Navigator.push(
+                  padding: EdgeInsets.all(_paddingXS),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      // 曲绘
+                      Container(
+                        width: _coverSize,
+                        height: _coverSize,
+                        child: CoverUtil.buildCoverWidgetWithContext(
                           context,
-                          MaterialPageRoute(
-                            builder: (context) => SongInfoPage(
-                              songId: songId,
-                              initialLevelIndex: initialLevelIndex,
-                            ),
-                          ),
-                        );
-                      },
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: isCompleted ? Colors.lightGreen[100]! : Theme.of(context).colorScheme.surface,
-                          borderRadius: BorderRadius.circular(_borderRadiusSmall),
-                          border: Border.all(
-                            color: isCompleted ? Colors.green : AppColors.tableBorder(Theme.of(context).brightness),
-                            width: 1,
-                          ),
+                          songId,
+                          _coverSize,
                         ),
-                        padding: EdgeInsets.all(_paddingXS),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
+                      ),
+                      SizedBox(width: _paddingS),
+                      // 信息
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            // 曲绘
-                            Container(
-                              width: _coverSize,
-                              height: _coverSize,
-                              child: CoverUtil.buildCoverWidgetWithContext(
-                                context,
-                                songId,
-                                _coverSize,
+                            Text(
+                              songTitle,
+                              style: TextStyle(
+                                fontSize: _textSizeS,
+                                fontWeight: FontWeight.w500,
+                                color: isCompleted ? Colors.black87 : null,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              '${StringUtil.formatSongType(songType)} / ${songDs.isNotEmpty ? songDs : '-'}',
+                              style: TextStyle(
+                                fontSize: _textSizeXS,
+                                color: isCompleted
+                                    ? Colors.black54
+                                    : Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
                               ),
                             ),
-                            SizedBox(width: _paddingS),
-                            // 信息
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    songTitle,
-                                    style: TextStyle(
-                                      fontSize: _textSizeS,
-                                      fontWeight: FontWeight.w500,
-                                      color: isCompleted ? Colors.black87 : null,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
+                            SizedBox(height: 2),
+                            // 完成状态
+                            Row(
+                              children: [
+                                Icon(
+                                  isCompleted
+                                      ? Icons.check_circle
+                                      : Icons.circle_outlined,
+                                  color: _getCompletionColor(isCompleted),
+                                  size: _textSizeM,
+                                ),
+                                SizedBox(width: 4),
+                                Text(
+                                  isCompleted ? '已完成' : '未完成',
+                                  style: TextStyle(
+                                    fontSize: _textSizeXS,
+                                    color: _getCompletionColor(isCompleted),
                                   ),
-                                  SizedBox(height: 2),
-                                  Text(
-                                    '${StringUtil.formatSongType(songType)} / ${songDs.isNotEmpty ? songDs : '-'}',
-                                    style: TextStyle(
-                                      fontSize: _textSizeXS,
-                                      color: isCompleted ? Colors.black54 : Theme.of(context).colorScheme.onSurfaceVariant,
-                                    ),
-                                  ),
-                                  SizedBox(height: 2),
-                                  // 完成状态
-                                  Row(
-                                    children: [
-                                      Icon(
-                                        isCompleted ? Icons.check_circle : Icons.circle_outlined,
-                                        color: _getCompletionColor(isCompleted),
-                                        size: _textSizeM,
-                                      ),
-                                      SizedBox(width: 4),
-                                      Text(
-                                        isCompleted ? '已完成' : '未完成',
-                                        style: TextStyle(
-                                          fontSize: _textSizeXS,
-                                          color: _getCompletionColor(isCompleted),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
                       ),
-                    );
-                  },
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      );
+    }
+
+    // 计算统计数据
+    final totalCount = songsWithStatus.length;
+    final completedCount =
+        songsWithStatus.where((item) => item['completed'] as bool).length;
+    final completionRate =
+        totalCount > 0 ? (completedCount / totalCount * 100) : 0;
+
+    // 计算平均达成率
+    double totalAchievement = 0.0;
+    for (final item in songsWithStatus) {
+      final dynamic song = item['song'];
+      final diff = item['difficulty'] as int;
+      if (song is Song) {
+        totalAchievement +=
+            _service.getSongAchievement(int.parse(song.id), diff);
+      }
+    }
+    final averageAchievement =
+        totalCount > 0 ? totalAchievement / totalCount : 0.0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 收藏品图片（可点击跳转）- 真将和真大将不显示图片
+        if (!(_selectedFirstChar == '真' &&
+            (_selectedTitleType == '将' || _selectedTitleType == '大将')))
+          Center(
+            child: GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => CollectionInfoPage(
+                      collectionId: _currentPlate!.id,
+                      collectionType: 'plates',
+                    ),
+                  ),
+                );
+              },
+              child: Container(
+                width: 280 * _scaleFactor,
+                height: 140 * _scaleFactor,
+                child: CollectionsImageUtil.getPlateImageURL(_currentPlate!),
+              ),
+            ),
+          ),
+        SizedBox(height: _paddingS), // 减少间距
+        // 收藏品名称
+        Center(
+          child: Text(
+            _selectedFirstChar == '真' &&
+                    (_selectedTitleType == '将' || _selectedTitleType == '大将')
+                ? '${_selectedFirstChar}${_selectedTitleType}'
+                : _currentPlate!.name,
+            style: TextStyle(
+              fontSize: _textSizeL,
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+        SizedBox(height: _paddingS),
+
+        // 统计区域（表格形式）
+        Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            border: Border.all(
+                color: AppColors.tableBorder(Theme.of(context).brightness),
+                width: 1.0),
+            borderRadius: BorderRadius.circular(_borderRadiusSmall),
+          ),
+          padding: EdgeInsets.all(_paddingM),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 标题
+              Text(
+                '${_selectedFirstChar}${_selectedTitleType}(${_getDifficultyName(_selectedDifficulty ?? 3)})统计',
+                style: TextStyle(
+                  fontSize: _textSizeL,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
-            );
-            }
-
-            // 计算统计数据
-            final totalCount = songsWithStatus.length;
-            final completedCount = songsWithStatus.where((item) => item['completed'] as bool).length;
-            final completionRate = totalCount > 0 ? (completedCount / totalCount * 100) : 0;
-            
-            // 计算平均达成率
-            double totalAchievement = 0.0;
-            for (final item in songsWithStatus) {
-              final dynamic song = item['song'];
-              final diff = item['difficulty'] as int;
-              if (song is Song) {
-                totalAchievement += _service.getSongAchievement(int.parse(song.id), diff);
-              }
-            }
-            final averageAchievement = totalCount > 0 ? totalAchievement / totalCount : 0.0;
-
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 收藏品图片（可点击跳转）- 真将和真大将不显示图片
-                if (!(_selectedFirstChar == '真' && (_selectedTitleType == '将' || _selectedTitleType == '大将')))
-                  Center(
-                    child: GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => CollectionInfoPage(
-                              collectionId: _currentPlate!.id,
-                              collectionType: 'plates',
-                            ),
+              SizedBox(height: _paddingS),
+              // 表格行
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          '总歌曲数',
+                          style: TextStyle(
+                            fontSize: _textSizeM,
+                            color: Theme.of(context).colorScheme.onSurface,
                           ),
-                        );
-                      },
-                      child: Container(
-                        width: 280 * _scaleFactor,
-                        height: 140 * _scaleFactor,
-                        child: CollectionsImageUtil.getPlateImageURL(_currentPlate!),
-                      ),
+                        ),
+                        Text(
+                          '$totalCount',
+                          style: TextStyle(
+                            fontSize: _textSizeL,
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                SizedBox(height: _paddingS), // 减少间距
-                // 收藏品名称
-                Center(
-                  child: Text(
-                    _selectedFirstChar == '真' && (_selectedTitleType == '将' || _selectedTitleType == '大将')
-                        ? '${_selectedFirstChar}${_selectedTitleType}'
-                        : _currentPlate!.name,
-                    style: TextStyle(
-                      fontSize: _textSizeL,
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          '已完成',
+                          style: TextStyle(
+                            fontSize: _textSizeM,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
+                        ),
+                        Text(
+                          '$completedCount',
+                          style: TextStyle(
+                            fontSize: _textSizeL,
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ),
-                SizedBox(height: _paddingS),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          '未完成',
+                          style: TextStyle(
+                            fontSize: _textSizeM,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
+                        ),
+                        Text(
+                          '${totalCount - completedCount}',
+                          style: TextStyle(
+                            fontSize: _textSizeL,
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          '完成率',
+                          style: TextStyle(
+                            fontSize: _textSizeM,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
+                        ),
+                        Text(
+                          '${completionRate.toStringAsFixed(1)}%',
+                          style: TextStyle(
+                            fontSize: _textSizeL,
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          '平均达成率',
+                          style: TextStyle(
+                            fontSize: _textSizeM,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
+                        ),
+                        Text(
+                          '${averageAchievement.toStringAsFixed(2)}%',
+                          style: TextStyle(
+                            fontSize: _textSizeL,
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        SizedBox(height: _paddingS),
 
-                // 统计区域（表格形式）
-                Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    border: Border.all(color: AppColors.tableBorder(Theme.of(context).brightness), width: 1.0),
+        // 切换按钮区域
+        Container(
+          alignment: Alignment.centerRight,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              // 筛选模式切换按钮
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.surface,
+                  foregroundColor: Theme.of(context).colorScheme.onSurface,
+                  minimumSize: Size(100 * _scaleFactor, 36 * _scaleFactor),
+                  shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(_borderRadiusSmall),
                   ),
-                  padding: EdgeInsets.all(_paddingM),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // 标题
-                      Text(
-                        '${_selectedFirstChar}${_selectedTitleType}(${_getDifficultyName(_selectedDifficulty ?? 3)})统计',
-                        style: TextStyle(
-                          fontSize: _textSizeL,
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
-                      ),
-                      SizedBox(height: _paddingS),
-                      // 表格行
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                Text(
-                                  '总歌曲数',
-                                  style: TextStyle(
-                                    fontSize: _textSizeM,
-                                    color: Theme.of(context).colorScheme.onSurface,
-                                  ),
-                                ),
-                                Text(
-                                  '$totalCount',
-                                  style: TextStyle(
-                                    fontSize: _textSizeL,
-                                    fontWeight: FontWeight.bold,
-                                    color: Theme.of(context).colorScheme.onSurface,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                Text(
-                                  '已完成',
-                                  style: TextStyle(
-                                    fontSize: _textSizeM,
-                                    color: Theme.of(context).colorScheme.onSurface,
-                                  ),
-                                ),
-                                Text(
-                                  '$completedCount',
-                                  style: TextStyle(
-                                    fontSize: _textSizeL,
-                                    fontWeight: FontWeight.bold,
-                                    color: Theme.of(context).colorScheme.onSurface,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                Text(
-                                  '未完成',
-                                  style: TextStyle(
-                                    fontSize: _textSizeM,
-                                    color: Theme.of(context).colorScheme.onSurface,
-                                  ),
-                                ),
-                                Text(
-                                  '${totalCount - completedCount}',
-                                  style: TextStyle(
-                                    fontSize: _textSizeL,
-                                    fontWeight: FontWeight.bold,
-                                    color: Theme.of(context).colorScheme.onSurface,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                Text(
-                                  '完成率',
-                                  style: TextStyle(
-                                    fontSize: _textSizeM,
-                                    color: Theme.of(context).colorScheme.onSurface,
-                                  ),
-                                ),
-                                Text(
-                                  '${completionRate.toStringAsFixed(1)}%',
-                                  style: TextStyle(
-                                    fontSize: _textSizeL,
-                                    fontWeight: FontWeight.bold,
-                                    color: Theme.of(context).colorScheme.onSurface,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                Text(
-                                  '平均达成率',
-                                  style: TextStyle(
-                                    fontSize: _textSizeM,
-                                    color: Theme.of(context).colorScheme.onSurface,
-                                  ),
-                                ),
-                                Text(
-                                  '${averageAchievement.toStringAsFixed(2)}%',
-                                  style: TextStyle(
-                                    fontSize: _textSizeL,
-                                    fontWeight: FontWeight.bold,
-                                    color: Theme.of(context).colorScheme.onSurface,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                ),
+                onPressed: () {
+                  setState(() {
+                    if (_filterMode == 'all') {
+                      _filterMode = 'completed';
+                    } else if (_filterMode == 'completed') {
+                      _filterMode = 'uncompleted';
+                    } else {
+                      _filterMode = 'all';
+                    }
+                  });
+                },
+                child: Text(
+                  _filterMode == 'all'
+                      ? '当前: 全部'
+                      : (_filterMode == 'completed' ? '当前: 已完成' : '当前: 未完成'),
+                  style: TextStyle(fontSize: _textSizeS),
+                ),
+              ),
+              SizedBox(width: _paddingS),
+              // 分割线显示模式切换按钮
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.surface,
+                  foregroundColor: Theme.of(context).colorScheme.onSurface,
+                  minimumSize: Size(100 * _scaleFactor, 36 * _scaleFactor),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(_borderRadiusSmall),
                   ),
                 ),
-                SizedBox(height: _paddingS),
-
-                // 切换按钮区域
-                Container(
-                  alignment: Alignment.centerRight,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      // 筛选模式切换按钮
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Theme.of(context).colorScheme.surface,
-                          foregroundColor: Theme.of(context).colorScheme.onSurface,
-                          minimumSize: Size(100 * _scaleFactor, 36 * _scaleFactor),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(_borderRadiusSmall),
-                          ),
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            if (_filterMode == 'all') {
-                              _filterMode = 'completed';
-                            } else if (_filterMode == 'completed') {
-                              _filterMode = 'uncompleted';
-                            } else {
-                              _filterMode = 'all';
-                            }
-                          });
-                        },
-                        child: Text(
-                          _filterMode == 'all' ? '当前: 全部' : (_filterMode == 'completed' ? '当前: 已完成' : '当前: 未完成'),
-                          style: TextStyle(fontSize: _textSizeS),
-                        ),
-                      ),
-                      SizedBox(width: _paddingS),
-                      // 分割线显示模式切换按钮
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Theme.of(context).colorScheme.surface,
-                          foregroundColor: Theme.of(context).colorScheme.onSurface,
-                          minimumSize: Size(100 * _scaleFactor, 36 * _scaleFactor),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(_borderRadiusSmall),
-                          ),
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            _useLevelDisplay = !_useLevelDisplay;
-                          });
-                        },
-                        child: Text(
-                          _useLevelDisplay ? '当前: 等级' : '当前: 定数',
-                          style: TextStyle(fontSize: _textSizeS),
-                        ),
-                      ),
-                      SizedBox(width: _paddingS),
-                      // 显示模式切换按钮
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Theme.of(context).colorScheme.surface,
-                          foregroundColor: Theme.of(context).colorScheme.onSurface,
-                          minimumSize: Size(100 * _scaleFactor, 36 * _scaleFactor),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(_borderRadiusSmall),
-                          ),
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            _showListMode = !_showListMode;
-                          });
-                        },
-                        child: Text(
-                          _showListMode ? '当前: 列表' : '当前: 曲绘',
-                          style: TextStyle(fontSize: _textSizeS),
-                        ),
-                      ),
-                    ],
+                onPressed: () {
+                  setState(() {
+                    _useLevelDisplay = !_useLevelDisplay;
+                  });
+                },
+                child: Text(
+                  _useLevelDisplay ? '当前: 等级' : '当前: 定数',
+                  style: TextStyle(fontSize: _textSizeS),
+                ),
+              ),
+              SizedBox(width: _paddingS),
+              // 显示模式切换按钮
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.surface,
+                  foregroundColor: Theme.of(context).colorScheme.onSurface,
+                  minimumSize: Size(100 * _scaleFactor, 36 * _scaleFactor),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(_borderRadiusSmall),
                   ),
                 ),
-                SizedBox(height: _paddingS),
+                onPressed: () {
+                  setState(() {
+                    _showListMode = !_showListMode;
+                  });
+                },
+                child: Text(
+                  _showListMode ? '当前: 列表' : '当前: 曲绘',
+                  style: TextStyle(fontSize: _textSizeS),
+                ),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(height: _paddingS),
 
-                // 歌曲展示区域
-                _showListMode ? 
-                  // 带等级分隔线的歌曲列表
-                  Column(children: songWidgets) :
-                  // 仅曲绘模式
-                  _buildCoverOnlyView(filteredSongs),
-              ],
-            );
-      }
+        // 歌曲展示区域
+        _showListMode
+            ?
+            // 带等级分隔线的歌曲列表
+            Column(children: songWidgets)
+            :
+            // 仅曲绘模式
+            _buildCoverOnlyView(filteredSongs),
+      ],
+    );
+  }
 
   // 构建仅曲绘视图
   Widget _buildCoverOnlyView(List<Map<String, dynamic>> songsWithStatus) {
@@ -1141,7 +1225,8 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
         if (song.ds != null && song.ds.length > diffIndex) {
           final ds = song.ds[diffIndex];
           // 根据显示模式选择分组方式
-          levelKey = _useLevelDisplay ? _getLevelDisplay(ds) : ds.toStringAsFixed(1);
+          levelKey =
+              _useLevelDisplay ? _getLevelDisplay(ds) : ds.toStringAsFixed(1);
         }
       }
       if (!groupedSongs.containsKey(levelKey)) {
@@ -1164,6 +1249,7 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
             return double.tryParse(level) ?? 0.0;
           }
         }
+
         return parseLevel(b).compareTo(parseLevel(a));
       });
 
@@ -1182,6 +1268,7 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
             }
             return 0.0;
           }
+
           return getDs(b).compareTo(getDs(a));
         });
 
@@ -1191,10 +1278,13 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
           width: double.infinity,
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surface,
-            border: Border.all(color: AppColors.tableBorder(Theme.of(context).brightness), width: 1),
+            border: Border.all(
+                color: AppColors.tableBorder(Theme.of(context).brightness),
+                width: 1),
             borderRadius: BorderRadius.circular(_borderRadiusSmall),
           ),
-          padding: EdgeInsets.symmetric(vertical: _paddingXS, horizontal: _paddingM),
+          padding:
+              EdgeInsets.symmetric(vertical: _paddingXS, horizontal: _paddingM),
           margin: EdgeInsets.only(bottom: _paddingXS),
           child: Text(
             '${_useLevelDisplay ? 'Lv.' : ''}${levelKey} | 共 ${levelSongs.length} 首歌曲',
@@ -1263,7 +1353,8 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
                       Container(
                         decoration: BoxDecoration(
                           color: Colors.black.withOpacity(0.4),
-                          borderRadius: BorderRadius.circular(8.0 * _scaleFactor),
+                          borderRadius:
+                              BorderRadius.circular(8.0 * _scaleFactor),
                         ),
                         child: Center(
                           child: Icon(
@@ -1279,7 +1370,8 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
                       height: _coverSize,
                       decoration: BoxDecoration(
                         border: Border.all(
-                          color: ColorUtil.getCoverBorderColor(initialLevelIndex),
+                          color:
+                              ColorUtil.getCoverBorderColor(initialLevelIndex),
                           width: 2.0 * _scaleFactor,
                         ),
                         borderRadius: BorderRadius.circular(8.0 * _scaleFactor),
@@ -1300,38 +1392,42 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
   // 请求存储权限
   Future<bool> _requestStoragePermission() async {
     debugPrint('PaiziProgressPage: _requestStoragePermission called');
-    
+
     if (Platform.isAndroid) {
       debugPrint('PaiziProgressPage: Running on Android');
-      
+
       PermissionStatus storageStatus = await Permission.storage.status;
       PermissionStatus photosStatus = await Permission.photos.status;
       PermissionStatus videosStatus = await Permission.videos.status;
-      
+
       debugPrint('PaiziProgressPage: Storage status = $storageStatus');
       debugPrint('PaiziProgressPage: Photos status = $photosStatus');
       debugPrint('PaiziProgressPage: Videos status = $videosStatus');
-      
-      if (storageStatus.isGranted || photosStatus.isGranted || videosStatus.isGranted) {
-        debugPrint('PaiziProgressPage: At least one permission already granted');
+
+      if (storageStatus.isGranted ||
+          photosStatus.isGranted ||
+          videosStatus.isGranted) {
+        debugPrint(
+            'PaiziProgressPage: At least one permission already granted');
         return true;
       }
-      
-      debugPrint('PaiziProgressPage: Requesting storage, photos and videos permissions...');
+
+      debugPrint(
+          'PaiziProgressPage: Requesting storage, photos and videos permissions...');
       Map<Permission, PermissionStatus> statuses = await [
         Permission.storage,
         Permission.photos,
         Permission.videos,
       ].request();
-      
+
       bool storageGranted = statuses[Permission.storage]?.isGranted ?? false;
       bool photosGranted = statuses[Permission.photos]?.isGranted ?? false;
       bool videosGranted = statuses[Permission.videos]?.isGranted ?? false;
-      
+
       debugPrint('PaiziProgressPage: Storage granted = $storageGranted');
       debugPrint('PaiziProgressPage: Photos granted = $photosGranted');
       debugPrint('PaiziProgressPage: Videos granted = $videosGranted');
-      
+
       return storageGranted || photosGranted || videosGranted;
     } else {
       debugPrint('PaiziProgressPage: Non-Android platform');
@@ -1370,8 +1466,23 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
       final songCount = _cachedSongsWithStatus?.length ?? 0;
       final quality = await ExportQualitySelector.show(
         context,
-        estimatedPngSize: ImageEncodeUtil.estimatePngSize(songCount: songCount, cardsPerRow: 12),
+        estimatedPngSize: ImageEncodeUtil.estimatePngSize(
+            songCount: songCount, cardsPerRow: 12),
         exportingLabel: '牌子进度',
+        previewBuilder: (previewContext, _) =>
+            PaiziProgressConvertToImg.buildPreviewWidget(
+          previewContext,
+          currentPlate: _currentPlate,
+          cachedSongsWithStatus: _cachedSongsWithStatus,
+          selectedFirstChar: _selectedFirstChar,
+          selectedTitleType: _selectedTitleType,
+          selectedDifficulty: _selectedDifficulty,
+          useLevelDisplay: _useLevelDisplay,
+          filterMode: _filterMode,
+          getDifficultyName: _getDifficultyName,
+          getLevelDisplay: _getLevelDisplay,
+          getSongAchievement: _service.getSongAchievement,
+        ),
       );
       if (quality == null) return;
 
@@ -1421,13 +1532,18 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
                     SizedBox(height: 16.0),
                     SmoothLinearProgressIndicator(
                       value: _progressValue > 0 ? _progressValue : null,
-                      backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-                      valueColor: AlwaysStoppedAnimation(Theme.of(context).colorScheme.primary),
+                      backgroundColor:
+                          Theme.of(context).colorScheme.surfaceContainerHighest,
+                      valueColor: AlwaysStoppedAnimation(
+                          Theme.of(context).colorScheme.primary),
                     ),
                     SizedBox(height: 12.0),
                     Text(
                       _currentLoadingTip,
-                      style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                      style: TextStyle(
+                          fontSize: 12,
+                          color:
+                              Theme.of(context).colorScheme.onSurfaceVariant),
                       textAlign: TextAlign.center,
                     ),
                   ],
@@ -1479,7 +1595,8 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
                 child: Text('复制路径'),
               ),
               TextButton(
-                onPressed: () => Navigator.of(context, rootNavigator: true).pop(),
+                onPressed: () =>
+                    Navigator.of(context, rootNavigator: true).pop(),
                 child: Text('确定'),
               ),
             ],
@@ -1493,7 +1610,8 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
             content: Text('图片导出失败，请重试'),
             actions: [
               TextButton(
-                onPressed: () => Navigator.of(context, rootNavigator: true).pop(),
+                onPressed: () =>
+                    Navigator.of(context, rootNavigator: true).pop(),
                 child: Text('确定'),
               ),
             ],

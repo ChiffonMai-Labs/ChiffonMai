@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'dart:convert';
 import '../DivingFish/UserPlayDataManager.dart';
 import 'package:flutter/foundation.dart';
@@ -143,7 +144,7 @@ class LuoXueUserPlayDataManager {
       case 'dx':
         return 'DX';
       case 'utage':
-        return 'UTAGE';
+        return ChartDifficulty.utageLabel;
       default:
         return type;
     }

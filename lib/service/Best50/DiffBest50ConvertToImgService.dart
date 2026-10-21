@@ -10,7 +10,6 @@ import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:media_scanner/media_scanner.dart';
-import 'package:my_first_flutter_app/utils/TextStyleUtil.dart';
 import 'package:my_first_flutter_app/utils/ColorUtil.dart';
 import 'package:my_first_flutter_app/utils/StringUtil.dart';
 import 'package:my_first_flutter_app/utils/ImageEncodeUtil.dart';
@@ -23,25 +22,38 @@ class DiffBest50ConvertToImg {
   static GlobalKey _globalKey = GlobalKey();
 
   // 导出为图片的方法
-  static Future<File?> convertToImage(BuildContext context, Map<String, dynamic>? diffBest50Data, List<Map<String, dynamic>> diffSongs, List<dynamic>? maimaiMusicData, {int currentMode = 0, int? jpegQuality, bool thunderMode = false, bool thunderVertical = true}) async {
+  static Future<File?> convertToImage(
+      BuildContext context,
+      Map<String, dynamic>? diffBest50Data,
+      List<Map<String, dynamic>> diffSongs,
+      List<dynamic>? maimaiMusicData,
+      {int currentMode = 0,
+      int? jpegQuality,
+      bool thunderMode = false,
+      bool thunderVertical = true}) async {
     OverlayEntry? overlayEntry;
     try {
       debugPrint('=== STARTING DIFF IMAGE CONVERSION ===');
-      debugPrint('Current platform: ${Platform.operatingSystem} ${Platform.version}');
-      
+      debugPrint(
+          'Current platform: ${Platform.operatingSystem} ${Platform.version}');
+
       // 首先请求存储权限（在导出前请求）
       debugPrint('Step 1: Requesting storage permission...');
       PermissionStatus status = await _requestStoragePermission();
       debugPrint('Step 1 completed: Storage permission status: $status');
       debugPrint('Is granted: ${status.isGranted}');
-      
+
       // 创建一个GlobalKey
       GlobalKey globalKey = GlobalKey();
 
       // 创建一个Widget，用于生成图片
       Widget imageWidget = RepaintBoundary(
         key: globalKey,
-        child: await _buildExportImageWidget(context, diffBest50Data, diffSongs, maimaiMusicData, currentMode: currentMode, thunderMode: thunderMode, thunderVertical: thunderVertical),
+        child: await _buildExportImageWidget(
+            context, diffBest50Data, diffSongs, maimaiMusicData,
+            currentMode: currentMode,
+            thunderMode: thunderMode,
+            thunderVertical: thunderVertical),
       );
       final exportWidth = thunderMode
           ? ThunderBest50Export.widthFor(diffSongs.length, thunderVertical)
@@ -74,14 +86,15 @@ class DiffBest50ConvertToImg {
       debugPrint('Render wait completed');
 
       // 创建一个RenderRepaintBoundary
-      final RenderRepaintBoundary? boundary = globalKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      final RenderRepaintBoundary? boundary = globalKey.currentContext
+          ?.findRenderObject() as RenderRepaintBoundary?;
       if (boundary == null) {
         debugPrint('Error: RenderRepaintBoundary not found');
         overlayEntry.remove();
         return null;
       }
       debugPrint('RenderRepaintBoundary found successfully');
-      
+
       // 额外等待确保边界框已准备好
       await Future.delayed(Duration(milliseconds: 100));
 
@@ -90,17 +103,22 @@ class DiffBest50ConvertToImg {
       ui.Image image;
       try {
         // 尝试直接捕获图片，使用更高的pixelRatio提高清晰度
-        image = await boundary.toImage(pixelRatio: ImageEncodeUtil.safeCapturePixelRatio(boundary.size.width, boundary.size.height));
+        image = await boundary.toImage(
+            pixelRatio: ImageEncodeUtil.safeCapturePixelRatio(
+                boundary.size.width, boundary.size.height));
         debugPrint('Image captured successfully');
       } catch (e) {
         debugPrint('First capture failed: $e');
         // 重试一次
         await Future.delayed(Duration(milliseconds: 200));
-        image = await boundary.toImage(pixelRatio: ImageEncodeUtil.safeCapturePixelRatio(boundary.size.width, boundary.size.height));
+        image = await boundary.toImage(
+            pixelRatio: ImageEncodeUtil.safeCapturePixelRatio(
+                boundary.size.width, boundary.size.height));
         debugPrint('Image captured on retry');
       }
-      
-      ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+
+      ByteData? byteData =
+          await image.toByteData(format: ui.ImageByteFormat.png);
       if (byteData == null) {
         debugPrint('Error: ByteData is null');
         overlayEntry.remove();
@@ -110,7 +128,8 @@ class DiffBest50ConvertToImg {
       debugPrint('ByteData conversion successful');
 
       // 将图片数据写入文件
-      Uint8List pngBytes = byteData.buffer.asUint8List(byteData.offsetInBytes, byteData.lengthInBytes);
+      Uint8List pngBytes = byteData.buffer
+          .asUint8List(byteData.offsetInBytes, byteData.lengthInBytes);
       // 立刻释放 ui.Image：它本身也是上百 MB 的原生位图，而下面的 JPEG
       // 转码还要再分配上百 MB（decodePng + copyResize）。等转码完再释放，
       // 峰值内存会白白多一份 —— 低内存机就是这样被 OOM 掉的。
@@ -121,7 +140,8 @@ class DiffBest50ConvertToImg {
       Uint8List finalBytes;
       String extension;
       if (jpegQuality != null) {
-        finalBytes = await ImageEncodeUtil.pngToJpegAsync(pngBytes, quality: jpegQuality);
+        finalBytes = await ImageEncodeUtil.pngToJpegAsync(pngBytes,
+            quality: jpegQuality);
         extension = 'jpg';
       } else {
         finalBytes = pngBytes;
@@ -130,39 +150,41 @@ class DiffBest50ConvertToImg {
 
       // 释放图片资源
 
-      
       // 立即移除Overlay，避免占用资源
       overlayEntry.remove();
-      
+
       // 优先使用相册目录（需要存储权限）
       Directory? directory;
-      debugPrint('Step 4: Saving image. Permission granted: ${status.isGranted}');
-      
+      debugPrint(
+          'Step 4: Saving image. Permission granted: ${status.isGranted}');
+
       if (status.isGranted) {
-        debugPrint('Step 4a: Permission granted, trying to use Pictures directory');
+        debugPrint(
+            'Step 4a: Permission granted, trying to use Pictures directory');
         try {
           // 直接使用标准的相册目录路径
           String picturesPath = '/storage/emulated/0/Pictures';
           directory = Directory(picturesPath);
           debugPrint('Pictures directory path: $picturesPath');
-          
+
           // 检查目录是否存在
           bool exists = directory.existsSync();
           debugPrint('Pictures directory exists: $exists');
-          
+
           // 确保相册目录存在
           if (!exists) {
             debugPrint('Creating Pictures directory...');
             directory.createSync(recursive: true);
             debugPrint('Created Pictures directory successfully');
           }
-          
+
           // 验证目录是否可写
           bool canWrite = await _checkDirectoryWritable(directory);
           debugPrint('Pictures directory writable: $canWrite');
-          
+
           if (!canWrite) {
-            debugPrint('Warning: Pictures directory is not writable, will fall back');
+            debugPrint(
+                'Warning: Pictures directory is not writable, will fall back');
             directory = null;
           }
         } catch (e) {
@@ -170,7 +192,7 @@ class DiffBest50ConvertToImg {
           directory = null;
         }
       }
-      
+
       // 如果相册目录获取失败或没有权限，使用应用文档目录
       if (directory == null) {
         debugPrint('Step 4b: Using fallback directory');
@@ -188,19 +210,20 @@ class DiffBest50ConvertToImg {
           }
         }
       }
-      
+
       if (directory == null) {
         debugPrint('Error: No storage directory found');
         overlayEntry.remove();
         return null;
       }
-      
+
       debugPrint('Selected directory: ${directory.path}');
 
       // 尝试使用 MediaStore API 保存到相册（Android 13+）
       if (Platform.isAndroid && status.isGranted) {
         debugPrint('Step 5: Trying to save via MediaStore API...');
-        String? galleryPath = await _saveImageToGallery(finalBytes, 'diff_b50_export_${DateTime.now().millisecondsSinceEpoch}.$extension');
+        String? galleryPath = await _saveImageToGallery(finalBytes,
+            'diff_b50_export_${DateTime.now().millisecondsSinceEpoch}.$extension');
         if (galleryPath != null) {
           debugPrint('Image saved to gallery via MediaStore: $galleryPath');
           // 调用媒体扫描器
@@ -215,7 +238,8 @@ class DiffBest50ConvertToImg {
         directory.createSync(recursive: true);
       }
 
-      final file = File('${directory.path}/diff_b50_export_${DateTime.now().millisecondsSinceEpoch}.$extension');
+      final file = File(
+          '${directory.path}/diff_b50_export_${DateTime.now().millisecondsSinceEpoch}.$extension');
       await file.writeAsBytes(finalBytes);
       debugPrint('Image saved to: ${file.path}');
 
@@ -233,17 +257,47 @@ class DiffBest50ConvertToImg {
     }
   }
 
+  /// 构建与实际导出相同的预览 Widget。
+  static Future<Widget> buildPreviewWidget(
+    BuildContext context,
+    Map<String, dynamic>? diffBest50Data,
+    List<Map<String, dynamic>> diffSongs,
+    List<dynamic>? maimaiMusicData, {
+    int currentMode = 0,
+    bool thunderMode = false,
+    bool thunderVertical = true,
+  }) =>
+      _buildExportImageWidget(
+        context,
+        diffBest50Data,
+        diffSongs,
+        maimaiMusicData,
+        currentMode: currentMode,
+        thunderMode: thunderMode,
+        thunderVertical: thunderVertical,
+      );
+
   // 构建用于导出的Widget
-  static Future<Widget> _buildExportImageWidget(BuildContext context, Map<String, dynamic>? diffBest50Data, List<Map<String, dynamic>> diffSongs, List<dynamic>? maimaiMusicData, {int currentMode = 0, bool thunderMode = false, bool thunderVertical = true}) async {
+  static Future<Widget> _buildExportImageWidget(
+      BuildContext context,
+      Map<String, dynamic>? diffBest50Data,
+      List<Map<String, dynamic>> diffSongs,
+      List<dynamic>? maimaiMusicData,
+      {int currentMode = 0,
+      bool thunderMode = false,
+      bool thunderVertical = true}) async {
     // 计算各项指标
     int diffRatingSum = diffBest50Data?['diffRatingSum'] ?? 0;
     int best50Diff = diffBest50Data?['best50Diff'] ?? 0;
-    double diffRatingAverage = diffSongs.isNotEmpty ? diffRatingSum / diffSongs.length : 0.0;
+    double diffRatingAverage =
+        diffSongs.isNotEmpty ? diffRatingSum / diffSongs.length : 0.0;
 
     // 计算平均达成率
-    double achievementsSum = diffSongs.fold(0.0,
-        (sum, song) => sum + (double.tryParse(song['achievements'].toString()) ?? 0.0));
-    double diffBest50AchievementAverage = 
+    double achievementsSum = diffSongs.fold(
+        0.0,
+        (sum, song) =>
+            sum + (double.tryParse(song['achievements'].toString()) ?? 0.0));
+    double diffBest50AchievementAverage =
         diffSongs.isNotEmpty ? achievementsSum / diffSongs.length : 0.0;
 
     // 计算平均scoreRate
@@ -251,23 +305,26 @@ class DiffBest50ConvertToImg {
       int songId = song['song_id'] ?? 0;
       int levelIndex = song['level_index'] ?? 0;
       int score = song['dxScore'] ?? 0;
-      return sum + _calculateScoreRate(songId, levelIndex, score, maimaiMusicData);
+      return sum +
+          _calculateScoreRate(songId, levelIndex, score, maimaiMusicData);
     });
 
-    double diffBest50ScoreRateAverage = diffSongs.isNotEmpty 
-        ? scoreRateSum / diffSongs.length 
-        : 0.0;
+    double diffBest50ScoreRateAverage =
+        diffSongs.isNotEmpty ? scoreRateSum / diffSongs.length : 0.0;
 
     if (thunderMode) {
-      final maxIdLength = diffSongs.any((song) => '${song['song_id']}'.length == 6) ? 6 : 5;
+      final maxIdLength =
+          diffSongs.any((song) => '${song['song_id']}'.length == 6) ? 6 : 5;
       return ThunderBest50Export.build(
         title: '拟合 Best50',
         vertical: thunderVertical,
         count: diffSongs.length,
-        statistics: '拟合 Rating $diffRatingSum\n平均 Rating ${diffRatingAverage.toStringAsFixed(1)}\n'
+        statistics:
+            '拟合 Rating $diffRatingSum\n平均 Rating ${diffRatingAverage.toStringAsFixed(1)}\n'
             '平均达成率 ${diffBest50AchievementAverage.toStringAsFixed(4)}%\n'
             '平均 DX 分达成率 ${(diffBest50ScoreRateAverage * 100).toStringAsFixed(2)}%',
-        cardBuilder: (index) => _buildDataGameCard(context, diffSongs[index], maimaiMusicData, maxIdLength),
+        cardBuilder: (index) => _buildDataGameCard(
+            context, diffSongs[index], maimaiMusicData, maxIdLength),
       );
     }
     // 创建一个容器，设置固定宽度以确保布局一致
@@ -298,10 +355,10 @@ class DiffBest50ConvertToImg {
                     ExportUserInfoWidget.buildUserInfoSection(context),
                     const SizedBox(width: 16),
                     SizedBox(
-                      height: 230,
+                      height: 215,
                       child: Align(
                         alignment: Alignment.center,
-                        child: MetaRowWidget(width: 494, height: 230),
+                        child: MetaRowWidget(width: 494, height: 215),
                       ),
                     ),
                   ],
@@ -309,7 +366,14 @@ class DiffBest50ConvertToImg {
                 SizedBox(height: 16.0),
 
                 // 评分区域
-                _buildRatingSection(context, diffRatingSum, diffRatingAverage, best50Diff, diffBest50AchievementAverage, diffBest50ScoreRateAverage, currentMode),
+                _buildRatingSection(
+                    context,
+                    diffRatingSum,
+                    diffRatingAverage,
+                    best50Diff,
+                    diffBest50AchievementAverage,
+                    diffBest50ScoreRateAverage,
+                    currentMode),
                 SizedBox(height: 20.0),
 
                 // 基于拟合难度的Best50 标题区域
@@ -317,7 +381,12 @@ class DiffBest50ConvertToImg {
                 SizedBox(height: 16.0),
 
                 // 基于拟合难度的Best50 卡片网格 (5列)
-                _buildDataCardGrid(context, diffSongs, thunderMode ? 1.25 : 1.85, thunderMode ? (thunderVertical ? 1 : 50) : 5, maimaiMusicData),
+                _buildDataCardGrid(
+                    context,
+                    diffSongs,
+                    thunderMode ? 1.25 : 1.85,
+                    thunderMode ? (thunderVertical ? 1 : 50) : 5,
+                    maimaiMusicData),
                 SizedBox(height: 20.0),
               ],
             ),
@@ -328,23 +397,30 @@ class DiffBest50ConvertToImg {
   }
 
   // 构建评分区域
-  static Widget _buildRatingSection(BuildContext context, int diffRatingSum, double diffRatingAverage, int best50Diff, double diffBest50AchievementAverage, double diffBest50ScoreRateAverage, int currentMode) {
+  static Widget _buildRatingSection(
+      BuildContext context,
+      int diffRatingSum,
+      double diffRatingAverage,
+      int best50Diff,
+      double diffBest50AchievementAverage,
+      double diffBest50ScoreRateAverage,
+      int currentMode) {
     // 图片容器固定宽度为1200，以此为基准计算字体大小
     const double containerWidth = 1200.0;
-    
+
     // 根据容器宽度计算字体大小（与App观感一致）
-    double mainFontSize =containerWidth * 0.032; // 约38px
+    double mainFontSize = containerWidth * 0.032; // 约38px
     double subFontSize = containerWidth * 0.025; // 约30px
     double sectionTitleFontSize = containerWidth * 0.03; // 约36px
     double modeFontSize = containerWidth * 0.02; // 模式说明字体大小
-    
+
     // 获取模式说明文本
     String modeText = currentMode == 0
         ? '模式A：不分类Best35和Best15，直接获取拟合定数下的Rating前50的谱面'
         : (currentMode == 1
             ? "模式B：将您的Best35和Best15中的所有谱面的定数都替换为其拟合定数，然后计算Rating并降序排序"
             : '模式C：在非当前版本中取拟合定数下的Rating前35的谱面，在当前版本中取拟合定数下Rating前15的谱面');
-    
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -355,84 +431,112 @@ class DiffBest50ConvertToImg {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              // 左侧评分
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '拟合总Rating',
-                      style: TextStyle(
-                        fontSize: mainFontSize,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
-                      ),
-                    ),
-                    SizedBox(height: 8.0),
-                    RichText(
-                      text: TextSpan(
-                        children: [
-                          TextStyleUtil.span(
-                            diffRatingSum.toString(),
-                            TextStyle(
-                              fontSize: mainFontSize,
-                              color: Colors.black,
-                              fontWeight: FontWeight.bold,
-                            ),
+          // 三块等宽，按最高一块撑开行高，再分别水平、垂直居中。
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          '拟合总Rating',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: mainFontSize,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
                           ),
-                          TextStyleUtil.span(
-                            '(平均${diffRatingAverage.toStringAsFixed(1)})',
-                            TextStyle(
-                              fontSize: subFontSize,
-                              color: Colors.black,
-                            ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          diffRatingSum.toString(),
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: mainFontSize,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
                           ),
-                        ],
-                      ),
+                        ),
+                        Text(
+                          '(平均${diffRatingAverage.toStringAsFixed(1)})',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: subFontSize,
+                            color: Colors.black,
+                          ),
+                        ),
+                      ],
                     ),
-                    SizedBox(height: 12.0),
-                    Text(
-                      '与Best50差值',
-                      style: TextStyle(
-                        fontSize: mainFontSize,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
-                      ),
-                    ),
-                    Text(
-                      '${best50Diff > 0 ? '+' : ''}$best50Diff',
-                      style: TextStyle(
-                        fontSize: mainFontSize,
-                        color: best50Diff >= 0 ? Colors.green : Colors.red,
-                        fontWeight: FontWeight.bold,
-                        
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-
-              // 右侧达成率
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '拟合Best50 平均达成率/DX分数达成率',
-                      style: TextStyle(
-                        fontSize: sectionTitleFontSize,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
-                      ),
+                Expanded(
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          '与Best50差值',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: mainFontSize,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '${best50Diff > 0 ? '+' : ''}$best50Diff',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: mainFontSize,
+                            color: best50Diff >= 0 ? Colors.green : Colors.red,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
                     ),
-                    _buildDualDecimalText(context, diffBest50AchievementAverage, diffBest50ScoreRateAverage * 100,
-                    scoreRate: diffBest50ScoreRateAverage),
-                  ],
+                  ),
                 ),
-              ),
-            ],
+                Expanded(
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          '平均达成率 / DX分数达成率',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: sectionTitleFontSize,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.center,
+                          child: _buildDualDecimalText(
+                            context,
+                            diffBest50AchievementAverage,
+                            diffBest50ScoreRateAverage * 100,
+                            scoreRate: diffBest50ScoreRateAverage,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
           // 模式说明
           SizedBox(height: 12.0),
@@ -440,6 +544,7 @@ class DiffBest50ConvertToImg {
           SizedBox(height: 8.0),
           Text(
             modeText,
+            textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: modeFontSize,
               color: Colors.grey[600],
@@ -454,10 +559,10 @@ class DiffBest50ConvertToImg {
   static Widget _buildSectionTitle(BuildContext context, String title) {
     // 图片容器固定宽度为1200，以此为基准计算字体大小
     const double containerWidth = 1200.0;
-    
+
     // 根据容器宽度计算字体大小
     double fontSize = containerWidth * 0.03; // 约36px
-    
+
     return Container(
       decoration: BoxDecoration(
         border: Border.all(color: Colors.black, width: 2.0),
@@ -521,18 +626,20 @@ class DiffBest50ConvertToImg {
   }
 
   // 构建小数文本
-  static Widget _buildDecimalText(BuildContext context, double value, {
+  static Widget _buildDecimalText(
+    BuildContext context,
+    double value, {
     bool isPercentage = false,
     int decimalPlaces = 4,
     Color color = Colors.white,
   }) {
     // 图片容器固定宽度为1200，以此为基准计算字体大小
     const double containerWidth = 1200.0;
-    
+
     // 根据容器宽度计算字体大小（与App观感一致）
     double mainFontSize = containerWidth * 0.032; // 约38px
     double subFontSize = containerWidth * 0.025; // 约30px
-    
+
     String text = value.toStringAsFixed(decimalPlaces);
 
     // 分割整数部分和小数部分
@@ -553,7 +660,6 @@ class DiffBest50ConvertToImg {
             fontSize: mainFontSize,
             fontWeight: FontWeight.bold,
             color: color,
-            
           ),
         ),
         // 小数部分和百分号
@@ -563,7 +669,6 @@ class DiffBest50ConvertToImg {
             fontSize: subFontSize,
             fontWeight: FontWeight.bold,
             color: color,
-            
           ),
         ),
       ],
@@ -571,7 +676,10 @@ class DiffBest50ConvertToImg {
   }
 
   // 构建双小数文本
-  static Widget _buildDualDecimalText(BuildContext context, double value1, double value2, {
+  static Widget _buildDualDecimalText(
+    BuildContext context,
+    double value1,
+    double value2, {
     int decimalPlaces1 = 4,
     int decimalPlaces2 = 2,
     Color color = Colors.black,
@@ -583,7 +691,8 @@ class DiffBest50ConvertToImg {
     // 根据容器宽度计算字体大小（与App观感一致）
     double fontSize = containerWidth * 0.03; // 约36px
 
-    final starsText = scoreRate != null ? StringUtil.formatStars(scoreRate) : null;
+    final starsText =
+        scoreRate != null ? StringUtil.formatStars(scoreRate) : null;
     final starsColor =
         scoreRate != null ? ColorUtil.getStarsColor(starsText!) : null;
 
@@ -595,11 +704,10 @@ class DiffBest50ConvertToImg {
         Text(
           '/',
           style: TextStyle(
-                fontSize: fontSize,
-                fontWeight: FontWeight.bold,
-                color: color,
-
-              ),
+            fontSize: fontSize,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
         ),
         _buildDecimalText(context, value2,
             decimalPlaces: decimalPlaces2, color: color),
@@ -630,7 +738,11 @@ class DiffBest50ConvertToImg {
 
   // 构建数据驱动的卡片网格
   static Widget _buildDataCardGrid(
-      BuildContext context, List<Map<String, dynamic>> songs, double childAspectRatio, int crossAxisCount, List<dynamic>? maimaiMusicData) {
+      BuildContext context,
+      List<Map<String, dynamic>> songs,
+      double childAspectRatio,
+      int crossAxisCount,
+      List<dynamic>? maimaiMusicData) {
     // 计算谱面 ID 对齐宽度：若存在 6 位 ID 则按 6 位对齐，否则按 5 位
     int maxIdLength = 5;
     for (final song in songs) {
@@ -654,16 +766,22 @@ class DiffBest50ConvertToImg {
         ),
         itemCount: songs.length,
         itemBuilder: (context, index) {
-          return _buildDataGameCard(context, songs[index], maimaiMusicData, maxIdLength);
+          return _buildDataGameCard(
+              context, songs[index], maimaiMusicData, maxIdLength);
         },
       ),
     );
   }
 
   // 根据数据构建游戏卡片
-  static Widget _buildDataGameCard(BuildContext context, Map<String, dynamic> songData, List<dynamic>? maimaiMusicData, int maxIdLength) {
+  static Widget _buildDataGameCard(
+      BuildContext context,
+      Map<String, dynamic> songData,
+      List<dynamic>? maimaiMusicData,
+      int maxIdLength) {
     // 解析数据
-    double achievementRate = double.tryParse(songData['achievements'].toString()) ?? 0.0;
+    double achievementRate =
+        double.tryParse(songData['achievements'].toString()) ?? 0.0;
     int score = songData['dxScore'] ?? 0;
     String fc = songData['fc'] ?? '';
     String fs = songData['fs'] ?? '';
@@ -674,9 +792,10 @@ class DiffBest50ConvertToImg {
     String type = songData['type'] ?? '';
     String title = songData['title'] ?? '未知歌曲';
     int songId = songData['song_id'] ?? 0;
-    
+
     // 计算星星等级（使用与App相同的StringUtil）
-    double scoreRate = _calculateScoreRate(songId, levelIndex, score, maimaiMusicData);
+    double scoreRate =
+        _calculateScoreRate(songId, levelIndex, score, maimaiMusicData);
     String stars = StringUtil.formatStars(scoreRate);
     Color starsColor = ColorUtil.getStarsColor(stars);
 
@@ -717,7 +836,8 @@ class DiffBest50ConvertToImg {
   }
 
   // 计算maxScore
-  static int _calculateMaxScore(int songId, int levelIndex, List<dynamic>? maimaiMusicData) {
+  static int _calculateMaxScore(
+      int songId, int levelIndex, List<dynamic>? maimaiMusicData) {
     try {
       if (maimaiMusicData == null || maimaiMusicData.isEmpty) {
         return 0;
@@ -754,7 +874,8 @@ class DiffBest50ConvertToImg {
   }
 
   // 计算scoreRate
-  static double _calculateScoreRate(int songId, int levelIndex, int score, List<dynamic>? maimaiMusicData) {
+  static double _calculateScoreRate(
+      int songId, int levelIndex, int score, List<dynamic>? maimaiMusicData) {
     try {
       if (maimaiMusicData == null) return 0.0;
 
@@ -825,9 +946,11 @@ class DiffBest50ConvertToImg {
   }
 
   // 使用 MediaStore API 将图片保存到系统相册（Android 13+）
-  static Future<String?> _saveImageToGallery(Uint8List imageBytes, String fileName) async {
+  static Future<String?> _saveImageToGallery(
+      Uint8List imageBytes, String fileName) async {
     try {
-      const MethodChannel channel = MethodChannel('com.example.app/media_store');
+      const MethodChannel channel =
+          MethodChannel('com.example.app/media_store');
       final String? result = await channel.invokeMethod('saveImage', {
         'imageBytes': imageBytes,
         'fileName': fileName,
@@ -844,12 +967,13 @@ class DiffBest50ConvertToImg {
   static Future<bool> _checkDirectoryWritable(Directory directory) async {
     try {
       // 创建一个临时文件来测试写入权限
-      String testFileName = 'test_write_permission_${DateTime.now().millisecondsSinceEpoch}.tmp';
+      String testFileName =
+          'test_write_permission_${DateTime.now().millisecondsSinceEpoch}.tmp';
       File testFile = File('${directory.path}/$testFileName');
-      
+
       await testFile.writeAsString('test');
       await testFile.delete();
-      
+
       debugPrint('Directory writable test passed: ${directory.path}');
       return true;
     } catch (e) {
@@ -896,25 +1020,27 @@ class DiffBest50ConvertToImg {
   static Future<PermissionStatus> _requestStoragePermission() async {
     if (Platform.isAndroid) {
       debugPrint('Android platform detected');
-      
+
       // 策略：同时请求 storage、photos 和 videos 权限
       // 这样可以覆盖所有 Android 版本，不需要检测 API 级别
-      
+
       // 先检查已有权限状态
       PermissionStatus storageStatus = await Permission.storage.status;
       PermissionStatus photosStatus = await Permission.photos.status;
       PermissionStatus videosStatus = await Permission.videos.status;
-      
+
       debugPrint('Storage status: $storageStatus');
       debugPrint('Photos status: $photosStatus');
       debugPrint('Videos status: $videosStatus');
-      
+
       // 如果任何一个权限已授予，直接返回成功
-      if (storageStatus.isGranted || photosStatus.isGranted || videosStatus.isGranted) {
+      if (storageStatus.isGranted ||
+          photosStatus.isGranted ||
+          videosStatus.isGranted) {
         debugPrint('At least one permission already granted');
         return PermissionStatus.granted;
       }
-      
+
       // 请求权限：同时请求 storage、photos 和 videos
       debugPrint('Requesting storage, photos and videos permissions...');
       Map<Permission, PermissionStatus> statuses = await [
@@ -922,21 +1048,22 @@ class DiffBest50ConvertToImg {
         Permission.photos,
         Permission.videos,
       ].request();
-      
+
       bool storageGranted = statuses[Permission.storage]?.isGranted ?? false;
       bool photosGranted = statuses[Permission.photos]?.isGranted ?? false;
       bool videosGranted = statuses[Permission.videos]?.isGranted ?? false;
-      
+
       debugPrint('Storage granted: $storageGranted');
       debugPrint('Photos granted: $photosGranted');
       debugPrint('Videos granted: $videosGranted');
-      
-      return (storageGranted || photosGranted || videosGranted) 
-          ? PermissionStatus.granted 
+
+      return (storageGranted || photosGranted || videosGranted)
+          ? PermissionStatus.granted
           : PermissionStatus.denied;
     } else {
       // 对于其他平台，使用 storage 权限
-      debugPrint('Non-Android platform detected, requesting storage permission');
+      debugPrint(
+          'Non-Android platform detected, requesting storage permission');
       PermissionStatus status = await Permission.storage.request();
       debugPrint('Storage permission result: $status');
       return status;

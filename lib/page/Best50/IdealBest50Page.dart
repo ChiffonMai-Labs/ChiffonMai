@@ -145,6 +145,20 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
       ),
       exportingLabel: '拟合 Best50',
       enableThunderMode: true,
+      previewBuilder: (previewContext, previewQuality) =>
+          B50ConvertToImg.buildPreviewWidget(
+        previewContext,
+        {
+          'rating': _data!['rating'],
+          'additional_rating': 0,
+          'charts': {'sd': _sdSongs, 'dx': _dxSongs},
+        },
+        _sdSongs,
+        _dxSongs,
+        _maimaiMusicData,
+        thunderMode: previewQuality.thunderMode,
+        thunderVertical: previewQuality.thunderVertical,
+      ),
     );
     if (!mounted || quality == null) return;
 
@@ -234,7 +248,8 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
     return BackgroundPageScaffold(
       title: '理想 Best50',
       resizeToAvoidBottomInset: false,
-      contentPadding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom + 10),
+      contentPadding:
+          EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
       child: _data == null ? _buildEmptyState() : _buildContent(),
     );
   }
@@ -247,7 +262,8 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.insights_outlined, size: 64, color: scheme.onSurfaceVariant),
+            Icon(Icons.insights_outlined,
+                size: 64, color: scheme.onSurfaceVariant),
             const SizedBox(height: 16),
             Text(
               '暂无游玩数据缓存',
@@ -267,7 +283,8 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
 
   Widget _buildContent() {
     return SingleChildScrollView(
-      padding: EdgeInsets.all(MediaQuery.of(context).size.width * 0.03),
+      padding: EdgeInsets.fromLTRB(MediaQuery.of(context).size.width * 0.03, 8,
+          MediaQuery.of(context).size.width * 0.03, MediaQuery.of(context).size.width * 0.03),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -300,7 +317,8 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
         : all.fold<double>(
                 0.0,
                 (sum, m) =>
-                    sum + (double.tryParse(m['achievements'].toString()) ?? 0.0)) /
+                    sum +
+                    (double.tryParse(m['achievements'].toString()) ?? 0.0)) /
             all.length;
 
     return Container(
@@ -544,7 +562,6 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
     Color starsColor = Colors.white,
     int maxIdLength = 5,
   }) {
-
     return B50GameCardWidget(
       cardColor: cardColor,
       songName: songName,

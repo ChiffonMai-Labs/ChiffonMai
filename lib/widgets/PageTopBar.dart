@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../utils/AppTheme.dart';
@@ -127,30 +129,42 @@ class PageTopBar extends StatelessWidget implements PreferredSizeWidget {
     final resolvedFontSize = fontSize ?? titleFontSize;
     final resolvedWeight = titleWeight ?? FontWeight.bold;
 
-    final titleText = Text(
-      title,
-      maxLines: 1,
-      softWrap: false,
-      overflow: TextOverflow.ellipsis,
-      textAlign: centerTitleInAvailableSpace ||
-              titleAlign == PageTopBarTitleAlign.center
-          ? TextAlign.center
-          : TextAlign.start,
-      // 字体必须走 AppTheme.font：AppBar 会在标题外再套一层
-      // `DefaultTextStyle(style: appBarTheme.titleTextStyle)`，
-      // 不带族名的裸 TextStyle 会把全局网络字体顶掉（标题变 Roboto）。
+    final titleText = _PageTopBarTitle(
+      title: title,
       style: AppTheme.font(
         color: resolvedColor,
         fontSize: resolvedFontSize,
         fontWeight: resolvedWeight,
       ),
+      defaultTextAlign: centerTitleInAvailableSpace ||
+              titleAlign == PageTopBarTitleAlign.center
+          ? TextAlign.center
+          : TextAlign.start,
+      // 歌曲详情页切换到长歌名时，只有实际发生省略才靠左，短标题和未截断的歌名始终居中。
+      alignStartWhenOverflow:
+          animateTitle && titleAlign == PageTopBarTitleAlign.center,
     );
 
-    // 普通标题交给 NavigationToolbar 自己计算中心点；只有歌曲详情页这类
-    // 明确要求避开右侧操作按钮的标题，才撑满「返回键到操作区」的可用宽度。
-    final titleWidget = centerTitleInAvailableSpace
-        ? SizedBox(width: double.infinity, child: titleText)
-        : titleText;
+    // 普通标题交给 NavigationToolbar 自己计算中心点。动画标题使用一块固定宽度，
+    // 宽度不超过两侧最大控件的安全范围，避免撑满后被返回按钮夹到右侧。
+    final Widget titleWidget;
+    if (centerTitleInAvailableSpace) {
+      titleWidget = SizedBox(width: double.infinity, child: titleText);
+    } else if (animateTitle && titleAlign == PageTopBarTitleAlign.center) {
+      final leadingWidth = showBack ? kToolbarHeight : 0.0;
+      final trailingWidth = actions.length * kToolbarHeight;
+      // NavigationToolbar 默认会在两侧各保留 16dp 的 middleSpacing；
+      // 这部分也要计入安全边界，否则标题会再向右偏一小段。
+      final sideWidth = math.max(leadingWidth, trailingWidth) +
+          NavigationToolbar.kMiddleSpacing;
+      final centeredTitleWidth =
+          (MediaQuery.sizeOf(context).width - sideWidth * 2)
+              .clamp(0.0, double.infinity)
+              .toDouble();
+      titleWidget = SizedBox(width: centeredTitleWidth, child: titleText);
+    } else {
+      titleWidget = titleText;
+    }
     final resolvedTitleWidget = centerTitleInAvailableSpace
         ? Align(alignment: Alignment.center, child: titleWidget)
         : titleWidget;
@@ -161,6 +175,12 @@ class PageTopBar extends StatelessWidget implements PreferredSizeWidget {
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       scrolledUnderElevation: 0,
+      // 透明标题栏无法靠背景色自动推断亮度；按当前主题明确指定状态栏图标，
+      // 避免浅色页面沿用浅色图标而与背景融为一体。
+      systemOverlayStyle: AppTheme.systemUiOverlayStyle(
+        brightness,
+        navigationBarColor: scheme.surface,
+      ),
       centerTitle: titleAlign == PageTopBarTitleAlign.center,
       primary: primary,
       toolbarHeight: toolbarHeight,
@@ -202,6 +222,14 @@ class PageTopBar extends StatelessWidget implements PreferredSizeWidget {
                   child: child,
                 ),
               ),
+              layoutBuilder: (currentChild, previousChildren) => Stack(
+                alignment: Alignment.center,
+                fit: StackFit.passthrough,
+                children: [
+                  ...previousChildren,
+                  if (currentChild != null) currentChild,
+                ],
+              ),
               child: KeyedSubtree(
                 key: ValueKey(title),
                 child: resolvedTitleWidget,
@@ -223,6 +251,92 @@ class PageTopBar extends StatelessWidget implements PreferredSizeWidget {
     return SizedBox(
       height: preferredSize.height + statusBar,
       child: appBar,
+    );
+  }
+}
+
+/// 标题栏中的单行文本。
+///
+/// 动画标题使用整块可用宽度作为稳定的布局基准，避免 AnimatedSwitcher 在
+/// 长歌名和「歌曲详情」之间切换时按文本自身宽度重新定位。实际发生省略时
+/// 才改为左对齐，恢复为短标题后会直接在同一块区域的中心显示。
+class _PageTopBarTitle extends StatelessWidget {
+  final String title;
+  final TextStyle style;
+  final TextAlign defaultTextAlign;
+  final bool alignStartWhenOverflow;
+
+  const _PageTopBarTitle({
+    required this.title,
+    required this.style,
+    required this.defaultTextAlign,
+    required this.alignStartWhenOverflow,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (!alignStartWhenOverflow || !constraints.hasBoundedWidth) {
+          return Text(
+            title,
+            maxLines: 1,
+            softWrap: false,
+            overflow: TextOverflow.ellipsis,
+            textAlign: defaultTextAlign,
+            style: style,
+          );
+        }
+
+        final textDirection = Directionality.of(context);
+        final textScaler = MediaQuery.textScalerOf(context);
+        final effectiveStyle = DefaultTextStyle.of(context).style.merge(style);
+        final painter = TextPainter(
+          text: TextSpan(text: title, style: effectiveStyle),
+          maxLines: 1,
+          textDirection: textDirection,
+          textScaler: textScaler,
+        )..layout();
+        // 省略号出现前额外保留两个汉字宽度，避免标题刚超出一点就过早截断。
+        final twoCharactersPainter = TextPainter(
+          text: TextSpan(text: '中中', style: effectiveStyle),
+          maxLines: 1,
+          textDirection: textDirection,
+          textScaler: textScaler,
+        )..layout();
+        final extraWidth = twoCharactersPainter.width;
+        final expandedWidth = constraints.maxWidth + extraWidth;
+        final isOverflowing = painter.width > expandedWidth + 0.1;
+        final visualWidth = painter.width > constraints.maxWidth
+            ? expandedWidth
+            : constraints.maxWidth;
+        final textHeight = painter.height;
+        painter.dispose();
+        twoCharactersPainter.dispose();
+        final text = SizedBox(
+          width: visualWidth,
+          child: Text(
+            title,
+            maxLines: 1,
+            softWrap: false,
+            overflow: TextOverflow.ellipsis,
+            textAlign: isOverflowing ? TextAlign.start : defaultTextAlign,
+            style: style,
+          ),
+        );
+
+        if (visualWidth <= constraints.maxWidth) return text;
+        // AppBar 为标题提供的高度无上限；扩宽时只放开宽度，避免高度变成无穷大而无法绘制。
+        return SizedBox(
+          height: textHeight,
+          child: OverflowBox(
+            alignment: isOverflowing ? Alignment.centerLeft : Alignment.center,
+            minWidth: constraints.maxWidth,
+            maxWidth: visualWidth,
+            child: text,
+          ),
+        );
+      },
     );
   }
 }

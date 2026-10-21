@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:my_first_flutter_app/widgets/NoRipple.dart';
 import 'dart:async';
 import 'dart:io';
@@ -131,8 +132,8 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
     return _singleMaxScore(song, e.levelIndex);
   }
 
-  int _raOf(CustomBest50Entry e) =>
-      DiffBest50Service().calculateSingleRating(_effectiveDs(e), e.achievements);
+  int _raOf(CustomBest50Entry e) => DiffBest50Service()
+      .calculateSingleRating(_effectiveDs(e), e.achievements);
 
   /// 达成率上限：普通曲 101%；宴会场（6 位 id）内部多张子谱相加，
   /// 上限 = 101 × 谱面数（2 个谱面即 202%）。
@@ -232,8 +233,8 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
                               )
                             : ListView.builder(
                                 itemCount: filtered.length,
-                                itemBuilder: (_, i) =>
-                                    _buildPickerRow(ctx, filtered[i], brightness),
+                                itemBuilder: (_, i) => _buildPickerRow(
+                                    ctx, filtered[i], brightness),
                               ),
                   ),
                 ],
@@ -250,7 +251,7 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
   Widget _buildPickerRow(BuildContext ctx, Song song, Brightness brightness) {
     final bool isUtage = song.id.length == 6;
     final String typeLabel =
-        isUtage ? 'UTAGE' : (song.type == 'SD' ? 'ST' : 'DX');
+        isUtage ? ChartDifficulty.utageLabel : (song.type == 'SD' ? 'ST' : 'DX');
     final Color typeColor = isUtage
         ? const Color(0xFFFF6B8B)
         : (song.type == 'SD'
@@ -305,6 +306,7 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
     int? dxScore = existing?.dxScore;
     String fc = existing?.fc ?? '';
     String fs = existing?.fs ?? '';
+    String? saveError;
     // 谱面在曲库中找不到时，用已保存的快照兜底
     final String snapshotTitle = existing?.title ?? '';
     final double snapshotDs = existing?.ds ?? 0.0;
@@ -367,6 +369,7 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
                       if (picked == null || !sheetCtx.mounted) return;
                       setSheetState(() {
                         song = picked;
+                        saveError = null;
                         // 新曲目默认 Master（第 4 个难度），不足则取最高难度
                         levelIndex = picked.charts.length > 3 ? 3 : 0;
                         if (levelIndex >= picked.ds.length) levelIndex = 0;
@@ -454,12 +457,14 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
                       '${_difficultyName(levelIndex)} · '
                       '${effectiveLevel().isEmpty ? '?' : effectiveLevel()} · '
                       '定数 ${ds.toStringAsFixed(1)}',
-                      style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+                      style: TextStyle(
+                          fontSize: 12, color: scheme.onSurfaceVariant),
                     ),
                     const SizedBox(height: 12),
                   ] else ...[
                     Text('请先选择歌曲',
-                        style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant)),
+                        style: TextStyle(
+                            fontSize: 13, color: scheme.onSurfaceVariant)),
                     const SizedBox(height: 12),
                   ],
 
@@ -473,8 +478,12 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
                           hint: '如 100.5',
                           initial: existing?.achievements.toString(),
                           hardMax: _achievementHardMax,
-                          helperText: '上限 ${maxAchievement.toStringAsFixed(0)}%',
-                          onChanged: (v) => setSheetState(() => achievements = v),
+                          helperText:
+                              '上限 ${maxAchievement.toStringAsFixed(0)}%',
+                          onChanged: (v) => setSheetState(() {
+                            achievements = v;
+                            saveError = null;
+                          }),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -485,8 +494,10 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
                           initial: existing?.dxScore.toString(),
                           hardMax: _dxScoreHardMax.toDouble(),
                           helperText: maxDx > 0 ? '上限 $maxDx' : null,
-                          onChanged: (v) => setSheetState(
-                              () => dxScore = v?.round()),
+                          onChanged: (v) => setSheetState(() {
+                            dxScore = v?.round();
+                            saveError = null;
+                          }),
                         ),
                       ),
                     ],
@@ -549,6 +560,19 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
                     ),
                   const SizedBox(height: 12),
 
+                  if (saveError != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Text(
+                        saveError!,
+                        style: TextStyle(
+                          color: scheme.error,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+
                   // 动作按钮
                   Row(
                     children: [
@@ -558,7 +582,8 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
                             await _store.setEntry(index, null);
                             if (!mounted) return;
                             setState(() {
-                              _entries = List<CustomBest50Entry?>.of(_store.entries);
+                              _entries =
+                                  List<CustomBest50Entry?>.of(_store.entries);
                               _sortLabel = null;
                             });
                             if (sheetCtx.mounted) Navigator.pop(sheetCtx);
@@ -575,15 +600,11 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
                       FilledButton(
                         onPressed: () async {
                           if (song == null && snapshotTitle.isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('请先选择歌曲')),
-                            );
+                            setSheetState(() => saveError = '请先选择歌曲');
                             return;
                           }
                           if (achievements == null) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('请输入达成率')),
-                            );
+                            setSheetState(() => saveError = '请输入达成率');
                             return;
                           }
                           final entry = CustomBest50Entry(
@@ -603,7 +624,8 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
                           await _store.setEntry(index, entry);
                           if (!mounted) return;
                           setState(() {
-                            _entries = List<CustomBest50Entry?>.of(_store.entries);
+                            _entries =
+                                List<CustomBest50Entry?>.of(_store.entries);
                             _sortLabel = null;
                           });
                           if (sheetCtx.mounted) Navigator.pop(sheetCtx);
@@ -659,7 +681,7 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
   }
 
   static String _difficultyName(int index) {
-    const names = ['BASIC', 'ADVANCED', 'EXPERT', 'MASTER', 'Re:MASTER'];
+    const names = ChartDifficulty.standardLabels;
     if (index < 0 || index >= names.length) return '难度$index';
     return names[index];
   }
@@ -817,6 +839,17 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
       ),
       exportingLabel: '自定义 Best50',
       enableThunderMode: true,
+      previewBuilder: (previewContext, previewQuality) =>
+          PersonalizedB50ConvertToImg.buildPreviewWidget(
+        previewContext,
+        '自定义 Best50',
+        _buildExportMaps(),
+        _maimaiMusicData,
+        _warningText,
+        _sortLabel,
+        thunderMode: previewQuality.thunderMode,
+        thunderVertical: previewQuality.thunderVertical,
+      ),
     );
     if (!mounted || quality == null) return;
 
@@ -947,29 +980,29 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
     return BackgroundPageScaffold(
       title: '自定义 Best50',
       resizeToAvoidBottomInset: false,
-      contentPadding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom + 10),
+      contentPadding:
+          EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
       child: SingleChildScrollView(
-                    padding: EdgeInsets.all(
-                        MediaQuery.of(context).size.width * 0.03),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _buildStatsSection(),
-                        const SizedBox(height: 12.0),
-                        _buildActionButtons(),
-                        const SizedBox(height: 12.0),
-                        _buildGrid(),
-                      ],
-                    ),
-                  ),
+        padding: EdgeInsets.fromLTRB(MediaQuery.of(context).size.width * 0.03, 8,
+            MediaQuery.of(context).size.width * 0.03, MediaQuery.of(context).size.width * 0.03),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildStatsSection(),
+            const SizedBox(height: 12.0),
+            _buildActionButtons(),
+            const SizedBox(height: 12.0),
+            _buildGrid(),
+          ],
+        ),
+      ),
     );
   }
 
   Widget _buildStatsSection() {
     final filled = _filledEntries;
     final int totalSongs = filled.length;
-    final int totalRa =
-        filled.fold<int>(0, (sum, e) => sum + _raOf(e));
+    final int totalRa = filled.fold<int>(0, (sum, e) => sum + _raOf(e));
     final double averageRa = totalSongs > 0 ? totalRa / totalSongs : 0.0;
     final double totalAchievement =
         filled.fold<double>(0.0, (sum, e) => sum + e.achievements);
@@ -998,7 +1031,8 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
           const SizedBox(height: 8.0),
           Row(
             children: [
-              _statColumn('已填写', '$totalSongs / ${CustomBest50Store.slotCount}'),
+              _statColumn(
+                  '已填写', '$totalSongs / ${CustomBest50Store.slotCount}'),
               _statColumn('总RA值', '$totalRa'),
               _statColumn('平均RA值', averageRa.toStringAsFixed(1)),
               _statColumn('平均达成率', '${averageAchievement.toStringAsFixed(2)}%'),
@@ -1063,8 +1097,8 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
               child: ElevatedButton.icon(
                 onPressed: _exportToImage,
                 icon: const Icon(Icons.image_outlined, color: Colors.white),
-                label: const Text('导出为图片',
-                    style: TextStyle(color: Colors.white)),
+                label:
+                    const Text('导出为图片', style: TextStyle(color: Colors.white)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.linkBlue(brightness),
                   padding: const EdgeInsets.symmetric(vertical: 12.0),
@@ -1159,8 +1193,7 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
                 size: 28, color: scheme.onSurfaceVariant),
             const SizedBox(height: 4),
             Text('点击填写',
-                style: TextStyle(
-                    fontSize: 13, color: scheme.onSurfaceVariant)),
+                style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant)),
           ],
         ),
       ),
@@ -1170,8 +1203,9 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
   Widget _buildEntryCard(CustomBest50Entry entry, int maxIdLength) {
     final songId = entry.songId;
     final isUtage = songId.toString().length == 6;
-    final cardColor =
-        isUtage ? AppColors.utageCard() : ColorUtil.getCardColor(entry.levelIndex);
+    final cardColor = isUtage
+        ? AppColors.utageCard()
+        : ColorUtil.getCardColor(entry.levelIndex);
     final maxScore = _cardMaxScore(entry);
     final maxDx = _maxDxScore(entry);
     final scoreRate = maxDx > 0 ? entry.dxScore / maxDx : 0.0;

@@ -9,6 +9,7 @@ import '../../api/ApiUrls.dart';
 import '../../service/AccountSwitchService.dart';
 import '../../utils/ApiClient.dart';
 import '../../utils/CurrentDataSourceNotifier.dart';
+import '../../utils/QuotaRetryHint.dart';
 import 'AwmcNetException.dart';
 
 /// AWMC NET.（https://net.wmc.pub）用户成绩管理器 —— 第三个查分数据源。
@@ -153,7 +154,8 @@ class AwmcNetUserPlayDataManager {
           '${detail.isEmpty ? '' : '：$detail'}',
         );
       case 429:
-        return const AwmcNetException('AWMC NET 请求过于频繁，请稍后重试');
+        return AwmcNetException(
+            'AWMC NET 请求过于频繁，请稍后重试\n${quotaRetryHint(body)}');
     }
     if (status >= 500) {
       return AwmcNetException('AWMC NET 服务端异常（HTTP $status），请稍后重试');

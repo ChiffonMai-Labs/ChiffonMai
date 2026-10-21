@@ -391,20 +391,11 @@ class _VersionViewState extends State<VersionView> {
 
   List<VersionData> get _versions {
     if (!_isJapaneseVersion) return _standardVersions;
-    final versions = <VersionData>[];
-    for (final version in _standardVersions) {
-      versions.add(version);
-      final plusKey = switch (version.key) {
-        'maimai でらっくす' => 'maimai でらっくす PLUS',
-        'maimai でらっくす Splash' => 'maimai でらっくす Splash PLUS',
-        'maimai でらっくす UNiVERSE' => 'maimai でらっくす UNiVERSE PLUS',
-        'maimai でらっくす FESTiVAL' => 'maimai でらっくす FESTiVAL PLUS',
-        'maimai でらっくす BUDDiES' => 'maimai でらっくす BUDDiES PLUS',
-        _ => null,
-      };
-      if (plusKey != null) versions.add(_catalog[plusKey]!);
-    }
-    return [...versions, ..._japaneseTail];
+    final tail = {for (final version in _japaneseTail) version.key: version};
+    return [
+      for (final key in VersionListConstant.japaneseVersionOrderList)
+        _catalog[key] ?? tail[key]!,
+    ];
   }
 
   void _showPreview(VersionData version) {
@@ -428,7 +419,7 @@ class _VersionViewState extends State<VersionView> {
     return BackgroundPageScaffold(
       title: 'maimai 版本对照',
       contentPadding: EdgeInsets.only(
-        bottom: MediaQuery.paddingOf(context).bottom + 10,
+        bottom: MediaQuery.paddingOf(context).bottom,
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {

@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'dart:async';
 import 'dart:math';
 
@@ -18,7 +19,6 @@ import 'package:my_first_flutter_app/utils/SongFilterUtil.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import '../../utils/ExternalLaunchUtil.dart';
 import 'package:my_first_flutter_app/utils/LuoXueSongUtil.dart';
-import 'package:my_first_flutter_app/utils/PlayerThemeScope.dart';
 import 'package:my_first_flutter_app/utils/RefreshRateUtil.dart';
 import 'package:my_first_flutter_app/page/SongInfoPage.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
@@ -96,13 +96,7 @@ class GuessChartByChartPeekPage extends StatefulWidget {
   }
 
   /// inote 编号 → 难度名（多人「谱面片段猜歌」直接复用这一份，别再抄一遍）
-  static const Map<String, String> difficultyNames = {
-    '2': 'BASIC',
-    '3': 'ADVANCED',
-    '4': 'EXPERT',
-    '5': 'MASTER',
-    '6': 'Re:MASTER',
-  };
+  static const Map<String, String> difficultyNames = ChartDifficulty.standardMaidataLabels;
 
   /// 难度标签底色（与 SongMaidataPageService.inoteColorMap 同一套值）
   static const Map<String, Color> difficultyColors = {
@@ -194,8 +188,6 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
     super.initState();
     _songAliasManager = SongAliasManager.instance;
     _settingsService = GuessChartCommonSettingsService();
-    // 谱面渲染是黑底，沿用播放页的深色主题强制，避免闪一帧浅色
-    PlayerThemeScope.forceDarkTheme.value = true;
     // 谱面滚动对帧率敏感
     RefreshRateUtil.requestMax();
     _loadSettings();
@@ -250,7 +242,6 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
 
   @override
   void dispose() {
-    PlayerThemeScope.forceDarkTheme.value = false;
     RefreshRateUtil.restore();
     _searchController.dispose();
     _searchTimer?.cancel();
@@ -1702,7 +1693,7 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
                         children: [
                           Expanded(
                             child: SingleChildScrollView(
-                              padding: EdgeInsets.all(padding),
+                              padding: EdgeInsets.fromLTRB(padding, 8, padding, padding),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [

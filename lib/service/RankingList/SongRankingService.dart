@@ -6,6 +6,7 @@ import 'package:my_first_flutter_app/manager/DivingFish/MaimaiMusicDataManager.d
 import 'package:my_first_flutter_app/utils/ApiClient.dart';
 import '../../utils/CurrentDataSourceNotifier.dart';
 import '../../utils/CommunityProfileUtil.dart';
+import '../CommunityAvatarStore.dart';
 
 enum RankingType {
   achievementRate,
@@ -240,8 +241,8 @@ class SongRankingService {
           final achievementRate =
               (record['achievements'] as num?)?.toDouble() ?? 0.0;
           final dxScore = int.tryParse(record['dxScore'].toString()) ?? 0;
-          if (_validateRecordSync(songById, songId, difficultyIndex,
-              achievementRate, dxScore)) {
+          if (_validateRecordSync(
+              songById, songId, difficultyIndex, achievementRate, dxScore)) {
             validRecords.add(record);
           }
         } catch (e) {
@@ -286,9 +287,8 @@ class SongRankingService {
         final bestAch = best.achievementRate > server.achievementRate
             ? best.achievementRate
             : server.achievementRate;
-        final bestDx = best.dxScore > server.dxScore
-            ? best.dxScore
-            : server.dxScore;
+        final bestDx =
+            best.dxScore > server.dxScore ? best.dxScore : server.dxScore;
         final bestFc = _gradePriorityOf(best.fc) > _gradePriorityOf(server.fc)
             ? best.fc
             : server.fc;
@@ -451,9 +451,15 @@ class SongRankingService {
   // data 数组，同时兼容 camelCase（songId/difficultyIndex/achievementRate/maxDxScore）
   // 与 snake_case（song_id/level_index/achievements/max_dx_score）字段。拉取失败返回空表，
   // 便于上层退化为全量上传。
-  Future<Map<String,
-          ({double achievementRate, int dxScore, String fc, int maxDxScore})>>
-      fetchPlayerStoredScores(String playerId) async {
+  Future<
+      Map<
+          String,
+          ({
+            double achievementRate,
+            int dxScore,
+            String fc,
+            int maxDxScore
+          })>> fetchPlayerStoredScores(String playerId) async {
     final url = Uri.parse('${ApiUrls.SongRankingsPlayerUrl}/$playerId');
     try {
       final response = await ApiClient.get(url);
@@ -466,27 +472,26 @@ class SongRankingService {
         final list = data is List ? data : <dynamic>[];
         final map = <String,
             ({
-              double achievementRate,
-              int dxScore,
-              String fc,
-              int maxDxScore,
-            })>{};
+          double achievementRate,
+          int dxScore,
+          String fc,
+          int maxDxScore,
+        })>{};
         for (final item in list) {
           if (item is! Map<String, dynamic>) continue;
           final songId = (item['songId'] ?? item['song_id'] ?? '').toString();
-          final difficultyIndex =
-              int.tryParse((item['difficultyIndex'] ?? item['level_index'] ?? 0)
+          final difficultyIndex = int.tryParse(
+                  (item['difficultyIndex'] ?? item['level_index'] ?? 0)
                       .toString()) ??
-                  0;
+              0;
           final achRaw = item['achievementRate'] ?? item['achievements'] ?? 0;
-          final achievementRate =
-              achRaw is num ? achRaw.toDouble() : 0.0;
+          final achievementRate = achRaw is num ? achRaw.toDouble() : 0.0;
           final dxScore = int.tryParse((item['dxScore'] ?? 0).toString()) ?? 0;
           final fc = (item['fc'] ?? '').toString();
-          final maxDxScore =
-              int.tryParse((item['maxDxScore'] ?? item['max_dx_score'] ?? 0)
+          final maxDxScore = int.tryParse(
+                  (item['maxDxScore'] ?? item['max_dx_score'] ?? 0)
                       .toString()) ??
-                  0;
+              0;
           if (songId.isNotEmpty) {
             map['$songId|$difficultyIndex'] = (
               achievementRate: achievementRate,
@@ -508,7 +513,8 @@ class SongRankingService {
 
   // 按 (song_id, level_index) 分组，每张谱面独立保留最优指标：
   // 成就率最高、DX 分最高、连击（fc）等级最高。
-  Map<String,
+  Map<
+      String,
       ({
         String songId,
         int difficultyIndex,
@@ -518,12 +524,12 @@ class SongRankingService {
       })> _groupClientBest(List<Map<String, dynamic>> records) {
     final map = <String,
         ({
-          String songId,
-          int difficultyIndex,
-          double achievementRate,
-          int dxScore,
-          String fc,
-        })>{};
+      String songId,
+      int difficultyIndex,
+      double achievementRate,
+      int dxScore,
+      String fc,
+    })>{};
     for (final record in records) {
       final songId = record['song_id'].toString();
       final difficultyIndex =
@@ -580,8 +586,11 @@ class SongRankingService {
 
   Future<bool> deleteSongRankings(String playerId) async {
     try {
+      final headers = await CommunityAvatarStore.authorizationHeaders(playerId);
+      if (headers == null) return false;
       final response = await ApiClient.delete(
         Uri.parse('${ApiUrls.SongRankingsBaseUrl}/player/$playerId'),
+        headers: headers,
       );
 
       if (response.statusCode == 200) {

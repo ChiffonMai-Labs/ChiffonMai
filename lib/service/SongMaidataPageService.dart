@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -26,14 +27,7 @@ class MatchResult {
 
 class SongMaidataPageService {
   // inote数字到难度名称的映射
-  static const Map<String, String> inoteDifficultyMap = {
-    '2': 'BASIC',
-    '3': 'ADVANCED',
-    '4': 'EXPERT',
-    '5': 'MASTER',
-    '6': 'Re:MASTER',
-    '7': 'UTAGE',
-  };
+  static const Map<String, String> inoteDifficultyMap = ChartDifficulty.maidataLabels;
 
   // inote数字到颜色的映射
   static const Map<String, int> inoteColorMap = {
@@ -247,8 +241,7 @@ class SongMaidataPageService {
     final wmcContent = await MaidataManager().getMaidataFromWmcFallback(songId);
     if (wmcContent != null) {
       debugPrint('[DEBUG][Maidata] 使用 wmc.pub 兜底内容, songId=$songId');
-      // 网络兜底也写入已有的单曲持久缓存，下次进入详情页无需再次下载。
-      await cacheMaidata(wmcContent);
+      // 兜底入口已写入共享的单曲持久缓存。
       List<String> inoteList = _parseInoteList(wmcContent);
       onInoteParsed(inoteList);
       return wmcContent;
@@ -292,15 +285,7 @@ class SongMaidataPageService {
 
   Future<void> cacheMaidata(String content) async {
     try {
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      String cacheKey = '${CacheKeyConstant.maidataCachePrefix}$songId';
-      
-      Map<String, dynamic> data = {
-        'timestamp': DateTime.now().millisecondsSinceEpoch,
-        'content': content,
-      };
-      
-      await prefs.setString(cacheKey, json.encode(data));
+      await MaidataManager().cacheMaidata(songId, content);
       debugPrint('[DEBUG][Maidata] 已缓存maidata内容');
     } catch (e) {
       debugPrint('[DEBUG][Maidata] 缓存失败: $e');

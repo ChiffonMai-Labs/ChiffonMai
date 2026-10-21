@@ -124,7 +124,7 @@ class _MaimaiHubLoginDialogState extends State<_MaimaiHubLoginDialog> {
                   Icon(Icons.check_circle,
                       color: AppColors.successGreen(brightness), size: 52),
                   const SizedBox(height: 12),
-                  const Text('登录状态已保存。现在可以直接使用 OCR，\n无需同步成绩。',
+                  const Text('登录状态已保存。可复用于 OCR 与线路2 同步，\n不需要再重复扫码登录。',
                       textAlign: TextAlign.center),
                 ],
               )

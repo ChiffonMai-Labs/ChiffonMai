@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -28,11 +29,11 @@ class KaleidXScopeSelectService {
   // 获取难度颜色
   static Color getDifficultyColor(String type) {
     switch (type.toUpperCase()) {
-      case 'MASTER':
+      case ChartDifficulty.masterLabel:
         return Color(0xFF9966CC); // 紫色
-      case 'EXPERT':
+      case ChartDifficulty.expertLabel:
         return Color(0xFFE91E63); // 红色
-      case 'BASIC':
+      case ChartDifficulty.basicLabel:
         return Color(0xFF4CAF50); // 绿色
       default:
         return Colors.grey;

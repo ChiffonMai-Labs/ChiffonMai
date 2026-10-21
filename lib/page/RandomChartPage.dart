@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import '../widgets/EmptyState.dart';
 import '../widgets/NumberStepper.dart';
 import '../widgets/DifficultyConstantLabel.dart';
@@ -401,7 +402,7 @@ class _RandomChartPageState extends State<RandomChartPage> {
                                   constant: song.ds[index],
                                   difficultyIndex: index,
                                   utage: song.id.length >= 6 ||
-                                      song.type == 'UTAGE'),
+                                      song.type == ChartDifficulty.utageLabel),
                             ),
                         ],
                       ),
@@ -436,16 +437,16 @@ class _RandomChartPageState extends State<RandomChartPage> {
       title: '随机抽歌',
       resizeToAvoidBottomInset: false, // 解决输入法挤压背景的问题
       contentPadding: EdgeInsets.only(
-        bottom: MediaQuery.paddingOf(context).bottom + 10,
+        bottom: MediaQuery.paddingOf(context).bottom,
       ),
       child: SingleChildScrollView(
-        padding: EdgeInsets.all(contentPadding),
+        padding: EdgeInsets.fromLTRB(contentPadding, 8, contentPadding, contentPadding),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // 筛选条件区域
             Container(
-              padding: EdgeInsets.all(cardPadding),
+              padding: EdgeInsets.fromLTRB(cardPadding, 8, cardPadding, cardPadding),
               decoration: BoxDecoration(
                 color: brightness == Brightness.light
                     ? Theme.of(context).colorScheme.surfaceContainerHigh

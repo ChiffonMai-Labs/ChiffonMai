@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -112,8 +113,8 @@ class SongScoreShareService {
       await _waitForRender();
 
       // 捕获为图片
-      final boundary = globalKey.currentContext
-          ?.findRenderObject() as RenderRepaintBoundary?;
+      final boundary = globalKey.currentContext?.findRenderObject()
+          as RenderRepaintBoundary?;
       if (boundary == null) {
         debugPrint('SongScoreShare: RenderRepaintBoundary not found');
         overlayEntry.remove();
@@ -122,11 +123,15 @@ class SongScoreShareService {
 
       ui.Image image;
       try {
-        image = await boundary.toImage(pixelRatio: ImageEncodeUtil.safeCapturePixelRatio(boundary.size.width, boundary.size.height));
+        image = await boundary.toImage(
+            pixelRatio: ImageEncodeUtil.safeCapturePixelRatio(
+                boundary.size.width, boundary.size.height));
       } catch (e) {
         debugPrint('SongScoreShare: First capture failed: $e');
         await Future.delayed(Duration(milliseconds: 200));
-        image = await boundary.toImage(pixelRatio: ImageEncodeUtil.safeCapturePixelRatio(boundary.size.width, boundary.size.height));
+        image = await boundary.toImage(
+            pixelRatio: ImageEncodeUtil.safeCapturePixelRatio(
+                boundary.size.width, boundary.size.height));
       }
 
       ByteData? byteData =
@@ -138,7 +143,8 @@ class SongScoreShareService {
         return null;
       }
 
-      Uint8List pngBytes = byteData.buffer.asUint8List(byteData.offsetInBytes, byteData.lengthInBytes);
+      Uint8List pngBytes = byteData.buffer
+          .asUint8List(byteData.offsetInBytes, byteData.lengthInBytes);
       // 立刻释放 ui.Image：它本身也是上百 MB 的原生位图，而下面的 JPEG
       // 转码还要再分配上百 MB（decodePng + copyResize）。等转码完再释放，
       // 峰值内存会白白多一份 —— 低内存机就是这样被 OOM 掉的。
@@ -151,7 +157,8 @@ class SongScoreShareService {
       Uint8List finalBytes;
       String extension;
       if (jpegQuality != null) {
-        finalBytes = await ImageEncodeUtil.pngToJpegAsync(pngBytes, quality: jpegQuality);
+        finalBytes = await ImageEncodeUtil.pngToJpegAsync(pngBytes,
+            quality: jpegQuality);
         extension = 'jpg';
       } else {
         finalBytes = pngBytes;
@@ -159,12 +166,61 @@ class SongScoreShareService {
       }
 
       // 保存图片
-      return await _saveImage(finalBytes, songTitle, status.isGranted, extension: extension);
+      return await _saveImage(finalBytes, songTitle, status.isGranted,
+          extension: extension);
     } catch (e) {
       debugPrint('SongScoreShare: Error: $e');
       overlayEntry?.remove();
       return null;
     }
+  }
+
+  /// 构建与实际导出相同的预览 Widget。
+  static Future<Widget> buildPreviewWidget({
+    required BuildContext context,
+    required String songId,
+    required String songTitle,
+    required String artist,
+    required String songType,
+    required int levelIndex,
+    required String levelStr,
+    required double ds,
+    required String genre,
+    required int bpm,
+    required double achievements,
+    required int ra,
+    required int dxScore,
+    required int maxDxScore,
+    required String fc,
+    required String fs,
+    required String rawRate,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final avatarId = prefs.getInt('selectedAvatarId') ?? 1;
+    return _buildShareCard(
+      context: context,
+      songId: songId,
+      songTitle: songTitle,
+      artist: artist,
+      songType: songType,
+      levelIndex: levelIndex,
+      levelStr: levelStr,
+      ds: ds,
+      genre: genre,
+      bpm: bpm,
+      achievements: achievements,
+      ra: ra,
+      dxScore: dxScore,
+      maxDxScore: maxDxScore,
+      fc: fc,
+      fs: fs,
+      rawRate: rawRate,
+      userNickname: prefs.getString('userNickname') ?? '',
+      totalRating: prefs.getInt('best50TotalRA') ?? 0,
+      avatarUrl: avatarId > 0
+          ? 'https://assets2.lxns.net/maimai/icon/$avatarId.png'
+          : null,
+    );
   }
 
   /// 构建分享卡片Widget
@@ -194,20 +250,25 @@ class SongScoreShareService {
     final bool isUtage = songId.length == 6;
 
     // 获取主题色（与 SongInfoPage 保持一致）
-    final accentColor = isUtage ? Color(0xFFFF69B4) : ColorUtil.getCardColor(levelIndex);
-    final bgGradientStart = isUtage ? Color(0xFFFFF0F5) : _getBgStartColor(levelIndex);
-    final bgGradientEnd = isUtage ? Color(0xFFFFD6E8) : _getBgEndColor(levelIndex);
+    final accentColor =
+        isUtage ? Color(0xFFFF69B4) : ColorUtil.getCardColor(levelIndex);
+    final bgGradientStart =
+        isUtage ? Color(0xFFFFF0F5) : _getBgStartColor(levelIndex);
+    final bgGradientEnd =
+        isUtage ? Color(0xFFFFD6E8) : _getBgEndColor(levelIndex);
 
     // 达成率百分比
     final achievementPercent = achievements;
     // 评级直接使用 API 返回的 rate 字段（与 userPlayDataManager 缓存一致）
     final rateDisplay = StringUtil.formatRate(rawRate);
     final typeLabel = StringUtil.formatSongType(songType);
-    final dxScorePercent = maxDxScore > 0 ? (dxScore / maxDxScore * 100).toStringAsFixed(2) : '0.00';
+    final dxScorePercent = maxDxScore > 0
+        ? (dxScore / maxDxScore * 100).toStringAsFixed(2)
+        : '0.00';
 
-    // 难度名称（UTAGE 歌曲显示 "UTAGE"，与 SongInfoPage 保持一致）
-    final diffNames = ['Basic', 'Advanced', 'Expert', 'Master', 'Re:Master'];
-    final diffName = isUtage ? 'UTAGE' : diffNames[levelIndex.clamp(0, 4)];
+    // 难度名称（UTAGE 歌曲显示 ChartDifficulty.utageLabel，与 SongInfoPage 保持一致）
+    final diffNames = ChartDifficulty.standardLabels;
+    final diffName = isUtage ? ChartDifficulty.utageLabel : diffNames[levelIndex.clamp(0, 4)];
 
     // 星星等级（与 SongInfoPage._calculateStars 保持一致：带空格格式 "✦ 6"）
     final scoreRate = maxDxScore > 0 ? dxScore / maxDxScore : 0.0;
@@ -253,10 +314,14 @@ class SongScoreShareService {
                           border: Border.all(color: accentColor, width: 4),
                           borderRadius: BorderRadius.circular(20),
                           boxShadow: [
-                            BoxShadow(color: accentColor.withAlpha(80), blurRadius: 20, offset: Offset(0, 8)),
+                            BoxShadow(
+                                color: accentColor.withAlpha(80),
+                                blurRadius: 20,
+                                offset: Offset(0, 8)),
                           ],
                         ),
-                        child: CoverUtil.buildCoverWidgetWithContext(context, songId, 260),
+                        child: CoverUtil.buildCoverWidgetWithContext(
+                            context, songId, 260),
                       ),
                     ),
                     SizedBox(width: 40),
@@ -273,25 +338,41 @@ class SongScoreShareService {
                             children: [
                               Expanded(
                                 child: Text(songTitle,
-                                  style: TextStyle(fontSize: 48, fontWeight: FontWeight.bold,
-                                    color: Color(0xFF2C3E50), height: 1.2),
-                                  maxLines: 2, overflow: TextOverflow.ellipsis),
+                                    style: TextStyle(
+                                        fontSize: 48,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF2C3E50),
+                                        height: 1.2),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis),
                               ),
                             ],
                           ),
                           SizedBox(height: 12),
                           // 艺术家
                           Text(artist,
-                            style: TextStyle(fontSize: 28, color: Color(0xFF546161).withAlpha(200), fontWeight: FontWeight.w500)),
+                              style: TextStyle(
+                                  fontSize: 28,
+                                  color: Color(0xFF546161).withAlpha(200),
+                                  fontWeight: FontWeight.w500)),
                           SizedBox(height: 16),
                           // 歌曲元信息标签行（ST/DX/UTAGE 类型放在第一个）
                           Wrap(
-                            spacing: 8, runSpacing: 8,
+                            spacing: 8,
+                            runSpacing: 8,
                             children: [
-                              _buildInfoChip(isUtage ? 'UTAGE' : typeLabel,
-                                isUtage ? Color(0xFFFF6B8B) : (songType == 'SD' ? Colors.blue : Colors.orange), filled: true),
-                              _buildInfoChip('$diffName $levelStr', accentColor, filled: true),
-                              _buildInfoChip('定数 ${ds.toStringAsFixed(1)}', accentColor),
+                              _buildInfoChip(
+                                  isUtage ? ChartDifficulty.utageLabel : typeLabel,
+                                  isUtage
+                                      ? Color(0xFFFF6B8B)
+                                      : (songType == 'SD'
+                                          ? Colors.blue
+                                          : Colors.orange),
+                                  filled: true),
+                              _buildInfoChip('$diffName $levelStr', accentColor,
+                                  filled: true),
+                              _buildInfoChip(
+                                  '定数 ${ds.toStringAsFixed(1)}', accentColor),
                               _buildInfoChip('BPM $bpm', Color(0xFF546161)),
                               _buildInfoChip(genre, Color(0xFF546161)),
                             ],
@@ -316,7 +397,10 @@ class SongScoreShareService {
                           color: Colors.white.withAlpha(140),
                           borderRadius: BorderRadius.circular(20),
                           boxShadow: [
-                            BoxShadow(color: Colors.black.withAlpha(15), blurRadius: 15, offset: Offset(0, 4)),
+                            BoxShadow(
+                                color: Colors.black.withAlpha(15),
+                                blurRadius: 15,
+                                offset: Offset(0, 4)),
                           ],
                         ),
                         child: Row(
@@ -329,7 +413,8 @@ class SongScoreShareService {
                                 margin: EdgeInsets.only(right: 14),
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: accentColor, width: 3),
+                                  border:
+                                      Border.all(color: accentColor, width: 3),
                                   image: DecorationImage(
                                     image: CachedNetworkImageProvider(avatarUrl,
                                         cacheManager: lxnsAssetCacheManager),
@@ -343,10 +428,16 @@ class SongScoreShareService {
                               children: [
                                 if (userNickname.isNotEmpty)
                                   Text(userNickname,
-                                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF2C3E50))),
+                                      style: TextStyle(
+                                          fontSize: 28,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF2C3E50))),
                                 if (totalRating > 0)
                                   Text('总 Rating: $totalRating',
-                                    style: TextStyle(fontSize: 22, color: accentColor, fontWeight: FontWeight.w600)),
+                                      style: TextStyle(
+                                          fontSize: 22,
+                                          color: accentColor,
+                                          fontWeight: FontWeight.w600)),
                               ],
                             ),
                           ],
@@ -359,32 +450,49 @@ class SongScoreShareService {
                     // 右侧：达成率（核心数据，大字体突出）
                     Expanded(
                       child: Container(
-                        padding: EdgeInsets.symmetric(vertical: 28, horizontal: 40),
+                        padding:
+                            EdgeInsets.symmetric(vertical: 28, horizontal: 40),
                         decoration: BoxDecoration(
                           color: Colors.white.withAlpha(180),
                           borderRadius: BorderRadius.circular(24),
                           boxShadow: [
-                            BoxShadow(color: Colors.black.withAlpha(15), blurRadius: 15, offset: Offset(0, 4)),
+                            BoxShadow(
+                                color: Colors.black.withAlpha(15),
+                                blurRadius: 15,
+                                offset: Offset(0, 4)),
                           ],
                         ),
                         child: Column(
                           children: [
                             Text('单曲达成率',
-                              style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600,
-                                color: Color(0xFF546161).withAlpha(180), letterSpacing: 4)),
+                                style: TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF546161).withAlpha(180),
+                                    letterSpacing: 4)),
                             SizedBox(height: 6),
                             Text('${achievementPercent.toStringAsFixed(4)}%',
-                              style: TextStyle(fontSize: 72, fontWeight: FontWeight.bold,
-                                color: Color(0xFF2C3E50), letterSpacing: 2)),
+                                style: TextStyle(
+                                    fontSize: 72,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF2C3E50),
+                                    letterSpacing: 2)),
                             SizedBox(height: 6),
                             Container(
-                              padding: EdgeInsets.symmetric(horizontal: 28, vertical: 6),
+                              padding: EdgeInsets.symmetric(
+                                  horizontal: 28, vertical: 6),
                               decoration: BoxDecoration(
-                                gradient: LinearGradient(colors: [accentColor, accentColor.withAlpha(200)]),
+                                gradient: LinearGradient(colors: [
+                                  accentColor,
+                                  accentColor.withAlpha(200)
+                                ]),
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(rateDisplay,
-                                style: TextStyle(fontSize: 34, fontWeight: FontWeight.bold, color: Colors.white)),
+                                  style: TextStyle(
+                                      fontSize: 34,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white)),
                             ),
                           ],
                         ),
@@ -402,7 +510,10 @@ class SongScoreShareService {
                     color: Colors.white.withAlpha(180),
                     borderRadius: BorderRadius.circular(24),
                     boxShadow: [
-                      BoxShadow(color: Colors.black.withAlpha(15), blurRadius: 15, offset: Offset(0, 4)),
+                      BoxShadow(
+                          color: Colors.black.withAlpha(15),
+                          blurRadius: 15,
+                          offset: Offset(0, 4)),
                     ],
                   ),
                   child: Row(
@@ -424,28 +535,28 @@ class SongScoreShareService {
                         accentColor: accentColor,
                       ),
                       _buildStatDivider(),
-                      // FC
+                      // 连击
                       _buildStatItem(
                         icon: Icons.music_note,
-                        label: 'FC',
+                        label: '连击',
                         value: fcColors.label,
                         accentColor: accentColor,
                         valueColor: fcColors.fg,
                       ),
                       _buildStatDivider(),
-                      // FS
+                      // 同步
                       _buildStatItem(
                         icon: Icons.auto_awesome,
-                        label: 'FS',
+                        label: '同步',
                         value: fsColors.label,
                         accentColor: accentColor,
                         valueColor: fsColors.fg,
                       ),
                       _buildStatDivider(),
-                      // 星星等级（带 bonus 差值）
+                      // 星数（带 bonus 差值）
                       _buildStatItem(
                         icon: Icons.stars,
-                        label: '星星',
+                        label: '星数',
                         value: starDisplay,
                         subtitle: starBonus,
                         accentColor: accentColor,
@@ -484,7 +595,8 @@ class SongScoreShareService {
   }
 
   /// 构建信息标签
-  static Widget _buildInfoChip(String text, Color color, {bool filled = false}) {
+  static Widget _buildInfoChip(String text, Color color,
+      {bool filled = false}) {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 14, vertical: 6),
       decoration: BoxDecoration(
@@ -493,8 +605,10 @@ class SongScoreShareService {
         borderRadius: BorderRadius.circular(10),
       ),
       child: Text(text,
-        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold,
-          color: filled ? Colors.white : color)),
+          style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: filled ? Colors.white : color)),
     );
   }
 
@@ -637,14 +751,31 @@ class SongScoreShareService {
   /// 计算星星 bonus 差值（与 SongInfoPage._calculateStarsBonus 一致："✦ 6 +123"）
   static String _calcStarsBonus(double scoreRate, int score, int maxScore) {
     double starLevel = 0, minRate = 0.0;
-    if (scoreRate >= 0.99) { starLevel = 6; minRate = 0.99; }
-    else if (scoreRate >= 0.98) { starLevel = 5.5; minRate = 0.98; }
-    else if (scoreRate >= 0.97) { starLevel = 5; minRate = 0.97; }
-    else if (scoreRate >= 0.95) { starLevel = 4; minRate = 0.95; }
-    else if (scoreRate >= 0.93) { starLevel = 3; minRate = 0.93; }
-    else if (scoreRate >= 0.90) { starLevel = 2; minRate = 0.90; }
-    else if (scoreRate >= 0.85) { starLevel = 1; minRate = 0.85; }
-    else { starLevel = 0; minRate = 0.85; }
+    if (scoreRate >= 0.99) {
+      starLevel = 6;
+      minRate = 0.99;
+    } else if (scoreRate >= 0.98) {
+      starLevel = 5.5;
+      minRate = 0.98;
+    } else if (scoreRate >= 0.97) {
+      starLevel = 5;
+      minRate = 0.97;
+    } else if (scoreRate >= 0.95) {
+      starLevel = 4;
+      minRate = 0.95;
+    } else if (scoreRate >= 0.93) {
+      starLevel = 3;
+      minRate = 0.93;
+    } else if (scoreRate >= 0.90) {
+      starLevel = 2;
+      minRate = 0.90;
+    } else if (scoreRate >= 0.85) {
+      starLevel = 1;
+      minRate = 0.85;
+    } else {
+      starLevel = 0;
+      minRate = 0.85;
+    }
 
     int minScore = (maxScore * minRate).ceil();
     int difference = score - minScore;
@@ -658,9 +789,13 @@ class SongScoreShareService {
 
   /// 获取星星颜色（与 SongInfoPage._getStarsColor 一致）
   static Color _getStarColor(String stars) {
-    if (stars.startsWith('✦ 6') || stars.startsWith('✦ 5.5') || stars.startsWith('✦ 5')) return Colors.yellow;
-    if (stars.startsWith('✦ 4') || stars.startsWith('✦ 3')) return Colors.orange;
-    if (stars.startsWith('✦ 2') || stars.startsWith('✦ 1')) return Colors.green.shade300;
+    if (stars.startsWith('✦ 6') ||
+        stars.startsWith('✦ 5.5') ||
+        stars.startsWith('✦ 5')) return Colors.yellow;
+    if (stars.startsWith('✦ 4') || stars.startsWith('✦ 3'))
+      return Colors.orange;
+    if (stars.startsWith('✦ 2') || stars.startsWith('✦ 1'))
+      return Colors.green.shade300;
     if (stars.startsWith('✦ 0')) return Colors.grey;
     return Colors.white;
   }
@@ -668,16 +803,42 @@ class SongScoreShareService {
   /// 获取徽章颜色（与 SongInfoPage._buildBadge 一致）
   static _BadgeColors _getBadgeColors(String text) {
     switch (text) {
-      case 'app': return _BadgeColors(bg: Color(0xFFFFF3E0), fg: Color(0xFFF57C00), label: 'AP+');
-      case 'ap':  return _BadgeColors(bg: Color(0xFFFFF3E0), fg: Color(0xFFF57C00), label: 'AP');
-      case 'fcp': return _BadgeColors(bg: Color(0xFFD4F4DD), fg: Color(0xFF2E7D32), label: 'FC+');
-      case 'fc':  return _BadgeColors(bg: Color(0xFFD4F4DD), fg: Color(0xFF2E7D32), label: 'FC');
-      case 'fsp': return _BadgeColors(bg: Color.fromARGB(255, 224, 244, 255), fg: Color.fromARGB(255, 0, 135, 245), label: 'FS+');
-      case 'fs':  return _BadgeColors(bg: Color.fromARGB(255, 224, 244, 255), fg: Color.fromARGB(255, 0, 135, 245), label: 'FS');
-      case 'sync': return _BadgeColors(bg: Color.fromARGB(255, 224, 244, 255), fg: Color.fromARGB(255, 0, 135, 245), label: 'SC');
-      case 'fsd': return _BadgeColors(bg: Color(0xFFFFF3E0), fg: Color(0xFFF57C00), label: 'FDX');
-      case 'fsdp': return _BadgeColors(bg: Color(0xFFFFF3E0), fg: Color(0xFFF57C00), label: 'FDX+');
-      default: return _BadgeColors(bg: Colors.grey.shade200, fg: Colors.grey, label: '-');
+      case 'app':
+        return _BadgeColors(
+            bg: Color(0xFFFFF3E0), fg: Color(0xFFF57C00), label: 'AP+');
+      case 'ap':
+        return _BadgeColors(
+            bg: Color(0xFFFFF3E0), fg: Color(0xFFF57C00), label: 'AP');
+      case 'fcp':
+        return _BadgeColors(
+            bg: Color(0xFFD4F4DD), fg: Color(0xFF2E7D32), label: 'FC+');
+      case 'fc':
+        return _BadgeColors(
+            bg: Color(0xFFD4F4DD), fg: Color(0xFF2E7D32), label: 'FC');
+      case 'fsp':
+        return _BadgeColors(
+            bg: Color.fromARGB(255, 224, 244, 255),
+            fg: Color.fromARGB(255, 0, 135, 245),
+            label: 'FS+');
+      case 'fs':
+        return _BadgeColors(
+            bg: Color.fromARGB(255, 224, 244, 255),
+            fg: Color.fromARGB(255, 0, 135, 245),
+            label: 'FS');
+      case 'sync':
+        return _BadgeColors(
+            bg: Color.fromARGB(255, 224, 244, 255),
+            fg: Color.fromARGB(255, 0, 135, 245),
+            label: 'SC');
+      case 'fsd':
+        return _BadgeColors(
+            bg: Color(0xFFFFF3E0), fg: Color(0xFFF57C00), label: 'FDX');
+      case 'fsdp':
+        return _BadgeColors(
+            bg: Color(0xFFFFF3E0), fg: Color(0xFFF57C00), label: 'FDX+');
+      default:
+        return _BadgeColors(
+            bg: Colors.grey.shade200, fg: Colors.grey, label: '-');
     }
   }
 
@@ -686,15 +847,15 @@ class SongScoreShareService {
   /// 获取背景渐变起始色
   static Color _getBgStartColor(int levelIndex) {
     switch (levelIndex) {
-      case 0:
+      case ChartDifficulty.basic:
         return Color(0xFFF0F8F0);
-      case 1:
+      case ChartDifficulty.advanced:
         return Color(0xFFFFF8F0);
-      case 2:
+      case ChartDifficulty.expert:
         return Color(0xFFFFF0F4);
-      case 3:
+      case ChartDifficulty.master:
         return Color(0xFFF8F0FF);
-      case 4:
+      case ChartDifficulty.reMaster:
         return Color(0xFFFCF0FF);
       default:
         return Color(0xFFF8F0FF);
@@ -704,15 +865,15 @@ class SongScoreShareService {
   /// 获取背景渐变结束色
   static Color _getBgEndColor(int levelIndex) {
     switch (levelIndex) {
-      case 0:
+      case ChartDifficulty.basic:
         return Color(0xFFE0F0E0);
-      case 1:
+      case ChartDifficulty.advanced:
         return Color(0xFFFFE8D0);
-      case 2:
+      case ChartDifficulty.expert:
         return Color(0xFFFFE0E8);
-      case 3:
+      case ChartDifficulty.master:
         return Color(0xFFEDE0FF);
-      case 4:
+      case ChartDifficulty.reMaster:
         return Color(0xFFF8E0FF);
       default:
         return Color(0xFFEDE0FF);
@@ -816,7 +977,8 @@ class SongScoreShareService {
     String fileName,
   ) async {
     try {
-      const MethodChannel channel = MethodChannel('com.example.app/media_store');
+      const MethodChannel channel =
+          MethodChannel('com.example.app/media_store');
       final String? result = await channel.invokeMethod('saveImage', {
         'imageBytes': imageBytes,
         'fileName': fileName,

@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -26,11 +27,14 @@ class SongInfoExportToImgService {
     required List<dynamic> ds,
     required String songType,
     required List<dynamic>? diffData,
+    required String bpm,
     required Map<int, List<int>> maidataNoteCounts,
     required Map<int, List<int>> maidataBreakCounts,
     required bool maidataDecodedSuccessfully,
+
     /// 该曲是否 extra（宴会场 / maidata 追加 / union 独有）：只影响「版本」一栏的显示
     bool isExtra = false,
+    String referenceDuration = '-',
     int? jpegQuality,
   }) async {
     OverlayEntry? overlayEntry;
@@ -56,10 +60,12 @@ class SongInfoExportToImgService {
           ds: ds,
           songType: songType,
           diffData: diffData,
+          bpm: bpm,
           maidataNoteCounts: maidataNoteCounts,
           maidataBreakCounts: maidataBreakCounts,
           maidataDecodedSuccessfully: maidataDecodedSuccessfully,
           isExtra: isExtra,
+          referenceDuration: referenceDuration,
         ),
       );
 
@@ -81,8 +87,8 @@ class SongInfoExportToImgService {
       await _waitForRender();
 
       // 捕获为图片
-      final boundary = globalKey.currentContext
-          ?.findRenderObject() as RenderRepaintBoundary?;
+      final boundary = globalKey.currentContext?.findRenderObject()
+          as RenderRepaintBoundary?;
       if (boundary == null) {
         debugPrint('SongInfoExport: RenderRepaintBoundary not found');
         overlayEntry.remove();
@@ -90,8 +96,10 @@ class SongInfoExportToImgService {
       }
 
       // 动态计算 pixelRatio：超过 GPU 最大纹理尺寸就是黑图（见 helper 注释）
-      final double pixelRatio = ImageEncodeUtil.safeCapturePixelRatio(boundary.size.width, boundary.size.height);
-      debugPrint('SongInfoExport: Widget size: ${boundary.size.width}x${boundary.size.height}, pixelRatio: $pixelRatio');
+      final double pixelRatio = ImageEncodeUtil.safeCapturePixelRatio(
+          boundary.size.width, boundary.size.height);
+      debugPrint(
+          'SongInfoExport: Widget size: ${boundary.size.width}x${boundary.size.height}, pixelRatio: $pixelRatio');
 
       ui.Image image;
       try {
@@ -111,7 +119,8 @@ class SongInfoExportToImgService {
         return null;
       }
 
-      Uint8List pngBytes = byteData.buffer.asUint8List(byteData.offsetInBytes, byteData.lengthInBytes);
+      Uint8List pngBytes = byteData.buffer
+          .asUint8List(byteData.offsetInBytes, byteData.lengthInBytes);
       // 立刻释放 ui.Image：它本身也是上百 MB 的原生位图，而下面的 JPEG
       // 转码还要再分配上百 MB（decodePng + copyResize）。等转码完再释放，
       // 峰值内存会白白多一份 —— 低内存机就是这样被 OOM 掉的。
@@ -124,7 +133,8 @@ class SongInfoExportToImgService {
       Uint8List finalBytes;
       String extension;
       if (jpegQuality != null) {
-        finalBytes = await ImageEncodeUtil.pngToJpegAsync(pngBytes, quality: jpegQuality);
+        finalBytes = await ImageEncodeUtil.pngToJpegAsync(pngBytes,
+            quality: jpegQuality);
         extension = 'jpg';
       } else {
         finalBytes = pngBytes;
@@ -133,7 +143,8 @@ class SongInfoExportToImgService {
 
       // 保存图片
       final songTitle = basicInfo['title'] ?? '';
-      return await _saveImage(finalBytes, songTitle, status.isGranted, extension: extension);
+      return await _saveImage(finalBytes, songTitle, status.isGranted,
+          extension: extension);
     } catch (e) {
       debugPrint('SongInfoExport: Error: $e');
       overlayEntry?.remove();
@@ -142,6 +153,40 @@ class SongInfoExportToImgService {
   }
 
   /// 构建导出Widget
+  /// 构建导出预览/导出图片内容。布局顺序固定为：曲绘信息、基础信息、物量表、谱师表。
+  static Widget buildPreviewWidget({
+    required BuildContext context,
+    required String songId,
+    required Map<String, dynamic> basicInfo,
+    required List<dynamic> charts,
+    required List<dynamic> levels,
+    required List<dynamic> ds,
+    required String songType,
+    required List<dynamic>? diffData,
+    required String bpm,
+    required Map<int, List<int>> maidataNoteCounts,
+    required Map<int, List<int>> maidataBreakCounts,
+    required bool maidataDecodedSuccessfully,
+    bool isExtra = false,
+    String referenceDuration = '-',
+  }) =>
+      _buildExportWidget(
+        context: context,
+        songId: songId,
+        basicInfo: basicInfo,
+        charts: charts,
+        levels: levels,
+        ds: ds,
+        songType: songType,
+        diffData: diffData,
+        bpm: bpm,
+        maidataNoteCounts: maidataNoteCounts,
+        maidataBreakCounts: maidataBreakCounts,
+        maidataDecodedSuccessfully: maidataDecodedSuccessfully,
+        isExtra: isExtra,
+        referenceDuration: referenceDuration,
+      );
+
   static Widget _buildExportWidget({
     required BuildContext context,
     required String songId,
@@ -151,172 +196,413 @@ class SongInfoExportToImgService {
     required List<dynamic> ds,
     required String songType,
     required List<dynamic>? diffData,
+    required String bpm,
     required Map<int, List<int>> maidataNoteCounts,
     required Map<int, List<int>> maidataBreakCounts,
     required bool maidataDecodedSuccessfully,
     bool isExtra = false,
+    String referenceDuration = '-',
   }) {
-    final bool isUtage = songId.length == 6;
-    final String songTitle = basicInfo['title'] ?? '';
-    final String artist = basicInfo['artist'] ?? '';
-    final String genre = basicInfo['genre'] ?? '';
-    final int bpm = (basicInfo['bpm'] is int)
-        ? basicInfo['bpm']
-        : int.tryParse(basicInfo['bpm']?.toString() ?? '0') ?? 0;
-    final String from = basicInfo['from'] ?? '';
-    final String typeLabel = isUtage ? 'UTAGE' : StringUtil.formatSongType(songType);
-
-    // 难度名称
-    final diffNames = ['Basic', 'Advanced', 'Expert', 'Master', 'Re:Master'];
-
-    // 获取第一个有效难度的强调色（用于公共区域）
-    final int primaryDiffIndex = levels.isNotEmpty ? (levels.length - 1).clamp(0, 4) : 3;
-    final Color headerAccentColor =
-        isUtage ? AppColors.utageAccent() : ColorUtil.getCardColor(primaryDiffIndex);
-
+    final isUtage = songId.length == 6;
+    final title = basicInfo['title']?.toString() ?? '';
+    final artist = basicInfo['artist']?.toString() ?? '';
+    final from = basicInfo['from']?.toString() ?? '';
+    final genre = basicInfo['genre']?.toString() ?? '';
+    final typeLabel = isUtage ? ChartDifficulty.utageLabel : StringUtil.formatSongType(songType);
+    const names = ChartDifficulty.standardLabels;
+    final accent = isUtage
+        ? AppColors.utageAccent()
+        : ColorUtil.getCardColor((levels.length - 1).clamp(0, 4).toInt());
+    // 宴谱的 extra 分类只用于统计，不改变其常规世代名称。
+    final versionLabel = StringUtil.formatVersion2WithFlag(from, isExtra && !isUtage);
+    final rows = <Map<String, dynamic>>[];
+    for (var i = 0; i < levels.length; i++) {
+      final notes = _getNoteCounts(
+          diffIndex: i, charts: charts, maidataNoteCounts: maidataNoteCounts);
+      final breakCounts = _getBreakCounts(
+        diffIndex: i,
+        charts: charts,
+        songType: songType,
+        maidataBreakCounts: maidataBreakCounts,
+        maidataDecodedSuccessfully: maidataDecodedSuccessfully,
+      );
+      final chart =
+          i < charts.length ? charts[i] as Map<String, dynamic>? : null;
+      final dsValue = i < ds.length
+          ? _formatDs(ds[i])
+          : _formatDs(chart?['ds'] ??
+              chart?['level_value'] ??
+              chart?['levelValue'] ??
+              chart?['internal_level'] ??
+              chart?['internalLevel']);
+      rows.add({
+        'index': i,
+        'utage': isUtage,
+        'name': isUtage ? ChartDifficulty.utageLabel : (i < names.length ? names[i] : 'Lv.$i'),
+        'ds': dsValue,
+        'notes': notes,
+        'breaks': breakCounts,
+        'charter': chart?['charter']?.toString() ?? '-',
+      });
+    }
+    // 导出画布始终为白底，表格线固定采用默认浅色配色，不跟随当前主题。
+    final border = BorderSide(
+        color: AppTheme.buildLightColorScheme().outlineVariant, width: 1.2);
     return Container(
       width: 1200,
       color: Colors.white,
       padding: const EdgeInsets.all(36),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ==================== HEADER SECTION ====================
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 曲绘封面
-              ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: Container(
-                  width: 240,
-                  height: 240,
-                  decoration: BoxDecoration(
-                    border: Border.all(color: headerAccentColor, width: 4),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: CoverUtil.buildCoverWidgetWithContext(context, songId, 240),
-                ),
-              ),
-              const SizedBox(width: 28),
-
-              // 歌曲名称 + 标签
-              Expanded(
-                child: Column(
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Container(
+                width: 240,
+                height: 240,
+                decoration: BoxDecoration(
+                    border: Border.all(color: accent, width: 4),
+                    borderRadius: BorderRadius.circular(16)),
+                child:
+                    CoverUtil.buildCoverWidgetWithContext(context, songId, 240),
+              )),
+          const SizedBox(width: 28),
+          Expanded(
+              child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SizedBox(height: 16),
-                    // 歌曲标题
-                    Text(
-                      songTitle,
-                      style: const TextStyle(
+                Text(title,
+                    style: const TextStyle(
                         fontSize: 44,
                         fontWeight: FontWeight.bold,
                         color: Color(0xFF2C3E50),
-                        height: 1.2,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 12),
-                    // 艺术家
-                    Text(
-                      artist,
-                      style: TextStyle(
+                        height: 1.2),
+                    maxLines: 3),
+                const SizedBox(height: 12),
+                Text(artist,
+                    style: const TextStyle(
                         fontSize: 26,
-                        color: const Color(0xFF546161).withAlpha(200),
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    // 类型标签
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        _buildInfoChip(
-                          typeLabel,
-                          isUtage
-                              ? AppColors.utageTag()
-                              : (songType == 'SD' ? Colors.blue : Colors.orange),
-                          filled: true,
-                        ),
-                      ],
-                    ),
-                  ],
+                        color: Color(0xFF546161),
+                        fontWeight: FontWeight.w500),
+                    maxLines: 3),
+                const SizedBox(height: 16),
+                Text(
+                  'ID: $songId',
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF546161),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _buildVersionImage(from),
+              ])),
+        ]),
+        const SizedBox(height: 30),
+        _buildExportSectionTitle('基础信息', accent),
+        _buildInfoTable([
+          ['类别', 'BPM', '曲师', '谱面类型', '版本', '参考时长'],
+          [genre, bpm, artist, typeLabel, versionLabel, referenceDuration],
+        ],
+        border,
+        accent,
+        typeColor: isUtage
+            ? AppColors.utageAccent()
+            : (songType == 'SD'
+                ? AppColors.linkBlue(Brightness.light)
+                : AppColors.warningOrange(Brightness.light)),
+      ),
+        const SizedBox(height: 26),
+        _buildExportSectionTitle('NOTE 数量与总物量', accent),
+        _buildNoteTable(rows, border, accent),
+        const SizedBox(height: 26),
+        _buildExportSectionTitle('绝赞数量', accent),
+        _buildBreakTable(rows, border, accent),
+        const SizedBox(height: 26),
+        _buildExportSectionTitle('谱师', accent),
+        _buildCharterTable(rows, border, accent),
+        const SizedBox(height: 28),
+        Center(
+            child: Text('ChiffonMai',
+                style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    color: accent.withAlpha(170),
+                    letterSpacing: 2))),
+      ]),
+    );
+  }
+
+  static Widget _buildExportSectionTitle(String text, Color accent) => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Row(children: [
+          Container(
+              width: 7,
+              height: 28,
+              decoration: BoxDecoration(
+                  color: accent, borderRadius: BorderRadius.circular(4))),
+          const SizedBox(width: 10),
+          Text(text,
+              style: const TextStyle(
+                  fontSize: 25,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF2C3E50)))
+        ]),
+      );
+
+  static Widget _buildInfoTable(
+      List<List<String>> rows, BorderSide border, Color accent,
+          {Color? typeColor}) =>
+      Table(
+        border: TableBorder.all(color: border.color, width: border.width),
+        columnWidths: const {
+          0: FlexColumnWidth(),
+          1: FlexColumnWidth(),
+          2: FlexColumnWidth(),
+          3: FlexColumnWidth(),
+          4: FlexColumnWidth(),
+          5: FlexColumnWidth(),
+        },
+        children: [
+          TableRow(
+            children: rows.first
+                .map((label) => _tableCell(
+                      label,
+                      bold: true,
+                      bg: accent.withAlpha(30),
+                      center: true,
+                    ))
+                .toList(),
+          ),
+          TableRow(
+            children: List.generate(
+              rows.first.length,
+              (index) {
+                final label = rows.first[index];
+                return _tableCell(
+                  rows.length > 1 && index < rows[1].length
+                      ? rows[1][index]
+                      : '-',
+                  color: label == '谱面类型' ? typeColor : null,
+                  bold: label == '谱面类型',
+                  center: true,
+                  softWrap: true,
+                );
+              },
+            ),
+          ),
+        ],
+      );
+
+  static Widget _buildNoteTable(
+      List<Map<String, dynamic>> rows, BorderSide border, Color accent) {
+    const heads = ['难度', '定数', 'TAP', 'HOLD', 'SLIDE', 'TOUCH', 'BREAK', '总物量'];
+    return Table(
+        border: TableBorder.all(color: border.color, width: border.width),
+        columnWidths: const {
+          0: FixedColumnWidth(150)
+        },
+        children: [
+          TableRow(
+              decoration: BoxDecoration(color: accent.withAlpha(30)),
+              children: heads
+                  .map(
+                      (h) => _tableCell(h, bold: true, center: true))
+                  .toList()),
+          ...rows.map((r) {
+            final n = (r['notes'] as List<int>);
+            final total = n.fold<int>(0, (a, b) => a + b);
+            final rowIndex = (r['index'] as int?) ?? 0;
+            final rowAccent = r['utage'] == true
+                ? AppColors.utageAccent()
+                : rowIndex >= 0 && rowIndex <= 4
+                    ? ColorUtil.getCardColor(rowIndex)
+                    : accent;
+            return TableRow(children: [
+              _tableCell('${r['name']}',
+                  bold: true, color: rowAccent, center: true),
+              _tableCell('${r['ds']}', center: true),
+              ...n.map((v) => _tableCell('$v', center: true)),
+              _tableCell('$total',
+                  bold: true, color: rowAccent, center: true),
+            ]);
+          }),
+        ]);
+  }
+
+  static Widget _buildCharterTable(
+          List<Map<String, dynamic>> rows, BorderSide border, Color accent) =>
+      Table(
+        border: TableBorder.all(color: border.color, width: border.width),
+        children: [
+          TableRow(
+              decoration: BoxDecoration(color: accent.withAlpha(30)),
+              children: rows.map((r) {
+                final rowIndex = (r['index'] as int?) ?? 0;
+                final rowAccent = r['utage'] == true
+                    ? AppColors.utageAccent()
+                    : rowIndex >= 0 && rowIndex <= 4
+                        ? ColorUtil.getCardColor(rowIndex)
+                        : accent;
+                return _tableCell('${r['name']}',
+                    bold: true, color: rowAccent, center: true);
+              }).toList()),
+          TableRow(
+              children: rows
+                  .map((r) => _tableCell('${r['charter']}',
+                      center: true, softWrap: true))
+                  .toList()),
+        ],
+      );
+
+  static Widget _buildBreakTable(
+      List<Map<String, dynamic>> rows, BorderSide border, Color accent) {
+    const heads = ['难度', '真绝赞TAP', '真绝赞HOLD', '保护套绝赞', '绝赞星星'];
+    return Table(
+      border: TableBorder.all(color: border.color, width: border.width),
+      columnWidths: const {0: FixedColumnWidth(150)},
+      children: [
+        TableRow(
+          decoration: BoxDecoration(color: accent.withAlpha(30)),
+          children: heads
+              .map((head) => _tableCell(head, bold: true, center: true))
+              .toList(),
+        ),
+        ...rows.map((row) {
+          final rowIndex = (row['index'] as int?) ?? 0;
+          final rowAccent = row['utage'] == true
+              ? AppColors.utageAccent()
+              : rowIndex >= 0 && rowIndex <= 4
+                  ? ColorUtil.getCardColor(rowIndex)
+                  : accent;
+          final breaks = (row['breaks'] as List<String>?) ?? const [
+            '-',
+            '-',
+            '-',
+            '-',
+          ];
+          return TableRow(
+            children: [
+              _tableCell('${row['name']}',
+                  bold: true, color: rowAccent, center: true),
+              ...List.generate(
+                4,
+                (index) => _tableCell(
+                  index < breaks.length ? breaks[index] : '-',
+                  center: true,
                 ),
               ),
             ],
-          ),
+          );
+        }),
+      ],
+    );
+  }
 
-          const SizedBox(height: 28),
+  static Widget _tableCell(String value,
+          {bool bold = false,
+          Color? bg,
+          Color? color,
+          TextAlign align = TextAlign.left,
+          bool center = false,
+          bool softWrap = true}) =>
+      TableCell(
+        verticalAlignment: TableCellVerticalAlignment.middle,
+        child: Container(
+          color: bg,
+          alignment: center ? Alignment.center : Alignment.centerLeft,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          child: Text(value,
+              textAlign: center ? TextAlign.center : align,
+              softWrap: softWrap,
+              style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+                  color: color ?? const Color(0xFF2C3E50),
+                  height: 1.25)),
+        ),
+      );
 
-          // ==================== COMMON INFO ROW ====================
-          // 类别 + BPM + 曲师 + 版本（公共信息，不随难度变化）
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF8F9FA),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Row(
-              children: [
-                _buildStatItem('类别', genre),
-                _buildStatDivider(),
-                _buildStatItem('BPM', bpm.toString()),
-                _buildStatDivider(),
-                _buildStatItem('曲师', artist.split('/').last),
-                _buildStatDivider(),
-                _buildStatItem('版本', StringUtil.formatVersion2WithFlag(from, isExtra)),
-              ],
-            ),
-          ),
+  static String _formatDs(dynamic value) {
+    if (value == null) return '-';
+    if (value is num) return value.toStringAsFixed(1);
+    final parsed = double.tryParse(value.toString().trim());
+    return parsed == null ? '-' : parsed.toStringAsFixed(1);
+  }
 
-          const SizedBox(height: 28),
-
-          // ==================== DIFFICULTY SECTIONS ====================
-          for (int i = 0; i < levels.length; i++)
-            _buildDifficultySection(
-              context: context,
-              songId: songId,
-              diffIndex: i,
-              diffName: i < diffNames.length ? diffNames[i] : 'Lv.$i',
-              levelStr: levels[i].toString(),
-              dsValue: (i < ds.length) ? (ds[i] is double ? ds[i] as double : double.tryParse(ds[i].toString()) ?? 0.0) : 0.0,
-              basicInfo: basicInfo,
-              charts: charts,
-              diffData: diffData,
-              maidataNoteCounts: maidataNoteCounts,
-              maidataBreakCounts: maidataBreakCounts,
-              maidataDecodedSuccessfully: maidataDecodedSuccessfully,
-              isUtage: isUtage,
-            ),
-
-          const SizedBox(height: 24),
-
-          // ==================== FOOTER ====================
-          Center(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.music_note_rounded,
-                    size: 22, color: headerAccentColor.withAlpha(150)),
-                const SizedBox(width: 8),
-                Text(
-                  'ChiffonMai',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w600,
-                    color: headerAccentColor.withAlpha(150),
-                    letterSpacing: 2,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-        ],
-      ),
+  static Widget _buildVersionImage(String from) {
+    var key = from.trim().replaceFirst('maimaiでらっくす', 'maimai でらっくす');
+    if (key == 'maimai DX') key = 'maimai でらっくす';
+    if (key.startsWith('maimai DX '))
+      key = 'maimai でらっくす ${key.substring('maimai DX '.length)}';
+    if (key == 'DX') key = 'maimai でらっくす';
+    if (key.startsWith('DX '))
+      key = 'maimai でらっくす ${key.substring('DX '.length)}';
+    if (key == 'でらっくす') key = 'maimai でらっくす';
+    if (key == 'でらっくす+') key = 'maimai でらっくす PLUS';
+    const yearAliases = <String, String>{
+      'maimai でらっくす 2020': 'maimai でらっくす',
+      'maimai でらっくす 2021': 'maimai でらっくす Splash',
+      'maimai でらっくす 2022': 'maimai でらっくす UNiVERSE',
+      'maimai でらっくす 2023': 'maimai でらっくす FESTiVAL',
+      'maimai でらっくす 2024': 'maimai でらっくす BUDDiES',
+      'maimai でらっくす 2025': 'maimai でらっくす PRiSM',
+      'maimai でらっくす 2026': 'maimai でらっくす PRiSM PLUS',
+    };
+    key = yearAliases[key] ?? key;
+    const assets = <String, String>{
+      'maimai': 'assets/version/maimai.webp',
+      'maimai PLUS': 'assets/version/maimai_PLUS.webp',
+      'maimai GreeN': 'assets/version/maimai_GreeN.webp',
+      'maimai GreeN PLUS': 'assets/version/maimai_GreeN_PLUS.webp',
+      'maimai ORANGE': 'assets/version/maimai_ORANGE.webp',
+      'maimai ORANGE PLUS': 'assets/version/maimai_ORANGE_PLUS.webp',
+      'maimai PiNK': 'assets/version/maimai_PiNK.webp',
+      'maimai PiNK PLUS': 'assets/version/maimai_PiNK_PLUS.webp',
+      'maimai MURASAKi': 'assets/version/maimai_MURASAKi.webp',
+      'maimai MURASAKi PLUS': 'assets/version/maimai_MURASAKi_PLUS.webp',
+      'maimai MiLK': 'assets/version/maimai_MiLK.webp',
+      'MiLK PLUS': 'assets/version/maimai_MiLK_PLUS.webp',
+      'maimai MiLK PLUS': 'assets/version/maimai_MiLK_PLUS.webp',
+      'maimai FiNALE': 'assets/version/maimai_FiNALE.webp',
+      'maimai でらっくす': 'assets/version/maimai_DX.webp',
+      'maimai でらっくす PLUS': 'assets/version/maimai_DX_PLUS.webp',
+      'maimai でらっくす Splash': 'assets/version/maimai_DX_Splash.webp',
+      'maimai でらっくす Splash PLUS': 'assets/version/maimai_DX_Splash_PLUS.webp',
+      'maimai でらっくす UNiVERSE': 'assets/version/maimai_DX_UNiVERSE.webp',
+      'maimai でらっくす UNiVERSE PLUS':
+          'assets/version/maimai_DX_UNiVERSE_PLUS.webp',
+      'maimai でらっくす FESTiVAL': 'assets/version/maimai_DX_FESTiVAL.webp',
+      'maimai でらっくす FESTiVAL PLUS':
+          'assets/version/maimai_DX_FESTiVAL_PLUS.webp',
+      'maimai でらっくす BUDDiES': 'assets/version/maimai_DX_BUDDiES.webp',
+      'maimai でらっくす BUDDiES PLUS': 'assets/version/maimai_DX_BUDDiES_PLUS.webp',
+      'maimai でらっくす PRiSM': 'assets/version/maimai_DX_PRiSM.webp',
+      'maimai でらっくす PRiSM PLUS': 'assets/version/maimai_DX_PRiSM_PLUS.webp',
+      'maimai でらっくす CiRCLE': 'assets/version/maimai_DX_CiRCLE.webp',
+      'maimai でらっくす CiRCLE PLUS': 'assets/version/maimai_DX_CiRCLE_PLUS.webp',
+      'maimai でらっくす MAGiCAL': 'assets/version/maimai_DX_MAGiCAL.webp',
+    };
+    // 版本对照页的中文版本图按 DX 年份命名；不能直接使用 BUDDiES 等日服图，
+    // 否则「DX 2024」会错误显示为 BUDDiES 图。
+    const chineseAssets = <String, String>{
+      'maimai でらっくす': 'assets/version/maimai_2020.webp',
+      'maimai でらっくす Splash': 'assets/version/maimai_2021.webp',
+      'maimai でらっくす UNiVERSE': 'assets/version/maimai_2022.webp',
+      'maimai でらっくす FESTiVAL': 'assets/version/maimai_2023.webp',
+      'maimai でらっくす BUDDiES': 'assets/version/maimai_2024.webp',
+      'maimai でらっくす PRiSM': 'assets/version/maimai_2025.webp',
+      'maimai でらっくす PRiSM PLUS': 'assets/version/maimai_2026.webp',
+    };
+    final asset = chineseAssets[key] ?? assets[key];
+    if (asset == null) return const SizedBox.shrink();
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Image.asset(asset,
+          width: 150,
+          height: 64,
+          fit: BoxFit.contain,
+          alignment: Alignment.centerLeft,
+          errorBuilder: (_, __, ___) => const SizedBox.shrink()),
     );
   }
 
@@ -336,9 +622,8 @@ class SongInfoExportToImgService {
     required bool maidataDecodedSuccessfully,
     required bool isUtage,
   }) {
-    final Color accentColor = isUtage
-        ? AppColors.utageAccent()
-        : ColorUtil.getCardColor(diffIndex);
+    final Color accentColor =
+        isUtage ? AppColors.utageAccent() : ColorUtil.getCardColor(diffIndex);
 
     // 获取谱面信息
     Map<String, dynamic>? chart;
@@ -394,11 +679,13 @@ class SongInfoExportToImgService {
             child: Row(
               children: [
                 Text(
-                  isUtage ? 'UTAGE' : diffName,
+                  isUtage ? ChartDifficulty.utageLabel : diffName,
                   style: TextStyle(
                     fontSize: 30,
                     fontWeight: FontWeight.bold,
-                    color: isUtage ? AppColors.utageAccent() : _getDifficultyFgColor(diffIndex),
+                    color: isUtage
+                        ? AppColors.utageAccent()
+                        : _getDifficultyFgColor(diffIndex),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -407,7 +694,9 @@ class SongInfoExportToImgService {
                   style: TextStyle(
                     fontSize: 30,
                     fontWeight: FontWeight.bold,
-                    color: isUtage ? AppColors.utageAccent() : _getDifficultyFgColor(diffIndex),
+                    color: isUtage
+                        ? AppColors.utageAccent()
+                        : _getDifficultyFgColor(diffIndex),
                   ),
                 ),
                 const Spacer(),
@@ -428,7 +717,8 @@ class SongInfoExportToImgService {
           // 信息行1: 官方定数 + 拟合定数 + 定数差值
           Row(
             children: [
-              Expanded(child: _buildStatItem('官方定数', dsValue.toStringAsFixed(1))),
+              Expanded(
+                  child: _buildStatItem('官方定数', dsValue.toStringAsFixed(1))),
               _buildStatDivider(),
               Expanded(
                 child: _buildStatItem(
@@ -493,17 +783,31 @@ class SongInfoExportToImgService {
           const SizedBox(height: 8),
           Row(
             children: [
-              Expanded(child: _buildNoteItem('总计', noteCounts.fold<int>(0, (sum, n) => sum + n).toString(), accentColor)),
+              Expanded(
+                  child: _buildNoteItem(
+                      '总计',
+                      noteCounts.fold<int>(0, (sum, n) => sum + n).toString(),
+                      accentColor)),
               const SizedBox(width: 6),
-              Expanded(child: _buildNoteItem('TAP', noteCounts[0].toString(), accentColor)),
+              Expanded(
+                  child: _buildNoteItem(
+                      'TAP', noteCounts[0].toString(), accentColor)),
               const SizedBox(width: 6),
-              Expanded(child: _buildNoteItem('HOLD', noteCounts[1].toString(), accentColor)),
+              Expanded(
+                  child: _buildNoteItem(
+                      'HOLD', noteCounts[1].toString(), accentColor)),
               const SizedBox(width: 6),
-              Expanded(child: _buildNoteItem('SLIDE', noteCounts[2].toString(), accentColor)),
+              Expanded(
+                  child: _buildNoteItem(
+                      'SLIDE', noteCounts[2].toString(), accentColor)),
               const SizedBox(width: 6),
-              Expanded(child: _buildNoteItem('TOUCH', noteCounts[3].toString(), accentColor)),
+              Expanded(
+                  child: _buildNoteItem(
+                      'TOUCH', noteCounts[3].toString(), accentColor)),
               const SizedBox(width: 6),
-              Expanded(child: _buildNoteItem('BREAK', noteCounts[4].toString(), accentColor)),
+              Expanded(
+                  child: _buildNoteItem(
+                      'BREAK', noteCounts[4].toString(), accentColor)),
             ],
           ),
 
@@ -521,13 +825,21 @@ class SongInfoExportToImgService {
           const SizedBox(height: 8),
           Row(
             children: [
-              Expanded(child: _buildBreakItem('真绝赞TAP', breakCounts[0], const Color(0xFFEF5350))),
+              Expanded(
+                  child: _buildBreakItem(
+                      '真绝赞TAP', breakCounts[0], const Color(0xFFEF5350))),
               const SizedBox(width: 6),
-              Expanded(child: _buildBreakItem('真绝赞HOLD', breakCounts[1], const Color(0xFFFF6B6B))),
+              Expanded(
+                  child: _buildBreakItem(
+                      '真绝赞HOLD', breakCounts[1], const Color(0xFFFF6B6B))),
               const SizedBox(width: 6),
-              Expanded(child: _buildBreakItem('保护套绝赞', breakCounts[2], const Color(0xFF64B5F6))),
+              Expanded(
+                  child: _buildBreakItem(
+                      '保护套绝赞', breakCounts[2], const Color(0xFF64B5F6))),
               const SizedBox(width: 6),
-              Expanded(child: _buildBreakItem('绝赞星星', breakCounts[3], const Color(0xFFFBC02D))),
+              Expanded(
+                  child: _buildBreakItem(
+                      '绝赞星星', breakCounts[3], const Color(0xFFFBC02D))),
             ],
           ),
         ],
@@ -545,7 +857,11 @@ class SongInfoExportToImgService {
   }) {
     // 优先使用Maidata解析的物量统计
     if (maidataNoteCounts.containsKey(diffIndex)) {
-      List<int> counts = maidataNoteCounts[diffIndex]!;
+      final rawCounts = maidataNoteCounts[diffIndex]!;
+      final counts = List<int>.filled(5, 0);
+      for (var i = 0; i < rawCounts.length && i < counts.length; i++) {
+        counts[i] = rawCounts[i];
+      }
       bool allZero = counts.every((count) => count == 0);
       if (!allZero) {
         return counts;
@@ -583,7 +899,8 @@ class SongInfoExportToImgService {
     required bool maidataDecodedSuccessfully,
   }) {
     // 优先使用 maidata 解析结果
-    if (maidataDecodedSuccessfully && maidataBreakCounts.containsKey(diffIndex)) {
+    if (maidataDecodedSuccessfully &&
+        maidataBreakCounts.containsKey(diffIndex)) {
       List<int> counts = maidataBreakCounts[diffIndex]!;
       bool allZero = counts.every((count) => count == 0);
       if (!allZero && counts.length >= 4) {
@@ -671,7 +988,8 @@ class SongInfoExportToImgService {
   // ==================== UI 组件构建方法 ====================
 
   /// 构建信息标签
-  static Widget _buildInfoChip(String text, Color color, {bool filled = false}) {
+  static Widget _buildInfoChip(String text, Color color,
+      {bool filled = false}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
       decoration: BoxDecoration(
@@ -691,7 +1009,8 @@ class SongInfoExportToImgService {
   }
 
   /// 构建统计项
-  static Widget _buildStatItem(String label, String value, {Color? valueColor}) {
+  static Widget _buildStatItem(String label, String value,
+      {Color? valueColor}) {
     return Expanded(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -812,7 +1131,9 @@ class SongInfoExportToImgService {
       final photosStatus = await Permission.photos.status;
       final videosStatus = await Permission.videos.status;
 
-      if (storageStatus.isGranted || photosStatus.isGranted || videosStatus.isGranted) {
+      if (storageStatus.isGranted ||
+          photosStatus.isGranted ||
+          videosStatus.isGranted) {
         return PermissionStatus.granted;
       }
 
@@ -912,7 +1233,8 @@ class SongInfoExportToImgService {
     String fileName,
   ) async {
     try {
-      const MethodChannel channel = MethodChannel('com.example.app/media_store');
+      const MethodChannel channel =
+          MethodChannel('com.example.app/media_store');
       final String? result = await channel.invokeMethod('saveImage', {
         'imageBytes': imageBytes,
         'fileName': fileName,
@@ -962,15 +1284,15 @@ class SongInfoExportToImgService {
   /// 获取难度前景色（标签/文字颜色）
   static Color _getDifficultyFgColor(int diffIndex) {
     switch (diffIndex) {
-      case 0:
+      case ChartDifficulty.basic:
         return const Color(0xFF4CAF50);
-      case 1:
+      case ChartDifficulty.advanced:
         return const Color(0xFFFF9800);
-      case 2:
+      case ChartDifficulty.expert:
         return const Color(0xFFE91E63);
-      case 3:
+      case ChartDifficulty.master:
         return const Color(0xFF9966CC);
-      case 4:
+      case ChartDifficulty.reMaster:
         return const Color(0xFF9C27B0);
       default:
         return const Color(0xFF9966CC);
@@ -981,15 +1303,15 @@ class SongInfoExportToImgService {
   static Color _getDifficultyBgColor(int diffIndex, bool isUtage) {
     if (isUtage) return const Color(0xFFFFE6F0);
     switch (diffIndex) {
-      case 0:
+      case ChartDifficulty.basic:
         return const Color(0xFFE8F5E8);
-      case 1:
+      case ChartDifficulty.advanced:
         return const Color(0xFFFFF8E1);
-      case 2:
+      case ChartDifficulty.expert:
         return const Color(0xFFFCE4EC);
-      case 3:
+      case ChartDifficulty.master:
         return const Color(0xFFE9D8FF);
-      case 4:
+      case ChartDifficulty.reMaster:
         return const Color(0xFFF3E5F5);
       default:
         return const Color(0xFFE9D8FF);

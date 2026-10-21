@@ -219,7 +219,7 @@ class _SingleRatingCalculatorState extends State<SingleRatingCalculator> {
       title: '单曲Rating计算',
       resizeToAvoidBottomInset: false,
       contentPadding: EdgeInsets.only(
-        bottom: MediaQuery.paddingOf(context).bottom + 10,
+        bottom: MediaQuery.paddingOf(context).bottom,
       ),
       child: GestureDetector(
         onTap: () {

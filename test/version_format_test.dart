@@ -138,7 +138,7 @@ void main() {
       'maimai でらっくす CiRCLE': ['CiRCLE', 'CiRCLE 丸', 'CiRCLE', 'CiRCLE 丸'],
       'maimai でらっくす CiRCLE PLUS': [
         'CiRCLE+',
-        'CiRCLE+',
+        'CiRCLE+ 廻',
         'CiRCLE+',
         'CiRCLE+ 廻',
       ],

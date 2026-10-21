@@ -19,7 +19,10 @@ enum SyncLine {
   /// 它不经过任何网关、也不依赖 [SyncRouteStore] 的线路选择，所以统计里
   /// **自成一个槽位**，不要去和上面两个线路混着算平均（二维码导入要 30 多秒，
   /// 混进去会把线路1/线路2 的平均耗时整体拉高，看起来像网关变慢了）。
-  direct(key: 'direct', label: '二维码直传');
+  direct(key: 'direct', label: '二维码直传'),
+
+  /// 三个目标源的免二维码快速同步，独立于普通线路统计。
+  quick(key: 'quick', label: '快速同步');
 
   const SyncLine({required this.key, required this.label});
 
@@ -32,7 +35,7 @@ enum SyncPlatform {
   divingFish(key: 'fish', label: '水鱼'),
   luoXue(key: 'lx', label: '落雪'),
 
-  /// AWMC NET 查分器（目前只有二维码直传这一条路）。
+  /// AWMC NET 查分器（支持二维码直传与快速同步）。
   awmc(key: 'awmc', label: 'AWMC NET');
 
   const SyncPlatform({required this.key, required this.label});
@@ -246,9 +249,7 @@ class SyncStatsService {
 
   /// 全部统计槽位 —— **显式列出，不要用 `SyncLine.values × SyncPlatform.values` 的叉乘**。
   ///
-  /// 叉乘会得到 9 个组合，其中 5 个是没意义的（二维码直传没有线路、
-  /// AWMC NET 也不走线路1/线路2），既白读 5 个空键，详情弹窗里还会多出
-  /// 一堆永远「暂无记录」的行。
+  /// 普通同步保留原来的五个槽位，快速同步按目标源各自保留近 100 次。
   static const List<SyncSlot> allSlots = [
     (SyncLine.scoreHub, SyncPlatform.divingFish),
     (SyncLine.scoreHub, SyncPlatform.luoXue),
@@ -256,6 +257,9 @@ class SyncStatsService {
     (SyncLine.awmc, SyncPlatform.luoXue),
     // 机台二维码直传 → AWMC NET（30 多秒一次，单列一项）
     (SyncLine.direct, SyncPlatform.awmc),
+    (SyncLine.quick, SyncPlatform.divingFish),
+    (SyncLine.quick, SyncPlatform.luoXue),
+    (SyncLine.quick, SyncPlatform.awmc),
   ];
 
   /// 槽位名：`<line>:<platform>`（就是 Redis 键去掉前缀的部分）。

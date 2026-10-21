@@ -32,6 +32,7 @@ import '../service/AccountStore.dart';
 import '../service/AccountSwitchService.dart';
 import '../utils/SecureCredentialStore.dart';
 import '../service/CommunityNicknameSyncService.dart';
+import '../service/CommunityAvatarStore.dart';
 import '../service/ConnectivityService.dart';
 import '../service/PaiziProgressService.dart';
 import '../service/PersonalizedScoreService.dart';
@@ -1693,8 +1694,11 @@ Future<String?> _updateRankings({
 
 Future<bool> _deleteRankings(String userId) async {
   try {
+    final headers = await CommunityAvatarStore.authorizationHeaders(userId);
+    if (headers == null) return false;
     final response = await ApiClient.delete(
       Uri.parse('${ApiUrls.RankingsBaseUrl}/user/$userId'),
+      headers: headers,
     );
     if (response.statusCode == 200) {
       final result = json.decode(response.body);

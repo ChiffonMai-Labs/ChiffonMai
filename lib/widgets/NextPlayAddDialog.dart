@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 
 import '../service/NextPlayQueueStore.dart';
@@ -15,14 +16,7 @@ class NextPlayDifficultyOption {
     this.constant,
   });
 
-  static const names = <String>[
-    'BASIC',
-    'ADVANCED',
-    'EXPERT',
-    'MASTER',
-    'Re:MASTER',
-    'UTAGE',
-  ];
+  static const names = ChartDifficulty.labels;
 
   static List<NextPlayDifficultyOption> standard({
     List<String?> constants = const [],

@@ -114,7 +114,7 @@ class _KaleidXScopeSelectPageState extends State<KaleidXScopeSelectPage> {
                     icon: const Icon(Icons.refresh),
                     tooltip: '刷新门列表')
               ],
-      contentPadding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom + 10),
+      contentPadding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
       child: SingleChildScrollView(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 8),

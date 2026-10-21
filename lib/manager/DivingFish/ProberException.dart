@@ -9,7 +9,8 @@ class ProberException implements Exception {
 
   ProberException(this.code, this.message, {this.bindingUrl});
 
-  static ProberException consentRequired({String? bindingUrl}) => ProberException(
+  static ProberException consentRequired({String? bindingUrl}) =>
+      ProberException(
         'CONSENT_REQUIRED',
         '该用户尚未授权本应用，请先完成绑定后再试',
         bindingUrl: bindingUrl,
@@ -21,8 +22,11 @@ class ProberException implements Exception {
   static ProberException forbidden() =>
       ProberException('FORBIDDEN', '无权限访问该用户数据');
 
-  static ProberException quotaExceeded() =>
-      ProberException('QUOTA_EXCEEDED', '今日查询次数已达上限，请明天再试');
+  static ProberException quotaExceeded({String? retryHint}) => ProberException(
+        'QUOTA_EXCEEDED',
+        '今日查询次数已达上限，请稍后再试'
+            '${retryHint == null ? '' : '\\n$retryHint'}',
+      );
 
   static ProberException unknown(int statusCode) =>
       ProberException('UNKNOWN', '请求失败（状态码 $statusCode）');

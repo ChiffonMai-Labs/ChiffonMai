@@ -9,14 +9,27 @@ class ApiUrls {
 
   /// 同步耗时统计代理。Redis 凭据只保留在服务端，App 不再直连 Redis。
   static const String SyncStatsUrl = '$BackendBaseUrl/api/sync-stats';
+  static const String AutoSyncTaskUrl = '$BackendBaseUrl/api/auto-sync/task';
   static const String LoadingTipsUrl = '$BackendBaseUrl/api/loading-tips';
   static const String FriendLinksUrl = '$BackendBaseUrl/api/friend-links';
+  static const String AnnouncementUrl = '$BackendBaseUrl/api/announcements/current';
+  static const String MaintainerAvatarUrl =
+      '$BackendBaseUrl/api/about/maintainer-avatar';
   static const String TranslationUrl = '$BackendBaseUrl/api/translate';
 
-  /// App ↔ 后端 OAuth 代理的 API key（与 server 端环境变量 GATEWAY_API_KEY 保持一致）
-  /// 只从构建参数注入，源码与默认 APK 不再携带共享密钥。
+  /// 客户端网关密钥只从构建环境注入，源码不保存默认值。
+  ///
+  /// 注意：构建参数会进入最终 APK，不能把它当作不可提取的长期秘密。
+  /// 它只用于第一阶段的网关访问控制；长期方案应切换为服务端签发的短期会话。
+  static const String ClientApiKey =
+      String.fromEnvironment('CLIENT_API_KEY', defaultValue: '');
+
+  /// 兼容旧版构建参数，发布流程应迁移到 CLIENT_API_KEY。
   static const String ProberApiKey =
       String.fromEnvironment('PROBER_API_KEY', defaultValue: '');
+
+  static String get BackendApiKey =>
+      ClientApiKey.isNotEmpty ? ClientApiKey : ProberApiKey;
 
   // ── 水鱼查分器数据（直连） ─────────────────────────────────────────────
   static const String DiffMusicDataApi =
@@ -84,6 +97,10 @@ class ApiUrls {
   /// AWMC NET 开发者查询代理；Developer-Token 只保存在服务端。
   static const String AwmcNetRecordsProxyApi =
       '$BackendBaseUrl/api/awmc-net/records';
+
+  /// 水鱼 RecordItem 数组兼容上传，认证使用用户自己的 Import-Token。
+  static const String AwmcNetUpdateRecordsApi =
+      '$AwmcNetBaseUrl/api/maimaidxprober/player/update_records';
 
   /// 曲库（水鱼 `music_data` 兼容格式）。App 用自家曲库缓存，留作备用。
   static const String AwmcNetMusicDataApi = '$AwmcNetBaseUrl/api/music_data';
@@ -180,8 +197,8 @@ class ApiUrls {
   /// 落雪 (`assets2.lxns.net`) 查不到 luoXue song id 时退到这里，
   /// 直接按 maimai songId 拼 `track.mp3`。
   ///
-  /// ⚠️ **故意不加进系统中心「maidata 管理」**：音源不像 maidata 那样能
-  /// 批量缓存，进程级一次性下载、播完就丢；用户没要求管理入口。
+  /// ⚠️ 音源与 maidata 的缓存生命周期不同：音源按随身听缓存策略管理，
+  /// 不在这里参与批量刷新。
   static String wmcAudioUrl(String songId) =>
       '$WmcMaidataFallbackBaseUrl/s/$songId/track.mp3';
 

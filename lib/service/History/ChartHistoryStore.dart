@@ -8,6 +8,7 @@ import '../AccountStore.dart';
 
 import '../../utils/CurrentDataSourceNotifier.dart';
 import 'ChartHistoryCore.dart';
+import 'ScoreImprovementCore.dart';
 
 /// 成绩历史（Rating / 单谱达成率 / DX）持久化。
 ///
@@ -121,6 +122,8 @@ class ChartHistoryStore {
     String? accountId,
     int? nowMs,
     String reason = '',
+    Map<String, dynamic>? previousUserData,
+    Map<String, int> maxScores = const {},
   }) async {
     if (isRecordingSuppressed) return;
     try {
@@ -134,6 +137,9 @@ class ChartHistoryStore {
       final source =
           await storageKey(sourceKey: sourceKey, accountId: accountId);
       final doc = await _load(source);
+      doc.improvements.record(records,
+          atMs: nowMs ?? DateTime.now().millisecondsSinceEpoch,
+          previousRecords: previousUserData?['records'], maxScores: maxScores);
       final diff = diffChartSnapshots(
         previousCurrent: doc.current.isEmpty ? null : doc.current,
         incoming: snapshots,
@@ -586,6 +592,19 @@ class ChartHistoryStore {
 
   // ==================== 文件读写 ====================
 
+  /// 同日同谱面只返回一张卡，旧三字段曲线不会被伪造为完整提升记录。
+  Future<({int startedAtMs, List<DailyScoreImprovement> entries})>
+      scoreImprovements({String? sourceKey, String? accountId}) async {
+    final doc = await _load(
+        await storageKey(sourceKey: sourceKey, accountId: accountId));
+    final entries = doc.improvements.daily.values.toList()
+      ..sort((a, b) {
+        final byDay = b.day.compareTo(a.day);
+        return byDay != 0 ? byDay : b.lastAtMs.compareTo(a.lastAtMs);
+      });
+    return (startedAtMs: doc.improvements.startedAtMs, entries: entries);
+  }
+
   Future<_HistoryDoc> _load(String source) {
     if (debugBypassCache) {
       _cache.remove(source);
@@ -720,6 +739,8 @@ class _HistoryDoc {
   // 新字段兼容旧文件，不升级 schema、不丢弃已有记录。
   List<RatingPoint> manualRating = [];
   Map<String, List<List<num>>> manualEvents = {};
+  // 兼容追加字段，保留旧版 Rating 与单谱曲线。
+  ScoreImprovementHistory improvements = ScoreImprovementHistory();
 
   Map<String, dynamic> toJson() => {
         'version': ChartHistoryStore.schemaVersion,
@@ -731,6 +752,7 @@ class _HistoryDoc {
         'rating': rating.map((p) => p.toJson()).toList(),
         'manualRating': manualRating.map((p) => p.toJson()).toList(),
         'manualEvents': manualEvents,
+        'improvements': improvements.toJson(),
       };
 
   static _HistoryDoc fromJson(dynamic raw, String fallbackSource) {
@@ -743,6 +765,7 @@ class _HistoryDoc {
     doc.source = fallbackSource;
     doc.updatedAtMs = (raw['updatedAt'] as num?)?.toInt() ?? 0;
     doc.recordCount = (raw['recordCount'] as num?)?.toInt() ?? 0;
+    doc.improvements = ScoreImprovementHistory.fromJson(raw['improvements']);
 
     final current = raw['current'];
     if (current is Map) {

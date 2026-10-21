@@ -1,8 +1,7 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:just_audio/just_audio.dart';
-import '../constant/CacheTimestampConstant.dart';
+import '../service/SongMediaCache.dart';
 
 class LuoXueSongUtil {
   // 单例模式
@@ -40,82 +39,29 @@ class LuoXueSongUtil {
     return id % 10000;
   }
 
-  // 自定义缓存管理器
-  final CacheManager _cacheManager = CacheManager(
-    Config(
-      'music_cache',
-      stalePeriod: CacheTimestampConstant.luoxueSongDuration,
-      maxNrOfCacheObjects: 1000, // 最多缓存1000个文件
-    ),
-  );
+  String getMusicUrl(String musicId) => '$_baseUrl$musicId$_fileExtension';
 
-  // 获取音乐文件URL
-  String getMusicUrl(String musicId) {
-    return '$_baseUrl$musicId$_fileExtension';
-  }
+  Future<bool> isMusicCached(String musicId) async =>
+      await SongMediaCache.instance
+          .existingAudio(musicId, audioId: int.tryParse(musicId)) !=
+      null;
 
-  // 检查音乐文件是否已缓存
-  Future<bool> isMusicCached(String musicId) async {
-    try {
-      final url = getMusicUrl(musicId);
-      final fileInfo = await _cacheManager.getFileFromCache(url);
-      return fileInfo != null;
-    } catch (e) {
-      debugPrint('Error checking if music is cached: $e');
-      return false;
-    }
-  }
+  Future<File?> downloadAndCacheMusic(String musicId) => getMusicFile(musicId);
 
-  // 下载并缓存音乐文件
-  Future<File?> downloadAndCacheMusic(String musicId) async {
-    try {
-      final url = getMusicUrl(musicId);
-      final file = await _cacheManager.downloadFile(url);
-      return file.file;
-    } catch (e) {
-      debugPrint('Error downloading music: $e');
-      return null;
-    }
-  }
-
-  // 获取音乐文件（优先使用缓存）
   Future<File?> getMusicFile(String musicId) async {
     try {
-      final url = getMusicUrl(musicId);
-      final fileInfo = await _cacheManager.getFileFromCache(url);
-      
-      if (fileInfo != null) {
-        return fileInfo.file;
-      } else {
-        // 下载并缓存
-        final file = await _cacheManager.downloadFile(url);
-        return file.file;
-      }
-    } catch (e) {
-      debugPrint('Error getting music file: $e');
+      return await SongMediaCache.instance.ensureAudio(musicId,
+          audioId: int.tryParse(musicId), urls: [getMusicUrl(musicId)]);
+    } catch (error) {
+      debugPrint('读取猜歌音源失败: $error');
       return null;
     }
   }
 
-  // 清除音乐缓存
-  Future<void> clearMusicCache() async {
-    try {
-      await _cacheManager.emptyCache();
-    } catch (e) {
-      debugPrint('Error clearing music cache: $e');
-    }
-  }
+  Future<void> clearMusicCache() => SongMediaCache.instance.clear('audio');
 
-  // 获取缓存大小
-  Future<int> getCacheSize() async {
-    try {
-      return 0;
-    } catch (e) {
-      debugPrint('Error calculating cache size: $e');
-      return 0;
-    }
-  }
-
+  Future<int> getCacheSize() async =>
+      (await SongMediaCache.instance.audioUsage()).$1;
   // 格式化文件大小
   String formatFileSize(int bytes) {
     if (bytes < 1024) {

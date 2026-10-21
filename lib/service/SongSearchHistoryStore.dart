@@ -6,31 +6,36 @@ class SongSearchHistoryStore {
   static const maxEntries = 20;
   static Future<void> _writes = Future<void>.value();
 
+  /// 功能搜索复用同一存储规则，通过独立键与歌曲历史隔离。
+  SongSearchHistoryStore({this.storageKey = cacheKey});
+  final String storageKey;
+
   Future<List<String>> load() async {
     await _writes;
     final prefs = await SharedPreferences.getInstance();
-    return _normalize(prefs.getStringList(cacheKey) ?? const []);
+    return _normalize(prefs.getStringList(storageKey) ?? const []);
   }
 
   Future<List<String>> remember(String query) => _update((items) {
         final keyword = query.trim();
         if (keyword.isEmpty) return items;
-        return [keyword, ...items.where((item) =>
-            item.toLowerCase() != keyword.toLowerCase())];
+        return [
+          keyword,
+          ...items.where((item) => item.toLowerCase() != keyword.toLowerCase())
+        ];
       });
 
-  Future<List<String>> remove(String query) => _update((items) =>
-      items.where((item) => item != query).toList());
+  Future<List<String>> remove(String query) =>
+      _update((items) => items.where((item) => item != query).toList());
 
   Future<List<String>> clear() => _update((_) => []);
 
-  Future<List<String>> _update(
-      List<String> Function(List<String>) change) {
+  Future<List<String>> _update(List<String> Function(List<String>) change) {
     final result = _writes.then((_) async {
       final prefs = await SharedPreferences.getInstance();
-      final items = _normalize(change(
-          _normalize(prefs.getStringList(cacheKey) ?? const [])));
-      if (!await prefs.setStringList(cacheKey, items)) {
+      final items = _normalize(
+          change(_normalize(prefs.getStringList(storageKey) ?? const [])));
+      if (!await prefs.setStringList(storageKey, items)) {
         throw StateError('搜索历史保存失败');
       }
       return items;
@@ -42,8 +47,10 @@ class SongSearchHistoryStore {
 
   static List<String> _normalize(List<String> items) {
     final seen = <String>{};
-    return items.map((item) => item.trim()).where((item) =>
-        item.isNotEmpty && seen.add(item.toLowerCase()))
-        .take(maxEntries).toList();
+    return items
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty && seen.add(item.toLowerCase()))
+        .take(maxEntries)
+        .toList();
   }
 }

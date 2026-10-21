@@ -162,7 +162,7 @@ class RankListService {
       ),
       '真二段': RankData(
         name: '真二段',
-        songIds: ['791', '11350', '191', '11532'],
+        songIds: ['791', '11199', '191', '11532'],
         levelIndexes: [3, 3, 2, 3],
         initialHp: 50,
         greatDamage: 2,

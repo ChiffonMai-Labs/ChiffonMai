@@ -231,7 +231,7 @@ class _UnionUpdateComparePageState extends State<UnionUpdateComparePage> {
             ),
             child: Row(
               children: [
-                _countCell(brightness, 'union 全量', '${compare.unionSongCount}'),
+                _countCell(brightness, '全量', '${compare.unionSongCount}'),
                 _countCell(brightness, '国服已上', '${compare.cnSongCount}'),
                 _countCell(
                   brightness,
@@ -481,7 +481,8 @@ class _UnionUpdateComparePageState extends State<UnionUpdateComparePage> {
               SizedBox(height: 4),
               Text(
                 '本地曲库 = 水鱼（国服全量歌曲）+ union（全量歌曲）。'
-                '合并时 union 独有的那批会打上 isExtra 标记，本页用的就是它。'
+                '合并时 union 独有的那批会打上 isExtra 标记，本页据此区分来源；'
+                '已确认的国服超前上线名单优先于这个标记。'
                 '所以整个页面离线可用，与网络无关。',
                 style: TextStyle(fontSize: 12.5, height: 1.5),
               ),

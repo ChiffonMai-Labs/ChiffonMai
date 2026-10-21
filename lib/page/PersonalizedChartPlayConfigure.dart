@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -11,6 +12,7 @@ import 'package:my_first_flutter_app/utils/MaidataDecodeUtil.dart';
 import 'package:my_first_flutter_app/service/ChartPackageHistoryStore.dart';
 import 'package:path_provider/path_provider.dart';
 import 'ChartPlayPage.dart';
+import '../service/ChartPlaySettingsStore.dart';
 import '../widgets/PageTopBar.dart';
 
 // ─────────────────────────────────────────────────────────
@@ -25,12 +27,22 @@ import '../widgets/PageTopBar.dart';
 // ─────────────────────────────────────────────────────────
 
 const _kChartImageExtensions = <String>[
-  'png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif',
+  'png',
+  'jpg',
+  'jpeg',
+  'webp',
+  'bmp',
+  'gif',
 ];
 
 /// 按优先级排列：靠前的扩展名优先被选中
 const _kChartAudioExtensions = <String>[
-  'mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac',
+  'mp3',
+  'wav',
+  'ogg',
+  'm4a',
+  'aac',
+  'flac',
 ];
 
 /// 从压缩包里挑出来的谱面三件套（原始字节，还没落盘）
@@ -93,9 +105,8 @@ _ExtractedChartPackage? _extractChartPackage(Uint8List bytes) {
     return null;
   }
 
-  final allFiles = archive.files
-      .where((f) => f.isFile && f.name.trim().isNotEmpty)
-      .toList();
+  final allFiles =
+      archive.files.where((f) => f.isFile && f.name.trim().isNotEmpty).toList();
   if (allFiles.isEmpty) return null;
 
   // 先按完整文件名精确匹配，再退回「任意以 maidata 开头的文本文件」，
@@ -110,7 +121,8 @@ _ExtractedChartPackage? _extractChartPackage(Uint8List bytes) {
   maidataEntry ??= () {
     for (final f in allFiles) {
       final lower = f.name.toLowerCase();
-      if (lower.endsWith('.txt') && lower.split('/').last.startsWith('maidata')) {
+      if (lower.endsWith('.txt') &&
+          lower.split('/').last.startsWith('maidata')) {
         return f;
       }
     }
@@ -166,7 +178,8 @@ String _decodeMaidataBytes(Uint8List bytes) {
   try {
     final text = utf8.decode(bytes);
     if (text.contains('\uFFFD')) {
-      throw const FormatException('UTF-8 decode produced replacement characters');
+      throw const FormatException(
+          'UTF-8 decode produced replacement characters');
     }
     return text;
   } catch (_) {
@@ -178,13 +191,16 @@ class PersonalizedChartPlayConfigure extends StatefulWidget {
   const PersonalizedChartPlayConfigure({super.key});
 
   @override
-  State<PersonalizedChartPlayConfigure> createState() => _PersonalizedChartPlayConfigureState();
+  State<PersonalizedChartPlayConfigure> createState() =>
+      _PersonalizedChartPlayConfigureState();
 }
 
-class _PersonalizedChartPlayConfigureState extends State<PersonalizedChartPlayConfigure> {
+class _PersonalizedChartPlayConfigureState
+    extends State<PersonalizedChartPlayConfigure> {
   String? _maidataContent;
-  String? _bgImagePath;   // 已复制到应用内部目录的路径
+  String? _bgImagePath; // 已复制到应用内部目录的路径
   String? _audioFilePath; // 已复制到应用内部目录的路径
+  bool _loadAudio = true;
   List<String> _inoteList = [];
   Directory? _workDir;
 
@@ -200,7 +216,13 @@ class _PersonalizedChartPlayConfigureState extends State<PersonalizedChartPlayCo
   @override
   void initState() {
     super.initState();
+    _loadAudioPreference();
     _loadHistory();
+  }
+
+  Future<void> _loadAudioPreference() async {
+    final value = await ChartPlayAudioPreference.load();
+    if (mounted) setState(() => _loadAudio = value);
   }
 
   Future<void> _loadHistory() async {
@@ -213,14 +235,8 @@ class _PersonalizedChartPlayConfigureState extends State<PersonalizedChartPlayCo
     });
   }
 
-  static const Map<String, String> inoteDifficultyMap = {
-    '2': 'BASIC',
-    '3': 'ADVANCED',
-    '4': 'EXPERT',
-    '5': 'MASTER',
-    '6': 'Re:MASTER',
-    '7': 'UTAGE',
-  };
+  static const Map<String, String> inoteDifficultyMap =
+      ChartDifficulty.maidataLabels;
 
   static const Map<String, int> inoteColorMap = {
     '2': 0xFF4CAF50,
@@ -237,7 +253,8 @@ class _PersonalizedChartPlayConfigureState extends State<PersonalizedChartPlayCo
     Iterable<Match> matches = regex.allMatches(content);
     for (Match match in matches) {
       String inoteNum = match.group(1)!;
-      if (inoteDifficultyMap.containsKey(inoteNum) && !inoteList.contains(inoteNum)) {
+      if (inoteDifficultyMap.containsKey(inoteNum) &&
+          !inoteList.contains(inoteNum)) {
         inoteList.add(inoteNum);
       }
     }
@@ -379,8 +396,8 @@ class _PersonalizedChartPlayConfigureState extends State<PersonalizedChartPlayCo
         // 归档文件被清掉了：从历史里移除这条并刷新列表，别让用户点了没反应
         await ChartPackageHistoryStore().remove(entry);
         if (!mounted) return;
-        setState(() => _history.removeWhere(
-            (e) => e.archivedPath == entry.archivedPath));
+        setState(() =>
+            _history.removeWhere((e) => e.archivedPath == entry.archivedPath));
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('「${entry.displayName}」的文件已不存在，已从列表移除')),
         );
@@ -441,14 +458,17 @@ class _PersonalizedChartPlayConfigureState extends State<PersonalizedChartPlayCo
       final result = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: const ['adx', 'zip'],
-        withData: true,
+        // 不要让 file_picker 在原生选择器返回后把整个压缩包再复制一份到
+        // MethodChannel 的 ByteArray。澎湃 4 的系统选择器对大文件尤其容易在
+        // 这个阶段触发原生内存崩溃；插件已经会把 content:// 文件缓存到 path。
+        withData: false,
       );
       if (result == null || result.files.isEmpty) return;
 
       final picked = result.files.single;
       if (!mounted) return;
 
-      // withData 在部分 Android 机型上会返回 null，退回按路径读
+      // Android 会把系统选择器返回的 content:// 文件缓存到 path，再按路径读取。
       Uint8List? bytes = picked.bytes;
       if (bytes == null) {
         final path = picked.path;
@@ -487,8 +507,7 @@ class _PersonalizedChartPlayConfigureState extends State<PersonalizedChartPlayCo
       if (extracted == null) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content: Text('这个压缩包里没找到 maidata.txt，不是有效的谱面包')),
+            const SnackBar(content: Text('这个压缩包里没找到 maidata.txt，不是有效的谱面包')),
           );
         }
         return;
@@ -501,7 +520,8 @@ class _PersonalizedChartPlayConfigureState extends State<PersonalizedChartPlayCo
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-                content: Text('maidata.txt 编码不受支持，请使用 UTF-8 或 Shift-JIS 编码的谱面包')),
+                content:
+                    Text('maidata.txt 编码不受支持，请使用 UTF-8 或 Shift-JIS 编码的谱面包')),
           );
         }
         debugPrint('maidata decode error: $e');
@@ -549,7 +569,8 @@ class _PersonalizedChartPlayConfigureState extends State<PersonalizedChartPlayCo
           final store = ChartPackageHistoryStore();
           await store.archive(bytes, archiveAs);
           if (mounted) {
-            setState(() => _history = store.entries.where(store.exists).toList());
+            setState(
+                () => _history = store.entries.where(store.exists).toList());
           }
         } catch (e) {
           // 归档失败不影响本次解析结果，只是没法记进历史
@@ -601,8 +622,8 @@ class _PersonalizedChartPlayConfigureState extends State<PersonalizedChartPlayCo
                       fontWeight: FontWeight.bold)),
               const Spacer(),
               Text('${_history.length}/${ChartPackageHistoryStore.maxEntries}',
-                  style: TextStyle(
-                      color: scheme.onSurfaceVariant, fontSize: 12)),
+                  style:
+                      TextStyle(color: scheme.onSurfaceVariant, fontSize: 12)),
             ],
           ),
           const SizedBox(height: 4),
@@ -616,7 +637,8 @@ class _PersonalizedChartPlayConfigureState extends State<PersonalizedChartPlayCo
               onLongPress: busy ? null : () => _confirmRemoveHistory(entry),
               borderRadius: BorderRadius.circular(8),
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+                padding:
+                    const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
                 child: Row(
                   children: [
                     SizedBox(
@@ -692,6 +714,7 @@ class _PersonalizedChartPlayConfigureState extends State<PersonalizedChartPlayCo
     final songTitle =
         MaidataDecodeUtil.quickExtractTitle(_maidataContent!) ?? '自定义谱面';
 
+    var loadAudio = _loadAudio;
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -717,8 +740,24 @@ class _PersonalizedChartPlayConfigureState extends State<PersonalizedChartPlayCo
                   padding: const EdgeInsets.only(bottom: 16),
                   child: Text(
                     '渲染出的谱面仅供参考，不代表官方谱面。对于高密度谱面，请勿频繁拖动进度条，以免造成应用闪退或卡死。',
-                    style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant),
                     textAlign: TextAlign.center,
+                  ),
+                ),
+                StatefulBuilder(
+                  builder: (context, setDialogState) => CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: loadAudio,
+                    title: const Text('加载音频'),
+                    subtitle: const Text('取消勾选可直接加载谱面，跳过音源加载'),
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setDialogState(() => loadAudio = value);
+                      _loadAudio = value;
+                      ChartPlayAudioPreference.save(value);
+                    },
                   ),
                 ),
                 ..._inoteList.map((inote) {
@@ -739,7 +778,8 @@ class _PersonalizedChartPlayConfigureState extends State<PersonalizedChartPlayCo
                               songType: 'custom',
                               selectedInote: inote,
                               bgImagePath: _bgImagePath,
-                              audioFilePath: _audioFilePath,
+                              audioFilePath: loadAudio ? _audioFilePath : null,
+                              loadAudio: loadAudio,
                             ),
                           ),
                         );
@@ -747,7 +787,8 @@ class _PersonalizedChartPlayConfigureState extends State<PersonalizedChartPlayCo
                       style: ElevatedButton.styleFrom(
                         backgroundColor: inoteColor,
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 24, vertical: 12),
                         textStyle: const TextStyle(fontSize: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
@@ -820,7 +861,10 @@ class _PersonalizedChartPlayConfigureState extends State<PersonalizedChartPlayCo
                     children: [
                       Text(
                         '上传自定义谱面',
-                        style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontSize: 24, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurface,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 24),
 
@@ -829,10 +873,13 @@ class _PersonalizedChartPlayConfigureState extends State<PersonalizedChartPlayCo
                         width: double.infinity,
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .surfaceContainerHighest,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: AppColors.linkBlue(brightness).withValues(alpha: 0.35),
+                            color: AppColors.linkBlue(brightness)
+                                .withValues(alpha: 0.35),
                           ),
                         ),
                         child: Column(
@@ -845,34 +892,43 @@ class _PersonalizedChartPlayConfigureState extends State<PersonalizedChartPlayCo
                                 const SizedBox(width: 8),
                                 Text('从谱面包导入',
                                     style: TextStyle(
-                                        color: Theme.of(context).colorScheme.onSurface,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onSurface,
                                         fontSize: 16,
                                         fontWeight: FontWeight.bold)),
                               ],
                             ),
                             const SizedBox(height: 4),
-                            Text('选择一个 .adx 或 .zip 谱面包，自动解出 maidata.txt / 曲绘 / 音源',
+                            Text(
+                                '选择一个 .adx 或 .zip 谱面包，自动解出 maidata.txt / 曲绘 / 音源',
                                 style: TextStyle(
-                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
                                     fontSize: 12)),
                             const SizedBox(height: 12),
                             SizedBox(
                               width: double.infinity,
                               child: ElevatedButton.icon(
-                                onPressed: _isImporting ? null : _pickChartPackage,
+                                onPressed:
+                                    _isImporting ? null : _pickChartPackage,
                                 icon: _isImporting
                                     ? const SizedBox(
                                         width: 18,
                                         height: 18,
                                         child: CircularProgressIndicator(
-                                            strokeWidth: 2, color: Colors.white),
+                                            strokeWidth: 2,
+                                            color: Colors.white),
                                       )
                                     : const Icon(Icons.unarchive_outlined),
                                 label: Text(_isImporting ? '正在解压...' : '选择谱面包'),
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.linkBlue(brightness),
+                                  backgroundColor:
+                                      AppColors.linkBlue(brightness),
                                   foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 12),
                                   shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(8)),
                                 ),
@@ -891,7 +947,8 @@ class _PersonalizedChartPlayConfigureState extends State<PersonalizedChartPlayCo
                       Text(
                         '或分别选择下面三个文件',
                         style: TextStyle(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
                             fontSize: 12),
                       ),
                       const SizedBox(height: 12),
@@ -900,7 +957,8 @@ class _PersonalizedChartPlayConfigureState extends State<PersonalizedChartPlayCo
                         title: '选择maidata.txt',
                         description: '必须选择，包含谱面数据的txt文件',
                         icon: Icons.description,
-                        selectedFile: _maidataContent != null ? '已选择maidata文件' : null,
+                        selectedFile:
+                            _maidataContent != null ? '已选择maidata文件' : null,
                         onPressed: _selectMaidataFile,
                         required: true,
                       ),
@@ -930,23 +988,34 @@ class _PersonalizedChartPlayConfigureState extends State<PersonalizedChartPlayCo
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .surfaceContainerHighest,
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('解析到的难度:', style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontSize: 16, fontWeight: FontWeight.bold)),
+                              Text('解析到的难度:',
+                                  style: TextStyle(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurface,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold)),
                               const SizedBox(height: 12),
                               Wrap(
                                 spacing: 8,
                                 children: _inoteList.map((inote) {
-                                  String difficultyName = inoteDifficultyMap[inote] ?? inote;
-                                  Color inoteColor = Color(inoteColorMap[inote] ?? 0xFF9E9E9E);
+                                  String difficultyName =
+                                      inoteDifficultyMap[inote] ?? inote;
+                                  Color inoteColor =
+                                      Color(inoteColorMap[inote] ?? 0xFF9E9E9E);
                                   return Chip(
                                     label: Text(difficultyName),
                                     backgroundColor: inoteColor,
-                                    labelStyle: const TextStyle(color: Colors.white),
+                                    labelStyle:
+                                        const TextStyle(color: Colors.white),
                                   );
                                 }).toList(),
                               ),
@@ -961,10 +1030,15 @@ class _PersonalizedChartPlayConfigureState extends State<PersonalizedChartPlayCo
                             child: ElevatedButton(
                               onPressed: _clearSelection,
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-                                foregroundColor: Theme.of(context).colorScheme.onSurface,
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                backgroundColor: Theme.of(context)
+                                    .colorScheme
+                                    .surfaceContainerHighest,
+                                foregroundColor:
+                                    Theme.of(context).colorScheme.onSurface,
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8)),
                               ),
                               child: const Text('清除选择'),
                             ),
@@ -974,10 +1048,13 @@ class _PersonalizedChartPlayConfigureState extends State<PersonalizedChartPlayCo
                             child: ElevatedButton(
                               onPressed: _startPlayback,
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.linkBlue(Theme.of(context).brightness),
+                                backgroundColor: AppColors.linkBlue(
+                                    Theme.of(context).brightness),
                                 foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8)),
                               ),
                               child: const Text('开始播放'),
                             ),
@@ -989,20 +1066,51 @@ class _PersonalizedChartPlayConfigureState extends State<PersonalizedChartPlayCo
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .surfaceContainerHighest,
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('使用说明:', style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontSize: 16, fontWeight: FontWeight.bold)),
+                            Text('使用说明:',
+                                style: TextStyle(
+                                    color:
+                                        Theme.of(context).colorScheme.onSurface,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold)),
                             const SizedBox(height: 8),
-                            Text('方式一：点「选择谱面包」直接选一个 .adx / .zip，三件套一次填好', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-                            Text('方式二：点「最近解析」里的记录，一键重新解析之前用过的谱面包', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-                            Text('方式三：分别选择 maidata.txt、曲绘、音源三个文件', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-                            Text('1. maidata.txt 为必选，其余两个可留空', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-                            Text('2. 系统会自动解析谱面中的难度', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-                            Text('3. 选择想要渲染的难度后即可开始播放', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                            Text('方式一：点「选择谱面包」直接选一个 .adx / .zip，三件套一次填好',
+                                style: TextStyle(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant)),
+                            Text('方式二：点「最近解析」里的记录，一键重新解析之前用过的谱面包',
+                                style: TextStyle(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant)),
+                            Text('方式三：分别选择 maidata.txt、曲绘、音源三个文件',
+                                style: TextStyle(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant)),
+                            Text('1. maidata.txt 为必选，其余两个可留空',
+                                style: TextStyle(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant)),
+                            Text('2. 系统会自动解析谱面中的难度',
+                                style: TextStyle(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant)),
+                            Text('3. 选择想要渲染的难度后即可开始播放',
+                                style: TextStyle(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant)),
                           ],
                         ),
                       ),
@@ -1034,14 +1142,20 @@ class _PersonalizedChartPlayConfigureState extends State<PersonalizedChartPlayCo
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: selectedFile != null ? AppColors.successGreen(fsBrightness) : AppColors.tableBorder(fsBrightness)),
+        border: Border.all(
+            color: selectedFile != null
+                ? AppColors.successGreen(fsBrightness)
+                : AppColors.tableBorder(fsBrightness)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, color: selectedFile != null ? AppColors.successGreen(fsBrightness) : AppColors.greyHint(fsBrightness)),
+              Icon(icon,
+                  color: selectedFile != null
+                      ? AppColors.successGreen(fsBrightness)
+                      : AppColors.greyHint(fsBrightness)),
               const SizedBox(width: 8),
               Expanded(
                 child: Column(
@@ -1049,11 +1163,22 @@ class _PersonalizedChartPlayConfigureState extends State<PersonalizedChartPlayCo
                   children: [
                     Row(
                       children: [
-                        Text(title, style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontSize: 16, fontWeight: FontWeight.bold)),
-                        if (required) Text(' *', style: TextStyle(color: AppColors.errorRed(fsBrightness))),
+                        Text(title,
+                            style: TextStyle(
+                                color: Theme.of(context).colorScheme.onSurface,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold)),
+                        if (required)
+                          Text(' *',
+                              style: TextStyle(
+                                  color: AppColors.errorRed(fsBrightness))),
                       ],
                     ),
-                    Text(description, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12)),
+                    Text(description,
+                        style: TextStyle(
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
+                            fontSize: 12)),
                   ],
                 ),
               ),
@@ -1062,7 +1187,11 @@ class _PersonalizedChartPlayConfigureState extends State<PersonalizedChartPlayCo
           if (selectedFile != null)
             Padding(
               padding: const EdgeInsets.only(top: 8),
-              child: Text('已选择: $selectedFile', style: TextStyle(color: AppColors.successGreen(fsBrightness), fontSize: 12), overflow: TextOverflow.ellipsis),
+              child: Text('已选择: $selectedFile',
+                  style: TextStyle(
+                      color: AppColors.successGreen(fsBrightness),
+                      fontSize: 12),
+                  overflow: TextOverflow.ellipsis),
             ),
           const SizedBox(height: 8),
           ElevatedButton(
@@ -1071,7 +1200,8 @@ class _PersonalizedChartPlayConfigureState extends State<PersonalizedChartPlayCo
               backgroundColor: AppColors.linkBlue(fsBrightness),
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
             ),
             child: Text(selectedFile != null ? '重新选择' : '选择文件'),
           ),

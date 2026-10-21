@@ -31,6 +31,8 @@ import 'package:just_audio_background/just_audio_background.dart';
 import '../../entity/Portable/PortableSong.dart';
 import '../DxRatingCoverService.dart';
 import 'PortableAudioCache.dart';
+import 'CachedSongAudioSource.dart';
+import '../SongMediaCache.dart';
 
 /// 播给 UI 看的一次性提示（SnackBar / Toast 用）。
 class PortablePlayerEvent {
@@ -90,17 +92,21 @@ class PortablePlayerController extends ChangeNotifier {
   /// 当前已建源的队列版本。`_sourceRevision == _queueRevision` 时才允许只 seek。
   int _sourceRevision = -1;
 
+  /// 先发布用户选择的曲目，再等待曲绘、音频缓存和平台建源。
+  int? _pendingIndex;
+  int _playRequest = 0;
+
   /// 当前队列（随身听页面把列表整批塞进来，用于「下一首/上一首」）。
   List<PortableSong> get queue => _queue;
 
   /// 正在播放/暂停的曲目；没播过任何东西时为 null。
   PortableSong? get currentSong {
-    final index = _player.currentIndex;
+    final index = _pendingIndex ?? _player.currentIndex;
     if (index == null || index < 0 || index >= _queue.length) return null;
     return _queue[index];
   }
 
-  bool get isPlaying => _player.playing;
+  bool get isPlaying => _pendingIndex == null && _player.playing;
 
   PortablePlaybackMode _playbackMode = PortablePlaybackMode.sequential;
 
@@ -143,9 +149,10 @@ class PortablePlayerController extends ChangeNotifier {
   /// 是否已经有可显示的当前曲（悬浮球据此决定显不显示）。
   bool get hasSong => currentSong != null;
 
-  Duration get position => _player.position;
+  Duration get position =>
+      _pendingIndex == null ? _player.position : Duration.zero;
 
-  Duration? get duration => _player.duration;
+  Duration? get duration => _pendingIndex == null ? _player.duration : null;
 
   /// 正在加载音源（点了某一行的 loading 态用这个）。
   bool get isLoading => _loading;
@@ -230,7 +237,13 @@ class PortablePlayerController extends ChangeNotifier {
     // （`play()` 也会同时抛异常，两条路都要接住，否则会变成未捕获异常刷日志）。
     _player.playbackEventStream.listen(
       (_) {},
-      onError: (Object error, StackTrace _) => _handleSourceFailure(error),
+      onError: (Object error, StackTrace _) {
+        // 新歌尚未建源时，旧音源迟到的错误不能跳过用户刚选中的歌。
+        if (_pendingIndex != null &&
+            (_sourceRevision != _queueRevision ||
+                _player.currentIndex != _pendingIndex)) return;
+        _handleSourceFailure(error);
+      },
     );
 
     // 通知栏按钮点击 → 原生回传 → 走 App 内完全相同的控制方法，
@@ -417,11 +430,12 @@ class PortablePlayerController extends ChangeNotifier {
         return;
       }
       final artPath = await _cachedArtPath(song);
+      if (currentSong?.portableKey != song.portableKey) return;
       await kPortableNotificationChannel.invokeMethod<void>('update', {
         'title': song.title,
         'artist': song.artist.isEmpty ? '未知艺术家' : song.artist,
         'artPath': artPath,
-        'isPlaying': _player.playing,
+        'isPlaying': isPlaying,
         'hasNext': _player.hasNext,
         'hasPrevious': _player.hasPrevious,
       });
@@ -479,9 +493,13 @@ class PortablePlayerController extends ChangeNotifier {
 
   /// 单曲失败兜底：把当前曲换成 wmc URL 重播一次。失败的话回退到 skip。
   Future<void> _retryWithWmcFallback(PortableSong song) async {
+    final request = _playRequest;
     try {
-      final wmcSource = AudioSource.uri(
-        Uri.parse(song.wmcAudioUrl),
+      final cached = await SongMediaCache.instance.ensureAudio(
+        song.divingFishId, audioId: song.audioId, urls: [song.wmcAudioUrl]);
+      if (request != _playRequest) return;
+      final wmcSource = AudioSource.file(
+        cached.path,
         tag: MediaItem(
           id: song.portableKey,
           title: song.title,
@@ -505,9 +523,14 @@ class PortablePlayerController extends ChangeNotifier {
         initialIndex: 0,
         initialPosition: Duration.zero,
       );
-      unawaited(
-          _player.play().catchError((Object e) => _handleSourceFailure(e)));
+      if (request != _playRequest) return;
+      _pendingIndex = null;
+      notifyListeners();
+      unawaited(_player.play().catchError((Object e) {
+        if (request == _playRequest) _handleSourceFailure(e);
+      }));
     } catch (e) {
+      if (request != _playRequest) return;
       debugPrint('[Portable] wmc 兜底也失败: $e');
       _handleSourceFailure(e);
     }
@@ -525,10 +548,12 @@ class PortablePlayerController extends ChangeNotifier {
         ));
         return;
       }
-      final index = _player.currentIndex;
+      final request = _playRequest;
+      final index = _pendingIndex ?? _player.currentIndex;
       if (index == null || index + 1 >= _queue.length) return;
       // 稍微等一下再跳：失败事件有时会在同一帧里连发几条
       await Future<void>.delayed(const Duration(milliseconds: 300));
+      if (request != _playRequest) return;
       await playAt(index + 1);
     } finally {
       _autoSkipping = false;
@@ -545,7 +570,6 @@ class PortablePlayerController extends ChangeNotifier {
     if (songs.isEmpty || index < 0 || index >= songs.length) return;
     _queue = List<PortableSong>.unmodifiable(songs);
     _queueRevision++;
-    notifyListeners();
     await playAt(index);
   }
 
@@ -565,31 +589,41 @@ class PortablePlayerController extends ChangeNotifier {
   Future<void> playAt(int index) async {
     if (index < 0 || index >= _queue.length) return;
     final song = _queue[index];
+    final request = ++_playRequest;
+    final queueRevision = _queueRevision;
 
     if (_playbackMode == PortablePlaybackMode.single) {
       // 换了一首：单曲循环的次数按每首算，重新开始数
       _singlePlaysDone = 0;
     }
 
-    _setLoading(true);
+    _pendingIndex = index;
+    _loading = true;
+    notifyListeners();
     // 切到新歌 → 清掉「本首已试 wmc」标记，下次失败又可以试一次
     _triedWmcFallback = false;
     try {
+      // 显示新曲目的同时停下旧音频，避免标题已切换却仍在播放上一首。
+      await _player.pause();
+      if (request != _playRequest) return;
       // 先预热通知栏曲绘（见 [preloadNotificationArt] 的注释），再起播。
       // 放在 setAudioSource 之前是因为它是纯本地/网络图片下载，与音频无关，
       // 但必须先于通知栏出现才有意义。
       await preloadNotificationArt(song);
+      if (request != _playRequest) return;
 
       var cacheStatusShown = false;
       final cachedAudioPath = await PortableAudioCache.instance.ensure(
         song,
         onProgress: (progress, speed, status) {
+          if (request != _playRequest) return;
           if (progress != null && progress >= 1) return;
           if (cacheStatusShown) return;
           cacheStatusShown = true;
           _emit(PortablePlayerEvent(status));
         },
       );
+      if (request != _playRequest) return;
 
       final queueChanged =
           _sourceRevision != _queueRevision || _player.audioSource == null;
@@ -597,6 +631,7 @@ class PortablePlayerController extends ChangeNotifier {
       if (!queueChanged && !switchingSong) {
         // 队列没变，直接跳（just_audio 按需加载这一首）
         await _player.seek(Duration.zero, index: index);
+        if (request != _playRequest) return;
         // 顺手把循环/随机再推一次：上一首「次数用完」时可能把单曲循环关掉了
         // （见 [_onPositionDiscontinuity]），切到新的一首要重新打开。
         await _applyPlaybackMode();
@@ -629,10 +664,13 @@ class PortablePlayerController extends ChangeNotifier {
           initialIndex: index,
           initialPosition: Duration.zero,
         );
-        _sourceRevision = _queueRevision;
+        if (request != _playRequest) return;
+        _sourceRevision = queueRevision;
         await _applyPlaybackMode(
             reshuffle: _playbackMode == PortablePlaybackMode.shuffle);
       }
+      if (request != _playRequest) return;
+      _pendingIndex = null;
       // ⚠️ 这里**不要** `await _player.play()`。
       //
       // just_audio 0.9.46 的 `play()` 返回的 future 要等到**暂停 / 播完 /
@@ -642,20 +680,28 @@ class PortablePlayerController extends ChangeNotifier {
       // `_setLoading(false)` 要等整首歌才执行 → 列表行、全屏页的「加载中」
       // 一路转到底。只发起、不等完成；失败照旧汇到 [playbackEventStream]
       // 的 onError（`_handleSourceFailure`）。
-      unawaited(
-          _player.play().catchError((Object e) => _handleSourceFailure(e)));
+      unawaited(_player.play().catchError((Object e) {
+        if (request == _playRequest) _handleSourceFailure(e);
+      }));
       _emit(PortablePlayerEvent('正在播放：${song.title}'));
     } catch (e) {
+      if (request != _playRequest) return;
       // 只有「建源/发起播放」这一段的同步失败会走到这里（比如 URL 非法）。
       // 真正的网络 404 发生在缓冲阶段，走 playbackEventStream 的 onError，
       // 两条路都汇到 _autoSkipAfterFailure，不会重复跳过（有 _autoSkipping 闸门）。
       _handleSourceFailure(e);
     } finally {
-      _setLoading(false);
+      if (request == _playRequest) _setLoading(false);
     }
   }
 
   Future<void> togglePlayPause() async {
+    if (_loading) return;
+    final pendingIndex = _pendingIndex;
+    if (pendingIndex != null) {
+      await playAt(pendingIndex);
+      return;
+    }
     if (_player.audioSource == null) return;
     if (_player.playing) {
       await _player.pause();
@@ -672,28 +718,52 @@ class PortablePlayerController extends ChangeNotifier {
   }
 
   Future<void> next() async {
-    if (!_player.hasNext) return;
-    await _player.seekToNext();
-    // play 的 Future 会等待到暂停/结束，不能让切歌按钮一直处于忙碌状态。
-    if (!_player.playing)
-      unawaited(_player
-          .play()
-          .catchError((Object error) => _handleSourceFailure(error)));
+    final index = _player.nextIndex;
+    if (index == null) return;
+    await _seekToIndex(index);
   }
 
   Future<void> previous() async {
-    if (!_player.hasPrevious) return;
-    await _player.seekToPrevious();
-    if (!_player.playing)
-      unawaited(_player
-          .play()
-          .catchError((Object error) => _handleSourceFailure(error)));
+    final index = _player.previousIndex;
+    if (index == null) return;
+    await _seekToIndex(index);
+  }
+
+  /// 已有播放队列内切歌：先切换显示，再等待平台定位和缓冲，保留随机顺序。
+  Future<void> _seekToIndex(int index) async {
+    final request = ++_playRequest;
+    _pendingIndex = index;
+    _loading = true;
+    _singlePlaysDone = 0;
+    _triedWmcFallback = false;
+    notifyListeners();
+    try {
+      await _player.pause();
+      await PortableAudioCache.instance.ensure(_queue[index]);
+      if (request != _playRequest) return;
+      await _player.seek(Duration.zero, index: index);
+      if (request != _playRequest) return;
+      _pendingIndex = null;
+      if (!_player.playing) {
+        unawaited(_player.play().catchError((Object error) {
+          if (request == _playRequest) _handleSourceFailure(error);
+        }));
+      }
+    } catch (error) {
+      if (request == _playRequest) _handleSourceFailure(error);
+    } finally {
+      if (request == _playRequest) _setLoading(false);
+    }
   }
 
   Future<void> seek(Duration position) => _player.seek(position);
 
   Future<void> stop() async {
+    final request = ++_playRequest;
+    _pendingIndex = null;
+    _setLoading(false);
     await _player.stop();
+    if (request != _playRequest) return;
     _queue = const <PortableSong>[];
     _queueRevision++;
     _sourceRevision = -1;
@@ -741,7 +811,7 @@ class PortablePlayerController extends ChangeNotifier {
       },
     );
     return localPath == null
-        ? AudioSource.uri(Uri.parse(song.audioUrl), tag: tag)
+        ? CachedSongAudioSource(song, tag: tag)
         : AudioSource.file(localPath, tag: tag);
   }
 
@@ -757,6 +827,7 @@ class PortablePlayerController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _playRequest++;
     _events.close();
     _player.dispose();
     super.dispose();

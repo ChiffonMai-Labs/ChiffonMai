@@ -9,6 +9,7 @@ import '../utils/CurrentDataSourceNotifier.dart';
 import '../utils/LoginStateNotifier.dart';
 import '../utils/UserProfileNotifier.dart';
 import 'AccountStore.dart';
+import 'AutoSyncService.dart';
 import 'CommunityAvatarStore.dart';
 import 'AWMC/AwmcPlayCountStore.dart';
 import 'History/ChartHistoryStore.dart';
@@ -149,6 +150,7 @@ class AccountSwitchService {
             prefs.getString(source.userIdCacheKey)) ??
         prefs.getString(CacheKeyConstant.cachedQQ);
     if (oldId != null && oldId != id) {
+      await AutoSyncService.instance.disableForSource(source.key);
       await AccountStore.clearActiveSlot();
       await AwmcPlayCountStore.clear(source: source);
       _invalidateRecords();
@@ -164,6 +166,8 @@ class AccountSwitchService {
     _busy = true;
     revision++;
     try {
+      // 先撤销服务端任务，失败时保留本机凭据，避免登出到一半无法重试。
+      await AutoSyncService.instance.disableForSource(source.key);
       await clearCredentials?.call();
       await AccountStore.remove(source.key);
       await AwmcPlayCountStore.clear(source: source);

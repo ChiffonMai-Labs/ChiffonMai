@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import 'package:my_first_flutter_app/service/RankTable/RankTableService.dart';
@@ -219,11 +220,11 @@ class _RankDetailPageState extends State<RankDetailPage> {
 
     return BackgroundPageScaffold(
       title: widget.rankName,
-      contentPadding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom + 10),
+      contentPadding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
       child: _isLoading
                       ? Center(child: CircularProgressIndicator())
                       : SingleChildScrollView(
-                          padding: EdgeInsets.all(_paddingM),
+                          padding: EdgeInsets.fromLTRB(_paddingM, 8, _paddingM, _paddingM),
                           child: rankData != null
                               ? _buildContent(rankData, isNormalRank)
                               : _buildEmptyContent(),
@@ -618,20 +619,7 @@ class _RankDetailPageState extends State<RankDetailPage> {
   }
 
   String _getDifficultyName(int levelIndex) {
-    switch (levelIndex) {
-      case 0:
-        return 'BASIC';
-      case 1:
-        return 'ADVANCED';
-      case 2:
-        return 'EXPERT';
-      case 3:
-        return 'MASTER';
-      case 4:
-        return 'Re:MASTER';
-      default:
-        return 'UNKNOWN';
-    }
+    return ChartDifficulty.labelOf(levelIndex, fallback: 'UNKNOWN');
   }
 
   Color _getDifficultyBorderColor(int levelIndex) {

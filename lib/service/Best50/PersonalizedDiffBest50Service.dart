@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../manager/DivingFish/UserPlayDataManager.dart';
@@ -119,7 +120,7 @@ class PersonalizedDiffBest50Service {
       final songIdToTagIdsMap = await MaiTagsManager().getSongIdToTagIdsMap();
 
       // 难度索引 → 难度字符串映射
-      const diffNames = ['basic', 'advanced', 'expert', 'master', 'remaster'];
+      const diffNames = ChartDifficulty.apiNames;
 
       // 存储计算结果
       List<Map<String, dynamic>> diffBest50 = [];

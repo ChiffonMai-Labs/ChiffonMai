@@ -1,5 +1,10 @@
 /// 缓存键常量统一管理
 class CacheKeyConstant {
+  /// 三个数据源共用的快速同步凭据，仅存入系统安全存储；兼容旧的逐源映射。
+  static const String awmcQuickIdentities = 'awmc_quick_identities_v1';
+
+  /// 自动同步任务的专用管理令牌，仅存入系统安全存储，不参与备份。
+  static const String autoSyncTasks = 'auto_sync_tasks_v1';
   // 音乐数据相关
   static const String cachedSongs = 'cached_songs';
   static const String cachedSongsTimestamp = 'cached_songs_timestamp';
@@ -197,6 +202,14 @@ class CacheKeyConstant {
   static const String customBackgroundPath = 'custom_background_path';
   // chiffon2.png 装饰图透明度（0.0 ~ 1.0），默认 0.40
   static const String chiffonOpacity = 'chiffon_opacity';
+
+  // 纸屑特效偏好
+  static const String confettiEnabled = 'confetti_enabled';
+  static const String confettiGravityEnabled = 'confetti_gravity_enabled';
+  static const String confettiHarmonyColor = 'confetti_harmony_color';
+  static const String confettiHarmonyLevel = 'confetti_harmony_level';
+  static const String confettiPaperType = 'confetti_paper_type';
+  static const String confettiPosition = 'confetti_position';
 
   // 首页个人信息展示风格（true=卡片式，false=经典式）
   static const String profileCardStyle = 'profile_card_style';

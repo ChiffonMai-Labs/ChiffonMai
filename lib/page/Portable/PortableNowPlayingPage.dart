@@ -8,19 +8,21 @@
  * `dispose` 里把播放器 stop + dispose 了，所以退出即静音。
  */
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../widgets/ExportSuccessDialog.dart';
 
 import '../../entity/Portable/PortableSong.dart';
 import '../../service/Portable/PortablePlayerController.dart';
 import '../../service/Portable/PortableSongDownloadService.dart';
-import '../../utils/AppDesignTokens.dart';
-import '../../utils/CommonWidgetUtil.dart';
+import '../../utils/AppTheme.dart';
 import '../../utils/ExportPathUtil.dart';
-import '../../widgets/PageTopBar.dart';
-import '../../widgets/PortablePlayerBadge.dart';
+import '../../utils/PortablePlayerScope.dart';
 import '../../widgets/AnimatedChoiceBar.dart';
+import '../../widgets/MarqueeText.dart';
+import '../../widgets/PortablePlayerBadge.dart';
 import '../../widgets/PortablePlaybackModeButton.dart';
 
 class PortableNowPlayingPage extends StatefulWidget {
@@ -46,9 +48,11 @@ class _PortableNowPlayingPageState extends State<PortableNowPlayingPage> {
   @override
   void initState() {
     super.initState();
+    PortablePlayerScope.isNowPlayingPageOpen.value = true;
     _player.addListener(_safeSetState);
     _subs.add(_player.currentIndexStream.listen((_) => _safeSetState()));
     _subs.add(_player.playingStream.listen((_) => _safeSetState()));
+    _subs.add(_player.processingStateStream.listen((_) => _safeSetState()));
     _subs.add(_player.positionStream.listen((_) {
       if (mounted && _dragValue == null) _safeSetState();
     }));
@@ -56,6 +60,7 @@ class _PortableNowPlayingPageState extends State<PortableNowPlayingPage> {
 
   @override
   void dispose() {
+    PortablePlayerScope.isNowPlayingPageOpen.value = false;
     _player.removeListener(_safeSetState);
     for (final sub in _subs) {
       sub.cancel();
@@ -69,40 +74,43 @@ class _PortableNowPlayingPageState extends State<PortableNowPlayingPage> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
+    final inheritedTheme = Theme.of(context);
+    // 保留播放器的独立视觉，明暗模式跟随应用主题。
+    final scheme = AppColors.musicPlayerScheme(inheritedTheme.brightness);
+    final playerTheme = inheritedTheme.copyWith(
+      brightness: inheritedTheme.brightness,
+      colorScheme: scheme,
+      scaffoldBackgroundColor: scheme.surface,
+      textTheme: inheritedTheme.textTheme.apply(
+        bodyColor: scheme.onSurface,
+        displayColor: scheme.onSurface,
+      ),
+    );
     final song = _player.currentSong;
 
-    return Scaffold(
-      resizeToAvoidBottomInset: false,
-      backgroundColor: Colors.transparent,
-      body: Stack(
-        children: [
-          Positioned.fill(child: ColoredBox(color: scheme.surface)),
-          CommonWidgetUtil.buildCommonBgWidget(),
-          CommonWidgetUtil.buildCommonChiffonBgWidget(context),
-          Column(
-            children: [
-              PageTopBar(
-                title: '正在播放',
-              ),
-              Expanded(
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(
-                      maxWidth: AppDesignTokens.maxContentWidth,
-                    ),
-                    child: song == null
-                        ? (_player.isLoading
-                            ? _preparing(scheme)
-                            : _empty(scheme))
-                        : _content(context, scheme, song),
-                  ),
-                ),
-              ),
-            ],
+    return Theme(
+      data: playerTheme,
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: (inheritedTheme.brightness == Brightness.dark
+                ? SystemUiOverlayStyle.light
+                : SystemUiOverlayStyle.dark)
+            .copyWith(
+          statusBarColor: Colors.transparent,
+          systemNavigationBarColor: scheme.surface,
+          systemNavigationBarDividerColor: Colors.transparent,
+          systemNavigationBarContrastEnforced: false,
+        ),
+        child: Scaffold(
+          resizeToAvoidBottomInset: false,
+          backgroundColor: scheme.surface,
+          body: SafeArea(
+            child: Builder(
+              builder: (context) => song == null
+                  ? (_player.isLoading ? _preparing(scheme) : _empty(scheme))
+                  : _content(context, scheme, song),
+            ),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -204,116 +212,246 @@ class _PortableNowPlayingPageState extends State<PortableNowPlayingPage> {
         (totalMs > 0
             ? (_player.position.inMilliseconds / totalMs).clamp(0.0, 1.0)
             : 0.0);
-    final side = MediaQuery.of(context).size.width * 0.62;
-    final coverSize = side.clamp(160.0, 320.0);
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 8, 24, 28),
-      child: Column(
-        children: [
-          const SizedBox(height: 8),
-          _coverCarousel(song, coverSize),
-          const SizedBox(height: 26),
-          Text(
-            song.title,
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 21,
-              fontWeight: FontWeight.bold,
-              color: scheme.onSurface,
+    return LayoutBuilder(builder: (context, constraints) {
+      // 参考图内容宽 484、曲绘宽 440；保留这个比例，不再限制成小曲绘。
+      final width = math.min(constraints.maxWidth, 560.0);
+      final scale = width / 484;
+      final coverSize = 440 * scale;
+      final progressHeight = math.max(48.0, 60 * scale);
+      final playSize = 76 * scale;
+      final textScaler = MediaQuery.textScalerOf(context);
+      final titleHeight = textScaler.scale(28 * scale) * 1.4;
+      final artistHeight = textScaler.scale(22 * scale) * 1.4;
+      final fixedHeight =
+          coverSize + progressHeight + titleHeight + artistHeight + playSize;
+      // 小屏、横屏或大字体时允许滚动，保持曲绘正方形并让控制区可达。
+      final height = math.max(constraints.maxHeight, fixedHeight + 80 * scale);
+      final gapUnit = (height - fixedHeight) / 197;
+
+      return Center(
+        child: SingleChildScrollView(
+          padding: EdgeInsets.zero,
+          physics: height > constraints.maxHeight
+              ? const ClampingScrollPhysics()
+              : const NeverScrollableScrollPhysics(),
+          child: SizedBox(
+            width: width,
+            height: height,
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: 22 * scale),
+              child: Column(
+                children: [
+                  SizedBox(height: 54 * gapUnit),
+                  _coverArtwork(song, coverSize, 22 * scale),
+                  SizedBox(height: 57 * gapUnit),
+                  SizedBox(
+                    height: progressHeight,
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 8 * scale),
+                      child: _progressRow(
+                        scheme,
+                        song,
+                        duration,
+                        value,
+                        scale,
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 24 * gapUnit),
+                  SizedBox(
+                    height: titleHeight,
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 8 * scale),
+                      child: Align(
+                        alignment: Alignment.center,
+                        child: Tooltip(
+                          message: song.title,
+                          child: MarqueeText(
+                            key: ValueKey(song.portableKey),
+                            text: song.title,
+                            style: TextStyle(
+                              fontSize: 28 * scale,
+                              height: 1.4,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0,
+                              color: scheme.onSurface,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 22 * gapUnit),
+                  SizedBox(
+                    height: artistHeight,
+                    child: Center(
+                      child: Text(
+                        '${song.artist.isEmpty ? '未知艺术家' : song.artist} · Audio',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 22 * scale,
+                          height: 1.4,
+                          letterSpacing: 0,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 22 * gapUnit),
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 8 * scale),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        PortablePlaybackModeButton(
+                          iconSize: 28 * scale,
+                          color: scheme.onSurfaceVariant,
+                          sequentialIcon: Icons.repeat_rounded,
+                        ),
+                        _skipButton(
+                          theme,
+                          scale: scale,
+                          previous: true,
+                          enabled: _player.hasPrevious,
+                        ),
+                        _playButton(theme, size: playSize),
+                        _skipButton(
+                          theme,
+                          scale: scale,
+                          previous: false,
+                          enabled: _player.hasNext,
+                        ),
+                        SizedBox(
+                          width: 48,
+                          child: _downloadControl(scheme, song),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(height: 18 * gapUnit),
+                ],
+              ),
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            song.artist.isEmpty ? '未知艺术家' : song.artist,
-            textAlign: TextAlign.center,
+        ),
+      );
+    });
+  }
+
+  Widget _progressRow(
+    ColorScheme scheme,
+    PortableSong song,
+    Duration duration,
+    double value,
+    double scale,
+  ) {
+    final totalMs = duration.inMilliseconds;
+    final timeStyle = TextStyle(
+      fontSize: 20 * scale,
+      height: 1,
+      letterSpacing: 0,
+      color: scheme.onSurfaceVariant,
+      fontFeatures: const [FontFeature.tabularFigures()],
+    );
+    return Row(
+      children: [
+        ConstrainedBox(
+          constraints: BoxConstraints(minWidth: 44 * scale),
+          child: Text(
+            _fmt(Duration(milliseconds: (value * totalMs).round())),
             maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: 14, color: scheme.onSurfaceVariant),
+            style: timeStyle,
           ),
-          const SizedBox(height: 22),
-          // 进度条
-          SliderTheme(
+        ),
+        SizedBox(width: 20 * scale),
+        Expanded(
+          child: SliderTheme(
             data: SliderTheme.of(context).copyWith(
-              trackHeight: 3,
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
-              overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+              // 粗圆角轨道、滑块两侧留缝、末端圆点均由同一个轨道形状绘制。
+              trackShape: const GappedSliderTrackShape(),
+              thumbShape: const HandleThumbShape(),
+              trackHeight: 21 * scale,
+              trackGap: 8 * scale,
+              thumbSize: WidgetStatePropertyAll(Size(5 * scale, 60 * scale)),
+              activeTrackColor: scheme.primary,
+              inactiveTrackColor: scheme.surfaceContainerHighest,
+              thumbColor: scheme.primary,
+              disabledActiveTrackColor: scheme.primary,
+              disabledInactiveTrackColor: scheme.surfaceContainerHighest,
+              disabledThumbColor: scheme.primary,
+              overlayShape: SliderComponentShape.noOverlay,
+              overlayColor: Colors.transparent,
+              showValueIndicator: ShowValueIndicator.never,
+              padding: EdgeInsets.zero,
             ),
-            child: Slider(
-              value: value,
-              onChanged:
-                  totalMs <= 0 ? null : (v) => setState(() => _dragValue = v),
-              onChangeEnd: (v) async {
-                final target = Duration(milliseconds: (v * totalMs).round());
-                setState(() => _dragValue = null);
-                await _player.seek(target);
-              },
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  _fmt(Duration(milliseconds: (value * totalMs).round())),
-                  style:
-                      TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
-                ),
-                Text(
-                  _fmt(duration),
-                  style:
-                      TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 18),
-          // 控制区
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              IconButton(
-                iconSize: 40,
+            child: TweenAnimationBuilder<double>(
+              key: ValueKey(song.portableKey),
+              tween: Tween(begin: value, end: value),
+              duration: _dragValue != null
+                  ? Duration.zero
+                  : const Duration(milliseconds: 180),
+              builder: (context, animatedValue, _) => Slider(
+                value: animatedValue,
                 padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-                tooltip: '上一首',
-                icon: Icon(Icons.skip_previous,
-                    color: theme.colorScheme.onSurface),
-                onPressed:
-                    _player.hasPrevious ? () => _changeSong(false) : null,
+                semanticFormatterCallback: (v) =>
+                    _fmt(Duration(milliseconds: (v * totalMs).round())),
+                onChanged:
+                    totalMs <= 0 ? null : (v) => setState(() => _dragValue = v),
+                onChangeEnd: (v) async {
+                  try {
+                    await _player.seek(
+                      Duration(milliseconds: (v * totalMs).round()),
+                    );
+                  } finally {
+                    if (mounted) setState(() => _dragValue = null);
+                  }
+                },
               ),
-              const SizedBox(width: 18),
-              _playButton(theme),
-              const SizedBox(width: 18),
-              IconButton(
-                iconSize: 40,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-                tooltip: '下一首',
-                icon: Icon(Icons.skip_next, color: theme.colorScheme.onSurface),
-                onPressed: _player.hasNext ? () => _changeSong(true) : null,
-              ),
-              if (song != null) ...[
-                const SizedBox(width: 8),
-                _downloadControl(scheme, song),
-                const SizedBox(width: 4),
-                const PortablePlaybackModeButton(
-                    density: VisualDensity.compact, iconSize: 20),
-              ],
-            ],
+            ),
           ),
-        ],
+        ),
+        SizedBox(width: 20 * scale),
+        ConstrainedBox(
+          constraints: BoxConstraints(minWidth: 44 * scale),
+          child: Text(
+            _fmt(duration),
+            maxLines: 1,
+            textAlign: TextAlign.right,
+            style: timeStyle,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _skipButton(
+    ThemeData theme, {
+    required double scale,
+    required bool previous,
+    required bool enabled,
+  }) {
+    final scheme = theme.colorScheme;
+    return IconButton(
+      iconSize: 30 * scale,
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+      tooltip: previous ? '上一首' : '下一首',
+      icon: Icon(
+        previous ? Icons.skip_previous_rounded : Icons.skip_next_rounded,
+        color: enabled ? scheme.onSurface : scheme.onSurfaceVariant,
       ),
+      onPressed: enabled ? () => _changeSong(!previous) : null,
     );
   }
 
   Future<void> _changeSong(bool next) async {
     if (_switching ||
         _player.isLoading ||
-        (next ? !_player.hasNext : !_player.hasPrevious)) return;
+        (next ? !_player.hasNext : !_player.hasPrevious)) {
+      return;
+    }
     setState(() {
       _switching = true;
       _slideDirection = next ? 1 : -1;
@@ -326,119 +464,105 @@ class _PortableNowPlayingPageState extends State<PortableNowPlayingPage> {
     }
   }
 
-  Widget _coverCarousel(PortableSong song, double size) {
-    final queue = _player.queue;
-    final index = queue.indexOf(song);
-    final previews = _player.playbackMode != PortablePlaybackMode.shuffle;
-    return LayoutBuilder(builder: (context, constraints) {
-      final mainSize = size.clamp(0.0, constraints.maxWidth * .76);
-      final neighborSize = mainSize * .64;
-      Widget neighbor(PortableSong neighbor, bool next) => GestureDetector(
-          onTap: () => _changeSong(next),
-          child: Opacity(
-              opacity: .5,
-              child: PortableCover(
-                  song: neighbor, size: neighborSize, radius: 16)));
-      return GestureDetector(
+  Widget _coverArtwork(PortableSong song, double size, double radius) {
+    return Semantics(
+      image: true,
+      label: '${song.title} 曲绘，可左右滑动切歌',
+      child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onHorizontalDragUpdate: (details) {
-          if (!_switching)
-            setState(() => _coverDrag = (_coverDrag + details.delta.dx)
-                .clamp(-mainSize / 3, mainSize / 3));
+          if (!_switching) {
+            setState(() => _coverDrag =
+                (_coverDrag + details.delta.dx).clamp(-size / 3, size / 3));
+          }
         },
         onHorizontalDragCancel: () => setState(() => _coverDrag = 0),
         onHorizontalDragEnd: (details) {
           final velocity = details.primaryVelocity ?? 0;
           if (_coverDrag.abs() > 40 || velocity.abs() > 300) {
             final next = velocity.abs() > 300 ? velocity < 0 : _coverDrag < 0;
-            _changeSong(next);
+            unawaited(_changeSong(next));
           }
           setState(() => _coverDrag = 0);
         },
-        child: SizedBox(
-            height: mainSize + 20,
-            child: ClipRect(
-                child: Stack(alignment: Alignment.center, children: [
-              if (previews && index > 0 && _player.hasPrevious)
-                Positioned(
-                    left: -neighborSize * .35,
-                    child: neighbor(queue[index - 1], false)),
-              if (previews &&
-                  index >= 0 &&
-                  index + 1 < queue.length &&
-                  _player.hasNext)
-                Positioned(
-                    right: -neighborSize * .35,
-                    child: neighbor(queue[index + 1], true)),
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                transform: Matrix4.translationValues(_coverDrag, 0, 0),
-                child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 300),
-                    transitionBuilder: (child, animation) => FadeTransition(
-                        opacity: animation,
-                        child: SlideTransition(
-                            position: Tween<Offset>(
-                                    begin: Offset(_slideDirection * .18, 0),
-                                    end: Offset.zero)
-                                .animate(CurvedAnimation(
-                                    parent: animation,
-                                    curve: Curves.easeOutCubic)),
-                            child: child)),
-                    child: Container(
-                        key: ValueKey(song.portableKey),
-                        width: mainSize,
-                        height: mainSize,
-                        decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: [
-                              BoxShadow(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .shadow
-                                      .withValues(alpha: .2),
-                                  blurRadius: 16,
-                                  offset: const Offset(0, 6))
-                            ]),
-                        child: PortableCover(
-                            song: song, size: mainSize, radius: 20))),
+        child: SizedBox.square(
+          dimension: size,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(radius),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              transform: Matrix4.translationValues(_coverDrag, 0, 0),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                transitionBuilder: (child, animation) => FadeTransition(
+                  opacity: animation,
+                  child: SlideTransition(
+                    position: Tween<Offset>(
+                      begin: Offset(_slideDirection * .18, 0),
+                      end: Offset.zero,
+                    ).animate(CurvedAnimation(
+                      parent: animation,
+                      curve: Curves.easeOutCubic,
+                    )),
+                    child: child,
+                  ),
+                ),
+                child: PortableCover(
+                  key: ValueKey(song.portableKey),
+                  song: song,
+                  size: size,
+                  radius: radius,
+                ),
               ),
-            ]))),
-      );
-    });
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
-  Widget _playButton(ThemeData theme) {
+  Widget _playButton(ThemeData theme, {required double size}) {
     final scheme = theme.colorScheme;
-    final radius = BorderRadius.circular(_player.isPlaying ? 12 : 34);
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 260),
-      curve: Curves.easeInOutCubic,
-      width: 60,
-      height: 60,
-      decoration: BoxDecoration(color: scheme.primary, borderRadius: radius),
-      child: Material(
-          color: Colors.transparent,
+    final radius = BorderRadius.circular(size * 22 / 76);
+    return Semantics(
+      button: true,
+      label: _player.isLoading ? '正在加载音源' : (_player.isPlaying ? '暂停' : '播放'),
+      child: SizedBox.square(
+        dimension: size,
+        child: Material(
+          color: scheme.primary,
+          borderRadius: radius,
+          clipBehavior: Clip.antiAlias,
           child: InkWell(
             borderRadius: radius,
             splashFactory: NoSplash.splashFactory,
             highlightColor: Colors.transparent,
             onTap: _player.isLoading ? null : () => _player.togglePlayPause(),
             child: Center(
-                child: FadeContent(
-                    child: _player.isLoading
-                        ? SizedBox(
-                            key: const ValueKey('loading'),
-                            width: 26,
-                            height: 26,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2.6, color: scheme.onPrimary))
-                        : Icon(
-                            _player.isPlaying ? Icons.pause : Icons.play_arrow,
-                            key: ValueKey(_player.isPlaying),
-                            size: 36,
-                            color: scheme.onPrimary))),
-          )),
+              child: FadeContent(
+                child: _player.isLoading || _player.isBuffering
+                    ? SizedBox(
+                        key: const ValueKey('loading'),
+                        width: size * .34,
+                        height: size * .34,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.6,
+                          color: scheme.onPrimary,
+                        ),
+                      )
+                    : Icon(
+                        _player.isPlaying
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded,
+                        key: ValueKey(_player.isPlaying),
+                        size: size * 32 / 76,
+                        color: scheme.onPrimary,
+                      ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -446,12 +570,12 @@ class _PortableNowPlayingPageState extends State<PortableNowPlayingPage> {
     if (!_downloading) {
       return IconButton(
         tooltip: '下载歌曲',
-        icon: const Icon(Icons.download_outlined),
+        icon: Icon(Icons.download_outlined, color: scheme.primary),
         onPressed: () => _downloadSong(song),
       );
     }
     return SizedBox(
-      width: 42,
+      width: 48,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

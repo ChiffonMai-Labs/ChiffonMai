@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import 'package:my_first_flutter_app/service/RankTable/RankTableService.dart';
@@ -55,9 +56,9 @@ class _RankListPageState extends State<RankListPage> {
 
     return BackgroundPageScaffold(
       title: '段位表',
-      contentPadding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom + 10),
+      contentPadding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
       child: SingleChildScrollView(
-                    padding: EdgeInsets.all(_paddingM),
+                    padding: EdgeInsets.fromLTRB(_paddingM, 8, _paddingM, _paddingM),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -213,15 +214,15 @@ class _RankListPageState extends State<RankListPage> {
 
   Color _getDifficultyBorderColor(int levelIndex) {
     switch (levelIndex) {
-      case 0:
+      case ChartDifficulty.basic:
         return Colors.green;
-      case 1:
+      case ChartDifficulty.advanced:
         return Color(0xFFFFCC00);
-      case 2:
+      case ChartDifficulty.expert:
         return Colors.pink;
-      case 3:
+      case ChartDifficulty.master:
         return Colors.purple;
-      case 4:
+      case ChartDifficulty.reMaster:
         return Colors.purple.shade200;
       default:
         return Colors.grey;

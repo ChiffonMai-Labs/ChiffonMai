@@ -131,7 +131,7 @@ class _FeatureCategoryPageState extends State<FeatureCategoryPage> {
       title: widget.category.name,
       resizeToAvoidBottomInset: false,
       contentPadding: EdgeInsets.only(
-        bottom: MediaQuery.paddingOf(context).bottom + 10,
+        bottom: MediaQuery.paddingOf(context).bottom,
       ),
       child: Column(
         children: [
@@ -139,7 +139,7 @@ class _FeatureCategoryPageState extends State<FeatureCategoryPage> {
                       Padding(
                         padding: EdgeInsets.fromLTRB(
                           screenWidth * 0.03,
-                          screenHeight * 0.015,
+                          8,
                           screenWidth * 0.03,
                           0,
                         ),

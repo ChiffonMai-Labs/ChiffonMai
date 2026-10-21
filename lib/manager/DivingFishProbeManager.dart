@@ -5,9 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../api/ApiUrls.dart';
-import '../service/AWMC/AwmcPlayCountStore.dart';
 import '../constant/CacheKeyConstant.dart';
-import '../utils/CurrentDataSourceNotifier.dart';
 import '../utils/SecureCredentialStore.dart';
 import 'package:my_first_flutter_app/utils/ApiClient.dart';
 
@@ -81,11 +79,19 @@ class SyncResult {
   final String? friendCode;
   final int exportedCount;
 
+  /// 线路2 缺少 maimai Score Hub 登录态。
+  ///
+  /// 上游已限制「一张机台二维码只能处理一个请求」，所以**不能**拿本次同步的
+  /// 二维码去登录 Score Hub；调用方应先通过独立登录框复用/建立登录态，
+  /// 再把本次二维码只用于创建 cabinet job。
+  final bool hubLoginRequired;
+
   const SyncResult._({
     required this.isSuccess,
     this.errorMessage,
     this.friendCode,
     this.exportedCount = 0,
+    this.hubLoginRequired = false,
   });
 
   factory SyncResult.success({String? friendCode, int exportedCount = 0}) =>
@@ -94,9 +100,16 @@ class SyncResult {
           friendCode: friendCode,
           exportedCount: exportedCount);
 
-  factory SyncResult.failure(String message, {String? friendCode}) =>
+  factory SyncResult.failure(
+    String message, {
+    String? friendCode,
+    bool hubLoginRequired = false,
+  }) =>
       SyncResult._(
-          isSuccess: false, errorMessage: message, friendCode: friendCode);
+          isSuccess: false,
+          errorMessage: message,
+          friendCode: friendCode,
+          hubLoginRequired: hubLoginRequired);
 
   factory SyncResult.cancelled() =>
       SyncResult._(isSuccess: false, errorMessage: '用户取消同步');
@@ -257,6 +270,35 @@ class DivingFishProbeManager {
   Future<String?> ensureAuthToken() async {
     final ok = await _ensureAuthToken();
     return ok ? _authToken : null;
+  }
+
+  /// 复用已有的 maimai Score Hub 登录态（不会消耗二维码）。
+  ///
+  /// 线路2 的 cabinet job 需要登录态；按「一张二维码只处理一个请求」的新限制，
+  /// 登录不能再用本次同步的二维码，因此这里先确认已有登录态是否仍然有效：
+  ///   * 已缓存 token 且 `GET /me` 返回 200 → true；
+  ///   * 未登录或 token 已失效（401/403）→ false，并清掉失效 token；
+  ///   * 网络等其它异常不判定为失效，避免临时断网逼用户重新扫码。
+  Future<bool> hasValidHubSession() async {
+    if (!await _ensureAuthToken()) return false;
+    try {
+      final response = await _getFollowRedirects(
+        Uri.parse(ApiUrls.MaimaiHubProfileUrl),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $_authToken',
+        },
+      );
+      if (response.statusCode == 200) return true;
+      if (response.statusCode == 401 || response.statusCode == 403) {
+        _log('hasValidHubSession: token 已失效，清除登录态');
+        await clearAuth();
+        return false;
+      }
+      return true;
+    } catch (_) {
+      return true;
+    }
   }
 
   // ===========================================================================
@@ -661,39 +703,17 @@ class DivingFishProbeManager {
       return SyncResult.failure('同步已在进行中，请稍后重试');
     }
 
-    // 与线路1 一样顺手刷新一次游玩次数（AWMC `/v1/user/music`）。
-    // **尽力而为、绝不 await**：没令牌/超时/报错都忽略，下面的原有同步流程照走。
-    // 次数算在**水鱼**名下（这条链路同步的目标就是水鱼），别落到别的账号上。
-    // 详见 AwmcPlayCountStore.refreshQuietly。
-    AwmcPlayCountStore.refreshQuietly(qrCode, source: RefreshDataSource.shuiyu);
-
-    // 恢复或检查认证 token；若无则直接用 QR 码登录 maimai Score Hub
-    final hasToken = await _ensureAuthToken();
-    if (!hasToken) {
-      _log('── Step 0: maimai Score Hub 认证 ──');
-      _emit(
-          onProgress,
-          const SyncProgress(
-            stage: SyncStage.authenticating,
-            message: '正在验证二维码...',
-          ));
-
-      final loginData = await _loginByQr(qrCode);
-      if (loginData == null) {
-        _log('✗ maimai Score Hub 登录失败: loginData 为 null');
-        return SyncResult.failure('二维码无效或已过期，请重新扫描');
-      }
-
-      _authToken = loginData['token'] as String?;
-      _friendCode = (loginData['user'] as Map<String, dynamic>?)
-          ?.tryGet<String>('friendCode');
-
-      if (_authToken == null) {
-        _log('✗ maimai Score Hub 登录失败: token 为 null');
-        return SyncResult.failure('maimai Score Hub 认证失败，请稍后重试');
-      }
-
-      _log('✓ maimai Score Hub 认证成功，friendCode=$_friendCode');
+    // 线路2 必须复用已有的 maimai Score Hub 登录态。
+    //
+    // 上游已限制「一张机台二维码只能处理一个请求」：本次二维码只能用于创建
+    // cabinet job 这一次请求，不能再拿它去调用 /auth/qr-login。未登录时
+    // 由调用方先通过独立登录框完成登录（那张二维码单独计一次请求）。
+    if (!await _ensureAuthToken()) {
+      _log('✗ maimai Score Hub 未登录，拒绝复用本次二维码登录');
+      return SyncResult.failure(
+        '尚未登录 maimai Score Hub，请先完成登录后再使用线路2同步',
+        hubLoginRequired: true,
+      );
     }
 
     _isSyncing = true;
@@ -2020,44 +2040,20 @@ class DivingFishProbeManager {
       return SyncResult.failure('同步已在进行中，请稍后重试');
     }
 
-    // 与线路1 一样顺手刷新一次游玩次数（AWMC `/v1/user/music`）。
-    // **尽力而为、绝不 await**：没令牌/超时/报错都忽略，下面的原有同步流程照走。
-    // 次数算在**落雪**名下（这条链路同步的目标就是落雪），别落到别的账号上。
-    // 详见 AwmcPlayCountStore.refreshQuietly。
-    AwmcPlayCountStore.refreshQuietly(qrCode, source: RefreshDataSource.luoxue);
-
     _isSyncing = true;
     _cancelled = false;
     _pollCount = 0;
 
     try {
-      // ===== Step 0: maimai Score Hub 认证（用 QR 码直接登录 maimai Score Hub，无需经过水鱼）=====
-      final hasToken = await _ensureAuthToken();
-      if (!hasToken) {
-        _log('── Step 0: maimai Score Hub 认证 ──');
-        _emit(
-            onProgress,
-            const SyncProgress(
-              stage: SyncStage.authenticating,
-              message: '正在验证二维码...',
-            ));
-
-        final loginData = await _loginByQr(qrCode);
-        if (loginData == null) {
-          _log('✗ maimai Score Hub 登录失败: loginData 为 null');
-          return SyncResult.failure('二维码无效或已过期，请重新扫描');
-        }
-
-        _authToken = loginData['token'] as String?;
-        _friendCode = (loginData['user'] as Map<String, dynamic>?)
-            ?.tryGet<String>('friendCode');
-
-        if (_authToken == null) {
-          _log('✗ maimai Score Hub 登录失败: token 为 null');
-          return SyncResult.failure('maimai Score Hub 认证失败，请稍后重试');
-        }
-
-        _log('✓ maimai Score Hub 认证成功');
+      // ===== Step 0: 复用 maimai Score Hub 登录态 =====
+      // 本次二维码只用于 Step 1 的 cabinet job；未登录时不能用它去登录，
+      // 否则同一张二维码会被两个上游请求使用（新限制下第二个请求会失败）。
+      if (!await _ensureAuthToken()) {
+        _log('✗ maimai Score Hub 未登录，拒绝复用本次二维码登录');
+        return SyncResult.failure(
+          '尚未登录 maimai Score Hub，请先完成登录后再使用线路2同步',
+          hubLoginRequired: true,
+        );
       }
 
       // ===== Step 0.5: 设置落雪 importToken（如果有新传入的）=====

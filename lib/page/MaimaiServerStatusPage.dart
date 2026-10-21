@@ -64,13 +64,26 @@ class _MaimaiServerStatusPageState extends State<MaimaiServerStatusPage> {
     return BackgroundPageScaffold(
       title: '服务器状态',
       contentPadding: EdgeInsets.only(
-        bottom: MediaQuery.paddingOf(context).bottom + 10,
+        bottom: MediaQuery.paddingOf(context).bottom,
       ),
-      child: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _errorMessage.isNotEmpty
-              ? _buildErrorState()
-              : _buildServerStatusContent(),
+      child: AnimatedSwitcher(
+        duration: MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 240),
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeInCubic,
+        child: _errorMessage.isNotEmpty
+            ? KeyedSubtree(
+                key: const ValueKey('server-status-error'),
+                child: _buildErrorState(),
+              )
+            : KeyedSubtree(
+                key: ValueKey(_isLoading && _serverStatus == null
+                    ? 'server-status-loading'
+                    : 'server-status-loaded'),
+                child: _buildServerStatusContent(),
+              ),
+      ),
     );
   }
 
@@ -98,7 +111,7 @@ class _MaimaiServerStatusPageState extends State<MaimaiServerStatusPage> {
 
   Widget _buildServerStatusContent() {
     final status = _serverStatus;
-    if (status == null) return const SizedBox.shrink();
+    if (status == null) return _buildLoadingContent();
 
     return RefreshIndicator(
       onRefresh: _loadServerStatus,
@@ -128,6 +141,69 @@ class _MaimaiServerStatusPageState extends State<MaimaiServerStatusPage> {
           ...status.services.map(_buildServiceCard),
         ],
       ),
+    );
+  }
+
+  Widget _buildLoadingContent() {
+    final scheme = Theme.of(context).colorScheme;
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+      children: [
+        TextButton.icon(
+          onPressed: null,
+          icon: const Icon(Icons.open_in_new_rounded, size: 17),
+          label: const Text('数据来源于 isMaiDown by Chongxi'),
+          style: TextButton.styleFrom(
+            alignment: Alignment.centerLeft,
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+          ),
+        ),
+        Container(
+          height: 168,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: scheme.outlineVariant),
+          ),
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(color: scheme.primary),
+                const SizedBox(height: 12),
+                Text('正在读取服务器状态…',
+                    style: TextStyle(color: scheme.onSurfaceVariant)),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          '服务状态',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+        ),
+        const SizedBox(height: 8),
+        for (var i = 0; i < 3; i++)
+          Container(
+            height: 72,
+            margin: const EdgeInsets.only(bottom: 8),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: scheme.outlineVariant),
+            ),
+            child: Center(
+              child: SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: scheme.primary,
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 

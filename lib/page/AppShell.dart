@@ -194,30 +194,42 @@ class _AppShellState extends State<AppShell> {
       // 这样才盖得住 push 出来的各个功能页（详见那边的注释）。
       body: Stack(
         children: [
-          GestureDetector(
-            behavior: HitTestBehavior.translucent,
-            onHorizontalDragStart: NavigationPreferences.instance.swipeEnabled
-                ? _onHorizontalDragStart
-                : null,
-            onHorizontalDragUpdate: NavigationPreferences.instance.swipeEnabled
-                ? _onHorizontalDragUpdate
-                : null,
-            onHorizontalDragEnd: NavigationPreferences.instance.swipeEnabled
-                ? _onHorizontalDragEnd
-                : null,
-            child: ThemeAwareBackground(
-              showDecorativeImage: _index == 0,
-              child: MainNavigationInsets(
-                bottom: navigationReserve,
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(
-                        maxWidth: AppDesignTokens.maxContentWidth),
-                    child: MainNavigationViewport(
-                      pages: _pages,
-                      index: _index,
-                      transitionEnabled:
-                          NavigationPreferences.instance.transitionEnabled,
+          // Stack 的普通子节点会收到宽松约束。自由窗口切换时，
+          // 这可能让背景和 Hub 内容拿不到有效尺寸，而下面的悬浮导航因为
+          // 是 Positioned 仍然正常显示，最终表现为「只剩导航栏、页面全黑」。
+          // 用 Positioned.fill 固定内容层跟随当前窗口尺寸。
+          Positioned.fill(
+            child: ColoredBox(
+              // 先铺主题底色，避免窗口调整或背景图异步加载时露出系统黑底。
+              color: scheme.surface,
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onHorizontalDragStart:
+                    NavigationPreferences.instance.swipeEnabled
+                        ? _onHorizontalDragStart
+                        : null,
+                onHorizontalDragUpdate:
+                    NavigationPreferences.instance.swipeEnabled
+                        ? _onHorizontalDragUpdate
+                        : null,
+                onHorizontalDragEnd: NavigationPreferences.instance.swipeEnabled
+                    ? _onHorizontalDragEnd
+                    : null,
+                child: ThemeAwareBackground(
+                  showDecorativeImage: _index == 0,
+                  child: MainNavigationInsets(
+                    bottom: navigationReserve,
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(
+                            maxWidth: AppDesignTokens.maxContentWidth),
+                        child: MainNavigationViewport(
+                          pages: _pages,
+                          index: _index,
+                          transitionEnabled:
+                              NavigationPreferences.instance.transitionEnabled,
+                        ),
+                      ),
                     ),
                   ),
                 ),

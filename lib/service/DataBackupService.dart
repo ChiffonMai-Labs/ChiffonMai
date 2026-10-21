@@ -39,6 +39,7 @@ class DataBackupService {
 
   /// 精确匹配的缓存键（可随时重新拉取，不属于用户数据）
   static const Set<String> _cacheExactKeys = {
+    'announcement_cache_v1',
     CacheKeyConstant.cachedSongs,
     CacheKeyConstant.cachedSongsTimestamp,
     CacheKeyConstant.maidataFullCache,

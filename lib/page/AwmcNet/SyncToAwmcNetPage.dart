@@ -9,6 +9,8 @@ import '../../utils/AppTheme.dart';
 import '../../utils/SecureCredentialStore.dart';
 import '../../utils/ExternalLaunchUtil.dart';
 import '../../widgets/QrQuickFillButtons.dart';
+import '../../widgets/QuickSyncOption.dart';
+
 import '../../widgets/SyncStatsFooter.dart';
 import '../../widgets/PostSyncRefreshOptions.dart';
 import '../../widgets/RefreshDataDialog.dart'
@@ -18,13 +20,17 @@ import '../../widgets/RefreshDataDialog.dart'
 class AwmcNetSyncInput {
   /// `SGWCMAID` 开头的机台登入二维码。
   final String qr;
+  final bool quickUpdate;
 
   /// 用户在 net.wmc.pub 设置页生成的成绩导入 Token。
   final String importToken;
   final RefreshDataRequest? refreshRequest;
 
   const AwmcNetSyncInput(
-      {required this.qr, required this.importToken, this.refreshRequest});
+      {required this.qr,
+      required this.importToken,
+      this.refreshRequest,
+      this.quickUpdate = false});
 }
 
 /// 打开「同步成绩到 AWMC NET」的**输入对话框**，返回用户填的内容（取消 = null）。
@@ -60,6 +66,8 @@ class SyncToAwmcNetPage extends StatefulWidget {
 }
 
 class _SyncToAwmcNetPageState extends State<SyncToAwmcNetPage> {
+  bool _quickUpdate = false;
+  int _credentialRevision = 0;
   final TextEditingController _qrController = TextEditingController();
   final TextEditingController _tokenController = TextEditingController();
 
@@ -89,6 +97,7 @@ class _SyncToAwmcNetPageState extends State<SyncToAwmcNetPage> {
     setState(() {
       _savedToken = (token != null && token.isNotEmpty) ? token : null;
       _tokenChecked = true;
+      _credentialRevision++;
     });
   }
 
@@ -104,6 +113,7 @@ class _SyncToAwmcNetPageState extends State<SyncToAwmcNetPage> {
     if (!mounted) return;
     setState(() {
       _savedToken = token;
+      _credentialRevision++;
       _tokenController.clear();
     });
     Fluttertoast.showToast(msg: '导入 Token 已保存');
@@ -113,7 +123,11 @@ class _SyncToAwmcNetPageState extends State<SyncToAwmcNetPage> {
     final prefs = await SharedPreferences.getInstance();
     await SecureCredentialStore.delete(CacheKeyConstant.awmcNetImportToken);
     if (!mounted) return;
-    setState(() => _savedToken = null);
+    setState(() {
+      _savedToken = null;
+      _quickUpdate = false;
+      _credentialRevision++;
+    });
   }
 
   /// 校验 + 落盘 Token，然后**把输入交回调用方并关闭对话框**。
@@ -122,7 +136,7 @@ class _SyncToAwmcNetPageState extends State<SyncToAwmcNetPage> {
   /// `AwmcNetSyncFlow.run` 在对话框关闭后跑。
   Future<void> _submit() async {
     final qr = _qrController.text.trim();
-    if (qr.isEmpty) {
+    if (!_quickUpdate && qr.isEmpty) {
       Fluttertoast.showToast(msg: '请先粘贴或扫描机台登入二维码（SGWCMAID 开头）');
       return;
     }
@@ -145,6 +159,7 @@ class _SyncToAwmcNetPageState extends State<SyncToAwmcNetPage> {
       qr: qr,
       importToken: token,
       refreshRequest: refreshRequest,
+      quickUpdate: _quickUpdate,
     ));
   }
 
@@ -175,37 +190,44 @@ class _SyncToAwmcNetPageState extends State<SyncToAwmcNetPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            // ── 二维码 ──
-            Text(
-              '在「舞萌|中二」公众号请求登入二维码并打开，再粘贴到下方；'
-              '也可直接用「扫描」或「从图片识别」。',
-              style: TextStyle(
-                  fontSize: 13, color: AppColors.greyHint(brightness)),
+            QuickSyncOption(
+              platforms: const {SyncPlatform.awmc},
+              credentialRevision: _credentialRevision,
+              onChanged: (enabled) => setState(() => _quickUpdate = enabled),
             ),
-            const SizedBox(height: 12),
-            QrQuickFillButtons(controller: _qrController),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _qrController,
-              maxLines: 3,
-              decoration: InputDecoration(
-                hintText: '舞萌DX | 中二节奏 登入二维码（SGWCMAID...）',
-                hintStyle: TextStyle(
-                    fontSize: 13,
-                    color: AppColors.greyHint(brightness, shade: 400)),
-                border:
-                    OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                contentPadding: const EdgeInsets.all(12),
+            if (!_quickUpdate) ...[
+              // ── 二维码 ──
+              Text(
+                '在「舞萌|中二」公众号请求登入二维码并打开，再粘贴到下方；'
+                '也可直接用「扫描」或「从图片识别」。',
+                style: TextStyle(
+                    fontSize: 13, color: AppColors.greyHint(brightness)),
               ),
-            ),
-            const SizedBox(height: 16),
+              const SizedBox(height: 12),
+              QrQuickFillButtons(controller: _qrController),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _qrController,
+                maxLines: 3,
+                decoration: InputDecoration(
+                  hintText: '舞萌DX | 中二节奏 登入二维码（SGWCMAID...）',
+                  hintStyle: TextStyle(
+                      fontSize: 13,
+                      color: AppColors.greyHint(brightness, shade: 400)),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                  contentPadding: const EdgeInsets.all(12),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
 
             // ── 导入 Token ──
             if (_tokenChecked) _buildTokenSection(brightness, scheme),
 
             const SizedBox(height: 12),
             // 覆盖式写入这件事必须**在点开始之前**说：等导入完了再提醒就晚了
-            _buildOverwriteWarning(brightness),
+            if (!_quickUpdate) _buildOverwriteWarning(brightness),
 
             PostSyncRefreshOptions(
               key: _refreshKey,

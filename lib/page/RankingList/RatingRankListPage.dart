@@ -235,11 +235,11 @@ class _RatingRankListPageState extends State<RatingRankListPage>
       List<RankItem> items;
       if (source == null) {
         // 第 0 个 Tab 是跨源总榜
-        items = await RatingRankListService.getTotalRankings(limit: 100);
+        items = await RatingRankListService.getTotalRankings(limit: 500);
       } else {
         // 其余 Tab 按 _tabSources 取对应数据源的榜（水鱼 / 落雪 / AWMC NET）
         items =
-            await RatingRankListService.getSourceRankings(source, limit: 100);
+            await RatingRankListService.getSourceRankings(source, limit: 500);
       }
 
       if (!mounted || generation != _requestGeneration) return;
@@ -254,7 +254,7 @@ class _RatingRankListPageState extends State<RatingRankListPage>
       if (!mounted || generation != _requestGeneration) return;
 
       setState(() {
-        _rankList = items.take(100).toList();
+        _rankList = items.take(500).toList();
         _currentUserRankItem = currentUserRankItem;
       });
     } catch (e) {

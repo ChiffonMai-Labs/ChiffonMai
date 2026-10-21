@@ -14,16 +14,18 @@ import '../utils/SyncRouteNotifier.dart';
 import '../utils/ExternalLaunchUtil.dart';
 import '../utils/SecureCredentialStore.dart';
 import 'ErrorMessageDialog.dart';
-import 'QrQuickFillButtons.dart';
+import 'QuickSyncOption.dart';
 
 /// 已确认具备凭据的同步目标；顺序由执行器固定为水鱼 → 落雪 → AWMC NET。
 class MultiScoreSyncInput {
   final String qrCode;
+  final bool quickUpdate;
   final Set<SyncPlatform> platforms;
   final Map<SyncPlatform, int> routes;
 
   MultiScoreSyncInput({
     required this.qrCode,
+    this.quickUpdate = false,
     required Set<SyncPlatform> platforms,
     Map<SyncPlatform, int> routes = const {},
   })  : platforms = Set.unmodifiable(platforms),
@@ -32,6 +34,11 @@ class MultiScoreSyncInput {
   /// 旧调用未传线路时沿用原来的线路2行为。
   int routeOf(SyncPlatform platform) =>
       routes[platform] ?? SyncRouteStore.routeScoreHub;
+
+  bool quickUpdateFor(SyncPlatform platform) =>
+      quickUpdate &&
+      (platform == SyncPlatform.awmc ||
+          routeOf(platform) == SyncRouteStore.routeAwmc);
 }
 
 Future<MultiScoreSyncInput?> showMultiScoreSyncInputDialog(
@@ -57,7 +64,6 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
     SyncPlatform.awmc: CacheKeyConstant.awmcNetImportToken,
   };
   static final _qqPattern = RegExp(r'^\d{5,12}$');
-  final _qrController = TextEditingController();
   final _qqController = TextEditingController();
   final _tokenControllers = {
     for (final platform in SyncPlatform.values)
@@ -72,11 +78,41 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
     SyncPlatform.luoXue: SyncRouteStore.routeScoreHub,
   };
   String _qq = '';
-  String? _qrError;
   String? _selectionError;
   String? _loadError;
   bool _loading = true;
+  bool _quickUpdate = false;
+  int _quickRevision = 0;
+  final _routesBeforeQuick = <SyncPlatform, int>{};
+  Set<SyncPlatform> get _quickPlatforms => _selected
+      .where((platform) =>
+          platform == SyncPlatform.awmc ||
+          _routes[platform] == SyncRouteStore.routeAwmc)
+      .toSet();
   SyncPlatform? _saving;
+
+  void _setQuickUpdate(bool enabled) {
+    if (_quickUpdate == enabled &&
+        (!enabled ||
+            _routes.values
+                .every((route) => route == SyncRouteStore.routeAwmc))) {
+      return;
+    }
+    setState(() {
+      if (enabled) {
+        _routesBeforeQuick
+          ..clear()
+          ..addAll(_routes);
+        _routes.updateAll((_, __) => SyncRouteStore.routeAwmc);
+      } else if (_routesBeforeQuick.isNotEmpty) {
+        _routes
+          ..clear()
+          ..addAll(_routesBeforeQuick);
+        _routesBeforeQuick.clear();
+      }
+      _quickUpdate = enabled;
+    });
+  }
 
   @override
   void initState() {
@@ -86,7 +122,6 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
 
   @override
   void dispose() {
-    _qrController.dispose();
     _qqController.dispose();
     for (final controller in _tokenControllers.values) {
       controller.dispose();
@@ -201,17 +236,18 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
   }
 
   void _submit() {
-    final qr = _qrController.text.trim();
     final targets = _selected.where(_ready).toSet();
     setState(() {
-      _qrError = qr.startsWith('SGWCMAID') ? null : '请填写 SGWCMAID 开头的机台登入二维码';
       _selectionError = targets.isEmpty ? '请至少选择一个已具备凭据的数据源' : null;
     });
-    if (_qrError != null || _selectionError != null) return;
+    if (_selectionError != null) return;
     Navigator.pop(
         context,
         MultiScoreSyncInput(
-          qrCode: qr,
+          // 普通同步的二维码改为执行时逐个目标询问：一张二维码只能处理
+          // 一个请求，不能在这里提前收集后复用给多个目标。
+          qrCode: '',
+          quickUpdate: _quickUpdate,
           platforms: targets,
           routes: _routes,
         ));
@@ -219,7 +255,7 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
 
   Widget _buildRouteSelector(SyncPlatform platform) {
     final scheme = Theme.of(context).colorScheme;
-    final route = _routes[platform]!;
+    final route = _quickUpdate ? SyncRouteStore.routeAwmc : _routes[platform]!;
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
       child: Column(
@@ -232,9 +268,12 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
             ],
             value: route,
             label: (value) => value == SyncRouteStore.routeAwmc ? '线路1' : '线路2',
-            onChanged: _saving == null
+            onChanged: !_quickUpdate && _saving == null
                 ? (next) {
-                    setState(() => _routes[platform] = next);
+                    setState(() {
+                      _routes[platform] = next;
+                      _quickRevision++;
+                    });
                     unawaited(
                         SyncRouteNotifier.instance.setRoute(platform, next));
                   }
@@ -247,6 +286,13 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
             '当前：${route == SyncRouteStore.routeAwmc ? '线路1' : '线路2'} · ${SyncRouteStore.routeName(route)}',
             style: TextStyle(fontSize: 12, color: scheme.primary),
           )),
+          if (_quickUpdate)
+            Padding(
+              padding: const EdgeInsets.only(top: 5),
+              child: Text('快速同步已固定使用线路1',
+                  style:
+                      TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+            ),
         ],
       ),
     );
@@ -297,12 +343,14 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
               _status('QQ 号', _qqPattern.hasMatch(_qq)),
           ]),
           onChanged: ready && _saving == null
-              ? (value) => setState(() {
+              ? (value) {
+                  setState(() {
                     value == true
                         ? _selected.add(platform)
                         : _selected.remove(platform);
                     _selectionError = null;
-                  })
+                  });
+                }
               : null,
         ),
         if (platform != SyncPlatform.awmc) _buildRouteSelector(platform),
@@ -397,24 +445,17 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Text('输入一次机台二维码，选择要同步的数据源。'),
-                  const SizedBox(height: 12),
-                  QrQuickFillButtons(
-                      controller: _qrController, enabled: _saving == null),
-                  const SizedBox(height: 12),
-                  TextField(
-                    key: const ValueKey('multi-sync-qr'),
-                    controller: _qrController,
-                    enabled: _saving == null,
-                    maxLines: 3,
-                    decoration: InputDecoration(
-                      hintText: '舞萌DX | 中二节奏 登入二维码（SGWCMAID...）',
-                      errorText: _qrError,
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8)),
+                  if (_quickPlatforms.isNotEmpty)
+                    QuickSyncOption(
+                      key: ValueKey(_quickRevision),
+                      platforms: _quickPlatforms,
+                      onChanged: _setQuickUpdate,
                     ),
-                  ),
-                  const SizedBox(height: 16),
+                  if (!_quickUpdate) ...[
+                    const Text('普通同步会在每个目标开始前分别要求一张新的机台二维码；'
+                        '同一张二维码不会用于第二个请求。快速同步不需要二维码。'),
+                    const SizedBox(height: 12),
+                  ],
                   const Text('同步数据源',
                       style: TextStyle(fontWeight: FontWeight.w600)),
                   const Text('凭据存在的端默认勾选；水鱼 → 落雪 → AWMC NET 依次同步。',
@@ -439,7 +480,8 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
                     Text(_selectionError!,
                         style: TextStyle(
                             color: Theme.of(context).colorScheme.error)),
-                  if (_selected.contains(SyncPlatform.awmc)) ...[
+                  if (!_quickUpdate &&
+                      _selected.contains(SyncPlatform.awmc)) ...[
                     const SizedBox(height: 12),
                     Text('AWMC NET 将以机台成绩为准覆盖已有对应成绩。',
                         style: TextStyle(

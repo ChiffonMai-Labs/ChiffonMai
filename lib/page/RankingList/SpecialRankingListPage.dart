@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import '../../widgets/AnimatedChoiceBar.dart';
 import 'package:flutter/material.dart';
 import '../../widgets/EmptyState.dart';
@@ -451,7 +452,7 @@ class _SpecialRankingListPageState extends State<SpecialRankingListPage> {
       textColor = brightness == Brightness.dark ? Colors.red[300]! : Colors.red;
     } else {
       switch (difficultyIndex) {
-        case 0:
+        case ChartDifficulty.basic:
           bgColor = brightness == Brightness.dark
               ? Colors.green.withValues(alpha: 0.2)
               : Colors.green.shade100;
@@ -459,7 +460,7 @@ class _SpecialRankingListPageState extends State<SpecialRankingListPage> {
               ? Colors.green[300]!
               : Colors.green.shade700;
           break;
-        case 1:
+        case ChartDifficulty.advanced:
           bgColor = brightness == Brightness.dark
               ? Colors.orange.withValues(alpha: 0.2)
               : Colors.orange.shade100;
@@ -467,14 +468,14 @@ class _SpecialRankingListPageState extends State<SpecialRankingListPage> {
               ? Colors.orange[300]!
               : Colors.orange.shade700;
           break;
-        case 2:
+        case ChartDifficulty.expert:
           bgColor = brightness == Brightness.dark
               ? Colors.red.withValues(alpha: 0.2)
               : Colors.red.shade100;
           textColor =
               brightness == Brightness.dark ? Colors.red[300]! : Colors.red;
           break;
-        case 3:
+        case ChartDifficulty.master:
           bgColor = brightness == Brightness.dark
               ? Colors.purple.withValues(alpha: 0.2)
               : Colors.purple.shade100;
@@ -482,7 +483,7 @@ class _SpecialRankingListPageState extends State<SpecialRankingListPage> {
               ? Colors.purple[200]!
               : Colors.purple.shade700;
           break;
-        case 4:
+        case ChartDifficulty.reMaster:
           bgColor = brightness == Brightness.dark
               ? Colors.purple.withValues(alpha: 0.2)
               : Colors.purple.shade100;
@@ -524,7 +525,7 @@ class _SpecialRankingListPageState extends State<SpecialRankingListPage> {
 
     return BackgroundPageScaffold(
       title: '特殊排行榜',
-      contentPadding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom + 10),
+      contentPadding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
       child: Column(children: [
 // 排行榜类型选择 + 刷新行
               Padding(

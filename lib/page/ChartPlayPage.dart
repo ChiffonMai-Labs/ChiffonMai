@@ -8,11 +8,10 @@ import 'package:simai_flutter/simai_flutter.dart';
 import 'package:my_first_flutter_app/service/ChartPlaySettingsStore.dart';
 import 'package:my_first_flutter_app/service/LoadingTipsStore.dart';
 import 'package:my_first_flutter_app/service/SongPlayService.dart';
+import 'package:my_first_flutter_app/service/SongMediaCache.dart';
 import 'package:my_first_flutter_app/api/ApiUrls.dart';
 import 'package:my_first_flutter_app/utils/CoverUtil.dart';
-import 'package:my_first_flutter_app/utils/PlayerThemeScope.dart';
 import 'package:my_first_flutter_app/utils/RefreshRateUtil.dart';
-import 'package:my_first_flutter_app/utils/ApiClient.dart';
 import 'package:my_first_flutter_app/widgets/SmoothLinearProgressIndicator.dart';
 import 'package:my_first_flutter_app/widgets/MarqueeText.dart';
 
@@ -25,6 +24,9 @@ class ChartPlayPage extends StatefulWidget {
   final String? bgImagePath;
   final String? audioFilePath;
 
+  /// 是否在创建播放器时查找并加载音频。默认保持原有行为。
+  final bool loadAudio;
+
   const ChartPlayPage({
     super.key,
     required this.maidataContent,
@@ -34,6 +36,7 @@ class ChartPlayPage extends StatefulWidget {
     this.selectedInote,
     this.bgImagePath,
     this.audioFilePath,
+    this.loadAudio = true,
   });
 
   @override
@@ -69,9 +72,6 @@ class _ChartPlayPageState extends State<ChartPlayPage>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    // 播放页存活期间强制深色主题：simai_flutter 的游玩/导出页 Scaffold 没有背景色，
-    // 浅色主题下 push 转入时会闪一帧浅色。
-    PlayerThemeScope.forceDarkTheme.value = true;
     // 谱面播放对帧率敏感：Flutter 引擎不会主动向系统要高刷，
     // 不投这一票就会一直在「几秒 120 → 掉 60」之间反复。
     RefreshRateUtil.requestMax();
@@ -85,7 +85,8 @@ class _ChartPlayPageState extends State<ChartPlayPage>
     // 短期心跳仅输出到调试日志：计时器也停住时，说明 Dart 主线程被阻塞，
     // 并非单纯某个资源 Future 没有完成。最多记录 20 秒，不持续轮询。
     final diagnosticWatch = Stopwatch()..start();
-    _loadingDiagnosticTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
+    _loadingDiagnosticTimer =
+        Timer.periodic(const Duration(seconds: 5), (timer) {
       debugPrint(
         '[ChartPlay] heartbeat elapsed=${diagnosticWatch.elapsedMilliseconds}ms '
         'controller=${_controller != null}',
@@ -197,20 +198,25 @@ class _ChartPlayPageState extends State<ChartPlayPage>
     if (!mounted || _isLeaving) return;
     debugPrint('[ChartPlay] settings-ready');
 
-    // 音源是可选资源，不能让曲库接口或音源服务阻塞谱面播放器的创建。
-    // 猜歌页面本身就是无声渲染；播放页在音源不可用时也应先显示谱面。
-    _ignoreAudioLookupResult = false;
-    _setLoadingStatus('正在查找音频文件…');
-    try {
-      await _loadAudioUrl().timeout(const Duration(seconds: 8));
-    } on TimeoutException {
-      debugPrint('加载落雪音源索引超时，改试 AWMC 音源');
-      _audioUrl = ApiUrls.wmcAudioUrl(widget.songId);
-      _audioUrls = <String>[_audioUrl!];
-    } catch (e) {
-      debugPrint('加载落雪音源索引失败，改试 AWMC 音源: $e');
-      _audioUrl = ApiUrls.wmcAudioUrl(widget.songId);
-      _audioUrls = <String>[_audioUrl!];
+    if (widget.loadAudio) {
+      // 音源是可选资源，不能让曲库接口或音源服务阻塞谱面播放器的创建。
+      _ignoreAudioLookupResult = false;
+      _setLoadingStatus('正在查找音频文件…');
+      try {
+        await _loadAudioUrl().timeout(const Duration(seconds: 8));
+      } on TimeoutException {
+        debugPrint('加载落雪音源索引超时，改试 AWMC 音源');
+        _audioUrl = ApiUrls.wmcAudioUrl(widget.songId);
+        _audioUrls = <String>[_audioUrl!];
+      } catch (e) {
+        debugPrint('加载落雪音源索引失败，改试 AWMC 音源: $e');
+        _audioUrl = ApiUrls.wmcAudioUrl(widget.songId);
+        _audioUrls = <String>[_audioUrl!];
+      }
+    } else {
+      _audioUrl = null;
+      _audioUrls = const <String>[];
+      debugPrint('[ChartPlay] audio loading disabled by user');
     }
 
     if (!mounted || _isLeaving) return;
@@ -273,12 +279,14 @@ class _ChartPlayPageState extends State<ChartPlayPage>
         'timings=${chart.timingChanges.length}',
       );
 
-      // 确定音频来源：本地文件直接使用，远程URL需下载到临时文件
+      // 确定音频来源：本地文件直接使用，远程音源优先读取持久缓存。
       String? audioPath;
-      if (_audioUrls.isNotEmpty) {
+      if (widget.loadAudio && widget.audioFilePath != null) {
+        audioPath = widget.audioFilePath;
+      } else if (widget.loadAudio && _audioUrls.isNotEmpty) {
         for (final url in _audioUrls) {
           if (url.startsWith('http://') || url.startsWith('https://')) {
-            audioPath = await _downloadAudioToTemp(url);
+            audioPath = await _downloadAudioToCache(url);
           } else {
             audioPath = url;
           }
@@ -397,6 +405,16 @@ class _ChartPlayPageState extends State<ChartPlayPage>
       return;
     }
 
+    // 在查询音源索引之前读缓存，已有音源时离线也能进入播放页。
+    final cached = await _findCachedAudio();
+    if (cached != null) {
+      if (_ignoreAudioLookupResult || !mounted || _isLeaving) return;
+      _audioUrl = cached.path;
+      _audioUrls = <String>[cached.path];
+      _setLoadingStatus('已从本地缓存读取音频', progress: 1);
+      return;
+    }
+
     // 第一站：落雪音源（按 songId / title+type 找 luoXue song id）。
     try {
       final songPlayService = SongPlayService();
@@ -463,87 +481,26 @@ class _ChartPlayPageState extends State<ChartPlayPage>
     }
   }
 
-  Future<String?> _downloadAudioToTemp(String url) async {
-    _setLoadingStatus('正在下载音频文件…');
+  Future<File?> _findCachedAudio() =>
+      SongMediaCache.instance.existingAudio(widget.songId);
+
+  Future<String?> _downloadAudioToCache(String url) async {
+    if (!mounted || _isLeaving) return null;
     try {
-      final response = await ApiClient.getStream(Uri.parse(url));
-      if (response.statusCode != 200) {
-        debugPrint("Failed to download audio: ${response.statusCode}");
-        await response.stream.drain<void>();
-        return null;
-      }
-      final contentType = response.headers['content-type']?.toLowerCase();
-      if (contentType != null &&
-          (contentType.contains('text/html') ||
-              contentType.contains('application/json'))) {
-        debugPrint('音源响应不是音频文件: $contentType');
-        await response.stream.drain<void>();
-        return null;
-      }
-      final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/chart_audio_${widget.songId}.mp3');
-      final part = File('${file.path}.part');
-      if (await part.exists()) await part.delete();
-      final sink = part.openWrite();
-      final compressed = response.headers['content-encoding'];
-      final total = compressed == null || compressed == 'identity'
-          ? response.contentLength
-          : null;
-      var received = 0;
-      final prefix = <int>[];
-      var validated = false;
-      final stopwatch = Stopwatch()..start();
-      try {
-        await for (final chunk
-            in response.stream.timeout(const Duration(seconds: 30))) {
-          received += chunk.length;
-          if (!validated) {
-            prefix.addAll(chunk);
-            if (prefix.length >= 3) {
-              final isId3 = prefix[0] == 0x49 &&
-                  prefix[1] == 0x44 &&
-                  prefix[2] == 0x33;
-              final isFrame = prefix[0] == 0xff &&
-                  (prefix[1] & 0xe0) == 0xe0;
-              if (!isId3 && !isFrame) {
-                throw const FormatException('音源响应不是有效的 MP3');
-              }
-              validated = true;
-              sink.add(prefix);
-            }
-          } else {
-            sink.add(chunk);
-          }
-          final elapsed = stopwatch.elapsedMicroseconds / 1000000;
-          _setLoadingStatus(
-            '正在下载音频文件…',
-            progress: total != null && total > 0
-                ? (received / total).clamp(0.0, 1.0)
-                : null,
-            speed: elapsed > 0 ? received / elapsed : 0,
-          );
-        }
-        await sink.close();
-      } catch (_) {
-        await sink.close();
-        rethrow;
-      }
-      if (!validated || received < 1024) {
-        debugPrint('音源文件过小或不完整: $received bytes');
-        await part.delete();
-        return null;
-      }
-      if (await file.exists()) await file.delete();
-      await part.rename(file.path);
-      _setLoadingStatus('音频文件准备完成', progress: 1);
-      debugPrint("Downloaded audio to: ${file.path}");
+      final file = await SongMediaCache.instance.ensureAudio(
+        widget.songId,
+        urls: [url],
+        onProgress: (progress, speed, status) {
+          if (!mounted || _isLeaving) return;
+          _setLoadingStatus(status, progress: progress, speed: speed);
+        },
+      );
       return file.path;
-    } catch (e) {
-      debugPrint("Error downloading audio: $e");
+    } catch (error) {
+      debugPrint('谱面音源准备失败: $error');
       return null;
     }
   }
-
   Future<void> _loadFallbackChart() async {
     if (!mounted || _isLeaving) return;
     const sampleChart = """
@@ -564,13 +521,15 @@ E
 
       // 确定音频来源
       String? audioPath;
-      for (final url in _audioUrls) {
-        if (url.startsWith('http://') || url.startsWith('https://')) {
-          audioPath = await _downloadAudioToTemp(url);
-        } else {
-          audioPath = url;
+      if (widget.loadAudio) {
+        for (final url in _audioUrls) {
+          if (url.startsWith('http://') || url.startsWith('https://')) {
+            audioPath = await _downloadAudioToCache(url);
+          } else {
+            audioPath = url;
+          }
+          if (audioPath != null) break;
         }
-        if (audioPath != null) break;
       }
 
       late final SimaiPlayerController controller;
@@ -603,8 +562,6 @@ E
     _loadingTipTimer?.cancel();
     debugPrint('[ChartPlay] dispose');
     WidgetsBinding.instance.removeObserver(this);
-    // 离开播放页恢复 App 原本的主题
-    PlayerThemeScope.forceDarkTheme.value = false;
     // 离开播放页就把刷新率交还系统，避免整个 App 一直顶着高刷耗电
     RefreshRateUtil.restore();
     // 解除 initState 里的竖屏锁，让其它页面（视频播放等）能正常横屏
@@ -680,7 +637,8 @@ E
               if (speedText.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 Text(speedText,
-                    style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                    style:
+                        const TextStyle(color: Colors.white70, fontSize: 12)),
               ],
               if (_loadingTip.isNotEmpty) ...[
                 const SizedBox(height: 22),

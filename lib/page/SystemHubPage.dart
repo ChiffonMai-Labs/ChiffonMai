@@ -6,16 +6,17 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'HubComponents.dart';
 import 'SettingsPage.dart';
 import 'DataBackupPage.dart';
+import 'AutoSyncPage.dart';
 import 'MaimaiServerStatusPage.dart';
 import 'RecentCommentsPage.dart';
 import 'RecentRatingsPage.dart';
 import 'AboutAppPage.dart';
 import 'Awmc/AwmcConsolePage.dart';
+import 'Awmc/AwmcPlayCountSyncFlow.dart';
 import 'SupportDeveloperPage.dart';
 import 'FriendLinksPage.dart';
 import 'LoadingTipsPage.dart';
 import '../manager/LZYCheckUpdateManager.dart';
-import '../manager/MaidataManager.dart';
 import '../manager/DivingFishProbeManager.dart';
 import '../manager/DivingFish/ProberException.dart';
 import '../manager/LuoXue/CollectionsManager.dart';
@@ -28,6 +29,7 @@ import '../utils/RefreshErrorPresenter.dart';
 import '../utils/UpdateNotifier.dart';
 import '../widgets/SyncRouteFooter.dart';
 import '../widgets/SyncStatsFooter.dart';
+import '../widgets/AutoSyncStatusFooter.dart';
 import '../widgets/SyncFlowMixin.dart';
 import '../widgets/SyncScoreDialogs.dart' show SyncScoreDialogs, SyncCallbacks;
 import '../widgets/CollectionPickerSheet.dart';
@@ -54,6 +56,8 @@ import '../utils/ExternalLaunchUtil.dart';
 import '../utils/ExportPathUtil.dart';
 import '../service/CommunityAvatarStore.dart';
 import '../widgets/ErrorMessageDialog.dart';
+import '../widgets/CacheManagementDialog.dart';
+import '../widgets/ConfettiEffect.dart';
 import '../entity/FeatureModels.dart';
 
 class SystemHubPage extends StatefulWidget {
@@ -64,12 +68,6 @@ class SystemHubPage extends StatefulWidget {
   @override
   State<SystemHubPage> createState() => SystemHubPageState();
 }
-
-/// 「maidata 管理」对话框的返回值：用户选了哪个动作。
-///
-/// 只有「重新拉取全集」需要跳出对话框继续跑（进度打在按钮上）；
-/// 「清除兜底缓存」是瞬时操作，留在对话框内完成，不产生返回值。
-enum _MaidataManageAction { startRefresh }
 
 class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
   /// 首页搜索调用系统 Hub 的原有入口，沿用同一份进度与互斥状态。
@@ -82,12 +80,17 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
       await _loginMaimaiHub();
       return;
     }
+    if (item.title == '自动同步') {
+      FocusManager.instance.primaryFocus?.unfocus();
+      _open(context, const AutoSyncPage());
+      return;
+    }
     if (item.title == '打印日志') {
       await _exportLogs();
       return;
     }
-    if (item.title == 'maidata 管理') {
-      await _showMaidataManageDialog();
+    if (item.title == '缓存管理') {
+      await _showCacheManagementDialog();
       return;
     }
     if (item.title == '刷新数据（高级）') {
@@ -120,20 +123,18 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
   bool _refreshingAdvanced = false;
   String _refreshAdvancedText = '';
   double _refreshAdvancedProgress = 0;
-  bool _refreshingMaidata = false;
-  int _maidataProgressCompleted = 0;
-  int _maidataProgressTotal = 0;
-  String _maidataProgressText = '';
-
+  bool _refreshingPlayCounts = false;
+  String _refreshPlayCountsText = '';
   // 三个同步入口的进行状态由 SyncFlowMixin 持有（同步按钮上进度 + 互斥）。
 
   /// 任意长任务进行中：用于禁用其它入口，避免并发刷新互相踩缓存
   @override
   bool get anyBusy =>
+      _loggingOut ||
       _refreshing ||
       _refreshingAdvanced ||
+      _refreshingPlayCounts ||
       !syncFlowsIdle ||
-      _refreshingMaidata ||
       HomeRefreshNotifier.isBusy.value;
 
   @override
@@ -391,6 +392,7 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
         });
       });
       if (!mounted) return;
+      ConfettiEffect.show(context);
       Fluttertoast.showToast(msg: '数据刷新成功!');
     } on ProberException catch (e) {
       // 未授权 → 直接拉起授权页；其余按统一文案提示。
@@ -432,6 +434,7 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
         },
       );
       if (!mounted) return;
+      ConfettiEffect.show(context);
       Fluttertoast.showToast(msg: '数据刷新成功!');
     } on ProberException catch (e) {
       // 未授权 → 直接拉起授权页；其余按统一文案提示。
@@ -449,140 +452,45 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
     }
   }
 
-  /// maidata 管理对话框：重新拉取 chiffonmai.cloud 全集 + 清除 wmc.pub 兜底缓存。
-  ///
-  /// 对话框**只负责收集意图**并列出当前两块缓存的用量；用户选了「重新拉取」
-  /// 之后它立刻关闭，进度改由 [_refreshMaidata] 打在「maidata 管理」按钮上
-  /// —— 与同页的 `_refreshData` / `_advancedRefreshData` 同一套约定。
-  /// 「清除兜底缓存」是瞬时操作，仍留在对话框里（也就还能在弹窗内提示结果）。
-  Future<void> _showMaidataManageDialog() async {
-    if (anyBusy) return;
-    final manager = MaidataManager();
-    await manager.initialize();
-    if (!mounted) return;
-
-    final isOnline = await ConnectivityService().hasConnection();
-    if (!mounted) return;
-    if (!isOnline) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('当前无网络连接，请联网后重试')),
-      );
-      return;
+  Future<void> _showCacheManagementDialog() {
+    if (anyBusy) {
+      Fluttertoast.showToast(msg: '正在处理其它任务，请稍候');
+      return Future<void>.value();
     }
-
-    final action = await showDialog<_MaidataManageAction>(
-      context: context,
-      builder: (ctx) {
-        final cachedCount = manager.cachedCount;
-        final wmcCount = manager.wmcFallbackCacheCount;
-
-        return AlertDialog(
-          title: const Text('maidata 管理'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _maidataStatRow(
-                label: '全量缓存（chiffonmai.cloud）',
-                value: '$cachedCount 首',
-              ),
-              const SizedBox(height: 4),
-              _maidataStatRow(
-                label: 'wmc.pub 兜底缓存（内存）',
-                value: '$wmcCount 首',
-              ),
-              const SizedBox(height: 16),
-              FilledButton.icon(
-                icon: const Icon(Icons.cloud_download_outlined),
-                label: const Text('从 chiffonmai.cloud 重新拉取全集'),
-                onPressed: () => Navigator.of(ctx).pop(
-                  _MaidataManageAction.startRefresh,
-                ),
-              ),
-              const SizedBox(height: 8),
-              OutlinedButton.icon(
-                icon: const Icon(Icons.cleaning_services_outlined),
-                label: const Text('清除 wmc.pub 兜底缓存'),
-                onPressed: wmcCount == 0
-                    ? null
-                    : () {
-                        manager.clearWmcFallbackCache();
-                        ScaffoldMessenger.of(ctx).showSnackBar(
-                          const SnackBar(
-                            content: Text('已清除 wmc.pub 兜底缓存'),
-                          ),
-                        );
-                      },
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('关闭'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (action != _MaidataManageAction.startRefresh || !mounted) return;
-    await _refreshMaidata(manager);
+    return showCacheManagementDialog(context);
   }
 
-  /// 重新拉取全量 maidata，进度显示在「maidata 管理」按钮上（含 `current / total`）。
-  Future<void> _refreshMaidata(MaidataManager manager) async {
+  /// 独立读取机台游玩次数；普通成绩同步不再复用二维码调用这个接口。
+  Future<void> _refreshPlayCounts() async {
+    if (anyBusy) return;
     setState(() {
-      _refreshingMaidata = true;
-      _maidataProgressCompleted = 0;
-      _maidataProgressTotal = 0;
-      _maidataProgressText = '正在从 chiffonmai.cloud 拉取...';
+      _refreshingPlayCounts = true;
+      _refreshPlayCountsText = '准备读取机台游玩次数…';
     });
     try {
-      await manager.fetchAndCacheFullMaidata(
-        onProgress: (current, total) {
-          if (!mounted) return;
-          setState(() {
-            _maidataProgressCompleted = current;
-            _maidataProgressTotal = total;
-            // 总数未定时（各流派文件夹列表还没回齐）只报已发现数量。
-            _maidataProgressText =
-                total > 0 ? '$current / $total' : '已发现 $current 首，正在统计总量...';
-          });
+      final outcome = await AwmcPlayCountSyncFlow.run(
+        context,
+        onBusy: (text) {
+          if (mounted) setState(() => _refreshPlayCountsText = text);
+        },
+        onIdle: () {
+          if (mounted) setState(() => _refreshPlayCountsText = '');
         },
       );
-      if (!mounted) return;
-      Fluttertoast.showToast(msg: 'maidata 刷新完成');
-    } catch (e) {
-      debugPrint('刷新 maidata 失败：$e');
-      if (!mounted) return;
-      await showErrorMessageDialog(context, message: '刷新失败：$e');
+      if (!mounted || outcome.cancelled) return;
+      Fluttertoast.showToast(
+        msg: outcome.ok
+            ? '游玩次数已更新（${outcome.cachedRecords} 条）'
+            : '游玩次数读取失败：${outcome.message ?? '未知错误'}',
+      );
     } finally {
       if (mounted) {
         setState(() {
-          _refreshingMaidata = false;
-          _maidataProgressCompleted = 0;
-          _maidataProgressTotal = 0;
-          _maidataProgressText = '';
+          _refreshingPlayCounts = false;
+          _refreshPlayCountsText = '';
         });
       }
     }
-  }
-
-  Widget _maidataStatRow({required String label, required String value}) {
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            label,
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
-      ],
-    );
   }
 
   Future<void> _checkUpdate() async {
@@ -698,6 +606,27 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
     }
   }
 
+  String get _busyReason {
+    final task = syncingDivingFish
+        ? '同步成绩到水鱼'
+        : syncingLuoXue
+            ? '同步成绩到落雪'
+            : syncingAwmcNet
+                ? '同步成绩到 AWMC NET'
+                : syncingMulti
+                    ? '多端同步'
+                    : _refreshingAdvanced
+                        ? '高级数据刷新'
+                        : _refreshingPlayCounts
+                            ? '读取游玩次数'
+                            : _loggingOut
+                                ? '退出账号'
+                                : _refreshing
+                                    ? '数据刷新'
+                                    : '首页数据刷新';
+    return '$task正在进行中，不能使用本功能';
+  }
+
   @override
   Widget build(BuildContext context) {
     // 监听共享收藏列表 + 共享登录态：
@@ -727,8 +656,8 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
                 title: '数据与账号',
                 icon: Icons.sync_rounded,
                 subtitle: 'maimai Score Hub 登录 · 登录水鱼 · 同步账号 · 数据备份 · 刷新缓存',
-                // 10 个入口里「AWMC 网关」默认隐藏（FeatureFlags.awmcGateway）
-                badgeCount: 11 + (FeatureFlags.awmcGateway ? 1 : 0),
+                // 「AWMC 网关」默认隐藏（FeatureFlags.awmcGateway）。
+                badgeCount: 12 + (FeatureFlags.awmcGateway ? 1 : 0),
                 children: [
                   HubActionTile(
                     title: '登录 maimai Score Hub',
@@ -743,6 +672,7 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
                     onToggleFavorite: () =>
                         _toggleFavorite('登录 maimai Score Hub'),
                     onTap: _loginMaimaiHub,
+                    disabledReason: _busyReason,
                     disabled: anyBusy,
                   ),
                   HubActionTile(
@@ -755,7 +685,8 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
                     onTap: loggedIn ? _logoutDivingFish : _loginDivingFish,
                     loading: _loggingOut,
                     loadingText: _logoutText,
-                    disabled: anySyncBusy,
+                    disabledReason: _busyReason,
+                    disabled: anyBusy && !_loggingOut,
                   ),
                   HubActionTile(
                     title: '同步成绩到水鱼',
@@ -768,10 +699,8 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
                     loadingText: syncText,
                     showProgress: true,
                     progressValue: divingFishProgress,
-                    disabled: HomeRefreshNotifier.isBusy.value ||
-                        syncingLuoXue ||
-                        syncingAwmcNet ||
-                        syncingMulti,
+                    disabledReason: _busyReason,
+                    disabled: anyBusy && !syncingDivingFish,
                     // 线路切换 + 统计：与首页「收藏的功能」区共用同一份状态
                     footer: SyncRouteFooter(
                       platform: SyncPlatform.divingFish,
@@ -789,10 +718,8 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
                     loadingText: luoXueText,
                     showProgress: true,
                     progressValue: luoXueProgress,
-                    disabled: HomeRefreshNotifier.isBusy.value ||
-                        syncingDivingFish ||
-                        syncingAwmcNet ||
-                        syncingMulti,
+                    disabledReason: _busyReason,
+                    disabled: anyBusy && !syncingLuoXue,
                     footer: SyncRouteFooter(
                       platform: SyncPlatform.luoXue,
                       enabled: !anyBusy,
@@ -813,16 +740,26 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
                     loadingText: awmcNetText,
                     showProgress: true,
                     progressValue: awmcNetProgress,
-                    disabled: HomeRefreshNotifier.isBusy.value ||
-                        syncingDivingFish ||
-                        syncingLuoXue ||
-                        syncingMulti,
+                    disabledReason: _busyReason,
+                    disabled: anyBusy && !syncingAwmcNet,
                     // 统计行上提一点贴紧按钮：tile 底部本来就空着约 23px，
                     // 一行小字挂在那里会显得离按钮太远（见 SyncStatsFooter.footerLift）
                     footerLift: SyncStatsFooter.footerLift,
                     footer: const SyncStatsFooter(
                       slot: (SyncLine.direct, SyncPlatform.awmc),
                     ),
+                  ),
+                  HubActionTile(
+                    title: '刷新机台游玩次数',
+                    subtitle: '单独读取当前账号的 PC 数；不会附带同步成绩',
+                    icon: Icons.numbers_outlined,
+                    isFavorited: _isFavorited('刷新机台游玩次数'),
+                    onToggleFavorite: () => _toggleFavorite('刷新机台游玩次数'),
+                    onTap: _refreshPlayCounts,
+                    loading: _refreshingPlayCounts,
+                    loadingText: _refreshPlayCountsText,
+                    disabledReason: _busyReason,
+                    disabled: anyBusy && !_refreshingPlayCounts,
                   ),
                   HubActionTile(
                     title: '同步成绩到多端',
@@ -835,10 +772,22 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
                     loadingText: multiSyncText,
                     showProgress: true,
                     progressValue: multiSyncProgress,
-                    disabled: HomeRefreshNotifier.isBusy.value ||
-                        syncingDivingFish ||
-                        syncingLuoXue ||
-                        syncingAwmcNet,
+                    disabledReason: _busyReason,
+                    disabled: anyBusy && !syncingMulti,
+                  ),
+                  HubActionTile(
+                    title: '自动同步',
+                    subtitle: '每天北京时间 0 点和 12 点自动快速同步',
+                    icon: Icons.schedule_outlined,
+                    isFavorited: _isFavorited('自动同步'),
+                    onToggleFavorite: () => _toggleFavorite('自动同步'),
+                    onTap: () => _open(context, const AutoSyncPage()),
+                    disabledReason: _busyReason,
+                    disabled: anyBusy,
+                    footerLift: SyncStatsFooter.footerLift,
+                    footer: AutoSyncStatusFooter(
+                      onTap: () => _open(context, const AutoSyncPage()),
+                    ),
                   ),
                   HubActionTile(
                     title: '账号管理',
@@ -867,9 +816,8 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
                     loadingText: _refreshText,
                     showProgress: true,
                     progressValue: _refreshProgress,
-                    disabled: HomeRefreshNotifier.isBusy.value ||
-                        _refreshingAdvanced ||
-                        anySyncBusy,
+                    disabledReason: _busyReason,
+                    disabled: anyBusy && !_refreshing,
                   ),
                   HubActionTile(
                     title: '刷新数据（高级）',
@@ -882,30 +830,8 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
                     loadingText: _refreshAdvancedText,
                     showProgress: true,
                     progressValue: _refreshAdvancedProgress,
-                    disabled: HomeRefreshNotifier.isBusy.value ||
-                        _refreshing ||
-                        anySyncBusy,
-                  ),
-                  HubActionTile(
-                    title: 'maidata 管理',
-                    subtitle: '重新拉取 chiffonmai.cloud 集 · 清除 wmc.pub 兜底缓存',
-                    icon: Icons.tune_rounded,
-                    isFavorited: _isFavorited('maidata管理'),
-                    onToggleFavorite: () => _toggleFavorite('maidata管理'),
-                    onTap: _showMaidataManageDialog,
-                    // 拉取进度打在按钮上（对话框选完即关，不再在里面显示进度）。
-                    // 总数要等各流派文件夹列表回齐才确定，在那之前只有转圈。
-                    loading: _refreshingMaidata,
-                    loadingText: _maidataProgressText,
-                    progressCurrent:
-                        _refreshingMaidata && _maidataProgressTotal > 0
-                            ? _maidataProgressCompleted
-                            : null,
-                    progressTotal:
-                        _refreshingMaidata && _maidataProgressTotal > 0
-                            ? _maidataProgressTotal
-                            : null,
-                    disabled: anyBusy && !_refreshingMaidata,
+                    disabledReason: _busyReason,
+                    disabled: anyBusy && !_refreshingAdvanced,
                   ),
                   // 「AWMC 网关」入口：默认隐藏（FeatureFlags.awmcGateway），
                   // 代码一行没删；要启用时改那个开关即可。
@@ -925,7 +851,7 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
                 title: '应用',
                 icon: Icons.tune_rounded,
                 subtitle: '主题 · 检查更新 · 服务器 · 社区',
-                badgeCount: 6,
+                badgeCount: 8,
                 children: [
                   HubActionTile(
                     title: '主题与交互偏好',
@@ -942,6 +868,14 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
                     isFavorited: _isFavorited('加载语录管理'),
                     onToggleFavorite: () => _toggleFavorite('加载语录管理'),
                     onTap: () => _open(context, const LoadingTipsPage()),
+                  ),
+                  HubActionTile(
+                    title: '缓存管理',
+                    subtitle: '查看并清理音源、PV、maidata 缓存',
+                    icon: Icons.storage_outlined,
+                    isFavorited: _isFavorited('缓存管理'),
+                    onToggleFavorite: () => _toggleFavorite('缓存管理'),
+                    onTap: _showCacheManagementDialog,
                   ),
                   HubActionTile(
                     title: '打印日志',
@@ -1077,6 +1011,15 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
                     onToggleFavorite: () => _toggleFavorite('问卷调查'),
                     onTap: () =>
                         _launchExternal(context, AppLinks.surveyUrl, '问卷链接'),
+                  ),
+                  HubActionTile(
+                    title: '问题反馈',
+                    subtitle: '反馈使用中遇到的问题',
+                    icon: Icons.feedback_outlined,
+                    isFavorited: _isFavorited('问题反馈'),
+                    onToggleFavorite: () => _toggleFavorite('问题反馈'),
+                    onTap: () =>
+                        _launchExternal(context, AppLinks.feedbackUrl, '反馈链接'),
                   ),
                 ],
               ),

@@ -311,13 +311,13 @@ class _AchievementRateCalculatorState extends State<AchievementRateCalculator> {
       title: '达成率计算器',
       resizeToAvoidBottomInset: false,
       contentPadding:
-          EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom + 10),
+          EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
       child: Column(
         children: [
           // 可滚动内容区域
           Expanded(
             child: SingleChildScrollView(
-              padding: EdgeInsets.all(screenWidth * 0.04), // padding 为屏幕宽度的4%
+              padding: EdgeInsets.fromLTRB(screenWidth * 0.04, 8, screenWidth * 0.04, screenWidth * 0.04),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [

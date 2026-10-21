@@ -1,4 +1,5 @@
-import 'package:my_first_flutter_app/widgets/NoRipple.dart';
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
+import 'package:my_first_flutter_app/widgets/AnimatedChoiceLabel.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import '../entity/DivingFish/Song.dart';
@@ -25,15 +26,19 @@ class _DifficultyDistributionPageState
     extends State<DifficultyDistributionPage> {
   int _selectedLevelIndex = -1;
   List<DistributionBucket> _buckets = [];
+  final Map<int, List<DistributionBucket>> _distributionCache = {};
   bool _isLoading = true;
+  int _loadRequest = 0;
+  static const _chartTransitionDuration = Duration(milliseconds: 420);
+  static const _chartTransitionCurve = Curves.easeInOutCubic;
 
-  static const _levelNames = ['BASIC', 'ADVANCED', 'EXPERT', 'MASTER', 'Re:MASTER'];
+  static const _levelNames = ChartDifficulty.standardLabels;
   static const _levelColors = [
     Colors.green,
     Colors.orange,
     Colors.red,
     Colors.purple,
-    Colors.deepPurple,
+    Colors.purple,
   ];
 
   @override
@@ -43,9 +48,11 @@ class _DifficultyDistributionPageState
   }
 
   Future<void> _loadData() async {
+    final request = ++_loadRequest;
     setState(() => _isLoading = true);
     try {
       final songs = await MaimaiMusicDataManager().getCachedSongs();
+      if (!mounted || request != _loadRequest) return;
       if (songs == null || songs.isEmpty) {
         setState(() => _isLoading = false);
         return;
@@ -55,26 +62,41 @@ class _DifficultyDistributionPageState
         final raw = await UserPlayDataManager().getCachedUserPlayData();
         if (raw != null) userData = UserPlayDataEntity.fromJson(raw);
       } catch (_) {}
-      final buckets = DifficultyDistributionService.calculateDistribution(
-        levelIndex: _selectedLevelIndex,
-        allSongs: songs,
-        userPlayData: userData,
-      );
-      if (mounted) {
+      if (!mounted || request != _loadRequest) return;
+      // 一次读取后备好各难度，切换时直接更新图表，避免加载圈销毁动画状态。
+      final distributions = {
+        for (var level = -1; level < _levelNames.length; level++)
+          level: DifficultyDistributionService.calculateDistribution(
+            levelIndex: level,
+            allSongs: songs,
+            userPlayData: userData,
+          ),
+      };
+      if (mounted && request == _loadRequest) {
         setState(() {
-          _buckets = buckets;
+          _distributionCache
+            ..clear()
+            ..addAll(distributions);
+          _buckets = distributions[_selectedLevelIndex] ?? [];
           _isLoading = false;
         });
       }
     } catch (e) {
       debugPrint('加载定数分布数据失败: $e');
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted && request == _loadRequest) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
   void _onLevelChanged(int index) {
-    setState(() => _selectedLevelIndex = index);
-    _loadData();
+    if (index == _selectedLevelIndex) return;
+    final buckets = _distributionCache[index];
+    setState(() {
+      _selectedLevelIndex = index;
+      if (buckets != null) _buckets = buckets;
+    });
+    if (buckets == null) _loadData();
   }
 
   @override
@@ -84,7 +106,7 @@ class _DifficultyDistributionPageState
     return BackgroundPageScaffold(
       title: '定数分布',
       contentPadding: EdgeInsets.only(
-        bottom: MediaQuery.paddingOf(context).bottom + 10,
+        bottom: MediaQuery.paddingOf(context).bottom,
       ),
       child: Column(
         children: [
@@ -138,7 +160,12 @@ class _DifficultyDistributionPageState
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(width: 14, height: 14, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(3))),
+        AnimatedContainer(
+          duration: MediaQuery.disableAnimationsOf(context) ? Duration.zero : _chartTransitionDuration,
+          curve: _chartTransitionCurve,
+          width: 14, height: 14,
+          decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(3)),
+        ),
         const SizedBox(width: 4),
         Text(label, style: const TextStyle(fontSize: 12)),
       ],
@@ -147,26 +174,27 @@ class _DifficultyDistributionPageState
 
   Widget _buildLevelChip(String label, int index, Color color) {
     final isSelected = _selectedLevelIndex == index;
+    final isReMaster = index == ChartDifficulty.reMaster;
     return Padding(
       padding: const EdgeInsets.only(right: 8),
-      child: NoRipple(
-        child: ChoiceChip(
-          label: Text(label,
-              style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: isSelected ? Colors.white : color)),
-          selected: isSelected,
-          selectedColor: color,
-          backgroundColor: color.withValues(alpha: 0.12),
-          onSelected: (_) => _onLevelChanged(index),
-          side: BorderSide(color: color.withValues(alpha: 0.4)),
-        ),
+      child: AnimatedChoiceLabel(
+        label: label,
+        selected: isSelected,
+        selectedColor: isReMaster ? Colors.purple.shade200 : color,
+        unselectedColor: color.withValues(alpha: 0.12),
+        selectedTextColor: Colors.white,
+        unselectedTextColor: color,
+        borderColor: color.withValues(alpha: 0.4),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+        onTap: () => _onLevelChanged(index),
       ),
     );
   }
 
   Widget _buildChart(Brightness brightness) {
+    final transitionDuration = MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero : _chartTransitionDuration;
     final barWidth = 28.0;
     final count = _buckets.length;
     // 图表宽度根据柱子数量动态计算，最少填满屏幕
@@ -179,7 +207,9 @@ class _DifficultyDistributionPageState
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      child: SizedBox(
+      child: AnimatedContainer(
+        duration: transitionDuration,
+        curve: _chartTransitionCurve,
         width: chartWidth,
         child: BarChart(
           BarChartData(
@@ -199,18 +229,29 @@ class _DifficultyDistributionPageState
                     width: barWidth,
                     borderRadius: const BorderRadius.vertical(
                         top: Radius.circular(5)),
-                  ),
-                  // 已游玩（彩色叠在上面）
-                  if (bucket.playedCount > 0)
-                    BarChartRodData(
-                      toY: bucket.playedCount.toDouble(),
-                      color: _getBarColor(),
-                      width: barWidth,
-                      borderRadius: bucket.unplayedCount > 0
-                          ? BorderRadius.zero
-                          : const BorderRadius.vertical(
-                              top: Radius.circular(5)),
+                    // 透明背景柱只扩展命中区域，矮柱上方也可以点击。
+                    backDrawRodData: BackgroundBarChartRodData(
+                      show: true,
+                      toY: maxY * 1.12,
+                      color: Colors.transparent,
                     ),
+                  ),
+                  // 已游玩（彩色柱）
+                  // 保留零高度的已游玩柱，让两种柱形始终一一对应并连续插值。
+                  BarChartRodData(
+                    toY: bucket.playedCount.toDouble(),
+                    color: _getBarColor(),
+                    width: bucket.playedCount > 0 ? barWidth : 0,
+                    borderRadius: bucket.unplayedCount > 0
+                        ? BorderRadius.zero
+                        : const BorderRadius.vertical(
+                            top: Radius.circular(5)),
+                    backDrawRodData: BackgroundBarChartRodData(
+                      show: true,
+                      toY: maxY * 1.12,
+                      color: Colors.transparent,
+                    ),
+                  ),
                 ],
               );
             }).toList(),
@@ -270,6 +311,9 @@ class _DifficultyDistributionPageState
             borderData: FlBorderData(show: false),
             barTouchData: BarTouchData(
               enabled: true,
+              allowTouchBarBackDraw: true,
+              touchExtraThreshold:
+                  const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
               touchTooltipData: BarTouchTooltipData(
                 getTooltipItem: (group, groupIndex, rod, rodIndex) {
                   if (groupIndex >= _buckets.length) return null;
@@ -294,12 +338,17 @@ class _DifficultyDistributionPageState
               },
             ),
           ),
+          duration: transitionDuration,
+          curve: _chartTransitionCurve,
         ),
       ),
     );
   }
 
   Color _getBarColor() {
+    if (_selectedLevelIndex == ChartDifficulty.reMaster) {
+      return Colors.purple.shade200;
+    }
     if (_selectedLevelIndex >= 0 &&
         _selectedLevelIndex < _levelColors.length) {
       return _levelColors[_selectedLevelIndex];

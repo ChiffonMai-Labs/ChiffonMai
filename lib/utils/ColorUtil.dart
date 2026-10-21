@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 
 class ColorUtil {
@@ -37,7 +38,7 @@ class ColorUtil {
       Colors.purple.shade400, // level_index 3
       Colors.purple.shade200, // level_index 4
     ];
-    return colors[levelIndex.clamp(0, 4)];
+    return colors[levelIndex.clamp(ChartDifficulty.basic, ChartDifficulty.reMaster)];
   }
 
   /**

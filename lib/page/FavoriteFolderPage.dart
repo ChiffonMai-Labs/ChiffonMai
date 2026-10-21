@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import '../widgets/SmoothLinearProgressIndicator.dart';
 import 'package:flutter/services.dart';
@@ -148,7 +149,7 @@ class _FavoriteFolderPageState extends State<FavoriteFolderPage> {
       title: '收藏夹',
       resizeToAvoidBottomInset: false,
       contentPadding:
-          EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom + 10),
+          EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
       child: Column(children: [
         Expanded(
             child: Column(
@@ -525,7 +526,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
       ],
       resizeToAvoidBottomInset: false,
       contentPadding:
-          EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom + 10),
+          EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
       child: Column(children: [
         Expanded(
             child: Column(
@@ -813,20 +814,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
 
   /// 将难度索引映射为标签系统使用的难度字符串
   String _getDifficultyByIndex(int index) {
-    switch (index) {
-      case 0:
-        return 'basic';
-      case 1:
-        return 'advanced';
-      case 2:
-        return 'expert';
-      case 3:
-        return 'master';
-      case 4:
-        return 'remaster';
-      default:
-        return 'basic';
-    }
+    return ChartDifficulty.apiNameOf(index, fallback: 'basic');
   }
 
   Widget _buildEmptyState() {
@@ -904,23 +892,23 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
       textColor = Colors.red;
     } else {
       switch (levelIndex) {
-        case 0: // BASIC
+        case ChartDifficulty.basic: // BASIC
           bgColor = Colors.green.shade100;
           textColor = Colors.green.shade700;
           break;
-        case 1: // ADVANCED
+        case ChartDifficulty.advanced: // ADVANCED
           bgColor = Colors.orange.shade100;
           textColor = Colors.orange.shade700;
           break;
-        case 2: // EXPERT
+        case ChartDifficulty.expert: // EXPERT
           bgColor = Colors.red.shade100;
           textColor = Colors.red;
           break;
-        case 3: // MASTER
+        case ChartDifficulty.master: // MASTER
           bgColor = Colors.purple.shade100;
           textColor = Colors.purple.shade700;
           break;
-        case 4: // Re:MASTER
+        case ChartDifficulty.reMaster: // Re:MASTER
           bgColor = Colors.purple.shade100;
           textColor = Colors.purple.shade300;
           break;
@@ -948,18 +936,11 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
   }
 
   Widget _buildChartCard(FavoriteChart chart) {
-    final levelNames = [
-      'BASIC',
-      'ADVANCED',
-      'EXPERT',
-      'MASTER',
-      'Re:MASTER',
-      'UTAGE'
-    ];
+    final levelNames = ChartDifficulty.labels;
     final bool isUtage = chart.songId.length == 6;
     final String levelName;
     if (isUtage) {
-      levelName = 'UTAGE';
+      levelName = ChartDifficulty.utageLabel;
     } else {
       levelName = chart.levelIndex >= 0 && chart.levelIndex < levelNames.length
           ? levelNames[chart.levelIndex]

@@ -2,10 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import '../../constant/CacheKeyConstant.dart';
-import '../../service/AWMC/AwmcPlayCountStore.dart';
 import '../../service/AwmcNetScoreUploadService.dart';
+import '../../service/AWMC/AwmcQuickSyncService.dart';
+
 import '../../service/SyncStatsService.dart';
-import '../../utils/CurrentDataSourceNotifier.dart';
 import '../../utils/SyncRouteNotifier.dart';
 import '../../utils/SecureCredentialStore.dart';
 import 'SyncToAwmcNetPage.dart'
@@ -14,6 +14,8 @@ import '../../widgets/RefreshDataDialog.dart' show executeAdvancedRefreshData;
 
 /// 一次「同步成绩到 AWMC NET」的结果。
 class AwmcNetSyncOutcome {
+  final bool quickUpdate;
+
   /// 用户在输入阶段取消（**没有发出任何请求**，因此不计入统计）。
   final bool cancelled;
 
@@ -25,6 +27,7 @@ class AwmcNetSyncOutcome {
   final String? refreshError;
 
   const AwmcNetSyncOutcome({
+    this.quickUpdate = false,
     this.cancelled = false,
     this.ok = false,
     this.result,
@@ -67,7 +70,8 @@ class AwmcNetSyncFlow {
     final input = await showAwmcNetSyncInputDialog(context);
     if (input == null) return AwmcNetSyncOutcome.userCancelled;
 
-    return runWithInput(input, onBusy: onBusy, onProgress: onProgress, onIdle: onIdle);
+    return runWithInput(input,
+        onBusy: onBusy, onProgress: onProgress, onIdle: onIdle);
   }
 
   /// 使用已经收集好的输入执行导入，供「同步成绩到多端」复用同一张二维码。
@@ -77,22 +81,41 @@ class AwmcNetSyncFlow {
     void Function(double progress, String text)? onProgress,
     VoidCallback? onIdle,
   }) async {
-
-    // 2. 顺手刷新**AWMC NET 这个账号自己的**游玩次数。
-    //
-    //    AWMC NET 查分器没有逐谱面次数（只有 `/api/player/{qq}` 的账号总计），
-    //    唯一来源是 AWMC 网关的 `/v1/user/music`（4 Token）—— 而它正好需要
-    //    我们手上这张机台二维码。所以跟线路2 一样顺手拉一次：
-    //    **尽力而为、绝不 await、失败不弹提示**，别影响真正的导入。
-    //
-    //    ⚠️ 必须显式写 `source: awmc`：三类账号（水鱼 / 落雪 / AWMC NET）的
-    //    次数互不相干，不能落到当时碰巧活动的那个账号名下。
-    AwmcPlayCountStore.refreshQuietly(
-      input.qr,
-      source: RefreshDataSource.awmc,
-    );
-
-    // 3. 近 100 次统计：二维码直传自成一个槽位（`direct:awmc`），
+    if (input.quickUpdate) {
+      try {
+        final result = await AwmcQuickSyncService.run(
+          platform: SyncPlatform.awmc,
+          onProgress: (p, text) {
+            onBusy?.call(text);
+            onProgress?.call(p, text);
+          },
+        );
+        String? refreshError;
+        if (input.refreshRequest != null) {
+          try {
+            await executeAdvancedRefreshData(input.refreshRequest!,
+                onProgress: (p, text) {
+              onBusy?.call(text);
+              onProgress?.call(p / 100, text);
+            });
+          } catch (error) {
+            refreshError = '$error';
+          }
+        }
+        return AwmcNetSyncOutcome(
+            ok: true,
+            quickUpdate: true,
+            refreshError: refreshError,
+            result: AwmcNetQrImportResult(
+                ok: true, totalRecords: result.submitted));
+      } catch (error) {
+        return AwmcNetSyncOutcome(
+            result: AwmcNetQrImportResult.failure('$error'));
+      } finally {
+        onIdle?.call();
+      }
+    }
+    // 2. 近 100 次统计：二维码直传自成一个槽位（`direct:awmc`），
     //    不能混进线路2/线路1 —— 它一次要 30 多秒，会把网关那条的平均拉高。
     //    校验没过 / 用户取消的分支在上面就 return 了，所以不会被算成失败样本。
     final attempt = SyncAttemptTracker(
@@ -101,7 +124,7 @@ class AwmcNetSyncFlow {
     );
     attempt.start();
 
-    // 4. 进度：接口没有进度事件，只能自己数秒。
+    // 3. 进度：接口没有进度事件，只能自己数秒。
     //    实测一次约 36 秒，光转圈会被当成卡死，所以「已等待 N 秒」必须一直动。
     var waited = 0;
     onBusy?.call(_busyLabel(0));
@@ -161,6 +184,10 @@ class AwmcNetSyncFlow {
     final r = outcome.result;
     if (r == null) return '导入失败';
     if (!r.ok) return r.errorMessage ?? '导入失败';
+    if (outcome.quickUpdate)
+      return r.totalRecords == 0
+          ? '成绩已是最新，无需上传'
+          : '快速同步完成，已提交 ${r.totalRecords} 条变化成绩';
 
     final seconds = (r.elapsedMs / 1000).toStringAsFixed(1);
     final buffer = StringBuffer('导入完成！新增 ${r.imported} / 更新 ${r.updated}');

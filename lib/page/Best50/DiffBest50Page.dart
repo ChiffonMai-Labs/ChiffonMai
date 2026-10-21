@@ -54,30 +54,32 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
       // 直接使用缓存的API数据
       if (await MaimaiMusicDataManager().hasCachedData()) {
         final songs = await MaimaiMusicDataManager().getCachedSongs();
-        if (songs != null) {
+        if (songs != null && mounted) {
           setState(() {
-            _maimaiMusicData = songs.map((song) => {
-              'id': song.id,
-              'title': song.title,
-              'type': song.type,
-              'ds': song.ds,
-              'level': song.level,
-              'cids': song.cids,
-              'is_extra': song.isExtra,
-              'charts': song.charts.map((chart) => {
-                'notes': chart.notes,
-                'charter': chart.charter
-              }).toList(),
-              'basic_info': {
-                'title': song.basicInfo.title,
-                'artist': song.basicInfo.artist,
-                'genre': song.basicInfo.genre,
-                'bpm': song.basicInfo.bpm,
-                'release_date': song.basicInfo.releaseDate,
-                'from': song.basicInfo.from,
-                'is_new': song.basicInfo.isNew
-              }
-            }).toList();
+            _maimaiMusicData = songs
+                .map((song) => {
+                      'id': song.id,
+                      'title': song.title,
+                      'type': song.type,
+                      'ds': song.ds,
+                      'level': song.level,
+                      'cids': song.cids,
+                      'is_extra': song.isExtra,
+                      'charts': song.charts
+                          .map((chart) =>
+                              {'notes': chart.notes, 'charter': chart.charter})
+                          .toList(),
+                      'basic_info': {
+                        'title': song.basicInfo.title,
+                        'artist': song.basicInfo.artist,
+                        'genre': song.basicInfo.genre,
+                        'bpm': song.basicInfo.bpm,
+                        'release_date': song.basicInfo.releaseDate,
+                        'from': song.basicInfo.from,
+                        'is_new': song.basicInfo.isNew
+                      }
+                    })
+                .toList();
           });
         }
       }
@@ -87,30 +89,43 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
       late final diffBest50Data;
       switch (_currentMode) {
         case 0:
-          diffBest50Data = await diffBest50Service.calculateDiffBest50();  // 模式A：按拟合Rating重新排序
+          diffBest50Data = await diffBest50Service
+              .calculateDiffBest50(); // 模式A：按拟合Rating重新排序
           break;
         case 1:
-          diffBest50Data = await diffBest50Service.calculateDiffBest50ModeB();  // 模式B：保持原有排名
+          diffBest50Data =
+              await diffBest50Service.calculateDiffBest50ModeB(); // 模式B：保持原有排名
           break;
         case 2:
-          diffBest50Data = await diffBest50Service.calculateDiffBest50ModeC();  // 模式C：分别在SD/DX中取前50
+          diffBest50Data = await diffBest50Service
+              .calculateDiffBest50ModeC(); // 模式C：分别在SD/DX中取前50
           break;
         default:
           diffBest50Data = await diffBest50Service.calculateDiffBest50();
       }
-      
+
+      if (!mounted) return;
       setState(() {
         _diffBest50Data = diffBest50Data;
-        _diffSongs = List<Map<String, dynamic>>.from(diffBest50Data['diffBest50'] ?? []);
-        _diffSdSongs = List<Map<String, dynamic>>.from(diffBest50Data['diffSdSongs'] ?? []);
-        _diffDxSongs = List<Map<String, dynamic>>.from(diffBest50Data['diffDxSongs'] ?? []);
+        _diffSongs =
+            List<Map<String, dynamic>>.from(diffBest50Data['diffBest50'] ?? []);
+        _diffSdSongs = List<Map<String, dynamic>>.from(
+            diffBest50Data['diffSdSongs'] ?? []);
+        _diffDxSongs = List<Map<String, dynamic>>.from(
+            diffBest50Data['diffDxSongs'] ?? []);
         _isLoading = false;
       });
     } catch (e) {
       debugPrint('Error loading data: $e');
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _diffBest50Data = null;
+          _diffSongs = [];
+          _diffSdSongs = [];
+          _diffDxSongs = [];
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -134,53 +149,40 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
 
     return BackgroundPageScaffold(
       title: '拟合Best50查询',
-      actions: [
-        ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Theme.of(context).colorScheme.surface,
-            foregroundColor: Theme.of(context).colorScheme.onSurface,
-            minimumSize: const Size(90, 32),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8.0),
-            ),
-          ),
-          onPressed: _toggleMode,
-          child: Text('模式${['A', 'B', 'C'][_currentMode]}'),
-        ),
-      ],
       resizeToAvoidBottomInset: false,
       contentPadding: EdgeInsets.only(
-        bottom: MediaQuery.paddingOf(context).bottom + 10,
+        bottom: MediaQuery.paddingOf(context).bottom,
       ),
       child: Stack(
+        fit: StackFit.expand,
         children: [
-                    // 加载中状态（覆盖层）
-                    if (_isLoading)
-                      Container(
-                        color: Theme.of(context).colorScheme.surface.withOpacity(0.9),
-                        child: Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              CircularProgressIndicator(color: Theme.of(context).colorScheme.onSurface),
-                              SizedBox(height: 16),
-                              Text(
-                                '正在计算拟合Best50...',
-                                style: TextStyle(
-                                  color: Theme.of(context).colorScheme.onSurface,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+          // 加载中状态（覆盖层）
+          if (_isLoading)
+            Container(
+              color: Theme.of(context).colorScheme.surface.withOpacity(0.9),
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(
+                        color: Theme.of(context).colorScheme.onSurface),
+                    SizedBox(height: 16),
+                    Text(
+                      '正在计算拟合Best50...',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface,
+                        fontSize: 16,
                       ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
 
-                    // 内容
-                    if (!_isLoading)
-                      _buildContent(brightness),
-            ],
-          ),
+          // 内容
+          if (!_isLoading) _buildContent(brightness),
+        ],
+      ),
     );
   }
 
@@ -223,46 +225,61 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
     return SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(
         MediaQuery.of(context).size.width * 0.03,
-        MediaQuery.of(context).size.width * 0.03,
+        8,
         MediaQuery.of(context).size.width * 0.03,
         MediaQuery.paddingOf(context).bottom + 20,
       ),
       child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // 评分区域
-            _buildRatingSection(),
-            SizedBox(height: 12.0),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 评分区域
+          _buildRatingSection(),
+          SizedBox(height: 12.0),
 
-            // 导出按钮
-            _buildExportButton(),
-            SizedBox(height: 12.0),
+          // 导出按钮
+          _buildExportAndModeRow(),
+          SizedBox(height: 12.0),
 
-            // 根据模式显示不同内容
-            _currentMode == 0 ?
-            // 模式A：不分SD/DX，统一显示
-            Column(
-              children: [
-                _buildSectionTitle('基于拟合难度的Best50', context),
-                SizedBox(height: MediaQuery.of(context).size.height * 0.015),
-                _buildDataCardGrid(_diffSongs, B50GameCardWidget.designAspectRatio),
-              ],
-            ) :
-            // 模式B/C：分离显示Best35和Best15
-            Column(
-              children: [
-                // Best35 标题区域
-                _buildSectionTitle(_currentMode == 1 ? 'Best35 | 非当前版本最好成绩' : '非当前版本前35 | 拟合Rating排名', context),
-                SizedBox(height: MediaQuery.of(context).size.height * 0.015),
-                _buildDataCardGrid(_diffSdSongs, B50GameCardWidget.designAspectRatio),
-                SizedBox(height: MediaQuery.of(context).size.height * 0.02),
-                // Best15 标题区域
-                _buildSectionTitle(_currentMode == 1 ? 'Best15 | 当前版本最好成绩' : '当前版本前15 | 拟合Rating排名', context),
-                SizedBox(height: 12.0),
-                _buildDataCardGrid(_diffDxSongs, B50GameCardWidget.designAspectRatio),
-              ],
-            ),
-          ],
+          // 根据模式显示不同内容
+          _currentMode == 0
+              ?
+              // 模式A：不分SD/DX，统一显示
+              Column(
+                  children: [
+                    _buildSectionTitle('基于拟合难度的Best50', context),
+                    SizedBox(
+                        height: MediaQuery.of(context).size.height * 0.015),
+                    _buildDataCardGrid(
+                        _diffSongs, B50GameCardWidget.designAspectRatio),
+                  ],
+                )
+              :
+              // 模式B/C：分离显示Best35和Best15
+              Column(
+                  children: [
+                    // Best35 标题区域
+                    _buildSectionTitle(
+                        _currentMode == 1
+                            ? 'Best35 | 非当前版本最好成绩'
+                            : '非当前版本前35 | 拟合Rating排名',
+                        context),
+                    SizedBox(
+                        height: MediaQuery.of(context).size.height * 0.015),
+                    _buildDataCardGrid(
+                        _diffSdSongs, B50GameCardWidget.designAspectRatio),
+                    SizedBox(height: MediaQuery.of(context).size.height * 0.02),
+                    // Best15 标题区域
+                    _buildSectionTitle(
+                        _currentMode == 1
+                            ? 'Best15 | 当前版本最好成绩'
+                            : '当前版本前15 | 拟合Rating排名',
+                        context),
+                    SizedBox(height: 12.0),
+                    _buildDataCardGrid(
+                        _diffDxSongs, B50GameCardWidget.designAspectRatio),
+                  ],
+                ),
+        ],
       ),
     );
   }
@@ -270,27 +287,27 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
   // 构建评分区域
   Widget _buildRatingSection() {
     // 计算各项指标
-    int diffRatingSum = _diffBest50Data?['diffRatingSum'] ?? 0;
-    int best50Diff = _diffBest50Data?['best50Diff'] ?? 0;
-    double diffRatingAverage = _diffSongs.isNotEmpty ? diffRatingSum / _diffSongs.length : 0.0;
+    int diffRatingSum = _toInt(_diffBest50Data?['diffRatingSum']);
+    int best50Diff = _toInt(_diffBest50Data?['best50Diff']);
+    double diffRatingAverage =
+        _diffSongs.isNotEmpty ? diffRatingSum / _diffSongs.length : 0.0;
 
     // 计算平均达成率
-    double achievementsSum = _diffSongs.fold(0.0,
-        (sum, song) => sum + (double.parse(song['achievements'].toString())));
-    double diffBest50AchievementAverage = 
+    double achievementsSum = _diffSongs.fold(
+        0.0, (sum, song) => sum + _toDouble(song['achievements']));
+    double diffBest50AchievementAverage =
         _diffSongs.isNotEmpty ? achievementsSum / _diffSongs.length : 0.0;
 
     // 计算平均scoreRate
     double scoreRateSum = _diffSongs.fold(0.0, (sum, song) {
-      int songId = song['song_id'];
-      int levelIndex = song['level_index'];
-      int score = song['dxScore'];
+      int songId = _toInt(song['song_id']);
+      int levelIndex = _toInt(song['level_index']);
+      int score = _toInt(song['dxScore']);
       return sum + _calculateScoreRate(songId, levelIndex, score);
     });
 
-    double diffBest50ScoreRateAverage = _diffSongs.isNotEmpty 
-        ? scoreRateSum / _diffSongs.length 
-        : 0.0;
+    double diffBest50ScoreRateAverage =
+        _diffSongs.isNotEmpty ? scoreRateSum / _diffSongs.length : 0.0;
 
     // 计算暂无拟合定数的歌曲数量（使用官方定数的歌曲）
     int noFitDiffCount = _diffSongs.where((song) {
@@ -300,7 +317,8 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
     final ratingBrightness = Theme.of(context).brightness;
     return Container(
       decoration: BoxDecoration(
-        border: Border.all(color: Theme.of(context).colorScheme.onSurface, width: 2.0),
+        border: Border.all(
+            color: Theme.of(context).colorScheme.onSurface, width: 2.0),
         borderRadius: BorderRadius.circular(8.0),
       ),
       padding: EdgeInsets.all(12.0),
@@ -317,7 +335,6 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
                     fontSize: MediaQuery.of(context).size.width * 0.045,
                     fontWeight: FontWeight.bold,
                     color: Theme.of(context).colorScheme.onSurface,
-
                   ),
                 ),
                 SizedBox(height: 4.0),
@@ -349,28 +366,26 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
                     fontSize: MediaQuery.of(context).size.width * 0.045,
                     fontWeight: FontWeight.bold,
                     color: Theme.of(context).colorScheme.onSurface,
-
                   ),
                 ),
                 Text(
                   '${best50Diff > 0 ? '+' : ''}$best50Diff',
                   style: TextStyle(
                     fontSize: MediaQuery.of(context).size.width * 0.045,
-                    color: best50Diff >= 0 ? AppColors.successGreen(ratingBrightness) : AppColors.errorRed(ratingBrightness),
+                    color: best50Diff >= 0
+                        ? AppColors.successGreen(ratingBrightness)
+                        : AppColors.errorRed(ratingBrightness),
                     fontWeight: FontWeight.bold,
-
                   ),
                 ),
                 // 显示暂无拟合定数的歌曲数量
-                if (noFitDiffCount > 0)
-                  SizedBox(height: 8.0),
+                if (noFitDiffCount > 0) SizedBox(height: 8.0),
                 if (noFitDiffCount > 0)
                   Text(
                     '${noFitDiffCount}首暂无拟合定数，按照官方定数计算',
                     style: TextStyle(
                       fontSize: MediaQuery.of(context).size.width * 0.035,
                       color: AppColors.warningOrange(ratingBrightness),
-
                     ),
                   ),
               ],
@@ -388,11 +403,9 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
                     fontSize: MediaQuery.of(context).size.width * 0.04,
                     fontWeight: FontWeight.bold,
                     color: Theme.of(context).colorScheme.onSurface,
-
                   ),
                 ),
-                _buildDualDecimalText(
-                    diffBest50AchievementAverage,
+                _buildDualDecimalText(diffBest50AchievementAverage,
                     diffBest50ScoreRateAverage * 100,
                     scoreRate: diffBest50ScoreRateAverage),
                 SizedBox(height: 8.0),
@@ -406,7 +419,6 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
                   style: TextStyle(
                     fontSize: MediaQuery.of(context).size.width * 0.028,
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
-
                   ),
                 ),
               ],
@@ -421,7 +433,8 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
   Widget _buildSectionTitle(String title, BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        border: Border.all(color: Theme.of(context).colorScheme.onSurface, width: 2.0),
+        border: Border.all(
+            color: Theme.of(context).colorScheme.onSurface, width: 2.0),
         borderRadius: BorderRadius.circular(8.0),
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
       ),
@@ -609,19 +622,20 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
   }
 
   // 根据数据构建游戏卡片
-  Widget _buildDataGameCard(Map<String, dynamic> songData, {required int maxIdLength}) {
+  Widget _buildDataGameCard(Map<String, dynamic> songData,
+      {required int maxIdLength}) {
     // 解析数据
-    double achievementRate = double.parse(songData['achievements'].toString());
-    int score = songData['dxScore'];
-    String fc = songData['fc'] ?? '';
-    String fs = songData['fs'] ?? '';
-    double difficulty = double.parse(songData['fit_diff'].toString());
-    String rate = songData['rate'];
-    int levelIndex = songData['level_index'];
-    int rating = songData['diffRating'];
-    String type = songData['type'];
-    String title = songData['title'];
-    int songId = songData['song_id'];
+    double achievementRate = _toDouble(songData['achievements']);
+    int score = _toInt(songData['dxScore']);
+    String fc = songData['fc']?.toString() ?? '';
+    String fs = songData['fs']?.toString() ?? '';
+    double difficulty = _toDouble(songData['fit_diff']);
+    String rate = songData['rate']?.toString() ?? '';
+    int levelIndex = _toInt(songData['level_index']);
+    int rating = _toInt(songData['diffRating']);
+    String type = songData['type']?.toString() ?? '';
+    String title = songData['title']?.toString() ?? '未知歌曲';
+    int songId = _toInt(songData['song_id']);
 
     // 计算星星等级
     double scoreRate = _calculateScoreRate(songId, levelIndex, score);
@@ -632,17 +646,17 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
     int maxScore = _calculateMaxScore(songId, levelIndex);
 
     // 获取卡片颜色
-      Color cardColor;
-      // 对于6位数ID的歌曲，使用粉色
-      if (songId.toString().length == 6) {
-        cardColor = AppColors.utageCard(); // 加深的粉色
-      } else {
-        cardColor = _getCardColor(levelIndex);
-      }
+    Color cardColor;
+    // 对于6位数ID的歌曲，使用粉色
+    if (songId.toString().length == 6) {
+      cardColor = AppColors.utageCard(); // 加深的粉色
+    } else {
+      cardColor = _getCardColor(levelIndex);
+    }
 
     // 判断是否为DX模式或UT模式
-      bool dxMode = type == 'DX';
-      bool isUtage = songId.toString().length == 6; // 6位数ID为UTAGE
+    bool dxMode = type == 'DX';
+    bool isUtage = songId.toString().length == 6; // 6位数ID为UTAGE
 
     return GestureDetector(
       onTap: () {
@@ -690,6 +704,17 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
     return colors[levelIndex.clamp(0, 4)];
   }
 
+  int _toInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  double _toDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse(value?.toString() ?? '') ?? 0.0;
+  }
+
   // 计算scoreRate
   double _calculateScoreRate(int songId, int levelIndex, int score) {
     if (_maimaiMusicData == null) return 0.0;
@@ -713,7 +738,7 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
 
     // 计算maxScore
     List<dynamic> notes = chart['notes'];
-    int notesSum = notes.fold(0, (sum, note) => sum + (note as int));
+    int notesSum = notes.fold(0, (sum, note) => sum + _toInt(note));
     int maxScore = notesSum * 3;
 
     // 计算scoreRate
@@ -734,13 +759,43 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
     final chart = charts[levelIndex];
     if (chart['notes'] == null) return 0;
     final List<dynamic> notes = chart['notes'];
-    final notesSum = notes.fold<int>(0, (sum, note) => sum + (note as int));
+    final notesSum = notes.fold<int>(0, (sum, note) => sum + _toInt(note));
     return notesSum * 3;
   }
 
-
-
   // 构建导出按钮
+  Widget _buildExportAndModeRow() {
+    return Row(
+      // 此行位于纵向 SingleChildScrollView 内，不能向子项传递无限高度。
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        SizedBox(
+          width: MediaQuery.of(context).size.width * 0.5,
+          child: _buildExportButton(),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: ElevatedButton.icon(
+            onPressed: _toggleMode,
+            icon: const Icon(Icons.tune_rounded, size: 18),
+            label: Text('模式 ${['A', 'B', 'C'][_currentMode]}'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              foregroundColor: Theme.of(context).colorScheme.onPrimary,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              elevation: 0,
+              overlayColor: Colors.transparent,
+              splashFactory: NoSplash.splashFactory,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildExportButton() {
     return ElevatedButton(
       onPressed: () async {
@@ -780,30 +835,32 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
   Future<bool> _requestStoragePermission() async {
     debugPrint('Page: _requestStoragePermission called');
     debugPrint('Page: Platform.isAndroid = ${Platform.isAndroid}');
-    
+
     if (Platform.isAndroid) {
       debugPrint('Page: Running on Android');
-      
+
       // 策略：同时请求 storage、photos 和 videos 权限，确保覆盖所有 Android 版本
       // Android 13+ 需要 photos/videos 权限
       // Android 12 及以下需要 storage 权限
-      
+
       // 先检查已有权限状态
       debugPrint('Page: Checking existing permissions...');
       PermissionStatus storageStatus = await Permission.storage.status;
       PermissionStatus photosStatus = await Permission.photos.status;
       PermissionStatus videosStatus = await Permission.videos.status;
-      
+
       debugPrint('Page: Storage status = $storageStatus');
       debugPrint('Page: Photos status = $photosStatus');
       debugPrint('Page: Videos status = $videosStatus');
-      
+
       // 如果任何一个权限已授予，直接返回成功
-      if (storageStatus.isGranted || photosStatus.isGranted || videosStatus.isGranted) {
+      if (storageStatus.isGranted ||
+          photosStatus.isGranted ||
+          videosStatus.isGranted) {
         debugPrint('Page: At least one permission already granted');
         return true;
       }
-      
+
       // 请求权限：同时请求 storage、photos 和 videos
       debugPrint('Page: Requesting storage, photos and videos permissions...');
       Map<Permission, PermissionStatus> statuses = await [
@@ -811,15 +868,15 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
         Permission.photos,
         Permission.videos,
       ].request();
-      
+
       bool storageGranted = statuses[Permission.storage]?.isGranted ?? false;
       bool photosGranted = statuses[Permission.photos]?.isGranted ?? false;
       bool videosGranted = statuses[Permission.videos]?.isGranted ?? false;
-      
+
       debugPrint('Page: Storage granted = $storageGranted');
       debugPrint('Page: Photos granted = $photosGranted');
       debugPrint('Page: Videos granted = $videosGranted');
-      
+
       return storageGranted || photosGranted || videosGranted;
     } else {
       // 非 Android 平台
@@ -857,6 +914,16 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
         estimatedPngSize: ImageEncodeUtil.estimatePngSize(songCount: 50),
         exportingLabel: '拟合 Best50',
         enableThunderMode: true,
+        previewBuilder: (previewContext, previewQuality) =>
+            DiffBest50ConvertToImg.buildPreviewWidget(
+          previewContext,
+          _diffBest50Data,
+          _diffSongs,
+          _maimaiMusicData,
+          currentMode: _currentMode,
+          thunderMode: previewQuality.thunderMode,
+          thunderVertical: previewQuality.thunderVertical,
+        ),
       );
       if (quality == null) return;
 
@@ -933,7 +1000,7 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
     } catch (e) {
       // 关闭加载指示器
       Navigator.pop(context);
-      
+
       // 显示错误信息
       showDialog(
         context: context,

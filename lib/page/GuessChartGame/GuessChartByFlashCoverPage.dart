@@ -1138,7 +1138,7 @@ class _GuessChartByFlashCoverPageState
                           // 主要内容
                           Expanded(
                             child: SingleChildScrollView(
-                              padding: EdgeInsets.all(padding),
+                              padding: EdgeInsets.fromLTRB(padding, 8, padding, padding),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [

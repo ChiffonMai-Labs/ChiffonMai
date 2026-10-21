@@ -9,6 +9,8 @@ import 'package:my_first_flutter_app/utils/CurrentDataSourceNotifier.dart';
 import '../../utils/CommunityProfileUtil.dart';
 
 class RatingRankListService {
+  // 请求上限从旧版的 100 提升到服务端允许的 500；版本号避免继续读旧缓存。
+  static const _cacheVersion = 'v2';
   // 缓存有效期：从常量文件读取（分钟转秒）
   static int get _cacheExpirySeconds =>
       CacheTimestampConstant.rankingsCacheMinutes * 60;
@@ -43,8 +45,8 @@ class RatingRankListService {
   static Future<List<RankItem>> getTotalRankings({int? limit}) async {
     // 先检查缓存
     final cachedData = await _getCachedRankings(
-      CacheKeyConstant.totalRankingsCache,
-      CacheKeyConstant.totalRankingsCacheTimestamp,
+      '${CacheKeyConstant.totalRankingsCache}_$_cacheVersion',
+      '${CacheKeyConstant.totalRankingsCacheTimestamp}_$_cacheVersion',
     );
     if (cachedData != null) {
       return cachedData;
@@ -60,8 +62,8 @@ class RatingRankListService {
         // 保存到缓存
         await _cacheRankings(
           items,
-          CacheKeyConstant.totalRankingsCache,
-          CacheKeyConstant.totalRankingsCacheTimestamp,
+          '${CacheKeyConstant.totalRankingsCache}_$_cacheVersion',
+          '${CacheKeyConstant.totalRankingsCacheTimestamp}_$_cacheVersion',
         );
       }
       return items;
@@ -112,22 +114,22 @@ class RatingRankListService {
   static String _cacheKeyOf(RefreshDataSource source) {
     switch (source) {
       case RefreshDataSource.shuiyu:
-        return CacheKeyConstant.shuiyuRankingsCache;
+        return '${CacheKeyConstant.shuiyuRankingsCache}_$_cacheVersion';
       case RefreshDataSource.luoxue:
-        return CacheKeyConstant.luoxueRankingsCache;
+        return '${CacheKeyConstant.luoxueRankingsCache}_$_cacheVersion';
       case RefreshDataSource.awmc:
-        return CacheKeyConstant.awmcRankingsCache;
+        return '${CacheKeyConstant.awmcRankingsCache}_$_cacheVersion';
     }
   }
 
   static String _cacheTimestampKeyOf(RefreshDataSource source) {
     switch (source) {
       case RefreshDataSource.shuiyu:
-        return CacheKeyConstant.shuiyuRankingsCacheTimestamp;
+        return '${CacheKeyConstant.shuiyuRankingsCacheTimestamp}_$_cacheVersion';
       case RefreshDataSource.luoxue:
-        return CacheKeyConstant.luoxueRankingsCacheTimestamp;
+        return '${CacheKeyConstant.luoxueRankingsCacheTimestamp}_$_cacheVersion';
       case RefreshDataSource.awmc:
-        return CacheKeyConstant.awmcRankingsCacheTimestamp;
+        return '${CacheKeyConstant.awmcRankingsCacheTimestamp}_$_cacheVersion';
     }
   }
 
@@ -266,6 +268,9 @@ class RatingRankListService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(CacheKeyConstant.totalRankingsCache);
     await prefs.remove(CacheKeyConstant.totalRankingsCacheTimestamp);
+    await prefs.remove('${CacheKeyConstant.totalRankingsCache}_$_cacheVersion');
+    await prefs.remove(
+        '${CacheKeyConstant.totalRankingsCacheTimestamp}_$_cacheVersion');
     for (final source in RefreshDataSource.values) {
       await prefs.remove(_cacheKeyOf(source));
       await prefs.remove(_cacheTimestampKeyOf(source));

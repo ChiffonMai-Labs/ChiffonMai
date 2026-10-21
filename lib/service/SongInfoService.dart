@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:mysql1/mysql1.dart';
@@ -295,15 +296,15 @@ class SongInfoService {
     }
 
     switch (diffIndex) {
-      case 0: // Basic
+      case ChartDifficulty.basic: // Basic
         return Color(0xFFE8F5E8); // 浅绿色
-      case 1: // Advan
+      case ChartDifficulty.advanced: // Advan
         return Color(0xFFFFF8E1); // 浅黄色
-      case 2: // Expert
+      case ChartDifficulty.expert: // Expert
         return Color(0xFFFCE4EC); // 浅红色
-      case 3: // Master
+      case ChartDifficulty.master: // Master
         return Color(0xFFE9D8FF); // 当前颜色不变
-      case 4: // Re:MASTER
+      case ChartDifficulty.reMaster: // Re:MASTER
         return Color(0xFFF3E5F5); // 浅粉色
       default:
         return Color(0xFFE9D8FF);
@@ -324,15 +325,15 @@ class SongInfoService {
     }
 
     switch (diffIndex) {
-      case 0: // Basic
+      case ChartDifficulty.basic: // Basic
         return Color(0xFFC8E6C9); // 浅绿色
-      case 1: // Advan
+      case ChartDifficulty.advanced: // Advan
         return Color(0xFFFFE0B2); // 浅黄色
-      case 2: // Expert
+      case ChartDifficulty.expert: // Expert
         return Color(0xFFF8BBD0); // 浅红色
-      case 3: // Master
+      case ChartDifficulty.master: // Master
         return Color(0xFFD4BFFF); // 当前颜色不变
-      case 4: // Re:MASTER
+      case ChartDifficulty.reMaster: // Re:MASTER
         return Color(0xFFE1BEE7); // 浅粉色
       default:
         return Color(0xFFD4BFFF);
@@ -353,15 +354,15 @@ class SongInfoService {
     }
 
     switch (diffIndex) {
-      case 0: // Basic
+      case ChartDifficulty.basic: // Basic
         return Color(0xFF4CAF50); // 绿色
-      case 1: // Advan
+      case ChartDifficulty.advanced: // Advan
         return Color(0xFFFF9800); // 橙色
-      case 2: // Expert
+      case ChartDifficulty.expert: // Expert
         return Color(0xFFE91E63); // 红色
-      case 3: // Master
+      case ChartDifficulty.master: // Master
         return Color(0xFF9966CC); // 当前颜色不变
-      case 4: // Re:MASTER
+      case ChartDifficulty.reMaster: // Re:MASTER
         return Color(0xFF9C27B0); // 紫色
       default:
         return Color(0xFF9966CC);
@@ -657,32 +658,8 @@ class SongInfoService {
 
   // 获取难度标签
   String getDiffLabel(int index, Map<String, dynamic>? songData) {
-    // 检查难度数量
-    int difficultyCount = 0;
-    if (songData != null && songData['level'] != null) {
-      difficultyCount = songData['level'].length;
-    }
-
-    // 如果难度数量≤2个，显示"U\u00b7TA\u00b7GE​"
-    if (difficultyCount <= 2) {
-      return 'U\u00b7TA\u00b7GE​';
-    }
-
-    // 否则返回原来的标签
-    switch (index) {
-      case 0:
-        return 'Basic';
-      case 1:
-        return 'Advan';
-      case 2:
-        return 'Expert';
-      case 3:
-        return 'Master';
-      case 4:
-        return 'Re:MAS';
-      default:
-        return '';
-    }
+    final difficultyCount = (songData?['level'] as List?)?.length ?? 0;
+    return ChartDifficulty.labelOf(index, isUtage: difficultyCount <= 2, fallback: '');
   }
 
   // 获取收藏品类型名称
@@ -761,20 +738,7 @@ class SongInfoService {
 
   // 辅助方法：获取sheet_difficulty
   String _getSheetDifficulty(int diffIndex) {
-    switch (diffIndex) {
-      case 0:
-        return 'basic';
-      case 1:
-        return 'advanced';
-      case 2:
-        return 'expert';
-      case 3:
-        return 'master';
-      case 4:
-        return 'remaster';
-      default:
-        return 'master';
-    }
+    return ChartDifficulty.apiNameOf(diffIndex, fallback: 'master');
   }
 
   // 辅助方法：获取分组名称

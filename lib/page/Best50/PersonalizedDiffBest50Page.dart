@@ -23,10 +23,12 @@ class PersonalizedDiffBest50Page extends StatefulWidget {
   const PersonalizedDiffBest50Page({super.key});
 
   @override
-  _PersonalizedDiffBest50PageState createState() => _PersonalizedDiffBest50PageState();
+  _PersonalizedDiffBest50PageState createState() =>
+      _PersonalizedDiffBest50PageState();
 }
 
-class _PersonalizedDiffBest50PageState extends State<PersonalizedDiffBest50Page> {
+class _PersonalizedDiffBest50PageState
+    extends State<PersonalizedDiffBest50Page> {
   Map<String, dynamic>? _diffBest50Data;
   List<Map<String, dynamic>> _diffSongs = [];
   List<dynamic>? _maimaiMusicData;
@@ -51,28 +53,30 @@ class _PersonalizedDiffBest50PageState extends State<PersonalizedDiffBest50Page>
         final songs = await MaimaiMusicDataManager().getCachedSongs();
         if (songs != null) {
           setState(() {
-            _maimaiMusicData = songs.map((song) => {
-              'id': song.id,
-              'title': song.title,
-              'type': song.type,
-              'ds': song.ds,
-              'level': song.level,
-              'cids': song.cids,
-              'is_extra': song.isExtra,
-              'charts': song.charts.map((chart) => {
-                'notes': chart.notes,
-                'charter': chart.charter
-              }).toList(),
-              'basic_info': {
-                'title': song.basicInfo.title,
-                'artist': song.basicInfo.artist,
-                'genre': song.basicInfo.genre,
-                'bpm': song.basicInfo.bpm,
-                'release_date': song.basicInfo.releaseDate,
-                'from': song.basicInfo.from,
-                'is_new': song.basicInfo.isNew
-              }
-            }).toList() as List<dynamic>;
+            _maimaiMusicData = songs
+                .map((song) => {
+                      'id': song.id,
+                      'title': song.title,
+                      'type': song.type,
+                      'ds': song.ds,
+                      'level': song.level,
+                      'cids': song.cids,
+                      'is_extra': song.isExtra,
+                      'charts': song.charts
+                          .map((chart) =>
+                              {'notes': chart.notes, 'charter': chart.charter})
+                          .toList(),
+                      'basic_info': {
+                        'title': song.basicInfo.title,
+                        'artist': song.basicInfo.artist,
+                        'genre': song.basicInfo.genre,
+                        'bpm': song.basicInfo.bpm,
+                        'release_date': song.basicInfo.releaseDate,
+                        'from': song.basicInfo.from,
+                        'is_new': song.basicInfo.isNew
+                      }
+                    })
+                .toList() as List<dynamic>;
             _isLoading = false;
           });
         }
@@ -181,7 +185,8 @@ class _PersonalizedDiffBest50PageState extends State<PersonalizedDiffBest50Page>
                       ...entry.value.map((tag) {
                         return ListTile(
                           title: Text(tag.localizedName.zhHans),
-                          subtitle: Text(tag.localizedDescription.zhHans, maxLines: 1, overflow: TextOverflow.ellipsis),
+                          subtitle: Text(tag.localizedDescription.zhHans,
+                              maxLines: 1, overflow: TextOverflow.ellipsis),
                           dense: true,
                           selected: _selectedTagId == tag.id,
                           onTap: () {
@@ -218,7 +223,9 @@ class _PersonalizedDiffBest50PageState extends State<PersonalizedDiffBest50Page>
       PermissionStatus photosStatus = await Permission.photos.status;
       PermissionStatus videosStatus = await Permission.videos.status;
 
-      if (storageStatus.isGranted || photosStatus.isGranted || videosStatus.isGranted) {
+      if (storageStatus.isGranted ||
+          photosStatus.isGranted ||
+          videosStatus.isGranted) {
         return true;
       }
 
@@ -280,9 +287,20 @@ class _PersonalizedDiffBest50PageState extends State<PersonalizedDiffBest50Page>
       // 先弹出质量选择器
       final quality = await ExportQualitySelector.show(
         context,
-        estimatedPngSize: ImageEncodeUtil.estimatePngSize(songCount: _diffSongs.length),
+        estimatedPngSize:
+            ImageEncodeUtil.estimatePngSize(songCount: _diffSongs.length),
         exportingLabel: '个性化拟合 Best50',
         enableThunderMode: true,
+        previewBuilder: (previewContext, previewQuality) =>
+            PersonalizedDiffBest50ConvertToImg.buildPreviewWidget(
+          previewContext,
+          '个性化拟合Best50 - ${_selectedTagName ?? '标签'}',
+          _diffBest50Data,
+          _diffSongs,
+          _maimaiMusicData,
+          thunderMode: previewQuality.thunderMode,
+          thunderVertical: previewQuality.thunderVertical,
+        ),
       );
       if (quality == null) return;
 
@@ -386,66 +404,68 @@ class _PersonalizedDiffBest50PageState extends State<PersonalizedDiffBest50Page>
       title: '个性化拟合Best50查询',
       resizeToAvoidBottomInset: false,
       contentPadding: EdgeInsets.only(
-        bottom: MediaQuery.paddingOf(context).bottom + 10,
+        bottom: MediaQuery.paddingOf(context).bottom,
       ),
       child: Stack(
         children: [
           // 内容区域 - 卡片占满可用高度，空状态内容居中显示
           Padding(
-            padding: EdgeInsets.all(screenWidth * 0.03),
+            padding: EdgeInsets.fromLTRB(screenWidth * 0.03, 8, screenWidth * 0.03, screenWidth * 0.03),
             child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // 标签选择按钮（始终在顶部）
-                      ElevatedButton(
-                        onPressed: _showTagSelectionDialog,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.linkBlue(brightness),
-                          padding: EdgeInsets.symmetric(vertical: 12.0),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8.0),
-                          ),
-                        ),
-                        child: Text(
-                          _selectedTagName != null
-                              ? '选择标签: $_selectedTagName'
-                              : '选择标签',
-                          style: TextStyle(
-                            fontSize: screenWidth * 0.04,
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // 标签选择按钮（始终在顶部）
+                ElevatedButton(
+                  onPressed: _showTagSelectionDialog,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.linkBlue(brightness),
+                    padding: EdgeInsets.symmetric(vertical: 12.0),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8.0),
+                    ),
+                  ),
+                  child: Text(
+                    _selectedTagName != null
+                        ? '选择标签: $_selectedTagName'
+                        : '选择标签',
+                    style: TextStyle(
+                      fontSize: screenWidth * 0.04,
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                SizedBox(height: 12.0),
+
+                // 状态分支：未选标签 / 已选标签无数据 / 已选标签有数据
+                // 空状态用 Expanded + Center 让内容垂直居中，避免下方留白
+                if (!_isLoading && _selectedTagId == null)
+                  Expanded(child: Center(child: _buildEmptyHint())),
+
+                if (!_isLoading && _selectedTagId != null && _diffSongs.isEmpty)
+                  Expanded(child: Center(child: _buildNoDataHint())),
+
+                // 有数据时滚动展示
+                if (!_isLoading &&
+                    _selectedTagId != null &&
+                    _diffSongs.isNotEmpty)
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _buildRatingSection(),
+                          SizedBox(height: 12.0),
+                          _buildExportButton(),
+                          SizedBox(height: 12.0),
+                          _buildSectionTitle('基于拟合难度的个性化Best50', context),
+                          SizedBox(height: screenWidth * 0.02),
+                          _buildDataCardGrid(),
+                        ],
                       ),
-                      SizedBox(height: 12.0),
-
-                      // 状态分支：未选标签 / 已选标签无数据 / 已选标签有数据
-                      // 空状态用 Expanded + Center 让内容垂直居中，避免下方留白
-                      if (!_isLoading && _selectedTagId == null)
-                        Expanded(child: Center(child: _buildEmptyHint())),
-
-                      if (!_isLoading && _selectedTagId != null && _diffSongs.isEmpty)
-                        Expanded(child: Center(child: _buildNoDataHint())),
-
-                      // 有数据时滚动展示
-                      if (!_isLoading && _selectedTagId != null && _diffSongs.isNotEmpty)
-                        Expanded(
-                          child: SingleChildScrollView(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                _buildRatingSection(),
-                                SizedBox(height: 12.0),
-                                _buildExportButton(),
-                                SizedBox(height: 12.0),
-                                _buildSectionTitle('基于拟合难度的个性化Best50', context),
-                                SizedBox(height: screenWidth * 0.02),
-                                _buildDataCardGrid(),
-                              ],
-                            ),
-                          ),
-                        ),
-                    ],
+                    ),
+                  ),
+              ],
             ),
           ),
 
@@ -566,12 +586,16 @@ class _PersonalizedDiffBest50PageState extends State<PersonalizedDiffBest50Page>
   // 构建评分区域
   Widget _buildRatingSection() {
     int diffRatingSum = _diffBest50Data?['diffRatingSum'] ?? 0;
-    double diffRatingAverage = _diffSongs.isNotEmpty ? diffRatingSum / _diffSongs.length : 0.0;
+    double diffRatingAverage =
+        _diffSongs.isNotEmpty ? diffRatingSum / _diffSongs.length : 0.0;
 
     // 计算平均达成率
-    double achievementsSum = _diffSongs.fold(0.0,
-        (sum, song) => sum + (double.tryParse(song['achievements'].toString()) ?? 0.0));
-    double averageAchievement = _diffSongs.isNotEmpty ? achievementsSum / _diffSongs.length : 0.0;
+    double achievementsSum = _diffSongs.fold(
+        0.0,
+        (sum, song) =>
+            sum + (double.tryParse(song['achievements'].toString()) ?? 0.0));
+    double averageAchievement =
+        _diffSongs.isNotEmpty ? achievementsSum / _diffSongs.length : 0.0;
 
     // 计算平均scoreRate
     double scoreRateSum = _diffSongs.fold(0.0, (sum, song) {
@@ -580,7 +604,8 @@ class _PersonalizedDiffBest50PageState extends State<PersonalizedDiffBest50Page>
       int score = song['dxScore'] ?? 0;
       return sum + _calculateScoreRate(songId, levelIndex, score);
     });
-    double averageScoreRate = _diffSongs.isNotEmpty ? scoreRateSum / _diffSongs.length : 0.0;
+    double averageScoreRate =
+        _diffSongs.isNotEmpty ? scoreRateSum / _diffSongs.length : 0.0;
 
     // 计算暂无拟合定数的歌曲数量
     int noFitDiffCount = _diffSongs.where((song) {
@@ -589,7 +614,8 @@ class _PersonalizedDiffBest50PageState extends State<PersonalizedDiffBest50Page>
 
     return Container(
       decoration: BoxDecoration(
-        border: Border.all(color: Theme.of(context).colorScheme.onSurface, width: 2.0),
+        border: Border.all(
+            color: Theme.of(context).colorScheme.onSurface, width: 2.0),
         borderRadius: BorderRadius.circular(8.0),
       ),
       padding: EdgeInsets.all(12.0),
@@ -653,7 +679,8 @@ class _PersonalizedDiffBest50PageState extends State<PersonalizedDiffBest50Page>
                       '${noFitDiffCount}首暂无拟合定数，按照官方定数计算',
                       style: TextStyle(
                         fontSize: screenWidth * 0.028,
-                        color: AppColors.warningOrange(Theme.of(context).brightness),
+                        color: AppColors.warningOrange(
+                            Theme.of(context).brightness),
                       ),
                     ),
                   ),
@@ -674,8 +701,9 @@ class _PersonalizedDiffBest50PageState extends State<PersonalizedDiffBest50Page>
                     color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
-                _buildDualDecimalText(averageAchievement, averageScoreRate * 100,
-                scoreRate: averageScoreRate),
+                _buildDualDecimalText(
+                    averageAchievement, averageScoreRate * 100,
+                    scoreRate: averageScoreRate),
                 SizedBox(height: 8.0),
                 Text(
                   '在拟合定数下计算单曲Rating\n取前50的谱面',
@@ -696,7 +724,8 @@ class _PersonalizedDiffBest50PageState extends State<PersonalizedDiffBest50Page>
   Widget _buildSectionTitle(String title, BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        border: Border.all(color: Theme.of(context).colorScheme.onSurface, width: 2.0),
+        border: Border.all(
+            color: Theme.of(context).colorScheme.onSurface, width: 2.0),
         borderRadius: BorderRadius.circular(8.0),
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
       ),
@@ -740,8 +769,10 @@ class _PersonalizedDiffBest50PageState extends State<PersonalizedDiffBest50Page>
   }
 
   // 根据数据构建游戏卡片
-  Widget _buildDataGameCard(Map<String, dynamic> songData, {required int maxIdLength}) {
-    double achievementRate = double.tryParse(songData['achievements'].toString()) ?? 0.0;
+  Widget _buildDataGameCard(Map<String, dynamic> songData,
+      {required int maxIdLength}) {
+    double achievementRate =
+        double.tryParse(songData['achievements'].toString()) ?? 0.0;
     int score = songData['dxScore'] ?? 0;
     String fc = songData['fc'] ?? '';
     String fs = songData['fs'] ?? '';
@@ -854,7 +885,9 @@ class _PersonalizedDiffBest50PageState extends State<PersonalizedDiffBest50Page>
 
   // 构建小数文本
   Widget _buildDecimalText(double value, BuildContext context,
-      {bool isPercentage = false, int decimalPlaces = 4, Color color = Colors.white}) {
+      {bool isPercentage = false,
+      int decimalPlaces = 4,
+      Color color = Colors.white}) {
     String text = value.toStringAsFixed(decimalPlaces);
     List<String> parts = text.split('.');
     String integerPart = parts[0];
@@ -868,11 +901,17 @@ class _PersonalizedDiffBest50PageState extends State<PersonalizedDiffBest50Page>
       children: [
         Text(
           integerPart,
-          style: TextStyle(fontSize: screenWidth * 0.045, fontWeight: FontWeight.w800, color: color),
+          style: TextStyle(
+              fontSize: screenWidth * 0.045,
+              fontWeight: FontWeight.w800,
+              color: color),
         ),
         Text(
           '$decimalPart$percentageSymbol',
-          style: TextStyle(fontSize: screenWidth * 0.03, fontWeight: FontWeight.w800, color: color),
+          style: TextStyle(
+              fontSize: screenWidth * 0.03,
+              fontWeight: FontWeight.w800,
+              color: color),
         ),
       ],
     );
@@ -885,20 +924,35 @@ class _PersonalizedDiffBest50PageState extends State<PersonalizedDiffBest50Page>
       Color? color,
       double? scoreRate}) {
     final resolvedColor = color ?? Theme.of(context).colorScheme.onSurface;
-    final starsText = scoreRate != null ? StringUtil.formatStars(scoreRate) : null;
+    final starsText =
+        scoreRate != null ? StringUtil.formatStars(scoreRate) : null;
     final starsColor =
         scoreRate != null ? ColorUtil.getStarsColor(starsText!) : null;
 
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        _buildDecimalText(value1, context, decimalPlaces: decimalPlaces1, color: resolvedColor),
-        Text('/', style: TextStyle(fontSize: screenWidth * 0.04, fontWeight: FontWeight.bold, color: resolvedColor)),
-        _buildDecimalText(value2, context, decimalPlaces: decimalPlaces2, color: resolvedColor),
+        _buildDecimalText(value1, context,
+            decimalPlaces: decimalPlaces1, color: resolvedColor),
+        Text('/',
+            style: TextStyle(
+                fontSize: screenWidth * 0.04,
+                fontWeight: FontWeight.bold,
+                color: resolvedColor)),
+        _buildDecimalText(value2, context,
+            decimalPlaces: decimalPlaces2, color: resolvedColor),
         // DX 分达成率右侧添加星级（achievement / dxScore% / ✦x）
         if (starsText != null) ...[
-          Text('/', style: TextStyle(fontSize: screenWidth * 0.04, fontWeight: FontWeight.bold, color: resolvedColor)),
-          Text(starsText, style: TextStyle(fontSize: screenWidth * 0.04, fontWeight: FontWeight.bold, color: starsColor)),
+          Text('/',
+              style: TextStyle(
+                  fontSize: screenWidth * 0.04,
+                  fontWeight: FontWeight.bold,
+                  color: resolvedColor)),
+          Text(starsText,
+              style: TextStyle(
+                  fontSize: screenWidth * 0.04,
+                  fontWeight: FontWeight.bold,
+                  color: starsColor)),
         ],
       ],
     );

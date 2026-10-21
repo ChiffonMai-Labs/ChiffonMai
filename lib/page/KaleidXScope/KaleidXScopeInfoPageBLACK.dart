@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import '../../utils/KaleidDateUtil.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -436,15 +437,15 @@ class _KaleidXScopeInfoPageBLACKState extends State<KaleidXScopeInfoPageBLACK> {
   Color _getDifficultyColor(String type) {
     final brightness = Theme.of(context).brightness;
     switch (type) {
-      case 'BASIC':
+      case ChartDifficulty.basicLabel:
         return Colors.green;
-      case 'ADVANCED':
+      case ChartDifficulty.advancedLabel:
         return Colors.blue;
-      case 'EXPERT':
+      case ChartDifficulty.expertLabel:
         return Colors.red; // EXPERT改为红色
-      case 'MASTER':
+      case ChartDifficulty.masterLabel:
         return Colors.purple;
-      case 'Re:MASTER':
+      case ChartDifficulty.reMasterLabel:
         return Colors.red;
       default:
         return AppColors.greyHint(brightness);
@@ -455,15 +456,15 @@ class _KaleidXScopeInfoPageBLACKState extends State<KaleidXScopeInfoPageBLACK> {
   Color _getDifficultyTextColor(String type) {
     final brightness = Theme.of(context).brightness;
     switch (type) {
-      case 'BASIC':
+      case ChartDifficulty.basicLabel:
         return Colors.green;
-      case 'ADVANCED':
+      case ChartDifficulty.advancedLabel:
         return Colors.blue;
-      case 'EXPERT':
+      case ChartDifficulty.expertLabel:
         return Colors.red;
-      case 'MASTER':
+      case ChartDifficulty.masterLabel:
         return Colors.purple;
-      case 'Re:MASTER':
+      case ChartDifficulty.reMasterLabel:
         return Colors.red;
       default:
         return AppColors.greyHint(brightness);
@@ -940,7 +941,7 @@ class _KaleidXScopeInfoPageBLACKState extends State<KaleidXScopeInfoPageBLACK> {
     return BackgroundPageScaffold(
       title: _getGateTitle(),
       bottom: const KaleidXScopeSourceNotice(),
-      contentPadding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom + 10),
+      contentPadding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
       child: _isLoading
                       ? Center(child: CircularProgressIndicator())
                       : SingleChildScrollView(

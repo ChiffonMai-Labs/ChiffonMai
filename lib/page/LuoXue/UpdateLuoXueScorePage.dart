@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../manager/DivingFishProbeManager.dart';
 import '../../utils/AppTheme.dart';
 import '../../constant/CacheKeyConstant.dart';
@@ -11,6 +10,8 @@ import '../../utils/SyncRouteNotifier.dart';
 import '../../utils/SecureCredentialStore.dart';
 import '../../utils/ExternalLaunchUtil.dart';
 import '../../widgets/QrQuickFillButtons.dart';
+import '../../widgets/ConfettiEffect.dart';
+import '../../widgets/MaimaiHubLoginGate.dart';
 import '../../widgets/SmoothLinearProgressIndicator.dart';
 
 /// 同步成绩到落雪（对话框形式，与"同步成绩到水鱼"一致）
@@ -105,6 +106,16 @@ class _UpdateLuoXueScorePageState extends State<UpdateLuoXueScorePage> {
   }
 
   Future<void> _startSync() async {
+    // 落雪线路2 复用 maimai Score Hub 登录态；本次输入框里的二维码只用于
+    // 当次机台抓取，不能再拿去登录。未登录时先用另一张二维码完成登录。
+    final hadHubSession = await DivingFishProbeManager().hasValidHubSession();
+    if (!mounted) return;
+    if (!hadHubSession) {
+      // 登录要花时间，之前输入的二维码可能已经过期；登录后请重新输入。
+      _qrController.clear();
+    }
+    if (!await ensureMaimaiHubLogin(context, reason: '落雪线路2')) return;
+    if (!mounted) return;
     final qrCode = _qrController.text.trim();
     if (qrCode.isEmpty) {
       Fluttertoast.showToast(msg: '请先粘贴舞萌|中二登入二维码字符串');
@@ -177,6 +188,7 @@ class _UpdateLuoXueScorePageState extends State<UpdateLuoXueScorePage> {
     }
 
     if (result.isSuccess) {
+      ConfettiEffect.show(context);
       // 同步成功后标记落雪 token 已保存
       if (lxnsToken != null) {
         setState(() {

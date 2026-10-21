@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import '../utils/ColorUtil.dart';
 import '../utils/AppTheme.dart';
@@ -22,13 +23,7 @@ class DifficultyConstantLabel extends StatelessWidget {
             ? Colors.white
             : Colors.black87;
     return Semantics(
-        label: '${utage ? '宴会' : [
-            'BASIC',
-            'ADVANCED',
-            'EXPERT',
-            'MASTER',
-            'Re:MASTER'
-          ][difficultyIndex.clamp(0, 4)]} 定数 ${constant.toStringAsFixed(1)}',
+        label: '${utage ? '宴会' : ChartDifficulty.standardLabels[difficultyIndex.clamp(0, 4)]} 定数 ${constant.toStringAsFixed(1)}',
         child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(

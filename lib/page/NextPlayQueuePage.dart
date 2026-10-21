@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import '../service/NextPlayQueueStore.dart';
 import '../widgets/PageTopBar.dart';
@@ -201,12 +202,5 @@ class _NextPlayQueuePageState extends State<NextPlayQueuePage> {
     );
   }
 
-  String _difficultyName(int index) => const [
-        'BASIC',
-        'ADVANCED',
-        'EXPERT',
-        'MASTER',
-        'Re:MASTER',
-        'UTAGE'
-      ][index.clamp(0, 5)];
+  String _difficultyName(int index) => ChartDifficulty.labels[index.clamp(ChartDifficulty.basic, ChartDifficulty.utage)];
 }

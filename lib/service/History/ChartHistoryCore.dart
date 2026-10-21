@@ -9,25 +9,17 @@
 ///   * 只记变化：3000 条基线 + 每年约 5 次/谱面的变化 ≈ 450 KB/年。
 library;
 
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'dart:math' as math;
 
 /// 谱面键：`'<songId>/<levelIndex>'`（与 App 其它地方的口径一致）。
 String chartKeyOf(int songId, int levelIndex) => '$songId/$levelIndex';
 
-/// 难度中文化的短名（历史列表里显示用）。
-const List<String> chartDifficultyLabels = [
-  'BASIC',
-  'ADVANCED',
-  'EXPERT',
-  'MASTER',
-  'Re:MASTER',
-  'UTAGE',
-];
+/// 兼容历史页面的旧入口，难度定义统一由 ChartDifficulty 管理。
+const List<String> chartDifficultyLabels = ChartDifficulty.labels;
 
 String difficultyLabelOf(int levelIndex) =>
-    (levelIndex >= 0 && levelIndex < chartDifficultyLabels.length)
-        ? chartDifficultyLabels[levelIndex]
-        : '难度$levelIndex';
+    ChartDifficulty.labelOf(levelIndex, fallback: '难度$levelIndex');
 
 /// 一次刷新里读到的**当前成绩**。
 class ChartSnapshot {

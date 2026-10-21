@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 /**
  * 字符串工具类
  * 用于处理字符串相关的操作
@@ -178,7 +179,7 @@ class StringUtil {
     'PRiSM': 'DX 2025 鏡',
     'PRiSM PLUS': 'DX 2026 彩',
     'CiRCLE': 'CiRCLE 丸',
-    'CiRCLE PLUS': 'CiRCLE+',
+    'CiRCLE PLUS': 'CiRCLE+ 廻',
     'MAGiCAL': 'MAGiCAL',
   };
 
@@ -420,7 +421,7 @@ class StringUtil {
   static String formatSongType(String type) {
     if (type == "DX") return "DX";
     if (type == "SD") return "ST";
-    if (type == "utage") return "UTAGE";
+    if (type == "utage") return ChartDifficulty.utageLabel;
     return "ST";
   }
 
@@ -432,7 +433,7 @@ class StringUtil {
   static String getTypeDisplay(String type) {
     if (type == 'DX') return 'DX';
     if (type == 'SD') return 'ST';
-    if (type == 'utage') return 'UTAGE';
+    if (type == 'utage') return ChartDifficulty.utageLabel;
     return type;
   }
 

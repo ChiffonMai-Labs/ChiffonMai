@@ -19,7 +19,7 @@ class _CollectionSearchPageState extends State<CollectionSearchPage>
     with SingleTickerProviderStateMixin {
   final TextEditingController _searchController = TextEditingController();
   final CollectionSearchService _searchService = CollectionSearchService();
-  
+
   String _selectedType = 'trophies';
   List<Collection> _searchResults = [];
   List<Collection> _rawResults = []; // 未经过滤和排序的原始结果
@@ -32,7 +32,16 @@ class _CollectionSearchPageState extends State<CollectionSearchPage>
   bool _filterSongRequired = false;
   // 排序：ID倒序（默认正序）
   bool _sortDescending = false;
-  
+  // 称号专用底色筛选，支持多选。
+  final Set<String> _selectedColors = <String>{};
+  static const List<String> _colorOptions = [
+    'Normal',
+    'Bronze',
+    'Silver',
+    'Gold',
+    'Rainbow',
+  ];
+
   // 自定义常量
   final Color themeColor = Colors.blue;
   // 收藏品类型选项
@@ -103,12 +112,24 @@ class _CollectionSearchPageState extends State<CollectionSearchPage>
     if (_filterSongRequired) {
       results = results.where((c) {
         if (c.required == null) return false;
-        return c.required!.any((req) => req.songs != null && req.songs!.isNotEmpty);
+        return c.required!
+            .any((req) => req.songs != null && req.songs!.isNotEmpty);
       }).toList();
     }
 
+    if (_selectedType == 'trophies' &&
+        _selectedColors.isNotEmpty &&
+        _selectedColors.length < _colorOptions.length) {
+      results = results
+          .where((collection) =>
+              collection.color != null &&
+              _selectedColors.contains(collection.color))
+          .toList();
+    }
+
     // 排序：按ID
-    results.sort((a, b) => _sortDescending ? b.id.compareTo(a.id) : a.id.compareTo(b.id));
+    results.sort((a, b) =>
+        _sortDescending ? b.id.compareTo(a.id) : a.id.compareTo(b.id));
 
     _searchResults = results;
   }
@@ -143,8 +164,304 @@ class _CollectionSearchPageState extends State<CollectionSearchPage>
     _debounceTimer?.cancel();
     setState(() {
       _selectedType = type;
+      if (type != 'trophies') {
+        _selectedColors.clear();
+      }
     });
     _performSearch();
+  }
+
+  String _colorLabel(String color) {
+    switch (color) {
+      case 'ALL':
+        return 'ALL';
+      case 'Normal':
+        return 'Normal';
+      case 'Bronze':
+        return 'Bronze';
+      case 'Silver':
+        return 'Silver';
+      case 'Gold':
+        return 'Gold';
+      case 'Rainbow':
+        return 'Rainbow';
+      default:
+        return color;
+    }
+  }
+
+  LinearGradient? _getColorGradient(String color) {
+    if (color == 'Rainbow') {
+      return const LinearGradient(
+        begin: Alignment.centerLeft,
+        end: Alignment.centerRight,
+        colors: [
+          Colors.red,
+          Colors.orange,
+          Colors.yellow,
+          Colors.green,
+          Colors.blue,
+          Colors.indigo,
+          Colors.purple,
+        ],
+      );
+    }
+    return null;
+  }
+
+  Widget _buildAnimatedColorLabel(
+    BuildContext context,
+    String color, {
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final fillColor =
+        color == 'ALL' ? colorScheme.primary : _getColorFromType(color);
+    final textColor = selected
+        ? color == 'ALL'
+            ? colorScheme.onPrimary
+            : _getTextColorForBackground(color)
+        : colorScheme.onSurface;
+    final gradient = _getColorGradient(color);
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 38),
+        decoration: BoxDecoration(
+          color: colorScheme.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected ? fillColor : colorScheme.outlineVariant,
+            width: selected ? 1.5 : 1,
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Positioned.fill(
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0, end: selected ? 1 : 0),
+                duration: const Duration(milliseconds: 520),
+                curve: Curves.easeInOutCubic,
+                builder: (context, progress, child) {
+                  return Align(
+                    alignment: Alignment.centerLeft,
+                    child: FractionallySizedBox(
+                      widthFactor: progress,
+                      heightFactor: 1,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: gradient == null ? fillColor : null,
+                          gradient: gradient,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+              child: AnimatedDefaultTextStyle(
+                duration: const Duration(milliseconds: 180),
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+                  color: textColor,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(_colorLabel(color)),
+                    if (selected) ...[
+                      const SizedBox(width: 4),
+                      Icon(Icons.check, size: 16, color: textColor),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showColorFilterDialog() async {
+    final draft = Set<String>.from(_selectedColors);
+    final result = await showDialog<Set<String>>(
+      context: context,
+      builder: (dialogContext) {
+        return Dialog(
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          child: StatefulBuilder(
+            builder: (context, setDialogState) {
+              final colorScheme = Theme.of(context).colorScheme;
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 14),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.palette_outlined,
+                            color: colorScheme.primary),
+                        const SizedBox(width: 8),
+                        const Expanded(
+                          child: Text(
+                            '筛选称号底色',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(dialogContext),
+                          icon: const Icon(Icons.close),
+                          tooltip: '关闭',
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '可同时选择多个底色',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    GridView.count(
+                      crossAxisCount: 2,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      padding: EdgeInsets.zero,
+                      crossAxisSpacing: 8,
+                      mainAxisSpacing: 8,
+                      childAspectRatio: 2.5,
+                      children: [
+                        for (final color in ['ALL', ..._colorOptions])
+                          _buildAnimatedColorLabel(
+                            context,
+                            color,
+                            selected: color == 'ALL'
+                                ? draft.isEmpty ||
+                                    draft.length == _colorOptions.length
+                                : draft.contains(color),
+                            onTap: () {
+                              setDialogState(() {
+                                if (color == 'ALL') {
+                                  draft
+                                    ..clear()
+                                    ..addAll(_colorOptions);
+                                } else if (!draft.add(color)) {
+                                  draft.remove(color);
+                                }
+                              });
+                            },
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () => setDialogState(draft.clear),
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            minimumSize: const Size(72, 44),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          child: const Text('清除选择'),
+                        ),
+                        const SizedBox(width: 8),
+                        FilledButton(
+                          onPressed: () => Navigator.pop(
+                              dialogContext, Set<String>.from(draft)),
+                          style: FilledButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            minimumSize: const Size(96, 44),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          child: const Text('应用'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+
+    if (!mounted || result == null) return;
+    setState(() {
+      _selectedColors
+        ..clear()
+        ..addAll(result);
+      _applyFilterAndSort();
+    });
+  }
+
+  Widget _buildColorFilterBar(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final selectedCount = _selectedColors.length == _colorOptions.length
+        ? 0
+        : _selectedColors.length;
+    return SizedBox(
+      width: double.infinity,
+      height: 42,
+      child: OutlinedButton(
+        onPressed: _showColorFilterDialog,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: colorScheme.onSurface,
+          side: BorderSide(color: colorScheme.outlineVariant),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          minimumSize: Size.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          alignment: Alignment.centerLeft,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.palette_outlined, size: 18, color: colorScheme.primary),
+            const SizedBox(width: 8),
+            const Text('底色'),
+            if (selectedCount > 0) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '$selectedCount',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onPrimaryContainer,
+                  ),
+                ),
+              ),
+            ],
+            const Spacer(),
+            Icon(Icons.tune, size: 17, color: colorScheme.onSurfaceVariant),
+          ],
+        ),
+      ),
+    );
   }
 
   // 清除缓存
@@ -167,6 +484,8 @@ class _CollectionSearchPageState extends State<CollectionSearchPage>
   // 根据颜色类型获取背景色
   Color _getColorFromType(String colorType) {
     switch (colorType) {
+      case 'Normal':
+        return Colors.white;
       case 'Bronze':
         return Color(0xFFCD7F32); // 棕色
       case 'Silver':
@@ -183,6 +502,8 @@ class _CollectionSearchPageState extends State<CollectionSearchPage>
   // 根据背景色获取文本颜色
   Color _getTextColorForBackground(String colorType) {
     switch (colorType) {
+      case 'Normal':
+        return Colors.grey;
       case 'Bronze':
       case 'Silver':
       case 'Gold':
@@ -209,7 +530,7 @@ class _CollectionSearchPageState extends State<CollectionSearchPage>
       ],
       resizeToAvoidBottomInset: false, // 防止键盘弹出时调整布局
       contentPadding: EdgeInsets.only(
-        bottom: MediaQuery.paddingOf(context).bottom + 10,
+        bottom: MediaQuery.paddingOf(context).bottom,
       ),
       child: GestureDetector(
         behavior: HitTestBehavior.translucent,
@@ -217,300 +538,407 @@ class _CollectionSearchPageState extends State<CollectionSearchPage>
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Column(
-                      children: [
-                        // 搜索输入框
-                        TextField(
-                          controller: _searchController,
-                          decoration: InputDecoration(
-                            hintText: '搜索收藏品相关信息',
-                            suffixIcon: IconButton(
-                              icon: Icon(Icons.search),
-                              onPressed: _performSearch,
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8.0),
-                            ),
-                          ),
-                          onChanged: (value) {
-                            _debouncedSearch();
-                          },
-                          onSubmitted: (_) => _performSearch(),
-                        ),
-                        SizedBox(height: 16),
+            children: [
+              // 搜索输入框
+              TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: '搜索收藏品相关信息',
+                  suffixIcon: IconButton(
+                    icon: Icon(Icons.search),
+                    onPressed: _performSearch,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8.0),
+                  ),
+                ),
+                onChanged: (value) {
+                  _debouncedSearch();
+                },
+                onSubmitted: (_) => _performSearch(),
+              ),
+              SizedBox(height: 16),
 
-                        // 类型使用 TabBar，指示条移动；重复选择不会重新请求数据。
-                        TabBar(
-                          controller: _typeTabs,
-                          splashFactory: NoSplash.splashFactory,
-                          overlayColor: const WidgetStatePropertyAll(
-                              Colors.transparent),
-                          tabs: [
-                            for (final option in _typeOptions)
-                              Tab(text: option['label']),
-                          ],
-                          onTap: (index) =>
-                              _switchType(_typeOptions[index]['value']!),
-                        ),
+              // 类型使用 TabBar，指示条移动；重复选择不会重新请求数据。
+              TabBar(
+                controller: _typeTabs,
+                splashFactory: NoSplash.splashFactory,
+                overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+                tabs: [
+                  for (final option in _typeOptions) Tab(text: option['label']),
+                ],
+                onTap: (index) => _switchType(_typeOptions[index]['value']!),
+              ),
 
-                        SizedBox(height: 8),
-                        // 筛选和排序控制栏
-                        Row(
+              SizedBox(height: 8),
+              // 筛选和排序控制栏
+              Row(
+                children: [
+                  // 筛选：仅显示需要歌曲要求的收藏品
+                  SizedBox(
+                    height: 42,
+                    child: Center(
+                      child: FilterChip(
+                        label: Text('有歌曲要求'),
+                        selected: _filterSongRequired,
+                        onSelected: (_) => _toggleSongRequiredFilter(),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 10),
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity:
+                            const VisualDensity(horizontal: -2, vertical: 0),
+                        selectedColor: themeColor.withValues(alpha: 0.2),
+                        checkmarkColor: themeColor,
+                        labelStyle: TextStyle(
+                          fontSize: 13,
+                          color: _filterSongRequired
+                              ? themeColor
+                              : Theme.of(context).colorScheme.onSurface,
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (_selectedType == 'trophies') ...[
+                    const SizedBox(width: 8),
+                    Expanded(child: _buildColorFilterBar(context)),
+                  ] else
+                    const Spacer(),
+                  const SizedBox(width: 8),
+                  // 排序：ID
+                  SizedBox(
+                    height: 42,
+                    child: Center(
+                      child: ActionChip(
+                        label: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            // 筛选：仅显示需要歌曲要求的收藏品
-                            FilterChip(
-                              label: Text('有歌曲要求'),
-                              selected: _filterSongRequired,
-                              onSelected: (_) => _toggleSongRequiredFilter(),
-                              selectedColor: themeColor.withValues(alpha: 0.2),
-                              checkmarkColor: themeColor,
-                              labelStyle: TextStyle(
-                                fontSize: 13,
-                                color: _filterSongRequired
-                                    ? themeColor
-                                    : Theme.of(context).colorScheme.onSurface,
+                            Text(
+                              'ID',
+                              style: TextStyle(fontSize: 13),
+                            ),
+                            AnimatedRotation(
+                              turns: _sortDescending ? 0.5 : 0,
+                              duration: const Duration(milliseconds: 240),
+                              curve: Curves.easeInOut,
+                              child: const Icon(
+                                Icons.arrow_upward,
+                                size: 16,
                               ),
                             ),
-                            const Spacer(),
-                            // 排序：ID
-                            ActionChip(
-                              label: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    'ID',
-                                    style: TextStyle(fontSize: 13),
-                                  ),
-                                  AnimatedRotation(
-                                    turns: _sortDescending ? 0.5 : 0,
-                                    duration: const Duration(milliseconds: 240),
-                                    curve: Curves.easeInOut,
-                                    child: const Icon(
-                                      Icons.arrow_upward,
-                                      size: 16,
+                          ],
+                        ),
+                        onPressed: _toggleSortOrder,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 10),
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity:
+                            const VisualDensity(horizontal: -2, vertical: 0),
+                        backgroundColor: Theme.of(context)
+                            .colorScheme
+                            .surfaceContainerHighest,
+                        labelStyle: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              SizedBox(height: 8),
+              // 搜索结果
+              Expanded(
+                child: _isSearching
+                    ? Center(child: CircularProgressIndicator())
+                    : _searchResults.isEmpty
+                        ? Center(
+                            child: Text('未找到匹配的收藏品'),
+                          )
+                        : ListView.builder(
+                            shrinkWrap: true,
+                            padding: EdgeInsets.only(top: 8),
+                            itemCount: _searchResults.length + 1,
+                            itemBuilder: (context, index) {
+                              // 第一个item显示搜索结果数量
+                              if (index == 0) {
+                                return Padding(
+                                  padding: EdgeInsets.only(bottom: 8),
+                                  child: Center(
+                                    child: Text(
+                                      '找到 ${_searchResults.length} 个收藏品',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onSurfaceVariant,
+                                      ),
                                     ),
                                   ),
-                                ],
-                              ),
-                              onPressed: _toggleSortOrder,
-                              backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-                              labelStyle: TextStyle(
-                                color: Theme.of(context).colorScheme.onSurface,
-                              ),
-                            ),
-                          ],
-                        ),
-
-                        SizedBox(height: 8),
-                        // 搜索结果
-                        Expanded(
-                          child: _isSearching
-                              ? Center(child: CircularProgressIndicator())
-                              : _searchResults.isEmpty
-                                  ? Center(
-                                      child: Text('未找到匹配的收藏品'),
-                                    )
-                                  : ListView.builder(
-                                      shrinkWrap: true,
-                                      padding: EdgeInsets.only(top: 8),
-                                      itemCount: _searchResults.length + 1,
-                                      itemBuilder: (context, index) {
-                                        // 第一个item显示搜索结果数量
-                                        if (index == 0) {
-                                          return Padding(
-                                            padding: EdgeInsets.only(bottom: 8),
-                                            child: Center(
-                                              child: Text(
-                                                '找到 ${_searchResults.length} 个收藏品',
-                                                style: TextStyle(
-                                                  fontSize: 14,
-                                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                );
+                              }
+                              final collection = _searchResults[index - 1];
+                              return Card(
+                                margin: EdgeInsets.symmetric(vertical: 4.0),
+                                child: InkWell(
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            CollectionInfoPage(
+                                          collectionId: collection.id,
+                                          collectionType: _selectedType,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(16.0),
+                                    child: _selectedType == 'icons'
+                                        ? Row(
+                                            children: [
+                                              // 头像图片（小正方形）
+                                              Container(
+                                                width: 60,
+                                                height: 60,
+                                                child: CollectionsImageUtil
+                                                    .getIconImageURL(
+                                                        collection),
+                                              ),
+                                              SizedBox(width: 16),
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    Text(
+                                                      collection.name,
+                                                      style: TextStyle(
+                                                        fontSize: 18,
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                      ),
+                                                    ),
+                                                    // 显示收藏品ID
+                                                    Padding(
+                                                      padding:
+                                                          const EdgeInsets.only(
+                                                              top: 4.0),
+                                                      child: Text(
+                                                        'ID: ${collection.id}',
+                                                        style: TextStyle(
+                                                          fontSize: 12,
+                                                          color: AppColors
+                                                              .greyHint(
+                                                                  brightness),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    if (collection
+                                                            .description !=
+                                                        null)
+                                                      Padding(
+                                                        padding:
+                                                            const EdgeInsets
+                                                                .only(top: 8.0),
+                                                        child: Text(collection
+                                                            .description!),
+                                                      ),
+                                                    if (collection.required !=
+                                                            null &&
+                                                        collection.required!
+                                                            .isNotEmpty)
+                                                      Padding(
+                                                        padding:
+                                                            const EdgeInsets
+                                                                .only(top: 8.0),
+                                                        child: Text(
+                                                          '达成条件: 查看详情',
+                                                          style: TextStyle(
+                                                            color: themeColor,
+                                                            fontSize: 14,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                  ],
                                                 ),
                                               ),
-                                            ),
-                                          );
-                                        }
-                                        final collection = _searchResults[index - 1];
-                                        return Card(
-                                          margin: EdgeInsets.symmetric(vertical: 4.0),
-                                          child: InkWell(
-                                            onTap: () {
-                                              Navigator.push(
-                                                context,
-                                                MaterialPageRoute(
-                                                  builder: (context) => CollectionInfoPage(
-                                                    collectionId: collection.id,
-                                                    collectionType: _selectedType,
-                                                  ),
+                                            ],
+                                          )
+                                        : Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              // 姓名框或背景图片（上方显示）
+                                              if (_selectedType == 'plates' ||
+                                                  _selectedType == 'frames')
+                                                Container(
+                                                  width: double.infinity,
+                                                  height:
+                                                      _selectedType == 'plates'
+                                                          ? 100
+                                                          : 150,
+                                                  child:
+                                                      _selectedType == 'plates'
+                                                          ? CollectionsImageUtil
+                                                              .getPlateImageURL(
+                                                                  collection)
+                                                          : CollectionsImageUtil
+                                                              .getFrameImageURL(
+                                                                  collection),
                                                 ),
-                                              );
-                                            },
-                                            child: Padding(
-                                              padding: const EdgeInsets.all(16.0),
-                                              child: _selectedType == 'icons'
-                                                  ? Row(
-                                                      children: [
-                                                        // 头像图片（小正方形）
+                                              if (_selectedType == 'plates' ||
+                                                  _selectedType == 'frames')
+                                                SizedBox(height: 16),
+                                              Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  // 标题和颜色卡片在同一行
+                                                  Row(
+                                                    children: [
+                                                      Expanded(
+                                                        child: Text(
+                                                          collection.name,
+                                                          style: TextStyle(
+                                                            fontSize: 18,
+                                                            fontWeight:
+                                                                FontWeight.bold,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      // 颜色卡片（仅称号）
+                                                      if (_selectedType ==
+                                                              'trophies' &&
+                                                          collection.color !=
+                                                              null)
                                                         Container(
-                                                          width: 60,
-                                                          height: 60,
-                                                          child: CollectionsImageUtil.getIconImageURL(collection),
-                                                        ),
-                                                        SizedBox(width: 16),
-                                                        Expanded(
-                                                          child: Column(
-                                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                                            children: [
-                                                              Text(
-                                                                collection.name,
-                                                                style: TextStyle(
-                                                                  fontSize: 18,
-                                                                  fontWeight: FontWeight.bold,
-                                                                ),
-                                                              ),
-                                                              // 显示收藏品ID
-                                                              Padding(
-                                                                padding: const EdgeInsets.only(top: 4.0),
-                                                                child: Text(
-                                                                  'ID: ${collection.id}',
-                                                                  style: TextStyle(
-                                                                    fontSize: 12,
-                                                                    color: AppColors.greyHint(brightness),
-                                                                  ),
-                                                                ),
-                                                              ),
-                                                              if (collection.description != null)
-                                                                Padding(
-                                                                  padding: const EdgeInsets.only(top: 8.0),
-                                                                  child: Text(collection.description!),
-                                                                ),
-                                                              if (collection.required != null && collection.required!.isNotEmpty)
-                                                                Padding(
-                                                                  padding: const EdgeInsets.only(top: 8.0),
-                                                                  child: Text(
-                                                                    '达成条件: 查看详情',
-                                                                    style: TextStyle(
-                                                                      color: themeColor,
-                                                                      fontSize: 14,
-                                                                    ),
-                                                                  ),
-                                                                ),
-                                                            ],
+                                                          margin:
+                                                              EdgeInsets.only(
+                                                                  left: 8),
+                                                          padding: EdgeInsets
+                                                              .symmetric(
+                                                                  horizontal:
+                                                                      12,
+                                                                  vertical: 4),
+                                                          decoration:
+                                                              BoxDecoration(
+                                                            gradient: collection
+                                                                        .color ==
+                                                                    'Rainbow'
+                                                                ? LinearGradient(
+                                                                    begin: Alignment
+                                                                        .centerLeft,
+                                                                    end: Alignment
+                                                                        .centerRight,
+                                                                    colors: [
+                                                                      Colors
+                                                                          .red,
+                                                                      Colors
+                                                                          .orange,
+                                                                      Colors
+                                                                          .yellow,
+                                                                      Colors
+                                                                          .green,
+                                                                      Colors
+                                                                          .blue,
+                                                                      Colors
+                                                                          .indigo,
+                                                                      Colors
+                                                                          .purple,
+                                                                    ],
+                                                                  )
+                                                                : null,
+                                                            color: collection
+                                                                        .color !=
+                                                                    'Rainbow'
+                                                                ? _getColorFromType(
+                                                                    collection
+                                                                        .color!)
+                                                                : null,
+                                                            borderRadius:
+                                                                BorderRadius
+                                                                    .circular(
+                                                                        6),
+                                                            border: Border.all(
+                                                              color: AppColors
+                                                                  .tableBorder(
+                                                                      brightness),
+                                                              width: 1,
+                                                            ),
+                                                          ),
+                                                          child: Text(
+                                                            collection.color!,
+                                                            style: TextStyle(
+                                                              fontSize: 12,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .bold,
+                                                              color: collection
+                                                                          .color ==
+                                                                      'Rainbow'
+                                                                  ? Colors.white
+                                                                  : _getTextColorForBackground(
+                                                                      collection
+                                                                          .color!),
+                                                            ),
                                                           ),
                                                         ),
-                                                      ],
-                                                    )
-                                                  : Column(
-                                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                                      children: [
-                                                        // 姓名框或背景图片（上方显示）
-                                                        if (_selectedType == 'plates' || _selectedType == 'frames')
-                                                          Container(
-                                                            width: double.infinity,
-                                                            height: _selectedType == 'plates' ? 100 : 150,
-                                                            child: _selectedType == 'plates'
-                                                                ? CollectionsImageUtil.getPlateImageURL(collection)
-                                                                : CollectionsImageUtil.getFrameImageURL(collection),
-                                                          ),
-                                                        if (_selectedType == 'plates' || _selectedType == 'frames')
-                                                          SizedBox(height: 16),
-                                                        Column(
-                                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                                          children: [
-                                                            // 标题和颜色卡片在同一行
-                                                            Row(
-                                                              children: [
-                                                                Expanded(
-                                                                  child: Text(
-                                                                    collection.name,
-                                                                    style: TextStyle(
-                                                                      fontSize: 18,
-                                                                      fontWeight: FontWeight.bold,
-                                                                    ),
-                                                                  ),
-                                                                ),
-                                                                // 颜色卡片（仅称号）
-                                                                if (_selectedType == 'trophies' && collection.color != null)
-                                                                  Container(
-                                                                    margin: EdgeInsets.only(left: 8),
-                                                                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                                                                    decoration: BoxDecoration(
-                                                                      gradient: collection.color == 'Rainbow' 
-                                                                          ? LinearGradient(
-                                                                              begin: Alignment.centerLeft,
-                                                                              end: Alignment.centerRight,
-                                                                              colors: [
-                                                                                Colors.red,
-                                                                                Colors.orange,
-                                                                                Colors.yellow,
-                                                                                Colors.green,
-                                                                                Colors.blue,
-                                                                                Colors.indigo,
-                                                                                Colors.purple,
-                                                                              ],
-                                                                            )
-                                                                          : null,
-                                                                      color: collection.color != 'Rainbow' 
-                                                                          ? _getColorFromType(collection.color!)
-                                                                          : null,
-                                                                      borderRadius: BorderRadius.circular(6),
-                                                                      border: Border.all(
-                                                                        color: AppColors.tableBorder(brightness),
-                                                                        width: 1,
-                                                                      ),
-                                                                    ),
-                                                                    child: Text(
-                                                                      collection.color!,
-                                                                      style: TextStyle(
-                                                                        fontSize: 12,
-                                                                        fontWeight: FontWeight.bold,
-                                                                        color: collection.color == 'Rainbow' 
-                                                                            ? Colors.white
-                                                                            : _getTextColorForBackground(collection.color!),
-                                                                      ),
-                                                                    ),
-                                                                  ),
-                                                              ],
-                                                            ),
-                                                            // 显示收藏品ID
-                                                            Padding(
-                                                              padding: const EdgeInsets.only(top: 4.0),
-                                                              child: Text(
-                                                                'ID: ${collection.id}',
-                                                                style: TextStyle(
-                                                                  fontSize: 12,
-                                                                  color: AppColors.greyHint(brightness),
-                                                                ),
-                                                              ),
-                                                            ),
-                                                            if (collection.description != null)
-                                                              Padding(
-                                                                padding: const EdgeInsets.only(top: 8.0),
-                                                                child: Text(collection.description!),
-                                                              ),
-                                                            if (collection.required != null && collection.required!.isNotEmpty)
-                                                              Padding(
-                                                                padding: const EdgeInsets.only(top: 8.0),
-                                                                child: Text(
-                                                                  '达成条件: 查看详情',
-                                                                  style: TextStyle(
-                                                                    color: themeColor,
-                                                                    fontSize: 14,
-                                                                  ),
-                                                                ),
-                                                              ),
-                                                          ],
-                                                        ),
-                                                      ],
+                                                    ],
+                                                  ),
+                                                  // 显示收藏品ID
+                                                  Padding(
+                                                    padding:
+                                                        const EdgeInsets.only(
+                                                            top: 4.0),
+                                                    child: Text(
+                                                      'ID: ${collection.id}',
+                                                      style: TextStyle(
+                                                        fontSize: 12,
+                                                        color:
+                                                            AppColors.greyHint(
+                                                                brightness),
+                                                      ),
                                                     ),
-                                            ),
+                                                  ),
+                                                  if (collection.description !=
+                                                      null)
+                                                    Padding(
+                                                      padding:
+                                                          const EdgeInsets.only(
+                                                              top: 8.0),
+                                                      child: Text(collection
+                                                          .description!),
+                                                    ),
+                                                  if (collection.required !=
+                                                          null &&
+                                                      collection
+                                                          .required!.isNotEmpty)
+                                                    Padding(
+                                                      padding:
+                                                          const EdgeInsets.only(
+                                                              top: 8.0),
+                                                      child: Text(
+                                                        '达成条件: 查看详情',
+                                                        style: TextStyle(
+                                                          color: themeColor,
+                                                          fontSize: 14,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                ],
+                                              ),
+                                            ],
                                           ),
-                                        );
-                                      },
-                                    ),
-                        ),
-          ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+              ),
+            ],
+          ),
         ),
-      ),
       ),
     );
   }

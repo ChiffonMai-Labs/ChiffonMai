@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import '../../utils/KaleidDateUtil.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -170,15 +171,15 @@ class _KaleidXScopeInfoPageREDState extends State<KaleidXScopeInfoPageRED> {
 
   Color _getDifficultyColor(String type) {
     switch (type) {
-      case 'BASIC':
+      case ChartDifficulty.basicLabel:
         return Colors.green;
-      case 'ADVANCED':
+      case ChartDifficulty.advancedLabel:
         return Colors.blue;
-      case 'EXPERT':
+      case ChartDifficulty.expertLabel:
         return Colors.red;
-      case 'MASTER':
+      case ChartDifficulty.masterLabel:
         return Colors.purple;
-      case 'Re:MASTER':
+      case ChartDifficulty.reMasterLabel:
         return Colors.red;
       default:
         return AppColors.greyHint(Theme.of(context).brightness);
@@ -187,15 +188,15 @@ class _KaleidXScopeInfoPageREDState extends State<KaleidXScopeInfoPageRED> {
 
   Color _getDifficultyTextColor(String type) {
     switch (type) {
-      case 'BASIC':
+      case ChartDifficulty.basicLabel:
         return Colors.green;
-      case 'ADVANCED':
+      case ChartDifficulty.advancedLabel:
         return Colors.blue;
-      case 'EXPERT':
+      case ChartDifficulty.expertLabel:
         return Colors.red;
-      case 'MASTER':
+      case ChartDifficulty.masterLabel:
         return Colors.purple;
-      case 'Re:MASTER':
+      case ChartDifficulty.reMasterLabel:
         return Colors.red;
       default:
         return AppColors.greyHint(Theme.of(context).brightness);
@@ -746,7 +747,7 @@ class _KaleidXScopeInfoPageREDState extends State<KaleidXScopeInfoPageRED> {
     return BackgroundPageScaffold(
       title: _getGateTitle(),
       bottom: const KaleidXScopeSourceNotice(),
-      contentPadding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom + 10),
+      contentPadding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
       child: _isLoading
                       ? Center(child: CircularProgressIndicator())
                       : SingleChildScrollView(

@@ -20,4 +20,7 @@ class AppLinks {
 
   /// 问卷。
   static const String surveyUrl = 'https://wj.qq.com/s2/26540572/7828/';
+
+  /// 问题反馈。
+  static const String feedbackUrl = 'https://wj.qq.com/s2/28237817/wmfe/';
 }

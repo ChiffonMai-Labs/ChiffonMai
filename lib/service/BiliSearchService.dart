@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'dart:convert';
 import 'dart:math';
 import 'package:crypto/crypto.dart';
@@ -67,7 +68,7 @@ class BiliSearchService {
   ];
 
   // ---- 难度标签 ----
-  static const _diffLabels = ['Basic', 'Advanced', 'Expert', 'Master', 'Re:Master'];
+  static const _diffLabels = ChartDifficulty.legacyLabels;
 
   // ===================================================================
   // 对外 API
@@ -355,16 +356,8 @@ class BiliSearchService {
 
   /// 检查字符串中是否包含难度标签
   bool _containsDiffLabel(String text, String label) {
-    // 中文映射
-    const cnMap = {
-      'Basic': ['Basic', 'basic', '绿谱', '绿', 'BASIC'],
-      'Advanced': ['Advanced', 'advanced', '黄谱', '黄', 'ADVANCED'],
-      'Expert': ['Expert', 'expert', '红谱', '红', 'EXPERT'],
-      'Master': ['Master', 'master', '紫谱', '紫', 'MASTER'],
-      'Re:Master': ['Re:Master', 'ReMaster', 'remaster', 're:master', '白谱', '白', 'REM', 'Re:MASTER'],
-    };
-    final keywords = cnMap[label] ?? [label];
-    return keywords.any((k) => text.contains(k));
+    final keywords = ChartDifficulty.searchKeywords[ChartDifficulty.normalizeLabel(label)] ?? [label];
+    return keywords.any((keyword) => text.contains(keyword));
   }
 
   static String _randomUUID() {

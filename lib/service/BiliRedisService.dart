@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
 import 'package:my_first_flutter_app/api/ApiUrls.dart';
+import 'package:my_first_flutter_app/utils/ApiClient.dart';
 
 /// B站播放量 Redis 缓存服务
 ///
@@ -40,22 +40,21 @@ class BiliRedisService {
     String? bvid,
   }) async {
     try {
-      _log('保存播放量: songId=$songId, diffIndex=$diffIndex, playCount=$playCount, bvid=$bvid');
+      _log(
+          '保存播放量: songId=$songId, diffIndex=$diffIndex, playCount=$playCount, bvid=$bvid');
 
-      final response = await http
-          .post(
-            Uri.parse(ApiUrls.BiliRedisSaveUrl),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'song_id': songId,
-              'song_title': songTitle,
-              'diff_index': diffIndex,
-              'play_count': playCount,
-              if (bvid != null) 'bvid': bvid,
-              'source': 'auto_fetch',
-            }),
-          )
-          .timeout(const Duration(seconds: 5));
+      final response = await ApiClient.post(
+        Uri.parse(ApiUrls.BiliRedisSaveUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'song_id': songId,
+          'song_title': songTitle,
+          'diff_index': diffIndex,
+          'play_count': playCount,
+          if (bvid != null) 'bvid': bvid,
+          'source': 'auto_fetch',
+        }),
+      ).timeout(const Duration(seconds: 5));
 
       if (response.statusCode == 200) {
         _log('播放量保存成功');
@@ -83,13 +82,11 @@ class BiliRedisService {
     try {
       _log('获取缓存播放量: songId=$songId, diffIndex=$diffIndex');
 
-      final response = await http
-          .get(
-            Uri.parse(
-              '${ApiUrls.BiliRedisGetUrl}?song_id=$songId&diff_index=$diffIndex',
-            ),
-          )
-          .timeout(const Duration(seconds: 5));
+      final response = await ApiClient.get(
+        Uri.parse(
+          '${ApiUrls.BiliRedisGetUrl}?song_id=$songId&diff_index=$diffIndex',
+        ),
+      ).timeout(const Duration(seconds: 5));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -127,22 +124,21 @@ class BiliRedisService {
     int? playCount,
   }) async {
     try {
-      _log('上传用户 BV: songId=$songId, diffIndex=$diffIndex, bvid=$bvid, playCount=$playCount');
+      _log(
+          '上传用户 BV: songId=$songId, diffIndex=$diffIndex, bvid=$bvid, playCount=$playCount');
 
-      final response = await http
-          .post(
-            Uri.parse(ApiUrls.BiliRedisUploadBvUrl),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'song_id': songId,
-              'song_title': songTitle,
-              'diff_index': diffIndex,
-              'bvid': bvid,
-              if (playCount != null) 'play_count': playCount,
-              'source': 'user_upload',
-            }),
-          )
-          .timeout(const Duration(seconds: 5));
+      final response = await ApiClient.post(
+        Uri.parse(ApiUrls.BiliRedisUploadBvUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'song_id': songId,
+          'song_title': songTitle,
+          'diff_index': diffIndex,
+          'bvid': bvid,
+          if (playCount != null) 'play_count': playCount,
+          'source': 'user_upload',
+        }),
+      ).timeout(const Duration(seconds: 5));
 
       if (response.statusCode == 200) {
         _log('用户 BV 上传成功');
@@ -169,11 +165,9 @@ class BiliRedisService {
     try {
       _log('获取参考时长缓存: songId=$songId');
 
-      final response = await http
-          .get(
-            Uri.parse('${ApiUrls.RefDurationGetUrl}?song_id=$songId'),
-          )
-          .timeout(const Duration(seconds: 5));
+      final response = await ApiClient.get(
+        Uri.parse('${ApiUrls.RefDurationGetUrl}?song_id=$songId'),
+      ).timeout(const Duration(seconds: 5));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -200,17 +194,15 @@ class BiliRedisService {
     try {
       _log('保存参考时长: songId=$songId, duration=${durationSeconds}s');
 
-      final response = await http
-          .post(
-            Uri.parse(ApiUrls.RefDurationSaveUrl),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'song_id': songId,
-              'song_title': songTitle,
-              'duration_seconds': durationSeconds,
-            }),
-          )
-          .timeout(const Duration(seconds: 5));
+      final response = await ApiClient.post(
+        Uri.parse(ApiUrls.RefDurationSaveUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'song_id': songId,
+          'song_title': songTitle,
+          'duration_seconds': durationSeconds,
+        }),
+      ).timeout(const Duration(seconds: 5));
 
       if (response.statusCode == 200) {
         _log('参考时长保存成功');

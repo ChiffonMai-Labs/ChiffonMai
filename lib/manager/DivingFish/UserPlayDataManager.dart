@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -9,7 +8,9 @@ import 'package:my_first_flutter_app/utils/ApiClient.dart';
 import '../../service/History/ChartHistoryStore.dart';
 import 'ProberException.dart';
 import '../../utils/CurrentDataSourceNotifier.dart';
+import '../../utils/QuotaRetryHint.dart';
 import '../../service/AccountSwitchService.dart';
+import 'MaimaiMusicDataManager.dart';
 
 class UserPlayDataManager {
   // 单例模式
@@ -122,7 +123,8 @@ class UserPlayDataManager {
       case 403:
         throw ProberException.forbidden();
       case 429:
-        throw ProberException.quotaExceeded();
+        throw ProberException.quotaExceeded(
+            retryHint: quotaRetryHint(response.body));
     }
   }
 
@@ -150,15 +152,35 @@ class UserPlayDataManager {
   }) async {
     AccountSwitchService.requireRefresh(source);
     final prefs = await SharedPreferences.getInstance();
+    // 换账号时活动槽已清理；只有身份标记吻合才将旧缓存用作升级后的首次基线。
+    Map<String, dynamic>? previousData;
+    if (prefs.getString(source.userIdCacheKey) == '${source.key}:$accountId') {
+      previousData = await getCachedUserPlayData();
+    }
+    final maxScores = <String, int>{};
+    try {
+      final songs = await MaimaiMusicDataManager().getCachedSongs();
+      for (final song in songs ?? []) {
+        for (var i = 0; i < song.charts.length; i++) {
+          maxScores['${song.id}/$i'] =
+              song.charts[i].notes.fold<int>(0, (sum, n) => sum + n) * 3;
+        }
+      }
+    } catch (error) {
+      debugPrint('[History] 物量暂不可用，星数保留未知：$error');
+    }
     await prefs.setString(CacheKeyConstant.userPlayData, json.encode(data));
     final updateKey = source == RefreshDataSource.awmc
         ? 'awmc_net_user_play_data_last_update'
         : _lastUpdateKey;
     await prefs.setInt(updateKey, DateTime.now().millisecondsSinceEpoch);
     await prefs.remove(CacheKeyConstant.recommendationResults);
-    final historyFuture = ChartHistoryStore.instance.recordChartSnapshot(data,
-        sourceKey: source.key, accountId: accountId, reason: 'refresh');
-    unawaited(historyFuture);
+    await ChartHistoryStore.instance.recordChartSnapshot(data,
+        sourceKey: source.key,
+        accountId: accountId,
+        reason: 'refresh',
+        previousUserData: previousData,
+        maxScores: maxScores);
   }
 
   // 获取最后更新时间

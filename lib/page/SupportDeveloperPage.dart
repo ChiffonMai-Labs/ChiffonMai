@@ -106,10 +106,10 @@ class _SupportDeveloperPageState extends State<SupportDeveloperPage> {
       title: '支持开发者',
       resizeToAvoidBottomInset: false,
       contentPadding: EdgeInsets.only(
-        bottom: MediaQuery.paddingOf(context).bottom + 10,
+        bottom: MediaQuery.paddingOf(context).bottom,
       ),
       child: SingleChildScrollView(
-        padding: EdgeInsets.all(screenWidth * 0.05),
+        padding: EdgeInsets.fromLTRB(screenWidth * 0.05, 8, screenWidth * 0.05, screenWidth * 0.05),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [

@@ -10,6 +10,7 @@
 // 修法：等 `Route.completed`（文档：退场动画结束、overlay 条目移除后才完成）。
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:my_first_flutter_app/widgets/SyncScoreDialogs.dart';
@@ -19,6 +20,7 @@ const String _qr = 'SGWCMAID0123456789012345678901234567890';
 void main() {
   Future<BuildContext> pumpHost(WidgetTester tester) async {
     SharedPreferences.setMockInitialValues({});
+    FlutterSecureStorage.setMockInitialValues({});
     late BuildContext ctx;
     await tester.pumpWidget(MaterialApp(
       home: Builder(builder: (c) {
@@ -53,6 +55,8 @@ void main() {
     await tester.enterText(find.byType(TextField), _qr);
     await tester.pump();
 
+    await tester.ensureVisible(find.text('开始同步'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('开始同步'));
     await expectCleanExit(tester);
 
@@ -70,6 +74,8 @@ void main() {
     await tester.enterText(find.byType(TextField).at(1), 'lxns-api-key-probe');
     await tester.pump();
 
+    await tester.ensureVisible(find.text('开始同步'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('开始同步'));
     await expectCleanExit(tester);
 

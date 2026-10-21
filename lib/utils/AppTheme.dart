@@ -1,8 +1,33 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'VideoExportPageTransitionsTheme.dart';
 
 /// 集中式主题定义：提供浅色和暗色 ThemeData，以及主题感知的颜色访问器
 class AppTheme {
+  /// 应用默认系统栏样式。
+  ///
+  /// Android 15/16 的 edge-to-edge 模式下，状态栏背景色由页面内容决定，
+  /// 因此不能依赖 Flutter 根据透明 AppBar 自动猜测图标亮度。统一按主题明确
+  /// 指定亮暗，避免页面切换或窗口重新获得焦点后沿用上一页的样式。
+  static SystemUiOverlayStyle systemUiOverlayStyle(
+    Brightness brightness, {
+    Color? navigationBarColor,
+  }) {
+    final dark = brightness == Brightness.dark;
+    return SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarBrightness: dark ? Brightness.dark : Brightness.light,
+      statusBarIconBrightness: dark ? Brightness.light : Brightness.dark,
+      systemStatusBarContrastEnforced: false,
+      systemNavigationBarColor: navigationBarColor,
+      systemNavigationBarIconBrightness:
+          dark ? Brightness.light : Brightness.dark,
+      systemNavigationBarContrastEnforced: false,
+    );
+  }
+
   // ========== 字体 ==========
 
   /// 全 App 的字体：思源黑体（`google_fonts` 运行时从网络获取）。
@@ -153,7 +178,7 @@ class AppTheme {
     );
     builders[TargetPlatform.android] =
         const FadeForwardsPageTransitionsBuilder();
-    return PageTransitionsTheme(builders: builders);
+    return VideoExportPageTransitionsTheme(builders: builders);
   }
 
   static ThemeData lightTheme({Color? seedColor}) {
@@ -426,6 +451,24 @@ class AppTheme {
 
 /// 主题感知的颜色访问器 — 新代码使用这些方法替代硬编码颜色
 class AppColors {
+  /// 全屏音乐播放器的独立配色，对齐参考图的深色背景与浅蓝控制按钮。
+  static ColorScheme musicPlayerScheme(Brightness brightness) {
+    final dark = brightness == Brightness.dark;
+    return ColorScheme.fromSeed(
+      seedColor: const Color(0xFFADC7FF),
+      brightness: brightness,
+    ).copyWith(
+      surface: dark ? const Color(0xFF0F131B) : const Color(0xFFF8F9FF),
+      onSurface: dark ? const Color(0xFFE4E6EF) : const Color(0xFF191C25),
+      onSurfaceVariant:
+          dark ? const Color(0xFF91949E) : const Color(0xFF5D616D),
+      primary: dark ? const Color(0xFFADC7FF) : const Color(0xFF405F99),
+      onPrimary: dark ? const Color(0xFF102345) : Colors.white,
+      surfaceContainerHighest:
+          dark ? const Color(0xFF222633) : const Color(0xFFE0E4F0),
+    );
+  }
+
   /// 主文字色（标题、重要文本）
   static Color primaryText(Brightness brightness) =>
       brightness == Brightness.dark
@@ -572,15 +615,15 @@ class AppColors {
   /// 难度等级前景色（文字/边框）
   static Color difficultyForeground(String level) {
     switch (level.toUpperCase()) {
-      case 'BASIC':
+      case ChartDifficulty.basicLabel:
         return const Color(0xFF4CAF50);
-      case 'ADVANCED':
+      case ChartDifficulty.advancedLabel:
         return const Color(0xFFFF9800);
-      case 'EXPERT':
+      case ChartDifficulty.expertLabel:
         return const Color(0xFFE91E63);
-      case 'MASTER':
+      case ChartDifficulty.masterLabel:
         return const Color(0xFF9966CC);
-      case 'Re:MASTER':
+      case ChartDifficulty.reMasterLabel:
       case 'REMASTER':
         return const Color(0xFF9C27B0);
       default:
@@ -591,15 +634,15 @@ class AppColors {
   /// 难度等级背景色（浅色用于标签/徽章背景）
   static Color difficultyBackground(String level) {
     switch (level.toUpperCase()) {
-      case 'BASIC':
+      case ChartDifficulty.basicLabel:
         return const Color(0xFFE8F5E8);
-      case 'ADVANCED':
+      case ChartDifficulty.advancedLabel:
         return const Color(0xFFFFF8E1);
-      case 'EXPERT':
+      case ChartDifficulty.expertLabel:
         return const Color(0xFFFCE4EC);
-      case 'MASTER':
+      case ChartDifficulty.masterLabel:
         return const Color(0xFFE9D8FF);
-      case 'Re:MASTER':
+      case ChartDifficulty.reMasterLabel:
       case 'REMASTER':
         return const Color(0xFFF3E5F5);
       default:
@@ -610,15 +653,15 @@ class AppColors {
   /// 难度等级二级背景色（稍深，用于交替行等）
   static Color difficultySecondaryBackground(String level) {
     switch (level.toUpperCase()) {
-      case 'BASIC':
+      case ChartDifficulty.basicLabel:
         return const Color(0xFFC8E6C9);
-      case 'ADVANCED':
+      case ChartDifficulty.advancedLabel:
         return const Color(0xFFFFE0B2);
-      case 'EXPERT':
+      case ChartDifficulty.expertLabel:
         return const Color(0xFFF8BBD0);
-      case 'MASTER':
+      case ChartDifficulty.masterLabel:
         return const Color(0xFFD4BFFF);
-      case 'Re:MASTER':
+      case ChartDifficulty.reMasterLabel:
       case 'REMASTER':
         return const Color(0xFFE1BEE7);
       default:
@@ -795,7 +838,8 @@ class AppColors {
         Color(0xFFBA68C8),
         Color(0xFFCE93D8),
       ];
-      return colors[index.clamp(0, 4)];
+      return colors[
+          index.clamp(ChartDifficulty.basic, ChartDifficulty.reMaster)];
     }
     const colors = [
       Color(0xFF4CAF50),
@@ -804,7 +848,7 @@ class AppColors {
       Color(0xFF9966CC),
       Color(0xFF9C27B0),
     ];
-    return colors[index.clamp(0, 4)];
+    return colors[index.clamp(ChartDifficulty.basic, ChartDifficulty.reMaster)];
   }
 
   /// 难度索引 → 背景色（通过 index 0-4）
@@ -818,7 +862,8 @@ class AppColors {
         Color(0xFF2A1A3D),
         Color(0xFF3D1A3D),
       ];
-      return colors[index.clamp(0, 4)];
+      return colors[
+          index.clamp(ChartDifficulty.basic, ChartDifficulty.reMaster)];
     }
     const colors = [
       Color(0xFFE8F5E8),
@@ -827,7 +872,7 @@ class AppColors {
       Color(0xFFE9D8FF),
       Color(0xFFF3E5F5),
     ];
-    return colors[index.clamp(0, 4)];
+    return colors[index.clamp(ChartDifficulty.basic, ChartDifficulty.reMaster)];
   }
 
   /// 难度索引 → 二级背景色（通过 index 0-4）
@@ -841,7 +886,8 @@ class AppColors {
         Color(0xFF3D2A5C),
         Color(0xFF5C2A5C),
       ];
-      return colors[index.clamp(0, 4)];
+      return colors[
+          index.clamp(ChartDifficulty.basic, ChartDifficulty.reMaster)];
     }
     const colors = [
       Color(0xFFC8E6C9),
@@ -850,7 +896,7 @@ class AppColors {
       Color(0xFFD4BFFF),
       Color(0xFFE1BEE7),
     ];
-    return colors[index.clamp(0, 4)];
+    return colors[index.clamp(ChartDifficulty.basic, ChartDifficulty.reMaster)];
   }
 
   // ========== 标签分组颜色 ==========

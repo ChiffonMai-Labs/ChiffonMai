@@ -5,9 +5,9 @@
  * 只有用户**点了某一行**，才为那一首去取音源（见 [PortablePlayerController.playQueue]）。
  * 这是明确的需求：全量批量取音源会把落雪 CDN 打爆，也会让进页面卡住。
  *
- * 通知权限（Android 13+ 的 POST_NOTIFICATIONS）**首次进本页时**申请一次：
- * 用户此刻正在期待播放器，同意率最高。拒绝也不阻断播放，只提示一句
- * 「不会显示通知栏播放器，音乐仍可后台播放」。
+ * 通知权限（Android 13+ 的 POST_NOTIFICATIONS）在进入本页时申请：
+ * 用户此刻正在期待播放器，同意率最高。拒绝也不阻断播放，之后再次进入本页时
+ * 仍会重新请求，只提示一句「不会显示通知栏播放器，音乐仍可后台播放」。
  */
 import 'dart:async';
 
@@ -16,9 +16,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../widgets/ExportSuccessDialog.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../constant/CacheKeyConstant.dart';
 import '../../entity/Portable/PortableSong.dart';
 import '../../service/Portable/PortablePlayerController.dart';
 import '../../service/Portable/PortableSongLibrary.dart';
@@ -176,16 +174,12 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
 
   Future<void> _maybeAskNotification() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      if (prefs.getBool(CacheKeyConstant.portableNotificationAsked) == true) {
-        return;
-      }
       // Android 13 以下没有这个权限，request() 会直接返回 granted，无副作用
       var status = await Permission.notification.status;
+      if (status.isGranted) return;
       if (status.isDenied) {
         status = await Permission.notification.request();
       }
-      await prefs.setBool(CacheKeyConstant.portableNotificationAsked, true);
       if (!mounted) return;
       // 用 !isGranted 而不是 isDenied：request() 的 Future 若在用户操作前就完成，
       // 返回的是「还没问」的初始状态（isDenied/isPermanentlyDenied 都为 false），
@@ -290,8 +284,8 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
 
   /// 把「正在播放」那一行滚进视野（顶部栏的小定位按钮）。
   ///
-  /// 定位用「行高估算 × 下标」：每行的内容是固定的（封面 44 + 上下 padding
-  /// 8×2 + 分隔线 1），[_rowExtentOf] 按当前字体缩放算出同一个值。比
+  /// 定位用「固定行高 × 下标」：行高由文字、操作按钮和内边距决定，
+  /// [_rowExtentOf] 同时用于列表布局与定位。比
   /// `Scrollable.ensureVisible` 稳 —— 后者要求目标行**已经**被 build 出来，
   /// 而 1200 首的列表里目标行通常还在屏幕外。
   Future<void> _locateCurrentSong() async {
@@ -313,6 +307,7 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
     }
     if (index < 0 && _searchController.text.isNotEmpty) {
       // 当前曲目被搜索过滤掉了：先清搜索，否则怎么找都找不到那一行
+      _searchTimer?.cancel();
       _searchController.clear();
       _applySearchNow(); // 同步 setState 重建 _filtered
       index = _filtered.indexWhere((s) => s.lxnsId == current.lxnsId);
@@ -321,29 +316,27 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
       if (!_loading) _showHint('当前播放的曲目不在列表里');
       return;
     }
-    if (!_listController.hasClients) return;
+    // 清除搜索后等列表完成布局，再使用新的滚动范围。
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted || !_listController.hasClients) return;
     final extent = _rowExtentOf(context);
     final position = _listController.position;
     // 让目标行落在视口上方 1/4 处，别贴着顶边
-    final target = (index * extent - position.viewportDimension * 0.25)
+    final target = (4 + index * extent - position.viewportDimension * 0.25)
         .clamp(0.0, position.maxScrollExtent);
-    _listController.animateTo(
-      target.toDouble(),
-      duration: const Duration(milliseconds: 320),
-      curve: Curves.easeOutCubic,
-    );
+    _listController.jumpTo(target.toDouble());
   }
 
   /// 列表行的估算高度（= 定位时的步长）。
   ///
-  /// 行高 = max(封面 44, 两行文字) + 上下 padding 8×2 + 分隔线 1。
-  /// 默认字号下两行文字约 38 < 44，所以恒为 61，与列表里的实际行高一致；
+  /// 行高 = max(操作按钮 48, 两行文字) + 上下 padding 8×2 + 分隔线 1。
+  /// 固定行高让跨千首定位只构建目标附近的行，不必逐行测量途经内容。
   /// 系统字体放大后按缩放后的行高算，定位照样对得上（缩放会让默认字号那档
   /// 失效，所以才要跟着 [MediaQuery.textScalerOf] 走）。
   double _rowExtentOf(BuildContext context) {
     final scaler = MediaQuery.textScalerOf(context);
     final textHeight = scaler.scale(14.5) * 1.35 + 2 + scaler.scale(12) * 1.35;
-    return math.max(44.0, textHeight) + 17;
+    return math.max(48.0, textHeight) + 17;
   }
 
   // ── UI ──────────────────────────────────────────────────────────────────
@@ -644,17 +637,21 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
     return Column(
       children: [
         Expanded(
-          child: ListView.separated(
+          child: ListView.builder(
             controller: _listController,
+            itemExtent: _rowExtentOf(context),
             padding: const EdgeInsets.symmetric(vertical: 4),
             itemCount: _filtered.length,
-            separatorBuilder: (_, __) => Divider(
-              height: 1,
-              indent: 68,
-              color: scheme.outlineVariant.withValues(alpha: 0.4),
-            ),
-            itemBuilder: (context, index) =>
-                _buildRow(_filtered[index], scheme),
+            itemBuilder: (context, index) => Column(children: [
+              Expanded(child: _buildRow(_filtered[index], scheme)),
+              if (index < _filtered.length - 1)
+                Divider(
+                    height: 1,
+                    indent: 68,
+                    color: scheme.outlineVariant.withValues(alpha: 0.4))
+              else
+                const SizedBox(height: 1),
+            ]),
           ),
         ),
         _buildFooter(scheme),
@@ -730,6 +727,7 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: 14.5,
+                            height: 1.35,
                             fontWeight:
                                 isCurrent ? FontWeight.w700 : FontWeight.w500,
                             color:
@@ -750,6 +748,7 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 12,
+                      height: 1.35,
                       color: scheme.onSurfaceVariant,
                     ),
                   ),

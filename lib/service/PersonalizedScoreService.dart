@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:my_first_flutter_app/manager/DivingFish/MaimaiMusicDataManager.dart';
@@ -380,14 +381,7 @@ class PersonalizedScoreService {
     if (difficulty == -1) {
       return 'ALL';
     }
-    switch (difficulty) {
-      case 0: return 'BASIC';
-      case 1: return 'ADVANCED';
-      case 2: return 'EXPERT';
-      case 3: return 'MASTER';
-      case 4: return 'Re:MASTER';
-      default: return difficulty.toString();
-    }
+    return ChartDifficulty.labelOf(difficulty, fallback: difficulty.toString());
   }
 
   // 缓存键常量

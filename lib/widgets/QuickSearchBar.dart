@@ -5,8 +5,17 @@ import 'package:flutter/material.dart';
 class QuickSearchBar extends StatefulWidget {
   /// 搜索文本变化回调
   final ValueChanged<String> onChanged;
+  final VoidCallback? onTap;
+  final String? query;
+  final EdgeInsetsGeometry padding;
 
-  const QuickSearchBar({super.key, required this.onChanged});
+  const QuickSearchBar({
+    super.key,
+    required this.onChanged,
+    this.onTap,
+    this.query,
+    this.padding = const EdgeInsets.only(bottom: 8),
+  });
 
   @override
   State<QuickSearchBar> createState() => _QuickSearchBarState();
@@ -15,6 +24,24 @@ class QuickSearchBar extends StatefulWidget {
 class _QuickSearchBarState extends State<QuickSearchBar> {
   final TextEditingController _controller = TextEditingController();
   Timer? _debounceTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.text = widget.query ?? '';
+  }
+
+  @override
+  void didUpdateWidget(QuickSearchBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final query = widget.query;
+    if (query != null && query != _controller.text) {
+      _controller.value = TextEditingValue(
+        text: query,
+        selection: TextSelection.collapsed(offset: query.length),
+      );
+    }
+  }
 
   @override
   void dispose() {
@@ -39,16 +66,21 @@ class _QuickSearchBarState extends State<QuickSearchBar> {
     final iconColor = scheme.primary;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: widget.padding,
       child: TextField(
         controller: _controller,
-        onChanged: _onChanged,
+        onChanged: widget.onTap == null ? _onChanged : null,
+        onTap: widget.onTap,
+        readOnly: widget.onTap != null,
+        canRequestFocus: widget.onTap == null,
+        enableInteractiveSelection: widget.onTap == null,
+        showCursor: widget.onTap == null ? null : false,
         style: TextStyle(
           fontSize: 14,
           color: scheme.onSurface,
         ),
         decoration: InputDecoration(
-          hintText: '搜索功能...',
+          hintText: '搜点什么...',
           hintStyle: TextStyle(color: hintColor, fontSize: 14),
           prefixIcon: Icon(Icons.search, color: iconColor, size: 20),
           suffixIcon: _controller.text.isNotEmpty

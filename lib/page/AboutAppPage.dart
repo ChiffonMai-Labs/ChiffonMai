@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/services.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import '../api/ApiUrls.dart';
 import '../utils/CommonWidgetUtil.dart';
 import '../utils/ExternalLaunchUtil.dart';
 import '../widgets/PageTopBar.dart';
@@ -102,6 +104,7 @@ class _AboutAppPageState extends State<AboutAppPage> {
     _Credit('迪拉熊重度依赖', '感谢对本项目的捐献支持'),
     _Credit('白嫖万岁', '感谢对本项目的捐献支持'),
     _Credit('鱼好呆', '感谢对本项目的捐献支持'),
+    _Credit('Rinviolet', '感谢对本项目的捐献支持'),
   ];
 
   String _version = '';
@@ -300,6 +303,11 @@ class _AboutAppPageState extends State<AboutAppPage> {
           style:
               TextStyle(fontSize: 13.5, height: 1.7, color: scheme.onSurface),
         ),
+        const SizedBox(height: 12),
+        SelectableText(
+          'APP备案号：津ICP备2024015256号-3A',
+          style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+        ),
       ],
     );
   }
@@ -339,8 +347,27 @@ class _AboutAppPageState extends State<AboutAppPage> {
             CircleAvatar(
               radius: 25,
               backgroundColor: scheme.primaryContainer,
-              child: Icon(Icons.person_outline_rounded,
-                  size: 28, color: scheme.onPrimaryContainer),
+              child: ClipOval(
+                child: CachedNetworkImage(
+                  // 仅请求自家后端；腾讯请求头、限频和 24 小时磁盘缓存均由后端处理。
+                  imageUrl: ApiUrls.MaintainerAvatarUrl,
+                  width: 50,
+                  height: 50,
+                  fit: BoxFit.cover,
+                  memCacheWidth:
+                      (50 * MediaQuery.devicePixelRatioOf(context)).round(),
+                  fadeInDuration: Duration.zero,
+                  fadeOutDuration: Duration.zero,
+                  placeholder: (context, url) => Icon(
+                      Icons.person_outline_rounded,
+                      size: 28,
+                      color: scheme.onPrimaryContainer),
+                  errorWidget: (context, url, error) => Icon(
+                      Icons.person_outline_rounded,
+                      size: 28,
+                      color: scheme.onPrimaryContainer),
+                ),
+              ),
             ),
             const SizedBox(width: 14),
             Expanded(

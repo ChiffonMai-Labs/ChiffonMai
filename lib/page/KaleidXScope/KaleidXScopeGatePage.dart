@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import '../../utils/KaleidDateUtil.dart';
 
@@ -170,14 +171,14 @@ class _KaleidXScopeGatePageState extends State<KaleidXScopeGatePage> {
 
   Color _getDifficultyColor(String type) {
     switch (type.toUpperCase()) {
-      case 'BASIC':
+      case ChartDifficulty.basicLabel:
         return Colors.green;
-      case 'ADVANCED':
+      case ChartDifficulty.advancedLabel:
         return Colors.blue;
-      case 'EXPERT':
+      case ChartDifficulty.expertLabel:
         return Colors.red;
-      case 'MASTER':
-      case 'RE:MASTER':
+      case ChartDifficulty.masterLabel:
+      case ChartDifficulty.reMasterUpperLabel:
         return Colors.purple;
       default:
         return _accent;
@@ -720,7 +721,7 @@ class _KaleidXScopeGatePageState extends State<KaleidXScopeGatePage> {
     return BackgroundPageScaffold(
       title: _getGateTitle(),
       bottom: const KaleidXScopeSourceNotice(),
-      contentPadding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom + 10),
+      contentPadding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
       child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : _error != null

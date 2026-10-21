@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:my_first_flutter_app/manager/DivingFish/ProberException.dart';
@@ -11,6 +12,7 @@ import 'package:my_first_flutter_app/utils/ExternalUrlPolicy.dart';
 import 'package:my_first_flutter_app/utils/ExternalLaunchUtil.dart';
 import 'SongInfoPage.dart';
 import '../widgets/BackgroundPageScaffold.dart';
+import '../widgets/AnimatedChoiceLabel.dart';
 
 class FriendComparePage extends StatefulWidget {
   const FriendComparePage({super.key});
@@ -133,7 +135,7 @@ class _FriendComparePageState extends State<FriendComparePage> {
     return BackgroundPageScaffold(
       title: '好友成绩对比',
       resizeToAvoidBottomInset: false,
-      contentPadding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom + 10),
+      contentPadding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
       child: SingleChildScrollView(
                     padding: const EdgeInsets.all(20),
                     child: Column(
@@ -566,7 +568,7 @@ class _FriendComparePageState extends State<FriendComparePage> {
 
   /// 难度 + 胜负筛选栏
   Widget _buildLevelFilter(Brightness brightness) {
-    const diffNames = ['BASIC', 'ADVANCED', 'EXPERT', 'MASTER', 'Re:MASTER'];
+    const diffNames = ChartDifficulty.standardLabels;
     final diffColors = [
       Colors.green,
       Color(0xFFFFCC00),
@@ -600,48 +602,42 @@ class _FriendComparePageState extends State<FriendComparePage> {
   Widget _buildDiffChip(String label, int? levelIndex, Color color,
       {Color? selectedBg}) {
     final isSelected = _filterLevelIndex == levelIndex;
-    return GestureDetector(
+    return AnimatedChoiceLabel(
+      label: label,
+      selected: isSelected,
       onTap: () => setState(() {
         _filterLevelIndex = levelIndex;
         _displayCount = _pageSize;
       }),
-      child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        decoration: BoxDecoration(
-          color: isSelected ? (selectedBg ?? color) : Colors.transparent,
-          border: Border.all(color: color, width: 1.5),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Text(label,
-            style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: isSelected ? Colors.white : color)),
-      ),
+      selectedColor: selectedBg ?? color,
+      selectedTextColor: Colors.white,
+      unselectedTextColor: color,
+      borderColor: color,
+      borderWidth: 1.5,
+      radius: 14,
+      padding: const EdgeInsets.symmetric(horizontal: 11.5, vertical: 6.5),
+      textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
     );
   }
 
   Widget _buildResultChip(String label, String? resultKey, Color color,
       {Color? selectedBg}) {
     final isSelected = _filterResult == resultKey;
-    return GestureDetector(
+    return AnimatedChoiceLabel(
+      label: label,
+      selected: isSelected,
       onTap: () => setState(() {
         _filterResult = resultKey;
         _displayCount = _pageSize;
       }),
-      child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        decoration: BoxDecoration(
-          color: isSelected ? (selectedBg ?? color) : Colors.transparent,
-          border: Border.all(color: color, width: 1.5),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Text(label,
-            style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: isSelected ? Colors.white : color)),
-      ),
+      selectedColor: selectedBg ?? color,
+      selectedTextColor: Colors.white,
+      unselectedTextColor: color,
+      borderColor: color,
+      borderWidth: 1.5,
+      radius: 14,
+      padding: const EdgeInsets.symmetric(horizontal: 11.5, vertical: 6.5),
+      textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
     );
   }
 
@@ -649,7 +645,7 @@ class _FriendComparePageState extends State<FriendComparePage> {
   Widget _buildComparisonList() {
     final brightness = Theme.of(context).brightness;
     final result = _result!;
-    const diffNames = ['BASIC', 'ADVANCED', 'EXPERT', 'MASTER', 'Re:MASTER'];
+    const diffNames = ChartDifficulty.standardLabels;
 
     var filtered = result.commonCharts;
     if (_filterLevelIndex != null) {
@@ -728,7 +724,7 @@ class _FriendComparePageState extends State<FriendComparePage> {
       ChartComparisonItem item, List<String> diffNames) {
     final brightness = Theme.of(context).brightness;
     final isUtage = item.songId.toString().length == 6;
-    final diffName = isUtage ? 'UTAGE' : diffNames[item.levelIndex.clamp(0, 4)];
+    final diffName = isUtage ? ChartDifficulty.utageLabel : diffNames[item.levelIndex.clamp(0, 4)];
     final accentColor = isUtage
         ? AppColors.utageAccent(brightness: brightness)
         : ColorUtil.getCardColor(item.levelIndex);

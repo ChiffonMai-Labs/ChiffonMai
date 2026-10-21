@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import 'package:my_first_flutter_app/manager/DivingFish/MaimaiMusicDataManager.dart';
 import '../manager/DivingFish/UserPlayDataManager.dart';
@@ -266,19 +267,13 @@ class UserScoreSearchService {
         String difficulty = filterConditions['难度筛选']!;
         
         // 处理UTAGE选项，筛选ID为6位数的歌曲
-        if (difficulty == 'UTAGE') {
+        if (difficulty == ChartDifficulty.utageLabel) {
           String songId = song['song_id'].toString();
           if (songId.length != 6 || int.tryParse(songId) == null) {
             return false;
           }
         } else {
-          Map<String, int> difficultyMap = {
-            'BASIC': 0,
-            'ADVANCED': 1,
-            'EXPERT': 2,
-            'MASTER': 3,
-            'Re:MASTER': 4,
-          };
+          Map<String, int> difficultyMap = ChartDifficulty.standardIndexByLabel;
           int? levelIndex = difficultyMap[difficulty];
           if (levelIndex != null) {
             // 检查难度是否匹配
@@ -287,7 +282,7 @@ class UserScoreSearchService {
             }
             
             // 选择BASIC的时候，过滤掉ID为6位数的歌曲
-            if (difficulty == 'BASIC') {
+            if (difficulty == ChartDifficulty.basicLabel) {
               String songId = song['song_id'].toString();
               if (songId.length == 6 && int.tryParse(songId) != null) {
                 return false;
@@ -392,15 +387,15 @@ class UserScoreSearchService {
   // 根据 level_index 获取对应的颜色
   Color getBorderColor(int levelIndex) {
     switch (levelIndex) {
-      case 0: // BASIC
+      case ChartDifficulty.basic: // BASIC
         return Colors.green;
-      case 1: // ADVANCED
+      case ChartDifficulty.advanced: // ADVANCED
         return Colors.yellow;
-      case 2: // EXPERT
+      case ChartDifficulty.expert: // EXPERT
         return Colors.red;
-      case 3: // MASTER
+      case ChartDifficulty.master: // MASTER
         return Colors.purple.shade400;
-      case 4: // Re:MASTER
+      case ChartDifficulty.reMaster: // Re:MASTER
         return Colors.purple.shade200; 
       default:
         return Colors.grey;

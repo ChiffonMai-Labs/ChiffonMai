@@ -47,7 +47,7 @@ class UnionUpdateCompare {
   /// union 独有的宴会场（6 位 id）。宴会场不按版本更新，单独一段。
   final List<Song> utage;
 
-  /// 水鱼（国服）曲数，**含宴会场**。
+  /// 国服曲数，含宴会场及已确认超前上线、但水鱼尚未收录的曲目。
   ///
   /// 记账必须合得上：`unionSongCount == cnSongCount + 三段 union 独有`，
   /// 与 union 全量源（`/api/union/musics`）的条数一致（实测 1885 = 1394 + 491）。
@@ -64,7 +64,7 @@ class UnionUpdateCompare {
 
   /// 国服**超前上线**的曲目（国服先于日服上线，id 却排在最新）。
   ///
-  /// 它们是国服已经有的曲子（算进 [cnSongCount]），但**不能参与前沿判定**：
+  /// 它们算进 [cnSongCount]；水鱼收录滞后时也以名单为准，但**不能参与前沿判定**：
   /// 一旦参与，前沿会被顶到它们身上，把真正还没补上的那批曲子挡在候选之外。
   /// 实测这三首（11944/11945/11946）会把前沿从 11920 顶到 11946，
   /// 让 11921~11943 这 23 首从「下次更新候选」里消失。
@@ -158,6 +158,7 @@ class UnionUpdateCompareService {
     '11944',
     '11945',
     '11946',
+    '12025',
   };
 
   /// 取数值 id；解析不出来算 0（排序时排最前，不会污染"最新"判定）。
@@ -193,6 +194,12 @@ class UnionUpdateCompareService {
     var maidataCount = 0;
 
     for (final song in songs) {
+      // 已确认的国服超前上线曲优先于来源标记，兼容水鱼尚未收录的情况。
+      if (cnEarlyReleaseIds.contains(song.id)) {
+        cnSongCount++;
+        earlyReleases.add(song);
+        continue;
+      }
       if (song.isExtra) {
         // union 独有 = 水鱼（国服）没有的曲子，先收集，等前沿算出来再分流。
         unionOnly.add(song);
@@ -208,12 +215,6 @@ class UnionUpdateCompareService {
       // 水鱼（国服）曲。
       cnSongCount++;
       if (SongFilterUtil.isUtageSong(song.id)) continue; // 宴会场不参与"最新"判定
-      // 超前上线的曲目单独收：它们是国服已有的曲子，但不能当前沿
-      // （否则真正待补的那批会被顶出候选，见 cnEarlyReleaseIds 的注释）。
-      if (cnEarlyReleaseIds.contains(song.id)) {
-        earlyReleases.add(song);
-        continue;
-      }
       cnRegular.add(song);
     }
 

@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 
 import '../api/ApiUrls.dart';
 import '../utils/ApiClient.dart';
+import '../utils/QuotaRetryHint.dart';
 
 /// AWMC NET 机台二维码导入的结果。
 ///
@@ -69,16 +70,9 @@ class AwmcNetQrImportResult {
 
 /// AWMC NET.（https://net.wmc.pub）「同步成绩到 AWMC NET」。
 ///
-/// ── 为什么是二维码而不是别的 ──
-/// 这是 AWMC NET 提供的**唯一**一条我们走得通的写入路径：
-///   * `POST /player/update_records` 等虽然也是水鱼兼容形状，但只认用户自己的
-///     `Import-Token`，而 AWMC NET **没有用户名密码登录接口**（`/api/auth/login`
-///     只有 GET，是 OAuth 跳转），App 没法像水鱼那样用密码换 Token；
-///   * `POST /api/bot/sync` 虽然能直接用项目自带的密钥，但它接收的是**调用方给的
-///     成绩数组** —— 而 App 本地活动槽里的成绩可能来自水鱼/落雪，推过去就是**串源**。
-///
-/// 二维码这条路让 **AWMC NET 自己拿二维码去机台拉成绩**，完全不经过我们的本地缓存，
-/// 所以不存在串源问题。代价是需要用户去官网复制一次 Import-Token。
+/// 本类负责让 AWMC NET 使用二维码拉取完整机台成绩。
+/// 快速同步由 AwmcQuickSyncService 读取机台成绩、补齐该 AWMC NET 账号的标记，
+/// 再转换成水鱼 RecordItem 数组上传；两种方式都使用用户自己的 Import-Token。
 ///
 /// ── 两个实测要点 ──
 ///   1. **耗时约 36 秒且同步阻塞** —— 必须用 [timeout]（120s），
@@ -205,7 +199,8 @@ class AwmcNetScoreUploadService {
     } catch (_) {
       // 非 JSON（网关错误页等）：正文没参考价值
     }
-    final clipped = detail.length > 200 ? '${detail.substring(0, 200)}…' : detail;
+    final clipped =
+        detail.length > 200 ? '${detail.substring(0, 200)}…' : detail;
 
     if (response.statusCode == 401) {
       final invalid = !detail.contains('需要提供');
@@ -227,7 +222,7 @@ class AwmcNetScoreUploadService {
     }
     if (response.statusCode == 429) {
       return AwmcNetQrImportResult.failure(
-        'AWMC NET 请求过于频繁，请稍后再试',
+        'AWMC NET 请求过于频繁，请稍后再试\n${quotaRetryHint(utf8.decode(response.bodyBytes))}',
         elapsedMs: elapsed,
       );
     }
@@ -251,6 +246,6 @@ class AwmcNetScoreUploadService {
   }
 
   /// 异常文本里的长串一律打码：它们很可能就是 Token 本身。
-  static String _redact(String input) => input.replaceAllMapped(
-      RegExp(r'[A-Za-z0-9_\-]{24,}'), (m) => '****');
+  static String _redact(String input) =>
+      input.replaceAllMapped(RegExp(r'[A-Za-z0-9_\-]{24,}'), (m) => '****');
 }

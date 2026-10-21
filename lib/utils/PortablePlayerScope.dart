@@ -20,6 +20,10 @@ class PortablePlayerScope {
   static final ValueNotifier<bool> isLibraryPageOpen =
       ValueNotifier<bool>(false);
 
+  /// 全屏播放页已有完整控制区，显示期间收起悬浮球。
+  static final ValueNotifier<bool> isNowPlayingPageOpen =
+      ValueNotifier<bool>(false);
+
   /// 当前播放是不是从 [SongInfoPage] 的「播放音乐」触发的。
   ///
   /// 为 true 时 [PortablePlayerBall]（悬浮球）隐藏 —— 用户没主动进随身听，

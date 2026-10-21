@@ -98,10 +98,13 @@ tool/backup/
 /tool/
 /analyze_maidata.py
 /build_apk.ps1
-/server/node_modules/
-/server/scripts/
-/server/tests/special-rankings.test.js
-/server/tests/sync-stats.test.js
+
+# 服务端只在本地维护，Git 仅保留 Flutter 客户端相关代码与项目资料。
+# 包括服务端源码、依赖、配置、脚本、SQL、数据、测试和部署文档。
+/server/
+/cloudbaserc.json
+/.skip-template
+/docs/loading-tips-server.md
 
 # 本轮临时回归测试（保留在本机，不纳入发布提交）
 /test/hub_action_tile_progress_test.dart

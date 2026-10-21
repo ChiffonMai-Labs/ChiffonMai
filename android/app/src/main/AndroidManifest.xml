@@ -17,6 +17,7 @@
     <uses-permission android:name="android.permission.CAMERA"/>
     <!-- 媒体权限（Android 13+） -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!--
@@ -46,6 +47,7 @@
       `FadeForwardsPageTransitionsBuilder` 上 —— 两处都要在，缺一个都还会认领手势。
     -->
     <application
+        android:networkSecurityConfig="@xml/network_security_config"
         android:enableOnBackInvokedCallback="false"
         android:allowBackup="false"
         android:fullBackupContent="false"

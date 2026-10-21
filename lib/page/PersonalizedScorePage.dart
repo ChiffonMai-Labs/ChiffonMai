@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import '../widgets/SmoothLinearProgressIndicator.dart';
 import 'dart:async';
@@ -39,7 +40,7 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
 
   // 种类模式：'level' 等级模式, 'charter' 谱师模式
   String _mode = 'level';
-  
+
   // 谱师相关
   Map<String, int>? _charterCounts;
   String? _selectedCharter;
@@ -109,15 +110,15 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
       // 设置保存的选项，如果有效则使用，否则使用默认值
       if (_titleTypeOptions.isNotEmpty) {
         final savedTitleType = savedOptions['titleType'] as String;
-        _selectedTitleType = _titleTypeOptions.contains(savedTitleType) && savedTitleType.isNotEmpty
+        _selectedTitleType = _titleTypeOptions.contains(savedTitleType) &&
+                savedTitleType.isNotEmpty
             ? savedTitleType
             : _titleTypeOptions[0];
       }
       if (_difficultyOptions.isNotEmpty) {
         final savedDifficulty = savedOptions['difficulty'] as int;
-        _selectedDifficulty = _difficultyOptions.contains(savedDifficulty)
-            ? savedDifficulty
-            : -1;
+        _selectedDifficulty =
+            _difficultyOptions.contains(savedDifficulty) ? savedDifficulty : -1;
       }
 
       // 获取全量等级选项并缓存
@@ -134,18 +135,24 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
       // 设置保存的等级选项
       if (_levelOptions.isNotEmpty) {
         final savedLevel = savedOptions['level'] as String;
-        _selectedLevel = _levelOptions.contains(savedLevel) && savedLevel.isNotEmpty
-            ? savedLevel
-            : _levelOptions[0];
+        _selectedLevel =
+            _levelOptions.contains(savedLevel) && savedLevel.isNotEmpty
+                ? savedLevel
+                : _levelOptions[0];
       }
 
       // 设置保存的模式
       final savedMode = savedOptions['mode'] as String;
-      _mode = ['level', 'charter', 'version', 'artist', 'genre'].contains(savedMode) ? savedMode : 'level';
+      _mode =
+          ['level', 'charter', 'version', 'artist', 'genre'].contains(savedMode)
+              ? savedMode
+              : 'level';
 
       // 设置保存的谱师（如果谱师存在）
       final savedCharter = savedOptions['charter'] as String;
-      if (savedCharter.isNotEmpty && _charterCounts != null && _charterCounts!.containsKey(savedCharter)) {
+      if (savedCharter.isNotEmpty &&
+          _charterCounts != null &&
+          _charterCounts!.containsKey(savedCharter)) {
         _selectedCharter = savedCharter;
       } else if (_charterCounts != null && _charterCounts!.isNotEmpty) {
         _selectedCharter = _charterCounts!.keys.first;
@@ -153,7 +160,8 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
 
       // 设置保存的版本
       final savedVersion = savedOptions['version'] as String;
-      if (savedVersion.isNotEmpty && VersionListConstant.standardVersions.contains(savedVersion)) {
+      if (savedVersion.isNotEmpty &&
+          VersionListConstant.standardVersions.contains(savedVersion)) {
         _selectedVersion = savedVersion;
       } else if (VersionListConstant.standardVersions.isNotEmpty) {
         _selectedVersion = VersionListConstant.standardVersions.first;
@@ -161,7 +169,9 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
 
       // 设置保存的曲师
       final savedArtist = savedOptions['artist'] as String;
-      if (savedArtist.isNotEmpty && _artistCounts != null && _artistCounts!.containsKey(savedArtist)) {
+      if (savedArtist.isNotEmpty &&
+          _artistCounts != null &&
+          _artistCounts!.containsKey(savedArtist)) {
         _selectedArtist = savedArtist;
       } else if (_artistCounts != null && _artistCounts!.isNotEmpty) {
         _selectedArtist = _artistCounts!.keys.first;
@@ -172,7 +182,9 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
 
       // 设置保存的流派
       final savedGenre = savedOptions['genre'] as String;
-      if (savedGenre.isNotEmpty && _genreCounts != null && _genreCounts!.containsKey(savedGenre)) {
+      if (savedGenre.isNotEmpty &&
+          _genreCounts != null &&
+          _genreCounts!.containsKey(savedGenre)) {
         _selectedGenre = savedGenre;
       } else if (_genreCounts != null && _genreCounts!.isNotEmpty) {
         _selectedGenre = _genreCounts!.keys.first;
@@ -222,14 +234,14 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
     }
 
     List<String> newLevelOptions;
-    
+
     // ALL模式下使用全量等级选项
     if (_selectedDifficulty == -1) {
       newLevelOptions = _allLevelOptionsCache;
     } else {
       newLevelOptions = await _service.getLevelOptions(_selectedDifficulty!);
     }
-    
+
     setState(() {
       _levelOptions = newLevelOptions;
     });
@@ -250,7 +262,7 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
       _service.clearRecordsCache();
 
       List<Map<String, dynamic>> result;
-      
+
       if (_mode == 'level') {
         if (_selectedLevel == null) return;
         result = await _service.getSongsByLevel(
@@ -288,7 +300,7 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
           _selectedDifficulty!,
         );
       }
-      
+
       setState(() {
         _cachedSongsWithStatus = result;
       });
@@ -311,13 +323,20 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
   // 获取难度颜色
   Color _getDifficultyColor(int difficulty) {
     switch (difficulty) {
-      case -1: return Colors.black;
-      case 0: return Colors.green;
-      case 1: return Color(0xFFFFCC00);
-      case 2: return Colors.pink;
-      case 3: return Colors.purple;
-      case 4: return Colors.purple.shade200;
-      default: return Colors.grey;
+      case -1:
+        return Colors.black;
+      case ChartDifficulty.basic:
+        return Colors.green;
+      case ChartDifficulty.advanced:
+        return Color(0xFFFFCC00);
+      case ChartDifficulty.expert:
+        return Colors.pink;
+      case ChartDifficulty.master:
+        return Colors.purple;
+      case ChartDifficulty.reMaster:
+        return Colors.purple.shade200;
+      default:
+        return Colors.grey;
     }
   }
 
@@ -366,54 +385,82 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
       title: '个性化成绩查询',
       resizeToAvoidBottomInset: false,
       contentPadding: EdgeInsets.only(
-        bottom: MediaQuery.paddingOf(context).bottom + 10,
+        bottom: MediaQuery.paddingOf(context).bottom,
       ),
-      child: _isLoading
-                      ? Center(child: CircularProgressIndicator())
-                      : SingleChildScrollView(
-                          padding: EdgeInsets.all(_paddingM),
-                          child: Column(
-                            children: [
-                              // 选择区域
-                              _buildSelectionSection(),
+      child: SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(_paddingM, 8, _paddingM, _paddingM),
+              child: Column(
+                children: [
+                  // 选择区域
+                  _buildSelectionSection(),
 
-                              SizedBox(height: _paddingL),
+                  SizedBox(height: _paddingL),
 
-                              // 导出为图片按钮
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton.icon(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.linkBlue(brightness),
-                                    foregroundColor: Colors.white,
-                                    padding: EdgeInsets.symmetric(vertical: _paddingS),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(_borderRadiusSmall),
-                                    ),
-                                  ),
-                                  icon: Icon(Icons.image, size: _textSizeL + 4),
-                                  label: Text(
-                                    '导出为图片',
-                                    style: TextStyle(fontSize: _textSizeM, fontWeight: FontWeight.bold),
-                                  ),
-                                  onPressed: () async {
-                                    debugPrint('=== PERSONALIZED SCORE EXPORT BUTTON CLICKED ===');
-                                    try {
-                                      await _exportToImage();
-                                    } catch (e) {
-                                      debugPrint('Error in export: $e');
-                                    }
-                                  },
-                                ),
-                              ),
-
-                              SizedBox(height: _paddingL),
-
-                              // 曲绘和完成情况显示区域
-                              _buildSongListSection(),
-                            ],
-                          ),
+                  // 导出为图片按钮
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.linkBlue(brightness),
+                        foregroundColor: Colors.white,
+                        padding: EdgeInsets.symmetric(vertical: _paddingS),
+                        shape: RoundedRectangleBorder(
+                          borderRadius:
+                              BorderRadius.circular(_borderRadiusSmall),
                         ),
+                      ),
+                      icon: Icon(Icons.image, size: _textSizeL + 4),
+                      label: Text(
+                        '导出为图片',
+                        style: TextStyle(
+                            fontSize: _textSizeM, fontWeight: FontWeight.bold),
+                      ),
+                      onPressed: () async {
+                        debugPrint(
+                            '=== PERSONALIZED SCORE EXPORT BUTTON CLICKED ===');
+                        try {
+                          await _exportToImage();
+                        } catch (e) {
+                          debugPrint('Error in export: $e');
+                        }
+                      },
+                    ),
+                  ),
+
+                  SizedBox(height: _paddingL),
+
+                  // 曲绘和完成情况显示区域
+                  AnimatedSwitcher(
+                    duration: MediaQuery.disableAnimationsOf(context)
+                        ? Duration.zero
+                        : const Duration(milliseconds: 240),
+                    switchInCurve: Curves.easeOutCubic,
+                    switchOutCurve: Curves.easeInCubic,
+                    child: (_isLoading || _isSongsLoading)
+                        ? _buildDataLoadingPanel()
+                        : _buildSongListSection(),
+                  ),
+                ],
+              ),
+            ),
+    );
+  }
+
+  Widget _buildDataLoadingPanel() {
+    return SizedBox(
+      key: const ValueKey('personalized-score-data-loading'),
+      height: 180,
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(color: Theme.of(context).colorScheme.primary),
+            const SizedBox(height: 12),
+            Text('正在加载成绩数据…',
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          ],
+        ),
+      ),
     );
   }
 
@@ -443,7 +490,15 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
           ),
           onPressed: () => _showModeDialog(),
           child: Text(
-            _mode == 'level' ? '等级' : _mode == 'charter' ? '谱师' : _mode == 'version' ? '版本' : _mode == 'genre' ? '流派' : '曲师',
+            _mode == 'level'
+                ? '等级'
+                : _mode == 'charter'
+                    ? '谱师'
+                    : _mode == 'version'
+                        ? '版本'
+                        : _mode == 'genre'
+                            ? '流派'
+                            : '曲师',
             style: TextStyle(fontSize: _textSizeM),
           ),
         ),
@@ -452,7 +507,15 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
 
         // 选择等级/谱师/版本/曲师/流派
         Text(
-          _mode == 'level' ? '选择等级' : _mode == 'charter' ? '选择谱师' : _mode == 'version' ? '选择版本' : _mode == 'genre' ? '选择流派' : '选择曲师',
+          _mode == 'level'
+              ? '选择等级'
+              : _mode == 'charter'
+                  ? '选择谱师'
+                  : _mode == 'version'
+                      ? '选择版本'
+                      : _mode == 'genre'
+                          ? '选择流派'
+                          : '选择曲师',
           style: TextStyle(
             fontSize: _textSizeM,
             fontWeight: FontWeight.bold,
@@ -488,10 +551,16 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
                 : _mode == 'charter'
                     ? (_selectedCharter != null ? _selectedCharter! : '请选择谱师')
                     : _mode == 'version'
-                        ? (_selectedVersion != null ? StringUtil.formatVersion2(_selectedVersion!) : '请选择版本')
+                        ? (_selectedVersion != null
+                            ? StringUtil.formatVersion2(_selectedVersion!)
+                            : '请选择版本')
                         : _mode == 'genre'
-                            ? (_selectedGenre != null ? _selectedGenre! : '请选择流派')
-                            : (_selectedArtist != null ? _selectedArtist! : '请选择曲师'),
+                            ? (_selectedGenre != null
+                                ? _selectedGenre!
+                                : '请选择流派')
+                            : (_selectedArtist != null
+                                ? _selectedArtist!
+                                : '请选择曲师'),
             style: TextStyle(fontSize: _textSizeM),
           ),
         ),
@@ -580,7 +649,8 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
                   // 保持当前选中
                 } else if (_levelOptions.isNotEmpty) {
                   setState(() {
-                    _selectedLevel = _levelOptions.isNotEmpty ? _levelOptions[0] : null;
+                    _selectedLevel =
+                        _levelOptions.isNotEmpty ? _levelOptions[0] : null;
                   });
                 }
                 await _loadSongsWithStatus();
@@ -633,7 +703,9 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
                       _mode = 'charter';
                       _cachedSongsWithStatus = null;
                     });
-                    if (_selectedCharter == null && _charterCounts != null && _charterCounts!.isNotEmpty) {
+                    if (_selectedCharter == null &&
+                        _charterCounts != null &&
+                        _charterCounts!.isNotEmpty) {
                       setState(() {
                         _selectedCharter = _charterCounts!.keys.first;
                       });
@@ -651,9 +723,11 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
                       _mode = 'version';
                       _cachedSongsWithStatus = null;
                     });
-                    if (_selectedVersion == null && VersionListConstant.standardVersions.isNotEmpty) {
+                    if (_selectedVersion == null &&
+                        VersionListConstant.standardVersions.isNotEmpty) {
                       setState(() {
-                        _selectedVersion = VersionListConstant.standardVersions.first;
+                        _selectedVersion =
+                            VersionListConstant.standardVersions.first;
                       });
                     }
                     _saveOptions();
@@ -669,7 +743,9 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
                       _mode = 'artist';
                       _cachedSongsWithStatus = null;
                     });
-                    if (_selectedArtist == null && _artistCounts != null && _artistCounts!.isNotEmpty) {
+                    if (_selectedArtist == null &&
+                        _artistCounts != null &&
+                        _artistCounts!.isNotEmpty) {
                       setState(() {
                         _selectedArtist = _artistCounts!.keys.first;
                       });
@@ -687,7 +763,9 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
                       _mode = 'genre';
                       _cachedSongsWithStatus = null;
                     });
-                    if (_selectedGenre == null && _genreCounts != null && _genreCounts!.isNotEmpty) {
+                    if (_selectedGenre == null &&
+                        _genreCounts != null &&
+                        _genreCounts!.isNotEmpty) {
                       setState(() {
                         _selectedGenre = _genreCounts!.keys.first;
                       });
@@ -728,7 +806,8 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
     }
 
     // 按出现次数排序
-    List<MapEntry<String, int>> sortedCharters = _charterCounts!.entries.toList()
+    List<MapEntry<String, int>> sortedCharters = _charterCounts!.entries
+        .toList()
       ..sort((a, b) => b.value.compareTo(a.value));
 
     // 搜索框的 controller 由弹窗自己释放（见 SearchPickerDialog 的说明）：
@@ -764,7 +843,8 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
             child: ListBody(
               children: versions.map((version) {
                 return ListTile(
-                  title: Center(child: Text(StringUtil.formatVersion2(version))),
+                  title:
+                      Center(child: Text(StringUtil.formatVersion2(version))),
                   selected: _selectedVersion == version,
                   onTap: () async {
                     Navigator.of(context).pop();
@@ -937,16 +1017,16 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
                       minimumSize: Size(50, 40),
                     ),
                     onPressed: () async {
-                    Navigator.of(context).pop();
-                    setState(() {
-                      _selectedLevel = level;
-                      _cachedSongsWithStatus = null;
-                    });
-                    _saveOptions();
-                    // 更新等级选项（确保当前选中的等级在选项列表中）
-                    await _updateLevelOptions();
-                    await _loadSongsWithStatus();
-                  },
+                      Navigator.of(context).pop();
+                      setState(() {
+                        _selectedLevel = level;
+                        _cachedSongsWithStatus = null;
+                      });
+                      _saveOptions();
+                      // 更新等级选项（确保当前选中的等级在选项列表中）
+                      await _updateLevelOptions();
+                      await _loadSongsWithStatus();
+                    },
                     child: FittedBox(
                       fit: BoxFit.scaleDown,
                       child: Text(
@@ -955,7 +1035,9 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: _selectedLevel == level ? Colors.white : Theme.of(context).colorScheme.onSurfaceVariant,
+                          color: _selectedLevel == level
+                              ? Colors.white
+                              : Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ),
@@ -980,11 +1062,15 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
     if (_cachedSongsWithStatus == null || _cachedSongsWithStatus!.isEmpty) {
       return Center(
         child: Text(
-          _mode == 'level' ? '当前等级没有匹配的歌曲'
-              : _mode == 'charter' ? '当前谱师没有匹配的歌曲'
-              : _mode == 'version' ? '当前版本没有匹配的歌曲'
-              : _mode == 'genre' ? '当前流派没有匹配的歌曲'
-              : '当前曲师没有匹配的歌曲',
+          _mode == 'level'
+              ? '当前等级没有匹配的歌曲'
+              : _mode == 'charter'
+                  ? '当前谱师没有匹配的歌曲'
+                  : _mode == 'version'
+                      ? '当前版本没有匹配的歌曲'
+                      : _mode == 'genre'
+                          ? '当前流派没有匹配的歌曲'
+                          : '当前曲师没有匹配的歌曲',
           style: TextStyle(
             fontSize: _textSizeM,
             color: AppColors.greyHint(Theme.of(context).brightness),
@@ -998,9 +1084,12 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
     // 根据过滤模式过滤歌曲
     List<Map<String, dynamic>> filteredSongs = songsWithStatus;
     if (_filterMode == 'completed') {
-      filteredSongs = songsWithStatus.where((item) => item['completed'] as bool).toList();
+      filteredSongs =
+          songsWithStatus.where((item) => item['completed'] as bool).toList();
     } else if (_filterMode == 'uncompleted') {
-      filteredSongs = songsWithStatus.where((item) => !(item['completed'] as bool)).toList();
+      filteredSongs = songsWithStatus
+          .where((item) => !(item['completed'] as bool))
+          .toList();
     }
 
     // 检查过滤后是否有数据（保留过滤后的列表用于后续使用，但不提前返回）
@@ -1011,9 +1100,11 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
       final song = item['song'] as Song;
       final diffIndex = item['difficulty'] as int;
       String dsKey = '未知';
-      
+
       if (song.ds != null && song.ds.length > diffIndex) {
-        dsKey = _useLevelDisplay ? _getLevelDisplay(song.ds[diffIndex]) : _getDsLevelDisplay(song.ds[diffIndex]);
+        dsKey = _useLevelDisplay
+            ? _getLevelDisplay(song.ds[diffIndex])
+            : _getDsLevelDisplay(song.ds[diffIndex]);
       }
 
       if (!groupedSongs.containsKey(dsKey)) {
@@ -1037,6 +1128,7 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
             return double.tryParse(ds) ?? 0.0;
           }
         }
+
         return parseDs(b).compareTo(parseDs(a));
       });
 
@@ -1051,10 +1143,13 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
           width: double.infinity,
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surface,
-            border: Border.all(color: AppColors.tableBorder(Theme.of(context).brightness), width: 1),
+            border: Border.all(
+                color: AppColors.tableBorder(Theme.of(context).brightness),
+                width: 1),
             borderRadius: BorderRadius.circular(_borderRadiusSmall),
           ),
-          padding: EdgeInsets.symmetric(vertical: _paddingXS, horizontal: _paddingM),
+          padding:
+              EdgeInsets.symmetric(vertical: _paddingXS, horizontal: _paddingM),
           margin: EdgeInsets.only(bottom: _paddingXS),
           child: Text(
             '${_useLevelDisplay ? 'Lv.' : ''}${dsKey} | 共 ${dsSongs.length} 首歌曲',
@@ -1091,12 +1186,12 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
               final songId = song.id;
               final songTitle = song.title;
               final songType = song.type;
-              
+
               // 获取歌曲定数显示和初始难度索引
               final diffIndex = item['difficulty'] as int;
               String songDs = '';
               int initialLevelIndex = diffIndex;
-              
+
               if (song.ds != null && song.ds.length > diffIndex) {
                 songDs = song.ds[diffIndex].toStringAsFixed(1);
               }
@@ -1115,10 +1210,14 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
                 },
                 child: Container(
                   decoration: BoxDecoration(
-                    color: isCompleted ? Colors.lightGreen[100]! : Theme.of(context).colorScheme.surface,
+                    color: isCompleted
+                        ? Colors.lightGreen[100]!
+                        : Theme.of(context).colorScheme.surface,
                     borderRadius: BorderRadius.circular(_borderRadiusSmall),
                     border: Border.all(
-                      color: isCompleted ? Colors.green : AppColors.tableBorder(Theme.of(context).brightness),
+                      color: isCompleted
+                          ? Colors.green
+                          : AppColors.tableBorder(Theme.of(context).brightness),
                       width: 1,
                     ),
                   ),
@@ -1158,7 +1257,11 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
                               '${StringUtil.formatSongType(songType)} / ${songDs.isNotEmpty ? songDs : '-'}',
                               style: TextStyle(
                                 fontSize: _textSizeXS,
-                                color: isCompleted ? Colors.black54 : Theme.of(context).colorScheme.onSurfaceVariant,
+                                color: isCompleted
+                                    ? Colors.black54
+                                    : Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
                               ),
                             ),
                             SizedBox(height: 2),
@@ -1166,7 +1269,9 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
                             Row(
                               children: [
                                 Icon(
-                                  isCompleted ? Icons.check_circle : Icons.circle_outlined,
+                                  isCompleted
+                                      ? Icons.check_circle
+                                      : Icons.circle_outlined,
                                   color: _getCompletionColor(isCompleted),
                                   size: _textSizeM,
                                 ),
@@ -1195,8 +1300,10 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
 
     // 计算完成统计
     final totalCount = songsWithStatus.length;
-    final completedCount = songsWithStatus.where((item) => item['completed'] as bool).length;
-    final completionRate = totalCount > 0 ? (completedCount / totalCount * 100) : 0;
+    final completedCount =
+        songsWithStatus.where((item) => item['completed'] as bool).length;
+    final completionRate =
+        totalCount > 0 ? (completedCount / totalCount * 100) : 0;
 
     // 计算平均达成率
     double totalAchievement = 0.0;
@@ -1209,7 +1316,8 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
         int count = 0;
         for (int i = 0; i < song.ds.length; i++) {
           if (_getLevelDisplay(song.ds[i]) == _selectedLevel) {
-            songTotalAchievement += _service.getSongAchievement(int.parse(song.id), i);
+            songTotalAchievement +=
+                _service.getSongAchievement(int.parse(song.id), i);
             count++;
           }
         }
@@ -1217,26 +1325,35 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
           totalAchievement += songTotalAchievement / count;
         }
       } else {
-        totalAchievement += _service.getSongAchievement(int.parse(song.id), diff);
+        totalAchievement +=
+            _service.getSongAchievement(int.parse(song.id), diff);
       }
     }
-    final averageAchievement = totalCount > 0 ? totalAchievement / totalCount : 0.0;
+    final averageAchievement =
+        totalCount > 0 ? totalAchievement / totalCount : 0.0;
 
     // 获取难度显示名称
-    final difficultyName = _selectedDifficulty == -1 ? 'ALL' : _getDifficultyName(_selectedDifficulty!);
+    final difficultyName = _selectedDifficulty == -1
+        ? 'ALL'
+        : _getDifficultyName(_selectedDifficulty!);
 
     // 根据模式获取标题
     String title;
     if (_mode == 'level') {
-      title = 'Lv.${_selectedLevel}(${difficultyName})的${_selectedTitleType}称号统计';
+      title =
+          'Lv.${_selectedLevel}(${difficultyName})的${_selectedTitleType}称号统计';
     } else if (_mode == 'charter') {
-      title = '谱师${_selectedCharter}(${difficultyName})的${_selectedTitleType}称号统计';
+      title =
+          '谱师${_selectedCharter}(${difficultyName})的${_selectedTitleType}称号统计';
     } else if (_mode == 'version') {
-      title = '版本${StringUtil.formatVersion2(_selectedVersion!)}(${difficultyName})的${_selectedTitleType}称号统计';
+      title =
+          '版本${StringUtil.formatVersion2(_selectedVersion!)}(${difficultyName})的${_selectedTitleType}称号统计';
     } else if (_mode == 'genre') {
-      title = '流派${_selectedGenre}(${difficultyName})的${_selectedTitleType}称号统计';
+      title =
+          '流派${_selectedGenre}(${difficultyName})的${_selectedTitleType}称号统计';
     } else {
-      title = '曲师${_selectedArtist}(${difficultyName})的${_selectedTitleType}称号统计';
+      title =
+          '曲师${_selectedArtist}(${difficultyName})的${_selectedTitleType}称号统计';
     }
 
     return Column(
@@ -1246,7 +1363,9 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
         Container(
           width: double.infinity,
           decoration: BoxDecoration(
-            border: Border.all(color: AppColors.tableBorder(Theme.of(context).brightness), width: 1.0),
+            border: Border.all(
+                color: AppColors.tableBorder(Theme.of(context).brightness),
+                width: 1.0),
             borderRadius: BorderRadius.circular(_borderRadiusSmall),
           ),
           padding: EdgeInsets.all(_paddingM),
@@ -1464,22 +1583,37 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
         SizedBox(height: _paddingS),
 
         // 歌曲展示区域
-        filteredSongs.isEmpty ?
-          // 过滤后无数据时显示提示
-          Center(
-            child: Text(
-              _filterMode == 'completed' ? '暂无已完成歌曲' : _filterMode == 'uncompleted' ? '暂无未完成歌曲' : (_mode == 'level' ? '当前等级没有匹配的歌曲' : _mode == 'charter' ? '当前谱师没有匹配的歌曲' : _mode == 'version' ? '当前版本没有匹配的歌曲' : _mode == 'genre' ? '当前流派没有匹配的歌曲' : '当前曲师没有匹配的歌曲'),
-              style: TextStyle(
-                fontSize: _textSizeM,
-                color: AppColors.greyHint(Theme.of(context).brightness),
-              ),
-            ),
-          ) :
-          _showListMode ?
-            // 带定数分隔线的歌曲列表
-            Column(children: songWidgets) :
-            // 仅曲绘模式
-            _buildCoverOnlyView(filteredSongs),
+        filteredSongs.isEmpty
+            ?
+            // 过滤后无数据时显示提示
+            Center(
+                child: Text(
+                  _filterMode == 'completed'
+                      ? '暂无已完成歌曲'
+                      : _filterMode == 'uncompleted'
+                          ? '暂无未完成歌曲'
+                          : (_mode == 'level'
+                              ? '当前等级没有匹配的歌曲'
+                              : _mode == 'charter'
+                                  ? '当前谱师没有匹配的歌曲'
+                                  : _mode == 'version'
+                                      ? '当前版本没有匹配的歌曲'
+                                      : _mode == 'genre'
+                                          ? '当前流派没有匹配的歌曲'
+                                          : '当前曲师没有匹配的歌曲'),
+                  style: TextStyle(
+                    fontSize: _textSizeM,
+                    color: AppColors.greyHint(Theme.of(context).brightness),
+                  ),
+                ),
+              )
+            : _showListMode
+                ?
+                // 带定数分隔线的歌曲列表
+                Column(children: songWidgets)
+                :
+                // 仅曲绘模式
+                _buildCoverOnlyView(filteredSongs),
       ],
     );
   }
@@ -1492,9 +1626,11 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
       final song = item['song'] as Song;
       final diffIndex = item['difficulty'] as int;
       String dsKey = '未知';
-      
+
       if (song.ds != null && song.ds.length > diffIndex) {
-        dsKey = _useLevelDisplay ? _getLevelDisplay(song.ds[diffIndex]) : _getDsLevelDisplay(song.ds[diffIndex]);
+        dsKey = _useLevelDisplay
+            ? _getLevelDisplay(song.ds[diffIndex])
+            : _getDsLevelDisplay(song.ds[diffIndex]);
       }
 
       if (!groupedSongs.containsKey(dsKey)) {
@@ -1517,6 +1653,7 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
             return double.tryParse(ds) ?? 0.0;
           }
         }
+
         return parseDs(b).compareTo(parseDs(a));
       });
 
@@ -1531,10 +1668,13 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
           width: double.infinity,
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surface,
-            border: Border.all(color: AppColors.tableBorder(Theme.of(context).brightness), width: 1),
+            border: Border.all(
+                color: AppColors.tableBorder(Theme.of(context).brightness),
+                width: 1),
             borderRadius: BorderRadius.circular(_borderRadiusSmall),
           ),
-          padding: EdgeInsets.symmetric(vertical: _paddingXS, horizontal: _paddingM),
+          padding:
+              EdgeInsets.symmetric(vertical: _paddingXS, horizontal: _paddingM),
           margin: EdgeInsets.only(bottom: _paddingXS),
           child: Text(
             '${_useLevelDisplay ? 'Lv.' : ''}${dsKey} | 共 ${dsSongs.length} 首歌曲',
@@ -1569,7 +1709,7 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
               final isCompleted = item['completed'] as bool;
 
               final songId = song.id;
-              
+
               // 使用条目自己的难度索引
               final initialLevelIndex = item['difficulty'] as int;
 
@@ -1599,7 +1739,8 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
                       Container(
                         decoration: BoxDecoration(
                           color: Colors.black.withOpacity(0.4),
-                          borderRadius: BorderRadius.circular(8.0 * _scaleFactor),
+                          borderRadius:
+                              BorderRadius.circular(8.0 * _scaleFactor),
                         ),
                         child: Center(
                           child: Icon(
@@ -1615,7 +1756,8 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
                       height: _coverSize,
                       decoration: BoxDecoration(
                         border: Border.all(
-                          color: ColorUtil.getCoverBorderColor(initialLevelIndex),
+                          color:
+                              ColorUtil.getCoverBorderColor(initialLevelIndex),
                           width: 2.0 * _scaleFactor,
                         ),
                         borderRadius: BorderRadius.circular(8.0 * _scaleFactor),
@@ -1636,38 +1778,42 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
   // 请求存储权限
   Future<bool> _requestStoragePermission() async {
     debugPrint('PersonalizedScorePage: _requestStoragePermission called');
-    
+
     if (Platform.isAndroid) {
       debugPrint('PersonalizedScorePage: Running on Android');
-      
+
       PermissionStatus storageStatus = await Permission.storage.status;
       PermissionStatus photosStatus = await Permission.photos.status;
       PermissionStatus videosStatus = await Permission.videos.status;
-      
+
       debugPrint('PersonalizedScorePage: Storage status = $storageStatus');
       debugPrint('PersonalizedScorePage: Photos status = $photosStatus');
       debugPrint('PersonalizedScorePage: Videos status = $videosStatus');
-      
-      if (storageStatus.isGranted || photosStatus.isGranted || videosStatus.isGranted) {
-        debugPrint('PersonalizedScorePage: At least one permission already granted');
+
+      if (storageStatus.isGranted ||
+          photosStatus.isGranted ||
+          videosStatus.isGranted) {
+        debugPrint(
+            'PersonalizedScorePage: At least one permission already granted');
         return true;
       }
-      
-      debugPrint('PersonalizedScorePage: Requesting storage, photos and videos permissions...');
+
+      debugPrint(
+          'PersonalizedScorePage: Requesting storage, photos and videos permissions...');
       Map<Permission, PermissionStatus> statuses = await [
         Permission.storage,
         Permission.photos,
         Permission.videos,
       ].request();
-      
+
       bool storageGranted = statuses[Permission.storage]?.isGranted ?? false;
       bool photosGranted = statuses[Permission.photos]?.isGranted ?? false;
       bool videosGranted = statuses[Permission.videos]?.isGranted ?? false;
-      
+
       debugPrint('PersonalizedScorePage: Storage granted = $storageGranted');
       debugPrint('PersonalizedScorePage: Photos granted = $photosGranted');
       debugPrint('PersonalizedScorePage: Videos granted = $videosGranted');
-      
+
       return storageGranted || photosGranted || videosGranted;
     } else {
       debugPrint('PersonalizedScorePage: Non-Android platform');
@@ -1712,8 +1858,27 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
       final songCount = _cachedSongsWithStatus?.length ?? 0;
       final quality = await ExportQualitySelector.show(
         context,
-        estimatedPngSize: ImageEncodeUtil.estimatePngSize(songCount: songCount, cardsPerRow: 12),
+        estimatedPngSize: ImageEncodeUtil.estimatePngSize(
+            songCount: songCount, cardsPerRow: 12),
         exportingLabel: '个性化成绩',
+        previewBuilder: (previewContext, _) =>
+            PersonalizedScoreConvertToImg.buildPreviewWidget(
+          previewContext,
+          selectedLevel: _selectedLevel,
+          selectedCharter: _selectedCharter,
+          selectedVersion: _selectedVersion,
+          selectedArtist: _selectedArtist,
+          selectedGenre: _selectedGenre,
+          mode: _mode,
+          selectedTitleType: _selectedTitleType,
+          selectedDifficulty: _selectedDifficulty,
+          cachedSongsWithStatus: _cachedSongsWithStatus,
+          filterMode: _filterMode,
+          getDifficultyName: _getDifficultyName,
+          getLevelDisplay: _getLevelDisplay,
+          getSongAchievement: _service.getSongAchievement,
+          useLevelDisplay: _useLevelDisplay,
+        ),
       );
       if (quality == null) return;
 
@@ -1757,13 +1922,18 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
                     SizedBox(height: 16.0),
                     SmoothLinearProgressIndicator(
                       value: _progressValue > 0 ? _progressValue : null,
-                      backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-                      valueColor: AlwaysStoppedAnimation(Theme.of(context).colorScheme.primary),
+                      backgroundColor:
+                          Theme.of(context).colorScheme.surfaceContainerHighest,
+                      valueColor: AlwaysStoppedAnimation(
+                          Theme.of(context).colorScheme.primary),
                     ),
                     SizedBox(height: 12.0),
                     Text(
                       _currentLoadingTip,
-                      style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                      style: TextStyle(
+                          fontSize: 12,
+                          color:
+                              Theme.of(context).colorScheme.onSurfaceVariant),
                       textAlign: TextAlign.center,
                     ),
                   ],
@@ -1819,7 +1989,8 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
                 child: Text('复制路径'),
               ),
               TextButton(
-                onPressed: () => Navigator.of(context, rootNavigator: true).pop(),
+                onPressed: () =>
+                    Navigator.of(context, rootNavigator: true).pop(),
                 child: Text('确定'),
               ),
             ],
@@ -1833,7 +2004,8 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
             content: Text('图片导出失败，请重试'),
             actions: [
               TextButton(
-                onPressed: () => Navigator.of(context, rootNavigator: true).pop(),
+                onPressed: () =>
+                    Navigator.of(context, rootNavigator: true).pop(),
                 child: Text('确定'),
               ),
             ],

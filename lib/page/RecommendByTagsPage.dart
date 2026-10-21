@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'dart:async';
 import 'dart:math';
 
@@ -26,7 +27,7 @@ class _RecommendByTagsState extends State<RecommendByTags> {
   bool _isLoading = true;
   String? _errorMessage;
   String _currentLoadingTip = '';
-  
+
   // 新增状态变量
   String _currentTab = 'Best55'; // 当前选中的标签，默认为Best55
   int _currentPage = 1; // 当前页码
@@ -39,24 +40,26 @@ class _RecommendByTagsState extends State<RecommendByTags> {
   double _minDs = 1.0;
   double _maxDs = 15.0;
   bool _rangeSettingsLoaded = false;
+  bool _rangeSettingsExpanded = true;
   late final TextEditingController _ratingController;
   late final TextEditingController _minDsController;
   late final TextEditingController _maxDsController;
+  final ScrollController _rangeSettingsScrollController = ScrollController();
 
   Color _getBackgroundColor(int diffIndex, int difficultyCount) {
     if (difficultyCount <= 2) {
       return const Color(0xFFE9D8FF);
     }
     switch (diffIndex) {
-      case 0:
+      case ChartDifficulty.basic:
         return const Color(0xFFE8F5E8);
-      case 1:
+      case ChartDifficulty.advanced:
         return const Color(0xFFFFF8E1);
-      case 2:
+      case ChartDifficulty.expert:
         return const Color(0xFFFCE4EC);
-      case 3:
+      case ChartDifficulty.master:
         return const Color(0xFFE9D8FF);
-      case 4:
+      case ChartDifficulty.reMaster:
         return const Color(0xFFF3E5F5);
       default:
         return const Color(0xFFE9D8FF);
@@ -72,15 +75,15 @@ class _RecommendByTagsState extends State<RecommendByTags> {
   Color _getDifficultyBgColor(int levelIndex, Brightness brightness) {
     final isDark = brightness == Brightness.dark;
     switch (levelIndex) {
-      case 0:
+      case ChartDifficulty.basic:
         return isDark ? const Color(0xFF1B3D1B) : Colors.green.shade100;
-      case 1:
+      case ChartDifficulty.advanced:
         return isDark ? const Color(0xFF3D2E00) : Colors.orange.shade100;
-      case 2:
+      case ChartDifficulty.expert:
         return isDark ? const Color(0xFF4A2020) : Colors.red.shade100;
-      case 3:
+      case ChartDifficulty.master:
         return isDark ? const Color(0xFF2A1A3D) : Colors.purple.shade100;
-      case 4:
+      case ChartDifficulty.reMaster:
         return isDark ? const Color(0xFF352545) : Colors.purple.shade50;
       default:
         return isDark ? const Color(0xFF2A2A2A) : Colors.grey.shade100;
@@ -90,15 +93,15 @@ class _RecommendByTagsState extends State<RecommendByTags> {
   Color _getDifficultyTextColor(int levelIndex, Brightness brightness) {
     final isDark = brightness == Brightness.dark;
     switch (levelIndex) {
-      case 0:
+      case ChartDifficulty.basic:
         return isDark ? const Color(0xFF66BB6A) : Colors.green.shade700;
-      case 1:
+      case ChartDifficulty.advanced:
         return isDark ? const Color(0xFFFFB74D) : Colors.orange.shade700;
-      case 2:
+      case ChartDifficulty.expert:
         return isDark ? const Color(0xFFEF5350) : Colors.red;
-      case 3:
+      case ChartDifficulty.master:
         return isDark ? const Color(0xFFCE93D8) : Colors.purple.shade700;
-      case 4:
+      case ChartDifficulty.reMaster:
         return isDark ? const Color(0xFFE1BEE7) : Colors.purple.shade400;
       default:
         return isDark ? Colors.grey.shade400 : Colors.grey.shade700;
@@ -130,6 +133,7 @@ class _RecommendByTagsState extends State<RecommendByTags> {
     // 但会一直活到进程结束）。与项目里其它页面的做法保持一致。
     LoadingTipsConstant.stopAutoSwitch();
     _scrollController.dispose();
+    _rangeSettingsScrollController.dispose();
     _ratingController.dispose();
     _minDsController.dispose();
     _maxDsController.dispose();
@@ -164,24 +168,24 @@ class _RecommendByTagsState extends State<RecommendByTags> {
         _isLoading = true;
         _errorMessage = null;
       });
-      
+
       // 记录开始时间
       final startTime = DateTime.now();
-      
+
       // 直接异步执行推荐算法，让UI先显示加载状态
       final result = await recommendSongs(
         minDsOverride: _minDs,
         maxDsOverride: _maxDs,
       );
-      
+
       // 计算已用时间
       final elapsedTime = DateTime.now().difference(startTime).inMilliseconds;
-      
+
       // 确保加载动画至少显示2秒，避免闪烁
       if (elapsedTime < 2000) {
         await Future.delayed(Duration(milliseconds: 2000 - elapsedTime));
       }
-      
+
       if (!mounted || _isDisposed) return;
       setState(() {
         _recommendations = _prioritizeByRange(result);
@@ -250,228 +254,344 @@ class _RecommendByTagsState extends State<RecommendByTags> {
         borderSide: BorderSide(color: scheme.outlineVariant),
       ),
     );
+
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 12, 12, 6),
-      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: scheme.surfaceContainerHighest.withValues(alpha: 0.72),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: scheme.outlineVariant),
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Row(children: [
-          Icon(Icons.tune_rounded, size: 19, color: scheme.primary),
-          const SizedBox(width: 8),
-          const Expanded(
-              child: Text('推荐范围', style: TextStyle(fontWeight: FontWeight.w700))),
-          Text('范围内谱面优先',
-              style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
-        ]),
-        const SizedBox(height: 10),
-        Wrap(
-          spacing: 8,
-          runSpacing: 4,
-          children: [
-            FilledButton.tonalIcon(
-              style: FilledButton.styleFrom(
-                backgroundColor: scheme.primaryContainer,
-                foregroundColor: scheme.onPrimaryContainer,
-              ),
-              icon: const Icon(Icons.swap_horiz_rounded, size: 18),
-              label: Text('当前：${_rangeMode == 'rating' ? '目标Rating' : '定数区间'}'),
-              onPressed: () {
-                setState(() {
-                  _rangeMode = _rangeMode == 'rating' ? 'ds' : 'rating';
-                  if (_rangeMode == 'rating') _applyRatingRange();
-                });
-                _fetchRecommendations();
-              },
-            ),
-            FilledButton.tonalIcon(
-              style: FilledButton.styleFrom(
-                backgroundColor: scheme.primaryContainer,
-                foregroundColor: scheme.onPrimaryContainer,
-              ),
-              icon: const Icon(Icons.swap_horiz_rounded, size: 18),
-              label: Text('当前：$_currentTab推荐'),
-              onPressed: () => setState(() {
-                _currentTab = _currentTab == 'Best55' ? 'Best15' : 'Best55';
-                _currentPage = 1;
-              }),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        if (_rangeMode == 'rating')
-          Row(children: [
-            Expanded(
-              child: TextField(
-                controller: _ratingController,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: fieldDecoration.copyWith(
-                  labelText: '目标 Rating',
-                  prefixIcon: const Icon(Icons.star_outline, size: 19),
-                ),
-                onSubmitted: (_) {
-                  _targetRating = int.tryParse(_ratingController.text) ?? 0;
-                  _applyRatingRange();
-                  _fetchRecommendations();
-                },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 将收起控制放在表单区标题上，收起后仍保留当前条件摘要。
+          InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: () => setState(() {
+              _rangeSettingsExpanded = !_rangeSettingsExpanded;
+              if (!_rangeSettingsExpanded &&
+                  _rangeSettingsScrollController.hasClients) {
+                _rangeSettingsScrollController.jumpTo(0);
+              }
+            }),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 11, 10, 11),
+              child: Row(
+                children: [
+                  Icon(Icons.tune_rounded, size: 19, color: scheme.primary),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text('推荐范围',
+                        style: TextStyle(fontWeight: FontWeight.w700)),
+                  ),
+                  if (!_rangeSettingsExpanded)
+                    Text(
+                      _rangeMode == 'rating'
+                          ? 'Rating $_targetRating'
+                          : '${_minDs.toStringAsFixed(1)} ~ ${_maxDs.toStringAsFixed(1)}',
+                      style: TextStyle(
+                          fontSize: 12, color: scheme.onSurfaceVariant),
+                    ),
+                  const SizedBox(width: 4),
+                  AnimatedRotation(
+                    turns: _rangeSettingsExpanded ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 240),
+                    curve: Curves.easeOutCubic,
+                    child: Icon(Icons.expand_more_rounded,
+                        color: scheme.onSurfaceVariant),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(width: 8),
-            IconButton.filledTonal(
-              tooltip: '按目标 Rating 重新计算',
-              onPressed: () {
-                _targetRating = int.tryParse(_ratingController.text) ?? 0;
-                _applyRatingRange();
-                _fetchRecommendations();
-              },
-              icon: const Icon(Icons.refresh_rounded),
-            ),
-          ])
-        else
-          Row(children: [
-            Expanded(
-              child: TextField(
-                controller: _minDsController,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: fieldDecoration.copyWith(labelText: '最低定数'),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Text('至', style: TextStyle(color: scheme.onSurfaceVariant)),
-            ),
-            Expanded(
-              child: TextField(
-                controller: _maxDsController,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: fieldDecoration.copyWith(labelText: '最高定数'),
-              ),
-            ),
-            const SizedBox(width: 8),
-            IconButton.filledTonal(
-              tooltip: '按定数区间重新计算',
-              onPressed: () {
-                _applyManualRange();
-                _fetchRecommendations();
-              },
-              icon: const Icon(Icons.refresh_rounded),
-            ),
-          ]),
-        const SizedBox(height: 7),
-        Text(
-          _rangeMode == 'rating'
-              ? '当前定数范围：${_minDs.toStringAsFixed(1)} ~ ${_maxDs.toStringAsFixed(1)}'
-              : '当前定数范围：${_minDs.toStringAsFixed(1)} ~ ${_maxDs.toStringAsFixed(1)}',
-          style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
-        ),
-      ]),
+          ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 260),
+            curve: Curves.easeInOutCubic,
+            alignment: Alignment.topCenter,
+            child: _rangeSettingsExpanded
+                ? Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            Text('范围内谱面优先',
+                                style: TextStyle(
+                                    fontSize: 12,
+                                    color: scheme.onSurfaceVariant)),
+                            const Spacer(),
+                            Text(
+                              '${_minDs.toStringAsFixed(1)} ~ ${_maxDs.toStringAsFixed(1)}',
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  color: scheme.primary,
+                                  fontWeight: FontWeight.w600),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 9),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 4,
+                          children: [
+                            FilledButton.tonalIcon(
+                              style: FilledButton.styleFrom(
+                                backgroundColor: scheme.primaryContainer,
+                                foregroundColor: scheme.onPrimaryContainer,
+                              ),
+                              icon: const Icon(Icons.swap_horiz_rounded,
+                                  size: 18),
+                              label: Text(
+                                  '当前：${_rangeMode == 'rating' ? '目标Rating' : '定数区间'}'),
+                              onPressed: () {
+                                setState(() {
+                                  _rangeMode =
+                                      _rangeMode == 'rating' ? 'ds' : 'rating';
+                                  if (_rangeMode == 'rating') {
+                                    _applyRatingRange();
+                                  }
+                                });
+                                _fetchRecommendations();
+                              },
+                            ),
+                            FilledButton.tonalIcon(
+                              style: FilledButton.styleFrom(
+                                backgroundColor: scheme.primaryContainer,
+                                foregroundColor: scheme.onPrimaryContainer,
+                              ),
+                              icon: const Icon(Icons.swap_horiz_rounded,
+                                  size: 18),
+                              label: Text('当前：$_currentTab推荐'),
+                              onPressed: () => setState(() {
+                                _currentTab = _currentTab == 'Best55'
+                                    ? 'Best15'
+                                    : 'Best55';
+                                _currentPage = 1;
+                              }),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        if (_rangeMode == 'rating')
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _ratingController,
+                                  keyboardType: TextInputType.number,
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.digitsOnly
+                                  ],
+                                  decoration: fieldDecoration.copyWith(
+                                    labelText: '目标 Rating',
+                                    prefixIcon: const Icon(Icons.star_outline,
+                                        size: 19),
+                                  ),
+                                  onSubmitted: (_) {
+                                    _targetRating =
+                                        int.tryParse(_ratingController.text) ??
+                                            0;
+                                    _applyRatingRange();
+                                    _fetchRecommendations();
+                                  },
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              IconButton.filledTonal(
+                                tooltip: '按目标 Rating 重新计算',
+                                onPressed: () {
+                                  _targetRating =
+                                      int.tryParse(_ratingController.text) ?? 0;
+                                  _applyRatingRange();
+                                  _fetchRecommendations();
+                                },
+                                icon: const Icon(Icons.refresh_rounded),
+                              ),
+                            ],
+                          )
+                        else
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _minDsController,
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                          decimal: true),
+                                  decoration: fieldDecoration.copyWith(
+                                      labelText: '最低定数'),
+                                ),
+                              ),
+                              Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 8),
+                                child: Text('至',
+                                    style: TextStyle(
+                                        color: scheme.onSurfaceVariant)),
+                              ),
+                              Expanded(
+                                child: TextField(
+                                  controller: _maxDsController,
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                          decimal: true),
+                                  decoration: fieldDecoration.copyWith(
+                                      labelText: '最高定数'),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              IconButton.filledTonal(
+                                tooltip: '按定数区间重新计算',
+                                onPressed: () {
+                                  _applyManualRange();
+                                  _fetchRecommendations();
+                                },
+                                icon: const Icon(Icons.refresh_rounded),
+                              ),
+                            ],
+                          ),
+                      ],
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
+        ],
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final brightness = Theme.of(context).brightness;
-    // 获取屏幕尺寸
+    final scheme = Theme.of(context).colorScheme;
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
-    
+
     return BackgroundPageScaffold(
       title: '根据标签推荐',
       resizeToAvoidBottomInset: false,
       contentPadding: EdgeInsets.only(
-        bottom: MediaQuery.paddingOf(context).bottom + 10,
+        bottom: MediaQuery.paddingOf(context).bottom,
       ),
       child: Column(
         children: [
-                      _buildRangeSettings(brightness),
-                      
-                      // 内容区域
-                      Expanded(
+          // 功能区按 1:2 分配；收起表单后，推荐区平滑接管释放出来的空间。
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final settingsHeight =
+                    _rangeSettingsExpanded ? constraints.maxHeight / 3 : 64.0;
+                return Column(
+                  children: [
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 260),
+                      curve: Curves.easeInOutCubic,
+                      height: settingsHeight,
+                      child: ClipRect(
                         child: SingleChildScrollView(
-                          controller: _scrollController,
-                          padding: EdgeInsets.all(screenWidth * 0.04), // padding 为屏幕宽度的4%
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              // 加载状态
-                              if (_isLoading)
-                                Center(
-                                  child: Padding(
-                                    padding: EdgeInsets.all(screenHeight * 0.05), // padding 为屏幕高度的5%
-                                    child: Column(
-                                      children: [
-                                        CircularProgressIndicator(
-                                          color: Theme.of(context).colorScheme.onSurface,
-                                        ),
-                                        SizedBox(height: screenHeight * 0.02), // 间距为屏幕高度的2%
-                                        Text('正在计算推荐结果...', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-                                        SizedBox(height: screenHeight * 0.01), // 间距为屏幕高度的1%
-                                        Text(
-                                          _currentLoadingTip,
-                                          textAlign: TextAlign.center,
-                                          style: TextStyle(fontSize: screenWidth * 0.035, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                                        ),
-                                        SizedBox(height: screenHeight * 0.01), // 间距为屏幕高度的1%
-                                        Text(
-                                          '此功能计算量较大，可能会出现卡顿，请耐心等待',
-                                          textAlign: TextAlign.center,
-                                          style: TextStyle(fontSize: screenWidth * 0.035, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                )
-                              // 错误状态
-                              else if (_errorMessage != null)
-                                Center(
-                                  child: Padding(
-                                    padding: EdgeInsets.all(screenHeight * 0.05), // padding 为屏幕高度的5%
-                                    child: Column(
-                                      children: [
-                                        Icon(
-                                          Icons.error_outline,
-                                          color: AppColors.errorRed(brightness),
-                                          size: screenWidth * 0.12, // 图标大小为屏幕宽度的12%
-                                        ),
-                                        SizedBox(height: screenHeight * 0.02), // 间距为屏幕高度的2%
-                                        Text(
-                                          _errorMessage!,
-                                          textAlign: TextAlign.center,
-                                          style: TextStyle(color: AppColors.errorRed(brightness)),
-                                        ),
-                                        SizedBox(height: screenHeight * 0.02), // 间距为屏幕高度的2%
-                                        ElevatedButton(
-                                          onPressed: _fetchRecommendations,
-                                          child: const Text('重试'),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                )
-                              // 展示推荐结果
-                              else
-                                _buildRecommendationContent(brightness),
-                            ],
-                          ),
+                          controller: _rangeSettingsScrollController,
+                          physics: const BouncingScrollPhysics(),
+                          child: _buildRangeSettings(brightness),
                         ),
                       ),
-
-                      // 分页组件 - 固定在滚动区域下方
-                      if (!_isLoading && _errorMessage == null)
-                        Container(
-                          padding: EdgeInsets.symmetric(
-                            vertical: screenHeight * 0.015, // 垂直 padding 为屏幕高度的1.5%
-                            horizontal: screenWidth * 0.04, // 水平 padding 为屏幕宽度的4%
+                    ),
+                    Expanded(
+                      child: Column(
+                        children: [
+                          Expanded(
+                            child: SingleChildScrollView(
+                              controller: _scrollController,
+                              padding: EdgeInsets.fromLTRB(screenWidth * 0.04,
+                                  4, screenWidth * 0.04, 12),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  if (_isLoading)
+                                    Center(
+                                      child: Padding(
+                                        padding:
+                                            EdgeInsets.all(screenHeight * 0.05),
+                                        child: Column(
+                                          children: [
+                                            CircularProgressIndicator(
+                                                color: scheme.primary),
+                                            SizedBox(
+                                                height: screenHeight * 0.02),
+                                            Text('正在计算推荐结果...',
+                                                style: TextStyle(
+                                                    color: scheme
+                                                        .onSurfaceVariant)),
+                                            SizedBox(
+                                                height: screenHeight * 0.01),
+                                            Text(
+                                              _currentLoadingTip,
+                                              textAlign: TextAlign.center,
+                                              style: TextStyle(
+                                                  fontSize: screenWidth * 0.035,
+                                                  color:
+                                                      scheme.onSurfaceVariant),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    )
+                                  else if (_errorMessage != null)
+                                    Center(
+                                      child: Padding(
+                                        padding:
+                                            EdgeInsets.all(screenHeight * 0.05),
+                                        child: Column(
+                                          children: [
+                                            Icon(Icons.error_outline,
+                                                color: AppColors.errorRed(
+                                                    brightness),
+                                                size: screenWidth * 0.12),
+                                            SizedBox(
+                                                height: screenHeight * 0.02),
+                                            Text(_errorMessage!,
+                                                textAlign: TextAlign.center,
+                                                style: TextStyle(
+                                                    color: AppColors.errorRed(
+                                                        brightness))),
+                                            SizedBox(
+                                                height: screenHeight * 0.02),
+                                            FilledButton.tonal(
+                                                onPressed:
+                                                    _fetchRecommendations,
+                                                child: const Text('重试')),
+                                          ],
+                                        ),
+                                      ),
+                                    )
+                                  else
+                                    _buildRecommendationContent(brightness),
+                                ],
+                              ),
+                            ),
                           ),
-                          decoration: BoxDecoration(
-                            border: Border(top: BorderSide(color: AppColors.tableBorder(brightness))),
-                          ),
-                          child: _buildPagination(),
-                        ),
+                          if (!_isLoading && _errorMessage == null)
+                            Container(
+                              padding: EdgeInsets.symmetric(
+                                vertical: screenHeight * 0.012,
+                                horizontal: screenWidth * 0.04,
+                              ),
+                              decoration: BoxDecoration(
+                                border: Border(
+                                    top: BorderSide(
+                                        color: scheme.outlineVariant)),
+                              ),
+                              child: _buildPagination(),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
         ],
       ),
     );
@@ -601,9 +721,8 @@ class _RecommendByTagsState extends State<RecommendByTags> {
                         Text(
                           '定数 ${result.ds.toStringAsFixed(1)}',
                           style: TextStyle(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurfaceVariant,
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
                             fontSize: 12,
                           ),
                         ),
@@ -611,9 +730,8 @@ class _RecommendByTagsState extends State<RecommendByTags> {
                         Text(
                           '相似度 ${(result.similarity * 100).toStringAsFixed(1)}%',
                           style: TextStyle(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurfaceVariant,
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
                             fontSize: 12,
                           ),
                         ),
@@ -658,15 +776,15 @@ class _RecommendByTagsState extends State<RecommendByTags> {
   // 构建分页组件
   Widget _buildPagination() {
     final screenWidth = MediaQuery.of(context).size.width;
-    
+
     List<RecommendationResult> results = _recommendations[_currentTab] ?? [];
     int totalItems = results.length;
     int totalPages = (totalItems / _pageSize).ceil();
-    
+
     if (totalPages <= 1) {
       return Container(); // 只有一页时不显示分页
     }
-    
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [

@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../constant/CacheKeyConstant.dart';
 import '../utils/CurrentDataSourceNotifier.dart';
+import 'AWMC/AwmcQuickIdentityStore.dart';
 
 /// 单个数据源（账号）的元信息，用于切换面板展示。
 class AccountMeta {
@@ -165,6 +166,7 @@ class AccountStore {
   }
 
   static Future<void> remove(String source) async {
+    await AwmcQuickIdentityStore.forgetSource(source);
     final prefs = await SharedPreferences.getInstance();
     final all = await loadAll();
     all.remove(source);
@@ -341,6 +343,38 @@ class AccountStore {
     if (raw == null) return {};
     final data = json.decode(raw);
     return data is Map ? Map<String, dynamic>.from(data) : {};
+  }
+
+  /// 返回指定目标账号的成绩副本；不借用其它源的活动槽，身份不符时直接终止。
+  static Future<List<dynamic>> recordsForAccount(
+      RefreshDataSource source, String accountId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final active = RefreshDataSource.fromKey(prefs.getString(CacheKeyConstant.lastDataSource));
+    String? raw;
+    String? owner;
+    if (active == source) {
+      owner = _resolveActiveId(prefs, source);
+      raw = prefs.getString(CacheKeyConstant.userPlayData);
+    } else {
+      final identityRaw = prefs.getString(_identityArchiveKey(source.key));
+      final playRaw = prefs.getString(_playArchiveKey(source.key));
+      if (identityRaw != null && playRaw != null) {
+        final identity = jsonDecode(identityRaw) as Map;
+        final play = jsonDecode(playRaw) as Map;
+        final marker = identity[source.userIdCacheKey]?.toString();
+        owner = (marker?.startsWith('${source.key}:') == true
+                ? RefreshDataSource.parseUserIdMarker(marker) : null) ??
+            identity[CacheKeyConstant.cachedQQ]?.toString();
+        raw = play[CacheKeyConstant.userPlayData]?.toString();
+      }
+    }
+    if (owner != accountId || raw == null) {
+      throw StateError('请先刷新${source.displayName}目标账号的数据，以保留该账号的连击与同步标记');
+    }
+    final data = jsonDecode(raw);
+    final records = data is Map ? data['records'] : null;
+    if (records is! List) throw StateError('${source.displayName}成绩缓存无效，请先刷新数据');
+    return records;
   }
 
   // ───────────────────────── 便捷读取（生成 meta）─────────────────────────

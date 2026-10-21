@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/foundation.dart';
 import 'package:my_first_flutter_app/entity/DivingFish/DiffSong.dart';
 import 'package:my_first_flutter_app/manager/DivingFish/MaimaiMusicDataManager.dart';
@@ -39,13 +40,7 @@ class DsRangeRecommendService {
   factory DsRangeRecommendService() => _instance;
   DsRangeRecommendService._internal();
 
-  static const List<String> LEVEL_LABELS = [
-    'BASIC',
-    'ADVANCED',
-    'EXPERT',
-    'MASTER',
-    'Re:MASTER',
-  ];
+  static const List<String> LEVEL_LABELS = ChartDifficulty.standardLabels;
 
   Future<List<DsRangeRecommendItem>> getRecommendations(
       double minDs, double maxDs, String sortMode) async {

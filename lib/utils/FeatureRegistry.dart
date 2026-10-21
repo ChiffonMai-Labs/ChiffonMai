@@ -19,7 +19,7 @@ class FeatureRegistry {
     };
     final group = switch (category.name) {
       '曲库与数据' =>
-        const {'乐曲查询', '国服更新对照'}.contains(item.title) ? '曲库入口' : '数据查询',
+        const {'乐曲查询', '非国服乐曲查询', '国服更新对照'}.contains(item.title) ? '曲库入口' : '数据查询',
       'Best50与排行榜' => item.title.contains('排行榜') ? '排行榜' : 'Best50 分析',
       '猜歌游戏' => item.title == '多人猜歌游戏' ? '多人猜歌' : '单人猜歌',
       '实用工具' => _toolSections[item.title] ?? '玩法与社区',
@@ -50,6 +50,7 @@ class FeatureRegistry {
   static const _systemSections = {
     '主题与交互偏好': '应用',
     '加载语录管理': '应用',
+    '缓存管理': '应用',
     '打印日志': '应用',
     '检查更新': '应用',
     '服务器状态': '应用',
@@ -60,6 +61,7 @@ class FeatureRegistry {
     '关于 APP': '关于 ChiffonMai',
     '支持开发者': '关于 ChiffonMai',
     '问卷调查': '关于 ChiffonMai',
+    '问题反馈': '关于 ChiffonMai',
   };
 
   static List<ButtonCategory> allCategories(bool isDivingFishLoggedIn) => [
@@ -69,11 +71,19 @@ class FeatureRegistry {
               title: '乐曲查询',
               subtitle: '按歌名、别名、谱师和标签搜索'),
           const ButtonItem(
+              icon: Icons.travel_explore_rounded,
+              title: '非国服乐曲查询',
+              subtitle: '搜索与筛选非国服曲库'),
+          const ButtonItem(
               icon: Icons.flag_rounded,
               title: '国服更新对照',
               subtitle: '看日服已上、国服还没上的曲目'),
           const ButtonItem(
               icon: Icons.score, title: '成绩查询', subtitle: '浏览全部游玩记录与筛选结果'),
+          const ButtonItem(
+              icon: Icons.auto_graph_rounded,
+              title: '成绩提升历史',
+              subtitle: '按日回顾最佳成绩的变化与提升'),
           const ButtonItem(
               icon: Icons.wysiwyg_rounded,
               title: '牌子进度',
@@ -246,17 +256,9 @@ class FeatureRegistry {
               title: '刷新数据',
               subtitle: '重新拉取并初始化所有本地缓存'),
           const ButtonItem(
-              icon: Icons.cleaning_services,
-              title: '刷新 maidata',
-              subtitle: '手动刷新所有 maidata 缓存'),
-          const ButtonItem(
               icon: Icons.tune_rounded,
               title: '刷新数据（高级）',
               subtitle: '按缓存源勾选强制刷新，并测试各 API 连通性'),
-          const ButtonItem(
-              icon: Icons.tune_rounded,
-              title: 'maidata 管理',
-              subtitle: '重新拉取 chiffonmai.cloud 集 · 清除 wmc.pub 兜底缓存'),
           const ButtonItem(
               icon: Icons.qr_code_scanner,
               title: '同步成绩到水鱼',
@@ -273,6 +275,10 @@ class FeatureRegistry {
               icon: Icons.devices_other_outlined,
               title: '同步成绩到多端',
               subtitle: '一份成绩同步到多个查分器'),
+          const ButtonItem(
+              icon: Icons.schedule_outlined,
+              title: '自动同步',
+              subtitle: '每天北京时间 0 点和 12 点自动快速同步'),
           if (isDivingFishLoggedIn)
             const ButtonItem(
                 icon: Icons.logout, title: '登出水鱼账号', subtitle: '清除水鱼登录状态')
@@ -295,6 +301,10 @@ class FeatureRegistry {
               icon: Icons.poll_outlined,
               title: '问卷调查',
               subtitle: '助力 ChiffonMai 更上一层楼'),
+          const ButtonItem(
+              icon: Icons.feedback_outlined,
+              title: '问题反馈',
+              subtitle: '反馈使用中遇到的问题'),
           const ButtonItem(
               icon: Icons.public,
               title: '访问官方网站',
@@ -332,6 +342,10 @@ class FeatureRegistry {
               icon: Icons.format_quote,
               title: '加载语录管理',
               subtitle: '选择加载时展示的语录'),
+          const ButtonItem(
+              icon: Icons.storage_outlined,
+              title: '缓存管理',
+              subtitle: '查看并清理音源、PV、maidata 缓存'),
         ]),
       ];
 }

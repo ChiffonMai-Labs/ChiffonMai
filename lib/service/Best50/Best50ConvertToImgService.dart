@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/widgets/MetaRowWidget.dart';
 import 'dart:async';
 import 'ThunderBest50Export.dart';
 import 'package:my_first_flutter_app/utils/ExportUserInfoWidget.dart';
@@ -11,14 +12,10 @@ import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:media_scanner/media_scanner.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:my_first_flutter_app/constant/AppLinks.dart';
-import 'package:my_first_flutter_app/constant/CacheKeyConstant.dart';
 import 'package:my_first_flutter_app/utils/TextStyleUtil.dart';
 import 'package:my_first_flutter_app/utils/ColorUtil.dart';
 import 'package:my_first_flutter_app/utils/StringUtil.dart';
 import 'package:my_first_flutter_app/utils/ImageEncodeUtil.dart';
-import 'package:my_first_flutter_app/utils/CurrentDataSourceNotifier.dart';
 
 class B50ConvertToImg {
   // 全局Key，用于获取widget的渲染对象
@@ -26,28 +23,45 @@ class B50ConvertToImg {
   static GlobalKey _globalKey = GlobalKey();
 
   // 导出为图片的方法
-  static Future<File?> convertToImage(BuildContext context, Map<String, dynamic>? b50Data, List<Map<String, dynamic>> sdSongs, List<Map<String, dynamic>> dxSongs, List<dynamic>? maimaiMusicData, {bool isTheoreticalMode = false, int? jpegQuality, int? selectedPlateId, bool thunderMode = false, bool thunderVertical = true}) async {
+  static Future<File?> convertToImage(
+      BuildContext context,
+      Map<String, dynamic>? b50Data,
+      List<Map<String, dynamic>> sdSongs,
+      List<Map<String, dynamic>> dxSongs,
+      List<dynamic>? maimaiMusicData,
+      {bool isTheoreticalMode = false,
+      int? jpegQuality,
+      int? selectedPlateId,
+      bool thunderMode = false,
+      bool thunderVertical = true}) async {
     OverlayEntry? overlayEntry;
     try {
       debugPrint('=== STARTING IMAGE CONVERSION ===');
-      debugPrint('Current platform: ${Platform.operatingSystem} ${Platform.version}');
-      
+      debugPrint(
+          'Current platform: ${Platform.operatingSystem} ${Platform.version}');
+
       // 首先请求存储权限（在导出前请求）
       debugPrint('Step 1: Requesting storage permission...');
       PermissionStatus status = await _requestStoragePermission();
       debugPrint('Step 1 completed: Storage permission status: $status');
       debugPrint('Is granted: ${status.isGranted}');
-      
+
       // 创建一个GlobalKey
       GlobalKey globalKey = GlobalKey();
 
       // 创建一个Widget，用于生成图片
       Widget imageWidget = RepaintBoundary(
         key: globalKey,
-        child: await _buildExportImageWidget(context, b50Data, sdSongs, dxSongs, maimaiMusicData, isTheoreticalMode: isTheoreticalMode, selectedPlateId: selectedPlateId, thunderMode: thunderMode, thunderVertical: thunderVertical),
+        child: await _buildExportImageWidget(
+            context, b50Data, sdSongs, dxSongs, maimaiMusicData,
+            isTheoreticalMode: isTheoreticalMode,
+            selectedPlateId: selectedPlateId,
+            thunderMode: thunderMode,
+            thunderVertical: thunderVertical),
       );
       final exportWidth = thunderMode
-          ? ThunderBest50Export.widthFor(sdSongs.length + dxSongs.length, thunderVertical)
+          ? ThunderBest50Export.widthFor(
+              sdSongs.length + dxSongs.length, thunderVertical)
           : 1700.0;
 
       // 创建一个屏幕外的OverlayEntry，避免影响主UI
@@ -77,14 +91,15 @@ class B50ConvertToImg {
       debugPrint('Render wait completed');
 
       // 创建一个RenderRepaintBoundary
-      final RenderRepaintBoundary? boundary = globalKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      final RenderRepaintBoundary? boundary = globalKey.currentContext
+          ?.findRenderObject() as RenderRepaintBoundary?;
       if (boundary == null) {
         debugPrint('Error: RenderRepaintBoundary not found');
         overlayEntry.remove();
         return null;
       }
       debugPrint('RenderRepaintBoundary found successfully');
-      
+
       // 额外等待确保边界框已准备好
       await Future.delayed(Duration(milliseconds: 100));
 
@@ -93,17 +108,22 @@ class B50ConvertToImg {
       ui.Image image;
       try {
         // 尝试直接捕获图片，使用更高的pixelRatio提高清晰度
-        image = await boundary.toImage(pixelRatio: ImageEncodeUtil.safeCapturePixelRatio(boundary.size.width, boundary.size.height));
+        image = await boundary.toImage(
+            pixelRatio: ImageEncodeUtil.safeCapturePixelRatio(
+                boundary.size.width, boundary.size.height));
         debugPrint('Image captured successfully');
       } catch (e) {
         debugPrint('First capture failed: $e');
         // 重试一次
         await Future.delayed(Duration(milliseconds: 200));
-        image = await boundary.toImage(pixelRatio: ImageEncodeUtil.safeCapturePixelRatio(boundary.size.width, boundary.size.height));
+        image = await boundary.toImage(
+            pixelRatio: ImageEncodeUtil.safeCapturePixelRatio(
+                boundary.size.width, boundary.size.height));
         debugPrint('Image captured on retry');
       }
-      
-      ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+
+      ByteData? byteData =
+          await image.toByteData(format: ui.ImageByteFormat.png);
       if (byteData == null) {
         debugPrint('Error: ByteData is null');
         overlayEntry.remove();
@@ -113,7 +133,8 @@ class B50ConvertToImg {
       debugPrint('ByteData conversion successful');
 
       // 将图片数据写入文件
-      Uint8List pngBytes = byteData.buffer.asUint8List(byteData.offsetInBytes, byteData.lengthInBytes);
+      Uint8List pngBytes = byteData.buffer
+          .asUint8List(byteData.offsetInBytes, byteData.lengthInBytes);
       // 立刻释放 ui.Image：它本身也是上百 MB 的原生位图，而下面的 JPEG
       // 转码还要再分配上百 MB（decodePng + copyResize）。等转码完再释放，
       // 峰值内存会白白多一份 —— 低内存机就是这样被 OOM 掉的。
@@ -124,48 +145,51 @@ class B50ConvertToImg {
       Uint8List finalBytes;
       String extension;
       if (jpegQuality != null) {
-        finalBytes = await ImageEncodeUtil.pngToJpegAsync(pngBytes, quality: jpegQuality);
+        finalBytes = await ImageEncodeUtil.pngToJpegAsync(pngBytes,
+            quality: jpegQuality);
         extension = 'jpg';
       } else {
         finalBytes = pngBytes;
         extension = 'png';
       }
-      
+
       // 释放图片资源
 
-      
       // 立即移除Overlay，避免占用资源
       overlayEntry.remove();
-      
+
       // 优先使用相册目录（需要存储权限）
       Directory? directory;
-      debugPrint('Step 4: Saving image. Permission granted: ${status.isGranted}');
-      
+      debugPrint(
+          'Step 4: Saving image. Permission granted: ${status.isGranted}');
+
       if (status.isGranted) {
-        debugPrint('Step 4a: Permission granted, trying to use Pictures directory');
+        debugPrint(
+            'Step 4a: Permission granted, trying to use Pictures directory');
         try {
           // 直接使用标准的相册目录路径
           String picturesPath = '/storage/emulated/0/Pictures';
           directory = Directory(picturesPath);
           debugPrint('Pictures directory path: $picturesPath');
-          
+
           // 检查目录是否存在
           bool exists = directory.existsSync();
           debugPrint('Pictures directory exists: $exists');
-          
+
           // 确保相册目录存在
           if (!exists) {
             debugPrint('Creating Pictures directory...');
             directory.createSync(recursive: true);
             debugPrint('Created Pictures directory successfully');
           }
-          
+
           // 验证目录是否可写
           bool canWrite = await _checkDirectoryWritable(directory);
           debugPrint('Pictures directory writable: $canWrite');
-          
+
           if (!canWrite) {
-            debugPrint('Warning: Pictures directory is not writable, will fall back');
+            debugPrint(
+                'Warning: Pictures directory is not writable, will fall back');
             directory = null;
           }
         } catch (e) {
@@ -173,7 +197,7 @@ class B50ConvertToImg {
           directory = null;
         }
       }
-      
+
       // 如果相册目录获取失败或没有权限，使用应用文档目录
       if (directory == null) {
         debugPrint('Step 4b: Using fallback directory');
@@ -191,19 +215,20 @@ class B50ConvertToImg {
           }
         }
       }
-      
+
       if (directory == null) {
         debugPrint('Error: No storage directory found');
         overlayEntry.remove();
         return null;
       }
-      
+
       debugPrint('Selected directory: ${directory.path}');
 
       // 尝试使用 MediaStore API 保存到相册（Android 13+）
       if (Platform.isAndroid && status.isGranted) {
         debugPrint('Step 5: Trying to save via MediaStore API...');
-        String? galleryPath = await _saveImageToGallery(finalBytes, 'b50_export_${DateTime.now().millisecondsSinceEpoch}.$extension');
+        String? galleryPath = await _saveImageToGallery(finalBytes,
+            'b50_export_${DateTime.now().millisecondsSinceEpoch}.$extension');
         if (galleryPath != null) {
           debugPrint('Image saved to gallery via MediaStore: $galleryPath');
           // 调用媒体扫描器
@@ -218,7 +243,8 @@ class B50ConvertToImg {
         directory.createSync(recursive: true);
       }
 
-      final file = File('${directory.path}/b50_export_${DateTime.now().millisecondsSinceEpoch}.$extension');
+      final file = File(
+          '${directory.path}/b50_export_${DateTime.now().millisecondsSinceEpoch}.$extension');
       await file.writeAsBytes(finalBytes);
       debugPrint('Image saved to: ${file.path}');
 
@@ -236,62 +262,112 @@ class B50ConvertToImg {
     }
   }
 
+  /// 构建与实际导出相同的预览 Widget。
+  static Future<Widget> buildPreviewWidget(
+    BuildContext context,
+    Map<String, dynamic>? b50Data,
+    List<Map<String, dynamic>> sdSongs,
+    List<Map<String, dynamic>> dxSongs,
+    List<dynamic>? maimaiMusicData, {
+    bool isTheoreticalMode = false,
+    int? selectedPlateId,
+    bool thunderMode = false,
+    bool thunderVertical = true,
+  }) =>
+      _buildExportImageWidget(
+        context,
+        b50Data,
+        sdSongs,
+        dxSongs,
+        maimaiMusicData,
+        isTheoreticalMode: isTheoreticalMode,
+        selectedPlateId: selectedPlateId,
+        thunderMode: thunderMode,
+        thunderVertical: thunderVertical,
+      );
+
   // 构建用于导出的Widget
-  static Future<Widget> _buildExportImageWidget(BuildContext context, Map<String, dynamic>? b50Data, List<Map<String, dynamic>> sdSongs, List<Map<String, dynamic>> dxSongs, List<dynamic>? maimaiMusicData, {bool isTheoreticalMode = false, int? selectedPlateId, bool thunderMode = false, bool thunderVertical = true}) async {
+  static Future<Widget> _buildExportImageWidget(
+      BuildContext context,
+      Map<String, dynamic>? b50Data,
+      List<Map<String, dynamic>> sdSongs,
+      List<Map<String, dynamic>> dxSongs,
+      List<dynamic>? maimaiMusicData,
+      {bool isTheoreticalMode = false,
+      int? selectedPlateId,
+      bool thunderMode = false,
+      bool thunderVertical = true}) async {
     // 计算各项指标
     // 计算Best35相关指标
-    int best35Sum = sdSongs.fold(0, (sum, song) => sum + ((song['ra'] ?? 0) as int));
-    double best35Average = sdSongs.isNotEmpty ? best35Sum / sdSongs.length : 0.0;
-    
+    int best35Sum =
+        sdSongs.fold(0, (sum, song) => sum + ((song['ra'] ?? 0) as int));
+    double best35Average =
+        sdSongs.isNotEmpty ? best35Sum / sdSongs.length : 0.0;
+
     // 计算Best15相关指标
-    int best15Sum = dxSongs.fold(0, (sum, song) => sum + ((song['ra'] ?? 0) as int));
-    double best15Average = dxSongs.isNotEmpty ? best15Sum / dxSongs.length : 0.0;
-    
+    int best15Sum =
+        dxSongs.fold(0, (sum, song) => sum + ((song['ra'] ?? 0) as int));
+    double best15Average =
+        dxSongs.isNotEmpty ? best15Sum / dxSongs.length : 0.0;
+
     // 计算rating（理论模式下使用计算值）
-    int rating = isTheoreticalMode ? best35Sum + best15Sum : (b50Data?['rating'] ?? 0);
-    
+    int rating =
+        isTheoreticalMode ? best35Sum + best15Sum : (b50Data?['rating'] ?? 0);
+
     // 计算rating平均值
     double ratingAverage = (best35Sum + best15Sum) / 50;
-    
+
     // 计算平均达成率（理论模式下固定为101.0）
     double best50AchievementAverage;
     double best35AchievementAverage;
     double best15AchievementAverage;
-    
+
     if (isTheoreticalMode) {
       best50AchievementAverage = 101.0;
       best35AchievementAverage = 101.0;
       best15AchievementAverage = 101.0;
     } else {
-      double sdAchievementsSum = sdSongs.fold(0.0, (sum, song) => sum + (double.tryParse(song['achievements'].toString()) ?? 0.0));
-      double dxAchievementsSum = dxSongs.fold(0.0, (sum, song) => sum + (double.tryParse(song['achievements'].toString()) ?? 0.0));
-      
+      double sdAchievementsSum = sdSongs.fold(
+          0.0,
+          (sum, song) =>
+              sum + (double.tryParse(song['achievements'].toString()) ?? 0.0));
+      double dxAchievementsSum = dxSongs.fold(
+          0.0,
+          (sum, song) =>
+              sum + (double.tryParse(song['achievements'].toString()) ?? 0.0));
+
       best50AchievementAverage = (sdAchievementsSum + dxAchievementsSum) / 50;
-      best35AchievementAverage = sdSongs.isNotEmpty ? sdAchievementsSum / sdSongs.length : 0.0;
-      best15AchievementAverage = dxSongs.isNotEmpty ? dxAchievementsSum / dxSongs.length : 0.0;
+      best35AchievementAverage =
+          sdSongs.isNotEmpty ? sdAchievementsSum / sdSongs.length : 0.0;
+      best15AchievementAverage =
+          dxSongs.isNotEmpty ? dxAchievementsSum / dxSongs.length : 0.0;
     }
-    
+
     // 计算DX分数达成率
     double sdScoreRateSum = sdSongs.fold(0.0, (sum, song) {
       int songId = song['song_id'] ?? 0;
       int levelIndex = song['level_index'] ?? 0;
       int score = song['dxScore'] ?? 0;
-      return sum + _calculateScoreRate(songId, levelIndex, score, maimaiMusicData);
+      return sum +
+          _calculateScoreRate(songId, levelIndex, score, maimaiMusicData);
     });
-    
+
     double dxScoreRateSum = dxSongs.fold(0.0, (sum, song) {
       int songId = song['song_id'] ?? 0;
       int levelIndex = song['level_index'] ?? 0;
       int score = song['dxScore'] ?? 0;
-      return sum + _calculateScoreRate(songId, levelIndex, score, maimaiMusicData);
+      return sum +
+          _calculateScoreRate(songId, levelIndex, score, maimaiMusicData);
     });
-    
-    double best50ScoreRateAverage = (sdSongs.length + dxSongs.length) > 0 
-        ? (sdScoreRateSum + dxScoreRateSum) / (sdSongs.length + dxSongs.length) 
+
+    double best50ScoreRateAverage = (sdSongs.length + dxSongs.length) > 0
+        ? (sdScoreRateSum + dxScoreRateSum) / (sdSongs.length + dxSongs.length)
         : 0.0;
-    
-    double best35ScoreRateAverage = sdSongs.isNotEmpty ? sdScoreRateSum / sdSongs.length : 0.0;
-    double best15ScoreRateAverage = dxSongs.isNotEmpty ? dxScoreRateSum / dxSongs.length : 0.0;
+
+    double best35ScoreRateAverage =
+        sdSongs.isNotEmpty ? sdScoreRateSum / sdSongs.length : 0.0;
+    double best15ScoreRateAverage =
+        dxSongs.isNotEmpty ? dxScoreRateSum / dxSongs.length : 0.0;
 
     // 创建一个容器，设置固定宽度以确保布局一致
     double containerWidth = thunderMode && !thunderVertical ? 17000 : 1700;
@@ -316,7 +392,8 @@ class B50ConvertToImg {
         statistics: 'Rating $rating\nBest35 $best35Sum · Best15 $best15Sum\n'
             '平均达成率 ${best50AchievementAverage.toStringAsFixed(4)}%\n'
             '平均 DX 分达成率 ${(best50ScoreRateAverage * 100).toStringAsFixed(2)}%',
-        cardBuilder: (index) => _buildDataGameCard(context, songs[index], b50Data, maimaiMusicData, maxIdLength),
+        cardBuilder: (index) => _buildDataGameCard(
+            context, songs[index], b50Data, maimaiMusicData, maxIdLength),
       );
     }
 
@@ -338,22 +415,15 @@ class B50ConvertToImg {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // 用户信息区域 + metaRow 横排：姓名框在左，metaRow 紧挨右侧独立成块
-                // 姓名框 2.5× 宽度放大到 1150（高度保持 230），metaRow 高度同样 230 让两者视觉等高。
-                // metaRow 重构为 4 行垂直布局（数据源 / 导出时间 / Generated by / 交流群），
-                // 交流群单独成行（第 4 行），宽度 = 最宽子行（导出时间 ≈ 385 + padding ≈ 413）。
-                // 容器宽度 1700 - 外层 Padding 20×2 = 1660，减去姓名框 1150 + gap 16 = 1166，
-                // 剩余 = 494 作为 metaRow 卡片宽度（填满 SizedBox，右侧无空缺）。
-                // 不用 Row(crossAxisAlignment: stretch) + Center：会形成循环依赖
-                // （Center 依赖 Row 高度，Row 高度依赖 Center 高度），导致 infinite height 异常。
-                // 改用 SizedBox(height: 230) + Align(center) 显式给 metaRow 固定 230 高度。
+                // 姓名框保持 1150×230，右侧元数据块固定为 494×215。
+                // 显式限制高度，避免纵向滚动容器传入无限高度。
                 if (!isTheoreticalMode) ...[
                   thunderMode
                       ? Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            ExportUserInfoWidget.buildUserInfoSection(
-                                context, selectedPlateId: selectedPlateId),
+                            ExportUserInfoWidget.buildUserInfoSection(context,
+                                selectedPlateId: selectedPlateId),
                             const SizedBox(height: 12),
                             _buildMetaRow(),
                           ],
@@ -361,11 +431,11 @@ class B50ConvertToImg {
                       : Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            ExportUserInfoWidget.buildUserInfoSection(
-                                context, selectedPlateId: selectedPlateId),
+                            ExportUserInfoWidget.buildUserInfoSection(context,
+                                selectedPlateId: selectedPlateId),
                             const SizedBox(width: 16),
                             SizedBox(
-                              height: 230,
+                              height: 215,
                               child: Align(
                                 alignment: Alignment.center,
                                 child: _buildMetaRow(),
@@ -377,23 +447,60 @@ class B50ConvertToImg {
                 ],
 
                 // 评分区域
-                _buildRatingSection(context, rating, ratingAverage, best35Sum, best35Average, best15Sum, best15Average, best50AchievementAverage, best35AchievementAverage, best15AchievementAverage, best50ScoreRateAverage, best35ScoreRateAverage, best15ScoreRateAverage, sdSongs, dxSongs),
+                _buildRatingSection(
+                    context,
+                    rating,
+                    ratingAverage,
+                    best35Sum,
+                    best35Average,
+                    best15Sum,
+                    best15Average,
+                    best50AchievementAverage,
+                    best35AchievementAverage,
+                    best15AchievementAverage,
+                    best50ScoreRateAverage,
+                    best35ScoreRateAverage,
+                    best15ScoreRateAverage,
+                    sdSongs,
+                    dxSongs),
                 SizedBox(height: 20.0),
 
                 // Best35 标题区域
-                _buildSectionTitle(context, isTheoreticalMode ? '理论Best35 | 非当前版本最高定数' : 'Best35 | 非当前版本最好成绩'),
+                _buildSectionTitle(
+                    context,
+                    isTheoreticalMode
+                        ? '理论Best35 | 非当前版本最高定数'
+                        : 'Best35 | 非当前版本最好成绩'),
                 SizedBox(height: 16.0),
 
                 // Best35 卡片网格 (5列)
-                _buildDataCardGrid(context, sdSongs, thunderMode ? 1.25 : 1.85, thunderMode ? (thunderVertical ? 1 : 50) : 5, b50Data, maimaiMusicData, maxIdLength),
+                _buildDataCardGrid(
+                    context,
+                    sdSongs,
+                    thunderMode ? 1.25 : 1.85,
+                    thunderMode ? (thunderVertical ? 1 : 50) : 5,
+                    b50Data,
+                    maimaiMusicData,
+                    maxIdLength),
                 SizedBox(height: 24.0),
 
                 // Best15 标题区域
-                _buildSectionTitle(context, isTheoreticalMode ? '理论Best15 | 当前版本最高定数' : 'Best15 | 当前版本最好成绩'),
+                _buildSectionTitle(
+                    context,
+                    isTheoreticalMode
+                        ? '理论Best15 | 当前版本最高定数'
+                        : 'Best15 | 当前版本最好成绩'),
                 SizedBox(height: 16.0),
 
                 // Best15 卡片网格 (5列)
-                _buildDataCardGrid(context, dxSongs, thunderMode ? 1.25 : 1.85, thunderMode ? (thunderVertical ? 1 : 50) : 5, b50Data, maimaiMusicData, maxIdLength),
+                _buildDataCardGrid(
+                    context,
+                    dxSongs,
+                    thunderMode ? 1.25 : 1.85,
+                    thunderMode ? (thunderVertical ? 1 : 50) : 5,
+                    b50Data,
+                    maimaiMusicData,
+                    maxIdLength),
                 SizedBox(height: 20.0),
               ],
             ),
@@ -403,169 +510,8 @@ class B50ConvertToImg {
     );
   }
 
-  // 构建元数据行（数据源 / 导出时间 / Generated by ChiffonMai / 交流群号）
-  // 悬浮在图片右上角。用纯白背景 + 黑边框 + 圆角，与下方统计区域样式一致，
-  // 让 metaRow 视觉上是一块独立的"信息卡片"，避免与左侧姓名框视觉混淆。
-  static Widget _buildMetaRow() {
-    return FutureBuilder<Map<String, String>>(
-      future: _loadMetaInfo(),
-      builder: (context, snapshot) {
-        final dataSource = snapshot.data?['dataSource'] ?? '';
-        final exportTime = snapshot.data?['exportTime'] ?? '';
-        return Container(
-          // 固定宽度填满 SizedBox 的可用空间。
-          // 计算：Positioned width 1700 - 外层 Padding 20×2 = 1660；
-          //       姓名框 1150 + gap 16 = 1166；剩余 = 1660 - 1166 = 494。
-          // 之前误算成 534（没扣外层 Padding 20×2 = 40），导致 metaRow 右侧出界 40 像素。
-          width: 494,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            border: Border.all(color: Colors.black, width: 2.0),
-            borderRadius: BorderRadius.circular(8.0),
-          ),
-          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-          child: Column(
-            // 4 行垂直布局（每行右对齐）：
-            //   1. 数据源
-            //   2. 导出时间
-            //   3. Generated by ChiffonMai
-            //   4. 交流群（单独成行，不再和数据源/导出时间并列）
-            crossAxisAlignment: CrossAxisAlignment.end,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildMetaLine(
-                icon: Icons.storage_rounded,
-                label: '数据源',
-                value: dataSource.isNotEmpty ? dataSource : '未知',
-              ),
-              const SizedBox(height: 8),
-              _buildMetaLine(
-                icon: Icons.schedule_rounded,
-                label: '导出时间',
-                value: exportTime,
-              ),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: const [
-                  Icon(Icons.auto_awesome,
-                      size: 20, color: Color(0xFF1F4FA5)),
-                  SizedBox(width: 6),
-                  Text(
-                    'Generated by ',
-                    style: TextStyle(
-                      fontSize: 20,
-                      color: Color(0xFF1F4FA5),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  Text(
-                    'ChiffonMai',
-                    style: TextStyle(
-                      fontSize: 22,
-                      color: Color(0xFF1F4FA5),
-                      fontWeight: FontWeight.w900,
-                      fontStyle: FontStyle.italic,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              // 第 4 行：交流群单独成行（图标 + 标签 + 群号）
-              _buildQqGroupChip(),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  // 交流群号 — 纯文本展示（无背景框），跟其他 metaRow 文字风格一致
-  // 单行布局：💬图标 + 「交流群」+ 群号 291826702，全部在一行内显示
-  static Widget _buildQqGroupChip() {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: const [
-        Icon(Icons.chat_bubble_outline,
-            size: 22, color: Color(0xFF1F4FA5)),
-        SizedBox(width: 6),
-        Text(
-          '交流群',
-          style: TextStyle(
-            fontSize: 22,
-            color: Color(0xFF1F4FA5),
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        SizedBox(width: 10),
-        Text(
-          AppLinks.qqGroupNumber,
-          style: TextStyle(
-            fontSize: 28,
-            color: Color(0xFF1F4FA5),
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1.5,
-            fontFeatures: [FontFeature.tabularFigures()],
-          ),
-        ),
-      ],
-    );
-  }
-
-  // 单行元数据：图标 + 标签 + 值
-  static Widget _buildMetaLine({
-    required IconData icon,
-    required String label,
-    required String value,
-  }) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 20, color: const Color(0xFF555555)),
-        const SizedBox(width: 6),
-        Text(
-          '$label: ',
-          style: const TextStyle(
-            fontSize: 22,
-            color: Colors.black87,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        Flexible(
-          child: Text(
-            value,
-            style: const TextStyle(
-              fontSize: 22,
-              color: Colors.black,
-              fontWeight: FontWeight.w900,
-            ),
-            overflow: TextOverflow.ellipsis,
-            maxLines: 1,
-          ),
-        ),
-      ],
-    );
-  }
-
-  // 异步加载元数据信息（数据源 + 导出时间）
-  static Future<Map<String, String>> _loadMetaInfo() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final dataSource = RefreshDataSource.displayNameOfKey(
-          prefs.getString(CacheKeyConstant.lastDataSource));
-      final now = DateTime.now();
-      final exportTime =
-          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')} '
-          '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}';
-      return {
-        'dataSource': dataSource,
-        'exportTime': exportTime,
-      };
-    } catch (e) {
-      return {'dataSource': '', 'exportTime': ''};
-    }
-  }
+  // 元数据块统一复用共享组件，固定为 215px 高。
+  static Widget _buildMetaRow() => const MetaRowWidget();
 
   // 单行：标题 + 数值（标题与数值之间留 4px，行内紧凑；标题 widget 由调用方提供以保留原样式）
   // 用于统计区 Row 内子块（块1 Rating / 块2 达成率），统一布局节奏
@@ -695,7 +641,22 @@ class B50ConvertToImg {
   // 块2 底部合并入 50首 SSS+ 数量 + 50首 SSS 数量（间距小，SSS+ 在前）；
   // 块2 平均达成率/DX分数达成率 行间 20，比块1 12 更舒展；
   // 元信息（数据源/导出时间/Generated by/交流群）已由调用方叠加在右上角，此处不再渲染。
-  static Widget _buildRatingSection(BuildContext context, int rating, double ratingAverage, int best35Sum, double best35Average, int best15Sum, double best15Average, double best50AchievementAverage, double best35AchievementAverage, double best15AchievementAverage, double best50ScoreRateAverage, double best35ScoreRateAverage, double best15ScoreRateAverage, List<Map<String, dynamic>> sdSongs, List<Map<String, dynamic>> dxSongs) {
+  static Widget _buildRatingSection(
+      BuildContext context,
+      int rating,
+      double ratingAverage,
+      int best35Sum,
+      double best35Average,
+      int best15Sum,
+      double best15Average,
+      double best50AchievementAverage,
+      double best35AchievementAverage,
+      double best15AchievementAverage,
+      double best50ScoreRateAverage,
+      double best35ScoreRateAverage,
+      double best15ScoreRateAverage,
+      List<Map<String, dynamic>> sdSongs,
+      List<Map<String, dynamic>> dxSongs) {
     // 图片容器固定宽度为1200，以此为基准计算字体大小
     const double containerWidth = 1200.0;
 
@@ -844,7 +805,9 @@ class B50ConvertToImg {
                     value: Align(
                       alignment: Alignment.center,
                       child: _buildDualDecimalText(
-                          context, best50AchievementAverage, best50ScoreRateAverage * 100,
+                          context,
+                          best50AchievementAverage,
+                          best50ScoreRateAverage * 100,
                           scoreRate: best50ScoreRateAverage),
                     ),
                     crossAxisAlignment: CrossAxisAlignment.center,
@@ -857,7 +820,9 @@ class B50ConvertToImg {
                     value: Align(
                       alignment: Alignment.center,
                       child: _buildDualDecimalText(
-                          context, best35AchievementAverage, best35ScoreRateAverage * 100,
+                          context,
+                          best35AchievementAverage,
+                          best35ScoreRateAverage * 100,
                           scoreRate: best35ScoreRateAverage),
                     ),
                     crossAxisAlignment: CrossAxisAlignment.center,
@@ -870,7 +835,9 @@ class B50ConvertToImg {
                     value: Align(
                       alignment: Alignment.center,
                       child: _buildDualDecimalText(
-                          context, best15AchievementAverage, best15ScoreRateAverage * 100,
+                          context,
+                          best15AchievementAverage,
+                          best15ScoreRateAverage * 100,
                           scoreRate: best15ScoreRateAverage),
                     ),
                     crossAxisAlignment: CrossAxisAlignment.center,
@@ -909,7 +876,8 @@ class B50ConvertToImg {
   }
 
   // 构建可提升定数 RA 对照表（Best35 + Best15 两个子表）
-  static Widget _buildImprovableRatingTable(BuildContext context, List<Map<String, dynamic>> sdSongs, List<Map<String, dynamic>> dxSongs) {
+  static Widget _buildImprovableRatingTable(BuildContext context,
+      List<Map<String, dynamic>> sdSongs, List<Map<String, dynamic>> dxSongs) {
     const double containerWidth = 1200.0;
     final double titleFontSize = containerWidth * 0.024; // ~28.8
     final double subTitleFontSize = containerWidth * 0.020; // ~24
@@ -1026,13 +994,12 @@ class B50ConvertToImg {
               for (int i = 0; i < diffList.length; i++)
                 TableRow(
                   decoration: BoxDecoration(
-                    color: i.isEven
-                        ? Colors.white
-                        : const Color(0xFFF7F7F7),
+                    color: i.isEven ? Colors.white : const Color(0xFFF7F7F7),
                   ),
                   children: [
-                    _buildHeaderCell(diffList[i].toStringAsFixed(1),
-                        cellFontSize, bold: true),
+                    _buildHeaderCell(
+                        diffList[i].toStringAsFixed(1), cellFontSize,
+                        bold: true),
                     for (int t = 0; t < tiers.length; t++)
                       () {
                         // 计算本格 RA：>_computeMinRa 才显示数字+提升值
@@ -1042,9 +1009,8 @@ class B50ConvertToImg {
                           showRa ? ra.toString() : '',
                           cellFontSize,
                           // 提升值 = RA - 池子最低 RA（仅在有数据时显示）
-                          improvement: showRa && minRa != null
-                              ? ra - minRa
-                              : null,
+                          improvement:
+                              showRa && minRa != null ? ra - minRa : null,
                         );
                       }(),
                   ],
@@ -1071,7 +1037,9 @@ class B50ConvertToImg {
 
   // 单行标题文字：超出块宽时自动缩小（scaleDown），永远保持单行不换行
   // [alignment] 默认 centerLeft；块2 居中时传 center，让标题字符在块内水平居中
-  static Widget _buildSectionTitleText(BuildContext context, String text, double fontSize, {Alignment alignment = Alignment.centerLeft}) {
+  static Widget _buildSectionTitleText(
+      BuildContext context, String text, double fontSize,
+      {Alignment alignment = Alignment.centerLeft}) {
     return FittedBox(
       fit: BoxFit.scaleDown,
       alignment: alignment,
@@ -1089,7 +1057,8 @@ class B50ConvertToImg {
   }
 
   // 表头文字 cell
-  static Widget _buildHeaderCell(String text, double fontSize, {bool bold = false}) {
+  static Widget _buildHeaderCell(String text, double fontSize,
+      {bool bold = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
       child: Text(
@@ -1129,7 +1098,8 @@ class B50ConvertToImg {
   // 数据 cell（RA 数字 + 可选提升值）
   // [improvement] 若非空，在 RA 数字右侧追加绿色小字「▲xx」表示该 RA 相对池子最低 RA 的提升量。
   // 用 Row + baseline 对齐：RA 主字号，提升值小一号、绿色（▲ 实心三角），整行不换行。
-  static Widget _buildDataCell(String text, double fontSize, {int? improvement}) {
+  static Widget _buildDataCell(String text, double fontSize,
+      {int? improvement}) {
     final mainStyle = TextStyle(
       fontSize: fontSize,
       fontWeight: FontWeight.bold,
@@ -1262,10 +1232,10 @@ class B50ConvertToImg {
   static Widget _buildSectionTitle(BuildContext context, String title) {
     // 图片容器固定宽度为1200，以此为基准计算字体大小
     const double containerWidth = 1200.0;
-    
+
     // 根据容器宽度计算字体大小
     double fontSize = containerWidth * 0.03; // 约36px
-    
+
     return Container(
       decoration: BoxDecoration(
         border: Border.all(color: Colors.black, width: 2.0),
@@ -1329,18 +1299,20 @@ class B50ConvertToImg {
   }
 
   // 构建小数文本
-  static Widget _buildDecimalText(BuildContext context, double value, {
+  static Widget _buildDecimalText(
+    BuildContext context,
+    double value, {
     bool isPercentage = false,
     int decimalPlaces = 4,
     Color color = Colors.white,
   }) {
     // 图片容器固定宽度为1200，以此为基准计算字体大小
     const double containerWidth = 1200.0;
-    
+
     // 根据容器宽度计算字体大小（与App观感一致）
     double mainFontSize = containerWidth * 0.032; // 约38px
     double subFontSize = containerWidth * 0.025; // 约30px
-    
+
     String text = value.toStringAsFixed(decimalPlaces);
 
     // 分割整数部分和小数部分
@@ -1361,7 +1333,6 @@ class B50ConvertToImg {
             fontSize: mainFontSize,
             fontWeight: FontWeight.bold,
             color: color,
-            
           ),
         ),
         // 小数部分和百分号
@@ -1371,7 +1342,6 @@ class B50ConvertToImg {
             fontSize: subFontSize,
             fontWeight: FontWeight.bold,
             color: color,
-            
           ),
         ),
       ],
@@ -1379,7 +1349,10 @@ class B50ConvertToImg {
   }
 
   // 构建双小数文本
-  static Widget _buildDualDecimalText(BuildContext context, double value1, double value2, {
+  static Widget _buildDualDecimalText(
+    BuildContext context,
+    double value1,
+    double value2, {
     int decimalPlaces1 = 4,
     int decimalPlaces2 = 2,
     Color color = Colors.black,
@@ -1391,7 +1364,8 @@ class B50ConvertToImg {
     // 根据容器宽度计算字体大小（与App观感一致）
     double fontSize = containerWidth * 0.03; // 约36px
 
-    final starsText = scoreRate != null ? StringUtil.formatStars(scoreRate) : null;
+    final starsText =
+        scoreRate != null ? StringUtil.formatStars(scoreRate) : null;
     final starsColor =
         scoreRate != null ? ColorUtil.getStarsColor(starsText!) : null;
 
@@ -1403,11 +1377,10 @@ class B50ConvertToImg {
         Text(
           '/',
           style: TextStyle(
-                fontSize: fontSize,
-                fontWeight: FontWeight.bold,
-                color: color,
-
-              ),
+            fontSize: fontSize,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
         ),
         _buildDecimalText(context, value2,
             decimalPlaces: decimalPlaces2, color: color),
@@ -1436,7 +1409,13 @@ class B50ConvertToImg {
 
   // 构建数据驱动的卡片网格
   static Widget _buildDataCardGrid(
-      BuildContext context, List<Map<String, dynamic>> songs, double childAspectRatio, int crossAxisCount, Map<String, dynamic>? b50Data, List<dynamic>? maimaiMusicData, int maxIdLength) {
+      BuildContext context,
+      List<Map<String, dynamic>> songs,
+      double childAspectRatio,
+      int crossAxisCount,
+      Map<String, dynamic>? b50Data,
+      List<dynamic>? maimaiMusicData,
+      int maxIdLength) {
     return Container(
       width: crossAxisCount == 50 ? 17000 : 1700,
       child: GridView.builder(
@@ -1451,16 +1430,23 @@ class B50ConvertToImg {
         ),
         itemCount: songs.length,
         itemBuilder: (context, index) {
-          return _buildDataGameCard(context, songs[index], b50Data, maimaiMusicData, maxIdLength);
+          return _buildDataGameCard(
+              context, songs[index], b50Data, maimaiMusicData, maxIdLength);
         },
       ),
     );
   }
 
   // 根据数据构建游戏卡片
-  static Widget _buildDataGameCard(BuildContext context, Map<String, dynamic> songData, Map<String, dynamic>? b50Data, List<dynamic>? maimaiMusicData, int maxIdLength) {
+  static Widget _buildDataGameCard(
+      BuildContext context,
+      Map<String, dynamic> songData,
+      Map<String, dynamic>? b50Data,
+      List<dynamic>? maimaiMusicData,
+      int maxIdLength) {
     // 解析数据
-    double achievementRate = double.tryParse(songData['achievements'].toString()) ?? 0.0;
+    double achievementRate =
+        double.tryParse(songData['achievements'].toString()) ?? 0.0;
     int score = songData['dxScore'] ?? 0;
     String fc = songData['fc'] ?? '';
     String fs = songData['fs'] ?? '';
@@ -1471,9 +1457,10 @@ class B50ConvertToImg {
     String type = songData['type'] ?? '';
     String title = songData['title'] ?? '未知歌曲';
     int songId = songData['song_id'] ?? 0;
-    
+
     // 计算星星等级（使用与App相同的StringUtil）
-    double scoreRate = _calculateScoreRate(songId, levelIndex, score, maimaiMusicData);
+    double scoreRate =
+        _calculateScoreRate(songId, levelIndex, score, maimaiMusicData);
     String stars = StringUtil.formatStars(scoreRate);
     Color starsColor = ColorUtil.getStarsColor(stars);
 
@@ -1526,7 +1513,8 @@ class B50ConvertToImg {
   }
 
   // 计算maxScore
-  static int _calculateMaxScore(int songId, int levelIndex, List<dynamic>? maimaiMusicData) {
+  static int _calculateMaxScore(
+      int songId, int levelIndex, List<dynamic>? maimaiMusicData) {
     try {
       if (maimaiMusicData == null || maimaiMusicData.isEmpty) {
         return 0;
@@ -1563,7 +1551,8 @@ class B50ConvertToImg {
   }
 
   // 计算scoreRate
-  static double _calculateScoreRate(int songId, int levelIndex, int score, List<dynamic>? maimaiMusicData) {
+  static double _calculateScoreRate(
+      int songId, int levelIndex, int score, List<dynamic>? maimaiMusicData) {
     try {
       if (maimaiMusicData == null) return 0.0;
 
@@ -1668,9 +1657,11 @@ class B50ConvertToImg {
   }
 
   // 使用 MediaStore API 将图片保存到系统相册（Android 13+）
-  static Future<String?> _saveImageToGallery(Uint8List imageBytes, String fileName) async {
+  static Future<String?> _saveImageToGallery(
+      Uint8List imageBytes, String fileName) async {
     try {
-      const MethodChannel channel = MethodChannel('com.example.app/media_store');
+      const MethodChannel channel =
+          MethodChannel('com.example.app/media_store');
       final String? result = await channel.invokeMethod('saveImage', {
         'imageBytes': imageBytes,
         'fileName': fileName,
@@ -1687,12 +1678,13 @@ class B50ConvertToImg {
   static Future<bool> _checkDirectoryWritable(Directory directory) async {
     try {
       // 创建一个临时文件来测试写入权限
-      String testFileName = 'test_write_permission_${DateTime.now().millisecondsSinceEpoch}.tmp';
+      String testFileName =
+          'test_write_permission_${DateTime.now().millisecondsSinceEpoch}.tmp';
       File testFile = File('${directory.path}/$testFileName');
-      
+
       await testFile.writeAsString('test');
       await testFile.delete();
-      
+
       debugPrint('Directory writable test passed: ${directory.path}');
       return true;
     } catch (e) {
@@ -1705,25 +1697,27 @@ class B50ConvertToImg {
   static Future<PermissionStatus> _requestStoragePermission() async {
     if (Platform.isAndroid) {
       debugPrint('Android platform detected');
-      
+
       // 策略：同时请求 storage、photos 和 videos 权限
       // 这样可以覆盖所有 Android 版本，不需要检测 API 级别
-      
+
       // 先检查已有权限状态
       PermissionStatus storageStatus = await Permission.storage.status;
       PermissionStatus photosStatus = await Permission.photos.status;
       PermissionStatus videosStatus = await Permission.videos.status;
-      
+
       debugPrint('Storage status: $storageStatus');
       debugPrint('Photos status: $photosStatus');
       debugPrint('Videos status: $videosStatus');
-      
+
       // 如果任何一个权限已授予，直接返回成功
-      if (storageStatus.isGranted || photosStatus.isGranted || videosStatus.isGranted) {
+      if (storageStatus.isGranted ||
+          photosStatus.isGranted ||
+          videosStatus.isGranted) {
         debugPrint('At least one permission already granted');
         return PermissionStatus.granted;
       }
-      
+
       // 请求权限：同时请求 storage、photos 和 videos
       debugPrint('Requesting storage, photos and videos permissions...');
       Map<Permission, PermissionStatus> statuses = await [
@@ -1731,21 +1725,22 @@ class B50ConvertToImg {
         Permission.photos,
         Permission.videos,
       ].request();
-      
+
       bool storageGranted = statuses[Permission.storage]?.isGranted ?? false;
       bool photosGranted = statuses[Permission.photos]?.isGranted ?? false;
       bool videosGranted = statuses[Permission.videos]?.isGranted ?? false;
-      
+
       debugPrint('Storage granted: $storageGranted');
       debugPrint('Photos granted: $photosGranted');
       debugPrint('Videos granted: $videosGranted');
-      
-      return (storageGranted || photosGranted || videosGranted) 
-          ? PermissionStatus.granted 
+
+      return (storageGranted || photosGranted || videosGranted)
+          ? PermissionStatus.granted
           : PermissionStatus.denied;
     } else {
       // 对于其他平台，使用 storage 权限
-      debugPrint('Non-Android platform detected, requesting storage permission');
+      debugPrint(
+          'Non-Android platform detected, requesting storage permission');
       PermissionStatus status = await Permission.storage.request();
       debugPrint('Storage permission result: $status');
       return status;

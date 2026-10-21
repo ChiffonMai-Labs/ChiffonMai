@@ -20,6 +20,17 @@ class FavoritesPayload {
 /// 都通过 [FavoriteFeaturesNotifier.instance] 监听同一个 ValueNotifier，
 /// 因此在任意一处点星标切换收藏，其他页面会立刻重建 UI。
 class FavoriteFeaturesNotifier {
+  static Future<void> _writes = Future<void>.value();
+
+  // 连续切换与排序时串行写入，避免旧快照覆盖新顺序。
+  static Future<void> _persist(Iterable<String> titles) {
+    final snapshot = titles.toList();
+    return _writes = _writes.catchError((Object _) {}).then((_) async {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(CacheKeyConstant.favoriteFeatures, snapshot);
+    });
+  }
+
   static final ValueNotifier<FavoritesPayload> _state =
       ValueNotifier<FavoritesPayload>(const FavoritesPayload(<String>{}));
 
@@ -36,9 +47,9 @@ class FavoriteFeaturesNotifier {
   /// 表现为「星标莫名其妙没了」。加载时顺手替换掉。
   static const Map<String, String> _renamedTitles = {
     '成绩截图 OCR': '结算画面识别',
-    // 「maidata 管理」原名「刷新 maidata」。迁移键写没空格的，跟新键一致，
-    // 这样旧用户原来收藏的星标会自动落到新标题上。
-    '刷新 maidata': 'maidata管理',
+    // maidata 入口已并入缓存管理，旧收藏迁移到新的入口。
+    '刷新 maidata': '缓存管理',
+    'maidata管理': '缓存管理',
     '主题与背景': '主题与交互偏好',
   };
 
@@ -64,8 +75,7 @@ class FavoriteFeaturesNotifier {
     _publish(migrated);
     // 只有真的改过才回写，避免每次启动都多写一次磁盘
     if (changed) {
-      await prefs.setStringList(
-          CacheKeyConstant.favoriteFeatures, migrated.toList());
+      await _persist(migrated);
     }
   }
 
@@ -81,17 +91,23 @@ class FavoriteFeaturesNotifier {
       next.remove(title);
     }
     _publish(next);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(CacheKeyConstant.favoriteFeatures, next.toList());
+    await _persist(next);
     return added;
   }
 
   /// 强制覆盖当前内存与持久化的收藏列表（一般用于清除）。
   static Future<void> replaceAll(Set<String> newTitles) async {
     _publish(Set<String>.from(newTitles));
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(
-        CacheKeyConstant.favoriteFeatures, newTitles.toList());
+    await _persist(newTitles);
+  }
+
+  /// 移到指定收藏之前；未指定时移到末尾，保留暂时隐藏的功能。
+  static Future<void> moveBefore(String title, String? beforeTitle) async {
+    final ordered = titles.toList();
+    if (!ordered.remove(title)) return;
+    final target = beforeTitle == null ? -1 : ordered.indexOf(beforeTitle);
+    ordered.insert(target < 0 ? ordered.length : target, title);
+    await replaceAll(ordered.toSet());
   }
 
   static void _publish(Set<String> next) {

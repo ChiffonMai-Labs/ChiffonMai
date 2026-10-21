@@ -11,8 +11,11 @@ import '../utils/AppTheme.dart';
 import '../utils/SyncRouteNotifier.dart';
 import '../utils/SecureCredentialStore.dart';
 import 'QrQuickFillButtons.dart';
+import 'QuickSyncOption.dart';
+
 import 'PostSyncRefreshOptions.dart';
 import 'SmoothLinearProgressIndicator.dart';
+import 'ConfettiEffect.dart';
 import 'RefreshDataDialog.dart'
     show RefreshDataRequest, RefreshDataSource, executeAdvancedRefreshData;
 
@@ -50,12 +53,14 @@ class SyncCallbacks {
 class DivingFishSyncInput {
   /// 舞萌|中二登入二维码（SGWCMAID 开头）
   final String qrCode;
+  final bool quickUpdate;
   final bool participateRankings;
   final bool showNickname;
   final RefreshDataRequest? refreshRequest;
 
   const DivingFishSyncInput({
     required this.qrCode,
+    this.quickUpdate = false,
     required this.participateRankings,
     required this.showNickname,
     this.refreshRequest,
@@ -110,14 +115,15 @@ Future<void> _disposeAfterDialogCloses(
 
 /// 注意：二维码的「读取剪贴板 / 相册识别 / 扫码」三个按钮需要 setState 刷新
 /// 输入框，这里用一个局部 StatefulBuilder 承载，输入项本身是自包含的。
-Future<DivingFishSyncInput?> showDivingFishSyncInputDialog(
-    BuildContext context) async {
+Future<DivingFishSyncInput?> showDivingFishSyncInputDialog(BuildContext context,
+    {bool allowQuickUpdate = false}) async {
   final brightness = Theme.of(context).brightness;
   final prefs = await SharedPreferences.getInstance();
   var participateRankings =
       prefs.getBool(CacheKeyConstant.participateRankings) ?? false;
   var showNickname = prefs.getBool(CacheKeyConstant.showNickname) ?? false;
   final qrController = TextEditingController();
+  var quickUpdate = false;
   final refreshKey = GlobalKey<PostSyncRefreshOptionsState>();
   ModalRoute<DivingFishSyncInput>? dialogRoute;
 
@@ -142,27 +148,36 @@ Future<DivingFishSyncInput?> showDivingFishSyncInputDialog(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  '在舞萌|中二公众号请求并打开二维码，扫描后将字符串粘贴到下方：',
-                  style: TextStyle(
-                      fontSize: 13, color: AppColors.greyHint(brightness)),
-                ),
-                const SizedBox(height: 12),
-                QrQuickFillButtons(controller: qrController),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: qrController,
-                  maxLines: 3,
-                  decoration: InputDecoration(
-                    hintText: '舞萌DX | 中二节奏 登入二维码(SGWCMAID...)',
-                    hintStyle: TextStyle(
-                        fontSize: 13,
-                        color: AppColors.greyHint(brightness, shade: 400)),
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8)),
-                    contentPadding: const EdgeInsets.all(12),
+                if (allowQuickUpdate)
+                  QuickSyncOption(
+                    platforms: const {SyncPlatform.divingFish},
+                    onChanged: (enabled) => setState(() {
+                      quickUpdate = enabled;
+                    }),
                   ),
-                ),
+                if (!quickUpdate) ...[
+                  Text(
+                    '在舞萌|中二公众号请求并打开二维码，扫描后将字符串粘贴到下方：',
+                    style: TextStyle(
+                        fontSize: 13, color: AppColors.greyHint(brightness)),
+                  ),
+                  const SizedBox(height: 12),
+                  QrQuickFillButtons(controller: qrController),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: qrController,
+                    maxLines: 3,
+                    decoration: InputDecoration(
+                      hintText: '舞萌DX | 中二节奏 登入二维码(SGWCMAID...)',
+                      hintStyle: TextStyle(
+                          fontSize: 13,
+                          color: AppColors.greyHint(brightness, shade: 400)),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8)),
+                      contentPadding: const EdgeInsets.all(12),
+                    ),
+                  ),
+                ],
                 PostSyncRefreshOptions(
                   key: refreshKey,
                   source: RefreshDataSource.shuiyu,
@@ -178,11 +193,11 @@ Future<DivingFishSyncInput?> showDivingFishSyncInputDialog(
                   ),
                   onPressed: () async {
                     final qrCode = qrController.text.trim();
-                    if (qrCode.isEmpty) {
+                    if (!quickUpdate && qrCode.isEmpty) {
                       Fluttertoast.showToast(msg: '请先粘贴舞萌|中二登入二维码字符串');
                       return;
                     }
-                    if (!qrCode.startsWith('SGWCMAID')) {
+                    if (!quickUpdate && !qrCode.startsWith('SGWCMAID')) {
                       Fluttertoast.showToast(msg: '无效的二维码，请使用舞萌|中二公众号生成的登入二维码');
                       return;
                     }
@@ -198,6 +213,7 @@ Future<DivingFishSyncInput?> showDivingFishSyncInputDialog(
                     if (!dialogContext.mounted) return;
                     Navigator.of(dialogContext).pop(DivingFishSyncInput(
                       qrCode: qrCode,
+                      quickUpdate: quickUpdate,
                       participateRankings: participateRankings,
                       showNickname: showNickname,
                       refreshRequest: refreshRequest,
@@ -234,6 +250,7 @@ double divingFishStageProgress(SyncProgress p) =>
 class LuoXueSyncInput {
   /// 舞萌|中二登入二维码（SGWCMAID 开头）
   final String qrCode;
+  final bool quickUpdate;
 
   /// 落雪个人 API 密钥；已在本地保存过时为 null（执行时从缓存读取）
   final String? lxnsImportToken;
@@ -241,6 +258,7 @@ class LuoXueSyncInput {
 
   const LuoXueSyncInput({
     required this.qrCode,
+    this.quickUpdate = false,
     required this.lxnsImportToken,
     this.refreshRequest,
   });
@@ -249,12 +267,14 @@ class LuoXueSyncInput {
 /// 只收集输入的「同步成绩到落雪」对话框。
 ///
 /// 返回 null 表示用户取消。已在本地保存过落雪 API 密钥时不再要求重新填写。
-Future<LuoXueSyncInput?> showLuoXueSyncInputDialog(BuildContext context) async {
+Future<LuoXueSyncInput?> showLuoXueSyncInputDialog(BuildContext context,
+    {bool allowQuickUpdate = false}) async {
   final brightness = Theme.of(context).brightness;
   final savedToken =
       await SecureCredentialStore.read(CacheKeyConstant.probeLxnsImportToken);
   final hasSavedToken = savedToken != null && savedToken.isNotEmpty;
   final qrController = TextEditingController();
+  var quickUpdate = false;
   final tokenController = TextEditingController();
   final refreshKey = GlobalKey<PostSyncRefreshOptionsState>();
   String? error;
@@ -281,32 +301,41 @@ Future<LuoXueSyncInput?> showLuoXueSyncInputDialog(BuildContext context) async {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  '在舞萌|中二公众号请求并打开二维码，扫描后将字符串粘贴到下方：',
-                  style: TextStyle(
-                      fontSize: 13, color: AppColors.greyHint(brightness)),
-                ),
-                const SizedBox(height: 12),
-                // 与水鱼同步对话框保持一致：剪贴板 / 相册 / 扫码三件套
-                QrQuickFillButtons(
-                  controller: qrController,
-                  onFilled: () => setState(() => error = null),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: qrController,
-                  maxLines: 3,
-                  decoration: InputDecoration(
-                    hintText: '舞萌DX | 中二节奏 登入二维码(SGWCMAID...)',
-                    hintStyle: TextStyle(
-                        fontSize: 13,
-                        color: AppColors.greyHint(brightness, shade: 400)),
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8)),
-                    contentPadding: const EdgeInsets.all(12),
+                if (allowQuickUpdate)
+                  QuickSyncOption(
+                    platforms: const {SyncPlatform.luoXue},
+                    onChanged: (enabled) => setState(() {
+                      quickUpdate = enabled;
+                    }),
                   ),
-                ),
-                const SizedBox(height: 16),
+                if (!quickUpdate) ...[
+                  Text(
+                    '在舞萌|中二公众号请求并打开二维码，扫描后将字符串粘贴到下方：',
+                    style: TextStyle(
+                        fontSize: 13, color: AppColors.greyHint(brightness)),
+                  ),
+                  const SizedBox(height: 12),
+                  // 与水鱼同步对话框保持一致：剪贴板 / 相册 / 扫码三件套
+                  QrQuickFillButtons(
+                    controller: qrController,
+                    onFilled: () => setState(() => error = null),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: qrController,
+                    maxLines: 3,
+                    decoration: InputDecoration(
+                      hintText: '舞萌DX | 中二节奏 登入二维码(SGWCMAID...)',
+                      hintStyle: TextStyle(
+                          fontSize: 13,
+                          color: AppColors.greyHint(brightness, shade: 400)),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8)),
+                      contentPadding: const EdgeInsets.all(12),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 if (hasSavedToken)
                   Row(
                     children: [
@@ -356,11 +385,11 @@ Future<LuoXueSyncInput?> showLuoXueSyncInputDialog(BuildContext context) async {
                   ),
                   onPressed: () async {
                     final qrCode = qrController.text.trim();
-                    if (qrCode.isEmpty) {
+                    if (!quickUpdate && qrCode.isEmpty) {
                       setState(() => error = '请先粘贴舞萌|中二登入二维码字符串');
                       return;
                     }
-                    if (!qrCode.startsWith('SGWCMAID')) {
+                    if (!quickUpdate && !qrCode.startsWith('SGWCMAID')) {
                       setState(() => error = '无效的二维码，请使用舞萌|中二公众号生成的登入二维码');
                       return;
                     }
@@ -382,6 +411,7 @@ Future<LuoXueSyncInput?> showLuoXueSyncInputDialog(BuildContext context) async {
                     if (!dialogContext.mounted) return;
                     Navigator.of(dialogContext).pop(LuoXueSyncInput(
                       qrCode: qrCode,
+                      quickUpdate: quickUpdate,
                       lxnsImportToken: token,
                       refreshRequest: refreshRequest,
                     ));
@@ -410,7 +440,11 @@ Future<int> executeLuoXueSync(
   LuoXueSyncInput input, {
   required void Function(double progress, String text) onProgress,
   void Function(int durationMs)? onSyncFinished,
+  VoidCallback? onSyncSucceeded,
 }) async {
+  if (input.quickUpdate) {
+    throw const SyncFlowException('快速同步仅支持线路1');
+  }
   onProgress(0.05, '准备同步...');
   final syncStopwatch = Stopwatch()..start();
   final result = await DivingFishProbeManager().syncByCabinetQrToLxns(
@@ -419,10 +453,14 @@ Future<int> executeLuoXueSync(
     onProgress: (p) => onProgress(divingFishStageProgress(p), p.message),
   );
   if (!result.isSuccess) {
+    if (result.hubLoginRequired) {
+      throw const SyncFlowException('maimai Score Hub 登录状态已失效，请重新登录后再使用线路2');
+    }
     throw SyncFlowException(result.errorMessage ?? '同步失败');
   }
   syncStopwatch.stop();
   onSyncFinished?.call(syncStopwatch.elapsedMilliseconds);
+  onSyncSucceeded?.call();
   if (input.refreshRequest != null) {
     onProgress(0.72, '同步完成，正在刷新本地数据...');
     try {
@@ -452,7 +490,11 @@ Future<DivingFishSyncOutcome> executeDivingFishSync(
   DivingFishSyncInput input, {
   required void Function(double progress, String text) onProgress,
   void Function(int durationMs)? onSyncFinished,
+  VoidCallback? onSyncSucceeded,
 }) async {
+  if (input.quickUpdate) {
+    throw const SyncFlowException('快速同步仅支持线路1');
+  }
   onProgress(0.05, '准备同步...');
   final syncStopwatch = Stopwatch()..start();
   final result = await DivingFishProbeManager().syncByCabinetQr(
@@ -461,6 +503,9 @@ Future<DivingFishSyncOutcome> executeDivingFishSync(
   );
 
   if (!result.isSuccess) {
+    if (result.hubLoginRequired) {
+      throw const SyncFlowException('maimai Score Hub 登录状态已失效，请重新登录后再使用线路2');
+    }
     final msg = result.errorMessage ?? '同步失败';
     if (msg == '用户取消同步') {
       throw const SyncFlowException('同步已取消');
@@ -473,6 +518,7 @@ Future<DivingFishSyncOutcome> executeDivingFishSync(
   }
   syncStopwatch.stop();
   onSyncFinished?.call(syncStopwatch.elapsedMilliseconds);
+  onSyncSucceeded?.call();
 
   onProgress(
     0.70,
@@ -511,8 +557,9 @@ Future<DivingFishSyncOutcome> executeDivingFishSync(
 class SyncScoreDialogs {
   /// 显示水鱼同步对话框
   ///
-  /// [presetQrCode] 非空时直接进入「绑定水鱼账号」阶段并复用该二维码，
-  /// 用于按钮驱动流程在缺少 ImportToken 时回到这里补绑定。
+  /// [presetQrCode] 只允许传入**尚未使用过**的新二维码；上游已限制一张二维码
+  /// 只能处理一个请求，已经用于创建抓取任务的二维码绝不能在这里复用。
+  /// 按钮驱动流程在缺少 ImportToken 时回到这里补绑定时，会要求用户重新输入。
   static Future<String?> showDivingFishSyncDialog(
       BuildContext context, SyncCallbacks callbacks,
       {String? presetQrCode}) async {
@@ -736,6 +783,7 @@ class SyncScoreDialogs {
                             tipSub?.cancel();
 
                             if (result.isSuccess) {
+                              if (context.mounted) ConfettiEffect.show(context);
                               setState(() {
                                 currentStage = SyncStage.exporting;
                                 statusText = '同步成功！正在刷新本地数据...';
@@ -1002,6 +1050,8 @@ class SyncScoreDialogs {
                                 bindCachedImportToken: false,
                               );
                               if (exportResult.isSuccess) {
+                                if (context.mounted)
+                                  ConfettiEffect.show(context);
                                 setState(() {
                                   statusText = '同步成功！正在刷新本地数据...';
                                   progress = 0.70;

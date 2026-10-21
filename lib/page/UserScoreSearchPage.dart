@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import 'package:my_first_flutter_app/utils/StringUtil.dart';
 import 'package:my_first_flutter_app/utils/ColorUtil.dart';
@@ -487,7 +488,7 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
       context: context,
       builder: (BuildContext context) {
         String selectedDifficulty = _filterConditions['难度筛选'] ?? '';
-        List<String> difficulties = ['', 'BASIC', 'ADVANCED', 'EXPERT', 'MASTER', 'Re:MASTER', 'UTAGE'];
+        List<String> difficulties = ['', ...ChartDifficulty.labels];
         return AlertDialog(
           title: Text('难度筛选'),
           content: StatefulBuilder(
@@ -983,7 +984,7 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
       title: '成绩查询',
       resizeToAvoidBottomInset: false, // 防止键盘弹出时调整布局
       contentPadding: EdgeInsets.only(
-        bottom: MediaQuery.paddingOf(context).bottom + 10,
+        bottom: MediaQuery.paddingOf(context).bottom,
       ),
       child: _isLoading
                       ? Center(child: CircularProgressIndicator())

@@ -31,12 +31,18 @@ class PortablePlaybackModeButton extends StatefulWidget {
     this.iconButtonKey,
     this.iconSize = 24,
     this.density,
+    this.color,
+    this.sequentialIcon = Icons.format_list_numbered,
   });
 
   /// 给 [IconButton] 自己的 key：测试里定位用，也避免两个入口同时挂在树上时撞 key。
   final Key? iconButtonKey;
 
   final double iconSize;
+
+  /// 全屏播放器可使用自己的图标配色，其他入口仍沿用主题主色。
+  final Color? color;
+  final IconData sequentialIcon;
 
   /// 迷你卡片里塞得比较紧，传 `VisualDensity.compact` 收一收。
   final VisualDensity? density;
@@ -85,7 +91,7 @@ class _PortablePlaybackModeButtonState
         icon: Icon(
           _playbackModeIcon(_player.playbackMode),
           size: widget.iconSize,
-          color: scheme.primary,
+          color: widget.color ?? scheme.primary,
         ),
         onPressed: _onTap,
       ),
@@ -110,7 +116,7 @@ class _PortablePlaybackModeButtonState
   IconData _playbackModeIcon(PortablePlaybackMode mode) {
     switch (mode) {
       case PortablePlaybackMode.sequential:
-        return Icons.format_list_numbered;
+        return widget.sequentialIcon;
       case PortablePlaybackMode.shuffle:
         return Icons.shuffle;
       case PortablePlaybackMode.single:

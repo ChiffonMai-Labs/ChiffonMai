@@ -240,7 +240,7 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
       ]));
     }
     return SingleChildScrollView(
-      padding: EdgeInsets.all(sw * 0.04),
+      padding: EdgeInsets.fromLTRB(sw * 0.04, 8, sw * 0.04, sw * 0.04),
       child: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
         if (_result != null) ...[
           _buildTopMatch(sw, c),

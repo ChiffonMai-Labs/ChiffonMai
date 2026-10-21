@@ -187,8 +187,9 @@ void main() {
       ];
       final result = UnionUpdateCompareService.compare(songs);
 
-      expect(result.cnSongCount, 1394);
-      expect(result.upcoming.length, 92);
+      expect(result.cnSongCount, 1395,
+          reason: '水鱼 1394 首，加上已确认超前上线但仍标为 extra 的 12025');
+      expect(result.upcoming.length, 91);
       expect(result.skipped.length, 351);
       expect(result.utage.length, 48);
       expect(result.unionSongCount, 1885,
@@ -209,14 +210,17 @@ void main() {
         song('11944', title: 'Restricted Access'),
         song('11945', title: '胡蝶乃舞'),
         song('11946', title: '零號車輛'),
+        song('12025', title: '魔法仕掛けのファンタジア', isExtra: true, cids: []),
       ]);
 
       expect(result.frontier?.id, '11878');
       expect(result.earlyReleases.map((s) => s.id),
-          ['11919', '11920', '11944', '11945', '11946']);
+          ['11919', '11920', '11944', '11945', '11946', '12025']);
       expect(result.cnSongs.map((s) => s.id), ['11878'],
           reason: '超前上线的曲子不进「国服常规曲」那段');
-      expect(result.cnSongCount, 6, reason: '它们仍然是国服已经有的曲子，账要算上');
+      expect(result.cnSongCount, 7, reason: '它们仍然是国服已经有的曲子，账要算上');
+      expect(result.upcoming, isEmpty,
+          reason: '超前上线名单优先于 isExtra，12025 不应再进入待上线列表');
     });
 
     test('排除超前上线后，被它挡住的待上线曲目回到候选里', () {

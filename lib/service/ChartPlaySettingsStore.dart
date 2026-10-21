@@ -4,6 +4,32 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:simai_flutter/simai_flutter.dart';
 
+/// 播放前“加载音频”选项的记忆化。
+///
+/// 这是进入播放页前的资源选择，不属于播放器侧边栏设置，因此单独存储，
+/// 避免在创建控制器前读取整份设置时产生耦合。
+class ChartPlayAudioPreference {
+  static const String _key = 'chart_play_load_audio';
+
+  static Future<bool> load() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool(_key) ?? true;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  static Future<void> save(bool value) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_key, value);
+    } catch (e) {
+      debugPrint('[ChartPlayAudioPreference] 保存失败: $e');
+    }
+  }
+}
+
 /// 谱面播放页侧边栏设置的一份快照。
 ///
 /// 字段与 `SimaiPlayerController` 暴露的 setter 一一对应；
@@ -125,8 +151,8 @@ class ChartPlaySettings {
   factory ChartPlaySettings.fromJson(Map<String, dynamic> json) {
     const fallback = ChartPlaySettings();
     return ChartPlaySettings(
-      mirrorMode: _enumByName(SimaiMirrorMode.values, json['mirrorMode'],
-          fallback.mirrorMode),
+      mirrorMode: _enumByName(
+          SimaiMirrorMode.values, json['mirrorMode'], fallback.mirrorMode),
       backgroundMode: _enumByName(SimaiBackgroundMode.values,
           json['backgroundMode'], fallback.backgroundMode),
       speed: _clampDouble(json['speed'], 3.0, 9.0, fallback.speed),
@@ -146,8 +172,7 @@ class ChartPlaySettings {
       showCornerInfo: _bool(json['showCornerInfo'], fallback.showCornerInfo),
       showDetailedPerformanceInfo: _bool(json['showDetailedPerformanceInfo'],
           fallback.showDetailedPerformanceInfo),
-      hitSoundEnabled:
-          _bool(json['hitSoundEnabled'], fallback.hitSoundEnabled),
+      hitSoundEnabled: _bool(json['hitSoundEnabled'], fallback.hitSoundEnabled),
       musicVolume:
           _clampDouble(json['musicVolume'], 0.0, 1.0, fallback.musicVolume),
       musicOffsetMs:
@@ -157,7 +182,8 @@ class ChartPlaySettings {
     );
   }
 
-  static T _enumByName<T extends Enum>(List<T> values, Object? raw, T fallback) {
+  static T _enumByName<T extends Enum>(
+      List<T> values, Object? raw, T fallback) {
     if (raw is! String) return fallback;
     for (final value in values) {
       if (value.name == raw) return value;
@@ -165,8 +191,7 @@ class ChartPlaySettings {
     return fallback;
   }
 
-  static bool _bool(Object? raw, bool fallback) =>
-      raw is bool ? raw : fallback;
+  static bool _bool(Object? raw, bool fallback) => raw is bool ? raw : fallback;
 
   static double _clampDouble(
       Object? raw, double min, double max, double fallback) {

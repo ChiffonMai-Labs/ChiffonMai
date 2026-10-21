@@ -19,11 +19,20 @@ import 'package:my_first_flutter_app/widgets/MetaRowWidget.dart';
 
 class PersonalizedDiffBest50ConvertToImg {
   // 导出为图片的方法
-  static Future<File?> convertToImage(BuildContext context, String title, Map<String, dynamic>? diffBest50Data, List<Map<String, dynamic>> diffSongs, List<dynamic>? maimaiMusicData, {int? jpegQuality, bool thunderMode = false, bool thunderVertical = true}) async {
+  static Future<File?> convertToImage(
+      BuildContext context,
+      String title,
+      Map<String, dynamic>? diffBest50Data,
+      List<Map<String, dynamic>> diffSongs,
+      List<dynamic>? maimaiMusicData,
+      {int? jpegQuality,
+      bool thunderMode = false,
+      bool thunderVertical = true}) async {
     OverlayEntry? overlayEntry;
     try {
       debugPrint('=== STARTING PERSONALIZED DIFF B50 IMAGE CONVERSION ===');
-      debugPrint('Current platform: ${Platform.operatingSystem} ${Platform.version}');
+      debugPrint(
+          'Current platform: ${Platform.operatingSystem} ${Platform.version}');
 
       PermissionStatus status = await _requestStoragePermission();
       debugPrint('Storage permission status: $status');
@@ -32,7 +41,9 @@ class PersonalizedDiffBest50ConvertToImg {
 
       Widget imageWidget = RepaintBoundary(
         key: globalKey,
-        child: await _buildExportImageWidget(context, title, diffBest50Data, diffSongs, maimaiMusicData, thunderMode: thunderMode, thunderVertical: thunderVertical),
+        child: await _buildExportImageWidget(
+            context, title, diffBest50Data, diffSongs, maimaiMusicData,
+            thunderMode: thunderMode, thunderVertical: thunderVertical),
       );
       final exportWidth = thunderMode
           ? ThunderBest50Export.widthFor(diffSongs.length, thunderVertical)
@@ -59,7 +70,8 @@ class PersonalizedDiffBest50ConvertToImg {
       await _waitForRender();
       debugPrint('Render wait completed');
 
-      final RenderRepaintBoundary? boundary = globalKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      final RenderRepaintBoundary? boundary = globalKey.currentContext
+          ?.findRenderObject() as RenderRepaintBoundary?;
       if (boundary == null) {
         debugPrint('Error: RenderRepaintBoundary not found');
         overlayEntry.remove();
@@ -72,16 +84,21 @@ class PersonalizedDiffBest50ConvertToImg {
       debugPrint('Starting image capture...');
       ui.Image image;
       try {
-        image = await boundary.toImage(pixelRatio: ImageEncodeUtil.safeCapturePixelRatio(boundary.size.width, boundary.size.height));
+        image = await boundary.toImage(
+            pixelRatio: ImageEncodeUtil.safeCapturePixelRatio(
+                boundary.size.width, boundary.size.height));
         debugPrint('Image captured successfully');
       } catch (e) {
         debugPrint('First capture failed: $e');
         await Future.delayed(Duration(milliseconds: 200));
-        image = await boundary.toImage(pixelRatio: ImageEncodeUtil.safeCapturePixelRatio(boundary.size.width, boundary.size.height));
+        image = await boundary.toImage(
+            pixelRatio: ImageEncodeUtil.safeCapturePixelRatio(
+                boundary.size.width, boundary.size.height));
         debugPrint('Image captured on retry');
       }
 
-      ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      ByteData? byteData =
+          await image.toByteData(format: ui.ImageByteFormat.png);
       if (byteData == null) {
         debugPrint('Error: ByteData is null');
         overlayEntry.remove();
@@ -90,7 +107,8 @@ class PersonalizedDiffBest50ConvertToImg {
       }
       debugPrint('ByteData conversion successful');
 
-      Uint8List pngBytes = byteData.buffer.asUint8List(byteData.offsetInBytes, byteData.lengthInBytes);
+      Uint8List pngBytes = byteData.buffer
+          .asUint8List(byteData.offsetInBytes, byteData.lengthInBytes);
       // 立刻释放 ui.Image：它本身也是上百 MB 的原生位图，而下面的 JPEG
       // 转码还要再分配上百 MB（decodePng + copyResize）。等转码完再释放，
       // 峰值内存会白白多一份 —— 低内存机就是这样被 OOM 掉的。
@@ -100,14 +118,13 @@ class PersonalizedDiffBest50ConvertToImg {
       Uint8List finalBytes;
       String extension;
       if (jpegQuality != null) {
-        finalBytes = await ImageEncodeUtil.pngToJpegAsync(pngBytes, quality: jpegQuality);
+        finalBytes = await ImageEncodeUtil.pngToJpegAsync(pngBytes,
+            quality: jpegQuality);
         extension = 'jpg';
       } else {
         finalBytes = pngBytes;
         extension = 'png';
       }
-
-
 
       overlayEntry.remove();
 
@@ -132,7 +149,8 @@ class PersonalizedDiffBest50ConvertToImg {
           debugPrint('Pictures directory writable: $canWrite');
 
           if (!canWrite) {
-            debugPrint('Warning: Pictures directory is not writable, will fall back');
+            debugPrint(
+                'Warning: Pictures directory is not writable, will fall back');
             directory = null;
           }
         } catch (e) {
@@ -166,7 +184,8 @@ class PersonalizedDiffBest50ConvertToImg {
 
       if (Platform.isAndroid && status.isGranted) {
         debugPrint('Trying to save via MediaStore API...');
-        String? galleryPath = await _saveImageToGallery(finalBytes, 'personalized_diff_b50_export_${DateTime.now().millisecondsSinceEpoch}.$extension');
+        String? galleryPath = await _saveImageToGallery(finalBytes,
+            'personalized_diff_b50_export_${DateTime.now().millisecondsSinceEpoch}.$extension');
         if (galleryPath != null) {
           debugPrint('Image saved to gallery via MediaStore: $galleryPath');
           await _notifySystemGallery(galleryPath);
@@ -179,7 +198,8 @@ class PersonalizedDiffBest50ConvertToImg {
         directory.createSync(recursive: true);
       }
 
-      final file = File('${directory.path}/personalized_diff_b50_export_${DateTime.now().millisecondsSinceEpoch}.$extension');
+      final file = File(
+          '${directory.path}/personalized_diff_b50_export_${DateTime.now().millisecondsSinceEpoch}.$extension');
       await file.writeAsBytes(finalBytes);
       debugPrint('Image saved to: ${file.path}');
 
@@ -196,33 +216,69 @@ class PersonalizedDiffBest50ConvertToImg {
     }
   }
 
-  // 构建用于导出的Widget
-  static Future<Widget> _buildExportImageWidget(BuildContext context, String title, Map<String, dynamic>? diffBest50Data, List<Map<String, dynamic>> diffSongs, List<dynamic>? maimaiMusicData, {bool thunderMode = false, bool thunderVertical = true}) async {
-    int diffRatingSum = diffBest50Data?['diffRatingSum'] ?? 0;
-    double diffRatingAverage = diffSongs.isNotEmpty ? diffRatingSum / diffSongs.length : 0.0;
+  /// 构建与实际导出相同的预览 Widget。
+  static Future<Widget> buildPreviewWidget(
+    BuildContext context,
+    String title,
+    Map<String, dynamic>? diffBest50Data,
+    List<Map<String, dynamic>> diffSongs,
+    List<dynamic>? maimaiMusicData, {
+    bool thunderMode = false,
+    bool thunderVertical = true,
+  }) =>
+      _buildExportImageWidget(
+        context,
+        title,
+        diffBest50Data,
+        diffSongs,
+        maimaiMusicData,
+        thunderMode: thunderMode,
+        thunderVertical: thunderVertical,
+      );
 
-    double achievementsSum = diffSongs.fold(0.0,
-        (sum, song) => sum + (double.tryParse(song['achievements'].toString()) ?? 0.0));
-    double averageAchievement = diffSongs.isNotEmpty ? achievementsSum / diffSongs.length : 0.0;
+  // 构建用于导出的Widget
+  static Future<Widget> _buildExportImageWidget(
+      BuildContext context,
+      String title,
+      Map<String, dynamic>? diffBest50Data,
+      List<Map<String, dynamic>> diffSongs,
+      List<dynamic>? maimaiMusicData,
+      {bool thunderMode = false,
+      bool thunderVertical = true}) async {
+    int diffRatingSum = diffBest50Data?['diffRatingSum'] ?? 0;
+    double diffRatingAverage =
+        diffSongs.isNotEmpty ? diffRatingSum / diffSongs.length : 0.0;
+
+    double achievementsSum = diffSongs.fold(
+        0.0,
+        (sum, song) =>
+            sum + (double.tryParse(song['achievements'].toString()) ?? 0.0));
+    double averageAchievement =
+        diffSongs.isNotEmpty ? achievementsSum / diffSongs.length : 0.0;
 
     double scoreRateSum = diffSongs.fold(0.0, (sum, song) {
       int songId = song['song_id'] ?? 0;
       int levelIndex = song['level_index'] ?? 0;
       int score = song['dxScore'] ?? 0;
-      return sum + _calculateScoreRate(songId, levelIndex, score, maimaiMusicData);
+      return sum +
+          _calculateScoreRate(songId, levelIndex, score, maimaiMusicData);
     });
-    double averageScoreRate = diffSongs.isNotEmpty ? scoreRateSum / diffSongs.length : 0.0;
+    double averageScoreRate =
+        diffSongs.isNotEmpty ? scoreRateSum / diffSongs.length : 0.0;
 
     if (thunderMode) {
-      final maxIdLength = diffSongs.any((song) => '${song['song_id']}'.length == 6) ? 6 : 5;
+      final maxIdLength =
+          diffSongs.any((song) => '${song['song_id']}'.length == 6) ? 6 : 5;
       return ThunderBest50Export.build(
         title: title,
         vertical: thunderVertical,
         count: diffSongs.length,
-        statistics: '拟合 Rating $diffRatingSum\n平均 Rating ${diffRatingAverage.toStringAsFixed(1)}\n'
+        statistics:
+            '拟合 Rating $diffRatingSum\n平均 Rating ${diffRatingAverage.toStringAsFixed(1)}\n'
             '平均达成率 ${averageAchievement.toStringAsFixed(4)}%\n'
             '平均 DX 分达成率 ${(averageScoreRate * 100).toStringAsFixed(2)}%',
-        cardBuilder: (index) => _buildDataGameCard(context, diffSongs[index], maimaiMusicData, maxIdLength),
+        cardBuilder: (index) => _buildDataGameCard(
+            context, diffSongs[index], maimaiMusicData, maxIdLength),
       );
     }
     const double containerWidth = 1700.0;
@@ -252,23 +308,29 @@ class PersonalizedDiffBest50ConvertToImg {
                     ExportUserInfoWidget.buildUserInfoSection(context),
                     const SizedBox(width: 16),
                     SizedBox(
-                      height: 230,
+                      height: 215,
                       child: Align(
                         alignment: Alignment.center,
-                        child: MetaRowWidget(width: 494, height: 230),
+                        child: MetaRowWidget(width: 494, height: 215),
                       ),
                     ),
                   ],
                 ),
                 SizedBox(height: 16.0),
 
-                _buildRatingSection(context, title, diffRatingSum, diffRatingAverage, averageAchievement, averageScoreRate),
+                _buildRatingSection(context, title, diffRatingSum,
+                    diffRatingAverage, averageAchievement, averageScoreRate),
                 SizedBox(height: 20.0),
 
                 _buildSectionTitle(context, title),
                 SizedBox(height: 16.0),
 
-                _buildDataCardGrid(context, diffSongs, thunderMode ? 1.25 : 1.85, thunderMode ? (thunderVertical ? 1 : 50) : 5, maimaiMusicData),
+                _buildDataCardGrid(
+                    context,
+                    diffSongs,
+                    thunderMode ? 1.25 : 1.85,
+                    thunderMode ? (thunderVertical ? 1 : 50) : 5,
+                    maimaiMusicData),
                 SizedBox(height: 20.0),
               ],
             ),
@@ -279,7 +341,13 @@ class PersonalizedDiffBest50ConvertToImg {
   }
 
   // 构建评分区域
-  static Widget _buildRatingSection(BuildContext context, String title, int diffRatingSum, double diffRatingAverage, double averageAchievement, double averageScoreRate) {
+  static Widget _buildRatingSection(
+      BuildContext context,
+      String title,
+      int diffRatingSum,
+      double diffRatingAverage,
+      double averageAchievement,
+      double averageScoreRate) {
     const double containerWidth = 1200.0;
 
     double mainFontSize = containerWidth * 0.032;
@@ -296,64 +364,87 @@ class PersonalizedDiffBest50ConvertToImg {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '拟合总Rating',
-                      style: TextStyle(
-                        fontSize: mainFontSize,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
-                      ),
-                    ),
-                    SizedBox(height: 8.0),
-                    RichText(
-                      text: TextSpan(
-                        children: [
-                          TextStyleUtil.span(
-                            diffRatingSum.toString(),
-                            TextStyle(
-                              fontSize: mainFontSize,
-                              color: Colors.black,
-                              fontWeight: FontWeight.bold,
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          '拟合总Rating',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: mainFontSize,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
+                        ),
+                        SizedBox(height: 8.0),
+                        Center(
+                          child: RichText(
+                            textAlign: TextAlign.center,
+                            text: TextSpan(
+                              children: [
+                                TextStyleUtil.span(
+                                  diffRatingSum.toString(),
+                                  TextStyle(
+                                    fontSize: mainFontSize,
+                                    color: Colors.black,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                TextStyleUtil.span(
+                                  '(平均${diffRatingAverage.toStringAsFixed(1)})',
+                                  TextStyle(
+                                    fontSize: subFontSize,
+                                    color: Colors.black,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          TextStyleUtil.span(
-                            '(平均${diffRatingAverage.toStringAsFixed(1)})',
-                            TextStyle(
-                              fontSize: subFontSize,
-                              color: Colors.black,
-                            ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const VerticalDivider(width: 24, thickness: 1),
+                Expanded(
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          '平均达成率/DX分数达成率',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: sectionTitleFontSize,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
                           ),
-                        ],
-                      ),
+                        ),
+                        const SizedBox(height: 8),
+                        Center(
+                          child: _buildDualDecimalText(
+                            context,
+                            averageAchievement,
+                            averageScoreRate * 100,
+                            scoreRate: averageScoreRate,
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
-
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '平均达成率/DX分数达成率',
-                      style: TextStyle(
-                        fontSize: sectionTitleFontSize,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
-                      ),
-                    ),
-                    _buildDualDecimalText(context, averageAchievement, averageScoreRate * 100,
-                  scoreRate: averageScoreRate),
-                  ],
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
@@ -428,7 +519,9 @@ class PersonalizedDiffBest50ConvertToImg {
   }
 
   // 构建小数文本
-  static Widget _buildDecimalText(BuildContext context, double value, {
+  static Widget _buildDecimalText(
+    BuildContext context,
+    double value, {
     bool isPercentage = false,
     int decimalPlaces = 4,
     Color color = Colors.white,
@@ -450,18 +543,25 @@ class PersonalizedDiffBest50ConvertToImg {
       children: [
         Text(
           integerPart,
-          style: TextStyle(fontSize: mainFontSize, fontWeight: FontWeight.bold, color: color),
+          style: TextStyle(
+              fontSize: mainFontSize,
+              fontWeight: FontWeight.bold,
+              color: color),
         ),
         Text(
           '$decimalPart$percentageSymbol',
-          style: TextStyle(fontSize: subFontSize, fontWeight: FontWeight.bold, color: color),
+          style: TextStyle(
+              fontSize: subFontSize, fontWeight: FontWeight.bold, color: color),
         ),
       ],
     );
   }
 
   // 构建双小数文本
-  static Widget _buildDualDecimalText(BuildContext context, double value1, double value2, {
+  static Widget _buildDualDecimalText(
+    BuildContext context,
+    double value1,
+    double value2, {
     int decimalPlaces1 = 4,
     int decimalPlaces2 = 2,
     Color color = Colors.black,
@@ -470,20 +570,33 @@ class PersonalizedDiffBest50ConvertToImg {
     const double containerWidth = 1200.0;
     double fontSize = containerWidth * 0.03;
 
-    final starsText = scoreRate != null ? StringUtil.formatStars(scoreRate) : null;
+    final starsText =
+        scoreRate != null ? StringUtil.formatStars(scoreRate) : null;
     final starsColor =
         scoreRate != null ? ColorUtil.getStarsColor(starsText!) : null;
 
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        _buildDecimalText(context, value1, decimalPlaces: decimalPlaces1, color: color),
-        Text('/', style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.bold, color: color)),
-        _buildDecimalText(context, value2, decimalPlaces: decimalPlaces2, color: color),
+        _buildDecimalText(context, value1,
+            decimalPlaces: decimalPlaces1, color: color),
+        Text('/',
+            style: TextStyle(
+                fontSize: fontSize, fontWeight: FontWeight.bold, color: color)),
+        _buildDecimalText(context, value2,
+            decimalPlaces: decimalPlaces2, color: color),
         // DX 分达成率右侧添加星级（achievement / dxScore% / ✦x）
         if (starsText != null) ...[
-          Text('/', style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.bold, color: color)),
-          Text(starsText, style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.bold, color: starsColor)),
+          Text('/',
+              style: TextStyle(
+                  fontSize: fontSize,
+                  fontWeight: FontWeight.bold,
+                  color: color)),
+          Text(starsText,
+              style: TextStyle(
+                  fontSize: fontSize,
+                  fontWeight: FontWeight.bold,
+                  color: starsColor)),
         ],
       ],
     );
@@ -491,7 +604,11 @@ class PersonalizedDiffBest50ConvertToImg {
 
   // 构建数据驱动的卡片网格
   static Widget _buildDataCardGrid(
-      BuildContext context, List<Map<String, dynamic>> songs, double childAspectRatio, int crossAxisCount, List<dynamic>? maimaiMusicData) {
+      BuildContext context,
+      List<Map<String, dynamic>> songs,
+      double childAspectRatio,
+      int crossAxisCount,
+      List<dynamic>? maimaiMusicData) {
     // 计算谱面 ID 对齐宽度：若存在 6 位 ID 则按 6 位对齐，否则按 5 位
     int maxIdLength = 5;
     for (final song in songs) {
@@ -515,15 +632,21 @@ class PersonalizedDiffBest50ConvertToImg {
         ),
         itemCount: songs.length,
         itemBuilder: (context, index) {
-          return _buildDataGameCard(context, songs[index], maimaiMusicData, maxIdLength);
+          return _buildDataGameCard(
+              context, songs[index], maimaiMusicData, maxIdLength);
         },
       ),
     );
   }
 
   // 根据数据构建游戏卡片
-  static Widget _buildDataGameCard(BuildContext context, Map<String, dynamic> songData, List<dynamic>? maimaiMusicData, int maxIdLength) {
-    double achievementRate = double.tryParse(songData['achievements'].toString()) ?? 0.0;
+  static Widget _buildDataGameCard(
+      BuildContext context,
+      Map<String, dynamic> songData,
+      List<dynamic>? maimaiMusicData,
+      int maxIdLength) {
+    double achievementRate =
+        double.tryParse(songData['achievements'].toString()) ?? 0.0;
     int score = songData['dxScore'] ?? 0;
     String fc = songData['fc'] ?? '';
     String fs = songData['fs'] ?? '';
@@ -535,7 +658,8 @@ class PersonalizedDiffBest50ConvertToImg {
     String title = songData['title'] ?? '未知歌曲';
     int songId = songData['song_id'] ?? 0;
 
-    double scoreRate = _calculateScoreRate(songId, levelIndex, score, maimaiMusicData);
+    double scoreRate =
+        _calculateScoreRate(songId, levelIndex, score, maimaiMusicData);
     String stars = StringUtil.formatStars(scoreRate);
     Color starsColor = ColorUtil.getStarsColor(stars);
 
@@ -572,7 +696,8 @@ class PersonalizedDiffBest50ConvertToImg {
     );
   }
 
-  static int _calculateMaxScore(int songId, int levelIndex, List<dynamic>? maimaiMusicData) {
+  static int _calculateMaxScore(
+      int songId, int levelIndex, List<dynamic>? maimaiMusicData) {
     try {
       if (maimaiMusicData == null || maimaiMusicData.isEmpty) return 0;
 
@@ -602,7 +727,8 @@ class PersonalizedDiffBest50ConvertToImg {
     }
   }
 
-  static double _calculateScoreRate(int songId, int levelIndex, int score, List<dynamic>? maimaiMusicData) {
+  static double _calculateScoreRate(
+      int songId, int levelIndex, int score, List<dynamic>? maimaiMusicData) {
     try {
       if (maimaiMusicData == null) return 0.0;
 
@@ -661,9 +787,11 @@ class PersonalizedDiffBest50ConvertToImg {
     debugPrint('Render wait completed');
   }
 
-  static Future<String?> _saveImageToGallery(Uint8List imageBytes, String fileName) async {
+  static Future<String?> _saveImageToGallery(
+      Uint8List imageBytes, String fileName) async {
     try {
-      const MethodChannel channel = MethodChannel('com.example.app/media_store');
+      const MethodChannel channel =
+          MethodChannel('com.example.app/media_store');
       final String? result = await channel.invokeMethod('saveImage', {
         'imageBytes': imageBytes,
         'fileName': fileName,
@@ -678,7 +806,8 @@ class PersonalizedDiffBest50ConvertToImg {
 
   static Future<bool> _checkDirectoryWritable(Directory directory) async {
     try {
-      String testFileName = 'test_write_permission_${DateTime.now().millisecondsSinceEpoch}.tmp';
+      String testFileName =
+          'test_write_permission_${DateTime.now().millisecondsSinceEpoch}.tmp';
       File testFile = File('${directory.path}/$testFileName');
 
       await testFile.writeAsString('test');
@@ -727,7 +856,9 @@ class PersonalizedDiffBest50ConvertToImg {
       PermissionStatus photosStatus = await Permission.photos.status;
       PermissionStatus videosStatus = await Permission.videos.status;
 
-      if (storageStatus.isGranted || photosStatus.isGranted || videosStatus.isGranted) {
+      if (storageStatus.isGranted ||
+          photosStatus.isGranted ||
+          videosStatus.isGranted) {
         return PermissionStatus.granted;
       }
 

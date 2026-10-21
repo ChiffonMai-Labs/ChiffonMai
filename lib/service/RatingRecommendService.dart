@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:my_first_flutter_app/entity/DivingFish/DiffSong.dart';
@@ -42,13 +43,7 @@ class RatingRecommendService {
 
   static const double RATING_DIVISOR = 22.4 * 50;
 
-  static const List<String> LEVEL_LABELS = [
-    'BASIC',
-    'ADVANCED',
-    'EXPERT',
-    'MASTER',
-    'Re:MASTER',
-  ];
+  static const List<String> LEVEL_LABELS = ChartDifficulty.standardLabels;
 
   Map<String, double> calculateDsRange(int rating) {
     double averageDs = ((rating / RATING_DIVISOR) * 10).roundToDouble() / 10;

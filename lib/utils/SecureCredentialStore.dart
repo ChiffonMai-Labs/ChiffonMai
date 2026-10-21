@@ -14,6 +14,8 @@ class SecureCredentialStore {
   );
 
   static const _keys = <String>{
+    CacheKeyConstant.autoSyncTasks,
+    CacheKeyConstant.awmcQuickIdentities,
     CacheKeyConstant.luoxueAccessToken,
     CacheKeyConstant.luoxueRefreshToken,
     CacheKeyConstant.probeAuthToken,

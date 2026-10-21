@@ -15,18 +15,26 @@ class NavigationPreferences extends ChangeNotifier {
   static const _swipeKey = 'navigation_swipe_enabled';
   static const _liquidGlassKey = 'navigation_liquid_glass_enabled';
   static const _immersiveStatusBarKey = 'immersive_status_bar_enabled';
+  static const _busyHintKey = 'hub_busy_hint_enabled';
   static const _systemUiChannel = MethodChannel('com.example.app/system_ui');
 
   bool _transitionEnabled = true;
   bool _swipeEnabled = true;
   bool _liquidGlassEnabled = false;
   bool _immersiveStatusBarEnabled = false;
+  bool _busyHintEnabled = false;
   bool _loaded = false;
 
   bool get transitionEnabled => _transitionEnabled;
   bool get swipeEnabled => _swipeEnabled;
   bool get liquidGlassEnabled => _liquidGlassEnabled;
   bool get immersiveStatusBarEnabled => _immersiveStatusBarEnabled;
+
+  /// Hub 页在其它任务进行中时，是否在不可用入口下方显示红字原因提示。
+  ///
+  /// 默认**关闭**：任务进行中入口本来就会置灰、点击也点不动，红字属于补充说明，
+  /// 不希望它默认占着版面。
+  bool get busyHintEnabled => _busyHintEnabled;
   bool get loaded => _loaded;
 
   Future<void> load() async {
@@ -38,6 +46,7 @@ class NavigationPreferences extends ChangeNotifier {
       _liquidGlassEnabled = prefs.getBool(_liquidGlassKey) ?? false;
       _immersiveStatusBarEnabled =
           prefs.getBool(_immersiveStatusBarKey) ?? false;
+      _busyHintEnabled = prefs.getBool(_busyHintKey) ?? false;
       await applySystemUiMode();
     } catch (_) {
       // 读取失败时保留默认值，不影响主界面启动。
@@ -108,6 +117,18 @@ class NavigationPreferences extends ChangeNotifier {
       await prefs.setBool(_immersiveStatusBarKey, value);
     } catch (_) {
       // 内存中的开关仍然生效，下次启动会回到默认值。
+    }
+  }
+
+  Future<void> setBusyHintEnabled(bool value) async {
+    if (_busyHintEnabled == value) return;
+    _busyHintEnabled = value;
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_busyHintKey, value);
+    } catch (_) {
+      // 内存中的开关仍然生效，下次启动按已保存的值恢复。
     }
   }
 }

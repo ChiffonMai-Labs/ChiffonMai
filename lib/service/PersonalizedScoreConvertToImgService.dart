@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
@@ -15,6 +16,7 @@ import 'package:my_first_flutter_app/entity/DivingFish/Song.dart';
 import 'package:my_first_flutter_app/utils/StringUtil.dart';
 import 'package:my_first_flutter_app/utils/ImageEncodeUtil.dart';
 import 'package:my_first_flutter_app/utils/ExportUserInfoWidget.dart';
+import 'package:my_first_flutter_app/widgets/MetaRowWidget.dart';
 
 class PersonalizedScoreConvertToImg {
   static GlobalKey _globalKey = GlobalKey();
@@ -41,7 +43,8 @@ class PersonalizedScoreConvertToImg {
     OverlayEntry? overlayEntry;
     try {
       debugPrint('=== STARTING PERSONALIZED SCORE IMAGE CONVERSION ===');
-      debugPrint('Current platform: ${Platform.operatingSystem} ${Platform.version}');
+      debugPrint(
+          'Current platform: ${Platform.operatingSystem} ${Platform.version}');
 
       onProgress?.call('请求存储权限...', 0.0);
       debugPrint('Step 1: Requesting storage permission...');
@@ -99,7 +102,8 @@ class PersonalizedScoreConvertToImg {
       await _waitForRender();
       debugPrint('Render wait completed');
 
-      final RenderRepaintBoundary? boundary = globalKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      final RenderRepaintBoundary? boundary = globalKey.currentContext
+          ?.findRenderObject() as RenderRepaintBoundary?;
       if (boundary == null) {
         debugPrint('Error: RenderRepaintBoundary not found');
         overlayEntry.remove();
@@ -112,11 +116,13 @@ class PersonalizedScoreConvertToImg {
       onProgress?.call('正在生成图片...', 0.5);
 
       debugPrint('Starting image capture...');
-      
+
       // 动态计算 pixelRatio：超过 GPU 最大纹理尺寸就是黑图（见 helper 注释）
-      final double pixelRatio = ImageEncodeUtil.safeCapturePixelRatio(boundary.size.width, boundary.size.height);
-      
-      debugPrint('Widget size: ${boundary.size.width}x${boundary.size.height}, calculated pixelRatio: $pixelRatio');
+      final double pixelRatio = ImageEncodeUtil.safeCapturePixelRatio(
+          boundary.size.width, boundary.size.height);
+
+      debugPrint(
+          'Widget size: ${boundary.size.width}x${boundary.size.height}, calculated pixelRatio: $pixelRatio');
 
       ui.Image image;
       try {
@@ -129,7 +135,8 @@ class PersonalizedScoreConvertToImg {
         debugPrint('Image captured on retry');
       }
 
-      ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      ByteData? byteData =
+          await image.toByteData(format: ui.ImageByteFormat.png);
       if (byteData == null) {
         debugPrint('Error: ByteData is null');
         overlayEntry.remove();
@@ -138,7 +145,8 @@ class PersonalizedScoreConvertToImg {
       }
       debugPrint('ByteData conversion successful');
 
-      Uint8List pngBytes = byteData.buffer.asUint8List(byteData.offsetInBytes, byteData.lengthInBytes);
+      Uint8List pngBytes = byteData.buffer
+          .asUint8List(byteData.offsetInBytes, byteData.lengthInBytes);
       // 立刻释放 ui.Image：它本身也是上百 MB 的原生位图，而下面的 JPEG
       // 转码还要再分配上百 MB（decodePng + copyResize）。等转码完再释放，
       // 峰值内存会白白多一份 —— 低内存机就是这样被 OOM 掉的。
@@ -149,24 +157,25 @@ class PersonalizedScoreConvertToImg {
       Uint8List finalBytes;
       String extension;
       if (jpegQuality != null) {
-        finalBytes = await ImageEncodeUtil.pngToJpegAsync(pngBytes, quality: jpegQuality);
+        finalBytes = await ImageEncodeUtil.pngToJpegAsync(pngBytes,
+            quality: jpegQuality);
         extension = 'jpg';
       } else {
         finalBytes = pngBytes;
         extension = 'png';
       }
 
-
-
       overlayEntry.remove();
 
       onProgress?.call('正在保存图片...', 0.8);
 
       Directory? directory;
-      debugPrint('Step 4: Saving image. Permission granted: ${status.isGranted}');
+      debugPrint(
+          'Step 4: Saving image. Permission granted: ${status.isGranted}');
 
       if (status.isGranted) {
-        debugPrint('Step 4a: Permission granted, trying to use Pictures directory');
+        debugPrint(
+            'Step 4a: Permission granted, trying to use Pictures directory');
         try {
           String picturesPath = '/storage/emulated/0/Pictures';
           directory = Directory(picturesPath);
@@ -185,7 +194,8 @@ class PersonalizedScoreConvertToImg {
           debugPrint('Pictures directory writable: $canWrite');
 
           if (!canWrite) {
-            debugPrint('Warning: Pictures directory is not writable, will fall back');
+            debugPrint(
+                'Warning: Pictures directory is not writable, will fall back');
             directory = null;
           }
         } catch (e) {
@@ -220,7 +230,8 @@ class PersonalizedScoreConvertToImg {
 
       if (Platform.isAndroid && status.isGranted) {
         debugPrint('Step 5: Trying to save via MediaStore API...');
-        String? galleryPath = await _saveImageToGallery(finalBytes, 'personalized_score_export_${DateTime.now().millisecondsSinceEpoch}.$extension');
+        String? galleryPath = await _saveImageToGallery(finalBytes,
+            'personalized_score_export_${DateTime.now().millisecondsSinceEpoch}.$extension');
         if (galleryPath != null) {
           debugPrint('Image saved to gallery via MediaStore: $galleryPath');
           await _notifySystemGallery(galleryPath);
@@ -234,7 +245,8 @@ class PersonalizedScoreConvertToImg {
         directory.createSync(recursive: true);
       }
 
-      final file = File('${directory.path}/personalized_score_export_${DateTime.now().millisecondsSinceEpoch}.$extension');
+      final file = File(
+          '${directory.path}/personalized_score_export_${DateTime.now().millisecondsSinceEpoch}.$extension');
       await file.writeAsBytes(finalBytes);
       debugPrint('Image saved to: ${file.path}');
 
@@ -251,6 +263,42 @@ class PersonalizedScoreConvertToImg {
       return null;
     }
   }
+
+  /// 构建与实际导出相同的预览 Widget。
+  static Widget buildPreviewWidget(
+    BuildContext context, {
+    required String? selectedLevel,
+    required String? selectedCharter,
+    required String? selectedVersion,
+    required String? selectedArtist,
+    required String? selectedGenre,
+    required String mode,
+    required String? selectedTitleType,
+    required int? selectedDifficulty,
+    required List<Map<String, dynamic>>? cachedSongsWithStatus,
+    required String filterMode,
+    required String Function(int) getDifficultyName,
+    required String Function(double) getLevelDisplay,
+    required double Function(int, int) getSongAchievement,
+    required bool useLevelDisplay,
+  }) =>
+      _buildExportImageWidget(
+        context,
+        selectedLevel: selectedLevel,
+        selectedCharter: selectedCharter,
+        selectedVersion: selectedVersion,
+        selectedArtist: selectedArtist,
+        selectedGenre: selectedGenre,
+        mode: mode,
+        selectedTitleType: selectedTitleType,
+        selectedDifficulty: selectedDifficulty,
+        cachedSongsWithStatus: cachedSongsWithStatus,
+        filterMode: filterMode,
+        getDifficultyName: getDifficultyName,
+        getLevelDisplay: getLevelDisplay,
+        getSongAchievement: getSongAchievement,
+        useLevelDisplay: useLevelDisplay,
+      );
 
   static Widget _buildExportImageWidget(
     BuildContext context, {
@@ -288,23 +336,31 @@ class PersonalizedScoreConvertToImg {
     List<Map<String, dynamic>> songsWithStatus = cachedSongsWithStatus;
 
     if (filterMode == 'completed') {
-      songsWithStatus = songsWithStatus.where((item) => item['completed'] as bool).toList();
+      songsWithStatus =
+          songsWithStatus.where((item) => item['completed'] as bool).toList();
     } else if (filterMode == 'uncompleted') {
-      songsWithStatus = songsWithStatus.where((item) => !(item['completed'] as bool)).toList();
+      songsWithStatus = songsWithStatus
+          .where((item) => !(item['completed'] as bool))
+          .toList();
     }
 
     final totalCount = songsWithStatus.length;
-    final completedCount = songsWithStatus.where((item) => item['completed'] as bool).length;
-    final completionRate = totalCount > 0 ? (completedCount / totalCount * 100) : 0;
+    final completedCount =
+        songsWithStatus.where((item) => item['completed'] as bool).length;
+    final completionRate =
+        totalCount > 0 ? (completedCount / totalCount * 100) : 0;
 
     // 统计各难度完成情况
-    final difficultyNames = ['BASIC', 'ADVANCED', 'EXPERT', 'MASTER', 'Re:MASTER'];
+    final difficultyNames = ChartDifficulty.standardLabels;
     List<Map<String, dynamic>> difficultyStats = [];
     for (int d = 0; d < difficultyNames.length; d++) {
-      final diffSongs = songsWithStatus.where((item) => (item['difficulty'] as int) == d).toList();
+      final diffSongs = songsWithStatus
+          .where((item) => (item['difficulty'] as int) == d)
+          .toList();
       if (diffSongs.isNotEmpty) {
         final diffTotal = diffSongs.length;
-        final diffCompleted = diffSongs.where((item) => item['completed'] as bool).length;
+        final diffCompleted =
+            diffSongs.where((item) => item['completed'] as bool).length;
         difficultyStats.add({
           'name': difficultyNames[d],
           'total': diffTotal,
@@ -322,7 +378,8 @@ class PersonalizedScoreConvertToImg {
         totalAchievement += getSongAchievement(int.parse(song.id), diff);
       }
     }
-    final averageAchievement = totalCount > 0 ? totalAchievement / totalCount : 0.0;
+    final averageAchievement =
+        totalCount > 0 ? totalAchievement / totalCount : 0.0;
 
     Map<String, List<Map<String, dynamic>>> groupedSongs = {};
     for (final item in songsWithStatus) {
@@ -332,7 +389,8 @@ class PersonalizedScoreConvertToImg {
       if (song is Song) {
         if (song.ds != null && song.ds.length > diffIndex) {
           final ds = song.ds[diffIndex];
-          levelKey = useLevelDisplay ? getLevelDisplay(ds) : ds.toStringAsFixed(1);
+          levelKey =
+              useLevelDisplay ? getLevelDisplay(ds) : ds.toStringAsFixed(1);
         }
       }
       if (!groupedSongs.containsKey(levelKey)) {
@@ -354,24 +412,10 @@ class PersonalizedScoreConvertToImg {
             return double.tryParse(ds) ?? 0.0;
           }
         }
+
         return parseDs(b).compareTo(parseDs(a));
       });
 
-    // 构建标题文本
-    String titleText;
-    if (mode == 'level') {
-      titleText = '个性化成绩查询 - Lv.${selectedLevel ?? ''} ${selectedTitleType ?? ''}(${getDifficultyName(selectedDifficulty ?? -1)})';
-    } else if (mode == 'charter') {
-      titleText = '个性化成绩查询 - 谱师:${selectedCharter ?? ''} ${selectedTitleType ?? ''}(${getDifficultyName(selectedDifficulty ?? -1)})';
-    } else if (mode == 'version') {
-      titleText = '个性化成绩查询 - 版本:${StringUtil.formatVersion2(selectedVersion ?? '')} ${selectedTitleType ?? ''}(${getDifficultyName(selectedDifficulty ?? -1)})';
-    } else if (mode == 'genre') {
-      titleText = '个性化成绩查询 - 流派:${selectedGenre ?? ''} ${selectedTitleType ?? ''}(${getDifficultyName(selectedDifficulty ?? -1)})';
-    } else {
-      titleText = '个性化成绩查询 - 曲师:${selectedArtist ?? ''} ${selectedTitleType ?? ''}(${getDifficultyName(selectedDifficulty ?? -1)})';
-    }
-
-    double titleFontSize = containerWidth * 0.035;
     double sectionTitleFontSize = containerWidth * 0.03;
     double statFontSize = containerWidth * 0.022;
     double statValueFontSize = containerWidth * 0.028;
@@ -392,29 +436,7 @@ class PersonalizedScoreConvertToImg {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // 标题
-            Container(
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.black, width: 2.0),
-                borderRadius: BorderRadius.circular(8.0),
-                color: Colors.grey[200],
-              ),
-              padding: EdgeInsets.all(14.0),
-              child: Center(
-                child: Text(
-                  titleText,
-                  style: TextStyle(
-                    fontSize: titleFontSize,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
-                  ),
-                ),
-              ),
-            ),
-            SizedBox(height: 16.0),
-
-            // 用户信息区域
-            ExportUserInfoWidget.buildUserInfoSection(context),
+            _buildUserInfoAndMetaRow(context),
             SizedBox(height: 16.0),
 
             // 统计区域
@@ -439,11 +461,22 @@ class PersonalizedScoreConvertToImg {
                   SizedBox(height: 10.0),
                   Row(
                     children: [
-                      _buildStatColumn('总歌曲数', '$totalCount', statFontSize, statValueFontSize),
-                      _buildStatColumn('已完成', '$completedCount', statFontSize, statValueFontSize),
-                      _buildStatColumn('未完成', '${totalCount - completedCount}', statFontSize, statValueFontSize),
-                      _buildStatColumn('完成率', '${completionRate.toStringAsFixed(1)}%', statFontSize, statValueFontSize),
-                      _buildStatColumn('平均达成率', '${averageAchievement.toStringAsFixed(2)}%', statFontSize, statValueFontSize),
+                      _buildStatColumn('总歌曲数', '$totalCount', statFontSize,
+                          statValueFontSize),
+                      _buildStatColumn('已完成', '$completedCount', statFontSize,
+                          statValueFontSize),
+                      _buildStatColumn('未完成', '${totalCount - completedCount}',
+                          statFontSize, statValueFontSize),
+                      _buildStatColumn(
+                          '完成率',
+                          '${completionRate.toStringAsFixed(1)}%',
+                          statFontSize,
+                          statValueFontSize),
+                      _buildStatColumn(
+                          '平均达成率',
+                          '${averageAchievement.toStringAsFixed(2)}%',
+                          statFontSize,
+                          statValueFontSize),
                     ],
                   ),
                   // 各难度完成进度条
@@ -452,7 +485,8 @@ class PersonalizedScoreConvertToImg {
                     Divider(color: Colors.grey[300], thickness: 1.0),
                     SizedBox(height: 8.0),
                     ...difficultyStats.map((stat) {
-                      final diffIndex = difficultyNames.indexOf(stat['name'] as String);
+                      final diffIndex =
+                          difficultyNames.indexOf(stat['name'] as String);
                       final barColor = ColorUtil.getCoverBorderColor(diffIndex);
                       return Padding(
                         padding: EdgeInsets.only(bottom: 6.0),
@@ -475,7 +509,8 @@ class PersonalizedScoreConvertToImg {
                                 child: SmoothLinearProgressIndicator(
                                   value: stat['rate'] as double,
                                   backgroundColor: Colors.grey[200],
-                                  valueColor: AlwaysStoppedAnimation<Color>(barColor),
+                                  valueColor:
+                                      AlwaysStoppedAnimation<Color>(barColor),
                                   minHeight: 14.0,
                                   animate: false,
                                 ),
@@ -517,7 +552,8 @@ class PersonalizedScoreConvertToImg {
                       border: Border.all(color: Colors.black, width: 1.0),
                       borderRadius: BorderRadius.circular(8.0),
                     ),
-                    padding: EdgeInsets.symmetric(vertical: 8.0, horizontal: 14.0),
+                    padding:
+                        EdgeInsets.symmetric(vertical: 8.0, horizontal: 14.0),
                     margin: EdgeInsets.only(bottom: 8.0),
                     child: Text(
                       '${useLevelDisplay ? 'Lv.' : ''}${levelKey} | 共 ${levelSongs.length} 首歌曲',
@@ -583,7 +619,8 @@ class PersonalizedScoreConvertToImg {
                               Container(
                                 decoration: BoxDecoration(
                                   border: Border.all(
-                                    color: ColorUtil.getCoverBorderColor(diffIndex),
+                                    color: ColorUtil.getCoverBorderColor(
+                                        diffIndex),
                                     width: 2.0,
                                   ),
                                   borderRadius: BorderRadius.circular(8.0),
@@ -605,7 +642,44 @@ class PersonalizedScoreConvertToImg {
     );
   }
 
-  static Widget _buildStatColumn(String label, String value, double labelFontSize, double valueFontSize) {
+  static Widget _buildUserInfoAndMetaRow(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final userInfoWidth = constraints.maxWidth * 2 / 3;
+        final userInfoHeight = 230 * userInfoWidth / 1150;
+        const metaHeight = 150.0;
+        final metaWidth = constraints.maxWidth - userInfoWidth - 12;
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: userInfoWidth,
+              height: userInfoHeight,
+              child: FittedBox(
+                fit: BoxFit.contain,
+                alignment: Alignment.centerLeft,
+                child: SizedBox(
+                  width: 1150,
+                  height: 230,
+                  child: ExportUserInfoWidget.buildUserInfoSection(context),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            SizedBox(
+              width: metaWidth,
+              height: metaHeight,
+              child: MetaRowWidget(width: metaWidth, height: metaHeight),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  static Widget _buildStatColumn(
+      String label, String value, double labelFontSize, double valueFontSize) {
     return Expanded(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -684,9 +758,11 @@ class PersonalizedScoreConvertToImg {
     }
   }
 
-  static Future<String?> _saveImageToGallery(Uint8List imageBytes, String fileName) async {
+  static Future<String?> _saveImageToGallery(
+      Uint8List imageBytes, String fileName) async {
     try {
-      const MethodChannel channel = MethodChannel('com.example.app/media_store');
+      const MethodChannel channel =
+          MethodChannel('com.example.app/media_store');
       final String? result = await channel.invokeMethod('saveImage', {
         'imageBytes': imageBytes,
         'fileName': fileName,
@@ -701,7 +777,8 @@ class PersonalizedScoreConvertToImg {
 
   static Future<bool> _checkDirectoryWritable(Directory directory) async {
     try {
-      String testFileName = 'test_write_permission_${DateTime.now().millisecondsSinceEpoch}.tmp';
+      String testFileName =
+          'test_write_permission_${DateTime.now().millisecondsSinceEpoch}.tmp';
       File testFile = File('${directory.path}/$testFileName');
 
       await testFile.writeAsString('test');
@@ -727,7 +804,9 @@ class PersonalizedScoreConvertToImg {
       debugPrint('Photos status: $photosStatus');
       debugPrint('Videos status: $videosStatus');
 
-      if (storageStatus.isGranted || photosStatus.isGranted || videosStatus.isGranted) {
+      if (storageStatus.isGranted ||
+          photosStatus.isGranted ||
+          videosStatus.isGranted) {
         debugPrint('At least one permission already granted');
         return PermissionStatus.granted;
       }
@@ -751,7 +830,8 @@ class PersonalizedScoreConvertToImg {
           ? PermissionStatus.granted
           : PermissionStatus.denied;
     } else {
-      debugPrint('Non-Android platform detected, requesting storage permission');
+      debugPrint(
+          'Non-Android platform detected, requesting storage permission');
       PermissionStatus status = await Permission.storage.request();
       debugPrint('Storage permission result: $status');
       return status;

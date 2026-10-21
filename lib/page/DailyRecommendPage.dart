@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import 'package:my_first_flutter_app/service/DailyRecommendService.dart';
 import 'package:my_first_flutter_app/entity/DivingFish/Song.dart';
@@ -6,6 +7,7 @@ import 'package:my_first_flutter_app/utils/ColorUtil.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import 'SongInfoPage.dart';
 import '../widgets/BackgroundPageScaffold.dart';
+import '../widgets/DifficultyConstantLabel.dart';
 
 class DailyRecommendPage extends StatefulWidget {
   const DailyRecommendPage({super.key});
@@ -48,7 +50,8 @@ class _DailyRecommendPageState extends State<DailyRecommendPage> {
 
       if (mounted) {
         setState(() {
-          _songs = displaySongs;
+          // 页面只展示四张卡片，避免推荐接口返回更多结果时把页面撑得过长。
+          _songs = displaySongs.take(4).toList();
           _todayDate = _getTodayDisplay();
           _isLoading = false;
         });
@@ -67,9 +70,7 @@ class _DailyRecommendPageState extends State<DailyRecommendPage> {
   /// 其余按 song.type 区分 DX / ST。
   Widget _buildTypeTag(String songId, String songType, Brightness brightness) {
     final bool isUtage = songId.length == 6;
-    final String label = isUtage
-        ? 'UT'
-        : (songType == 'DX' ? 'DX' : 'ST');
+    final String label = isUtage ? 'UT' : (songType == 'DX' ? 'DX' : 'ST');
 
     Color bgColor;
     Color textColor;
@@ -87,17 +88,15 @@ class _DailyRecommendPageState extends State<DailyRecommendPage> {
         bgColor = brightness == Brightness.dark
             ? Colors.orange.withValues(alpha: 0.2)
             : Colors.orange.shade100;
-        textColor = brightness == Brightness.dark
-            ? Colors.orange[300]!
-            : Colors.orange;
+        textColor =
+            brightness == Brightness.dark ? Colors.orange[300]! : Colors.orange;
         break;
       default:
         bgColor = brightness == Brightness.dark
             ? Colors.blue.withValues(alpha: 0.2)
             : Colors.blue.shade100;
-        textColor = brightness == Brightness.dark
-            ? Colors.blue[300]!
-            : Colors.blue;
+        textColor =
+            brightness == Brightness.dark ? Colors.blue[300]! : Colors.blue;
     }
 
     return Container(
@@ -117,240 +116,266 @@ class _DailyRecommendPageState extends State<DailyRecommendPage> {
     );
   }
 
+  Widget _buildDailyHero(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            scheme.primaryContainer.withValues(alpha: 0.94),
+            scheme.secondaryContainer.withValues(alpha: 0.76),
+          ],
+        ),
+        border: Border.all(color: scheme.outlineVariant),
+      ),
+      child: Text(
+        _todayDate.isEmpty ? '正在准备今日推荐…' : _todayDate,
+        style: TextStyle(
+          color: scheme.onPrimaryContainer,
+          fontSize: 18,
+          fontWeight: FontWeight.w800,
+        ),
+        textAlign: TextAlign.center,
+      ),
+    );
+  }
+
+  Widget _buildSongCard(
+      BuildContext context, _SongDisplay item, Brightness brightness) {
+    final scheme = Theme.of(context).colorScheme;
+    final song = item.song;
+    int highestIdx = 0;
+    for (int i = song.ds.length - 1; i >= 0; i--) {
+      if (song.ds[i] > 0) {
+        highestIdx = i;
+        break;
+      }
+    }
+    final accentColor = ColorUtil.getCardColor(highestIdx);
+    final labels = <Widget>[];
+    for (var i = 0; i < song.ds.length; i++) {
+      if (song.ds[i] <= 0) continue;
+      labels.add(DifficultyConstantLabel(
+        constant: song.ds[i],
+        difficultyIndex: i,
+        utage: song.id.length >= 6 || song.type == ChartDifficulty.utageLabel,
+      ));
+    }
+
+    return Material(
+      color: scheme.surface
+          .withValues(alpha: brightness == Brightness.dark ? 0.66 : 0.88),
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(color: scheme.outlineVariant),
+      ),
+      child: InkWell(
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => SongInfoPage(
+              songId: song.id,
+              initialLevelIndex: highestIdx,
+              isDefaultLevelIndex: false,
+            ),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 88,
+                height: 88,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                      color: accentColor.withValues(alpha: 0.65), width: 2),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: CoverUtil.buildCoverWidgetWithContextRRect(
+                  context,
+                  song.id,
+                  88,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: SizedBox(
+                  height: 88,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              _buildTypeTag(song.id, song.type, brightness),
+                              const SizedBox(width: 7),
+                              Expanded(
+                                child: Text(
+                                  song.basicInfo.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: scheme.onSurface,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            song.basicInfo.artist.isEmpty
+                                ? '未知艺术家'
+                                : song.basicInfo.artist,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: scheme.onSurfaceVariant,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Spacer(),
+                      if (labels.isNotEmpty)
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: [
+                              for (var i = 0; i < labels.length; i++) ...[
+                                if (i > 0) const SizedBox(width: 5),
+                                labels[i],
+                              ],
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Padding(
+                padding: const EdgeInsets.only(top: 30),
+                child: Icon(Icons.arrow_forward_ios_rounded,
+                    size: 16, color: scheme.onSurfaceVariant),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final brightness = Theme.of(context).brightness;
-    final textPrimaryColor = Theme.of(context).colorScheme.onSurface;
-
-
+    final scheme = Theme.of(context).colorScheme;
     return BackgroundPageScaffold(
-      title: '当日谱面推荐',
+      title: '每日推荐',
       actions: [
-  IconButton(
-                        icon: Icon(Icons.refresh, color: textPrimaryColor),
-                        tooltip: '换一批',
-                        onPressed:
-                            _isLoading ? null : () => _loadRecommendations(forceRefresh: true),
-                      ),
-],
+        IconButton(
+          icon: const Icon(Icons.refresh_rounded),
+          tooltip: '换一批',
+          onPressed: _isLoading
+              ? null
+              : () => _loadRecommendations(forceRefresh: true),
+        ),
+      ],
       resizeToAvoidBottomInset: false,
-      contentPadding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom + 10),
-      child: _isLoading
-                    ? Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
+      contentPadding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        bottom: MediaQuery.paddingOf(context).bottom + 12,
+      ),
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 260),
+        layoutBuilder: (currentChild, previousChildren) => Stack(
+          alignment: Alignment.topCenter,
+          fit: StackFit.passthrough,
+          children: [
+            ...previousChildren,
+            if (currentChild != null) currentChild,
+          ],
+        ),
+        child: _isLoading
+            ? Center(
+                key: const ValueKey('loading'),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(color: scheme.primary),
+                    const SizedBox(height: 16),
+                    Text('正在为你挑选今日推荐…',
+                        style: TextStyle(color: scheme.onSurfaceVariant)),
+                  ],
+                ),
+              )
+            : _songs.isEmpty
+                ? Center(
+                    key: const ValueKey('empty'),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.music_off_rounded,
+                            size: 56, color: AppColors.greyHint(brightness)),
+                        const SizedBox(height: 14),
+                        Text('暂无可推荐的谱面\n请先在首页刷新数据',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: scheme.onSurfaceVariant)),
+                        const SizedBox(height: 20),
+                        FilledButton.tonalIcon(
+                          onPressed: () =>
+                              _loadRecommendations(forceRefresh: true),
+                          icon: const Icon(Icons.refresh_rounded),
+                          label: const Text('重试'),
+                        ),
+                      ],
+                    ),
+                  )
+                : SingleChildScrollView(
+                    key: const ValueKey('content'),
+                    padding: const EdgeInsets.only(top: 0, bottom: 10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildDailyHero(context),
+                        const SizedBox(height: 16),
+                        Row(
                           children: [
-                            CircularProgressIndicator(),
-                            SizedBox(height: 16),
-                            Text(
-                              '正在为你挑选今日推荐...',
-                              style: TextStyle(
-                                color: textPrimaryColor,
-                                fontSize: 16,
-                              ),
-                            ),
+                            Text('今日推荐',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.w800,
+                                    )),
+                            const Spacer(),
+                            Text('${_songs.length} 首歌曲',
+                                style: TextStyle(
+                                    color: scheme.onSurfaceVariant,
+                                    fontSize: 12)),
                           ],
                         ),
-                      )
-                    : _songs.isEmpty
-                        ? Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.music_off,
-                                    size: 64, color: AppColors.greyHint(brightness)),
-                                SizedBox(height: 16),
-                                Text(
-                                  '暂无可推荐的曲目\n请先在首页刷新数据',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    color: textPrimaryColor,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                                SizedBox(height: 24),
-                                ElevatedButton.icon(
-                                  onPressed: () =>
-                                      _loadRecommendations(forceRefresh: true),
-                                  icon: Icon(Icons.refresh),
-                                  label: Text('重试'),
-                                ),
-                              ],
-                            ),
-                          )
-                        : SingleChildScrollView(
-                              padding: const EdgeInsets.all(20),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Center(
-                                    child: Column(
-                                      children: [
-                                        Text(
-                                          _todayDate,
-                                          style: TextStyle(
-                                            fontSize: 18,
-                                            fontWeight: FontWeight.bold,
-                                            color: textPrimaryColor,
-                                          ),
-                                        ),
-                                        SizedBox(height: 4),
-                                        Text(
-                                          '今日为你推荐以下 4 首曲目，快来挑战吧！',
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  SizedBox(height: 24),
-
-                                  ...List.generate(_songs.length, (index) {
-                                    final item = _songs[index];
-                                    final song = item.song;
-
-                                    // 用最高难度作为卡片主题色
-                                    int highestIdx = 0;
-                                    for (int i = song.ds.length - 1; i >= 0; i--) {
-                                      if (song.ds[i] > 0) { highestIdx = i; break; }
-                                    }
-                                    final accentColor = ColorUtil.getCardColor(highestIdx);
-                                    final diffNames = ['BASIC', 'ADVANCED', 'EXPERT', 'MASTER', 'Re:MASTER'];
-                                    final diffColors = [
-                                      Colors.green,
-                                      Colors.yellow.shade700,
-                                      Colors.red,
-                                      Colors.purple,
-                                      const Color(0xFFCBA6F7),
-                                    ];
-
-                                    // 构建所有难度的定数标签
-                                    final diffChips = <Widget>[];
-                                    for (int i = 0; i < song.ds.length; i++) {
-                                      if (song.ds[i] <= 0) continue;
-                                      final diffColor = i < diffColors.length ? diffColors[i] : Colors.grey;
-                                      diffChips.add(Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: diffColor.withAlpha(200),
-                                          borderRadius: BorderRadius.circular(4),
-                                        ),
-                                        child: Text(
-                                          '${diffNames[i.clamp(0, 4)]} ${song.ds[i].toStringAsFixed(1)}',
-                                          style: const TextStyle(fontSize: 10,
-                                            fontWeight: FontWeight.bold, color: Colors.white),
-                                        ),
-                                      ));
-                                    }
-
-                                    return GestureDetector(
-                                      onTap: () {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (context) => SongInfoPage(
-                                              songId: song.id,
-                                              initialLevelIndex: highestIdx,
-                                              isDefaultLevelIndex: false,
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                      child: Container(
-                                        margin: EdgeInsets.only(bottom: 12),
-                                        decoration: BoxDecoration(
-                                          borderRadius: BorderRadius.circular(12),
-                                          border: Border.all(
-                                            color: accentColor.withAlpha(80),
-                                            width: 2,
-                                          ),
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            Padding(
-                                              padding: const EdgeInsets.only(left: 4),
-                                              child: ClipRRect(
-                                                borderRadius: BorderRadius.circular(8),
-                                                child: CoverUtil.buildCoverWidgetWithContextRRect(
-                                                  context, song.id, 90,
-                                                ),
-                                              ),
-                                            ),
-                                            Expanded(
-                                              child: Padding(
-                                                padding: const EdgeInsets.all(12),
-                                                child: Column(
-                                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                                  children: [
-                                                    // 第一行：类型标签 + 歌名
-                                                    Row(
-                                                      children: [
-                                                        _buildTypeTag(song.id, song.type, brightness),
-                                                        const SizedBox(width: 6),
-                                                        Expanded(
-                                                          child: Text(
-                                                            song.basicInfo.title,
-                                                            style: TextStyle(
-                                                              fontSize: 16,
-                                                              fontWeight: FontWeight.bold,
-                                                              color: textPrimaryColor,
-                                                            ),
-                                                            maxLines: 1,
-                                                            overflow: TextOverflow.ellipsis,
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                    const SizedBox(height: 4),
-                                                    Text(
-                                                      song.basicInfo.artist,
-                                                      style: TextStyle(
-                                                        fontSize: 13,
-                                                        color: AppColors.secondaryText(brightness),
-                                                      ),
-                                                      maxLines: 1,
-                                                      overflow: TextOverflow.ellipsis,
-                                                    ),
-                                                    const SizedBox(height: 8),
-                                                    // 只展示难度定数标签，类型标签已上移到歌名前
-                                                    Wrap(
-                                                      spacing: 4,
-                                                      runSpacing: 4,
-                                                      children: diffChips,
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ),
-                                            Padding(
-                                              padding: const EdgeInsets.all(12),
-                                              child: Icon(
-                                                Icons.chevron_right,
-                                                color: AppColors.greyHint(brightness),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    );
-                                  }),
-
-                                  SizedBox(height: 16),
-                                  Center(
-                                    child: Text(
-                                      '推荐每日更新，明天再来看看！',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        color: AppColors.greyHint(brightness),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
+                        const SizedBox(height: 10),
+                        for (var i = 0; i < _songs.length; i++) ...[
+                          _buildSongCard(context, _songs[i], brightness),
+                          if (i < _songs.length - 1) const SizedBox(height: 10),
+                        ],
+                      ],
+                    ),
+                  ),
+      ),
     );
   }
 }

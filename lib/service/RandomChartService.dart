@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:my_first_flutter_app/entity/DivingFish/Song.dart';
@@ -131,7 +132,7 @@ class RandomChartService {
             if (requireMaster) {
               if (i >= song.level.length) continue;
               String level = song.level[i];
-              if ((level == 'MASTER' || level == 'Re:MASTER') &&
+              if ((level == ChartDifficulty.masterLabel || level == ChartDifficulty.reMasterLabel) &&
                   meetsMin &&
                   meetsMax) {
                 return true;
@@ -156,8 +157,8 @@ class RandomChartService {
           for (int j = 0; j < song.ds.length; j++) {
             if (j < song.level.length &&
                 (!requireMaster ||
-                    (song.level[j] == 'MASTER' ||
-                        song.level[j] == 'Re:MASTER'))) {
+                    (song.level[j] == ChartDifficulty.masterLabel ||
+                        song.level[j] == ChartDifficulty.reMasterLabel))) {
               debugPrint(
                   '[RandomChartService]     ${song.level[j]}: ${song.ds[j]}');
             }

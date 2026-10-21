@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../entity/FeatureModels.dart';
 import '../utils/AppConstants.dart';
+import 'FavoriteStarButton.dart';
 
 /// 功能按钮组件：纯 UI，点击行为由父组件通过 onTap 控制
 class FeatureButton extends StatelessWidget {
@@ -150,27 +151,10 @@ class FeatureButton extends StatelessWidget {
           Positioned(
             top: 2,
             right: 2,
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(18),
-                onTap: onToggleFavorite,
-                child: Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: isFavorited!
-                        ? Colors.amber.withValues(alpha: 0.2)
-                        : Colors.black.withValues(alpha: 0.05),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    isFavorited! ? Icons.star : Icons.star_border,
-                    size: 24,
-                    color: isFavorited! ? Colors.amber : Colors.grey,
-                  ),
-                ),
-              ),
+            child: FavoriteStarButton(
+              size: 21,
+              isFavorited: isFavorited!,
+              onTap: onToggleFavorite!,
             ),
           ),
         ],

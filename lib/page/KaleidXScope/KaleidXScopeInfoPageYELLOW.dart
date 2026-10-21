@@ -846,7 +846,7 @@ class _KaleidXScopeInfoPageYELLOWState
     return BackgroundPageScaffold(
       title: _getGateTitle(),
       bottom: const KaleidXScopeSourceNotice(),
-      contentPadding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom + 10),
+      contentPadding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
       child: _isLoading
                       ? Center(child: CircularProgressIndicator())
                       : SingleChildScrollView(

@@ -6,10 +6,9 @@ import '../service/SyncStatsService.dart';
 /// 同步统计的展示组件。
 ///
 /// 显示位置（线路1 AWMC / 线路2 maimai Score Hub 都有）：
-///   * 「系统 → 同步成绩到水鱼 / 落雪」每个 tile 的线路切换器下面一行小字：
-///     `近 100 次 · 平均 12.3s · 成功率 96%`，点它打开详情；
-///   * 「同步成绩到 AWMC NET」对话框里同样一行（二维码直传，没有线路切换器）；
-///   * 详情弹窗按线路分组列出全部槽位（线路1/线路2 × 水鱼/落雪 + 二维码直传）；
+///   * 水鱼、落雪入口的线路切换器下方分别显示普通、快速两行统计；
+///   * AWMC NET 入口及对话框同样显示两行，没有线路切换器；
+///   * 详情弹窗列出普通同步各线路和快速同步三个目标的独立统计；
 ///   * 「系统 → AWMC 网关 → 连通性与用量」里也有一行入口。
 class SyncStatsView {
   SyncStatsView._();
@@ -28,17 +27,19 @@ class SyncStatsView {
     required VoidCallback onTap,
     bool loading = false,
     String? tooltip,
+    String? label,
   }) {
     final scheme = Theme.of(context).colorScheme;
+    final prefix = label == null ? '' : '$label ';
     final String text;
     if (loading) {
-      text = '统计加载中…';
+      text = '${prefix}统计加载中…';
     } else if (stats == null) {
-      text = '统计不可用';
+      text = '${prefix}统计不可用';
     } else if (!stats.hasData) {
-      text = '近100次 / 暂无记录';
+      text = '${prefix}近100次 / 暂无记录';
     } else {
-      text = '近100次 / ${stats.count}样本 / 平均${stats.avgText} / '
+      text = '${prefix}近100次 / ${stats.count}样本 / 平均${stats.avgText} / '
           '成功${stats.successRateText}';
     }
 
@@ -78,7 +79,7 @@ class SyncStatsView {
                                   : const Duration(milliseconds: 450),
                               curve: Curves.easeOutCubic,
                               builder: (_, rate, __) => Text(
-                                '近100次 / ${count.round()}样本 / 平均${SyncStats.formatDuration(avgMs.round())} / 成功${rate.round()}%',
+                                '${prefix}近100次 / ${count.round()}样本 / 平均${SyncStats.formatDuration(avgMs.round())} / 成功${rate.round()}%',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 softWrap: false,
@@ -136,7 +137,9 @@ class SyncStatsView {
                 for (final line in SyncLine.values)
                   if (_hasSlotFor(line)) ...[
                     Text(
-                      line.label,
+                      line == SyncLine.quick
+                          ? line.label
+                          : '普通同步 · ${line.label}',
                       style: const TextStyle(
                           fontSize: 13, fontWeight: FontWeight.w700),
                     ),
@@ -172,27 +175,152 @@ class SyncStatsView {
     final scheme = Theme.of(context).colorScheme;
     final s = stats ?? SyncStats.empty;
     return Padding(
-      padding: const EdgeInsets.only(left: 4, bottom: 2),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 44,
-            child: Text(name, style: const TextStyle(fontSize: 12.5)),
-          ),
-          Expanded(
-            child: Text(
-              s.hasData
-                  ? '平均 ${s.avgText} · 成功率 ${s.successRateText}'
-                      '（${s.successCount}/${s.count}）'
-                  : (stats == null ? '不可用' : '暂无记录'),
-              style: TextStyle(fontSize: 12.5, color: scheme.onSurfaceVariant),
-            ),
-          ),
-          if (s.hasData)
+      padding: const EdgeInsets.only(left: 4, bottom: 8),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: scheme.surfaceContainerLow,
+          border: Border.all(color: scheme.outlineVariant),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
             Text(
-              '最近 ${s.lastText}',
-              style: TextStyle(fontSize: 11.5, color: scheme.onSurfaceVariant),
+              name,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
             ),
+            const SizedBox(height: 6),
+            if (!s.hasData)
+              Text(
+                stats == null ? '统计不可用' : '暂无记录',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  color: scheme.onSurfaceVariant,
+                ),
+              )
+            else ...[
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: _metricTile(context, '平均时长', s.avgText),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _metricTile(context, '成功率', s.successRateText),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: _recentMetricTile(context, s),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _metricTile(
+                        context, '成功样本', '${s.successCount}/${s.count}'),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  static Widget _metricTile(BuildContext context, String label, String value) {
+    final scheme = Theme.of(context).colorScheme;
+    return _metricTileFrame(
+      context,
+      label,
+      Text(
+        value,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: scheme.onSurface,
+        ),
+      ),
+    );
+  }
+
+  static Widget _recentMetricTile(BuildContext context, SyncStats stats) {
+    final scheme = Theme.of(context).colorScheme;
+    return _metricTileFrame(
+      context,
+      '最近一次',
+      Row(
+        children: [
+          Flexible(
+            child: Text(
+              SyncStats.formatDuration(stats.lastMs),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: scheme.onSurface,
+              ),
+            ),
+          ),
+          if (!stats.lastOk) ...[
+            const SizedBox(width: 4),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+              decoration: BoxDecoration(
+                color: scheme.errorContainer,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                '失败',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: scheme.onErrorContainer,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  static Widget _metricTileFrame(
+      BuildContext context, String label, Widget value) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHighest.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(7),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 2),
+          SizedBox(
+            height: 18,
+            child: value,
+          ),
         ],
       ),
     );
