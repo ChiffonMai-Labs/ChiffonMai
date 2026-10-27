@@ -44,6 +44,14 @@ class LoadingTipsStore extends ChangeNotifier {
   Future<void> ensureLoaded() =>
       _loading ??= _load().whenComplete(() => _loading = null);
 
+  Future<void> reloadPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    _disabled = (prefs.getStringList(_disabledKey) ?? const <String>[]).toSet();
+    final local = prefs.getString(_localKey);
+    _localTips = local == null ? [] : _decode(local);
+    notifyListeners();
+  }
+
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
     final cached = prefs.getString(_cacheKey);

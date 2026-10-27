@@ -17,7 +17,7 @@ import 'SongInfoPage.dart';
 ///
 /// 为什么需要这个页面：曲目详情页的「首次上线」是**日服**首发时间，
 /// 国服玩家光看这个日期判断不出这首歌自己这边上了没有。本页先按筛选后的
-/// 国服常规曲首发日期确定前沿，再用 id 区间整理 union 独有候选。
+/// 国服常规曲首发日期确定前沿，再按日期补齐 union 独有候选。
 ///
 /// 口径与取舍全部写在 [UnionUpdateCompareService] 的类注释里；页面只负责展示，
 /// 并在页内用「口径说明」弹窗把不确定性如实讲清楚（首发日期来自曲库元数据，
@@ -246,9 +246,9 @@ class _UnionUpdateComparePageState extends State<UnionUpdateComparePage> {
           ),
           const SizedBox(height: 8),
           Text(
-            '「首次上线」显示的是**日服**首发时间，不是国服上线时间。'
-            '前沿按国服常规曲中首发日期最新的一首确定；在此基础上，id 更大、'
-            '又不在国服曲库里的，就是下次更新最可能补上的曲目。',
+            '「首次上线」显示的是日服首发时间，不是国服上线时间。'
+            '候选按首发日期识别，并从已确认待补批次补齐遗漏；'
+            '日期缺失时才参考 ID，较小 ID 的新曲也会纳入。',
             style: TextStyle(
                 fontSize: 11, height: 1.5, color: AppColors.secondaryText(brightness)),
           ),
@@ -324,12 +324,12 @@ class _UnionUpdateComparePageState extends State<UnionUpdateComparePage> {
     switch (_section) {
       case _Section.upcoming:
         hint = compare.upcoming.isEmpty
-            ? '国服已经追到日服最新曲了，暂时没有待上线的常规曲。'
-            : '按 id 升序：越靠前表示日服上得越早，越可能先补进国服。'
+            ? '当前参考范围内没有未收录的常规曲。'
+            : '按 ID 升序展示，顺序不代表上线先后；实际更新以官方公告为准。'
                 '${_versionSummary(compare)}';
       case _Section.skipped:
-        hint = '这些曲 id 比国服最新曲还小、却不在国服曲库里，多半是区域限定或'
-            '联动独占（也可能只是 id 顺序与上线顺序不完全一致）。';
+        hint = '这些曲早于候选参考起点，或缺少日期且 ID 较小，可能是区域限定、'
+            '联动独占或尚未补入的旧曲；不代表以后不会上线。';
       case _Section.utage:
         hint = '宴会场不随版本更新，列在这里仅供参考。';
       case _Section.cn:
@@ -491,20 +491,22 @@ class _UnionUpdateComparePageState extends State<UnionUpdateComparePage> {
               SizedBox(height: 4),
               Text(
                 '先筛出水鱼曲库里的国服常规曲，再按首发日期从新到旧排列，第一首作为「国服最新」。'
-                '日期缺失或格式异常时才回退到 id，所以这条前沿近似等于「国服已经追到哪」。\n'
+                '日期缺失或格式异常时参考 ID，所以这条前沿近似等于「国服已经追到哪」。\n'
                 '宴会场（6 位 id）与 maidata 追加曲不参与判定。\n'
                 '国服**超前上线**的曲目（国服先于日服上，id 却排最新）也不参与 —— '
                 '它们会把前沿顶高，让真正待补的曲子排不进候选。',
                 style: TextStyle(fontSize: 12.5, height: 1.5),
               ),
               SizedBox(height: 12),
-              Text('3. 已知偏差', style: TextStyle(fontWeight: FontWeight.w700)),
+              Text('3. 候选怎么补齐', style: TextStyle(fontWeight: FontWeight.w700)),
               SizedBox(height: 4),
               Text(
-                '「首发日期」来自曲库元数据，不代表国服实际开放日期：\n'
-                '· union 独有但 id 更小的曲子会归到「国服未收录旧曲」，'
-                '其中多数是区域限定/联动独占，也可能只是 id 顺序与上线顺序不一致；\n'
-                '· 国服也可能一次补上多首，实际更新以官方公告为准。',
+                '先取 union 独有的常规曲，以前沿的日服首发日期作为参考起点；'
+                '如果已确认待补批次中仍有更早的未收录曲目，起点下移至该批最早日期。\n'
+                '· 首发不早于起点的曲目都纳入，包含同一天以及 ID 较小的歌曲；\n'
+                '· 日期缺失或异常时才按 ID 判断，已确认待补曲始终保留；\n'
+                '· 早于起点的旧曲单独列出，不据此断定区域独占；'
+                '候选只是参考，实际更新以官方公告为准。',
                 style: TextStyle(fontSize: 12.5, height: 1.5),
               ),
               SizedBox(height: 12),

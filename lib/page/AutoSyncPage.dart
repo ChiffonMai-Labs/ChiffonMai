@@ -1,8 +1,14 @@
+import '../widgets/AnimatedStatMetric.dart';
+import 'package:my_first_flutter_app/widgets/AppSwitch.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 
 import '../service/AutoSyncService.dart';
+import '../service/AccountStore.dart';
+import '../constant/CacheKeyConstant.dart';
+import '../utils/SecureCredentialStore.dart';
+import '../utils/ExternalLaunchUtil.dart';
 import '../service/AWMC/AwmcQuickSyncService.dart';
 import '../service/AWMC/AwmcQuickIdentityStore.dart';
 import '../service/SyncStatsService.dart';
@@ -11,6 +17,7 @@ import '../utils/AutoSyncDisplay.dart';
 import '../widgets/BackgroundPageScaffold.dart';
 import '../widgets/ErrorMessageDialog.dart';
 import '../widgets/FishIcon.dart';
+import '../widgets/GuideLinkText.dart';
 import '../widgets/NoRipple.dart';
 import '../widgets/SmoothLinearProgressIndicator.dart';
 
@@ -26,12 +33,16 @@ class _SourceState {
   final bool ready;
   final String reason;
   final String? error;
+  final String? accountId;
+  final bool missingKey;
   const _SourceState(
       {this.task,
       this.registration,
       this.ready = false,
       this.reason = '请先输入二维码绑定机台身份，或完成一次普通二维码同步',
-      this.error});
+      this.error,
+      this.accountId,
+      this.missingKey = false});
   bool get enabled => task?.enabled ?? registration?.lastKnownEnabled ?? false;
 }
 
@@ -45,6 +56,10 @@ class _AutoSyncPageState extends State<AutoSyncPage>
   bool _refreshing = false;
   Timer? _pollTimer;
   int _queueRevision = 0;
+  AutoSyncQueue? _queue;
+  bool _queueLoading = true;
+  bool _queueRefreshing = false;
+  bool _queueError = false;
 
   @override
   void initState() {
@@ -65,6 +80,7 @@ class _AutoSyncPageState extends State<AutoSyncPage>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _pollTimer?.cancel();
     if (state == AppLifecycleState.resumed) {
+      unawaited(_loadQueue());
       if (!_loading && _saving == null && !_refreshing) _load(silent: true);
       _startPolling();
     }
@@ -73,16 +89,26 @@ class _AutoSyncPageState extends State<AutoSyncPage>
   void _startPolling() {
     _pollTimer?.cancel();
     _pollTimer = Timer.periodic(const Duration(seconds: 3), (_) {
-      if (!mounted || _loading || _saving != null || _refreshing) return;
+      if (!mounted) return;
+      unawaited(_loadQueue());
+      if (_loading || _saving != null || _refreshing) return;
       _load(silent: true);
     });
   }
 
   Future<_SourceState> _loadSource(SyncPlatform platform) async {
     AutoSyncRegistration? registration;
+    final source = AwmcQuickSyncService.sourceOf(platform);
+    AccountMeta? account;
+    var missingKey = false;
     var ready = false;
     var reason = '请先设置该数据源的个人 key 和账号';
     try {
+      account = (await AccountStore.loadAll())[source.key];
+      final key = await SecureCredentialStore.read(_personalKeyOf(platform));
+      missingKey = account != null &&
+          account.id.isNotEmpty &&
+          (key == null || key.trim().isEmpty);
       await AwmcQuickSyncService.accountFor(platform, requireData: false);
       ready = await AwmcQuickIdentityStore.read() != null;
       reason = ready ? '同步凭据已就绪' : '请先输入二维码绑定机台身份，凭据可供三个数据源共用';
@@ -95,17 +121,25 @@ class _AutoSyncPageState extends State<AutoSyncPage>
       registration = await _service.registration(platform);
       final task = await _service.status(platform);
       return _SourceState(
-          task: task, registration: registration, ready: ready, reason: reason);
+          task: task,
+          registration: registration,
+          ready: ready,
+          reason: reason,
+          accountId: account?.id,
+          missingKey: missingKey);
     } catch (error) {
       return _SourceState(
           registration: registration,
           ready: ready,
           reason: reason,
+          accountId: account?.id,
+          missingKey: missingKey,
           error: error is AutoSyncException ? error.message : '自动同步状态读取失败，请重试');
     }
   }
 
   Future<void> _load({bool silent = false}) async {
+    unawaited(_loadQueue());
     final request = ++_request;
     _refreshing = true;
     if (!silent) setState(() => _loading = true);
@@ -113,10 +147,33 @@ class _AutoSyncPageState extends State<AutoSyncPage>
     if (!mounted || request != _request) return;
     setState(() {
       _sources.addAll(Map.fromIterables(SyncPlatform.values, states));
-      _queueRevision++;
       _loading = false;
       _refreshing = false;
     });
+  }
+
+  Future<void> _loadQueue() async {
+    if (_queueRefreshing) return;
+    _queueRefreshing = true;
+    try {
+      final queue = await _service.queueOverview();
+      if (!mounted) return;
+      setState(() {
+        _queue = queue;
+        _queueLoading = false;
+        _queueError = false;
+        _queueRevision++;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _queueLoading = false;
+        _queueError = true;
+        _queueRevision++;
+      });
+    } finally {
+      _queueRefreshing = false;
+    }
   }
 
   Future<void> _setEnabled(SyncPlatform platform, bool enabled) async {
@@ -187,7 +244,7 @@ class _AutoSyncPageState extends State<AutoSyncPage>
         padding: const EdgeInsets.fromLTRB(24, 12, 24, 28),
         children: [
           _scheduleHeader(),
-          if (_loading || _saving != null) ...[
+          if (_saving != null) ...[
             const SizedBox(height: 16),
             const SmoothLinearProgressIndicator(),
           ],
@@ -245,7 +302,7 @@ class _AutoSyncPageState extends State<AutoSyncPage>
       Text(
           _roundTimeoutMinutes == null
               ? '单个用户批次有整体处理时限：上游慢响应、配额不足或大量上传超过时限时，会自动结束本轮并在上轮结果中说明原因，次日窗口继续（排队等待不计入）。'
-              : '单个用户批次最长处理 $_roundTimeoutMinutes 分钟：上游慢响应、配额不足或大量上传超时会自动结束本轮并在上轮结果中说明原因，次日窗口继续（排队等待不计入）。',
+              : '机台成绩读取完成后，单个用户最多处理 $_roundTimeoutMinutes 分钟；读取前的排队和额度等待不计入。超出处理时限或当天服务窗口会结束本轮，次日窗口继续。',
           style: theme.textTheme.bodyMedium),
       const SizedBox(height: 16),
       Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -285,7 +342,7 @@ class _AutoSyncPageState extends State<AutoSyncPage>
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final registration = state.registration;
-    final id = registration?.accountId;
+    final id = state.accountId ?? registration?.accountId;
     final accountLabel = id == null
         ? (state.ready ? '同步凭据已就绪' : '同步配置待完善')
         : '账号尾号 ${id.length <= 4 ? id : id.substring(id.length - 4)}';
@@ -330,7 +387,7 @@ class _AutoSyncPageState extends State<AutoSyncPage>
           NoRipple(
               child: Semantics(
             label: '${platform.label}自动同步',
-            child: Switch.adaptive(
+            child: AppSwitch(
               value: state.enabled,
               onChanged:
                   disabled ? null : (value) => _setEnabled(platform, value),
@@ -338,6 +395,15 @@ class _AutoSyncPageState extends State<AutoSyncPage>
           )),
         ]),
         const SizedBox(height: 14),
+        if (!_loading && state.missingKey) ...[
+          _PersonalKeyForm(
+            key: ValueKey('${platform.key}:${state.accountId}'),
+            platform: platform,
+            accountId: state.accountId!,
+            onSaved: () => _load(silent: true),
+          ),
+          const SizedBox(height: 14),
+        ],
         if (state.error != null) ...[
           _statusLabel(Icons.cloud_off_outlined, '状态暂未确认', scheme.error),
           const SizedBox(height: 6),
@@ -375,6 +441,11 @@ class _AutoSyncPageState extends State<AutoSyncPage>
             state.enabled && state.error == null) ...[
           const SizedBox(height: 14),
           _previousResult(task?.lastResult, nextRunAt: task?.nextRunAt),
+        ],
+        if (_service.refreshError(platform) case final String error) ...[
+          const SizedBox(height: 8),
+          Text('同步已成功，本地刷新未完成：$error',
+              style: theme.textTheme.bodySmall?.copyWith(color: scheme.error)),
         ],
         if (task?.queue?.longQueue == true) ...[
           const SizedBox(height: 10),
@@ -541,15 +612,10 @@ class _AutoSyncPageState extends State<AutoSyncPage>
         .whereType<AutoSyncTask>()
         .where((task) => task.enabled && task.queue != null)
         .toList();
-    if (tasks.isEmpty) return const SizedBox.shrink();
-    tasks.sort((a, b) => (a.status == 'running' ? 0 : 1)
-                .compareTo(b.status == 'running' ? 0 : 1) !=
-            0
-        ? (a.status == 'running' ? 0 : 1)
-            .compareTo(b.status == 'running' ? 0 : 1)
-        : (a.queue!.scheduledAt?.millisecondsSinceEpoch ?? 0)
-            .compareTo(b.queue!.scheduledAt?.millisecondsSinceEpoch ?? 0));
-    final queue = tasks.first.queue!;
+    final queue = _queue;
+    final previous = queue?.previousQueue;
+    // 有成功快照时保留已有数字；首次失败显示占位，不把读取失败当作零任务。
+    final empty = queue == null ? null : 0;
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     AutoSyncTask? waitingTask;
@@ -572,21 +638,25 @@ class _AutoSyncPageState extends State<AutoSyncPage>
           children: [
             Row(children: [
               Expanded(
-                  child: Text('${queue.upcoming ? '下轮' : '本轮'}队列',
+                  child: Text('${queue?.upcoming == true ? '下轮' : '本轮'}队列',
                       style: theme.textTheme.titleSmall)),
-              _statusDot('每 3 秒更新'),
+              _statusDot(_queueLoading
+                  ? '统计加载中'
+                  : _queueError
+                      ? '更新失败'
+                      : '每 3 秒更新'),
             ]),
             const SizedBox(height: 4),
             Text(
-                '${_beijingTime(queue.scheduledAt)}'
+                '${queue?.scheduledAt == null ? '北京时间（UTC+8）' : _beijingTime(queue!.scheduledAt)}'
                 '${_roundTimeoutMinutes == null ? '' : ' · 单轮上限 $_roundTimeoutMinutes 分钟'}',
                 style: theme.textTheme.bodySmall
                     ?.copyWith(color: scheme.onSurfaceVariant)),
             const SizedBox(height: 16),
             Row(children: [
-              _queueMetric(queue.waitingUsers, '排队人数'),
-              _queueMetric(queue.waitingTasks, '待处理任务'),
-              _queueMetric(queue.runningTasks, '处理中', active: true),
+              _queueMetric(queue?.waitingUsers, '排队人数'),
+              _queueMetric(queue?.waitingTasks, '待处理任务'),
+              _queueMetric(queue?.runningTasks, '处理中', active: true),
             ]),
             if (waitingTask != null) ...[
               const SizedBox(height: 12),
@@ -603,18 +673,24 @@ class _AutoSyncPageState extends State<AutoSyncPage>
                             height: 1.5))),
               ])
             ],
-            if (queue.previousQueue != null) ...[
+            ...[
               const SizedBox(height: 18),
               Text('上轮队列处理', style: theme.textTheme.titleSmall),
               const SizedBox(height: 10),
               Row(children: [
-                _queueMetric(queue.previousQueue!.processedUsers, '已处理用户'),
-                _queueMetric(queue.previousQueue!.successUsers, '成功用户'),
-                _queueMetric(queue.previousQueue!.failedUsers, '失败用户'),
+                _queueMetric(previous?.processedUsers ?? empty, '已处理用户'),
+                _queueMetric(previous?.successUsers ?? empty, '成功用户'),
+                _queueMetric(previous?.failedUsers ?? empty, '失败用户'),
               ]),
               const SizedBox(height: 7),
               Text(
-                  '提交 ${queue.previousQueue!.submitted} 条 · 跳过 ${queue.previousQueue!.skipped} 条 · ${_beijingTime(queue.previousQueue!.scheduledAt)}',
+                  previous == null
+                      ? (_queueLoading
+                          ? '上轮统计读取中…'
+                          : _queueError && queue == null
+                              ? '统计暂不可用，将自动重试'
+                              : '暂无上轮记录')
+                      : '提交 ${previous.submitted} 条 · 跳过 ${previous.skipped} 条 · ${_beijingTime(previous.scheduledAt)}',
                   style: theme.textTheme.bodySmall
                       ?.copyWith(color: scheme.onSurfaceVariant)),
             ],
@@ -639,14 +715,15 @@ class _AutoSyncPageState extends State<AutoSyncPage>
     ]);
   }
 
-  Widget _queueMetric(int value, String label, {bool active = false}) {
+  Widget _queueMetric(int? value, String label, {bool active = false}) {
     return Expanded(
-      child: _QueueMetric(
+      child: AnimatedStatMetric(
         key: ValueKey(label),
         value: value,
         label: label,
         active: active,
         revision: _queueRevision,
+        loading: _queueLoading,
       ),
     );
   }
@@ -678,141 +755,138 @@ class _AutoSyncPageState extends State<AutoSyncPage>
   }
 }
 
-/// 只有新快照中的数值变化才显示趋势；重复快照会停止箭头动画。
-class _QueueMetric extends StatefulWidget {
-  const _QueueMetric(
-      {super.key,
-      required this.value,
-      required this.label,
-      required this.revision,
-      this.active = false});
+String _personalKeyOf(SyncPlatform platform) => switch (platform) {
+      SyncPlatform.divingFish => CacheKeyConstant.probeDivingFishImportToken,
+      SyncPlatform.luoXue => CacheKeyConstant.probeLxnsImportToken,
+      SyncPlatform.awmc => CacheKeyConstant.awmcNetImportToken,
+    };
 
-  final int value;
-  final String label;
-  final int revision;
-  final bool active;
+/// 控制器跟随输入区域自身的生命周期，轮询不会清空尚未保存的输入。
+class _PersonalKeyForm extends StatefulWidget {
+  final SyncPlatform platform;
+  final String accountId;
+  final Future<void> Function() onSaved;
+  const _PersonalKeyForm(
+      {super.key,
+      required this.platform,
+      required this.accountId,
+      required this.onSaved});
 
   @override
-  State<_QueueMetric> createState() => _QueueMetricState();
+  State<_PersonalKeyForm> createState() => _PersonalKeyFormState();
 }
 
-class _QueueMetricState extends State<_QueueMetric>
-    with TickerProviderStateMixin {
-  late final AnimationController _numberController;
-  late final AnimationController _arrowController;
-  late IntTween _numberTween;
-  int _direction = 0;
-  bool _reduceMotion = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _numberController = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 400), value: 1);
-    _arrowController = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 700));
-    _numberTween = IntTween(begin: widget.value, end: widget.value);
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _reduceMotion = MediaQuery.disableAnimationsOf(context);
-    if (_reduceMotion) {
-      _numberController.value = 1;
-      _stopArrow();
-    }
-  }
-
-  @override
-  void didUpdateWidget(_QueueMetric oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.value != oldWidget.value) {
-      // 新结果到来时从当前显示值继续计数，避免动画中途跳回旧目标。
-      final current = _numberTween.evaluate(_numberController);
-      _numberTween = IntTween(begin: current, end: widget.value);
-      if (_reduceMotion) {
-        _numberController.value = 1;
-        _stopArrow();
-      } else {
-        _numberController.duration = Duration(
-            milliseconds:
-                ((widget.value - current).abs() * 80).clamp(240, 600));
-        _numberController.forward(from: 0);
-        _direction = widget.value > oldWidget.value ? 1 : -1;
-        _arrowController.repeat();
-      }
-    } else if (widget.revision != oldWidget.revision) {
-      _stopArrow();
-    }
-  }
-
-  void _stopArrow() {
-    _direction = 0;
-    _arrowController.stop();
-    _arrowController.reset();
-  }
+class _PersonalKeyFormState extends State<_PersonalKeyForm> {
+  final _controller = TextEditingController();
+  bool _saving = false;
+  String? _error;
 
   @override
   void dispose() {
-    _numberController.dispose();
-    _arrowController.dispose();
+    _controller.dispose();
     super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (_saving) return;
+    final value = _controller.text.trim();
+    if (value.isEmpty) {
+      setState(() => _error = '请先填写个人 key');
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      final source = AwmcQuickSyncService.sourceOf(widget.platform);
+      final account = (await AccountStore.loadAll())[source.key];
+      if (account?.id != widget.accountId) {
+        throw const AutoSyncException('账号已变化，请刷新页面后重新填写');
+      }
+      final message = await AutoSyncService.instance
+          .savePersonalCredential(widget.platform, value);
+      if (!mounted) return;
+      FocusManager.instance.primaryFocus?.unfocus();
+      _controller.clear();
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
+      await widget.onSaved();
+    } catch (error) {
+      if (mounted)
+        setState(() => _error =
+            error is AutoSyncException ? error.message : '个人 key 保存失败，请重试');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    final url = switch (widget.platform) {
+      SyncPlatform.divingFish => 'https://www.diving-fish.com/maimaidx/prober/',
+      SyncPlatform.luoXue =>
+        'https://maimai.lxns.net/user/profile?tab=thirdparty',
+      SyncPlatform.awmc => 'https://net.wmc.pub/settings/',
+    };
+    final guide = switch (widget.platform) {
+      SyncPlatform.divingFish =>
+        '① 在「我的 → 登录水鱼」输入你的 Diving-Fish 水鱼账号密码以获取 ImportToken。\n'
+        '② 打开「账号管理 → 水鱼-个人信息」，在 ImportToken 一行点击复制。\n'
+        '③ 回到这里粘贴并保存。',
+      SyncPlatform.luoXue => '，滑到最底部获取密钥。',
+      SyncPlatform.awmc => '，在页面底部生成或轮换Token。',
+    };
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Semantics(
-        label:
-            '${widget.label} ${widget.value}${_direction > 0 ? '，增加' : _direction < 0 ? '，减少' : ''}',
-        excludeSemantics: true,
-        child: Row(children: [
-          Flexible(
-              child: AnimatedBuilder(
-            animation: _numberController,
-            builder: (context, _) => Text(
-              '${_numberTween.evaluate(_numberController)}',
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: widget.active ? theme.colorScheme.primary : null,
-              ),
-            ),
-          )),
-          // 保留箭头位置，趋势出现和消失时不挤动数字。
-          SizedBox(
-              width: 23,
-              height: 28,
-              child: _direction == 0
-                  ? null
-                  : AnimatedBuilder(
-                      animation: _arrowController,
-                      builder: (context, _) => Transform.translate(
-                        offset: Offset(
-                            0,
-                            -_direction *
-                                (Curves.easeInOut
-                                            .transform(_arrowController.value) *
-                                        4 -
-                                    2)),
-                        child: Icon(
-                            _direction > 0
-                                ? Icons.arrow_upward_rounded
-                                : Icons.arrow_downward_rounded,
-                            size: 18,
-                            color: _direction > 0
-                                ? AppColors.errorRed(theme.brightness)
-                                : AppColors.successForeground(
-                                    theme.brightness)),
-                      ),
-                    )),
-        ]),
+      Text('还需填写${widget.platform.label}个人 key',
+          style: Theme.of(context).textTheme.titleSmall),
+      const SizedBox(height: 6),
+      if (widget.platform == SyncPlatform.divingFish)
+        Text(guide,
+            style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13))
+      else
+        GuideLinkText(
+          before: '访问 ',
+          label: url,
+          url: url,
+          after: guide,
+          style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
+        ),
+      TextButton.icon(
+        onPressed: () => ExternalLaunchUtil.open(Uri.parse(url)),
+        icon: const Icon(Icons.open_in_new, size: 16),
+        label: Text(widget.platform == SyncPlatform.divingFish
+            ? '打开水鱼查分器'
+            : '打开获取页面'),
       ),
-      const SizedBox(height: 3),
-      Text(widget.label,
-          style: theme.textTheme.bodySmall
-              ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+      TextField(
+        controller: _controller,
+        enabled: !_saving,
+        obscureText: true,
+        autocorrect: false,
+        enableSuggestions: false,
+        style: const TextStyle(fontSize: 13),
+        decoration: InputDecoration(
+          labelText: '个人 key',
+          hintText: switch (widget.platform) {
+            SyncPlatform.divingFish => '在此粘贴 ImportToken...',
+            SyncPlatform.luoXue => '在此粘贴落雪个人 API 密钥...',
+            SyncPlatform.awmc => '在此粘贴 AWMC NET 成绩导入 Token...',
+          },
+          isDense: true,
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          errorText: _error,
+        ),
+        onSubmitted: (_) => _save(),
+      ),
+      const SizedBox(height: 8),
+      FilledButton(
+          onPressed: _saving ? null : _save,
+          child: Text(_saving ? '正在保存…' : '保存个人 key')),
     ]);
   }
 }
+
+/// 只有新快照中的数值变化才显示趋势；重复快照会停止箭头动画。

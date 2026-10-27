@@ -14,6 +14,18 @@ class NextPlayQueueStore extends ChangeNotifier {
 
   List<NextPlayEntry> get entries => List.unmodifiable(_entries);
 
+  Future<void> flush() async {
+    await _writing;
+  }
+
+  Future<void> reload() async {
+    await _writing;
+    await _loading;
+    _entries = const [];
+    await ensureLoaded();
+    notifyListeners();
+  }
+
   Future<void> ensureLoaded() =>
       _loading ??= _load().whenComplete(() => _loading = null);
 

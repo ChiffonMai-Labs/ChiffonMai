@@ -18,7 +18,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # of the product and file versions while build-number is used as the build suffix.
 
 # version: 1.12.2+35
-version: 2.8.0-beta+50
+version: 2.9.0+52
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -131,6 +131,7 @@ flutter:
 
    # 图片资源配置（注意缩进：assets 是 flutter 的子项，前面有2个空格）
   assets:
+    - assets/legal/
     - assets/bg/
     - assets/cover/
     - assets/version/
@@ -149,6 +150,7 @@ flutter:
     - assets/dxrating_cover_index.json
     - assets/cover_manifest.json
     - assets/res/
+    - assets/title/
     - assets/grade/
     - assets/gamrank/
     - assets/dxstars/
@@ -183,8 +185,20 @@ flutter:
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
 flutter_launcher_icons:
-  android: true  # 开启Android图标生成
-  ios: true      # 开启iOS图标生成
-  image_path: "assets/icon.png"  # 基础图标路径（2048×2048px）
-  adaptive_icon_background: "#FFFFFF"      # Android 自适应图标背景色（可选）
-  adaptive_icon_foreground: "assets/icon.png"  # Android 自适应图标前景（可选）`r`n
+  android: true
+  ios: true
+  remove_alpha_ios: true
+  image_path: "assets/icon.png"
+  adaptive_icon_background: "#AECB92"
+  # Android 的完整画面留白由 mipmap-anydpi-v26/ic_launcher.xml 管理，重新生成图标时保留其 inset。
+  adaptive_icon_foreground: "assets/icon.png"
+  web:
+    generate: true
+    image_path: "assets/icon.png"
+  windows:
+    generate: true
+    image_path: "assets/icon.png"
+    icon_size: 256
+  macos:
+    generate: true
+    image_path: "assets/icon.png"

@@ -8,24 +8,31 @@ import 'package:my_first_flutter_app/utils/LuoXueToDivingFishUtil.dart';
 
 class PaiziProgressService {
   // 单例模式
-  static final PaiziProgressService _instance = PaiziProgressService._internal();
+  static final PaiziProgressService _instance =
+      PaiziProgressService._internal();
   factory PaiziProgressService() => _instance;
   PaiziProgressService._internal();
 
   // 匹配模式："x極"、"x将"、"x神"、"x舞舞"（x代表一个字符）
   final List<RegExp> _patterns = [
-    RegExp(r'^(.{1})極$'),      // x極
-    RegExp(r'^(.{1})将$'),      // x将
-    RegExp(r'^(.{1})神$'),      // x神
-    RegExp(r'^(.{1})舞舞$'),    // x舞舞
+    RegExp(r'^(.{1})極$'), // x極
+    RegExp(r'^(.{1})将$'), // x将
+    RegExp(r'^(.{1})神$'), // x神
+    RegExp(r'^(.{1})舞舞$'), // x舞舞
   ];
+
+  /// 与牌子进度页保持同一识别口径，含舞霸者及真将的特殊名称。
+  bool isProgressPlate(Collection collection) =>
+      collection.id == 6148 ||
+      _patterns.any((pattern) => pattern.hasMatch(collection.name)) ||
+      collection.name == '真大将';
 
   // 获取所有符合条件的姓名框收藏品
   Future<List<Collection>> getMatchingPlates() async {
     try {
       final collectionsManager = CollectionsManager();
       final collectionData = await collectionsManager.fetchPlatesCollections();
-      
+
       if (collectionData?.plates == null) {
         return [];
       }
@@ -46,7 +53,7 @@ class PaiziProgressService {
       if (match != null) {
         final firstChar = match.group(1);
         String titleType;
-        
+
         if (name.endsWith('極')) {
           titleType = '極';
         } else if (name.endsWith('将')) {
@@ -58,7 +65,7 @@ class PaiziProgressService {
         } else {
           titleType = '';
         }
-        
+
         if (firstChar != null) {
           return {
             'firstChar': firstChar,
@@ -74,14 +81,14 @@ class PaiziProgressService {
   Future<List<String>> getFirstCharOptions() async {
     final plates = await getMatchingPlates();
     final Set<String> chars = {};
-    
+
     for (final plate in plates) {
       final parts = extractNameParts(plate.name);
       if (parts != null) {
         chars.add(parts['firstChar']!);
       }
     }
-    
+
     return chars.toList()..sort();
   }
 
@@ -96,7 +103,8 @@ class PaiziProgressService {
   }
 
   // 根据第一个字和称号类型获取对应的收藏品
-  Future<Collection?> getPlateBySelection(String firstChar, String titleType) async {
+  Future<Collection?> getPlateBySelection(
+      String firstChar, String titleType) async {
     // 特殊处理：霸者称号查找id为6148的收藏品（需要从所有plates中查找）
     if (titleType == '霸者') {
       final collectionsManager = CollectionsManager();
@@ -110,7 +118,7 @@ class PaiziProgressService {
         return null;
       }
     }
-    
+
     // 特殊处理：真将和真大将使用真神的歌曲列表
     if (firstChar == '真' && (titleType == '将' || titleType == '大将')) {
       final plates = await getMatchingPlates();
@@ -120,17 +128,17 @@ class PaiziProgressService {
         return null;
       }
     }
-    
+
     // 特殊处理：大将显示将的图片
     String targetTitleType = titleType;
     if (titleType == '大将') {
       targetTitleType = '将';
     }
-    
+
     // 其他称号类型从匹配的plates中查找
     final plates = await getMatchingPlates();
     final targetName = firstChar + targetTitleType;
-    
+
     try {
       return plates.firstWhere((plate) => plate.name == targetName);
     } catch (e) {
@@ -177,7 +185,8 @@ class PaiziProgressService {
   }
 
   // 判断歌曲是否满足称号要求
-  Future<bool> isSongCompleted(int songId, int difficulty, String titleType) async {
+  Future<bool> isSongCompleted(
+      int songId, int difficulty, String titleType) async {
     // 确保缓存已初始化
     await _initRecordsCache();
 
@@ -195,32 +204,35 @@ class PaiziProgressService {
         // fc字段为非空且非sync
         final fc = record['fc'] as String?;
         return fc != null && fc.isNotEmpty && fc != 'sync';
-      
+
       case '将':
         // achievements字段大于等于100
-        final achievements = double.tryParse(record['achievements'].toString()) ?? 0;
+        final achievements =
+            double.tryParse(record['achievements'].toString()) ?? 0;
         return achievements >= 100;
-      
+
       case '大将':
         // achievements字段大于等于100.5
-        final achievements = double.tryParse(record['achievements'].toString()) ?? 0;
+        final achievements =
+            double.tryParse(record['achievements'].toString()) ?? 0;
         return achievements >= 100.5;
-      
+
       case '神':
         // fc字段为ap或app
         final fc = record['fc'] as String?;
         return fc == 'ap' || fc == 'app';
-      
+
       case '舞舞':
         // fs字段为fsd或fsdp
         final fs = record['fs'] as String?;
         return fs == 'fsd' || fs == 'fsdp';
-      
+
       case '霸者':
         // 达成率大于等于80%
-        final achievements = double.tryParse(record['achievements'].toString()) ?? 0;
+        final achievements =
+            double.tryParse(record['achievements'].toString()) ?? 0;
         return achievements >= 80;
-      
+
       default:
         return false;
     }
@@ -233,7 +245,8 @@ class PaiziProgressService {
   }
 
   // 获取所有可用难度选项（去重），包含ALL选项(-1)
-  Future<List<int>> getAvailableDifficulties(String firstChar, String titleType) async {
+  Future<List<int>> getAvailableDifficulties(
+      String firstChar, String titleType) async {
     final plate = await getPlateBySelection(firstChar, titleType);
     if (plate == null || plate.required == null) {
       return [-1];
@@ -245,7 +258,7 @@ class PaiziProgressService {
         difficulties.addAll(req.difficulties!);
       }
     }
-    
+
     return difficulties.toList()..sort();
   }
 
@@ -335,16 +348,18 @@ class PaiziProgressService {
           for (final diff in req.difficulties!) {
             for (final requiredSong in req.songs!) {
               final Song? song = songMap[requiredSong];
-              
+
               if (song != null) {
-                final completed = await isSongCompleted(int.parse(song.id), diff, titleType);
+                final completed =
+                    await isSongCompleted(int.parse(song.id), diff, titleType);
                 result.add({
                   'song': song,
                   'completed': completed,
                   'difficulty': diff,
                 });
               } else {
-                final completed = await isSongCompleted(requiredSong.id, diff, titleType);
+                final completed =
+                    await isSongCompleted(requiredSong.id, diff, titleType);
                 result.add({
                   'song': requiredSong,
                   'completed': completed,
@@ -358,23 +373,26 @@ class PaiziProgressService {
     } else {
       // 指定难度模式
       for (final req in plate.required!) {
-        if (req.difficulties != null && !req.difficulties!.contains(difficulty)) {
+        if (req.difficulties != null &&
+            !req.difficulties!.contains(difficulty)) {
           continue;
         }
 
         if (req.songs != null) {
           for (final requiredSong in req.songs!) {
             final Song? song = songMap[requiredSong];
-            
+
             if (song != null) {
-              final completed = await isSongCompleted(int.parse(song.id), difficulty, titleType);
+              final completed = await isSongCompleted(
+                  int.parse(song.id), difficulty, titleType);
               result.add({
                 'song': song,
                 'completed': completed,
                 'difficulty': difficulty,
               });
             } else {
-              final completed = await isSongCompleted(requiredSong.id, difficulty, titleType);
+              final completed =
+                  await isSongCompleted(requiredSong.id, difficulty, titleType);
               result.add({
                 'song': requiredSong,
                 'completed': completed,
@@ -392,17 +410,17 @@ class PaiziProgressService {
       final songB = b['song'];
       final diffA = a['difficulty'] as int;
       final diffB = b['difficulty'] as int;
-      
+
       double dsA = -1;
       double dsB = -1;
-      
+
       if (songA is Song && songA.ds != null && diffA < songA.ds.length) {
         dsA = songA.ds[diffA];
       }
       if (songB is Song && songB.ds != null && diffB < songB.ds.length) {
         dsB = songB.ds[diffB];
       }
-      
+
       // 降序排序
       return dsB.compareTo(dsA);
     });

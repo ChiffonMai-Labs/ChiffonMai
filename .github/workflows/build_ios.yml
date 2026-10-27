@@ -1,89 +1,126 @@
 name: Build iOS IPA (unsigned)
 
 on:
-  workflow_dispatch:  # 手动触发
+  workflow_dispatch:
   push:
     tags:
-      - 'v*'          # 推送 v1.0.0 这类 tag 时自动触发
+      - 'v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-ios-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: '3.41.7'
+  DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+  COCOAPODS_DISABLE_STATS: 'true'
 
 jobs:
   build-ios:
     name: Build unsigned iOS IPA
-    runs-on: macos-latest  # GitHub 的 macOS 云环境
+    runs-on: macos-15
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
 
     steps:
-      - name: Checkout 代码
-        uses: actions/checkout@v4
+      - name: 检出代码
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: 检查构建参数
+        env:
+          CLIENT_API_KEY: ${{ secrets.CLIENT_API_KEY }}
+        run: |
+          if [[ -z "${CLIENT_API_KEY//[[:space:]]/}" ]]; then
+            echo '::error::请先在仓库 Actions Secrets 中配置 CLIENT_API_KEY。'
+            exit 1
+          fi
 
       - name: 安装 Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.41.7'   # 与本地开发环境一致的 Flutter 版本
-          channel: 'stable'
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
 
-      - name: 安装依赖
+      - name: 准备 iOS 工具链与依赖
         run: |
-          flutter pub get
-          cd ios && pod install && cd ..
+          xcodebuild -version
+          pod --version
+          flutter --version
+          # 继续使用现有工程的 CocoaPods 集成，不在 CI 隐式迁移到 Swift Package Manager。
+          flutter config --no-analytics --no-enable-swift-package-manager
+          flutter precache --ios
+          # macOS 上的 pub get 会准备 Podfile 和 xcconfig；构建时由 Flutter 执行 pod install。
+          flutter pub get --enforce-lockfile
 
-      # ---- 用 GitHub Secrets 生成 DeveloperToken.dart ----
-      # 该文件含敏感凭据，已被 .gitignore 排除、绝不入库。
-      # 在 CI 里用仓库 Secrets 动态生成，供编译使用。
-      - name: 生成 DeveloperToken.dart（来自 Secrets）
+      - name: 构建未签名归档
+        env:
+          CLIENT_API_KEY: ${{ secrets.CLIENT_API_KEY }}
         run: |
-          cat > lib/api/DeveloperToken.dart <<'EOF'
-          // ignore_for_file: constant_identifier_names
+          flutter build ipa \
+            --release \
+            --no-codesign \
+            --no-pub \
+            --obfuscate \
+            --split-debug-info=./symbols/ios/ \
+            --dart-define="CLIENT_API_KEY=${CLIENT_API_KEY}"
 
-          class DeveloperToken {
-            static const String TencentSecretId = '${{ secrets.TENCENT_SECRET_ID }}';
-            static const String TencentSecretKey = '${{ secrets.TENCENT_SECRET_KEY }}';
-
-            // 落雪 OAuth Client Secret
-            static const String LuoXueClientSecret = '${{ secrets.LUOXUE_CLIENT_SECRET }}';
-
-            // AWMC NET.（https://net.wmc.pub）查分器开发者密钥（只读查分用）
-            static const String AwmcNetDeveloperKey = '${{ secrets.AWMC_NET_DEVELOPER_KEY }}';
-
-            // MySQL数据库配置
-            static const String MySQLHost = '${{ secrets.MYSQL_HOST }}';
-            static const int MySQLPort = ${{ secrets.MYSQL_PORT }};
-            static const String MySQLDatabase = '${{ secrets.MYSQL_DATABASE }}';
-            static const String MySQLUsername = '${{ secrets.MYSQL_USERNAME }}';
-            static const String MySQLPassword = '${{ secrets.MYSQL_PASSWORD }}';
-
-            // Redis配置
-            static const String RedisHost = '${{ secrets.REDIS_HOST }}';
-            static const int RedisPort = ${{ secrets.REDIS_PORT }};
-            static const String RedisPassword = '${{ secrets.REDIS_PASSWORD }}';
-            static const int RedisDatabase = ${{ secrets.REDIS_DATABASE }};
-          }
-          EOF
-          echo "Debug: DeveloperToken.dart 生成结果如下（密钥部分已打码以便核对格式）:"
-          sed -E "s|('.*(SecretKey|Password|DeveloperKey)' *= *').*|\1***|" lib/api/DeveloperToken.dart
-
-      # ---- 构建未签名 App ----
-      # flutter build ipa --no-codesign：可成功归档，但工具链会因未配置
-      # Development Team 而让命令以非 0 退出（产物其实已生成）。用
-      # continue-on-error 跳过，随后从归档产物组装 .app。
-      - name: 构建未签名 iOS App（归档）
-        continue-on-error: true
+      - name: 组装并校验 IPA
         run: |
-          flutter build ipa --release --no-codesign
-          echo "=== exit code above (非0=仅Team检查失败，产物仍在) ==="
+          app_path='build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app'
+          if [[ ! -d "$app_path" || ! -f "$app_path/Info.plist" ]]; then
+            echo '::error::未找到完整的 Runner.app 归档，停止打包。'
+            exit 1
+          fi
+          executable=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app_path/Info.plist")
+          test -x "$app_path/$executable"
+          test -s symbols/ios/app.ios-arm64.symbols
 
-      # ---- 组装未签名 IPA ----
-      # 从 archive 产物里取未签名 Runner.app 并打包成 .ipa。
-      - name: 组装未签名 IPA
-        run: |
-          APP_ARCHIVE="$(find build/ios/archive -name 'Runner.xcarchive' -type d | head -1)"
-          echo "archive: $APP_ARCHIVE"
-          mkdir -p Payload
-          cp -r "$APP_ARCHIVE/Products/Applications/Runner.app" Payload/
-          zip -r app-unsigned.ipa Payload
+          staging_dir=$(mktemp -d "$RUNNER_TEMP/chiffonmai-ipa.XXXXXX")
+          mkdir -p "$staging_dir/Payload" build/ios/ipa
+          # ditto 保留 App 的框架、符号链接和可执行权限。
+          ditto "$app_path" "$staging_dir/Payload/Runner.app"
+          ipa_path="$GITHUB_WORKSPACE/build/ios/ipa/ChiffonMai-unsigned.ipa"
+          (cd "$staging_dir" && /usr/bin/zip -qry "$ipa_path" Payload)
+          unzip -tq "$ipa_path"
+          (cd build/ios/ipa && shasum -a 256 ChiffonMai-unsigned.ipa > ChiffonMai-unsigned.ipa.sha256)
 
-      # ---- 上传 IPA ----
-      - name: 上传 IPA 为 Artifact
-        uses: actions/upload-artifact@v4
+          # 原生 dSYM 与 Dart 混淆符号一起保留，供这一版 IPA 的崩溃还原使用。
+          dsym_path='build/ios/archive/Runner.xcarchive/dSYMs'
+          if [[ -d "$dsym_path" ]]; then
+            ditto -c -k --sequesterRsrc --keepParent "$dsym_path" symbols/ios/native-dSYMs.zip
+          fi
+          {
+            echo '## iOS 构建产物'
+            echo '- IPA：ChiffonMai-unsigned.ipa（未签名，需要自行签名后安装）'
+            echo '- Dart 混淆符号和原生 dSYM：单独的 iOS-symbols Artifact，请下载留存。'
+            echo "- 源码提交：${GITHUB_SHA}"
+            echo '- Flutter：3.41.7；Xcode：16.4'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 上传 IPA
+        uses: actions/upload-artifact@v7
         with:
-          name: app-unsigned.ipa
-          path: app-unsigned.ipa
+          name: ChiffonMai-iOS-unsigned-${{ github.run_number }}
+          path: |
+            build/ios/ipa/ChiffonMai-unsigned.ipa
+            build/ios/ipa/ChiffonMai-unsigned.ipa.sha256
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+
+      - name: 上传调试符号
+        if: ${{ !cancelled() && hashFiles('symbols/ios/**') != '' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: ChiffonMai-iOS-symbols-${{ github.run_number }}
+          path: symbols/ios/
+          if-no-files-found: error
+          retention-days: 90

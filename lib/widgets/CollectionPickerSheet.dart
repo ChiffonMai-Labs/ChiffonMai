@@ -1,14 +1,22 @@
+import 'TrophyTitleBadge.dart';
 import 'package:flutter/material.dart';
 import '../entity/LuoXue/Collection.dart';
 import '../utils/AppTheme.dart';
 import 'LxnsAssetImage.dart';
+import 'AnimatedChoiceBar.dart';
+import 'SmoothLinearProgressIndicator.dart';
 
-/// 收藏品选择器底部弹窗：在头像 / 姓名框两个 Tab 间切换并支持搜索。
+/// 社区装扮选择器：头像、姓名框、背景与称号，复用收藏品缓存并支持搜索。
 /// 从 HomePage 中提取出来，方便在「我的」等其他页面复用。
 class CollectionPickerSheet extends StatefulWidget {
-  final TextEditingController searchController;
+  final TextEditingController? searchController;
+  final bool isLoading;
   final List<Collection> avatarIcons;
   final List<Collection> avatarPlates;
+  final List<Collection> frames, trophies;
+  final int? selectedFrameId, selectedTrophyId;
+  final ValueChanged<Collection?>? onFramePicked, onTrophyPicked;
+  final VoidCallback? onClearPlate;
   final int? selectedAvatarId;
   final int? selectedPlateId;
   final ValueChanged<int> onAvatarPicked;
@@ -16,7 +24,15 @@ class CollectionPickerSheet extends StatefulWidget {
 
   const CollectionPickerSheet({
     super.key,
-    required this.searchController,
+    this.searchController,
+    this.isLoading = false,
+    this.frames = const [],
+    this.trophies = const [],
+    this.selectedFrameId,
+    this.selectedTrophyId,
+    this.onFramePicked,
+    this.onTrophyPicked,
+    this.onClearPlate,
     required this.avatarIcons,
     required this.avatarPlates,
     required this.selectedAvatarId,
@@ -31,7 +47,19 @@ class CollectionPickerSheet extends StatefulWidget {
 
 class _CollectionPickerSheetState extends State<CollectionPickerSheet> {
   // 状态放到 State 字段里，跟 sheet 实例生命周期绑定
-  int _activeTab = 0; // 0=头像, 1=姓名框
+  int _activeTab = 0; // 头像、姓名框、背景、称号
+  late final TextEditingController _searchController;
+  @override
+  void initState() {
+    super.initState();
+    _searchController = widget.searchController ?? TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    if (widget.searchController == null) _searchController.dispose();
+    super.dispose();
+  }
 
   /// 头像网格每行几列：默认 4 列，可用下方步进器在 3~10 之间调。
   ///
@@ -50,9 +78,11 @@ class _CollectionPickerSheetState extends State<CollectionPickerSheet> {
   }
 
   void _switchTab(int tab) {
+    if (tab == _activeTab) return;
+    FocusManager.instance.primaryFocus?.unfocus();
     setState(() {
       _activeTab = tab;
-      widget.searchController.clear();
+      _searchController.clear();
     });
   }
 
@@ -136,272 +166,194 @@ class _CollectionPickerSheetState extends State<CollectionPickerSheet> {
     );
   }
 
-  Widget _buildTabButton({
-    required BuildContext ctx,
-    required String label,
-    required bool isActive,
-    required VoidCallback onTap,
-  }) {
-    final brightness = Theme.of(ctx).brightness;
-    final scheme = Theme.of(ctx).colorScheme;
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            color: isActive
-                ? scheme.primary.withValues(alpha: 0.15)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: isActive
-                  ? scheme.primary
-                  : AppColors.tableBorder(brightness),
-              width: isActive ? 2 : 1,
-            ),
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-              color: isActive
-                  ? scheme.primary
-                  : AppColors.primaryText(brightness),
-            ),
-          ),
-        ),
-      ),
-    );
+  static const _labels = ['头像', '姓名框', '背景', '称号'];
+  void _pick(Collection? item) {
+    FocusManager.instance.primaryFocus?.unfocus();
+    switch (_activeTab) {
+      case 0:
+        if (item != null) widget.onAvatarPicked(item.id);
+        break;
+      case 1:
+        if (item == null) {
+          widget.onClearPlate?.call();
+        } else {
+          widget.onPlatePicked(item.id);
+        }
+        break;
+      case 2:
+        widget.onFramePicked?.call(item);
+        break;
+      case 3:
+        widget.onTrophyPicked?.call(item);
+        break;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final brightness = Theme.of(context).brightness;
-    final screenSize = MediaQuery.of(context).size;
-
-    final List<Collection> currentList =
-        _activeTab == 0 ? widget.avatarIcons : widget.avatarPlates;
-    final int? currentSelectedId =
-        _activeTab == 0 ? widget.selectedAvatarId : widget.selectedPlateId;
-    final String searchHint =
-        _activeTab == 0 ? '输入头像名称或描述搜索...' : '输入姓名框名称或描述搜索...';
-    final String emptyText = _activeTab == 0 ? '未找到匹配的头像' : '未找到匹配的姓名框';
-
-    // 根据关键词过滤
-    final keyword = widget.searchController.text.trim().toLowerCase();
-    final filteredItems = keyword.isEmpty
-        ? List<Collection>.from(currentList)
-        : currentList.where((c) {
-            final matchName = c.name.toLowerCase().contains(keyword);
-            final matchDesc =
-                c.description?.toLowerCase().contains(keyword) ?? false;
-            return matchName || matchDesc;
-          }).toList();
-    // 将当前选中项移到最前面
-    final selectedIndex =
-        filteredItems.indexWhere((c) => c.id == currentSelectedId);
-    if (selectedIndex > 0) {
-      final selected = filteredItems.removeAt(selectedIndex);
-      filteredItems.insert(0, selected);
+    final scheme = Theme.of(context).colorScheme;
+    final size = MediaQuery.sizeOf(context);
+    final list = [
+      widget.avatarIcons,
+      widget.avatarPlates,
+      widget.frames,
+      widget.trophies
+    ][_activeTab];
+    final selected = [
+      widget.selectedAvatarId,
+      widget.selectedPlateId,
+      widget.selectedFrameId,
+      widget.selectedTrophyId
+    ][_activeTab];
+    final label = _labels[_activeTab],
+        keyword = _searchController.text.trim().toLowerCase();
+    final items = list
+        .where((c) =>
+            keyword.isEmpty ||
+            c.name.toLowerCase().contains(keyword) ||
+            (c.description?.toLowerCase().contains(keyword) ?? false) ||
+            c.id.toString().contains(keyword))
+        .toList();
+    final selectedIndex = items.indexWhere((item) => item.id == selected);
+    if (selectedIndex > 0) items.insert(0, items.removeAt(selectedIndex));
+    Widget cell(Collection item) {
+      final active = item.id == selected;
+      return Semantics(
+          button: true,
+          selected: active,
+          label: item.name,
+          child: Tooltip(
+              message: '${item.name} · #${item.id}',
+              child: GestureDetector(
+                  onTap: () => _pick(item),
+                  child: Container(
+                      decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                              color: active
+                                  ? scheme.primary
+                                  : scheme.outlineVariant,
+                              width: active ? 3 : 1)),
+                      child: ClipRRect(
+                          borderRadius: BorderRadius.circular(5),
+                          child: LxnsAssetImage(
+                              url: _activeTab == 0
+                                  ? lxnsIconUrl(item.id)
+                                  : _activeTab == 1
+                                      ? lxnsPlateUrl(item.id)
+                                      : lxnsFrameUrl(item.id),
+                              fit: BoxFit.contain))))));
     }
 
     return Container(
-      height: screenSize.height * 0.65,
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      child: Column(
-        children: [
-          // 标题栏 + 头像列数步进器 + 关闭按钮
-          //
-          // 步进器放标题这一行（而不是网格上方单独一行）：弹窗高度只有屏幕的 65%，
-          // 少一行就多给头像区域 ~40dp —— 那一行刚好能多显示半排头像。
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            child: Row(
-              children: [
-                // ⚠️ 必须是 Expanded（不是 Flexible + Spacer）：
-                // 两者都带 flex，自由宽度会被**对半分**，标题只拿到一半
-                // （360dp 屏上约 27dp），于是「选择收藏品」被压成「选择…」——
-                // 明明右边还有空。Expanded 是唯一的 flex 子项，能吃掉**全部**剩余
-                // 宽度把按钮顶到最右；同时 maxLines/ellipsis 仍然兜住极窄屏 / 大字号的
-                // 溢出（那时才该省略）。
-                Expanded(
-                  child: Text('选择收藏品',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.primaryText(brightness))),
-                ),
-                // 姓名框是 6:1 的长条 banner，固定一行一个，不显示列数步进器
-                if (_activeTab == 0) ...[
-                  _buildColumnStepper(context),
-                  const SizedBox(width: 4),
-                ],
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-              ],
-            ),
-          ),
-          // tab 切换
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                _buildTabButton(
-                  ctx: context,
-                  label: '头像',
-                  isActive: _activeTab == 0,
-                  onTap: () => _switchTab(0),
-                ),
-                const SizedBox(width: 8),
-                _buildTabButton(
-                  ctx: context,
-                  label: '姓名框',
-                  isActive: _activeTab == 1,
-                  onTap: () => _switchTab(1),
-                ),
-              ],
-            ),
-          ),
-          // 搜索栏
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-            child: TextField(
-              controller: widget.searchController,
-              onChanged: (_) => setState(() {}),
-              decoration: InputDecoration(
-                hintText: searchHint,
-                prefixIcon: const Icon(Icons.search, size: 20),
-                suffixIcon: widget.searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear, size: 18),
-                        onPressed: () {
-                          widget.searchController.clear();
-                          setState(() {});
-                        },
-                      )
-                    : null,
-                isDense: true,
-                contentPadding:
-                    const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide:
-                      BorderSide(color: AppColors.tableBorder(brightness)),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide:
-                      BorderSide(color: AppColors.tableBorder(brightness)),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(
-                      color: Theme.of(context).colorScheme.onSurface),
-                ),
-              ),
-            ),
-          ),
-          // 搜索结果数量（只在搜索时出现，平时不占高度 —— 列数步进器已经挪到标题那行了）
-          if (keyword.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  '找到 ${filteredItems.length} 个${_activeTab == 0 ? "头像" : "姓名框"}',
-                  style: TextStyle(
-                      fontSize: 13,
-                      color: AppColors.greyHint(brightness, shade: 600)),
-                ),
-              ),
-            ),
-          const Divider(height: 1),
-          // 网格
-          Expanded(
-            child: filteredItems.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.search_off,
-                            size: 48,
-                            color: AppColors.greyHint(brightness, shade: 400)),
-                        const SizedBox(height: 8),
-                        Text(emptyText,
+        height: size.height * .72,
+        decoration: BoxDecoration(
+            color: scheme.surface,
+            borderRadius:
+                const BorderRadius.vertical(top: Radius.circular(16))),
+        child: SafeArea(
+            top: false,
+            child: Column(children: [
+              Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
+                  child: Row(children: [
+                    Expanded(
+                        child: Text('选择装扮',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                                color: AppColors.greyHint(brightness,
-                                    shade: 500))),
-                      ],
-                    ),
-                  )
-                : GridView.builder(
-                    padding: const EdgeInsets.all(12),
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      // 姓名框是长条形 banner 图片，使用 1 列 + 宽高比 6:1 避免被裁切/拉伸
-                      // 头像列数由上方「每行」步进器决定（默认 4，可在 3~10 之间调）
-                      crossAxisCount: _activeTab == 0 ? _avatarColumns : 1,
-                      crossAxisSpacing: _activeTab == 0 ? _avatarGridGap : 8,
-                      mainAxisSpacing: _activeTab == 0 ? _avatarGridGap : 8,
-                      childAspectRatio: _activeTab == 0 ? 1 : 6,
-                    ),
-                    itemCount: filteredItems.length,
-                    itemBuilder: (ctx, index) {
-                      final item = filteredItems[index];
-                      final isSelected = item.id == currentSelectedId;
-                      final imageUrl = _activeTab == 0
-                          ? lxnsIconUrl(item.id)
-                          : lxnsPlateUrl(item.id);
-                      final scheme = Theme.of(context).colorScheme;
-                      return GestureDetector(
-                        onTap: () {
-                          if (_activeTab == 0) {
-                            widget.onAvatarPicked(item.id);
-                          } else {
-                            widget.onPlatePicked(item.id);
-                          }
-                        },
-                        child: Container(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: isSelected
-                                  ? scheme.primary
-                                  : AppColors.tableBorder(brightness),
-                              width: isSelected ? 3 : 1,
-                            ),
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(6),
-                            // 用 LxnsAssetImage 而不是裸 CachedNetworkImage：
-                            //   1. 磁盘缓存单开（2000 个名额），不再和排行榜头像 /
-                            //      曲绘挤 DefaultCacheManager 的 200 个名额；
-                            //   2. 零淡入 + 静态占位 —— 这个 sheet 每次拉起都重建
-                            //      Widget 树，磁盘读是异步的，用转圈占位会让
-                            //      「本地已命中」看起来像「正在联网」；
-                            //   3. 自动按格子宽度限制解码尺寸，姓名框（720×116）
-                            //      不再按原尺寸解码去挤 ImageCache。
-                            child: LxnsAssetImage(
-                              url: imageUrl,
-                              fit: BoxFit.contain,
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-          ),
-        ],
-      ),
-    );
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: scheme.onSurface))),
+                    if (_activeTab == 0) _buildColumnStepper(context),
+                    IconButton(
+                        tooltip: '关闭',
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.pop(context)),
+                  ])),
+              Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: AnimatedChoiceBar<int>(
+                      values: const [0, 1, 2, 3],
+                      value: _activeTab,
+                      label: (i) => _labels[i],
+                      onChanged: _switchTab)),
+              Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+                  child: TextField(
+                      controller: _searchController,
+                      onChanged: (_) => setState(() {}),
+                      decoration: InputDecoration(
+                          hintText: '搜索$label名称、描述或编号',
+                          prefixIcon: const Icon(Icons.search, size: 20),
+                          isDense: true,
+                          suffixIcon: _searchController.text.isEmpty
+                              ? null
+                              : IconButton(
+                                  tooltip: '清空搜索',
+                                  icon: const Icon(Icons.clear, size: 18),
+                                  onPressed: () =>
+                                      setState(_searchController.clear)),
+                          border: const OutlineInputBorder()))),
+              Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text('共 ${items.length} 项',
+                          style: TextStyle(
+                              fontSize: 12, color: scheme.onSurfaceVariant)))),
+              if (widget.isLoading) const SmoothLinearProgressIndicator(),
+              const Divider(height: 1),
+              Expanded(
+                  child: items.isEmpty
+                      ? Center(
+                          child: Text(
+                              keyword.isEmpty
+                                  ? (widget.isLoading
+                                      ? '正在加载$label…'
+                                      : '暂无$label，请先刷新收藏品数据')
+                                  : '未找到匹配的$label',
+                              style: TextStyle(color: scheme.onSurfaceVariant)))
+                      : _activeTab == 3
+                          ? ListView.separated(
+                              padding: const EdgeInsets.all(12),
+                              itemCount: items.length,
+                              separatorBuilder: (_, __) =>
+                                  const Divider(height: 1),
+                              itemBuilder: (context, i) {
+                                final item = items[i];
+                                return ListTile(
+                                    selected: item.id == selected,
+                                    title: TrophyTitleBadge(
+                                        name: item.name,
+                                        color: item.color,
+                                        trophyId: item.id),
+                                    subtitle: Text('#${item.id}',
+                                        style: const TextStyle(fontSize: 11)),
+                                    trailing: SizedBox(
+                                        width: 24,
+                                        child: item.id == selected
+                                            ? const Icon(Icons.check)
+                                            : null),
+                                    onTap: () => _pick(item));
+                              })
+                          : GridView.builder(
+                              padding: const EdgeInsets.all(12),
+                              gridDelegate:
+                                  SliverGridDelegateWithFixedCrossAxisCount(
+                                      crossAxisCount:
+                                          _activeTab == 0 ? _avatarColumns : 1,
+                                      crossAxisSpacing:
+                                          _activeTab == 0 ? _avatarGridGap : 8,
+                                      mainAxisSpacing:
+                                          _activeTab == 0 ? _avatarGridGap : 8,
+                                      childAspectRatio: _activeTab == 0
+                                          ? 1
+                                          : _activeTab == 1
+                                              ? 6
+                                              : 1080 / 452),
+                              itemCount: items.length,
+                              itemBuilder: (_, i) => cell(items[i]))),
+            ])));
   }
 }

@@ -8,6 +8,8 @@ import '../api/ApiUrls.dart';
 import '../utils/CommonWidgetUtil.dart';
 import '../utils/ExternalLaunchUtil.dart';
 import '../widgets/PageTopBar.dart';
+import '../widgets/AppLauncherIcon.dart';
+import 'LegalDocumentPage.dart';
 
 /// 关于页：品牌介绍、维护者与致谢分组直接布局在主题背景上。
 class AboutAppPage extends StatefulWidget {
@@ -28,7 +30,10 @@ class _Credit {
   /// 可选的跳转链接
   final String? url;
 
-  const _Credit(this.name, this.desc, [this.url]);
+  /// 可选的头像代理 key（后端白名单），为空时使用分组默认图标
+  final String? avatarKey;
+
+  const _Credit(this.name, this.desc, [this.url, this.avatarKey]);
 }
 
 class _AboutAppPageState extends State<AboutAppPage> {
@@ -54,7 +59,7 @@ class _AboutAppPageState extends State<AboutAppPage> {
     _Credit('乐观的熊猫', '提议开发 ChiffonMai，为本项目诞生提供最初契机',
         'https://space.bilibili.com/438391224'),
     _Credit('迪拉熊重度依赖', '为本项目在前端细节与交互体验上提供了诸多宝贵建议',
-        'https://github.com/Timome-Sudo'),
+        'https://github.com/Timome-Sudo', 'dilaxiong'),
     _Credit('Michaelwucoc', '为本项目的开发提供了技术支持和经济支持，为项目的推进提供了极大的帮助',
         'https://github.com/Michaelwucoc'),
     _Credit('ChiffonMai交流群的全体群友', '为本项目开发提供了诸多宝贵建议和反馈'),
@@ -97,14 +102,16 @@ class _AboutAppPageState extends State<AboutAppPage> {
         '中二查歌', '设计思路借鉴', 'https://github.com/k4641321/chusearchsong_flutter'),
   ];
 
-  /// 捐献支持名单。
+  /// 捐献支持名单。带了 [avatarKey] 的会通过后端头像代理显示 QQ 头像。
   static const List<_Credit> _donationCredits = [
     _Credit('Pokcet', '感谢对本项目的捐献支持'),
     _Credit('ListaQwQ', '感谢对本项目的捐献支持'),
-    _Credit('迪拉熊重度依赖', '感谢对本项目的捐献支持'),
+    _Credit('迪拉熊重度依赖', '感谢对本项目的捐献支持', null, 'dilaxiong'),
     _Credit('白嫖万岁', '感谢对本项目的捐献支持'),
     _Credit('鱼好呆', '感谢对本项目的捐献支持'),
-    _Credit('Rinviolet', '感谢对本项目的捐献支持'),
+    _Credit('Rinviolet', '感谢对本项目的捐献支持', null, 'rinviolet'),
+    _Credit('Redapple_one', '感谢对本项目的捐献支持', 'https://me.redapple.one',
+        'redapple_one'),
   ];
 
   String _version = '';
@@ -191,6 +198,24 @@ class _AboutAppPageState extends State<AboutAppPage> {
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             _buildAppHeader(),
+                            const SizedBox(height: 12),
+                            Wrap(
+                              spacing: 8,
+                              children: [
+                                for (final document in AppLegalDocument.values)
+                                  TextButton.icon(
+                                    onPressed: () => LegalDocumentPage.open(
+                                        context, document),
+                                    icon: Icon(
+                                        document ==
+                                                AppLegalDocument.userAgreement
+                                            ? Icons.description_outlined
+                                            : Icons.privacy_tip_outlined,
+                                        size: 18),
+                                    label: Text(document.title),
+                                  ),
+                              ],
+                            ),
                             const SizedBox(height: 36),
                             _buildSectionTitle('维护者', 'ChiffonMai 背后的开发者。'),
                             _buildDeveloperSection(),
@@ -255,7 +280,7 @@ class _AboutAppPageState extends State<AboutAppPage> {
       children: [
         Row(
           children: [
-            const _AndroidLauncherIcon(size: 64),
+            const AppLauncherIcon(size: 64),
             const SizedBox(width: 16),
             Expanded(
               child: Column(
@@ -473,11 +498,7 @@ class _AboutAppPageState extends State<AboutAppPage> {
             CircleAvatar(
               radius: 22,
               backgroundColor: scheme.primaryContainer,
-              child: Icon(
-                _creditIcon(credit, personal: personal),
-                size: 22,
-                color: scheme.onPrimaryContainer,
-              ),
+              child: _buildCreditAvatar(credit, personal: personal),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -508,7 +529,35 @@ class _AboutAppPageState extends State<AboutAppPage> {
     );
   }
 
-  /// 创作与支持、捐献名单使用统一默认头像；服务类致谢按链接性质区分图标。
+  /// 配置了头像代理 key 的条目显示真实头像；加载中/失败/未配置时退回默认图标。
+  Widget _buildCreditAvatar(_Credit credit, {required bool personal}) {
+    final scheme = Theme.of(context).colorScheme;
+    final icon = Icon(
+      _creditIcon(credit, personal: personal),
+      size: 22,
+      color: scheme.onPrimaryContainer,
+    );
+    final key = credit.avatarKey;
+    if (key == null) return icon;
+    // 与维护者头像保持同一尺寸比例（CircleAvatar 半径 22 → 直径 44）。
+    const size = 44.0;
+    return ClipOval(
+      child: CachedNetworkImage(
+        // 仅请求自家后端；QQ 请求头、限频和 24 小时磁盘缓存均由后端处理。
+        imageUrl: ApiUrls.AboutAvatarUrl(key),
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        memCacheWidth: (size * MediaQuery.devicePixelRatioOf(context)).round(),
+        fadeInDuration: Duration.zero,
+        fadeOutDuration: Duration.zero,
+        placeholder: (context, url) => icon,
+        errorWidget: (context, url, error) => icon,
+      ),
+    );
+  }
+
+  /// 未配置头像代理的创作与支持、捐献名单使用统一默认头像；服务类致谢按链接性质区分图标。
   IconData _creditIcon(_Credit credit, {required bool personal}) {
     final url = credit.url?.toLowerCase() ?? '';
     final name = credit.name.toLowerCase();
@@ -530,60 +579,5 @@ class _AboutAppPageState extends State<AboutAppPage> {
     if (url.contains('dxrating.net')) return Icons.insights_outlined;
     if (url.contains('wmc.pub')) return Icons.cloud_sync_outlined;
     return Icons.language_rounded;
-  }
-}
-
-/// 按 Android 自适应图标的裁剪尺寸显示 App 图标。
-///
-/// Android 自适应图标的画布是 108×108 dp，但启动器遮罩只显示中间
-/// 72×72 dp（外圈每边 18dp 会被裁掉）。
-///
-/// 本项目的 `assets/icon.png` 是一张通版插画，`flutter_launcher_icons`
-/// 把它铺满了整个 108dp 画布（见 `android/.../drawable-*/ic_launcher_foreground.png`，
-/// 内容确实是贴边的），所以桌面上实际看到的只有**中间 2/3**。
-/// 直接把原图整张贴出来会比桌面图标"多出一圈"，看起来对不上；
-/// 这里按 108/72 = 1.5 倍放大后居中裁切，还原启动器的观感。
-class _AndroidLauncherIcon extends StatelessWidget {
-  final double size;
-
-  const _AndroidLauncherIcon({required this.size});
-
-  /// 自适应图标可见区与画布之比：72 / 108
-  static const double _safeZoneRatio = 72 / 108;
-
-  @override
-  Widget build(BuildContext context) {
-    final scaledSize = size / _safeZoneRatio;
-    // 原图是 2048²，不限制解码尺寸的话一张图就要占 16MB 内存
-    final cacheWidth =
-        (scaledSize * MediaQuery.of(context).devicePixelRatio).round();
-
-    return SizedBox(
-      width: size,
-      height: size,
-      child: ClipRRect(
-        // 与多数启动器的圆角遮罩接近
-        borderRadius: BorderRadius.circular(size * 0.24),
-        child: Transform.scale(
-          scale: 1 / _safeZoneRatio,
-          child: Image.asset(
-            'assets/icon.png',
-            width: size,
-            height: size,
-            fit: BoxFit.cover,
-            cacheWidth: cacheWidth,
-            gaplessPlayback: true,
-            errorBuilder: (context, error, stack) => ColoredBox(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              child: Icon(
-                Icons.image_not_supported_outlined,
-                size: size * 0.4,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
   }
 }

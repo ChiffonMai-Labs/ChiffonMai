@@ -2,6 +2,7 @@ import 'dart:math';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show setEquals;
 
 import 'package:my_first_flutter_app/utils/CoverUtil.dart';
 
@@ -38,7 +39,8 @@ class TileRevealImage extends StatefulWidget {
 class _TileRevealImageState extends State<TileRevealImage> {
   ImageStream? _imageStream;
   ImageStreamListener? _listener;
-  ui.Image? _image;
+  ImageInfo? _imageInfo;
+  int _loadGeneration = 0;
 
   @override
   void didUpdateWidget(covariant TileRevealImage oldWidget) {
@@ -62,16 +64,24 @@ class _TileRevealImageState extends State<TileRevealImage> {
   // CoverUtil 的剔除规则换算成真实资源名（如：11312 → 1312.webp），
   // 直读会几乎必失败，表现为拼图全程只剩灰底。
   Future<void> _loadImage() async {
+    final generation = ++_loadGeneration;
+    // 新一局先解除旧图片的订阅，避免迟到的帧覆盖新曲绘。
+    _detachImage();
     final String songId = widget.songId;
     final provider = await CoverUtil.resolveCoverProvider(songId);
-    if (!mounted || songId != widget.songId) return;
+    if (!mounted || generation != _loadGeneration) return;
 
     final stream = provider.resolve(createLocalImageConfiguration(context));
     _listener = ImageStreamListener((ImageInfo info, bool synchronousCall) {
-      if (!mounted) return;
+      if (!mounted || generation != _loadGeneration) {
+        info.dispose();
+        return;
+      }
+      final previous = _imageInfo;
       setState(() {
-        _image = info.image;
+        _imageInfo = info;
       });
+      previous?.dispose();
     }, onError: (Object error, StackTrace? stackTrace) {
       // 曲绘加载失败：保持空底色，不阻塞游戏
     });
@@ -79,23 +89,35 @@ class _TileRevealImageState extends State<TileRevealImage> {
     stream.addListener(_listener!);
   }
 
-  @override
-  void dispose() {
+  void _detachImage() {
     if (_imageStream != null && _listener != null) {
       _imageStream!.removeListener(_listener!);
     }
+    _imageStream = null;
+    _listener = null;
+    _imageInfo?.dispose();
+    _imageInfo = null;
+  }
+
+  @override
+  void dispose() {
+    ++_loadGeneration;
+    _detachImage();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return CustomPaint(
-      size: Size(widget.size, widget.size),
-      painter: _TileRevealPainter(
-        image: _image,
-        tileCount: widget.tileCount,
-        revealedTiles: widget.revealedTiles,
-        emptyColor: widget.emptyColor,
+    return RepaintBoundary(
+      child: CustomPaint(
+        size: Size(widget.size, widget.size),
+        painter: _TileRevealPainter(
+          image: _imageInfo?.image,
+          tileCount: widget.tileCount,
+          // 上层会原位修改 Set；保留快照才能识别新增或替换的块。
+          revealedTiles: Set<int>.unmodifiable(widget.revealedTiles),
+          emptyColor: widget.emptyColor,
+        ),
       ),
     );
   }
@@ -157,7 +179,7 @@ class _TileRevealPainter extends CustomPainter {
   bool shouldRepaint(covariant _TileRevealPainter oldDelegate) {
     return oldDelegate.image != image ||
         oldDelegate.tileCount != tileCount ||
-        oldDelegate.revealedTiles.length != revealedTiles.length ||
+        !setEquals(oldDelegate.revealedTiles, revealedTiles) ||
         oldDelegate.emptyColor != emptyColor;
   }
 }

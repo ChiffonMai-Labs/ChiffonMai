@@ -2,6 +2,8 @@
 class CacheTimestampConstant {
   // 单位：分钟（-1表示永不过期）
   static const int rankingsCacheMinutes = -1;
+  // 服务端定时生成的综合排行榜，客户端按响应中的下一次更新时间过期。
+  static const int computedRankingsCacheMinutes = 6 * 60;
 
   // 默认缓存时间（与首页初始化冷却周期一致，7天）
   static const int defaultCacheDays = 7;

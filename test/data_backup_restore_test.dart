@@ -7,22 +7,210 @@
 //
 // 这里锁住第 2 件事依赖的契约：restoreData 能正确往返 + clearFirst 的覆盖语义，
 // 以及 reloadAfterRestore 确实把内存里的单例重新读了一遍。
+import 'dart:convert';
+import 'dart:io';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_platform_interface.dart';
 
 import 'package:my_first_flutter_app/constant/CacheKeyConstant.dart';
 import 'package:my_first_flutter_app/service/DataBackupService.dart';
 import 'package:my_first_flutter_app/utils/FavoriteFeaturesNotifier.dart';
 import 'package:my_first_flutter_app/utils/UserProfileNotifier.dart';
+import 'package:my_first_flutter_app/service/UserFileBackupService.dart';
+import 'package:my_first_flutter_app/service/LogExportService.dart';
+import 'package:my_first_flutter_app/utils/NavigationPreferences.dart';
+import 'package:my_first_flutter_app/utils/SearchInteractionPreferences.dart';
+import 'package:my_first_flutter_app/utils/SecureCredentialStore.dart';
 
 /// 构造一条与导出格式一致的备份项。
 Map<String, dynamic> _entry(String type, Object? value) =>
     {'type': type, 'value': value};
 
+class _FailingPreferences extends InMemorySharedPreferencesStore {
+  _FailingPreferences() : super.withData({'flutter.original': 'before'});
+  @override
+  Future<bool> setValue(String type, String key, Object value) async {
+    if (key == 'flutter.fail') return false;
+    return super.setValue(type, key, value);
+  }
+}
+
+class _BackupPaths extends PathProviderPlatform {
+  _BackupPaths(this.root);
+  final String root;
+  @override
+  Future<String> getApplicationDocumentsPath() async => '$root/documents';
+  @override
+  Future<String> getApplicationSupportPath() async => '$root/support';
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   final service = DataBackupService();
+  late Directory root;
+  late PathProviderPlatform originalPaths;
+  setUp(() async {
+    FlutterSecureStorage.setMockInitialValues({});
+    root = await Directory.systemTemp.createTemp('chiffonmai_backup_');
+    originalPaths = PathProviderPlatform.instance;
+    PathProviderPlatform.instance = _BackupPaths(root.path);
+  });
+  tearDown(() async {
+    PathProviderPlatform.instance = originalPaths;
+    await root.delete(recursive: true);
+  });
+
+  test('偏好写入失败时恢复旧偏好和历史文件，不留下半份 v3 备份', () async {
+    SharedPreferences.setMockInitialValues({});
+    SharedPreferencesStorePlatform.instance = _FailingPreferences();
+    final original = File('${root.path}/support/history/original.json');
+    await original.parent.create(recursive: true);
+    await original.writeAsString('{"before":true}');
+    await expectLater(
+        service.restoreBackup({
+          'version': 3,
+          'files': {
+            'history/new.json': {
+              'content': base64Encode(utf8.encode('{}')),
+              'originalPath': '/old/new.json'
+            },
+          },
+          'data': {
+            'ok': _entry('String', 'partial'),
+            'fail': _entry('String', 'rejected')
+          }
+        }),
+        throwsStateError);
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('original'), 'before');
+    expect(prefs.containsKey('ok'), isFalse);
+    expect(prefs.containsKey('fail'), isFalse);
+    expect(await original.readAsString(), '{"before":true}');
+    expect(
+        await File('${root.path}/support/history/new.json').exists(), isFalse);
+  });
+
+  test('全部无效的备份不会清空现有用户数据', () async {
+    SharedPreferences.setMockInitialValues({'keep': 'original'});
+    await expectLater(
+        service.restoreBackup({
+          'version': 2,
+          'data': {'bad': _entry('int', 'not-a-number')}
+        }),
+        throwsFormatException);
+    expect(
+        (await SharedPreferences.getInstance()).getString('keep'), 'original');
+  });
+
+  test('旧备份中的可重建缓存和安全凭据不会重新注入', () async {
+    SharedPreferences.setMockInitialValues({});
+    final count = await service.restoreData({
+      'navigation_bar_style': _entry('String', 'expandingPill'),
+      CacheKeyConstant.maidataFullCache: _entry('String', '过期缓存'),
+      CacheKeyConstant.autoSyncTasks: _entry('String', '敏感任务'),
+    });
+    expect(count, 1);
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('navigation_bar_style'), 'expandingPill');
+    expect(prefs.containsKey(CacheKeyConstant.maidataFullCache), isFalse);
+    expect(prefs.containsKey(CacheKeyConstant.autoSyncTasks), isFalse);
+  });
+
+  test('v3 收集历史、背景和谱面归档，排除音源和 maidata', () async {
+    SharedPreferences.setMockInitialValues({});
+    Future<File> create(String path, String value) async {
+      final file = File('${root.path}/$path');
+      await file.parent.create(recursive: true);
+      return file.writeAsString(value);
+    }
+
+    await create('support/history/luoxue_123.json', '{"schemaVersion":1}');
+    await create('documents/custom_chart_play/archives/song.adx', '谱面包');
+    await create('documents/portable_pv_cache/movie.mp4', '视频缓存');
+    await create('documents/maidata_full_cache.json', '{}');
+    final bg = await create('original/bg.png', '背景图');
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(CacheKeyConstant.customBackgroundPath, bg.path);
+    final files = await UserFileBackupService.collect(prefs);
+    expect(files.keys.toSet(),
+        {'history/luoxue_123.json', 'archives/song.adx', 'background/bg.png'});
+  });
+
+  test('v3 恢复用户文件并改写跨设备背景与谱面归档路径', () async {
+    SharedPreferences.setMockInitialValues({});
+    const oldBg = '/old-device/bg.png', oldChart = '/old-device/song.adx';
+    final files = {
+      'history/shuiyu_123.json': {
+        'content': base64Encode(utf8.encode('{}')),
+        'originalPath': '/old-device/shuiyu_123.json'
+      },
+      'background/bg.png': {
+        'content': base64Encode([1, 2, 3]),
+        'originalPath': oldBg
+      },
+      'archives/song.adx': {
+        'content': base64Encode([4, 5, 6]),
+        'originalPath': oldChart
+      },
+    };
+    await service.restoreBackup({
+      'version': 3,
+      'files': files,
+      'data': {
+        CacheKeyConstant.customBackgroundPath: _entry('String', oldBg),
+        'custom_chart_package_history_v1': _entry(
+            'String',
+            jsonEncode([
+              {'archivedPath': oldChart}
+            ])),
+      }
+    });
+    final prefs = await SharedPreferences.getInstance();
+    final path = prefs.getString(CacheKeyConstant.customBackgroundPath)!;
+    expect(path, contains(root.path));
+    expect(await File(path).readAsBytes(), [1, 2, 3]);
+    final history =
+        jsonDecode(prefs.getString('custom_chart_package_history_v1')!);
+    expect(await File(history[0]['archivedPath']).readAsBytes(), [4, 5, 6]);
+    expect(await File('${root.path}/support/history/shuiyu_123.json').exists(),
+        isTrue);
+  });
+
+  test('用户文件恢复校验路径，并能回滚已覆盖的历史', () async {
+    await expectLater(
+        UserFileBackupService.prepare({'history/../escape.json': {}},
+            clearFirst: true),
+        throwsFormatException);
+    final original = File('${root.path}/support/history/old.json');
+    await original.parent.create(recursive: true);
+    await original.writeAsString('{"old":true}');
+    final restore = await UserFileBackupService.prepare({
+      'history/new.json': {
+        'content': base64Encode(utf8.encode('{"new":true}')),
+        'originalPath': '/old/new.json'
+      }
+    }, clearFirst: true);
+    await restore.apply();
+    expect(await original.exists(), isFalse);
+    await restore.rollback();
+    expect(await original.readAsString(), '{"old":true}');
+    expect(
+        await File('${root.path}/support/history/new.json').exists(), isFalse);
+  });
+
+  test('导出日志隐藏凭据和二维码，同时保留窗口诊断', () {
+    const stack = '#0 _PredictiveBackGestureDetectorState.handleStartBackGesture (package:flutter/src/widgets/navigator.dart:123:4)';
+    expect(LogExportService.redact(stack), stack);
+    final safe = LogExportService.redact(
+        '[Window] 1080x2400 password=secret token=abc SGWCMAID123456 gw_abcdefg');
+    expect(safe, contains('[Window] 1080x2400'));
+    for (final secret in ['secret', 'abc', 'SGWCMAID123456', 'gw_abcdefg'])
+      expect(safe, isNot(contains(secret)));
+  });
 
   group('restoreData', () {
     test('四种基本类型 + List<String> 都能原样往返', () async {
@@ -76,6 +264,8 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.containsKey(CacheKeyConstant.awmcToken), isFalse,
           reason: '恢复不该把陌生人备份里的令牌写进本机');
+      expect(await SecureCredentialStore.read(CacheKeyConstant.awmcToken), 'gw_用户自己的令牌',
+          reason: '覆盖恢复保留本机原有授权，不采纳备份中的令牌');
     });
 
     test('类型对不上的坏数据只跳过那一条，不影响其余键', () async {
@@ -108,11 +298,15 @@ void main() {
 
       // 模拟恢复：prefs 被整体改写成备份里的内容
       await service.restoreData({
-        CacheKeyConstant.favoriteFeatures: _entry('List<String>', <String>['新收藏']),
+        CacheKeyConstant.favoriteFeatures:
+            _entry('List<String>', <String>['新收藏']),
         'userNickname': _entry('String', '新昵称'),
       });
 
       await service.reloadAfterRestore();
+      expect(
+          NavigationPreferences.instance.barStyle, NavigationBarStyle.standard);
+      expect(SearchInteractionPreferences.instance.usesOverlay, isTrue);
 
       expect(FavoriteFeaturesNotifier.titles, {'新收藏'},
           reason: '不重读的话，用户下一次点星标就会用旧集合整体覆盖恢复结果');

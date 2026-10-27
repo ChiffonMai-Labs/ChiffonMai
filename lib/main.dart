@@ -1,3 +1,5 @@
+import 'utils/CurrentDataSourceNotifier.dart';
+import 'service/PlayerExperienceService.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -41,6 +43,8 @@ Future<void> _initStartupServices() async {
   try {
     await SecureCredentialStore.migrateLegacy();
     await AccountSwitchService.ensureMigrated();
+    await CurrentDataSourceNotifier.load();
+    unawaited(PlayerExperienceService.instance.start());
     await _initBackgroundAudio();
   } catch (e) {
     debugPrint('[Startup] 后台初始化失败（不影响首页交互）: $e');
@@ -87,6 +91,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   bool _fontsLoaded = false;
   bool _themeLoaded = false;
+  Size? _lastWindowPhysicalSize;
+  double? _lastWindowPixelRatio;
+  bool _windowMetricsReportScheduled = false;
 
   /// 收藏夹「一键导入」通道，与 MainActivity.kt 中的 IMPORT_CHANNEL 对应
   static const MethodChannel _openFileChannel =
@@ -123,9 +130,34 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    debugPrint(
+        '[Window] 生命周期 $state，framesEnabled=${WidgetsBinding.instance.framesEnabled}');
     if (state == AppLifecycleState.resumed) {
       unawaited(NavigationPreferences.instance.applySystemUiMode());
     }
+  }
+
+  @override
+  void didChangeMetrics() {
+    final view = WidgetsBinding.instance.platformDispatcher.implicitView;
+    if (view == null) return;
+    // 只关注实际窗口尺寸/像素比；键盘动画仅改变 inset，不逐帧刷诊断日志。
+    if (view.physicalSize == _lastWindowPhysicalSize &&
+        view.devicePixelRatio == _lastWindowPixelRatio) return;
+    _lastWindowPhysicalSize = view.physicalSize;
+    _lastWindowPixelRatio = view.devicePixelRatio;
+    if (_windowMetricsReportScheduled) return;
+    _windowMetricsReportScheduled = true;
+    debugPrint('[Window] 窗口变化 physical=${view.physicalSize} '
+        'dpr=${view.devicePixelRatio} padding=${view.padding} '
+        'insets=${view.viewInsets} framesEnabled=${WidgetsBinding.instance.framesEnabled}');
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _windowMetricsReportScheduled = false;
+      if (!mounted) return;
+      final renderObject = _navigatorKey.currentContext?.findRenderObject();
+      debugPrint('[Window] 窗口变化后帧已完成，Navigator='
+          '${renderObject is RenderBox && renderObject.hasSize ? renderObject.size : "尚未布局"}');
+    });
   }
 
   /// App 进入时检查一次更新，把结果写进 [UpdateNotifier]。

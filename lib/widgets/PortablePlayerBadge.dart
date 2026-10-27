@@ -18,10 +18,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../constant/CacheKeyConstant.dart';
-import '../../entity/Portable/PortableSong.dart';
-import '../../service/Portable/PortablePlayerController.dart';
-import '../../utils/PortablePlayerScope.dart';
+import '../constant/CacheKeyConstant.dart';
+import '../entity/Portable/PortableSong.dart';
+import '../service/Portable/PortablePlayerController.dart';
+import '../utils/PortablePlayerScope.dart';
 import 'DxRatingCoverImage.dart';
 import 'PortablePlaybackModeButton.dart';
 import '../page/Portable/PortableNowPlayingPage.dart';

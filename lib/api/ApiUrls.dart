@@ -10,11 +10,20 @@ class ApiUrls {
   /// 同步耗时统计代理。Redis 凭据只保留在服务端，App 不再直连 Redis。
   static const String SyncStatsUrl = '$BackendBaseUrl/api/sync-stats';
   static const String AutoSyncTaskUrl = '$BackendBaseUrl/api/auto-sync/task';
+  static const String AutoSyncOverviewUrl =
+      '$BackendBaseUrl/api/auto-sync/overview';
   static const String LoadingTipsUrl = '$BackendBaseUrl/api/loading-tips';
   static const String FriendLinksUrl = '$BackendBaseUrl/api/friend-links';
-  static const String AnnouncementUrl = '$BackendBaseUrl/api/announcements/current';
+  static const String AnnouncementUrl =
+      '$BackendBaseUrl/api/announcements/current';
   static const String MaintainerAvatarUrl =
       '$BackendBaseUrl/api/about/maintainer-avatar';
+
+  /// 关于页头像代理（白名单 key，如 `rinviolet` / `dilaxiong` / `redapple_one`）。
+  ///
+  /// QQ 号、抓取限频和磁盘缓存都在后端维护，客户端只传 key，不要自己拼 QQ 号去访问腾讯接口。
+  static String AboutAvatarUrl(String key) =>
+      '$BackendBaseUrl/api/about/avatar/$key';
   static const String TranslationUrl = '$BackendBaseUrl/api/translate';
 
   /// 客户端网关密钥只从构建环境注入，源码不保存默认值。
@@ -176,7 +185,7 @@ class ApiUrls {
       'https://chiffonmai.cloud/app_version.json';
 
   // 多人游戏服务器地址
-  static const String MultiplayerServerUrl = 'wss://chiffonmai.cloud';
+  static const String MultiplayerServerUrl = 'wss://chiffonmai.cloud/ws';
   static const String MultiplayerGameServerUrl = 'wss://chiffonmai.cloud';
 
   // Maidata 服务器地址

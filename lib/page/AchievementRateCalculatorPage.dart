@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import '../widgets/BackgroundPageScaffold.dart';
 
 class AchievementRateCalculator extends StatefulWidget {
@@ -94,6 +93,11 @@ class _AchievementRateCalculatorState extends State<AchievementRateCalculator> {
           totalTouchWeight +
           totalBreakWeight;
 
+      if (totalWeight == 0) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('请至少输入一个音符')));
+        return;
+      }
       // 计算基础评价部分 满分100
       double baseTapWeight =
           tapWeight * (_tapCp + _tapP + _tapG * 0.80 + _tapGo * 0.50);
@@ -126,7 +130,7 @@ class _AchievementRateCalculatorState extends State<AchievementRateCalculator> {
           _break50 * 0.75 +
           (_break80 + _break60 + _break50g) * 0.40 +
           _breakGo * 0.30;
-      double extraScore = extraBreakWeight / breakNum;
+      double extraScore = breakNum == 0 ? 0 : extraBreakWeight / breakNum;
       extraScore = double.parse(extraScore.toStringAsFixed(4));
 
       // 最终达成率
@@ -295,7 +299,6 @@ class _AchievementRateCalculatorState extends State<AchievementRateCalculator> {
 
   @override
   Widget build(BuildContext context) {
-    final brightness = Theme.of(context).brightness;
     // 获取屏幕尺寸
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
@@ -317,7 +320,8 @@ class _AchievementRateCalculatorState extends State<AchievementRateCalculator> {
           // 可滚动内容区域
           Expanded(
             child: SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(screenWidth * 0.04, 8, screenWidth * 0.04, screenWidth * 0.04),
+              padding: EdgeInsets.fromLTRB(screenWidth * 0.04, 8,
+                  screenWidth * 0.04, screenWidth * 0.04),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -328,7 +332,7 @@ class _AchievementRateCalculatorState extends State<AchievementRateCalculator> {
                   SizedBox(height: screenHeight * 0.03), // 间距为屏幕高度的3%
 
                   // BREAK音符区域
-                  _buildSectionTitle('BREAK音符'),
+                  _buildSectionTitle('BREAK 音符'),
                   _buildBreakNoteSection(),
                   SizedBox(height: screenHeight * 0.03), // 间距为屏幕高度的3%
                 ],
@@ -340,21 +344,18 @@ class _AchievementRateCalculatorState extends State<AchievementRateCalculator> {
           Container(
             margin: EdgeInsets.fromLTRB(screenWidth * 0.03, screenWidth * 0.03,
                 screenWidth * 0.03, screenWidth * 0.03),
-            child: ElevatedButton(
+            child: FilledButton(
               onPressed: _calculateAchievementRate,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.linkBlue(brightness),
-                foregroundColor: Colors.white,
-                padding: EdgeInsets.symmetric(
-                    vertical: screenHeight * 0.02), // 垂直 padding 为屏幕高度的2%
-                textStyle: TextStyle(
-                  fontSize: screenWidth * 0.05, // 字体大小为屏幕宽度的5%
-                  fontWeight: FontWeight.bold,
-                ),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                textStyle: Theme.of(context)
+                    .textTheme
+                    .titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w600),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8.0),
                 ),
-                elevation: 5,
+                elevation: 0,
                 minimumSize: Size(double.infinity, 0),
               ),
               child: const Text('计算达成率'),
@@ -367,197 +368,115 @@ class _AchievementRateCalculatorState extends State<AchievementRateCalculator> {
 
   // 构建区域标题
   Widget _buildSectionTitle(String title) {
-    final screenWidth = MediaQuery.of(context).size.width;
-
-    return Text(
-      title,
-      style: TextStyle(
-        fontSize: screenWidth * 0.05, // 字体大小为屏幕宽度的5%
-        fontWeight: FontWeight.bold,
-        color: AppColors.linkBlue(Theme.of(context).brightness),
-      ),
-      textAlign: TextAlign.center,
-    );
+    return Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Text(
+          title,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+          textAlign: TextAlign.start,
+        ));
   }
 
-  // 构建普通音符表格
+  // 判定纵向排列，避免手机上同时塞入六个狭窄的输入列。
   Widget _buildNormalNoteTable(
       int totalCp, int totalP, int totalG, int totalGo, int totalM) {
+    final scheme = Theme.of(context).colorScheme;
     return Table(
-      border: TableBorder(
-        // 调整边框样式，确保颜色完全填充
-        horizontalInside: BorderSide(
-            color: AppColors.tableBorder(Theme.of(context).brightness)),
-        verticalInside: BorderSide(
-            color: AppColors.tableBorder(Theme.of(context).brightness)),
-        top: BorderSide(
-            color: AppColors.tableBorder(Theme.of(context).brightness)),
-        bottom: BorderSide(
-            color: AppColors.tableBorder(Theme.of(context).brightness)),
-        left: BorderSide(
-            color: AppColors.tableBorder(Theme.of(context).brightness)),
-        right: BorderSide(
-            color: AppColors.tableBorder(Theme.of(context).brightness)),
-      ),
+      border: TableBorder.all(color: scheme.outlineVariant),
+      columnWidths: const {0: FixedColumnWidth(88)},
       defaultVerticalAlignment: TableCellVerticalAlignment.middle,
       children: [
-        // 表头
         TableRow(
-          children: [
-            _buildTableCell('', color: Colors.transparent),
-            _buildTableCell('CRITICAL\nPERFECT',
-                color: Colors.yellow[200]!, fontSize: 8.5),
-            _buildTableCell('PERFECT', color: Colors.yellow[400]!, fontSize: 9),
-            _buildTableCell('GREAT', color: Colors.pink[200]!, fontSize: 10),
-            _buildTableCell('GOOD', color: Colors.green[200]!, fontSize: 10),
-            _buildTableCell('MISS', color: Colors.grey[200]!, fontSize: 10),
-          ],
-        ),
-        // TAP行
+            decoration: BoxDecoration(color: scheme.surfaceContainerHighest),
+            children: [
+              for (final title in ['判定', 'TAP', 'HOLD', 'SLIDE', 'TOUCH'])
+                _buildTableCell(title),
+            ]),
+        TableRow(children: [
+          _buildTableCell('CRITICAL\nPERFECT',
+              color: Colors.amber.withValues(alpha: .14), fontSize: 11),
+          _buildNumberInputCell(_tapCp,
+              (value) => setState(() => _tapCp = value), _tapCpController),
+          _buildNumberInputCell(_holdCp,
+              (value) => setState(() => _holdCp = value), _holdCpController),
+          _buildNumberInputCell(_slideCp,
+              (value) => setState(() => _slideCp = value), _slideCpController),
+          _buildNumberInputCell(_touchCp,
+              (value) => setState(() => _touchCp = value), _touchCpController),
+        ]),
+        TableRow(children: [
+          _buildTableCell('PERFECT',
+              color: Colors.amber.withValues(alpha: .14), fontSize: 11),
+          _buildNumberInputCell(
+              _tapP, (value) => setState(() => _tapP = value), _tapPController),
+          _buildNumberInputCell(_holdP,
+              (value) => setState(() => _holdP = value), _holdPController),
+          _buildNumberInputCell(_slideP,
+              (value) => setState(() => _slideP = value), _slidePController),
+          _buildNumberInputCell(_touchP,
+              (value) => setState(() => _touchP = value), _touchPController),
+        ]),
+        TableRow(children: [
+          _buildTableCell('GREAT',
+              color: Colors.pink.withValues(alpha: .14), fontSize: 11),
+          _buildNumberInputCell(
+              _tapG, (value) => setState(() => _tapG = value), _tapGController),
+          _buildNumberInputCell(_holdG,
+              (value) => setState(() => _holdG = value), _holdGController),
+          _buildNumberInputCell(_slideG,
+              (value) => setState(() => _slideG = value), _slideGController),
+          _buildNumberInputCell(_touchG,
+              (value) => setState(() => _touchG = value), _touchGController),
+        ]),
+        TableRow(children: [
+          _buildTableCell('GOOD',
+              color: Colors.green.withValues(alpha: .14), fontSize: 11),
+          _buildNumberInputCell(_tapGo,
+              (value) => setState(() => _tapGo = value), _tapGoController),
+          _buildNumberInputCell(_holdGo,
+              (value) => setState(() => _holdGo = value), _holdGoController),
+          _buildNumberInputCell(_slideGo,
+              (value) => setState(() => _slideGo = value), _slideGoController),
+          _buildNumberInputCell(_touchGo,
+              (value) => setState(() => _touchGo = value), _touchGoController),
+        ]),
+        TableRow(children: [
+          _buildTableCell('MISS',
+              color: Colors.blueGrey.withValues(alpha: .14), fontSize: 11),
+          _buildNumberInputCell(
+              _tapM, (value) => setState(() => _tapM = value), _tapMController),
+          _buildNumberInputCell(_holdM,
+              (value) => setState(() => _holdM = value), _holdMController),
+          _buildNumberInputCell(_slideM,
+              (value) => setState(() => _slideM = value), _slideMController),
+          _buildNumberInputCell(_touchM,
+              (value) => setState(() => _touchM = value), _touchMController),
+        ]),
         TableRow(
-          decoration: const BoxDecoration(), // 确保行没有额外装饰
-          children: [
-            _buildTableCell('TAP',
-                color: Colors.lightBlue[100]!, fontSize: 11.2),
-            _buildNumberInputCell(
-                _tapCp, (val) => setState(() => _tapCp = val), _tapCpController,
-                color: Colors.yellow[200]),
-            _buildNumberInputCell(
-                _tapP, (val) => setState(() => _tapP = val), _tapPController,
-                color: Colors.yellow[400]),
-            _buildNumberInputCell(
-                _tapG, (val) => setState(() => _tapG = val), _tapGController,
-                color: Colors.pink[200]),
-            _buildNumberInputCell(
-                _tapGo, (val) => setState(() => _tapGo = val), _tapGoController,
-                color: Colors.green[200]),
-            _buildNumberInputCell(
-                _tapM, (val) => setState(() => _tapM = val), _tapMController,
-                color: Colors.grey[200]),
-          ],
-        ),
-        // HOLD行
-        TableRow(
-          decoration: const BoxDecoration(),
-          children: [
-            _buildTableCell('HOLD',
-                color: Colors.lightBlue[100]!, fontSize: 11.2),
-            _buildNumberInputCell(_holdCp,
-                (val) => setState(() => _holdCp = val), _holdCpController,
-                color: Colors.yellow[200]),
-            _buildNumberInputCell(
-                _holdP, (val) => setState(() => _holdP = val), _holdPController,
-                color: Colors.yellow[400]),
-            _buildNumberInputCell(
-                _holdG, (val) => setState(() => _holdG = val), _holdGController,
-                color: Colors.pink[200]),
-            _buildNumberInputCell(_holdGo,
-                (val) => setState(() => _holdGo = val), _holdGoController,
-                color: Colors.green[200]),
-            _buildNumberInputCell(
-                _holdM, (val) => setState(() => _holdM = val), _holdMController,
-                color: Colors.grey[200]),
-          ],
-        ),
-        // SLIDE行
-        TableRow(
-          decoration: const BoxDecoration(),
-          children: [
-            _buildTableCell('SLIDE',
-                color: Colors.lightBlue[100]!, fontSize: 11.2),
-            _buildNumberInputCell(_slideCp,
-                (val) => setState(() => _slideCp = val), _slideCpController,
-                color: Colors.yellow[200]),
-            _buildNumberInputCell(_slideP,
-                (val) => setState(() => _slideP = val), _slidePController,
-                color: Colors.yellow[400]),
-            _buildNumberInputCell(_slideG,
-                (val) => setState(() => _slideG = val), _slideGController,
-                color: Colors.pink[200]),
-            _buildNumberInputCell(_slideGo,
-                (val) => setState(() => _slideGo = val), _slideGoController,
-                color: Colors.green[200]),
-            _buildNumberInputCell(_slideM,
-                (val) => setState(() => _slideM = val), _slideMController,
-                color: Colors.grey[200]),
-          ],
-        ),
-        // TOUCH行
-        TableRow(
-          decoration: const BoxDecoration(),
-          children: [
-            _buildTableCell('TOUCH',
-                color: Colors.lightBlue[100]!, fontSize: 11.2),
-            _buildNumberInputCell(_touchCp,
-                (val) => setState(() => _touchCp = val), _touchCpController,
-                color: Colors.yellow[200]),
-            _buildNumberInputCell(_touchP,
-                (val) => setState(() => _touchP = val), _touchPController,
-                color: Colors.yellow[400]),
-            _buildNumberInputCell(_touchG,
-                (val) => setState(() => _touchG = val), _touchGController,
-                color: Colors.pink[200]),
-            _buildNumberInputCell(_touchGo,
-                (val) => setState(() => _touchGo = val), _touchGoController,
-                color: Colors.green[200]),
-            _buildNumberInputCell(_touchM,
-                (val) => setState(() => _touchM = val), _touchMController,
-                color: Colors.grey[200]),
-          ],
-        ),
-        // 总计行
-        TableRow(
-          decoration: const BoxDecoration(),
-          children: [
-            _buildTableCell('总计',
-                color: Colors.lightBlue[100]!, fontSize: 11.2),
-            _buildTableCell(totalCp.toString(), color: Colors.yellow[200]!),
-            _buildTableCell(totalP.toString(), color: Colors.yellow[400]!),
-            _buildTableCell(totalG.toString(), color: Colors.pink[200]!),
-            _buildTableCell(totalGo.toString(), color: Colors.green[200]!),
-            _buildTableCell(totalM.toString(), color: Colors.grey[200]!),
-          ],
-        ),
+            decoration: BoxDecoration(color: scheme.surfaceContainerLow),
+            children: [
+              _buildTableCell('总计'),
+              _buildTableCell(
+                  (_tapCp + _tapP + _tapG + _tapGo + _tapM).toString()),
+              _buildTableCell(
+                  (_holdCp + _holdP + _holdG + _holdGo + _holdM).toString()),
+              _buildTableCell(
+                  (_slideCp + _slideP + _slideG + _slideGo + _slideM)
+                      .toString()),
+              _buildTableCell(
+                  (_touchCp + _touchP + _touchG + _touchGo + _touchM)
+                      .toString()),
+            ]),
       ],
     );
   }
 
-  // 构建BREAK音符区域
   Widget _buildBreakNoteSection() {
-    final screenWidth = MediaQuery.of(context).size.width;
     final scheme = Theme.of(context).colorScheme;
-    final rowHeight =
-        (MediaQuery.of(context).size.height * 0.045).clamp(40.0, 52.0);
-
-    Widget groupHeader(String title, Color color) {
-      return Container(
-        height: rowHeight,
-        width: double.infinity,
-        color: color,
-        alignment: Alignment.center,
-        padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.03),
-        child: Text(
-          title,
-          style: TextStyle(
-            fontSize: screenWidth * 0.032,
-            fontWeight: FontWeight.bold,
-            color: Colors.black87,
-          ),
-        ),
-      );
-    }
-
-    Widget group(List<Widget> rows, String title, Color color) {
-      return Container(
-        decoration: BoxDecoration(
-          border: Border.all(color: scheme.outlineVariant),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(children: [groupHeader(title, color), ...rows]),
-      );
-    }
-
     final total = _breakP +
         _break50 +
         _break100 +
@@ -566,85 +485,120 @@ class _AchievementRateCalculatorState extends State<AchievementRateCalculator> {
         _break50g +
         _breakGo +
         _breakM;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        group([
-          _buildBreakRow('大P', _breakP,
-              (value) => setState(() => _breakP = value), _breakPController,
-              rowHeight: rowHeight),
-          _buildBreakRow('50落', _break50,
-              (value) => setState(() => _break50 = value), _break50Controller,
-              rowHeight: rowHeight),
-          _buildBreakRow('100落', _break100,
-              (value) => setState(() => _break100 = value), _break100Controller,
-              rowHeight: rowHeight),
-        ], 'PERFECT', Colors.yellow[400]!),
-        const SizedBox(height: 12),
-        group([
-          _buildBreakRow('80%', _break80,
-              (value) => setState(() => _break80 = value), _break80Controller,
-              rowHeight: rowHeight, color: Colors.pink[200]),
-          _buildBreakRow('60%', _break60,
-              (value) => setState(() => _break60 = value), _break60Controller,
-              rowHeight: rowHeight, color: Colors.pink[200]),
-          _buildBreakRow('50%', _break50g,
-              (value) => setState(() => _break50g = value), _break50gController,
-              rowHeight: rowHeight, color: Colors.pink[200]),
-        ], 'GREAT', Colors.pink[200]!),
-        const SizedBox(height: 12),
-        _buildBreakRow('GOOD', _breakGo,
-            (value) => setState(() => _breakGo = value), _breakGoController,
-            rowHeight: rowHeight, color: Colors.green[200]),
-        const SizedBox(height: 6),
-        _buildBreakRow('MISS', _breakM,
-            (value) => setState(() => _breakM = value), _breakMController,
-            rowHeight: rowHeight, color: Colors.grey[200]),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              flex: 1,
-              child: Container(
-                height: rowHeight,
-                color: scheme.surfaceContainerHighest,
-                alignment: Alignment.center,
-                child: const Text(
-                  'BREAK总数',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ),
-            ),
-            Expanded(
-              flex: 3,
-              child: Container(
-                height: rowHeight,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  border: Border.all(color: scheme.outlineVariant),
-                ),
-                child: Text(
-                  '$total',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontWeight: FontWeight.w700),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Text('分别填写各档判定数量，基础分与奖励分分开展示。',
+          style: Theme.of(context)
+              .textTheme
+              .bodySmall
+              ?.copyWith(color: scheme.onSurfaceVariant)),
+      const SizedBox(height: 12),
+      Table(
+        border: TableBorder.all(color: scheme.outlineVariant),
+        columnWidths: const {
+          0: FlexColumnWidth(1.5),
+          1: FlexColumnWidth(1),
+          2: FlexColumnWidth(1),
+          3: FlexColumnWidth(1.15)
+        },
+        defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+        children: [
+          TableRow(
+              decoration: BoxDecoration(color: scheme.surfaceContainerHighest),
+              children: [
+                for (final title in ['判定', '基础分', '奖励分', '数量'])
+                  _buildTableCell(title),
+              ]),
+          TableRow(children: [
+            _buildTableCell('CRITICAL\nPERFECT',
+                color: Colors.amber.withValues(alpha: .14), fontSize: 11),
+            _buildTableCell('100%'),
+            _buildTableCell('100%'),
+            _buildNumberInputCell(_breakP,
+                (value) => setState(() => _breakP = value), _breakPController),
+          ]),
+          TableRow(children: [
+            _buildTableCell('PERFECT\n50落',
+                color: Colors.amber.withValues(alpha: .14), fontSize: 11),
+            _buildTableCell('100%'),
+            _buildTableCell('75%'),
+            _buildNumberInputCell(
+                _break50,
+                (value) => setState(() => _break50 = value),
+                _break50Controller),
+          ]),
+          TableRow(children: [
+            _buildTableCell('PERFECT\n100落',
+                color: Colors.amber.withValues(alpha: .14), fontSize: 11),
+            _buildTableCell('100%'),
+            _buildTableCell('50%'),
+            _buildNumberInputCell(
+                _break100,
+                (value) => setState(() => _break100 = value),
+                _break100Controller),
+          ]),
+          TableRow(children: [
+            _buildTableCell('GREAT\n80%',
+                color: Colors.pink.withValues(alpha: .14), fontSize: 11),
+            _buildTableCell('80%'),
+            _buildTableCell('40%'),
+            _buildNumberInputCell(
+                _break80,
+                (value) => setState(() => _break80 = value),
+                _break80Controller),
+          ]),
+          TableRow(children: [
+            _buildTableCell('GREAT\n60%',
+                color: Colors.pink.withValues(alpha: .14), fontSize: 11),
+            _buildTableCell('60%'),
+            _buildTableCell('40%'),
+            _buildNumberInputCell(
+                _break60,
+                (value) => setState(() => _break60 = value),
+                _break60Controller),
+          ]),
+          TableRow(children: [
+            _buildTableCell('GREAT\n50%',
+                color: Colors.pink.withValues(alpha: .14), fontSize: 11),
+            _buildTableCell('50%'),
+            _buildTableCell('40%'),
+            _buildNumberInputCell(
+                _break50g,
+                (value) => setState(() => _break50g = value),
+                _break50gController),
+          ]),
+          TableRow(children: [
+            _buildTableCell('GOOD',
+                color: Colors.green.withValues(alpha: .14), fontSize: 11),
+            _buildTableCell('40%'),
+            _buildTableCell('30%'),
+            _buildNumberInputCell(
+                _breakGo,
+                (value) => setState(() => _breakGo = value),
+                _breakGoController),
+          ]),
+          TableRow(children: [
+            _buildTableCell('MISS',
+                color: Colors.blueGrey.withValues(alpha: .14), fontSize: 11),
+            _buildTableCell('0%'),
+            _buildTableCell('0%'),
+            _buildNumberInputCell(_breakM,
+                (value) => setState(() => _breakM = value), _breakMController),
+          ]),
+        ],
+      ),
+      const SizedBox(height: 12),
+      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+        const Text('BREAK 总数'),
+        Text('$total',
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+      ]),
+    ]);
   }
 
   // 构建表格单元格
   Widget _buildTableCell(String text, {Color? color, double fontSize = 12.0}) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Container(
-      height: screenHeight * 0.04,
+      height: 52.0,
       color: color,
       alignment: Alignment.center,
       padding: EdgeInsets.zero,
@@ -653,8 +607,8 @@ class _AchievementRateCalculatorState extends State<AchievementRateCalculator> {
         textAlign: TextAlign.center,
         style: TextStyle(
           fontWeight: FontWeight.bold,
-          fontSize: screenWidth * 0.025, // 字体大小为屏幕宽度的2.5%
-          color: isDark ? Colors.black87 : null,
+          fontSize: fontSize, // 字体大小为屏幕宽度的2.5%
+          color: Theme.of(context).colorScheme.onSurface,
         ),
       ),
     );
@@ -664,11 +618,19 @@ class _AchievementRateCalculatorState extends State<AchievementRateCalculator> {
   Widget _buildNumberInputCell(
       int value, Function(int) onChanged, TextEditingController controller,
       {Color? color}) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    final cellHeight = screenHeight * 0.04;
+    final cellHeight = 52.0;
+    final style = Theme.of(context)
+        .textTheme
+        .bodyMedium!
+        .copyWith(fontSize: 14, height: 1.2);
+    final painter = TextPainter(
+        text: TextSpan(text: '0', style: style),
+        textScaler: MediaQuery.textScalerOf(context),
+        textDirection: Directionality.of(context))
+      ..layout();
+    final verticalPadding =
+        ((cellHeight - painter.height) / 2).clamp(0.0, cellHeight / 2);
+    painter.dispose();
     return Container(
       height: cellHeight,
       decoration: BoxDecoration(color: color),
@@ -680,7 +642,8 @@ class _AchievementRateCalculatorState extends State<AchievementRateCalculator> {
           filled: false, // 禁用主题默认填充，让 Container 背景色透出
           border: InputBorder.none,
           hintText: value == 0 ? '' : value.toString(),
-          contentPadding: EdgeInsets.zero,
+          contentPadding: EdgeInsets.symmetric(vertical: verticalPadding),
+          isCollapsed: true,
           isDense: true,
           constraints: BoxConstraints.tightFor(height: cellHeight),
         ),
@@ -688,10 +651,7 @@ class _AchievementRateCalculatorState extends State<AchievementRateCalculator> {
         inputFormatters: [FilteringTextInputFormatter.digitsOnly],
         textAlign: TextAlign.center,
         textAlignVertical: TextAlignVertical.center,
-        style: TextStyle(
-          fontSize: screenWidth * 0.025, // 字体大小为屏幕宽度的2.5%
-          color: isDark ? Colors.black87 : null,
-        ),
+        style: style,
         onTap: () {
           if (value == 0) {
             controller.clear();
@@ -714,85 +674,6 @@ class _AchievementRateCalculatorState extends State<AchievementRateCalculator> {
           }
         },
       ),
-    );
-  }
-
-  // 构建BREAK音符行
-  Widget _buildBreakRow(String label, int value, Function(int) onChanged,
-      TextEditingController controller,
-      {required double rowHeight, Color? color}) {
-    final scheme = Theme.of(context).colorScheme;
-    final screenWidth = MediaQuery.of(context).size.width;
-    return Row(
-      children: [
-        Expanded(
-          flex: 1,
-          child: Container(
-            height: rowHeight,
-            color: color ?? Colors.yellow[100],
-            alignment: Alignment.center,
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: MediaQuery.of(context).size.width * 0.03,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-        ),
-        Expanded(
-          flex: 3,
-          child: Container(
-            height: rowHeight,
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            decoration: BoxDecoration(
-              color: scheme.surface,
-              border: Border.all(color: scheme.outlineVariant),
-            ),
-            child: TextField(
-              controller: controller,
-              decoration: InputDecoration(
-                filled: false, // 禁用主题默认填充
-                border: InputBorder.none,
-                hintText: value == 0 ? '' : value.toString(),
-                contentPadding: EdgeInsets.zero,
-                isDense: true,
-                constraints: BoxConstraints.tightFor(height: rowHeight),
-              ),
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              textAlign: TextAlign.center,
-              textAlignVertical: TextAlignVertical.center,
-              style: TextStyle(
-                fontSize: screenWidth * 0.025, // 字体大小为屏幕宽度的2.5%
-              ),
-              onTap: () {
-                if (value == 0) {
-                  controller.clear();
-                } else {
-                  // 将光标移动到文本末尾
-                  controller.selection = TextSelection.fromPosition(
-                    TextPosition(offset: controller.text.length),
-                  );
-                }
-              },
-              onChanged: (val) {
-                final parsedValue = int.tryParse(val) ?? 0;
-                onChanged(parsedValue);
-              },
-              onEditingComplete: () {
-                // 只在失去焦点时补0
-                if (controller.text.isEmpty) {
-                  controller.text = '0';
-                  onChanged(0);
-                }
-              },
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

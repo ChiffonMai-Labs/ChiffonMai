@@ -165,11 +165,10 @@ class CommonWidgetUtil {
     Function(List<String>) onChanged,
     String Function(String)? formatter,
   ) {
-    final brightness = Theme.of(context).brightness;
     return Container(
       height: 200,
       decoration: BoxDecoration(
-        border: Border.all(color: AppColors.tableBorder(brightness)),
+        border: Border.all(color: AppColors.readableTableBorder(context)),
         borderRadius: BorderRadius.circular(8),
       ),
       child: ListView.builder(

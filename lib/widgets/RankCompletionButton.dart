@@ -76,6 +76,7 @@ class _RankCompletionDialog extends StatefulWidget {
 class _RankCompletionDialogState extends State<_RankCompletionDialog> {
   late final TextEditingController _controller;
   late RankCompletion _status;
+  String? _achievementError;
 
   @override
   void initState() {
@@ -95,9 +96,9 @@ class _RankCompletionDialogState extends State<_RankCompletionDialog> {
   Future<void> _save() async {
     final raw = _controller.text.trim();
     final value = raw.isEmpty ? null : double.tryParse(raw);
-    final fraction = raw.contains('.') ? raw.split('.').last : '';
-    if (fraction.length > 4 || (value != null && (value < 0 || value > 404))) {
-      return;
+    if (_status != RankCompletion.unplayed) {
+      setState(() => _achievementError = _validateAchievement(raw));
+      if (_achievementError != null) return;
     }
     // 先结束路由退出动画，持久化通知在弹窗销毁后进行。
     Navigator.pop(context);
@@ -105,16 +106,33 @@ class _RankCompletionDialogState extends State<_RankCompletionDialog> {
         _status == RankCompletion.unplayed ? null : value);
   }
 
+  String? _validateAchievement(String raw) {
+    final text = raw.trim();
+    if (text.isEmpty) return null;
+    final value = double.tryParse(text);
+    if (value == null || !value.isFinite) return '请输入有效的总达成率';
+    if (value < 0 || value > 404) return '总达成率必须在 0～404% 之间';
+    final fraction = text.contains('.') ? text.split('.').last : '';
+    if (fraction.length > 4) return '总达成率最多保留 4 位小数';
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final canInput = _status != RankCompletion.unplayed;
     return AlertDialog(
       title: const Text('段位完成情况'),
-      content: Column(mainAxisSize: MainAxisSize.min, children: [
+      content: SingleChildScrollView(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
         for (final option in RankCompletion.values)
           InkWell(
+            splashFactory: NoSplash.splashFactory,
+            highlightColor: Colors.transparent,
             borderRadius: BorderRadius.circular(10),
-            onTap: () => setState(() => _status = option),
+            onTap: () {
+              if (_status == option) return;
+              setState(() => _status = option);
+            },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 180),
               margin: const EdgeInsets.only(bottom: 4),
@@ -135,11 +153,16 @@ class _RankCompletionDialogState extends State<_RankCompletionDialog> {
         TextField(
           controller: _controller,
           enabled: canInput,
+          onChanged: (value) =>
+              setState(() => _achievementError = _validateAchievement(value)),
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: const InputDecoration(
-              labelText: '总达成率（最高 404.0000%）', suffixText: '%'),
+          decoration: InputDecoration(
+              labelText: '总达成率（最高 404.0000%）',
+              suffixText: '%',
+              errorText: canInput ? _achievementError : null,
+              errorMaxLines: 2),
         ),
-      ]),
+      ])),
       actions: [
         TextButton(
             onPressed: () => Navigator.pop(context), child: const Text('取消')),

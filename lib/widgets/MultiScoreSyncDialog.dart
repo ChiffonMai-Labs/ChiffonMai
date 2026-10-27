@@ -15,6 +15,9 @@ import '../utils/ExternalLaunchUtil.dart';
 import '../utils/SecureCredentialStore.dart';
 import 'ErrorMessageDialog.dart';
 import 'QuickSyncOption.dart';
+import 'PostSyncRefreshOptions.dart';
+import 'RefreshDataDialog.dart' show RefreshDataRequest;
+import '../service/AWMC/AwmcQuickSyncService.dart';
 
 /// 已确认具备凭据的同步目标；顺序由执行器固定为水鱼 → 落雪 → AWMC NET。
 class MultiScoreSyncInput {
@@ -22,13 +25,16 @@ class MultiScoreSyncInput {
   final bool quickUpdate;
   final Set<SyncPlatform> platforms;
   final Map<SyncPlatform, int> routes;
+  final Map<SyncPlatform, RefreshDataRequest> refreshRequests;
 
   MultiScoreSyncInput({
     required this.qrCode,
     this.quickUpdate = false,
     required Set<SyncPlatform> platforms,
     Map<SyncPlatform, int> routes = const {},
+    Map<SyncPlatform, RefreshDataRequest> refreshRequests = const {},
   })  : platforms = Set.unmodifiable(platforms),
+        refreshRequests = Map.unmodifiable(refreshRequests),
         routes = Map.unmodifiable(routes);
 
   /// 旧调用未传线路时沿用原来的线路2行为。
@@ -81,6 +87,11 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
   String? _selectionError;
   String? _loadError;
   bool _loading = true;
+  bool _submitting = false;
+  final _refreshKeys = {
+    for (final platform in SyncPlatform.values)
+      platform: GlobalKey<PostSyncRefreshOptionsState>(),
+  };
   bool _quickUpdate = false;
   int _quickRevision = 0;
   final _routesBeforeQuick = <SyncPlatform, int>{};
@@ -235,12 +246,21 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
     }
   }
 
-  void _submit() {
+  Future<void> _submit() async {
+    if (_submitting) return;
     final targets = _selected.where(_ready).toSet();
     setState(() {
       _selectionError = targets.isEmpty ? '请至少选择一个已具备凭据的数据源' : null;
     });
     if (_selectionError != null) return;
+    setState(() => _submitting = true);
+    final requests = <SyncPlatform, RefreshDataRequest>{};
+    for (final platform in targets) {
+      final request =
+          await _refreshKeys[platform]?.currentState?.collectRequest();
+      if (!mounted) return;
+      if (request != null) requests[platform] = request;
+    }
     Navigator.pop(
         context,
         MultiScoreSyncInput(
@@ -250,6 +270,7 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
           quickUpdate: _quickUpdate,
           platforms: targets,
           routes: _routes,
+          refreshRequests: requests,
         ));
   }
 
@@ -354,6 +375,13 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
               : null,
         ),
         if (platform != SyncPlatform.awmc) _buildRouteSelector(platform),
+        if (_selected.contains(platform))
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            child: PostSyncRefreshOptions(
+                key: _refreshKeys[platform],
+                source: AwmcQuickSyncService.sourceOf(platform)),
+          ),
         if (!ready)
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
@@ -498,7 +526,10 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
               onPressed: _saving == null ? () => Navigator.pop(context) : null,
               child: const Text('取消')),
           FilledButton(
-              onPressed: _loading || _loadError != null || _saving != null
+              onPressed: _loading ||
+                      _loadError != null ||
+                      _saving != null ||
+                      _submitting
                   ? null
                   : _submit,
               child: Text('开始同步（${_selected.length}）')),

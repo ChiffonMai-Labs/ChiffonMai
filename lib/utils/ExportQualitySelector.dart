@@ -1,7 +1,11 @@
+import 'package:my_first_flutter_app/widgets/AppSwitch.dart';
 import 'dart:async';
+import 'dart:math' as math;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../widgets/AnimatedChoiceBar.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:my_first_flutter_app/utils/ImageEncodeUtil.dart';
 
 /// 导出质量选择结果
@@ -66,7 +70,10 @@ class ExportQualitySelector {
             BuildContext context, ExportQualityResult quality)?
         previewBuilder,
   }) async {
-    int? selectedIndex = 0; // 默认选中 PNG
+    final preferences = await SharedPreferences.getInstance();
+    if (!context.mounted) return null;
+    int? selectedIndex = (preferences.getInt('export_image_quality_index') ?? 0)
+        .clamp(0, ExportQualityResult.presets.length - 1);
     var thunderMode = initialThunderMode;
     var thunderVertical = initialThunderVertical;
 
@@ -196,7 +203,13 @@ class ExportQualitySelector {
                                           Theme.of(context).colorScheme.primary,
                                     )
                                   : null,
-                              onTap: () => setState(() => selectedIndex = i),
+                              onTap: () {
+                                if (selectedIndex == i) return;
+                                setState(() => selectedIndex = i);
+                                // 选择即记忆；关闭弹窗或取消导出也保留本次偏好。
+                                unawaited(preferences.setInt(
+                                    'export_image_quality_index', i));
+                              },
                             ));
                       },
                     ),
@@ -212,10 +225,12 @@ class ExportQualitySelector {
                               thunderMode: thunderMode,
                               thunderVertical: thunderVertical,
                             );
+                            // 对话框重建时复用同一次预览生成，避免反复构建长图。
+                            final preview = previewBuilder(context, q);
                             showDialog<void>(
                               context: context,
                               builder: (previewContext) => _ExportPreviewDialog(
-                                preview: previewBuilder(previewContext, q),
+                                preview: preview,
                               ),
                             );
                           },
@@ -226,7 +241,7 @@ class ExportQualitySelector {
                     ],
                     if (enableThunderMode) ...[
                       const Divider(),
-                      SwitchListTile(
+                      AppSwitchListTile(
                         value: thunderMode,
                         onChanged: (value) =>
                             setState(() => thunderMode = value),
@@ -350,8 +365,8 @@ class ExportQualitySelector {
 
 /// 可缩放的导出效果图预览。
 ///
-/// 预览内容先用 FittedBox 缩放到视口内，避免打开时直接显示一张放大的局部图；
-/// InteractiveViewer 再负责手势和按钮缩放，控制器由对话框自己的 State 管理。
+/// 内容以导出画布的自然尺寸布局，测量后通过变换适应窗口。
+/// 缩放与平移共享完整画布边界，超长横图和竖图均可查看每个角落。
 class _ExportPreviewDialog extends StatefulWidget {
   final FutureOr<Widget> preview;
 
@@ -363,6 +378,9 @@ class _ExportPreviewDialog extends StatefulWidget {
 
 class _ExportPreviewDialogState extends State<_ExportPreviewDialog> {
   late final TransformationController _transformationController;
+  Size? _contentSize;
+  Size _viewportSize = Size.zero;
+  double _fitScale = 0.001;
 
   @override
   void initState() {
@@ -377,14 +395,51 @@ class _ExportPreviewDialogState extends State<_ExportPreviewDialog> {
   }
 
   void _scaleBy(double factor) {
+    if (_contentSize == null || _viewportSize.isEmpty) return;
     final current = _transformationController.value.getMaxScaleOnAxis();
-    final next = (current * factor).clamp(0.5, 4.0).toDouble();
-    _transformationController.value = Matrix4.identity()..scale(next);
+    final next = (current * factor).clamp(_fitScale, 4.0).toDouble();
+    if (next == _fitScale) {
+      _fitContent();
+      return;
+    }
+    // 围绕视口中心缩放，保留当前查看的位置。
+    final scene = _transformationController
+        .toScene(Offset(_viewportSize.width / 2, _viewportSize.height / 2));
+    _transformationController.value = Matrix4.identity()
+      ..translate(_viewportSize.width / 2 - scene.dx * next,
+          _viewportSize.height / 2 - scene.dy * next)
+      ..scale(next);
+  }
+
+  void _fitContent() {
+    final content = _contentSize;
+    if (content == null || content.isEmpty || _viewportSize.isEmpty) return;
+    _transformationController.value = Matrix4.identity()
+      ..translate((_viewportSize.width - content.width * _fitScale) / 2,
+          (_viewportSize.height - content.height * _fitScale) / 2)
+      ..scale(_fitScale);
+  }
+
+  void _updateGeometry(Size content, Size viewport) {
+    if (!mounted ||
+        content.isEmpty ||
+        viewport.isEmpty ||
+        (content == _contentSize && viewport == _viewportSize)) return;
+    setState(() {
+      _contentSize = content;
+      _viewportSize = viewport;
+      _fitScale = math.min(
+          1.0,
+          math.min(viewport.width / content.width,
+              viewport.height / content.height));
+      _fitContent();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Dialog(
+      clipBehavior: Clip.antiAlias,
       insetPadding: const EdgeInsets.all(16),
       child: ConstrainedBox(
         constraints: const BoxConstraints(
@@ -417,8 +472,7 @@ class _ExportPreviewDialogState extends State<_ExportPreviewDialog> {
                   ),
                   IconButton(
                     tooltip: '适应窗口',
-                    onPressed: () =>
-                        _transformationController.value = Matrix4.identity(),
+                    onPressed: _fitContent,
                     icon: const Icon(Icons.fit_screen),
                   ),
                   IconButton(
@@ -430,24 +484,79 @@ class _ExportPreviewDialogState extends State<_ExportPreviewDialog> {
               ),
             ),
             const Divider(height: 1),
-            // 按图片比例收缩预览区域，避免铺满视口后上下出现额外底色。
             Flexible(
-              child: InteractiveViewer(
-                transformationController: _transformationController,
-                minScale: 0.5,
-                maxScale: 4,
-                boundaryMargin: const EdgeInsets.all(160),
-                child: FittedBox(
-                  fit: BoxFit.contain,
-                  child: ExportQualitySelector._buildPreviewContent(
-                      widget.preview),
-                ),
-              ),
+              child: LayoutBuilder(builder: (context, constraints) {
+                final width = constraints.maxWidth;
+                final content = _contentSize;
+                final defaultScale = content == null
+                    ? 1.0
+                    : math.min(1.0, width / content.width);
+                // 短图按默认比例收紧高度，长图才使用当前窗口允许的上限。
+                final height = math.min(constraints.maxHeight,
+                    content == null ? 180.0 : content.height * defaultScale);
+                final viewport = Size(width, height);
+                if (_contentSize != null && viewport != _viewportSize) {
+                  WidgetsBinding.instance.addPostFrameCallback(
+                      (_) => _updateGeometry(_contentSize!, viewport));
+                }
+                return SizedBox(
+                  width: width,
+                  height: height,
+                  child: InteractiveViewer(
+                    transformationController: _transformationController,
+                    constrained: false,
+                    alignment: Alignment.topLeft,
+                    minScale: _fitScale,
+                    maxScale: 4,
+                    // 留足居中空间，同时让放大后的完整画布可以拖至视口内。
+                    boundaryMargin: EdgeInsets.symmetric(
+                        horizontal: viewport.width / _fitScale,
+                        vertical: viewport.height / _fitScale),
+                    child: _PreviewSizeReporter(
+                      onSize: (size) => _updateGeometry(size, viewport),
+                      child: ExportQualitySelector._buildPreviewContent(
+                          widget.preview),
+                    ),
+                  ),
+                );
+              }),
             ),
           ],
         ),
       ),
     );
+  }
+}
+
+/// 在自然尺寸布局后报告画布边界，不使用可能改变内容宽度的窗口约束。
+class _PreviewSizeReporter extends SingleChildRenderObjectWidget {
+  final ValueChanged<Size> onSize;
+  const _PreviewSizeReporter({required this.onSize, required super.child});
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _PreviewSizeRenderBox(onSize);
+
+  @override
+  void updateRenderObject(
+          BuildContext context, covariant _PreviewSizeRenderBox renderObject) =>
+      renderObject.onSize = onSize;
+}
+
+class _PreviewSizeRenderBox extends RenderProxyBox {
+  ValueChanged<Size> onSize;
+  Size? _reported;
+  _PreviewSizeRenderBox(this.onSize);
+
+  @override
+  void performLayout() {
+    super.performLayout();
+    if (size == _reported) return;
+    _reported = size;
+    final measured = size;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (attached) onSize(measured);
+    });
   }
 }
 

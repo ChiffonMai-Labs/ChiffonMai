@@ -386,6 +386,7 @@ class SongInfoExportToImgService {
                   bold: label == '谱面类型',
                   center: true,
                   softWrap: true,
+                  fitContent: label == 'BPM',
                 );
               },
             ),
@@ -504,23 +505,29 @@ class SongInfoExportToImgService {
           Color? color,
           TextAlign align = TextAlign.left,
           bool center = false,
-          bool softWrap = true}) =>
-      TableCell(
-        verticalAlignment: TableCellVerticalAlignment.middle,
-        child: Container(
-          color: bg,
-          alignment: center ? Alignment.center : Alignment.centerLeft,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-          child: Text(value,
-              textAlign: center ? TextAlign.center : align,
-              softWrap: softWrap,
-              style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: bold ? FontWeight.bold : FontWeight.normal,
-                  color: color ?? const Color(0xFF2C3E50),
-                  height: 1.25)),
-        ),
-      );
+          bool softWrap = true,
+          bool fitContent = false}) {
+    final text = Text(value,
+        textAlign: center ? TextAlign.center : align,
+        softWrap: fitContent ? false : softWrap,
+        style: TextStyle(
+            fontSize: 20,
+            fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+            color: color ?? const Color(0xFF2C3E50),
+            height: 1.25));
+    return TableCell(
+      verticalAlignment: TableCellVerticalAlignment.middle,
+      child: Container(
+        color: bg,
+        alignment: center ? Alignment.center : Alignment.centerLeft,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        // BPM 的两行作为一个整体等比缩小，保留范围与基准的显式换行。
+        child: fitContent
+            ? FittedBox(fit: BoxFit.scaleDown, child: text)
+            : text,
+      ),
+    );
+  }
 
   static String _formatDs(dynamic value) {
     if (value == null) return '-';

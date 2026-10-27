@@ -416,17 +416,18 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
   Future<Uint8List?> _getAudioBytes() async {
     try {
       final id = SongMediaCache.audioIdFor(widget.songId);
-      final file = await SongMediaCache.instance.ensureAudio(widget.songId,
-          urls: [
-            if (id > 0) 'https://assets2.lxns.net/maimai/music/$id.mp3',
-            ApiUrls.wmcAudioUrl(widget.songId),
-          ]);
+      final file =
+          await SongMediaCache.instance.ensureAudio(widget.songId, urls: [
+        if (id > 0) 'https://assets2.lxns.net/maimai/music/$id.mp3',
+        ApiUrls.wmcAudioUrl(widget.songId),
+      ]);
       return await file.readAsBytes();
     } catch (error) {
       debugPrint('导出谱面包时准备音源失败: $error');
       return null;
     }
   }
+
   void _navigateToChartPlay() {
     _showDifficultySelector();
   }
@@ -530,10 +531,22 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
   }
 
   String _getInoteDifficulty(String inoteNum) {
+    if (widget.genre == '宴会場' ||
+        widget.songType == 'UTAGE' ||
+        (widget.songId.length == 6 && int.tryParse(widget.songId) != null)) {
+      final index = _inoteList.indexOf(inoteNum);
+      return _inoteList.length > 1 && index >= 0
+          ? '${ChartDifficulty.utageLabel} ${index + 1}'
+          : ChartDifficulty.utageLabel;
+    }
     return SongMaidataPageService.inoteDifficultyMap[inoteNum] ?? inoteNum;
   }
 
   Color _getInoteColor(String inoteNum) {
+    if (widget.genre == '宴会場' ||
+        widget.songType == 'UTAGE' ||
+        (widget.songId.length == 6 && int.tryParse(widget.songId) != null))
+      return AppColors.utageAccent(brightness: Theme.of(context).brightness);
     int colorValue =
         SongMaidataPageService.inoteColorMap[inoteNum] ?? 0xFF9E9E9E;
     return Color(colorValue);
@@ -856,64 +869,63 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
         ),
         Expanded(
             child: _isLoading
-                    ? const Center(
-                        child: CircularProgressIndicator(),
+                ? const Center(
+                    child: CircularProgressIndicator(),
+                  )
+                : _errorMessage != null
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.error_outline,
+                                size: 48,
+                                color: AppColors.errorRed(brightness),
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                _errorMessage!,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: AppColors.errorRed(brightness),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              ElevatedButton(
+                                onPressed: _fetchMaidata,
+                                child: const Text('重试'),
+                              ),
+                            ],
+                          ),
+                        ),
                       )
-                    : _errorMessage != null
-                        ? Center(
-                            child: Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.error_outline,
-                                    size: 48,
-                                    color: AppColors.errorRed(brightness),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    _errorMessage!,
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      color: AppColors.errorRed(brightness),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  ElevatedButton(
-                                    onPressed: _fetchMaidata,
-                                    child: const Text('重试'),
-                                  ),
-                                ],
+                    : _maidataContent.isEmpty
+                        ? const Center(
+                            child: Text('暂无谱面代码数据'),
+                          )
+                        : SingleChildScrollView(
+                            controller: _scrollController,
+                            padding: const EdgeInsets.all(16),
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(
+                                minWidth: double.infinity,
+                              ),
+                              child: SelectableText(
+                                _getFilteredMaidata(),
+                                style: TextStyle(
+                                  fontFamily: 'Courier New',
+                                  fontSize: 12,
+                                  color:
+                                      Theme.of(context).colorScheme.onSurface,
+                                  height: 1.4,
+                                ),
+                                textAlign: TextAlign.left,
                               ),
                             ),
-                          )
-                        : _maidataContent.isEmpty
-                            ? const Center(
-                                child: Text('暂无谱面代码数据'),
-                              )
-                            : SingleChildScrollView(
-                                controller: _scrollController,
-                                padding: const EdgeInsets.all(16),
-                                child: ConstrainedBox(
-                                  constraints: const BoxConstraints(
-                                    minWidth: double.infinity,
-                                  ),
-                                  child: SelectableText(
-                                    _getFilteredMaidata(),
-                                    style: TextStyle(
-                                      fontFamily: 'Courier New',
-                                      fontSize: 12,
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .onSurface,
-                                      height: 1.4,
-                                    ),
-                                    textAlign: TextAlign.left,
-                                  ),
-                                ),
-                              )),
+                          )),
       ]),
     );
   }

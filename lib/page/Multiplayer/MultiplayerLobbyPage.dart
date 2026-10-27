@@ -78,55 +78,47 @@ class _MultiplayerLobbyPageState extends State<MultiplayerLobbyPage> {
 
   void _handleCreateRoom() async {
     if (_isCreating) return;
-    
     setState(() => _isCreating = true);
-    await _leaveResidualRoom();
-    if (!mounted) return;
-    
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const RoomCreatePage()),
-    );
-    if (!mounted) return;
-    
-    setState(() => _isCreating = false);
-    
-    if (result != null && result is RoomEntity) {
-      Navigator.push(
+    try {
+      await _leaveResidualRoom();
+      if (!mounted) return;
+      final result = await Navigator.push(
         context,
-        MaterialPageRoute(builder: (context) => GameRoomPage(room: result)),
+        MaterialPageRoute(builder: (context) => const RoomCreatePage()),
       );
+      if (!mounted) return;
+      if (result is RoomEntity) {
+        await Navigator.push(context,
+            MaterialPageRoute(builder: (context) => GameRoomPage(room: result)));
+      }
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('创建房间失败：$error')));
+    } finally {
+      if (mounted) setState(() => _isCreating = false);
     }
   }
 
   void _handleJoinRoom() async {
     if (_isJoining) return;
-    
     setState(() => _isJoining = true);
-    await _leaveResidualRoom();
-    if (!mounted) return;
-    
-    final roomId = await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const RoomJoinPage()),
-    );
-    if (!mounted) return;
-    
-    setState(() => _isJoining = false);
-    
-    if (roomId != null && roomId is String) {
-      RoomEntity? room = await _manager.joinRoom(roomId);
+    try {
+      await _leaveResidualRoom();
       if (!mounted) return;
-      if (room != null) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => GameRoomPage(room: room)),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('加入房间失败')),
-        );
-      }
+      FocusManager.instance.primaryFocus?.unfocus();
+      final roomId = await Navigator.push<String>(context,
+          MaterialPageRoute(builder: (context) => const RoomJoinPage()));
+      if (!mounted || roomId == null) return;
+      final room = await _manager.joinRoom(roomId);
+      if (!mounted) return;
+      if (room == null) throw StateError('房间不存在或无法加入');
+      await Navigator.push(context,
+          MaterialPageRoute(builder: (context) => GameRoomPage(room: room)));
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('加入房间失败：$error')));
+    } finally {
+      if (mounted) setState(() => _isJoining = false);
     }
   }
 

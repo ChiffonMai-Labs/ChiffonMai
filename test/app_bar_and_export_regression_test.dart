@@ -24,13 +24,10 @@ String _read(String path) => File(path).readAsStringSync();
 ///
 /// 必须去注释：本次改造在多个文件里**故意写了** `// 这里原来是 appBar: AppBar(...)`
 /// 这样的说明注释，不去掉就会把"解释为什么改"的注释当成"还没改"。
-String _stripLineComments(String src) => src
-    .split('\n')
-    .map((line) {
+String _stripLineComments(String src) => src.split('\n').map((line) {
       final idx = line.indexOf('//');
       return idx < 0 ? line : line.substring(0, idx);
-    })
-    .join('\n');
+    }).join('\n');
 
 final RegExp _bareAppBar = RegExp(r'appBar:\s*AppBar\s*\(');
 
@@ -41,11 +38,11 @@ void main() {
       expect(ExportSettings.favoriteExtensionWithDot, '.cmf');
     });
 
-    test('ExportSettings 不再暴露 ValueNotifier / normalize / setFavoriteExtension', () {
+    test('ExportSettings 不再暴露 ValueNotifier / normalize / setFavoriteExtension',
+        () {
       final src = _read('lib/utils/ExportSettings.dart');
       // 曾经这些是"自定义后缀"的 API；留着就说明口子没堵上
-      expect(src.contains('ValueNotifier'), isFalse,
-          reason: '后缀不再是可变的用户设置');
+      expect(src.contains('ValueNotifier'), isFalse, reason: '后缀不再是可变的用户设置');
       expect(src.contains('setFavoriteExtension'), isFalse,
           reason: '不该再有写入后缀的入口');
       expect(src.contains('maxExtensionLength'), isFalse);
@@ -58,7 +55,8 @@ void main() {
 
     test('导出走固定后缀（不再读任何可变量）', () {
       final src = _read('lib/service/FavoriteTransferService.dart');
-      expect(src.contains(r'${ExportSettings.favoriteExtensionWithDot}'), isTrue,
+      expect(
+          src.contains(r'${ExportSettings.favoriteExtensionWithDot}'), isTrue,
           reason: '文件名后缀必须来自固定常量');
       expect(src.contains('favoriteExtension.value'), isFalse,
           reason: '不能再去读用户设置');
@@ -74,8 +72,7 @@ void main() {
 
     test('设置页不再提供后缀输入框，只展示固定值', () {
       final src = _read('lib/page/SettingsPage.dart');
-      expect(src.contains('_favExtController'), isFalse,
-          reason: '输入框已移除');
+      expect(src.contains('_favExtController'), isFalse, reason: '输入框已移除');
       expect(src.contains('_saveFavExtension'), isFalse);
       expect(src.contains('ExportSettings.favoriteExtensionWithDot'), isTrue,
           reason: '改成只读展示');
@@ -93,7 +90,8 @@ void main() {
             theme.appBarTheme.titleTextStyle?.fontSize,
             reason: '两套标题规格必须一致，否则标准 AppBar 与 PageTopBar 又不一样了');
         expect(theme.appBarTheme.titleTextStyle?.fontWeight, FontWeight.bold);
-        expect(theme.appBarTheme.titleTextStyle?.color, theme.colorScheme.primary);
+        expect(
+            theme.appBarTheme.titleTextStyle?.color, theme.colorScheme.primary);
       }
     });
 
@@ -137,11 +135,8 @@ void main() {
       }
     });
 
-    test('AWMC 四个页面也改走 PageTopBar（含 bottom 进度条那两个）', () {
+    test('保留的 AWMC 公共界面使用 PageTopBar', () {
       for (final path in [
-        'lib/page/Awmc/AwmcConsolePage.dart',
-        'lib/page/Awmc/AwmcScoreWritePage.dart',
-        'lib/page/Awmc/AwmcAuditLogPage.dart',
         'lib/page/Awmc/AwmcUi.dart',
       ]) {
         final src = _read(path);

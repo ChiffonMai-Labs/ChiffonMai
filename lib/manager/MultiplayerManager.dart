@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart';
 import 'package:my_first_flutter_app/entity/Multiplayer/RoomEntity.dart';
 import 'package:my_first_flutter_app/entity/Multiplayer/PlayerEntity.dart';
 import 'package:my_first_flutter_app/entity/Multiplayer/GameStateEntity.dart';
-import 'package:my_first_flutter_app/entity/Multiplayer/GuessRecord.dart';
 import 'package:my_first_flutter_app/entity/Multiplayer/GameType.dart';
 import 'package:my_first_flutter_app/api/ApiUrls.dart';
 import 'package:my_first_flutter_app/service/GuessChartGame/MultiplayerCloudBaseService.dart';
@@ -14,19 +13,24 @@ class MultiplayerManager {
   factory MultiplayerManager() => _instance;
   MultiplayerManager._internal();
 
-  final MultiplayerCloudBaseService _cloudService = MultiplayerCloudBaseService();
+  final MultiplayerCloudBaseService _cloudService =
+      MultiplayerCloudBaseService();
   StreamSubscription? _eventSubscription;
 
   String? _currentRoomId;
-  RoomEntity? _currentRoom;  // 当前房间（判定 letters 等模式需要）
+  RoomEntity? _currentRoom; // 当前房间（判定 letters 等模式需要）
   PlayerEntity? _currentPlayer;
-  GameStateEntity? _currentGameState;  // 本地缓存游戏状态
-  DateTime? _newRoundStartTime;  // 新回合开始时间，用于过滤旧回合的延迟猜测
-  
-  final StreamController<RoomEntity?> _roomController = StreamController.broadcast();
-  final StreamController<GameStateEntity?> _gameStateController = StreamController.broadcast();
-  final StreamController<List<RoomEntity>> _roomListController = StreamController.broadcast();
-  final StreamController<String> _errorMessageController = StreamController.broadcast();
+  GameStateEntity? _currentGameState; // 本地缓存游戏状态
+  DateTime? _gameStateReceivedAt;
+
+  final StreamController<RoomEntity?> _roomController =
+      StreamController.broadcast();
+  final StreamController<GameStateEntity?> _gameStateController =
+      StreamController.broadcast();
+  final StreamController<List<RoomEntity>> _roomListController =
+      StreamController.broadcast();
+  final StreamController<String> _errorMessageController =
+      StreamController.broadcast();
 
   Stream<RoomEntity?> get roomStream => _roomController.stream;
   Stream<GameStateEntity?> get gameStateStream => _gameStateController.stream;
@@ -41,6 +45,21 @@ class MultiplayerManager {
   RoomEntity? get currentRoom => _currentRoom;
 
   String? get currentRoomId => _currentRoomId;
+  GameStateEntity? get currentGameState {
+    final state = _currentGameState;
+    if (state == null ||
+        _gameStateReceivedAt == null ||
+        state.timeLimit <= 0 ||
+        state.isRoundOver ||
+        state.isGameOver) return state;
+    final elapsed =
+        DateTime.now().difference(_gameStateReceivedAt!).inMilliseconds;
+    return state.copyWith(
+      serverNow: state.serverNow == null ? null : state.serverNow! + elapsed,
+      timeRemaining:
+          (state.timeRemaining - elapsed ~/ 1000).clamp(0, state.timeLimit),
+    );
+  }
 
   /// 测试用：把服务端地址换成本机假服务端（默认 [ApiUrls.MultiplayerServerUrl]）。
   @visibleForTesting
@@ -53,14 +72,15 @@ class MultiplayerManager {
     _currentRoomId = room?.roomId;
     _roomController.add(room);
   }
-  
+
   String? get currentPlayerId => _cloudService.currentPlayerId;
 
   Future<void> initialize({String? nickname}) async {
     debugPrint('[DEBUG][Manager] 开始初始化...');
     debugPrint('[DEBUG][Manager] 传入昵称: $nickname');
-    
+
     try {
+      _eventSubscription ??= _cloudService.listen(_handleCloudEvent);
       await _cloudService.initialize(
         envId: debugServerUrlOverride ?? ApiUrls.MultiplayerServerUrl,
         nickname: nickname,
@@ -68,7 +88,7 @@ class MultiplayerManager {
       debugPrint('[DEBUG][Manager] CloudService 初始化完成');
       debugPrint('[DEBUG][Manager] 当前玩家ID: ${_cloudService.currentPlayerId}');
       debugPrint('[DEBUG][Manager] 当前玩家昵称: ${_cloudService.currentNickname}');
-      
+
       if (_eventSubscription == null) {
         debugPrint('[DEBUG][Manager] 创建事件订阅...');
         _eventSubscription = _cloudService.listen(_handleCloudEvent);
@@ -76,7 +96,18 @@ class MultiplayerManager {
       }
     } catch (e) {
       debugPrint('[DEBUG][Manager] 初始化异常: $e');
+      rethrow;
     }
+  }
+
+  void _publishGameState(GameStateEntity state) {
+    if (state.roomId != null && state.roomId != _currentRoomId) return;
+    // 等待房间恢复时服务端也会补发快照，尚未开始的第 0 回合不能当作对局。
+    if (_currentRoom?.status == RoomStatus.waiting && state.currentRound <= 0)
+      return;
+    _currentGameState = state;
+    _gameStateReceivedAt = DateTime.now();
+    _gameStateController.add(state);
   }
 
   void _handleCloudEvent(MultiplayerEvent event) {
@@ -85,6 +116,10 @@ class MultiplayerManager {
         break;
       case MultiplayerEventType.roomCreated:
         if (event is RoomCreatedEvent && event.room != null) {
+          if (_currentRoomId != event.room.roomId ||
+              event.room.status == RoomStatus.waiting) {
+            _currentGameState = null;
+          }
           _currentRoomId = event.room.roomId;
           _currentRoom = event.room;
           _roomController.add(event.room);
@@ -93,6 +128,10 @@ class MultiplayerManager {
         break;
       case MultiplayerEventType.roomJoined:
         if (event is RoomJoinedEvent) {
+          if (_currentRoomId != event.room.roomId ||
+              event.room.status == RoomStatus.waiting) {
+            _currentGameState = null;
+          }
           _currentRoomId = event.room.roomId;
           _currentRoom = event.room;
           _currentPlayer = event.player;
@@ -114,8 +153,7 @@ class MultiplayerManager {
         break;
       case MultiplayerEventType.roundStart:
         if (event is RoundStartEvent) {
-          _currentGameState = event.gameState;
-          _gameStateController.add(event.gameState);
+          _publishGameState(event.gameState);
         }
         break;
       case MultiplayerEventType.roundEnd:
@@ -123,145 +161,44 @@ class MultiplayerManager {
         break;
       case MultiplayerEventType.roundOver:
         if (event is RoundOverEvent) {
-          _currentGameState = event.gameState;
-          _gameStateController.add(event.gameState);
+          _publishGameState(event.gameState);
         }
         break;
       case MultiplayerEventType.gameEnd:
         if (event is GameEndEvent) {
-          _currentGameState = event.gameState;
-          _gameStateController.add(event.gameState);
+          _publishGameState(event.gameState);
         }
         break;
       case MultiplayerEventType.gameOver:
         if (event is GameOverEvent) {
-          _currentGameState = event.gameState;
-          _gameStateController.add(event.gameState);
+          _publishGameState(event.gameState);
         }
         break;
       case MultiplayerEventType.gameStateUpdated:
         if (event is GameStateUpdatedEvent) {
-          _currentGameState = event.gameState;
-          _gameStateController.add(event.gameState);
+          _publishGameState(event.gameState);
         }
         break;
       case MultiplayerEventType.gameStart:
         if (event is GameStartEvent) {
-          bool isNewRound = _currentGameState == null || 
-              _currentGameState!.currentRound != event.gameState.currentRound;
-          
-          List<GuessRecord> combinedGuesses = [];
-          
-          if (event.gameState.guesses.isNotEmpty) {
-            combinedGuesses.addAll(event.gameState.guesses);
-          }
-          
-          if (!isNewRound && event.gameState.guesses.isEmpty && _currentGameState != null) {
-            combinedGuesses.addAll(_currentGameState!.guesses);
-          }
-          
-          Map<String, GuessRecord> uniqueGuesses = {};
-          for (var guess in combinedGuesses) {
-            String key = '${guess.playerId}_${guess.songId}_${guess.guessedAt.millisecondsSinceEpoch}';
-            uniqueGuesses[key] = guess;
-          }
-          
-          _currentGameState = GameStateEntity(
-            currentRound: event.gameState.currentRound,
-            totalRounds: event.gameState.totalRounds,
-            targetSong: event.gameState.targetSong,
-            guesses: uniqueGuesses.values.toList(),
-            timeRemaining: event.gameState.timeRemaining,
-            isGameOver: event.gameState.isGameOver,
-            isRoundOver: event.gameState.isRoundOver,
-            maxGuesses: event.gameState.maxGuesses,
-            currentGuesses: isNewRound ? 0 : event.gameState.currentGuesses,
-            // 这几个字段必须原样带过来，否则整个 game_started 分支会丢掉它们：
-            // timeLimit 丢了倒计时退回 60 秒默认值，targetSongs/maskedTitles
-            // 丢了则 letters 模式开局就只剩 □ 占位、多首目标曲也看不到。
-            timeLimit: event.gameState.timeLimit,
-            targetSongs: event.gameState.targetSongs,
-            openedLetters: event.gameState.openedLetters,
-            maskedTitles: event.gameState.maskedTitles,
-            foundSongIds: event.gameState.foundSongIds,
-            players: event.gameState.players,
-          );
-          
-          if (isNewRound) {
-            _newRoundStartTime = DateTime.now();
-          }
-          
-          _gameStateController.add(_currentGameState);
+          _publishGameState(event.gameState);
         }
         break;
       case MultiplayerEventType.guessResult:
-        if (event is GuessResultEvent) {
-          debugPrint('[DEBUG][Manager] guessResult event: isCorrect=${event.guess.isCorrect}, player=${event.guess.playerNickname}');
-          
-          if (_newRoundStartTime != null && event.guess.guessedAt.isBefore(_newRoundStartTime!)) {
-            debugPrint('[DEBUG][Manager] Ignoring guessResult - belongs to previous round');
-            _refreshRoom();
-            break;
-          }
-          
-          if (_currentPlayer != null && event.guess.playerId == _currentPlayer!.playerId) {
-            _currentPlayer = _currentPlayer!.copyWith(
-              score: _currentPlayer!.score + (event.guess.isCorrect ? event.guess.score : 0),
-            );
-            debugPrint('[DEBUG][Manager] Updated current player score: ${_currentPlayer!.score}');
-          }
-          if (_currentGameState != null) {
-            List<GuessRecord> updatedGuesses = List.from(_currentGameState!.guesses);
-            updatedGuesses.add(event.guess);
-
-            // 猜对不等于回合结束：letters 模式要求把 songCount 首目标曲全部
-            // 猜出来才结束。原先这里无条件用 isCorrect 当回合结束，导致猜中
-            // 3 首里的第 1 首就把本地状态标记成回合结束。
-            // 非 letters 模式维持原行为（猜中即结束，服务端随后的 round_over
-            // 确认一致）；letters 模式则只把该曲记入 foundSongIds。
-            final bool isLetters = _currentRoom?.gameType == GameType.letters;
-            bool isRoundOver;
-            List<String> foundSongIds = _currentGameState!.foundSongIds;
-            if (!event.guess.isCorrect) {
-              isRoundOver = false;
-            } else if (!isLetters) {
-              isRoundOver = true;
-            } else {
-              final String id = event.guess.songId;
-              if (id.isNotEmpty && !foundSongIds.contains(id)) {
-                foundSongIds = [...foundSongIds, id];
-              }
-              final int targetCount = _currentGameState!.targetSongs.isNotEmpty
-                  ? _currentGameState!.targetSongs.length
-                  : 1;
-              isRoundOver = foundSongIds.length >= targetCount;
-            }
-            debugPrint('[DEBUG][Manager] Setting isRoundOver=$isRoundOver');
-
-            _currentGameState = _currentGameState!.copyWith(
-              guesses: updatedGuesses,
-              isRoundOver: isRoundOver,
-              foundSongIds: foundSongIds,
-            );
-            _gameStateController.add(_currentGameState);
-            debugPrint('[DEBUG][Manager] Game state updated and added to controller');
-          } else {
-            debugPrint('[DEBUG][Manager] _currentGameState is null');
-          }
-          _refreshRoom();
-        }
+        // 紧随其后的 game_state_updated / round_over 才是权威快照。
+        // 不根据单条猜测预测输赢、叠加分数或结束回合。
         break;
       case MultiplayerEventType.guessUpdate:
         if (event is GuessUpdateEvent) {
           debugPrint('[DEBUG][Manager] guessUpdate event received');
-          _currentGameState = event.gameState;
-          _gameStateController.add(event.gameState);
+          _publishGameState(event.gameState);
         }
         break;
       case MultiplayerEventType.disconnected:
         _currentRoomId = null;
         _currentRoom = null;
         _currentPlayer = null;
+        _currentGameState = null;
         _roomController.add(null);
         _gameStateController.add(null);
         break;
@@ -290,6 +227,7 @@ class MultiplayerManager {
         _currentRoomId = null;
         _currentRoom = null;
         _currentPlayer = null;
+        _currentGameState = null;
         _roomController.add(null);
         _gameStateController.add(null);
         break;
@@ -310,6 +248,7 @@ class MultiplayerManager {
     List<String> selectedGenres = const [],
     int blurLevel = 50,
     int playDuration = 5,
+    double audioRate = 1.25,
     int songCount = 3,
     int nonEnglishCharThreshold = 50,
     int flashDurationMs = 300,
@@ -319,9 +258,12 @@ class MultiplayerManager {
     List<String> peekDifficulties = const ['4'],
   }) async {
     debugPrint('[DEBUG][Manager] 开始创建房间请求...');
-    debugPrint('[DEBUG][Manager] 参数: gameType=${gameType.name}, maxPlayers=$maxPlayers, timeLimit=$timeLimit, maxGuesses=$maxGuesses');
-    debugPrint('[DEBUG][Manager] 歌曲筛选参数: selectedVersions=$selectedVersions, masterMinDx=$masterMinDx, masterMaxDx=$masterMaxDx, selectedGenres=$selectedGenres');
-    debugPrint('[DEBUG][Manager] 模式专属参数: blurLevel=$blurLevel, playDuration=$playDuration, songCount=$songCount');
+    debugPrint(
+        '[DEBUG][Manager] 参数: gameType=${gameType.name}, maxPlayers=$maxPlayers, timeLimit=$timeLimit, maxGuesses=$maxGuesses');
+    debugPrint(
+        '[DEBUG][Manager] 歌曲筛选参数: selectedVersions=$selectedVersions, masterMinDx=$masterMinDx, masterMaxDx=$masterMaxDx, selectedGenres=$selectedGenres');
+    debugPrint(
+        '[DEBUG][Manager] 模式专属参数: blurLevel=$blurLevel, playDuration=$playDuration, songCount=$songCount');
     debugPrint('[DEBUG][Manager] 新模式参数: flashDurationMs=$flashDurationMs, '
         'tileCount=$tileCount, tileRevealIntervalMs=$tileRevealIntervalMs, '
         'peekDurationSeconds=$peekDurationSeconds, peekDifficulties=$peekDifficulties');
@@ -345,7 +287,7 @@ class MultiplayerManager {
         } else if (event is ErrorEvent) {
           completed = true;
           debugPrint('[DEBUG][Manager] 房间创建失败: ${event.message}');
-          completer.complete(null);
+          completer.completeError(StateError(event.message));
           sub?.cancel();
         }
       }
@@ -363,6 +305,7 @@ class MultiplayerManager {
       selectedGenres: selectedGenres,
       blurLevel: blurLevel,
       playDuration: playDuration,
+      audioRate: audioRate,
       songCount: songCount,
       nonEnglishCharThreshold: nonEnglishCharThreshold,
       flashDurationMs: flashDurationMs,
@@ -373,16 +316,18 @@ class MultiplayerManager {
     );
 
     debugPrint('[DEBUG][Manager] 等待房间创建结果...');
-    return completer.future;
+    return completer.future.timeout(const Duration(seconds: 12), onTimeout: () {
+      throw TimeoutException('创建房间超时，请检查连接后重试');
+    }).whenComplete(() => sub?.cancel());
   }
 
   Future<RoomEntity?> joinRoom(String roomId) async {
     debugPrint('[DEBUG][Manager] joinRoom called with roomId: "$roomId"');
     await initialize();
-    
+
     Completer<RoomEntity?> completer = Completer();
     bool completed = false;
-    
+
     StreamSubscription? sub;
     sub = _cloudService.events.listen((event) {
       if (!completed) {
@@ -405,18 +350,29 @@ class MultiplayerManager {
         }
       }
     });
-    
+
     debugPrint('[DEBUG][Manager] Calling cloudService.joinRoom...');
     await _cloudService.joinRoom(roomId);
-    
+
     debugPrint('[DEBUG][Manager] Waiting for join result...');
-    return completer.future;
+    return completer.future.timeout(const Duration(seconds: 12), onTimeout: () {
+      throw TimeoutException('加入房间超时，请检查房间码与网络');
+    }).whenComplete(() => sub?.cancel());
   }
 
   Future<void> leaveRoom() async {
     await _cloudService.leaveRoom();
+    final hadRoom = _currentRoom != null ||
+        _currentRoomId != null ||
+        _currentGameState != null;
     _currentRoomId = null;
+    _currentRoom = null;
     _currentPlayer = null;
+    _currentGameState = null;
+    if (hadRoom) {
+      _roomController.add(null);
+      _gameStateController.add(null);
+    }
   }
 
   Future<void> updatePlayerReady(bool isReady) async {
@@ -428,9 +384,6 @@ class MultiplayerManager {
 
   Future<void> updatePlayerSurrendered(bool surrendered) async {
     await _cloudService.setSurrendered(surrendered);
-    if (_currentPlayer != null) {
-      _currentPlayer = _currentPlayer!.copyWith(isSurrendered: surrendered);
-    }
   }
 
   Future<void> startGame() async {
@@ -452,13 +405,13 @@ class MultiplayerManager {
 
   Future<List<RoomEntity>> getRoomList() async {
     await initialize();
-    
+
     try {
       return _cloudService.getWaitingRooms();
     } catch (e) {
       debugPrint('获取房间列表失败: $e');
     }
-    
+
     return [];
   }
 
@@ -469,10 +422,10 @@ class MultiplayerManager {
 
   void _refreshRoom() async {
     if (_currentRoomId == null) return;
-    
+
     try {
       final room = _cloudService.getRoomById(_currentRoomId!);
-      
+
       if (room != null) {
         _roomController.add(room);
       }

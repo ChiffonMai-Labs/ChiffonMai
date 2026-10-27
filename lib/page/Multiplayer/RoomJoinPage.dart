@@ -22,16 +22,17 @@ class _RoomJoinPageState extends State<RoomJoinPage> {
   }
 
   void _handleJoin() async {
+    if (_isJoining) return;
     String roomId = _roomIdController.text.trim().toLowerCase();
 
     if (roomId.isEmpty) {
-      setState(() => _roomIdError = '房间ID不能为空');
+      setState(() => _roomIdError = '房间码不能为空');
       return;
     }
 
     setState(() => _isJoining = true);
 
-    await Future.delayed(const Duration(milliseconds: 500));
+    FocusManager.instance.primaryFocus?.unfocus();
     if (!mounted) return;
     Navigator.pop(context, roomId);
   }
@@ -42,8 +43,7 @@ class _RoomJoinPageState extends State<RoomJoinPage> {
     if (data != null && data.text != null) {
       setState(() {
         _roomIdController.text = data.text!.toLowerCase();
-        _roomIdError =
-            _roomIdController.text.trim().isEmpty ? '房间ID不能为空' : null;
+        _roomIdError = _roomIdController.text.trim().isEmpty ? '房间码不能为空' : null;
       });
     }
   }
@@ -82,14 +82,14 @@ class _RoomJoinPageState extends State<RoomJoinPage> {
                         size: 32 * scaleFactor, color: Colors.blue),
                     SizedBox(height: paddingM),
                     Text(
-                      '请输入房间ID',
+                      '请输入房间码',
                       style: TextStyle(
                           fontSize: 16 * scaleFactor,
                           fontWeight: FontWeight.bold),
                     ),
                     SizedBox(height: paddingS),
                     Text(
-                      '房间ID格式: abc123',
+                      '输入 6 位房间码，也支持完整房间 ID',
                       style: TextStyle(
                           fontSize: 12 * scaleFactor,
                           color:
@@ -102,14 +102,14 @@ class _RoomJoinPageState extends State<RoomJoinPage> {
               TextField(
                 controller: _roomIdController,
                 onChanged: (value) {
-                  final error = value.trim().isEmpty ? '房间ID不能为空' : null;
+                  final error = value.trim().isEmpty ? '房间码不能为空' : null;
                   if (error != _roomIdError) {
                     setState(() => _roomIdError = error);
                   }
                 },
                 decoration: InputDecoration(
-                  hintText: 'abc123',
-                  labelText: '房间ID',
+                  hintText: '例如 123456',
+                  labelText: '房间码',
                   border: const OutlineInputBorder(),
                   errorText: _roomIdError,
                   suffixIcon: IconButton(
@@ -122,7 +122,7 @@ class _RoomJoinPageState extends State<RoomJoinPage> {
               ),
               SizedBox(height: paddingM),
               ElevatedButton(
-                onPressed: _handleJoin,
+                onPressed: _isJoining ? null : _handleJoin,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Theme.of(context).colorScheme.primary,
                   padding: EdgeInsets.symmetric(vertical: 16 * scaleFactor),
@@ -143,13 +143,13 @@ class _RoomJoinPageState extends State<RoomJoinPage> {
               const Divider(),
               SizedBox(height: paddingM),
               Text(
-                '如何获取房间ID?',
+                '如何获取房间码?',
                 style: TextStyle(
                     fontSize: 14 * scaleFactor, fontWeight: FontWeight.bold),
               ),
               SizedBox(height: paddingS),
               Text(
-                '创建房间后，房主会获得一个房间ID。\n请让房主将房间ID发送给你，\n然后在此输入加入游戏。',
+                '创建房间后，房主可在房间页面复制房间码。\n让好友将房间码发给你，在此粘贴即可加入。',
                 style: TextStyle(
                     fontSize: 12 * scaleFactor,
                     color: Theme.of(context).colorScheme.onSurfaceVariant),

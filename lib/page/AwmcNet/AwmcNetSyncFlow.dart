@@ -4,13 +4,14 @@ import 'package:flutter/material.dart';
 import '../../constant/CacheKeyConstant.dart';
 import '../../service/AwmcNetScoreUploadService.dart';
 import '../../service/AWMC/AwmcQuickSyncService.dart';
+import '../../service/PostSyncRefreshService.dart';
 
 import '../../service/SyncStatsService.dart';
 import '../../utils/SyncRouteNotifier.dart';
 import '../../utils/SecureCredentialStore.dart';
 import 'SyncToAwmcNetPage.dart'
     show showAwmcNetSyncInputDialog, AwmcNetSyncInput;
-import '../../widgets/RefreshDataDialog.dart' show executeAdvancedRefreshData;
+import '../../widgets/RefreshDataDialog.dart' show RefreshDataSource;
 
 /// 一次「同步成绩到 AWMC NET」的结果。
 class AwmcNetSyncOutcome {
@@ -81,6 +82,9 @@ class AwmcNetSyncFlow {
     void Function(double progress, String text)? onProgress,
     VoidCallback? onIdle,
   }) async {
+    final refresh = await PostSyncRefreshOperation.capture(
+        RefreshDataSource.awmc,
+        request: input.refreshRequest);
     if (input.quickUpdate) {
       try {
         final result = await AwmcQuickSyncService.run(
@@ -90,18 +94,10 @@ class AwmcNetSyncFlow {
             onProgress?.call(p, text);
           },
         );
-        String? refreshError;
-        if (input.refreshRequest != null) {
-          try {
-            await executeAdvancedRefreshData(input.refreshRequest!,
-                onProgress: (p, text) {
-              onBusy?.call(text);
-              onProgress?.call(p / 100, text);
-            });
-          } catch (error) {
-            refreshError = '$error';
-          }
-        }
+        final refreshError = await refresh.run(onProgress: (p, text) {
+          onBusy?.call(text);
+          onProgress?.call(.7 + p * .003, text);
+        });
         return AwmcNetSyncOutcome(
             ok: true,
             quickUpdate: true,
@@ -148,19 +144,12 @@ class AwmcNetSyncFlow {
         SyncRouteNotifier.instance.refreshStatsSoon();
       }
       String? refreshError;
-      if (result.ok && input.refreshRequest != null) {
+      if (result.ok) {
         ticker.cancel();
-        try {
-          await executeAdvancedRefreshData(
-            input.refreshRequest!,
-            onProgress: (p, text) {
-              onBusy?.call(text);
-              onProgress?.call(p / 100, text);
-            },
-          );
-        } catch (e) {
-          refreshError = '$e';
-        }
+        refreshError = await refresh.run(onProgress: (p, text) {
+          onBusy?.call(text);
+          onProgress?.call(.7 + p * .003, text);
+        });
       }
       return AwmcNetSyncOutcome(
         ok: result.ok,

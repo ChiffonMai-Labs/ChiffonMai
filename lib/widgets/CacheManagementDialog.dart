@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import '../service/CacheManagementService.dart';
 import 'SmoothLinearProgressIndicator.dart';
 
-Future<void> showCacheManagementDialog(BuildContext context) {
-  return showDialog<void>(
+Future<bool?> showCacheManagementDialog(BuildContext context) {
+  return showDialog<bool>(
     context: context,
     builder: (_) => const _CacheManagementDialog(),
   );
@@ -23,6 +23,7 @@ class _CacheManagementDialogState extends State<_CacheManagementDialog> {
   AppCacheKind? _clearing;
   double _clearProgress = 0;
   String? _error;
+  bool _closing = false;
 
   @override
   void initState() {
@@ -82,7 +83,7 @@ class _CacheManagementDialogState extends State<_CacheManagementDialog> {
               Text(
                 usage == null
                     ? '正在统计缓存占用…'
-                    : '总占用 ${_formatBytes(usage.bytesForAll)}（maidata 另列内存占用）',
+                    : '总占用 ${_formatBytes(usage.bytesForAll)}',
                 style: TextStyle(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
@@ -94,23 +95,33 @@ class _CacheManagementDialogState extends State<_CacheManagementDialog> {
                 title: '音源缓存',
                 subtitle: usage == null
                     ? '统计中…'
-                    : '${usage.audioFiles} 个文件 · ${_formatBytes(usage.audioBytes)}',
+                    : '${usage.audioFiles} 个文件\n共计 ${_formatBytes(usage.audioBytes)}',
               ),
               _cacheRow(
                 kind: AppCacheKind.pv,
                 icon: Icons.movie_outlined,
-                title: 'PV 缓存',
+                title: 'PV缓存',
                 subtitle: usage == null
                     ? '统计中…'
-                    : '${usage.pvFiles} 个文件 · ${_formatBytes(usage.pvBytes)}',
+                    : '${usage.pvFiles} 个文件\n共计 ${_formatBytes(usage.pvBytes)}',
               ),
               _cacheRow(
                 kind: AppCacheKind.maidata,
                 icon: Icons.data_object,
-                title: 'maidata 缓存',
+                title: 'maidata缓存',
                 subtitle: usage == null
                     ? '统计中…'
-                    : '${usage.maidataFiles} 项缓存 · 存储 ${_formatBytes(usage.maidataBytes)} · 内存 ${_formatBytes(usage.maidataMemoryBytes)}',
+                    : '${usage.maidataFiles} 个文件\n共计 ${_formatBytes(usage.maidataBytes)}',
+              ),
+              TextButton.icon(
+                onPressed: _clearing == null && usage != null && !_closing
+                    ? () {
+                        setState(() => _closing = true);
+                        Navigator.of(context).pop(true);
+                      }
+                    : null,
+                icon: const Icon(Icons.refresh),
+                label: const Text('重新拉取基础量maidata'),
               ),
               if (_clearing != null) ...[
                 const SizedBox(height: 8),
@@ -161,7 +172,7 @@ class _CacheManagementDialogState extends State<_CacheManagementDialog> {
     required String subtitle,
   }) {
     final isClearing = _clearing == kind;
-    final disabled = _clearing != null || _usage == null;
+    final disabled = _clearing != null || _usage == null || _closing;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Container(
@@ -202,11 +213,11 @@ class _CacheManagementDialogState extends State<_CacheManagementDialog> {
   }
 
   static String _formatBytes(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    if (bytes < 1024) return '${bytes}B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)}KB';
     if (bytes < 1024 * 1024 * 1024) {
-      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)}MB';
     }
-    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)}GB';
   }
 }

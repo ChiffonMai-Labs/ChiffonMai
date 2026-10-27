@@ -1,15 +1,19 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import '../service/AWMC/AwmcGatewaySettings.dart';
 import '../utils/AppTheme.dart';
 import '../utils/CommonWidgetUtil.dart';
 import '../utils/ExportSettings.dart';
 import '../utils/ThemeManager.dart';
+import '../utils/SearchInteractionPreferences.dart';
+import '../widgets/AnimatedChoiceBar.dart';
 import '../widgets/PageTopBar.dart';
 import '../widgets/AppColorPickerDialog.dart';
 import '../widgets/ThemePreferenceControls.dart';
@@ -31,6 +35,18 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   final ImagePicker _picker = ImagePicker();
   bool _pickingImage = false;
+
+  /// AWMC 网关同步前探活超时（秒）。默认 15 秒，见「同步与网关」分区。
+  int _awmcProbeTimeoutSeconds = AwmcGatewaySettings.defaultProbeTimeoutSeconds;
+
+  @override
+  void initState() {
+    super.initState();
+    SearchInteractionPreferences.instance.load();
+    AwmcGatewaySettings.loadProbeTimeoutSeconds().then((seconds) {
+      if (mounted) setState(() => _awmcProbeTimeoutSeconds = seconds);
+    });
+  }
 
   bool get _backgroundsDisabled =>
       Theme.of(context).brightness == Brightness.dark &&
@@ -165,11 +181,45 @@ class _SettingsPageState extends State<SettingsPage> {
     if (mounted) Fluttertoast.showToast(msg: '已恢复默认主题色');
   }
 
+  Widget _buildSearchInteractionSettings() {
+    final preferences = SearchInteractionPreferences.instance;
+    return ListenableBuilder(
+      listenable: preferences,
+      builder: (context, _) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('搜索框交互', style: TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          AnimatedChoiceBar<SearchInteractionMode>(
+            values: SearchInteractionMode.values,
+            value: preferences.mode,
+            label: (mode) =>
+                mode == SearchInteractionMode.inline ? '原位输入' : '展开搜索',
+            onChanged: preferences.loaded
+                ? (mode) {
+                    FocusManager.instance.primaryFocus?.unfocus();
+                    preferences.setMode(mode);
+                  }
+                : null,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            preferences.usesOverlay
+                ? '首页功能和歌曲搜索使用展开搜索界面（当前默认）'
+                : '直接在原搜索框输入，歌曲搜索历史显示在搜索框下方',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ============ UI ============
 
   @override
   Widget build(BuildContext context) {
-    final brightness = Theme.of(context).brightness;
     final sw = MediaQuery.of(context).size.width;
     final safeBottom = MediaQuery.of(context).padding.bottom;
     final c = Theme.of(context).colorScheme.onSurface;
@@ -179,6 +229,9 @@ class _SettingsPageState extends State<SettingsPage> {
       backgroundColor: Colors.transparent,
       body: Stack(
         children: [
+          ColoredBox(
+              color: Theme.of(context).colorScheme.surface,
+              child: const SizedBox.expand()),
           CommonWidgetUtil.buildCommonBgWidget(),
           CommonWidgetUtil.buildCommonChiffonBgWidget(context),
           Column(
@@ -196,17 +249,19 @@ class _SettingsPageState extends State<SettingsPage> {
                   builder: (context, _) {
                     final backgroundsDisabled = _backgroundsDisabled;
                     Widget backgroundControl(Widget child) => AbsorbPointer(
-                      absorbing: backgroundsDisabled,
-                      child: ExcludeFocus(
-                        excluding: backgroundsDisabled,
-                        child: Opacity(opacity: backgroundsDisabled ? 0.38 : 1, child: child),
-                      ),
-                    );
+                          absorbing: backgroundsDisabled,
+                          child: ExcludeFocus(
+                            excluding: backgroundsDisabled,
+                            child: Opacity(
+                                opacity: backgroundsDisabled ? 0.38 : 1,
+                                child: child),
+                          ),
+                        );
                     return ListView(
                       padding: EdgeInsets.fromLTRB(
                           sw * 0.04, 8, sw * 0.04, 16 + safeBottom),
                       children: [
-                        _buildPreviewCard(sw, brightness),
+                        _buildPreviewCard(),
                         const SizedBox(height: 16),
                         _buildSectionTitle('主题色', c),
                         const SizedBox(height: 8),
@@ -235,6 +290,8 @@ class _SettingsPageState extends State<SettingsPage> {
                         _buildSectionTitle('外观与导航', c),
                         const SizedBox(height: 8),
                         const ThemePreferenceControls(),
+                        const Divider(height: 24),
+                        _buildSearchInteractionSettings(),
                         const SizedBox(height: 24),
                         _buildSectionTitle('功能引导', c),
                         const SizedBox(height: 8),
@@ -252,7 +309,8 @@ class _SettingsPageState extends State<SettingsPage> {
                         const SizedBox(height: 24),
                         _buildSectionTitle('背景图', c),
                         const SizedBox(height: 8),
-                        if (backgroundsDisabled) const Text('纯黑模式下背景图与装饰图调节不可用'),
+                        if (backgroundsDisabled)
+                          const Text('纯黑模式下背景图与装饰图调节不可用'),
                         backgroundControl(_buildBackgroundSection(sw, c,
                             enabled: !backgroundsDisabled)),
                         const SizedBox(height: 24),
@@ -264,6 +322,10 @@ class _SettingsPageState extends State<SettingsPage> {
                         _buildSectionTitle('导出', c),
                         const SizedBox(height: 8),
                         _buildExportSection(sw, c),
+                        const SizedBox(height: 24),
+                        _buildSectionTitle('同步与网关', c),
+                        const SizedBox(height: 8),
+                        _buildAwmcGatewaySection(c),
                       ],
                     );
                   },
@@ -277,8 +339,7 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   // 顶部栏统一走公共组件（标题样式对齐 Rating 排行榜页的 AppBar）
-  Widget _buildTitleBar(double sw, Color c) =>
-      const PageTopBar(title: '主题与交互偏好');
+  Widget _buildTitleBar(double sw, Color c) => const PageTopBar(title: '系统设置');
 
   Widget _buildSectionTitle(String title, Color c) => Padding(
         padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -292,51 +353,70 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
       );
 
-  Widget _buildPreviewCard(double sw, Brightness brightness) {
+  Widget _buildPreviewCard() {
     final scheme = Theme.of(context).colorScheme;
     final bgPath = ThemeManager().customBackgroundPath;
+    Widget defaultBackground() => Image.asset(
+          'assets/background.png',
+          fit: BoxFit.cover,
+          gaplessPlayback: true,
+          errorBuilder: (_, __, ___) => ColoredBox(color: scheme.surface),
+        );
+
     return Container(
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: scheme.outlineVariant),
       ),
+      padding: const EdgeInsets.all(12),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // 顶部"实时背景"缩略图
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 2, 4, 12),
+            child: Text('预览效果',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    )),
+          ),
           ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-            child: Container(
-              height: sw * 0.4,
-              width: double.infinity,
-              color: scheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(10),
+            child: AspectRatio(
+              aspectRatio: 2.4,
               child: Stack(
                 fit: StackFit.expand,
                 children: [
+                  ColoredBox(color: scheme.surface),
                   if (_backgroundsDisabled)
                     const ColoredBox(color: Colors.black)
                   else if (bgPath != null)
-                    Image.file(File(bgPath),
-                        fit: BoxFit.cover, gaplessPlayback: true)
+                    Image.file(
+                      File(bgPath),
+                      key: ValueKey(bgPath),
+                      fit: BoxFit.cover,
+                      gaplessPlayback: true,
+                      errorBuilder: (_, __, ___) => defaultBackground(),
+                    )
                   else
-                    Image.asset('assets/background.png',
-                        fit: BoxFit.cover, gaplessPlayback: true),
-                  // 主题色覆层
+                    defaultBackground(),
                   if (!_backgroundsDisabled)
-                    Container(color: scheme.primary.withValues(alpha: 0.18)),
+                    ColoredBox(color: scheme.primary.withValues(alpha: 0.18)),
                   Center(
                     child: Container(
+                      margin: const EdgeInsets.all(12),
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 8),
+                          horizontal: 16, vertical: 8),
                       decoration: BoxDecoration(
                         color: scheme.primary,
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
-                        '预览效果',
-                        style: TextStyle(
-                          color: scheme.onPrimary,
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        'ChiffonMai',
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                              color: scheme.onPrimary,
+                              fontWeight: FontWeight.w600,
+                            ),
                       ),
                     ),
                   ),
@@ -344,47 +424,49 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
           ),
-          // 底部色块组
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
+          const SizedBox(height: 12),
+          LayoutBuilder(builder: (context, constraints) {
+            final scale = MediaQuery.textScalerOf(context).scale(1);
+            final columns =
+                (constraints.maxWidth / (70 * scale)).floor().clamp(1, 4);
+            final width = (constraints.maxWidth - (columns - 1) * 8) / columns;
+            final swatches = [
+              _previewSwatch('主色', scheme.primary, scheme.onPrimary),
+              _previewSwatch('辅助色', scheme.secondary, scheme.onSecondary),
+              _previewSwatch('强调色', scheme.tertiary, scheme.onTertiary),
+              _previewSwatch('背景色', scheme.surface, scheme.onSurface),
+            ];
+            return Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
-                _previewSwatch('primary', scheme.primary, sw),
-                const SizedBox(width: 8),
-                _previewSwatch('secondary', scheme.secondary, sw),
-                const SizedBox(width: 8),
-                _previewSwatch('tertiary', scheme.tertiary, sw),
-                const SizedBox(width: 8),
-                _previewSwatch('surface', scheme.surface, sw),
+                for (final swatch in swatches)
+                  SizedBox(width: width, child: swatch),
               ],
-            ),
-          ),
+            );
+          }),
         ],
       ),
     );
   }
 
-  Widget _previewSwatch(String label, Color color, double sw) {
-    final isLight =
-        ThemeData.estimateBrightnessForColor(color) == Brightness.light;
-    final txtColor = isLight ? Colors.black87 : Colors.white;
-    return Expanded(
-      child: Container(
-        height: sw * 0.16,
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.black12),
-        ),
-        alignment: Alignment.center,
-        child: Text(
-          label,
-          style: TextStyle(
-            color: txtColor,
-            fontSize: 10,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+  Widget _previewSwatch(String label, Color color, Color foreground) {
+    return Container(
+      constraints: const BoxConstraints(minHeight: 52),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        label,
+        textAlign: TextAlign.center,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: foreground,
+              fontWeight: FontWeight.w600,
+            ),
       ),
     );
   }
@@ -458,7 +540,8 @@ class _SettingsPageState extends State<SettingsPage> {
               const SizedBox(width: 8),
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: !enabled || bgPath == null ? null : _resetBackground,
+                  onPressed:
+                      !enabled || bgPath == null ? null : _resetBackground,
                   icon: const Icon(Icons.restore),
                   label: const Text('恢复默认'),
                 ),
@@ -578,9 +661,11 @@ class _SettingsPageState extends State<SettingsPage> {
             max: 1.0,
             divisions: 20,
             label: '${(opacity * 100).round()}%',
-            onChanged: !enabled ? null : (value) {
-              ThemeManager().setChiffonOpacity(value);
-            },
+            onChanged: !enabled
+                ? null
+                : (value) {
+                    ThemeManager().setChiffonOpacity(value);
+                  },
           ),
           Row(
             children: [
@@ -596,7 +681,9 @@ class _SettingsPageState extends State<SettingsPage> {
               const SizedBox(width: 8),
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: !enabled ? null : () => ThemeManager().setChiffonOpacity(0.40),
+                  onPressed: !enabled
+                      ? null
+                      : () => ThemeManager().setChiffonOpacity(0.40),
                   icon: const Icon(Icons.refresh),
                   label: const Text('恢复默认 (40%)'),
                 ),
@@ -667,6 +754,142 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
         ],
       ),
+    );
+  }
+
+  // ============ 同步与网关 ============
+
+  /// AWMC 网关「同步前探活」超时设置。
+  Widget _buildAwmcGatewaySection(Color c) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: scheme.outlineVariant),
+      ),
+      child: ListTile(
+        leading: Icon(Icons.timer_outlined, size: 20, color: c),
+        title: Text(
+          'AWMC 网关检测超时',
+          style: TextStyle(color: c, fontSize: 14, fontWeight: FontWeight.w600),
+        ),
+        subtitle: const Padding(
+          padding: EdgeInsets.only(top: 2),
+          child: Text(
+            '线路1 同步前会先请求 GET /v1/health 探活；超过这个时间就取消同步（不消耗 Token）。',
+            style: TextStyle(fontSize: 11.5, height: 1.4),
+          ),
+        ),
+        trailing: Text(
+          '$_awmcProbeTimeoutSeconds 秒',
+          style: TextStyle(
+            color: scheme.primary,
+            fontSize: 13,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        onTap: _editAwmcProbeTimeout,
+      ),
+    );
+  }
+
+  Future<void> _editAwmcProbeTimeout() async {
+    final seconds = await showDialog<int>(
+      context: context,
+      builder: (_) =>
+          _AwmcProbeTimeoutDialog(initial: _awmcProbeTimeoutSeconds),
+    );
+    if (seconds == null || !mounted) return;
+    await AwmcGatewaySettings.saveProbeTimeoutSeconds(seconds);
+    if (!mounted) return;
+    setState(() =>
+        _awmcProbeTimeoutSeconds = AwmcGatewaySettings.clampSeconds(seconds));
+    Fluttertoast.showToast(msg: 'AWMC 网关检测超时已设为 $_awmcProbeTimeoutSeconds 秒');
+  }
+}
+
+/// AWMC 网关检测超时的输入对话框（默认 15 秒，允许 5–60 秒）。
+class _AwmcProbeTimeoutDialog extends StatefulWidget {
+  final int initial;
+
+  const _AwmcProbeTimeoutDialog({required this.initial});
+
+  @override
+  State<_AwmcProbeTimeoutDialog> createState() =>
+      _AwmcProbeTimeoutDialogState();
+}
+
+class _AwmcProbeTimeoutDialogState extends State<_AwmcProbeTimeoutDialog> {
+  late final TextEditingController _controller =
+      TextEditingController(text: '${widget.initial}');
+  String? _error;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final parsed = int.tryParse(_controller.text.trim());
+    if (parsed == null) {
+      setState(() => _error = '请输入整数秒数');
+      return;
+    }
+    if (parsed < AwmcGatewaySettings.minProbeTimeoutSeconds ||
+        parsed > AwmcGatewaySettings.maxProbeTimeoutSeconds) {
+      setState(
+          () => _error = '允许 ${AwmcGatewaySettings.minProbeTimeoutSeconds}–'
+              '${AwmcGatewaySettings.maxProbeTimeoutSeconds} 秒');
+      return;
+    }
+    Navigator.pop(context, parsed);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('AWMC 网关检测超时'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '线路1 同步前会先请求 GET /v1/health 探活；超过这个时间视为网关不可用，'
+            '直接取消同步（不会消耗 Token）。',
+            style: TextStyle(fontSize: 12.5, height: 1.5),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _controller,
+            autofocus: true,
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            decoration: InputDecoration(
+              labelText: '超时时间',
+              suffixText: '秒',
+              helperText:
+                  '默认 ${AwmcGatewaySettings.defaultProbeTimeoutSeconds} 秒，'
+                  '允许 ${AwmcGatewaySettings.minProbeTimeoutSeconds}–'
+                  '${AwmcGatewaySettings.maxProbeTimeoutSeconds} 秒',
+              errorText: _error,
+              border: const OutlineInputBorder(),
+            ),
+            onSubmitted: (_) => _submit(),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(
+              context, AwmcGatewaySettings.defaultProbeTimeoutSeconds),
+          child: const Text('恢复默认'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('取消'),
+        ),
+        FilledButton(onPressed: _submit, child: const Text('保存')),
+      ],
     );
   }
 }

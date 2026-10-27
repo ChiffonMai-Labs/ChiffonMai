@@ -142,7 +142,7 @@ void main() {
       ]);
 
       expect(result.upcoming.map((s) => s.id), ['12001', '12002', '12005'],
-          reason: 'id 越小 = 日服上得越早 = 越可能先补进国服');
+          reason: '缺少日期时回退到 id 判定，并按 id 稳定展示');
     });
 
     test('union 独有但 id 更小 → 被跳过（区域限定/国服没上）', () {
@@ -238,7 +238,7 @@ void main() {
 
       expect(result.frontier?.id, '11878');
       expect(result.upcoming.map((s) => s.id), ['11879', '11921', '11950'],
-          reason: '候选必须是"国服没有 + id 大于前沿"，超前曲目不参与前沿');
+          reason: '缺少日期时参考 id，超前曲目不参与前沿');
       expect(result.skipped, isEmpty);
     });
 
@@ -298,6 +298,104 @@ void main() {
 
       expect(result.upcoming.map((s) => s.id), ['11815']);
       expect(result.upcoming.length, 1, reason: '11819 两边都没有，不该凭空出现');
+    });
+  });
+
+  group('按首发日期补齐候选', () {
+    test('11859、11876 比前沿 id 小，但首发更晚，仍纳入候选', () {
+      final result = UnionUpdateCompareService.compare([
+        song('11878', releaseDate: '20250801'),
+        song('11859', releaseDate: '20250808', isExtra: true),
+        song('11876', releaseDate: '2025-09-05', isExtra: true),
+        song('11861', releaseDate: '20250801', isExtra: true),
+        song('11790', releaseDate: '20250101', isExtra: true),
+      ]);
+
+      expect(result.frontier?.id, '11878');
+      expect(result.upcoming.map((s) => s.id), ['11859', '11861', '11876']);
+      expect(result.skipped.map((s) => s.id), ['11790']);
+    });
+
+    test('已确认待补批次下移日期起点，补齐同批及之后其他小 id 曲目', () {
+      final result = UnionUpdateCompareService.compare([
+        song('11878', releaseDate: '20250801'),
+        song('11815', releaseDate: '20250711', isExtra: true),
+        song('11827', releaseDate: '20250711', isExtra: true),
+        song('11828', releaseDate: '20250716', isExtra: true),
+        song('11826', releaseDate: '20250704', isExtra: true),
+        song('100123', releaseDate: '20250716', isExtra: true),
+        song('11944', releaseDate: '20250926', isExtra: true),
+      ]);
+
+      expect(result.upcoming.map((s) => s.id), ['11815', '11827', '11828']);
+      expect(result.skipped.map((s) => s.id), ['11826']);
+      expect(result.utage.map((s) => s.id), ['100123']);
+      expect(result.earlyReleases.map((s) => s.id), ['11944']);
+      expect(result.cnSongCount, 2);
+      expect(result.totalCount, 7);
+    });
+
+    test('待补批次已被水鱼收录后，不再让参考起点停在旧日期', () {
+      final result = UnionUpdateCompareService.compare([
+        song('11878', releaseDate: '20250801'),
+        song('11815', releaseDate: '20250711'),
+        song('11828', releaseDate: '20250716', isExtra: true),
+        song('11859', releaseDate: '20250808', isExtra: true),
+      ]);
+
+      expect(result.upcoming.map((s) => s.id), ['11859']);
+      expect(result.skipped.map((s) => s.id), ['11828']);
+      expect(result.cnSongCount, 2);
+    });
+
+    test('双方有有效日期时优先日期，不因较大的 id 把旧曲误认为新曲', () {
+      final result = UnionUpdateCompareService.compare([
+        song('11878', releaseDate: '20250801'),
+        song('11900', releaseDate: '20250101', isExtra: true),
+      ]);
+
+      expect(result.upcoming, isEmpty);
+      expect(result.skipped.map((s) => s.id), ['11900']);
+    });
+
+    test('缺少或异常日期时回退 id，已知待补曲仍保留', () {
+      final result = UnionUpdateCompareService.compare([
+        song('11878', releaseDate: '20250801'),
+        song('11859', isExtra: true),
+        song('11900', releaseDate: '20250230', isExtra: true),
+        song('11815', releaseDate: '错误日期', isExtra: true),
+        song('11828', releaseDate: '20250716', isExtra: true),
+      ]);
+
+      expect(result.upcoming.map((s) => s.id), ['11815', '11900']);
+      expect(result.skipped.map((s) => s.id), ['11828', '11859']);
+      final noFrontierDate = UnionUpdateCompareService.compare([
+        song('11878'),
+        song('11859', releaseDate: '20250808', isExtra: true),
+        song('11900', releaseDate: '20250101', isExtra: true),
+      ]);
+      expect(noFrontierDate.upcoming.map((s) => s.id), ['11900']);
+    });
+
+    test('首发日期兼容两种格式，并拒绝越界日期及非日期内容', () {
+      expect(UnionUpdateCompareService.releaseDateKey('20250808'), 20250808);
+      expect(
+          UnionUpdateCompareService.releaseDateKey(' 2025-08-08 '), 20250808);
+      expect(UnionUpdateCompareService.releaseDateKey('2025-08-08T00:00:00Z'),
+          20250808);
+      expect(UnionUpdateCompareService.releaseDateKey('20240229'), 20240229);
+      for (final raw in [
+        '20250230',
+        '20250229',
+        '20251301',
+        '20250001',
+        '00000101',
+        '202508',
+        '批次20250808',
+        ''
+      ]) {
+        expect(UnionUpdateCompareService.releaseDateKey(raw), 0, reason: raw);
+      }
     });
   });
 

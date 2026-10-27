@@ -6,7 +6,7 @@ import 'package:my_first_flutter_app/manager/DivingFish/MaimaiMusicDataManager.d
 import 'package:my_first_flutter_app/utils/ApiClient.dart';
 import '../../utils/CurrentDataSourceNotifier.dart';
 import '../../utils/CommunityProfileUtil.dart';
-import '../CommunityAvatarStore.dart';
+import '../PlayerExperienceService.dart';
 
 enum RankingType {
   achievementRate,
@@ -37,16 +37,20 @@ class RankingEntry {
   });
 
   factory RankingEntry.fromJson(Map<String, dynamic> json) {
+    final playerName = json['playerName'] as String? ?? '';
     return RankingEntry(
       rank: json['rank'] ?? 0,
       playerId: json['playerId'] ?? '',
-      playerName: json['playerName'] ?? '',
+      playerName: playerName,
       achievementRate: (json['achievementRate'] ?? 0).toDouble(),
       dxScore: (json['dxScore'] ?? 0).toInt(),
       fc: json['fc'],
       dataSource: json['dataSource'] ?? parseDataSource(json['playerId'] ?? ''),
       updateTime: json['updateTime'] ?? 0,
-      avatarId: CommunityProfileUtil.avatarIdFromJson(json),
+      // 兼容旧服务端与旧缓存，匿名记录始终显示默认头像。
+      avatarId: playerName.trim() == '匿名用户'
+          ? CommunityProfileUtil.defaultAvatarId
+          : CommunityProfileUtil.avatarIdFromJson(json),
     );
   }
 }
@@ -586,8 +590,7 @@ class SongRankingService {
 
   Future<bool> deleteSongRankings(String playerId) async {
     try {
-      final headers = await CommunityAvatarStore.authorizationHeaders(playerId);
-      if (headers == null) return false;
+      final headers = await PlayerExperienceService.ownerHeaders(playerId);
       final response = await ApiClient.delete(
         Uri.parse('${ApiUrls.SongRankingsBaseUrl}/player/$playerId'),
         headers: headers,

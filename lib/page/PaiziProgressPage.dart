@@ -21,6 +21,7 @@ import 'package:my_first_flutter_app/page/Collection/CollectionInfoPage.dart';
 import 'package:my_first_flutter_app/utils/ExportQualitySelector.dart';
 import 'package:my_first_flutter_app/utils/ImageEncodeUtil.dart';
 import 'package:my_first_flutter_app/widgets/BackgroundPageScaffold.dart';
+import '../utils/LuoXueToDivingFishUtil.dart';
 
 // 根据 formatVersion2 的顺序定义首字顺序
 const List<String> _firstCharOrder = [
@@ -75,6 +76,8 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
   // 缓存的歌曲完成状态数据
   List<Map<String, dynamic>>? _cachedSongsWithStatus;
   bool _isSongsLoading = false;
+  List<Song> _excludedSongs = [];
+  int _songLoadGeneration = 0;
 
   // 显示模式：true 为列表模式，false 为仅曲绘模式
   bool _showListMode = true;
@@ -224,10 +227,14 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
   // 加载当前选中的收藏品
   Future<void> _loadCurrentPlate() async {
     if (_selectedFirstChar != null && _selectedTitleType != null) {
+      final firstChar = _selectedFirstChar, titleType = _selectedTitleType;
       final plate = await _service.getPlateBySelection(
         _selectedFirstChar!,
         _selectedTitleType!,
       );
+      if (!mounted ||
+          firstChar != _selectedFirstChar ||
+          titleType != _selectedTitleType) return;
       setState(() {
         _currentPlate = plate;
       });
@@ -242,7 +249,10 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
       return;
     }
 
+    final generation = ++_songLoadGeneration;
+    final plate = _currentPlate;
     setState(() {
+      _excludedSongs = [];
       _isSongsLoading = true;
     });
 
@@ -252,17 +262,25 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
         _selectedTitleType!,
         _selectedDifficulty!,
       );
+      final excluded = plate == null
+          ? <Song>[]
+          : await LuoXueToDivingFishUtil.getConditionExcludedSongs(plate);
+      if (!mounted || generation != _songLoadGeneration) return;
       setState(() {
+        _excludedSongs = excluded;
         _cachedSongsWithStatus = result;
       });
     } catch (e) {
+      if (!mounted || generation != _songLoadGeneration) return;
       setState(() {
         _cachedSongsWithStatus = null;
       });
     } finally {
-      setState(() {
-        _isSongsLoading = false;
-      });
+      if (mounted && generation == _songLoadGeneration) {
+        setState(() {
+          _isSongsLoading = false;
+        });
+      }
     }
   }
 
@@ -333,60 +351,61 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
         bottom: MediaQuery.paddingOf(context).bottom,
       ),
       child: SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(_paddingM, 8, _paddingM, _paddingM),
-              child: Column(
-                children: [
-                  // 选择区域
-                  _buildSelectionSection(),
+        padding: EdgeInsets.fromLTRB(_paddingM, 8, _paddingM, _paddingM),
+        child: Column(
+          children: [
+            // 选择区域
+            _buildSelectionSection(),
 
-                  SizedBox(height: _paddingL),
+            SizedBox(height: _paddingL),
 
-                  // 导出为图片按钮
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.linkBlue(brightness),
-                        foregroundColor: Colors.white,
-                        padding: EdgeInsets.symmetric(vertical: _paddingS),
-                        shape: RoundedRectangleBorder(
-                          borderRadius:
-                              BorderRadius.circular(_borderRadiusSmall),
-                        ),
-                      ),
-                      icon: Icon(Icons.image, size: _textSizeL + 4),
-                      label: Text(
-                        '导出为图片',
-                        style: TextStyle(
-                            fontSize: _textSizeM, fontWeight: FontWeight.bold),
-                      ),
-                      onPressed: () async {
-                        debugPrint('=== PAIZI EXPORT BUTTON CLICKED ===');
-                        try {
-                          await _exportToImage();
-                        } catch (e) {
-                          debugPrint('Error in export: $e');
-                        }
-                      },
-                    ),
+            // 导出为图片按钮
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.linkBlue(brightness),
+                  foregroundColor: Colors.white,
+                  padding: EdgeInsets.symmetric(vertical: _paddingS),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(_borderRadiusSmall),
                   ),
-
-                  SizedBox(height: _paddingL),
-
-                  // 曲绘和完成情况显示区域
-                  AnimatedSwitcher(
-                    duration: MediaQuery.disableAnimationsOf(context)
-                        ? Duration.zero
-                        : const Duration(milliseconds: 240),
-                    switchInCurve: Curves.easeOutCubic,
-                    switchOutCurve: Curves.easeInCubic,
-                    child: (_isLoading || _isSongsLoading)
-                        ? _buildDataLoadingPanel()
-                        : _buildSongListSection(),
-                  ),
-                ],
+                ),
+                icon: Icon(Icons.image, size: _textSizeL + 4),
+                label: Text(
+                  '导出为图片',
+                  style: TextStyle(
+                      fontSize: _textSizeM, fontWeight: FontWeight.bold),
+                ),
+                onPressed: () async {
+                  debugPrint('=== PAIZI EXPORT BUTTON CLICKED ===');
+                  try {
+                    await _exportToImage();
+                  } catch (e) {
+                    debugPrint('Error in export: $e');
+                  }
+                },
               ),
             ),
+
+            SizedBox(height: _paddingL),
+
+            // 曲绘和完成情况显示区域
+            AnimatedSwitcher(
+              duration: MediaQuery.disableAnimationsOf(context)
+                  ? Duration.zero
+                  : const Duration(milliseconds: 240),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              child: (_isLoading || _isSongsLoading)
+                  ? _buildDataLoadingPanel()
+                  : _buildSongListSection(),
+            ),
+            if (!_isLoading && !_isSongsLoading && _currentPlate != null)
+              _buildExcludedSongSection(),
+          ],
+        ),
+      ),
     );
   }
 
@@ -398,10 +417,12 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CircularProgressIndicator(color: Theme.of(context).colorScheme.primary),
+            CircularProgressIndicator(
+                color: Theme.of(context).colorScheme.primary),
             const SizedBox(height: 12),
             Text('正在加载牌子进度…',
-                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant)),
           ],
         ),
       ),
@@ -633,6 +654,252 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
     );
   }
 
+  Widget _buildProgressSongCard(Map<String, dynamic> item,
+      {bool excluded = false}) {
+    final dynamic song = item['song'];
+    final isCompleted = item['completed'] as bool;
+
+    // 获取歌曲ID（支持 Song 和 CollectionRequiredSong）
+    String songId;
+    String songTitle;
+    String songType;
+    String songDs = '';
+    int initialLevelIndex = _selectedDifficulty ?? 3;
+    if (song is Song) {
+      songId = song.id;
+      songTitle = song.title;
+      songType = song.type;
+      // 获取当前难度对应的定数
+      final diffIndex = item['difficulty'] as int;
+      initialLevelIndex = diffIndex;
+      if (song.ds != null && song.ds.length > diffIndex) {
+        songDs = song.ds[diffIndex].toStringAsFixed(1);
+      }
+    } else if (song is CollectionRequiredSong) {
+      songId = song.id.toString();
+      songTitle = song.title;
+      songType = song.type;
+    } else {
+      songId = '';
+      songTitle = '未知';
+      songType = '';
+    }
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => SongInfoPage(
+              songId: songId,
+              initialLevelIndex: initialLevelIndex,
+            ),
+          ),
+        );
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: isCompleted
+              ? Colors.lightGreen[100]!
+              : Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(_borderRadiusSmall),
+          border: Border.all(
+            color: isCompleted
+                ? Colors.green
+                : Theme.of(context).colorScheme.outlineVariant,
+            width: 1,
+          ),
+        ),
+        padding: EdgeInsets.all(_paddingXS),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // 曲绘
+            Container(
+              width: _coverSize,
+              height: _coverSize,
+              child: CoverUtil.buildCoverWidgetWithContext(
+                context,
+                songId,
+                _coverSize,
+              ),
+            ),
+            SizedBox(width: _paddingS),
+            // 信息
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    songTitle,
+                    style: TextStyle(
+                      fontSize: _textSizeS,
+                      fontWeight: FontWeight.w500,
+                      color: isCompleted ? Colors.black87 : null,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    '${StringUtil.formatSongType(songType)} / ${songDs.isNotEmpty ? songDs : '-'}',
+                    style: TextStyle(
+                      fontSize: _textSizeXS,
+                      color: isCompleted
+                          ? Colors.black54
+                          : Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  SizedBox(height: 2),
+                  // 完成状态
+                  Row(
+                    children: [
+                      Icon(
+                        excluded
+                            ? Icons.remove_circle_outline
+                            : (isCompleted
+                                ? Icons.check_circle
+                                : Icons.circle_outlined),
+                        color: excluded
+                            ? Theme.of(context).colorScheme.onSurfaceVariant
+                            : _getCompletionColor(isCompleted),
+                        size: _textSizeM,
+                      ),
+                      SizedBox(width: 4),
+                      Text(
+                        excluded ? '不计入条件' : (isCompleted ? '已完成' : '未完成'),
+                        style: TextStyle(
+                          fontSize: _textSizeXS,
+                          color: excluded
+                              ? Theme.of(context).colorScheme.onSurfaceVariant
+                              : _getCompletionColor(isCompleted),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProgressCoverCard(Map<String, dynamic> item) {
+    final dynamic song = item['song'];
+    final isCompleted = item['completed'] as bool;
+
+    String songId = '';
+    int initialLevelIndex = _selectedDifficulty ?? 3;
+    if (song is Song) {
+      songId = song.id;
+      initialLevelIndex = item['difficulty'] as int;
+    } else if (song is CollectionRequiredSong) {
+      songId = song.id.toString();
+    }
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => SongInfoPage(
+              songId: songId,
+              initialLevelIndex: initialLevelIndex,
+            ),
+          ),
+        );
+      },
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // 曲绘（不带边框）
+          CoverUtil.buildCoverWidgetWithContextRRect(
+            context,
+            songId,
+            _coverSize,
+          ),
+          // 完成状态对钩（居中显示）
+          if (isCompleted)
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.4),
+                borderRadius: BorderRadius.circular(8.0 * _scaleFactor),
+              ),
+              child: Center(
+                child: Icon(
+                  Icons.check_circle,
+                  color: Colors.green,
+                  size: _coverSize * 0.4,
+                ),
+              ),
+            ),
+          // 难度边框（放在最顶层，不被完成状态覆盖）
+          Container(
+            width: _coverSize,
+            height: _coverSize,
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: ColorUtil.getCoverBorderColor(initialLevelIndex),
+                width: 2.0 * _scaleFactor,
+              ),
+              borderRadius: BorderRadius.circular(8.0 * _scaleFactor),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildExcludedSongSection() {
+    final scheme = Theme.of(context).colorScheme;
+    // 条件外曲目每首展示一次，随页面切换列表 / 曲绘模式，不混入完成率统计。
+    final items = _excludedSongs.map((song) {
+      final selected = _selectedDifficulty;
+      final preferred =
+          selected == null || selected < 0 ? ChartDifficulty.master : selected;
+      final difficulty =
+          song.ds.isEmpty ? 0 : preferred.clamp(0, song.ds.length - 1).toInt();
+      return <String, dynamic>{
+        'song': song,
+        'difficulty': difficulty,
+        'completed': false
+      };
+    }).toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(height: _paddingL),
+        Text('条件外排除曲目',
+            style: TextStyle(
+                fontSize: _textSizeM,
+                fontWeight: FontWeight.bold,
+                color: scheme.onSurface)),
+        SizedBox(height: _paddingXS),
+        Text('共 ${items.length} 首，不计入牌子进度',
+            style: TextStyle(
+                fontSize: _textSizeS, color: scheme.onSurfaceVariant)),
+        SizedBox(height: _paddingS),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          padding: EdgeInsets.zero,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: _showListMode ? 2 : 5,
+              crossAxisSpacing: _paddingXS,
+              mainAxisSpacing: _paddingXS,
+              childAspectRatio: _showListMode ? 2.0 : 1.0),
+          itemCount: items.length,
+          itemBuilder: (context, index) => _showListMode
+              ? _buildProgressSongCard(items[index], excluded: true)
+              : _buildProgressCoverCard(items[index]),
+        ),
+      ],
+    );
+  }
+
   // 构建歌曲列表区域
   Widget _buildSongListSection() {
     if (_currentPlate == null ||
@@ -747,7 +1014,7 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surface,
             border: Border.all(
-                color: AppColors.tableBorder(Theme.of(context).brightness),
+                color: AppColors.readableTableBorder(context),
                 width: 1),
             borderRadius: BorderRadius.circular(_borderRadiusSmall),
           ),
@@ -781,134 +1048,8 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
               childAspectRatio: 2.0,
             ),
             itemCount: levelSongs.length,
-            itemBuilder: (context, index) {
-              final item = levelSongs[index];
-              final dynamic song = item['song'];
-              final isCompleted = item['completed'] as bool;
-
-              // 获取歌曲ID（支持 Song 和 CollectionRequiredSong）
-              String songId;
-              String songTitle;
-              String songType;
-              String songDs = '';
-              int initialLevelIndex = _selectedDifficulty ?? 3;
-              if (song is Song) {
-                songId = song.id;
-                songTitle = song.title;
-                songType = song.type;
-                // 获取当前难度对应的定数
-                final diffIndex = item['difficulty'] as int;
-                initialLevelIndex = diffIndex;
-                if (song.ds != null && song.ds.length > diffIndex) {
-                  songDs = song.ds[diffIndex].toStringAsFixed(1);
-                }
-              } else if (song is CollectionRequiredSong) {
-                songId = song.id.toString();
-                songTitle = song.title;
-                songType = song.type;
-              } else {
-                songId = '';
-                songTitle = '未知';
-                songType = '';
-              }
-
-              return GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => SongInfoPage(
-                        songId: songId,
-                        initialLevelIndex: initialLevelIndex,
-                      ),
-                    ),
-                  );
-                },
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: isCompleted
-                        ? Colors.lightGreen[100]!
-                        : Theme.of(context).colorScheme.surface,
-                    borderRadius: BorderRadius.circular(_borderRadiusSmall),
-                    border: Border.all(
-                      color: isCompleted
-                          ? Colors.green
-                          : AppColors.tableBorder(Theme.of(context).brightness),
-                      width: 1,
-                    ),
-                  ),
-                  padding: EdgeInsets.all(_paddingXS),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      // 曲绘
-                      Container(
-                        width: _coverSize,
-                        height: _coverSize,
-                        child: CoverUtil.buildCoverWidgetWithContext(
-                          context,
-                          songId,
-                          _coverSize,
-                        ),
-                      ),
-                      SizedBox(width: _paddingS),
-                      // 信息
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              songTitle,
-                              style: TextStyle(
-                                fontSize: _textSizeS,
-                                fontWeight: FontWeight.w500,
-                                color: isCompleted ? Colors.black87 : null,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            SizedBox(height: 2),
-                            Text(
-                              '${StringUtil.formatSongType(songType)} / ${songDs.isNotEmpty ? songDs : '-'}',
-                              style: TextStyle(
-                                fontSize: _textSizeXS,
-                                color: isCompleted
-                                    ? Colors.black54
-                                    : Theme.of(context)
-                                        .colorScheme
-                                        .onSurfaceVariant,
-                              ),
-                            ),
-                            SizedBox(height: 2),
-                            // 完成状态
-                            Row(
-                              children: [
-                                Icon(
-                                  isCompleted
-                                      ? Icons.check_circle
-                                      : Icons.circle_outlined,
-                                  color: _getCompletionColor(isCompleted),
-                                  size: _textSizeM,
-                                ),
-                                SizedBox(width: 4),
-                                Text(
-                                  isCompleted ? '已完成' : '未完成',
-                                  style: TextStyle(
-                                    fontSize: _textSizeXS,
-                                    color: _getCompletionColor(isCompleted),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
+            itemBuilder: (context, index) =>
+                _buildProgressSongCard(levelSongs[index]),
           ),
         ),
       );
@@ -982,7 +1123,7 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
           width: double.infinity,
           decoration: BoxDecoration(
             border: Border.all(
-                color: AppColors.tableBorder(Theme.of(context).brightness),
+                color: AppColors.readableTableBorder(context),
                 width: 1.0),
             borderRadius: BorderRadius.circular(_borderRadiusSmall),
           ),
@@ -1279,7 +1420,7 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surface,
             border: Border.all(
-                color: AppColors.tableBorder(Theme.of(context).brightness),
+                color: AppColors.readableTableBorder(context),
                 width: 1),
             borderRadius: BorderRadius.circular(_borderRadiusSmall),
           ),
@@ -1313,74 +1454,8 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
               childAspectRatio: 1.0,
             ),
             itemCount: levelSongs.length,
-            itemBuilder: (context, index) {
-              final item = levelSongs[index];
-              final dynamic song = item['song'];
-              final isCompleted = item['completed'] as bool;
-
-              String songId = '';
-              int initialLevelIndex = _selectedDifficulty ?? 3;
-              if (song is Song) {
-                songId = song.id;
-                initialLevelIndex = item['difficulty'] as int;
-              } else if (song is CollectionRequiredSong) {
-                songId = song.id.toString();
-              }
-
-              return GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => SongInfoPage(
-                        songId: songId,
-                        initialLevelIndex: initialLevelIndex,
-                      ),
-                    ),
-                  );
-                },
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    // 曲绘（不带边框）
-                    CoverUtil.buildCoverWidgetWithContextRRect(
-                      context,
-                      songId,
-                      _coverSize,
-                    ),
-                    // 完成状态对钩（居中显示）
-                    if (isCompleted)
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.4),
-                          borderRadius:
-                              BorderRadius.circular(8.0 * _scaleFactor),
-                        ),
-                        child: Center(
-                          child: Icon(
-                            Icons.check_circle,
-                            color: Colors.green,
-                            size: _coverSize * 0.4,
-                          ),
-                        ),
-                      ),
-                    // 难度边框（放在最顶层，不被完成状态覆盖）
-                    Container(
-                      width: _coverSize,
-                      height: _coverSize,
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                          color:
-                              ColorUtil.getCoverBorderColor(initialLevelIndex),
-                          width: 2.0 * _scaleFactor,
-                        ),
-                        borderRadius: BorderRadius.circular(8.0 * _scaleFactor),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
+            itemBuilder: (context, index) =>
+                _buildProgressCoverCard(levelSongs[index]),
           ),
         ),
       );

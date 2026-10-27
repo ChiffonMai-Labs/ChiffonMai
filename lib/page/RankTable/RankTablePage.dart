@@ -56,159 +56,146 @@ class _RankListPageState extends State<RankListPage> {
 
     return BackgroundPageScaffold(
       title: '段位表',
-      contentPadding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
+      contentPadding:
+          EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
       child: SingleChildScrollView(
-                    padding: EdgeInsets.fromLTRB(_paddingM, 8, _paddingM, _paddingM),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+        padding: EdgeInsets.fromLTRB(_paddingM, 8, _paddingM, _paddingM),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '选择段位',
+              style: TextStyle(
+                fontSize: _textSizeM,
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            SizedBox(height: _paddingXS),
+            Column(
+              children: _service.getRankOptions().map((rank) {
+                final rankData = _service.getRankData(rank);
+                final isNormalRank = [
+                  '初段',
+                  '二段',
+                  '三段',
+                  '四段',
+                  '五段',
+                  '六段',
+                  '七段',
+                  '八段',
+                  '九段',
+                  '十段'
+                ].contains(rank);
+
+                return Container(
+                  margin: EdgeInsets.only(bottom: _paddingXS),
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: switch (_completion.status(rank)) {
+                        RankCompletion.passed =>
+                          AppColors.successGreen(brightness)
+                              .withValues(alpha: .25),
+                        RankCompletion.failed =>
+                          AppColors.errorRed(brightness).withValues(alpha: .25),
+                        RankCompletion.redPassed =>
+                          AppColors.warningOrange(brightness)
+                              .withValues(alpha: .25),
+                        RankCompletion.unplayed =>
+                          Theme.of(context).colorScheme.surfaceContainerLow,
+                      },
+                      foregroundColor: Theme.of(context).colorScheme.onSurface,
+                      padding: EdgeInsetsDirectional.fromSTEB(
+                          16 * _scaleFactor, 8, 20 * _scaleFactor, 8),
+                      minimumSize: Size(double.infinity, 56 * _scaleFactor),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(_borderRadiusSmall),
+                        side: BorderSide(
+                          color: isNormalRank
+                              ? AppColors.medalColor('bronze')
+                              : Colors.purple,
+                          width: 1,
+                        ),
+                      ),
+                    ),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => RankDetailPage(rankName: rank),
+                        ),
+                      );
+                    },
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        Text(
-                          '选择段位',
-                          style: TextStyle(
-                            fontSize: _textSizeM,
-                            fontWeight: FontWeight.bold,
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
+                        Container(
+                          padding: EdgeInsets.symmetric(
+                              horizontal: _paddingM, vertical: _paddingXS),
+                          decoration: BoxDecoration(
+                            color: isNormalRank
+                                ? AppColors.medalColor('bronze')
+                                : Colors.purple,
+                            borderRadius:
+                                BorderRadius.circular(_borderRadiusSmall),
+                          ),
+                          child: Text(
+                            rank,
+                            style: TextStyle(
+                              fontSize: _textSizeM,
+                              fontWeight: FontWeight.bold,
+                              color: isNormalRank
+                                  ? Colors.white
+                                  : const Color(0xFFE6E6FA),
+                            ),
                           ),
                         ),
-                        SizedBox(height: _paddingXS),
-                        Column(
-                          children: _service.getRankOptions().map((rank) {
-                            final rankData = _service.getRankData(rank);
-                            final isNormalRank = [
-                              '初段',
-                              '二段',
-                              '三段',
-                              '四段',
-                              '五段',
-                              '六段',
-                              '七段',
-                              '八段',
-                              '九段',
-                              '十段'
-                            ].contains(rank);
-
-                            return Container(
-                              margin: EdgeInsets.only(bottom: _paddingXS),
-                              child: ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: switch (
-                                      _completion.status(rank)) {
-                                    RankCompletion.passed =>
-                                      AppColors.successGreen(brightness)
-                                          .withValues(alpha: .25),
-                                    RankCompletion.failed =>
-                                      AppColors.errorRed(brightness)
-                                          .withValues(alpha: .25),
-                                    RankCompletion.redPassed =>
-                                      AppColors.warningOrange(brightness)
-                                          .withValues(alpha: .25),
-                                    RankCompletion.unplayed => Theme.of(context)
-                                        .colorScheme
-                                        .surfaceContainerLow,
-                                  },
-                                  foregroundColor:
-                                      Theme.of(context).colorScheme.onSurface,
-                                  minimumSize:
-                                      Size(double.infinity, 56 * _scaleFactor),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(
-                                        _borderRadiusSmall),
-                                    side: BorderSide(
-                                      color: isNormalRank
-                                          ? AppColors.medalColor('bronze')
-                                          : Colors.purple,
-                                      width: 1,
-                                    ),
-                                  ),
-                                ),
-                                onPressed: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) =>
-                                          RankDetailPage(rankName: rank),
-                                    ),
-                                  );
-                                },
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
+                        SizedBox(width: _paddingS),
+                        if (rankData != null)
+                          Flexible(
+                              child: Row(
+                            children: List.generate(4, (index) {
+                              final songId = rankData.songIds[index];
+                              final levelIndex = rankData.levelIndexes[index];
+                              return Container(
+                                margin: EdgeInsets.only(
+                                    left: index > 0 ? _paddingXS : 0),
+                                width: 40 * _scaleFactor,
+                                height: 40 * _scaleFactor,
+                                child: Stack(
                                   children: [
+                                    CoverUtil.buildCoverWidgetWithContext(
+                                      context,
+                                      songId.isNotEmpty ? songId : '0',
+                                      40 * _scaleFactor,
+                                    ),
                                     Container(
-                                      padding: EdgeInsets.symmetric(
-                                          horizontal: _paddingM,
-                                          vertical: _paddingXS),
                                       decoration: BoxDecoration(
-                                        color: isNormalRank
-                                            ? AppColors.medalColor('bronze')
-                                            : Colors.purple,
-                                        borderRadius: BorderRadius.circular(
-                                            _borderRadiusSmall),
-                                      ),
-                                      child: Text(
-                                        rank,
-                                        style: TextStyle(
-                                          fontSize: _textSizeM,
-                                          fontWeight: FontWeight.bold,
-                                          color: isNormalRank
-                                              ? Colors.white
-                                              : const Color(0xFFE6E6FA),
+                                        border: Border.all(
+                                          color: _getDifficultyBorderColor(
+                                              levelIndex),
+                                          width: 2,
                                         ),
                                       ),
                                     ),
-                                    SizedBox(width: _paddingS),
-                                    if (rankData != null)
-                                      Flexible(
-                                          child: Row(
-                                        children: List.generate(4, (index) {
-                                          final songId =
-                                              rankData.songIds[index];
-                                          final levelIndex =
-                                              rankData.levelIndexes[index];
-                                          return Container(
-                                            margin: EdgeInsets.only(
-                                                left:
-                                                    index > 0 ? _paddingXS : 0),
-                                            width: 40 * _scaleFactor,
-                                            height: 40 * _scaleFactor,
-                                            child: Stack(
-                                              children: [
-                                                CoverUtil
-                                                    .buildCoverWidgetWithContext(
-                                                  context,
-                                                  songId.isNotEmpty
-                                                      ? songId
-                                                      : '0',
-                                                  40 * _scaleFactor,
-                                                ),
-                                                Container(
-                                                  decoration: BoxDecoration(
-                                                    border: Border.all(
-                                                      color:
-                                                          _getDifficultyBorderColor(
-                                                              levelIndex),
-                                                      width: 2,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          );
-                                        }).toList(),
-                                      )),
-                                    RankCompletionButton(
-                                      rank: rank,
-                                      showAchievement: false,
-                                    ),
                                   ],
                                 ),
-                              ),
-                            );
-                          }).toList(),
+                              );
+                            }).toList(),
+                          )),
+                        RankCompletionButton(
+                          rank: rank,
+                          showAchievement: false,
                         ),
                       ],
                     ),
                   ),
+                );
+              }).toList(),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

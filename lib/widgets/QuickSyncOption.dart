@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/widgets/AppSwitch.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 
@@ -70,7 +71,7 @@ class _QuickSyncOptionState extends State<QuickSyncOption> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          SwitchListTile.adaptive(
+          AppSwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('快速同步'),
             subtitle: Text(_loading

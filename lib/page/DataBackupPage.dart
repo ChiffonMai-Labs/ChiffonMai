@@ -59,8 +59,9 @@ class _DataBackupPageState extends State<DataBackupPage> {
                   SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      '数据备份功能可以将你的本地数据（收藏夹、谱面笔记、账号凭据、设置偏好等）导出为 JSON 文件，方便换手机或恢复数据时使用。\n\n'
-                      '可重新拉取的缓存（曲库、maidata、排行榜等）不会写进备份文件，恢复后首次进入相关页面会自动重新拉取。',
+                      '备份包含收藏夹、谱面笔记、账号资料、设置、猜歌统计、成绩与 Rating 历史、自定义背景及本地谱面包归档，导出为 JSON 文件。\n\n'
+                      '登录凭据、个人 key 和自动同步身份不会导出，换设备后需重新授权。曲库、maidata、音源、PV 和排行榜等可重新获取的缓存不备份。\n\n'
+                      '兼容旧版备份；旧备份仅能恢复其中原本包含的设置和资料。文件总大小上限为 50 MB。',
                       style: TextStyle(
                         color: Theme.of(context).colorScheme.onSurface,
                         fontSize: 14,
@@ -295,11 +296,13 @@ class _DataBackupPageState extends State<DataBackupPage> {
       final exportedAt = backup['exportedAt'] ?? '未知';
       final keyCount = backup['keyCount'] ?? 0;
       final version = backup['version'] ?? '?';
+      final fileCount = backup['files'] is Map ? (backup['files'] as Map).length : 0;
       final skippedCacheKeys = backup['skippedCacheKeys'];
 
       final confirm = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
+          scrollable: true,
           title: Row(
             children: [
               Icon(Icons.warning_amber_rounded,
@@ -313,8 +316,8 @@ class _DataBackupPageState extends State<DataBackupPage> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('即将恢复数据。恢复前会先清空当前所有本地数据，然后写入备份内容——'
-                  '备份里没有的项目都会被抹掉。'),
+              Text('恢复将覆盖当前本地设置与用户资料。v3 备份还会恢复用户文件；'
+                  '旧版备份只能恢复它原本包含的内容。建议先导出当前备份。'),
               SizedBox(height: 12),
               Container(
                 padding: EdgeInsets.all(10),
@@ -328,6 +331,7 @@ class _DataBackupPageState extends State<DataBackupPage> {
                     Text('备份版本: v$version', style: TextStyle(fontSize: 13)),
                     Text('导出时间: $exportedAt', style: TextStyle(fontSize: 13)),
                     Text('包含 $keyCount 个数据项', style: TextStyle(fontSize: 13)),
+                    Text('用户文件：$fileCount 个', style: TextStyle(fontSize: 13)),
                     if (skippedCacheKeys != null)
                       Text('已排除 $skippedCacheKeys 个缓存项',
                           style: TextStyle(fontSize: 13)),
@@ -336,7 +340,7 @@ class _DataBackupPageState extends State<DataBackupPage> {
               ),
               SizedBox(height: 12),
               Text(
-                '缓存（曲库、maidata、排行榜等）会被清空，恢复后首次进入相关页面会自动重新拉取，可能稍慢。',
+                '曲库、maidata、排行榜等缓存不参与备份，恢复后按需重新获取，首次加载可能稍慢。登录凭据不会从备份恢复。',
                 style: TextStyle(
                   fontSize: 12,
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -375,13 +379,13 @@ class _DataBackupPageState extends State<DataBackupPage> {
         // 不给反馈的话用户会以为「导入卡死」，还可能连点触发第二轮写入。
         if (mounted) setState(() => _isRestoring = true);
         try {
-          final count = await _service.restoreData(backup['data']);
+          final count = await _service.restoreBackup(backup);
           // 把恢复到内存的各个单例重新读一遍：这些 Store 的保存都是整体写回，
           // 不重载的话用户恢复后随手改一下，就会用旧值把刚导入的数据盖掉。
           await _service.reloadAfterRestore();
           if (mounted) {
             Fluttertoast.showToast(
-              msg: '数据恢复成功！共恢复 $count 项数据。\n建议重启应用以确保完全生效。',
+              msg: '数据恢复成功！共恢复 $count 项设置和 $fileCount 个用户文件。\n建议重启应用以确保完全生效。',
               toastLength: Toast.LENGTH_LONG,
             );
           }

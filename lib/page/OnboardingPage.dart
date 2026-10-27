@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart' show SystemNavigator;
 import 'package:permission_handler/permission_handler.dart';
 
 import '../service/OnboardingStateStore.dart';
 import '../widgets/BackgroundPageScaffold.dart';
+import 'LegalDocumentPage.dart';
 
 /// ChiffonMai 的首次使用与功能更新引导。
 class OnboardingPage extends StatefulWidget {
@@ -16,6 +19,13 @@ class _OnboardingPageState extends State<OnboardingPage> {
   final PageController _pageController = PageController();
   int _page = 0;
   bool _closing = false;
+  bool _changingPage = false;
+  bool _requestingPermission = false;
+  bool _hasAgreed = false;
+  bool _guardianConsent = false;
+  DateTime? _agreedAt;
+  late final TapGestureRecognizer _agreementTap;
+  late final TapGestureRecognizer _privacyTap;
   DateTime? _lastBack;
   bool _permissionsLoading = true;
   final Map<_OnboardingPermission, PermissionStatus> _permissionStatuses = {};
@@ -44,7 +54,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
     _OnboardingStepData(
       icon: Icons.palette_rounded,
       title: '把体验调成你喜欢的样子',
-      description: '主题与交互偏好可以调整主题、导航、随身听和纸屑特效等体验。',
+      description: '系统设置可以调整主题、导航、随身听和纸屑特效等体验。',
       bullets: [
         '支持浅色、深色和跟随系统',
         '可以开启导航动画与左右滑动切换',
@@ -83,36 +93,134 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   int get _pageCount => _steps.length + 3;
   bool get _isLastPage => _page == _pageCount - 1;
+  bool get _isConsentPage => _page == _pageCount - 2;
+  bool get _canProceed =>
+      !_closing &&
+      !_changingPage &&
+      !_requestingPermission &&
+      (!(_isConsentPage || _isLastPage) || _hasAgreed);
 
   @override
   void initState() {
     super.initState();
+    _agreementTap = TapGestureRecognizer()
+      ..onTap =
+          () => LegalDocumentPage.open(context, AppLegalDocument.userAgreement);
+    _privacyTap = TapGestureRecognizer()
+      ..onTap =
+          () => LegalDocumentPage.open(context, AppLegalDocument.privacyPolicy);
     _refreshPermissionStatuses();
   }
 
   @override
   void dispose() {
     _pageController.dispose();
+    _agreementTap.dispose();
+    _privacyTap.dispose();
     super.dispose();
   }
 
   Future<void> _finish() async {
-    if (_closing) return;
-    _closing = true;
-    await OnboardingStateStore.instance.markCompleted();
-    if (!mounted) return;
-    Navigator.of(context).pop();
+    if (_closing || !_isLastPage || !_hasAgreed || _agreedAt == null) return;
+    setState(() => _closing = true);
+    try {
+      await OnboardingStateStore.instance.markCompleted(
+          accepted: _hasAgreed,
+          agreedAt: _agreedAt!,
+          guardianConsent: _guardianConsent);
+      if (!mounted) return;
+      Navigator.of(context).pop();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _closing = false);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('确认记录保存失败，请重试')));
+    }
   }
 
   void _next() {
+    if (!_canProceed) return;
     if (_isLastPage) {
       _finish();
       return;
     }
-    _pageController.nextPage(
-      duration: const Duration(milliseconds: 280),
-      curve: Curves.easeOutCubic,
+    _goToPage(_page + 1);
+  }
+
+  Future<void> _goToPage(int page) async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    setState(() {
+      _changingPage = true;
+      _lastBack = null;
+    });
+    try {
+      await _pageController.animateToPage(page,
+          duration: const Duration(milliseconds: 280),
+          curve: Curves.easeOutCubic);
+    } finally {
+      if (mounted) setState(() => _changingPage = false);
+    }
+  }
+
+  void _setAgreement(bool agreed, {bool guardianConsent = false}) {
+    setState(() {
+      _hasAgreed = agreed;
+      _guardianConsent = agreed && guardianConsent;
+      _agreedAt = agreed ? DateTime.now() : null;
+    });
+  }
+
+  Future<void> _showGuardianConsent() async {
+    if (_requestingPermission) return;
+    _setAgreement(false);
+    var confirmed = false;
+    final agreed = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, update) => AlertDialog(
+          title: const Text('监护人单独同意'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('请将设备交由监护人操作。监护人应阅读以下文件，了解所处理的信息、用途，以及查询和删除信息的方式。'),
+                const SizedBox(height: 8),
+                Wrap(children: [
+                  for (final document in AppLegalDocument.values)
+                    TextButton(
+                      onPressed: () =>
+                          LegalDocumentPage.open(context, document),
+                      child: Text('《${document.title}》'),
+                    ),
+                ]),
+                const SizedBox(height: 8),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  value: confirmed,
+                  onChanged: (value) => update(() => confirmed = value == true),
+                  title: const Text(
+                      '我是该用户的监护人，已阅读并同意《用户协议》和《隐私政策》，同意为提供相应功能处理被监护人的必要个人信息。'),
+                ),
+                const SizedBox(height: 8),
+                const Text('同意后，仍可按需选择权限和相关功能；也可按隐私政策说明撤回授权或申请删除信息。'),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('取消')),
+            FilledButton(
+                onPressed:
+                    confirmed ? () => Navigator.of(context).pop(true) : null,
+                child: const Text('监护人同意')),
+          ],
+        ),
+      ),
     );
+    if (mounted && agreed == true) _setAgreement(true, guardianConsent: true);
   }
 
   @override
@@ -122,29 +230,28 @@ class _OnboardingPageState extends State<OnboardingPage> {
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
-        if (didPop) return;
+        if (didPop || _closing || _changingPage || _requestingPermission)
+          return;
+        if (_page > 0) {
+          _goToPage(_page - 1);
+          return;
+        }
         final now = DateTime.now();
         if (_lastBack != null &&
             now.difference(_lastBack!) < const Duration(seconds: 2)) {
           ScaffoldMessenger.of(context).hideCurrentSnackBar();
-          _finish();
+          SystemNavigator.pop();
           return;
         }
         _lastBack = now;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-              content: Text('再返回一次退出引导'), duration: Duration(seconds: 2)),
+              content: Text('再返回一次退出应用'), duration: Duration(seconds: 2)),
         );
       },
       child: BackgroundPageScaffold(
         title: 'ChiffonMai 入门',
         showBack: false,
-        actions: [
-          TextButton(
-            onPressed: _finish,
-            child: const Text('跳过'),
-          ),
-        ],
         // 系统三键导航栏/手势条会占用底部安全区；把它纳入壳层内边距，
         // 避免最后一页的「下一步/开始探索」被导航栏盖住。
         contentPadding: EdgeInsets.fromLTRB(20, 8, 20, 20 + safeBottom),
@@ -153,7 +260,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
             Expanded(
               child: PageView.builder(
                 controller: _pageController,
-                // 引导仅通过「下一步」前进，连续两次系统返回则退出引导。
+                // 仅通过按钮前进；返回可回到上一页，不把退出应用记作完成。
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: _pageCount,
                 onPageChanged: (value) => setState(() => _page = value),
@@ -190,7 +297,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
             SizedBox(
               width: double.infinity,
               child: FilledButton(
-                onPressed: _next,
+                onPressed: _canProceed ? _next : null,
                 child: Text(_isLastPage ? '开始探索' : '下一步'),
               ),
             ),
@@ -201,12 +308,11 @@ class _OnboardingPageState extends State<OnboardingPage> {
   }
 
   Widget _buildWelcomeStep(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return _buildTextOnlyStep(
       context,
       title: '欢迎来到 ChiffonMai',
       description: '歌曲、谱面、成绩与工具，都可以在这里找到。',
-      color: scheme.primary,
+      color: Theme.of(context).colorScheme.primary,
     );
   }
 
@@ -311,6 +417,8 @@ class _OnboardingPageState extends State<OnboardingPage> {
   }
 
   Future<void> _requestPermission(_OnboardingPermission permission) async {
+    if (!_hasAgreed || _requestingPermission) return;
+    setState(() => _requestingPermission = true);
     try {
       final current = _permissionStatuses[permission];
       if (current?.isLimited == true ||
@@ -340,6 +448,8 @@ class _OnboardingPageState extends State<OnboardingPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('申请权限失败：$error')),
       );
+    } finally {
+      if (mounted) setState(() => _requestingPermission = false);
     }
   }
 
@@ -359,18 +469,18 @@ class _OnboardingPageState extends State<OnboardingPage> {
         children: [
           const SizedBox(height: 12),
           Container(
-            width: 112,
-            height: 112,
+            width: 80,
+            height: 80,
             decoration: BoxDecoration(
               color: scheme.primaryContainer,
               shape: BoxShape.circle,
             ),
             child:
-                Icon(Icons.security_outlined, size: 58, color: scheme.primary),
+                Icon(Icons.security_outlined, size: 40, color: scheme.primary),
           ),
-          const SizedBox(height: 26),
+          const SizedBox(height: 18),
           Text(
-            '设置权限',
+            '协议与权限',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.bold,
@@ -378,8 +488,12 @@ class _OnboardingPageState extends State<OnboardingPage> {
                 ),
           ),
           const SizedBox(height: 12),
+          _buildAgreementSection(context),
+          const SizedBox(height: 12),
+          Divider(color: scheme.outlineVariant),
+          const SizedBox(height: 12),
           Text(
-            '可以现在授权，也可以跳过。未授权的权限会在使用对应功能时再次请求。',
+            '同意后可按需授权，也可稍后在使用对应功能时授权。',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   color: scheme.onSurfaceVariant,
@@ -398,6 +512,68 @@ class _OnboardingPageState extends State<OnboardingPage> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildAgreementSection(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final style =
+        Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.65);
+    final linkStyle =
+        TextStyle(color: scheme.primary, decoration: TextDecoration.underline);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Checkbox(
+              value: _hasAgreed,
+              onChanged: _requestingPermission
+                  ? null
+                  : (value) => _setAgreement(value == true),
+              semanticLabel: '我已阅读并同意用户协议和隐私政策',
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 11),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text.rich(
+                    TextSpan(children: [
+                      const TextSpan(text: '我已阅读并同意'),
+                      TextSpan(
+                          text: '《用户协议》',
+                          style: linkStyle,
+                          recognizer: _agreementTap),
+                      const TextSpan(text: '和'),
+                      TextSpan(
+                          text: '《隐私政策》',
+                          style: linkStyle,
+                          recognizer: _privacyTap),
+                    ]),
+                    style: style,
+                    maxLines: 1,
+                    softWrap: false,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Text(
+            '为提供游戏服务，我们会处理你的游玩记录、歌曲成绩、账号及设备标识等必要信息；\n'
+            '多人联机对战会实时传输对局通信数据，仅用于维持联机功能。',
+            style: style),
+        const SizedBox(height: 12),
+        Text('未满18周岁请在监护人指导下使用。未满14周岁需由监护人单独同意。', style: style),
+        TextButton(
+          onPressed: _requestingPermission ? null : _showGuardianConsent,
+          child: Text(_guardianConsent ? '监护人已单独同意' : '未满14周岁，由监护人完成同意'),
+        ),
+      ],
     );
   }
 
@@ -436,7 +612,9 @@ class _OnboardingPageState extends State<OnboardingPage> {
                 ),
                 const SizedBox(width: 8),
                 TextButton(
-                  onPressed: _permissionsLoading
+                  onPressed: !_hasAgreed ||
+                          _permissionsLoading ||
+                          _requestingPermission
                       ? null
                       : () => _requestPermission(item.permission),
                   child: Text(needsSettings ? '去设置' : '允许'),

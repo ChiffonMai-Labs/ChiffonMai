@@ -1,3 +1,5 @@
+import '../../service/CommunityAvatarStore.dart';
+import '../../widgets/RankingPlayerBriefSheet.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -28,6 +30,7 @@ class _AvgScoreRankingListPageState extends State<AvgScoreRankingListPage> {
   List<AvgRankItem> _allItems = [];
   // 按当前指标排序后取前100
   List<AvgRankItem> _rankList = [];
+  int _requestGeneration = 0;
   bool _isLoading = true;
   String _errorMessage = '';
 
@@ -50,12 +53,18 @@ class _AvgScoreRankingListPageState extends State<AvgScoreRankingListPage> {
   @override
   void initState() {
     super.initState();
+    CommunityAvatarStore.profileChanges.addListener(_onAppearanceChanged);
     _currentMetric = widget.initialMetric;
     _loadData();
   }
 
+  void _onAppearanceChanged() {
+    if (mounted) _loadRankings(refresh: true);
+  }
+
   @override
   void dispose() {
+    CommunityAvatarStore.profileChanges.removeListener(_onAppearanceChanged);
     _scrollController.dispose();
     super.dispose();
   }
@@ -94,6 +103,7 @@ class _AvgScoreRankingListPageState extends State<AvgScoreRankingListPage> {
       _isButtonDisabled = true;
     });
     Future.delayed(const Duration(seconds: 1), () {
+      if (!mounted) return;
       setState(() {
         _isButtonDisabled = false;
       });
@@ -103,7 +113,6 @@ class _AvgScoreRankingListPageState extends State<AvgScoreRankingListPage> {
   // 带防抖的刷新方法
   Future<void> _onRefresh() async {
     _disableButtons();
-    await AvgRankingListService.clearRankingsCache();
     await _loadRankings(refresh: true);
   }
 
@@ -149,6 +158,8 @@ class _AvgScoreRankingListPageState extends State<AvgScoreRankingListPage> {
   }
 
   Future<void> _loadRankings({bool refresh = false}) async {
+    if (!mounted) return;
+    final generation = ++_requestGeneration;
     setState(() {
       _isLoading = true;
       _errorMessage = '';
@@ -157,17 +168,17 @@ class _AvgScoreRankingListPageState extends State<AvgScoreRankingListPage> {
     try {
       final items = await AvgRankingListService.getAverages(refresh: refresh);
 
-      if (!mounted) return;
+      if (!mounted || generation != _requestGeneration) return;
       _allItems = items;
       _applyRanking();
     } catch (e) {
-      if (mounted) {
+      if (mounted && generation == _requestGeneration) {
         setState(() {
           _errorMessage = '加载失败: $e';
         });
       }
     } finally {
-      if (mounted) {
+      if (mounted && generation == _requestGeneration) {
         setState(() {
           _isLoading = false;
         });
@@ -308,52 +319,56 @@ class _AvgScoreRankingListPageState extends State<AvgScoreRankingListPage> {
     bool isCurrentUser = false,
     required Brightness brightness,
   }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        border: Border(
-            bottom: BorderSide(color: AppColors.tableBorder(brightness))),
-        color: isCurrentUser
-            ? AppColors.linkBlue(brightness).withValues(alpha: 0.08)
-            : null,
-      ),
-      child: Row(
-        children: [
-          // 排名
-          SizedBox(
-            width: 40,
-            child: Center(
-                child: _buildRankBadge(item.rank, brightness: brightness)),
+    return RankingPlayerRow(
+        playerId: item.playerId,
+        nickname: item.playerName,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            border: Border(
+                bottom: BorderSide(color: AppColors.tableBorder(brightness))),
+            color: isCurrentUser
+                ? AppColors.linkBlue(brightness).withValues(alpha: 0.08)
+                : null,
           ),
-
-          Expanded(
-            child: CommunityPlayerIdentity(
-              avatarId: item.avatarId,
-              dataSource: item.dataSource,
-              // 开发者白名单按 `<source>:<id>` 整串匹配，见 DataSourceTag
-              playerId: item.playerId,
-              name: item.playerName.isEmpty ? '未知玩家' : item.playerName,
-              // 头像高度对齐「玩家名 + 数据源标签」两行文字的总高
-              avatarMatchesTextHeight: true,
-              nameStyle: TextStyle(
-                fontSize: 14,
-                fontWeight: isCurrentUser ? FontWeight.bold : FontWeight.w500,
-                color: isCurrentUser
-                    ? AppColors.primaryText(brightness)
-                    : AppColors.secondaryText(brightness),
+          child: Row(
+            children: [
+              // 排名
+              SizedBox(
+                width: 40,
+                child: Center(
+                    child: _buildRankBadge(item.rank, brightness: brightness)),
               ),
-            ),
-          ),
-          const SizedBox(width: 8),
 
-          // 数值信息
-          SizedBox(
-            width: 140,
-            child: _buildValueCell(item, brightness: brightness),
+              Expanded(
+                child: CommunityPlayerIdentity(
+                  avatarId: item.avatarId,
+                  dataSource: item.dataSource,
+                  // 开发者白名单按 `<source>:<id>` 整串匹配，见 DataSourceTag
+                  playerId: item.playerId,
+                  name: item.playerName.isEmpty ? '未知玩家' : item.playerName,
+                  // 头像高度对齐「玩家名 + 数据源标签」两行文字的总高
+                  avatarMatchesTextHeight: true,
+                  nameStyle: TextStyle(
+                    fontSize: 14,
+                    fontWeight:
+                        isCurrentUser ? FontWeight.bold : FontWeight.w500,
+                    color: isCurrentUser
+                        ? AppColors.primaryText(brightness)
+                        : AppColors.secondaryText(brightness),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+
+              // 数值信息
+              SizedBox(
+                width: 140,
+                child: _buildValueCell(item, brightness: brightness),
+              ),
+            ],
           ),
-        ],
-      ),
-    );
+        ));
   }
 
   /// 定位用的「原型行」：内容最全的一行（第 1 名那 28dp 奖杯 + 星级/达成率 +
@@ -458,7 +473,7 @@ class _AvgScoreRankingListPageState extends State<AvgScoreRankingListPage> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        '本排行榜数据仅供参考和娱乐使用，不代表任何官方立场或权威性排名。平均达成率 / 平均DX分数达成率基于玩家自愿上传的全量成绩记录计算，可能存在误差或延迟。请理性看待排名结果，享受游戏乐趣。',
+                        '本排行榜数据仅供参考和娱乐使用，不代表任何官方立场或权威性排名。平均达成率 / 平均DX分数达成率基于玩家自愿上传的全量成绩记录计算，服务端每 6 小时更新一次，可能存在误差或延迟。请理性看待排名结果，享受游戏乐趣。',
                         style: TextStyle(
                           fontSize: 12,
                           color: AppColors.warningOrange(brightness),

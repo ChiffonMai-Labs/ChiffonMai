@@ -9,8 +9,8 @@ import 'package:my_first_flutter_app/entity/DivingFish/Song.dart';
 import 'package:my_first_flutter_app/utils/CoverUtil.dart';
 import 'package:my_first_flutter_app/page/SongInfoPage.dart';
 import 'package:my_first_flutter_app/utils/StringUtil.dart';
-import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import '../widgets/BackgroundPageScaffold.dart';
+import '../widgets/RandomChartRollingResults.dart';
 
 class RandomChartPage extends StatefulWidget {
   const RandomChartPage({super.key});
@@ -24,17 +24,27 @@ class _RandomChartPageState extends State<RandomChartPage> {
 
   // 状态变量
   bool _isDrawing = false;
+  bool _isRolling = false;
+  List<Song> _pendingSongs = const [];
+  List<Song> _previewCandidates = const [];
+  bool _isApplyingPreset = false;
+  int _drawRequest = 0;
+  int _presetRequest = 0;
+  int _resultRevision = 0;
+  String _emptyMessage = '选好条件后，开始抽歌吧';
   List<Song> _drawnSongs = [];
   List<List<Song>> _history = [];
 
   // 筛选条件
-  int _drawCount = 4;
+  int _drawCount = RandomChartService.masterPresetCount;
   late final TextEditingController _drawCountController;
   String? _drawCountError;
   final List<DateTime> _historyTimes = [];
 
   @override
   void dispose() {
+    _drawRequest++;
+    _presetRequest++;
     _minDsController.dispose();
     _maxDsController.dispose();
     _drawCountController.dispose();
@@ -69,7 +79,8 @@ class _RandomChartPageState extends State<RandomChartPage> {
     setState(() {
       if (count == null) {
         _drawCountError = '请输入 2–100 之间的整数';
-      } else if (count < 2 || count > 100) {
+      } else if (count < RandomChartService.minimumDrawCount ||
+          count > RandomChartService.maximumDrawCount) {
         _drawCountError = '抽取数量需在 2–100 之间';
       } else {
         _drawCount = count;
@@ -79,7 +90,8 @@ class _RandomChartPageState extends State<RandomChartPage> {
   }
 
   void _setDrawCount(int value) {
-    final count = value.clamp(2, 100);
+    final count = value.clamp(RandomChartService.minimumDrawCount,
+        RandomChartService.maximumDrawCount);
     _drawCountController.value = TextEditingValue(
       text: '$count',
       selection: TextSelection.collapsed(offset: '$count'.length),
@@ -99,9 +111,11 @@ class _RandomChartPageState extends State<RandomChartPage> {
           _service.getVersionList(),
           _service.getGenreList(),
         ]);
-        _versionList = results[0] as List<String>;
-        _genreList = results[1] as List<String>;
-        if (mounted) setState(() {});
+        if (!mounted) return;
+        setState(() {
+          _versionList = results[0];
+          _genreList = results[1];
+        });
       } catch (e) {
         debugPrint('[RandomChartPage] 筛选列表加载失败: $e');
       } finally {
@@ -111,62 +125,104 @@ class _RandomChartPageState extends State<RandomChartPage> {
     return _filterOptionsLoading!;
   }
 
-  // 执行抽奖
+  Future<void> _applyMasterPreset({required bool advanced}) async {
+    if (_isDrawing || _isApplyingPreset) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    final request = ++_presetRequest;
+    setState(() => _isApplyingPreset = true);
+    try {
+      if (_versionList.isEmpty || _genreList.isEmpty) {
+        await _loadFilterOptions();
+      }
+      if (!mounted || request != _presetRequest) return;
+      setState(() {
+        _drawCount = RandomChartService.masterPresetCount;
+        _drawCountController.text = '$_drawCount';
+        _drawCountError = null;
+        _minDsController.text = advanced ? '14.5' : '13.2';
+        _maxDsController.text = advanced ? '14.9' : '14.4';
+        _requireMaster = true;
+        _excludeSixDigitId = true;
+        _selectedVersions = List.from(_versionList);
+        _selectedGenres = _genreList.where((genre) => genre != '宴会场').toList();
+      });
+    } finally {
+      if (mounted && request == _presetRequest) {
+        setState(() => _isApplyingPreset = false);
+      }
+    }
+  }
+
+  // 开始时确定本轮结果，轮播期间保持参数锁定，按停后才提交历史。
   Future<void> _drawSongs() async {
-    if (_drawCountError != null || _drawCount < 2 || _drawCount > 100) {
+    if (_isDrawing || _isApplyingPreset) return;
+    if (_drawCountError != null ||
+        _drawCount < RandomChartService.minimumDrawCount ||
+        _drawCount > RandomChartService.maximumDrawCount) {
       setState(() => _drawCountError = '抽取数量需在 2–100 之间');
       return;
     }
-    setState(() {
-      _isDrawing = true;
-    });
-
+    FocusManager.instance.primaryFocus?.unfocus();
+    final request = ++_drawRequest;
+    final count = _drawCount;
+    final versions = List<String>.from(_selectedVersions);
+    final genres = List<String>.from(_selectedGenres);
+    var candidates = <Song>[];
+    setState(() => _isDrawing = true);
     try {
-      // 解析定数范围
-      _minDs = _minDsController.text.isNotEmpty
-          ? double.tryParse(_minDsController.text)
-          : null;
-      _maxDs = _maxDsController.text.isNotEmpty
-          ? double.tryParse(_maxDsController.text)
-          : null;
-
-      // 随机抽取歌曲
+      _minDs = double.tryParse(_minDsController.text);
+      _maxDs = double.tryParse(_maxDsController.text);
       final songs = await _service.randomDrawSongs(
-        count: _drawCount,
+        count: count,
         minDs: _minDs,
         maxDs: _maxDs,
-        versions: _selectedVersions.isEmpty ? null : _selectedVersions,
-        genres: _selectedGenres.isEmpty ? null : _selectedGenres,
+        versions: versions.isEmpty ? null : versions,
+        genres: genres.isEmpty ? null : genres,
         requireMaster: _requireMaster,
         excludeSixDigitId: _excludeSixDigitId,
+        onPreviewCandidates: (value) => candidates = value,
       );
-
-      if (!mounted) return;
+      if (!mounted ||
+          request != _drawRequest ||
+          ModalRoute.of(context)?.isCurrent != true) return;
       setState(() {
-        _drawnSongs = songs;
-        // 添加到历史记录
-        if (songs.isNotEmpty) {
-          _history.insert(0, songs);
-          _historyTimes.insert(0, DateTime.now());
-          // 只保留最近5条历史记录
-          if (_history.length > 5) {
-            _history = _history.take(5).toList();
-            _historyTimes.removeRange(5, _historyTimes.length);
-          }
+        _pendingSongs = songs;
+        _previewCandidates = List<Song>.of(candidates)..shuffle();
+        _isRolling = songs.isNotEmpty;
+        _resultRevision++;
+        if (songs.isEmpty) {
+          _drawnSongs = const [];
+          _emptyMessage = '没有符合条件的歌曲，请调整筛选条件';
         }
       });
-    } catch (e) {
-      debugPrint('抽奖失败: $e');
-      if (mounted) {
+    } catch (error) {
+      if (mounted && request == _drawRequest) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('抽取失败：$e')));
+            .showSnackBar(SnackBar(content: Text('抽取失败：$error')));
       }
     } finally {
-      if (mounted)
-        setState(() {
-          _isDrawing = false;
-        });
+      if (mounted && request == _drawRequest && !_isRolling) {
+        setState(() => _isDrawing = false);
+      }
     }
+  }
+
+  void _stopDraw() {
+    if (!_isRolling) return;
+    setState(() {
+      _isRolling = false;
+      _isDrawing = false;
+      _drawnSongs = _pendingSongs;
+      _pendingSongs = const [];
+      _previewCandidates = const [];
+      _resultRevision++;
+      _history.insert(0, _drawnSongs);
+      _historyTimes.insert(0, DateTime.now());
+      if (_history.length > 5) {
+        _history = _history.take(5).toList();
+        _historyTimes.removeRange(5, _historyTimes.length);
+      }
+    });
   }
 
   // 删除历史记录
@@ -179,6 +235,8 @@ class _RandomChartPageState extends State<RandomChartPage> {
 
   // 显示版本选择对话框
   void _showVersionSelector() {
+    if (_isDrawing || _isApplyingPreset) return;
+    FocusManager.instance.primaryFocus?.unfocus();
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -261,6 +319,8 @@ class _RandomChartPageState extends State<RandomChartPage> {
 
   // 显示类型选择对话框
   void _showGenreSelector() {
+    if (_isDrawing || _isApplyingPreset) return;
+    FocusManager.instance.primaryFocus?.unfocus();
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -353,11 +413,16 @@ class _RandomChartPageState extends State<RandomChartPage> {
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-                builder: (_) =>
-                    SongInfoPage(songId: song.id, initialLevelIndex: 0))),
+        onTap: _isDrawing
+            ? null
+            : () {
+                FocusManager.instance.primaryFocus?.unfocus();
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => SongInfoPage(
+                            songId: song.id, initialLevelIndex: 0)));
+              },
         child: Padding(
             padding: const EdgeInsets.all(12),
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -417,7 +482,13 @@ class _RandomChartPageState extends State<RandomChartPage> {
 
   @override
   Widget build(BuildContext context) {
-    final brightness = Theme.of(context).brightness;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final busy = _isDrawing || _isApplyingPreset;
+    // 淡出中的旧列表也继续使用自己的快照，避免新结果更少时越界。
+    final drawnSongs = _drawnSongs;
+    final reduceMotion = MediaQuery.disableAnimationsOf(context) ||
+        MediaQuery.accessibleNavigationOf(context);
     final screenWidth = MediaQuery.of(context).size.width;
 
     // 统一管理的尺寸变量
@@ -433,6 +504,21 @@ class _RandomChartPageState extends State<RandomChartPage> {
     final spacingLarge = screenWidth * 0.06; // 大间距
     final gridItemSpacing = screenWidth * 0.03; // 网格项间距
 
+    final filterTextStyle = DefaultTextStyle.of(context)
+        .style
+        .copyWith(fontSize: textSizeSmall, color: scheme.onSurface);
+    final filterText = TextPainter(
+      text: TextSpan(text: '全部类型', style: filterTextStyle),
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+    )..layout();
+    // 与类型筛选相同：真实文字/图标高度、上下留白及两条边框。
+    final filterFieldHeight =
+        (filterText.height < 16 ? 16.0 : filterText.height) +
+            spacingSmall * 2 +
+            2;
+    filterText.dispose();
+
     return BackgroundPageScaffold(
       title: '随机抽歌',
       resizeToAvoidBottomInset: false, // 解决输入法挤压背景的问题
@@ -440,17 +526,17 @@ class _RandomChartPageState extends State<RandomChartPage> {
         bottom: MediaQuery.paddingOf(context).bottom,
       ),
       child: SingleChildScrollView(
-        padding: EdgeInsets.fromLTRB(contentPadding, 8, contentPadding, contentPadding),
+        padding: EdgeInsets.fromLTRB(
+            contentPadding, 8, contentPadding, contentPadding),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // 筛选条件区域
             Container(
-              padding: EdgeInsets.fromLTRB(cardPadding, 8, cardPadding, cardPadding),
+              padding:
+                  EdgeInsets.fromLTRB(cardPadding, 8, cardPadding, cardPadding),
               decoration: BoxDecoration(
-                color: brightness == Brightness.light
-                    ? Theme.of(context).colorScheme.surfaceContainerHigh
-                    : Theme.of(context).colorScheme.surfaceContainerHighest,
+                color: scheme.surfaceContainerLow,
                 borderRadius: BorderRadius.circular(borderRadius),
               ),
               child: Column(
@@ -475,19 +561,28 @@ class _RandomChartPageState extends State<RandomChartPage> {
                             '抽取数量',
                             style: TextStyle(
                               fontSize: textSizeSmall,
-                              color: AppColors.greyHint(brightness),
+                              color: scheme.onSurfaceVariant,
                             ),
                           ),
                           SizedBox(width: spacingSmall),
-                          NumberStepper(
-                              value: _drawCount,
-                              suffix: ' 首',
-                              controller: _drawCountController,
-                              errorText: _drawCountError,
-                              onTextChanged: _onDrawCountChanged,
-                              minimum: 2,
-                              maximum: 100,
-                              onChanged: _isDrawing ? null : _setDrawCount),
+                          Theme(
+                            data: theme.copyWith(
+                              inputDecorationTheme:
+                                  theme.inputDecorationTheme.copyWith(
+                                filled: true,
+                                fillColor: scheme.surface,
+                              ),
+                            ),
+                            child: NumberStepper(
+                                value: _drawCount,
+                                suffix: ' 首',
+                                controller: _drawCountController,
+                                errorText: _drawCountError,
+                                onTextChanged: _onDrawCountChanged,
+                                minimum: RandomChartService.minimumDrawCount,
+                                maximum: RandomChartService.maximumDrawCount,
+                                onChanged: busy ? null : _setDrawCount),
+                          ),
                         ],
                       ),
                       SizedBox(height: spacingMedium),
@@ -501,17 +596,20 @@ class _RandomChartPageState extends State<RandomChartPage> {
                               '版本筛选',
                               style: TextStyle(
                                 fontSize: textSizeSmall,
-                                color: AppColors.greyHint(brightness),
+                                color: scheme.onSurfaceVariant,
                               ),
                             ),
                             SizedBox(height: spacingSmall),
                             InkWell(
-                              onTap: _showVersionSelector,
+                              onTap: busy ? null : _showVersionSelector,
+                              splashFactory: NoSplash.splashFactory,
+                              highlightColor: Colors.transparent,
                               child: Container(
                                 padding: EdgeInsets.symmetric(
                                     horizontal: spacingSmall,
                                     vertical: spacingSmall),
                                 decoration: BoxDecoration(
+                                  color: scheme.surface,
                                   border: Border.all(
                                       color: Theme.of(context)
                                           .colorScheme
@@ -549,17 +647,22 @@ class _RandomChartPageState extends State<RandomChartPage> {
                               '类型筛选',
                               style: TextStyle(
                                 fontSize: textSizeSmall,
-                                color: AppColors.greyHint(brightness),
+                                color: scheme.onSurfaceVariant,
                               ),
                             ),
                             SizedBox(height: spacingSmall),
                             InkWell(
-                              onTap: _showGenreSelector,
+                              onTap: busy ? null : _showGenreSelector,
+                              splashFactory: NoSplash.splashFactory,
+                              highlightColor: Colors.transparent,
                               child: Container(
+                                constraints: BoxConstraints.tightFor(
+                                    height: filterFieldHeight),
                                 padding: EdgeInsets.symmetric(
                                     horizontal: spacingSmall,
                                     vertical: spacingSmall),
                                 decoration: BoxDecoration(
+                                  color: scheme.surface,
                                   border: Border.all(
                                       color: Theme.of(context)
                                           .colorScheme
@@ -597,7 +700,7 @@ class _RandomChartPageState extends State<RandomChartPage> {
                               '定数范围',
                               style: TextStyle(
                                 fontSize: textSizeSmall,
-                                color: AppColors.greyHint(brightness),
+                                color: scheme.onSurfaceVariant,
                               ),
                             ),
                             SizedBox(height: spacingSmall),
@@ -605,19 +708,29 @@ class _RandomChartPageState extends State<RandomChartPage> {
                               children: [
                                 Expanded(
                                   child: TextField(
+                                    enabled: !busy,
                                     controller: _minDsController,
                                     keyboardType: TextInputType.number,
                                     decoration: InputDecoration(
                                       hintText: '最小值',
+                                      constraints: BoxConstraints.tightFor(
+                                          height: filterFieldHeight),
+                                      isDense: true,
+                                      filled: true,
+                                      fillColor: scheme.surface,
+                                      hintStyle: TextStyle(
+                                          color: scheme.onSurfaceVariant),
                                       border: OutlineInputBorder(
+                                        borderSide: BorderSide(
+                                            color: scheme.outlineVariant),
                                         borderRadius:
                                             BorderRadius.circular(borderRadius),
                                       ),
                                       contentPadding: EdgeInsets.symmetric(
                                           horizontal: spacingSmall,
-                                          vertical: spacingSmall * 1.5),
+                                          vertical: spacingSmall),
                                     ),
-                                    style: TextStyle(fontSize: textSizeSmall),
+                                    style: filterTextStyle,
                                   ),
                                 ),
                                 const SizedBox(width: 8),
@@ -625,19 +738,29 @@ class _RandomChartPageState extends State<RandomChartPage> {
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: TextField(
+                                    enabled: !busy,
                                     controller: _maxDsController,
                                     keyboardType: TextInputType.number,
                                     decoration: InputDecoration(
                                       hintText: '最大值',
+                                      constraints: BoxConstraints.tightFor(
+                                          height: filterFieldHeight),
+                                      isDense: true,
+                                      filled: true,
+                                      fillColor: scheme.surface,
+                                      hintStyle: TextStyle(
+                                          color: scheme.onSurfaceVariant),
                                       border: OutlineInputBorder(
+                                        borderSide: BorderSide(
+                                            color: scheme.outlineVariant),
                                         borderRadius:
                                             BorderRadius.circular(borderRadius),
                                       ),
                                       contentPadding: EdgeInsets.symmetric(
                                           horizontal: spacingSmall,
-                                          vertical: spacingSmall * 1.5),
+                                          vertical: spacingSmall),
                                     ),
-                                    style: TextStyle(fontSize: textSizeSmall),
+                                    style: filterTextStyle,
                                   ),
                                 ),
                               ],
@@ -656,7 +779,7 @@ class _RandomChartPageState extends State<RandomChartPage> {
                               '快捷选项',
                               style: TextStyle(
                                 fontSize: textSizeSmall,
-                                color: AppColors.greyHint(brightness),
+                                color: scheme.onSurfaceVariant,
                               ),
                             ),
                             SizedBox(height: spacingSmall),
@@ -664,36 +787,10 @@ class _RandomChartPageState extends State<RandomChartPage> {
                               children: [
                                 Expanded(
                                   child: ElevatedButton(
-                                    onPressed: () async {
-                                      debugPrint(
-                                          '[RandomChartPage] 点击MASTER上级快捷按钮');
-                                      // 确保版本和流派列表已加载
-                                      if (_versionList.isEmpty ||
-                                          _genreList.isEmpty) {
-                                        debugPrint(
-                                            '[RandomChartPage] 列表未加载，重新加载...');
-                                        await _loadFilterOptions();
-                                      }
-                                      if (!mounted) return;
-                                      debugPrint(
-                                          '[RandomChartPage] _versionList长度: ${_versionList.length}');
-                                      debugPrint(
-                                          '[RandomChartPage] _genreList长度: ${_genreList.length}');
-                                      setState(() {
-                                        _minDsController.text = '13.2';
-                                        _maxDsController.text = '14.4';
-                                        _requireMaster = true;
-                                        _excludeSixDigitId = true;
-                                        // 自动选中所有版本
-                                        _selectedVersions =
-                                            List.from(_versionList);
-                                        // 自动选中所有类型，排除"\u5bb4\u4f1a\u5834"
-                                        _selectedGenres = _genreList
-                                            .where((genre) =>
-                                                genre != '\u5bb4\u4f1a\u5834')
-                                            .toList();
-                                      });
-                                    },
+                                    onPressed: busy
+                                        ? null
+                                        : () =>
+                                            _applyMasterPreset(advanced: false),
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: Theme.of(context)
                                           .colorScheme
@@ -719,32 +816,10 @@ class _RandomChartPageState extends State<RandomChartPage> {
                                 SizedBox(width: spacingSmall),
                                 Expanded(
                                   child: ElevatedButton(
-                                    onPressed: () async {
-                                      debugPrint(
-                                          '[RandomChartPage] 点击MASTER超上级快捷按钮');
-                                      // 确保版本和流派列表已加载
-                                      if (_versionList.isEmpty ||
-                                          _genreList.isEmpty) {
-                                        debugPrint(
-                                            '[RandomChartPage] 列表未加载，重新加载...');
-                                        await _loadFilterOptions();
-                                      }
-                                      if (!mounted) return;
-                                      setState(() {
-                                        _minDsController.text = '14.5';
-                                        _maxDsController.text = '14.9';
-                                        _requireMaster = true;
-                                        _excludeSixDigitId = true;
-                                        // 自动选中所有版本
-                                        _selectedVersions =
-                                            List.from(_versionList);
-                                        // 自动选中所有类型，排除"\u5bb4\u4f1a\u5834"
-                                        _selectedGenres = _genreList
-                                            .where((genre) =>
-                                                genre != '\u5bb4\u4f1a\u5834')
-                                            .toList();
-                                      });
-                                    },
+                                    onPressed: busy
+                                        ? null
+                                        : () =>
+                                            _applyMasterPreset(advanced: true),
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: Theme.of(context)
                                           .colorScheme
@@ -776,32 +851,35 @@ class _RandomChartPageState extends State<RandomChartPage> {
 
                       // 抽奖按钮
                       ElevatedButton(
-                        onPressed: _isDrawing || _drawCountError != null
-                            ? null
-                            : _drawSongs,
+                        onPressed: _isRolling
+                            ? _stopDraw
+                            : busy || _drawCountError != null
+                                ? null
+                                : _drawSongs,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.linkBlue(brightness),
+                          backgroundColor: scheme.primary,
+                          foregroundColor: scheme.onPrimary,
                           padding:
                               EdgeInsets.symmetric(vertical: spacingMedium),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(borderRadius),
                           ),
                         ),
-                        child: _isDrawing
+                        child: _isDrawing && !_isRolling
                             ? Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   SizedBox(
                                     width: iconSize,
                                     height: iconSize,
-                                    child: const CircularProgressIndicator(
-                                      color: Colors.white,
+                                    child: CircularProgressIndicator(
+                                      color: scheme.onSurfaceVariant,
                                       strokeWidth: 2,
                                     ),
                                   ),
                                   SizedBox(width: spacingSmall),
                                   Text(
-                                    '抽奖中...',
+                                    '准备中…',
                                     style: TextStyle(
                                       fontSize: textSizeMedium,
                                       fontWeight: FontWeight.bold,
@@ -812,10 +890,12 @@ class _RandomChartPageState extends State<RandomChartPage> {
                             : Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  const Icon(Icons.refresh),
+                                  Icon(_isRolling
+                                      ? Icons.stop_rounded
+                                      : Icons.refresh),
                                   SizedBox(width: spacingSmall),
                                   Text(
-                                    '开始抽奖',
+                                    _isRolling ? '停！' : '开始抽奖',
                                     style: TextStyle(
                                       fontSize: textSizeMedium,
                                       fontWeight: FontWeight.bold,
@@ -839,35 +919,52 @@ class _RandomChartPageState extends State<RandomChartPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // 抽取结果标题
-                  Text(
-                    '抽取结果',
-                    style: TextStyle(
-                      fontSize: textSizeLarge,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  Text('抽取结果',
+                      style: TextStyle(
+                          fontSize: textSizeLarge,
+                          fontWeight: FontWeight.bold)),
 
                   SizedBox(height: spacingLarge),
 
-                  if (_drawnSongs.isEmpty)
-                    const EmptyState(message: '选好条件后，开始抽歌吧')
-                  else ...[
-                    Text('本次抽取 ${_drawnSongs.length} 首',
-                        style: TextStyle(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurfaceVariant)),
-                    const SizedBox(height: 8),
-                    ListView.separated(
-                      padding: EdgeInsets.zero,
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: _drawnSongs.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 10),
-                      itemBuilder: (context, index) =>
-                          _songCard(_drawnSongs[index]),
-                    ),
-                  ],
+                  AnimatedSwitcher(
+                    reverseDuration: Duration.zero,
+                    duration: reduceMotion
+                        ? Duration.zero
+                        : const Duration(milliseconds: 280),
+                    child: _isRolling
+                        ? RandomChartRollingResults(
+                            key: ValueKey(_resultRevision),
+                            count: _pendingSongs.length,
+                            candidates: _previewCandidates,
+                          )
+                        : drawnSongs.isEmpty
+                            ? EmptyState(
+                                key: ValueKey(_resultRevision),
+                                message: _emptyMessage)
+                            : Column(
+                                key: ValueKey(_resultRevision),
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Text('本次抽取 ${drawnSongs.length} 首',
+                                      style: TextStyle(
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .onSurfaceVariant)),
+                                  const SizedBox(height: 8),
+                                  ListView.separated(
+                                    padding: EdgeInsets.zero,
+                                    shrinkWrap: true,
+                                    physics:
+                                        const NeverScrollableScrollPhysics(),
+                                    itemCount: drawnSongs.length,
+                                    separatorBuilder: (_, __) =>
+                                        const SizedBox(height: 10),
+                                    itemBuilder: (context, index) =>
+                                        _songCard(drawnSongs[index]),
+                                  ),
+                                ],
+                              ),
+                  ),
                 ],
               ),
             ),
@@ -911,7 +1008,7 @@ class _RandomChartPageState extends State<RandomChartPage> {
                                     '${_historyTimes[index].toString().substring(0, 16)}',
                                     style: TextStyle(
                                       fontSize: textSizeSmall,
-                                      color: AppColors.greyHint(brightness),
+                                      color: scheme.onSurfaceVariant,
                                     ),
                                   ),
                                   IconButton(
@@ -931,17 +1028,22 @@ class _RandomChartPageState extends State<RandomChartPage> {
                                 mainAxisSpacing: gridItemSpacing * 0.8,
                                 children: songs.map((song) {
                                   return GestureDetector(
-                                    onTap: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) => SongInfoPage(
-                                            songId: song.id.toString(),
-                                            initialLevelIndex: 0,
-                                          ),
-                                        ),
-                                      );
-                                    },
+                                    onTap: _isDrawing
+                                        ? null
+                                        : () {
+                                            FocusManager.instance.primaryFocus
+                                                ?.unfocus();
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (context) =>
+                                                    SongInfoPage(
+                                                  songId: song.id.toString(),
+                                                  initialLevelIndex: 0,
+                                                ),
+                                              ),
+                                            );
+                                          },
                                     child: Container(
                                       decoration: BoxDecoration(
                                         color: Theme.of(context)

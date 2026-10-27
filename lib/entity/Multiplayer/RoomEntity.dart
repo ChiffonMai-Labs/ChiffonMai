@@ -6,49 +6,49 @@ import 'package:my_first_flutter_app/entity/Multiplayer/GameType.dart';
 class RoomEntity {
   /// 房间ID
   final String roomId;
-  
+
   /// 房间码（6位数字）- 私有字段
   final String _roomCode;
-  
+
   /// 游戏类型
   final GameType gameType;
-  
+
   /// 玩家列表
   final List<PlayerEntity> players;
-  
+
   /// 房间状态
   final RoomStatus status;
-  
+
   /// 最大玩家数
   final int maxPlayers;
-  
+
   /// 创建者ID
   final String creatorId;
-  
+
   /// 时间限制（秒）
   final int timeLimit;
-  
+
   /// 最大猜测次数
   final int maxGuesses;
-  
+
   /// 总回合数
   final int totalRounds;
-  
+
   /// 创建时间
   final DateTime createdAt;
-  
+
   /// 最后活动时间
   final DateTime lastActivityAt;
-  
+
   /// 选中的版本列表（歌曲筛选参数）
   final List<String> selectedVersions;
-  
+
   /// MASTER定数最小值
   final double masterMinDx;
-  
+
   /// MASTER定数最大值
   final double masterMaxDx;
-  
+
   /// 选中的流派列表（歌曲筛选参数）
   final List<String> selectedGenres;
 
@@ -58,6 +58,7 @@ class RoomEntity {
 
   /// 音频片段播放时长（秒），用于 audio 模式
   final int playDuration;
+  final double audioRate;
 
   /// 每次抽取歌曲数，用于 letters 模式
   final int songCount;
@@ -106,6 +107,7 @@ class RoomEntity {
     this.selectedGenres = const [],
     this.blurLevel = 50,
     this.playDuration = 5,
+    this.audioRate = 1.25,
     this.songCount = 3,
     this.nonEnglishCharThreshold = 50,
     this.flashDurationMs = defaultFlashDurationMs,
@@ -113,8 +115,8 @@ class RoomEntity {
     this.tileRevealIntervalMs = defaultTileRevealIntervalMs,
     this.peekDurationSeconds = defaultPeekDurationSeconds,
     this.peekDifficulties = defaultPeekDifficulties,
-  }) : _roomCode = roomCode,
-       lastActivityAt = lastActivityAt ?? createdAt;
+  })  : _roomCode = roomCode,
+        lastActivityAt = lastActivityAt ?? createdAt;
 
   /// 用 [fallback] 兜住「服务端这次没下发」的模式专属设置。
   ///
@@ -153,9 +155,9 @@ class RoomEntity {
     if (playersJson != null) {
       playersList = playersJson.map((e) => PlayerEntity.fromJson(e)).toList();
     }
-    
+
     String roomId = json['room_id'] ?? json['roomId'] ?? json['id'] ?? '';
-    
+
     // 处理时间戳（支持数字和字符串格式）
     DateTime parseDateTime(dynamic value) {
       if (value == null) return DateTime.now();
@@ -172,7 +174,7 @@ class RoomEntity {
       }
       return DateTime.now();
     }
-    
+
     // 解析歌曲筛选参数
     List<String> parseStringList(dynamic value) {
       if (value is List) {
@@ -180,7 +182,7 @@ class RoomEntity {
       }
       return [];
     }
-    
+
     int parseInt(dynamic value, int defaultValue) {
       if (value == null) return defaultValue;
       if (value is int) return value;
@@ -201,30 +203,49 @@ class RoomEntity {
       players: playersList,
       status: _parseRoomStatus(json['status']),
       maxPlayers: json['max_players'] ?? json['maxPlayers'] ?? 4,
-      creatorId: json['creator_id'] ?? json['creatorId'] ?? json['creator'] ?? json['hostId'] ?? '',
+      creatorId: json['creator_id'] ??
+          json['creatorId'] ??
+          json['creator'] ??
+          json['hostId'] ??
+          '',
       timeLimit: json['time_limit'] ?? json['timeLimit'] ?? 60,
       maxGuesses: json['max_guesses'] ?? json['maxGuesses'] ?? 10,
       totalRounds: json['total_rounds'] ?? json['totalRounds'] ?? 5,
       createdAt: parseDateTime(json['created_at'] ?? json['createdAt']),
-      lastActivityAt: parseDateTime(json['last_activity_at'] ?? json['lastActivityAt']),
-      selectedVersions: parseStringList(json['selectedVersions'] ?? json['selected_versions']),
+      lastActivityAt:
+          parseDateTime(json['last_activity_at'] ?? json['lastActivityAt']),
+      selectedVersions: parseStringList(
+          json['selectedVersions'] ?? json['selected_versions']),
       // 注意：这里原来的三元写法在**两个 key 都缺失**时会返回 null
       // （true 分支里没有兜底值），minimal 报文（老服务端 / 单测构造）会直接抛
       // 类型错误。改成 num?.toDouble() + 兜底。
-      masterMinDx: parseDouble(json['masterMinDx'] ?? json['master_min_dx'], 1.0),
-      masterMaxDx: parseDouble(json['masterMaxDx'] ?? json['master_max_dx'], 15.0),
-      selectedGenres: parseStringList(json['selectedGenres'] ?? json['selected_genres']),
+      masterMinDx:
+          parseDouble(json['masterMinDx'] ?? json['master_min_dx'], 1.0),
+      masterMaxDx:
+          parseDouble(json['masterMaxDx'] ?? json['master_max_dx'], 15.0),
+      selectedGenres:
+          parseStringList(json['selectedGenres'] ?? json['selected_genres']),
       blurLevel: parseInt(json['blur_level'] ?? json['blurLevel'], 50),
       playDuration: parseInt(json['play_duration'] ?? json['playDuration'], 5),
+      audioRate: parseDouble(json['audio_rate'] ?? json['audioRate'], 1.25),
       songCount: parseInt(json['song_count'] ?? json['songCount'], 3),
-      nonEnglishCharThreshold: parseInt(json['non_english_char_threshold'] ?? json['nonEnglishCharThreshold'], 50),
-      flashDurationMs: parseInt(json['flash_duration_ms'] ?? json['flashDurationMs'], 300),
+      nonEnglishCharThreshold: parseInt(
+          json['non_english_char_threshold'] ?? json['nonEnglishCharThreshold'],
+          50),
+      flashDurationMs:
+          parseInt(json['flash_duration_ms'] ?? json['flashDurationMs'], 300),
       tileCount: parseInt(json['tile_count'] ?? json['tileCount'], 1000),
-      tileRevealIntervalMs: parseInt(json['tile_reveal_interval_ms'] ?? json['tileRevealIntervalMs'], 1500),
-      peekDurationSeconds: parseInt(json['peek_duration_seconds'] ?? json['peekDurationSeconds'], 8),
-      peekDifficulties: parseStringList(json['peek_difficulties'] ?? json['peekDifficulties']).isEmpty
-          ? const ['4']
-          : parseStringList(json['peek_difficulties'] ?? json['peekDifficulties']),
+      tileRevealIntervalMs: parseInt(
+          json['tile_reveal_interval_ms'] ?? json['tileRevealIntervalMs'],
+          1500),
+      peekDurationSeconds: parseInt(
+          json['peek_duration_seconds'] ?? json['peekDurationSeconds'], 8),
+      peekDifficulties:
+          parseStringList(json['peek_difficulties'] ?? json['peekDifficulties'])
+                  .isEmpty
+              ? const ['4']
+              : parseStringList(
+                  json['peek_difficulties'] ?? json['peekDifficulties']),
     );
   }
 
@@ -248,6 +269,7 @@ class RoomEntity {
       'selected_genres': selectedGenres,
       'blur_level': blurLevel,
       'play_duration': playDuration,
+      'audio_rate': audioRate,
       'song_count': songCount,
       'non_english_char_threshold': nonEnglishCharThreshold,
       'flash_duration_ms': flashDurationMs,
@@ -278,6 +300,7 @@ class RoomEntity {
     List<String>? selectedGenres,
     int? blurLevel,
     int? playDuration,
+    double? audioRate,
     int? songCount,
     int? nonEnglishCharThreshold,
     int? flashDurationMs,
@@ -305,8 +328,10 @@ class RoomEntity {
       selectedGenres: selectedGenres ?? this.selectedGenres,
       blurLevel: blurLevel ?? this.blurLevel,
       playDuration: playDuration ?? this.playDuration,
+      audioRate: audioRate ?? this.audioRate,
       songCount: songCount ?? this.songCount,
-      nonEnglishCharThreshold: nonEnglishCharThreshold ?? this.nonEnglishCharThreshold,
+      nonEnglishCharThreshold:
+          nonEnglishCharThreshold ?? this.nonEnglishCharThreshold,
       flashDurationMs: flashDurationMs ?? this.flashDurationMs,
       tileCount: tileCount ?? this.tileCount,
       tileRevealIntervalMs: tileRevealIntervalMs ?? this.tileRevealIntervalMs,
@@ -324,6 +349,12 @@ class RoomEntity {
         return GameType.cover;
       case 'blurred':
         return GameType.blurred;
+      case 'reverseAudio':
+      case '倒放音频':
+        return GameType.reverseAudio;
+      case 'pitchAudio':
+      case '变速变调':
+        return GameType.pitchAudio;
       case 'audio':
         return GameType.audio;
       case 'alia':
@@ -388,7 +419,7 @@ class RoomEntity {
   String get roomCode {
     if (_roomCode.isNotEmpty) return _roomCode;
     if (roomId.isEmpty) return '000000';
-    
+
     // 使用 roomId 的哈希值生成6位数字
     int hash = roomId.hashCode.abs();
     return (hash % 1000000).toString().padLeft(6, '0');
@@ -399,10 +430,10 @@ class RoomEntity {
 enum RoomStatus {
   /// 等待中
   waiting,
-  
+
   /// 游戏中
   playing,
-  
+
   /// 已结束
   ended,
 }

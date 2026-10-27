@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/widgets/AppSwitch.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import 'package:my_first_flutter_app/manager/DivingFish/MaimaiMusicDataManager.dart';
@@ -15,10 +16,15 @@ import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import 'package:my_first_flutter_app/utils/ColorUtil.dart';
 import 'package:my_first_flutter_app/widgets/NoRipple.dart';
 import 'package:my_first_flutter_app/widgets/BackgroundPageScaffold.dart';
-import 'package:my_first_flutter_app/widgets/SongSearchOverlay.dart';
-import '../widgets/TouchSearchButton.dart';
+import '../widgets/SongSearchEntry.dart';
+import '../utils/SearchInteractionPreferences.dart';
+import '../utils/DifficultyConstantFilter.dart';
+import '../widgets/AnimatedChoiceBar.dart';
+import '../widgets/MarqueeText.dart';
 import 'package:my_first_flutter_app/constant/VersionListConstant.dart';
 import 'package:my_first_flutter_app/constant/GenreListConstant.dart';
+
+enum _ConstantFilterMode { anyChart, perDifficulty }
 
 class SongSearchPage extends StatefulWidget {
   /// 非国服入口严格按曲库的 isExtra 标记限定搜索范围。
@@ -38,8 +44,9 @@ class _SongSearchPageState extends State<SongSearchPage> {
   TextEditingController _searchController = TextEditingController();
   Timer? _searchTimer;
   final _historyStore = SongSearchHistoryStore();
-  final _searchFieldKey = GlobalKey();
-  bool _searchOverlayOpen = false;
+  final _inlineSearchFocus = FocusNode();
+  List<String> _inlineSearchHistory = [];
+  int _historyRevision = 0;
   int _searchGeneration = 0;
 
   // 只按歌名搜索开关
@@ -54,6 +61,13 @@ class _SongSearchPageState extends State<SongSearchPage> {
   // 筛选相关
   TextEditingController _minLevelController = TextEditingController();
   TextEditingController _maxLevelController = TextEditingController();
+  _ConstantFilterMode _constantFilterMode = _ConstantFilterMode.anyChart;
+  final _difficultyLevelControllers = <int, TextEditingController>{
+    for (final index in ChartDifficulty.indices) index: TextEditingController(),
+  };
+  DifficultyConstantFilter _difficultyConstantFilter =
+      DifficultyConstantFilter.fromInputs(const {});
+  DifficultyConstantFilter? _appliedDifficultyConstantFilter;
   TextEditingController _minNotesController = TextEditingController();
   TextEditingController _maxNotesController = TextEditingController();
   TextEditingController _minBpmController = TextEditingController();
@@ -74,6 +88,28 @@ class _SongSearchPageState extends State<SongSearchPage> {
   String? _selectedArtist;
 
   static const List<String> _difficultyOptions = ChartDifficulty.labels;
+
+  bool get _hasActiveLevelFilter =>
+      _constantFilterMode == _ConstantFilterMode.perDifficulty
+          ? _difficultyConstantFilter.hasInput
+          : _minLevelController.text.isNotEmpty ||
+              _maxLevelController.text.isNotEmpty;
+
+  bool get _hasNonQueryFilters =>
+      _hasActiveLevelFilter ||
+      _minNotesController.text.isNotEmpty ||
+      _maxNotesController.text.isNotEmpty ||
+      _minBpmController.text.isNotEmpty ||
+      _maxBpmController.text.isNotEmpty ||
+      _selectedVersions.isNotEmpty ||
+      _selectedGenres.isNotEmpty ||
+      _selectedTagIds.isNotEmpty ||
+      _selectedDifficulties.isNotEmpty ||
+      _selectedCharter != null ||
+      _selectedArtist != null;
+
+  bool get _hasSearchCriteria =>
+      _searchController.text.trim().isNotEmpty || _hasNonQueryFilters;
 
   // 标签数据
   Map<int, String> _tagIdToNameMap = {};
@@ -102,6 +138,11 @@ class _SongSearchPageState extends State<SongSearchPage> {
   @override
   void initState() {
     super.initState();
+    SearchInteractionPreferences.instance
+        .addListener(_onSearchInteractionChanged);
+    SearchInteractionPreferences.instance.load();
+    _inlineSearchFocus.addListener(_onSearchInteractionChanged);
+    unawaited(_reloadSearchHistory());
     if (widget.extraOnly) {
       _versionList = [];
       _genreList = [];
@@ -117,24 +158,35 @@ class _SongSearchPageState extends State<SongSearchPage> {
       _isLoadingArtists = true;
     });
     try {
-      final charters = await SongSearchService.getCharterList(
-          extraOnly: widget.extraOnly);
-      final artists = await SongSearchService.getArtistList(
-          extraOnly: widget.extraOnly);
+      final charters =
+          await SongSearchService.getCharterList(extraOnly: widget.extraOnly);
+      final artists =
+          await SongSearchService.getArtistList(extraOnly: widget.extraOnly);
       var versions = _versionList;
       var genres = _genreList;
       if (widget.extraOnly) {
         final songs = (await SongSearchService.loadAllSongs() ?? [])
-            .where((song) => song.isExtra).toList();
-        versions = songs.map((song) => song.basicInfo.from)
-            .where((value) => value.trim().isNotEmpty).toSet().toList()
+            .where((song) => song.isExtra)
+            .toList();
+        versions = songs
+            .map((song) => song.basicInfo.from)
+            .where((value) => value.trim().isNotEmpty)
+            .toSet()
+            .toList()
           ..sort((a, b) {
-            final order = (VersionListConstant.japaneseVersionOrderMap[a.trim()] ?? 999)
-                .compareTo(VersionListConstant.japaneseVersionOrderMap[b.trim()] ?? 999);
+            final order =
+                (VersionListConstant.japaneseVersionOrderMap[a.trim()] ?? 999)
+                    .compareTo(
+                        VersionListConstant.japaneseVersionOrderMap[b.trim()] ??
+                            999);
             return order != 0 ? order : a.compareTo(b);
           });
-        genres = songs.map((song) => song.basicInfo.genre)
-            .where((value) => value.trim().isNotEmpty).toSet().toList()..sort();
+        genres = songs
+            .map((song) => song.basicInfo.genre)
+            .where((value) => value.trim().isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
       }
       if (mounted) {
         setState(() {
@@ -159,9 +211,16 @@ class _SongSearchPageState extends State<SongSearchPage> {
 
   @override
   void dispose() {
+    SearchInteractionPreferences.instance
+        .removeListener(_onSearchInteractionChanged);
+    _inlineSearchFocus.removeListener(_onSearchInteractionChanged);
+    _inlineSearchFocus.dispose();
     _searchController.dispose();
     _minLevelController.dispose();
     _maxLevelController.dispose();
+    for (final controller in _difficultyLevelControllers.values) {
+      controller.dispose();
+    }
     _minNotesController.dispose();
     _maxNotesController.dispose();
     _minBpmController.dispose();
@@ -230,8 +289,8 @@ class _SongSearchPageState extends State<SongSearchPage> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         InkWell(
-          onTap: () => setState(
-              () => _showDifficultyFilter = !_showDifficultyFilter),
+          onTap: () =>
+              setState(() => _showDifficultyFilter = !_showDifficultyFilter),
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: Row(
@@ -269,9 +328,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                   ),
                 ),
                 Icon(
-                  _showDifficultyFilter
-                      ? Icons.expand_less
-                      : Icons.expand_more,
+                  _showDifficultyFilter ? Icons.expand_less : Icons.expand_more,
                   size: screenWidth * 0.04,
                 ),
               ],
@@ -289,22 +346,32 @@ class _SongSearchPageState extends State<SongSearchPage> {
                 final index = ChartDifficulty.indexOf(difficulty)!;
                 final selected = _selectedDifficulties.contains(difficulty);
                 final color = index == ChartDifficulty.utage
-                    ? AppColors.utageAccent(brightness: Theme.of(context).brightness)
+                    ? AppColors.utageAccent(
+                        brightness: Theme.of(context).brightness)
                     : ColorUtil.getCardColor(index);
-                final foreground = ThemeData.estimateBrightnessForColor(color) == Brightness.dark
-                    ? Colors.white : Colors.black87;
-                return NoRipple(child: FilterChip(
+                final foreground =
+                    ThemeData.estimateBrightnessForColor(color) ==
+                            Brightness.dark
+                        ? Colors.white
+                        : Colors.black87;
+                return NoRipple(
+                    child: FilterChip(
                   label: Text(
                     difficulty,
                     style: TextStyle(
                       fontSize: screenWidth * 0.03,
-                      color: selected ? foreground : Theme.of(context).colorScheme.onSurface,
+                      color: selected
+                          ? foreground
+                          : Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                   selected: selected,
                   selectedColor: color,
                   checkmarkColor: foreground,
-                  side: BorderSide(color: selected ? color : Theme.of(context).colorScheme.outlineVariant),
+                  side: BorderSide(
+                      color: selected
+                          ? color
+                          : Theme.of(context).colorScheme.outlineVariant),
                   onSelected: (selected) {
                     setState(() {
                       if (selected) {
@@ -329,30 +396,20 @@ class _SongSearchPageState extends State<SongSearchPage> {
     query = query.trim();
     final generation = ++_searchGeneration;
     if (!mounted) return;
+    final difficultyFilter =
+        _constantFilterMode == _ConstantFilterMode.perDifficulty
+            ? _difficultyConstantFilter
+            : null;
+    if (difficultyFilter != null && !difficultyFilter.isValid) {
+      setState(() => _resetSearchResultState(error: '请先修正按难度组合的定数输入'));
+      return;
+    }
     // 检查是否所有筛选条件都为空
-    bool allFiltersEmpty = query.isEmpty &&
-        _minLevelController.text.isEmpty &&
-        _maxLevelController.text.isEmpty &&
-        _minNotesController.text.isEmpty &&
-        _maxNotesController.text.isEmpty &&
-        _minBpmController.text.isEmpty &&
-        _maxBpmController.text.isEmpty &&
-        _selectedVersions.isEmpty &&
-        _selectedGenres.isEmpty &&
-        _selectedTagIds.isEmpty &&
-        _selectedDifficulties.isEmpty &&
-        _selectedCharter == null &&
-        _selectedArtist == null;
+    bool allFiltersEmpty = query.isEmpty && !_hasNonQueryFilters;
 
     if (allFiltersEmpty) {
       setState(() {
-        _allSearchResults = [];
-        _currentPageResults = [];
-        _currentPage = 1;
-        _totalItems = 0;
-        _totalPages = 0;
-        _isSearching = false;
-        _errorMessage = null;
+        _resetSearchResultState();
       });
       return;
     }
@@ -373,21 +430,32 @@ class _SongSearchPageState extends State<SongSearchPage> {
         results = await SongSearchService.searchSongs(query,
             titleOnly: _searchByTitleOnly);
       }
+      if (!mounted || generation != _searchGeneration) return;
 
       // 应用筛选条件
       List<dynamic> filteredResults = widget.extraOnly
           ? results.where((song) => song.isExtra == true).toList()
           : results;
 
-      // 难度筛选先限制歌曲必须存在指定难度；后面的定数、物量、谱师和标签
-      // 筛选都会只检查这一张指定难度的谱面。
+      // 难度多选依然是独立条件，并限定任意定数、物量、谱师和标签的检查范围。
+      // 按难度组合则明确检查每个已填写的难度，不受这个多选范围限制。
       if (_selectedDifficulties.isNotEmpty) {
         filteredResults =
             filteredResults.where(_songHasSelectedDifficulty).toList();
       }
 
       // 应用定数筛选
-      if (_minLevelController.text.isNotEmpty ||
+      if (difficultyFilter != null) {
+        if (difficultyFilter.hasInput) {
+          filteredResults = filteredResults
+              .where((song) => difficultyFilter.matches(
+                    song.ds,
+                    chartCount: song.charts.length,
+                    isUtage: _isUtageSong(song),
+                  ))
+              .toList();
+        }
+      } else if (_minLevelController.text.isNotEmpty ||
           _maxLevelController.text.isNotEmpty) {
         // 处理边界值
         double? minLevel = double.tryParse(_minLevelController.text);
@@ -618,6 +686,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
 
       if (!mounted || generation != _searchGeneration) return;
       setState(() {
+        _appliedDifficultyConstantFilter = difficultyFilter;
         _allSearchResults = filteredResults;
         _totalItems = filteredResults.length;
         _totalPages = (_totalItems + _pageSize - 1) ~/ _pageSize; // 计算总页数
@@ -628,6 +697,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
       if (query.isNotEmpty) {
         try {
           await _historyStore.remember(query);
+          unawaited(_reloadSearchHistory());
         } catch (e) {
           debugPrint('保存搜索历史失败: $e');
         }
@@ -676,7 +746,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
 
   // 执行筛选搜索
   void _performFilteredSearch() {
-    _performSearch(_searchController.text);
+    _submitSearch(_searchController.text);
   }
 
   // 防抖筛选
@@ -698,86 +768,91 @@ class _SongSearchPageState extends State<SongSearchPage> {
     unawaited(_performSearch(query));
   }
 
-  Future<void> _openSearchOverlay() async {
-    if (_searchOverlayOpen) return;
-    final navigator = Navigator.of(context, rootNavigator: true);
-    final field = _searchFieldKey.currentContext?.findRenderObject();
-    final overlay = navigator.overlay?.context.findRenderObject();
-    if (field is! RenderBox || overlay is! RenderBox) return;
-    final sourceRect =
-        field.localToGlobal(Offset.zero, ancestor: overlay) & field.size;
-    FocusManager.instance.primaryFocus?.unfocus();
-    setState(() => _searchOverlayOpen = true);
-    final route = SongSearchOverlay.route(
-      sourceRect: sourceRect,
-      initialQuery: _searchController.text,
-      titleOnly: _searchByTitleOnly,
-      reduceMotion: MediaQuery.disableAnimationsOf(context),
-    );
+  void _onSearchInteractionChanged() {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _reloadSearchHistory() async {
+    final revision = ++_historyRevision;
     try {
-      final query = await navigator.push(route);
-      if (mounted && query != null) {
-        setState(() {
-          _searchController.value = TextEditingValue(
-            text: query,
-            selection: TextSelection.collapsed(offset: query.length),
-          );
-        });
-        _submitSearch(query);
+      final history = await _historyStore.load();
+      if (mounted && revision == _historyRevision) {
+        setState(() => _inlineSearchHistory = history);
       }
-      // pop 的结果早于退出动画返回，等临时层收回后再显示原输入框。
-      await route.completed;
-    } finally {
-      if (mounted) setState(() => _searchOverlayOpen = false);
+    } catch (error) {
+      debugPrint('加载搜索历史失败: $error');
     }
   }
 
-  Widget _buildSearchEntry(double fontSize, double hintFontSize) {
-    final colors = Theme.of(context).colorScheme;
-    return Opacity(
-      opacity: _searchOverlayOpen ? 0 : 1,
-      child: Row(
-        key: _searchFieldKey,
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _searchController,
-              readOnly: true,
-              enableInteractiveSelection: false,
-              canRequestFocus: false,
-              showCursor: false,
-              onTap: _openSearchOverlay,
-              decoration: InputDecoration(
-                hintText: _searchByTitleOnly
-                    ? '只按歌名搜索'
-                    : '歌名/BPM/谱师/曲师/别名/歌曲ID/...',
-                hintStyle: TextStyle(fontSize: hintFontSize),
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 12, vertical: 10),
-                prefixIcon: const Icon(Icons.search),
-                filled: true,
-                fillColor: colors.surfaceContainerLow,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: colors.outlineVariant),
+  Future<void> _removeSearchHistory([String? query]) async {
+    try {
+      if (query == null) {
+        await _historyStore.clear();
+      } else {
+        await _historyStore.remove(query);
+      }
+      await _reloadSearchHistory();
+    } catch (error) {
+      debugPrint('清理搜索历史失败: $error');
+    }
+  }
+
+  Widget _buildInlineSearchHistory() {
+    if (SearchInteractionPreferences.instance.usesOverlay ||
+        !_inlineSearchFocus.hasFocus ||
+        _inlineSearchHistory.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: ConstrainedBox(
+        constraints:
+            BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * .22),
+        child: SingleChildScrollView(
+          padding: EdgeInsets.zero,
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              const Expanded(child: Text('搜索历史')),
+              TextButton(
+                  onPressed: () => _removeSearchHistory(),
+                  child: const Text('清空')),
+            ]),
+            Wrap(spacing: 8, runSpacing: 4, children: [
+              for (final query in _inlineSearchHistory)
+                InputChip(
+                  label:
+                      Text(query, maxLines: 1, overflow: TextOverflow.ellipsis),
+                  onPressed: () {
+                    _searchController.value = TextEditingValue(
+                      text: query,
+                      selection: TextSelection.collapsed(offset: query.length),
+                    );
+                    _submitSearch(query);
+                  },
+                  onDeleted: () => _removeSearchHistory(query),
                 ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: colors.outlineVariant),
-                ),
-              ),
-              style: TextStyle(fontSize: fontSize),
-            ),
-          ),
-          const SizedBox(width: 8),
-          TouchSearchButton(
-            onPressed: () => _submitSearch(_searchController.text),
-          ),
-        ],
+            ]),
+            const SizedBox(height: 8),
+          ]),
+        ),
       ),
     );
   }
+
+  Widget _buildSearchEntry(double fontSize, double hintFontSize) =>
+      SongSearchEntry(
+        controller: _searchController,
+        focusNode: _inlineSearchFocus,
+        titleOnly: _searchByTitleOnly,
+        fontSize: fontSize,
+        hintFontSize: hintFontSize,
+        onChanged: (query) {
+          setState(() {});
+          _debouncedSearch(query);
+        },
+        onSubmitted: _submitSearch,
+      );
 
   Widget _buildFilterExpansion({
     required bool visible,
@@ -791,10 +866,171 @@ class _SongSearchPageState extends State<SongSearchPage> {
     );
   }
 
+  void _resetSearchResultState({String? error}) {
+    _allSearchResults = [];
+    _currentPageResults = [];
+    _currentPage = 1;
+    _totalItems = 0;
+    _totalPages = 0;
+    _isSearching = false;
+    _errorMessage = error;
+    _appliedDifficultyConstantFilter = null;
+  }
+
+  DifficultyConstantFilter _readDifficultyConstants() =>
+      DifficultyConstantFilter.fromInputs({
+        for (final entry in _difficultyLevelControllers.entries)
+          entry.key: entry.value.text,
+      });
+
+  void _setConstantFilterMode(_ConstantFilterMode mode) {
+    if (_constantFilterMode == mode) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    _searchTimer?.cancel();
+    setState(() {
+      _constantFilterMode = mode;
+      _difficultyConstantFilter = _readDifficultyConstants();
+      _resetSearchResultState();
+    });
+    unawaited(_performSearch(_searchController.text));
+  }
+
+  void _onDifficultyConstantChanged() {
+    _searchTimer?.cancel();
+    ++_searchGeneration; // 输入尚未完成时，旧请求也不能再发布结果。
+    setState(() {
+      _difficultyConstantFilter = _readDifficultyConstants();
+      _resetSearchResultState(
+          error: _difficultyConstantFilter.isValid ? null : '请先修正按难度组合的定数输入');
+      _isSearching = _difficultyConstantFilter.isValid && _hasSearchCriteria;
+    });
+    if (_difficultyConstantFilter.isValid) _debouncedFilter();
+  }
+
+  void _clearActiveLevelFilter() {
+    setState(() {
+      if (_constantFilterMode == _ConstantFilterMode.perDifficulty) {
+        for (final controller in _difficultyLevelControllers.values) {
+          controller.clear();
+        }
+        _difficultyConstantFilter = _readDifficultyConstants();
+      } else {
+        _minLevelController.clear();
+        _maxLevelController.clear();
+      }
+      _resetSearchResultState();
+    });
+    _performFilteredSearch();
+  }
+
+  Widget _buildDifficultyConstantFields() {
+    final scheme = Theme.of(context).colorScheme;
+    final utageActive = _difficultyConstantFilter.hasUtageInput;
+    final standardActive = _difficultyConstantFilter.hasStandardInput;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('填写的普通难度须全部满足，留空不限制。支持单值 13.7 或闭区间 13.4-14。',
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: scheme.onSurfaceVariant)),
+        Text('与上方「难度」及其它筛选条件取交集。',
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: scheme.onSurfaceVariant)),
+        const SizedBox(height: 8),
+        if (utageActive || standardActive) ...[
+          Text(
+              utageActive
+                  ? '已填写 UTAGE，普通难度暂不可用；清空后恢复。'
+                  : '已填写普通难度，UTAGE 暂不可用；全部清空后恢复。',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: scheme.primary)),
+          const SizedBox(height: 12),
+        ],
+        LayoutBuilder(builder: (context, constraints) {
+          final columns = constraints.maxWidth >= 340 ? 2 : 1;
+          final width = (constraints.maxWidth - (columns - 1) * 12) / columns;
+          return Wrap(
+            spacing: 12,
+            runSpacing: 16,
+            children: [
+              for (final index in ChartDifficulty.indices)
+                SizedBox(
+                  width: width,
+                  child: Builder(builder: (context) {
+                    final enabled = index == ChartDifficulty.utage
+                        ? !standardActive
+                        : !utageActive;
+                    final controller = _difficultyLevelControllers[index]!;
+                    final color = index == ChartDifficulty.utage
+                        ? AppColors.utageAccent(
+                            brightness: Theme.of(context).brightness)
+                        : ColorUtil.getCardColor(index);
+                    final border = OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: scheme.outlineVariant),
+                    );
+                    return TextField(
+                      key: ValueKey('difficulty-constant-$index'),
+                      controller: controller,
+                      enabled: enabled,
+                      keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true, signed: true),
+                      textInputAction: TextInputAction.search,
+                      scrollPadding: EdgeInsets.fromLTRB(24, 24, 24,
+                          MediaQuery.viewInsetsOf(context).bottom + 24),
+                      onChanged: (_) => _onDifficultyConstantChanged(),
+                      onSubmitted: (_) => _performFilteredSearch(),
+                      decoration: InputDecoration(
+                        labelText: ChartDifficulty.labelOf(index),
+                        labelStyle: TextStyle(
+                            color: enabled ? color : scheme.onSurfaceVariant),
+                        hintText: '如 13.4-14',
+                        errorText: _difficultyConstantFilter.errors[index],
+                        errorMaxLines: 3,
+                        border: border,
+                        enabledBorder: border,
+                        disabledBorder: border,
+                        filled: !enabled,
+                        fillColor: scheme.surfaceContainerLow,
+                        suffixIcon: controller.text.isEmpty
+                            ? null
+                            : IconButton(
+                                tooltip:
+                                    '清空${ChartDifficulty.labelOf(index)}定数',
+                                onPressed: () {
+                                  controller.clear();
+                                  _onDifficultyConstantChanged();
+                                },
+                                icon: const Icon(Icons.clear, size: 18),
+                              ),
+                      ),
+                    );
+                  }),
+                ),
+            ],
+          );
+        }),
+      ],
+    );
+  }
+
   Widget _buildLevelFilter(double screenWidth, double screenHeight) {
     // 生成已选内容文本
     String selectedLevelText = '';
-    if (_minLevelController.text.isNotEmpty ||
+    if (_constantFilterMode == _ConstantFilterMode.perDifficulty) {
+      selectedLevelText = _difficultyConstantFilter.activeDifficulties
+          .map(
+            (index) =>
+                '${ChartDifficulty.labelOf(index)} ${_difficultyLevelControllers[index]!.text.trim()}',
+          )
+          .join(' · ');
+    } else if (_minLevelController.text.isNotEmpty ||
         _maxLevelController.text.isNotEmpty) {
       selectedLevelText =
           '${_minLevelController.text.isEmpty ? '1.0' : _minLevelController.text} - ${_maxLevelController.text.isEmpty ? '15.0' : _maxLevelController.text}';
@@ -829,16 +1065,14 @@ class _SongSearchPageState extends State<SongSearchPage> {
                         Expanded(
                           child: Padding(
                             padding: EdgeInsets.only(left: screenWidth * 0.02),
-                            child: Text(
-                              selectedLevelText,
+                            child: MarqueeText(
+                              text: selectedLevelText,
                               style: TextStyle(
                                 fontSize: screenWidth * 0.03,
                                 color: Theme.of(context)
                                     .colorScheme
                                     .onSurfaceVariant,
                               ),
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1,
                             ),
                           ),
                         ),
@@ -857,48 +1091,67 @@ class _SongSearchPageState extends State<SongSearchPage> {
           visible: _showLevelFilter,
           child: Container(
             padding: EdgeInsets.symmetric(vertical: screenHeight * 0.01),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  child: TextField(
-                    controller: _minLevelController,
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      hintText: '最小值',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(4.0),
+                AnimatedChoiceBar<_ConstantFilterMode>(
+                  values: _ConstantFilterMode.values,
+                  value: _constantFilterMode,
+                  label: (mode) =>
+                      mode == _ConstantFilterMode.anyChart ? '任意难度' : '按难度组合',
+                  onChanged: _setConstantFilterMode,
+                ),
+                Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: _hasActiveLevelFilter
+                          ? _clearActiveLevelFilter
+                          : null,
+                      icon: const Icon(Icons.clear, size: 16),
+                      label: const Text('清空定数'),
+                    )),
+                if (_constantFilterMode == _ConstantFilterMode.perDifficulty)
+                  _buildDifficultyConstantFields()
+                else
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _minLevelController,
+                          keyboardType: TextInputType.number,
+                          decoration: InputDecoration(
+                            hintText: '最小值',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(4.0),
+                            ),
+                            contentPadding: EdgeInsets.symmetric(
+                                vertical: 8, horizontal: 10),
+                          ),
+                          onChanged: (value) {
+                            _debouncedFilter();
+                          },
+                        ),
                       ),
-                      contentPadding:
-                          EdgeInsets.symmetric(vertical: 8, horizontal: 10),
-                    ),
-                    onChanged: (value) {
-                      _debouncedFilter();
-                    },
-                  ),
-                ),
-                SizedBox(width: screenWidth * 0.02),
-                Expanded(
-                  child: TextField(
-                    controller: _maxLevelController,
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      hintText: '最大值',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(4.0),
+                      const Text(' - '),
+                      Expanded(
+                        child: TextField(
+                          controller: _maxLevelController,
+                          keyboardType: TextInputType.number,
+                          decoration: InputDecoration(
+                            hintText: '最大值',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(4.0),
+                            ),
+                            contentPadding: EdgeInsets.symmetric(
+                                vertical: 8, horizontal: 10),
+                          ),
+                          onChanged: (value) {
+                            _debouncedFilter();
+                          },
+                        ),
                       ),
-                      contentPadding:
-                          EdgeInsets.symmetric(vertical: 8, horizontal: 10),
-                    ),
-                    onChanged: (value) {
-                      _debouncedFilter();
-                    },
+                    ],
                   ),
-                ),
-                SizedBox(width: screenWidth * 0.02),
-                ElevatedButton(
-                  onPressed: _performFilteredSearch,
-                  child: Text('搜索'),
-                ),
               ],
             ),
           ),
@@ -993,7 +1246,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                     },
                   ),
                 ),
-                SizedBox(width: screenWidth * 0.02),
+                const Text(' - '),
                 Expanded(
                   child: TextField(
                     controller: _maxNotesController,
@@ -1010,11 +1263,6 @@ class _SongSearchPageState extends State<SongSearchPage> {
                       _debouncedFilter();
                     },
                   ),
-                ),
-                SizedBox(width: screenWidth * 0.02),
-                ElevatedButton(
-                  onPressed: _performFilteredSearch,
-                  child: Text('搜索'),
                 ),
               ],
             ),
@@ -1110,7 +1358,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                     },
                   ),
                 ),
-                SizedBox(width: screenWidth * 0.02),
+                const Text(' - '),
                 Expanded(
                   child: TextField(
                     controller: _maxBpmController,
@@ -1128,11 +1376,6 @@ class _SongSearchPageState extends State<SongSearchPage> {
                     },
                   ),
                 ),
-                SizedBox(width: screenWidth * 0.02),
-                ElevatedButton(
-                  onPressed: _performFilteredSearch,
-                  child: Text('搜索'),
-                ),
               ],
             ),
           ),
@@ -1144,8 +1387,9 @@ class _SongSearchPageState extends State<SongSearchPage> {
   // 构建版本筛选组件
   Widget _buildVersionFilter(double screenWidth, double screenHeight) {
     // 生成已选内容文本
-    String selectedVersionsText =
-        _selectedVersions.map((v) => StringUtil.formatVersionWithFlag(v, widget.extraOnly)).join(', ');
+    String selectedVersionsText = _selectedVersions
+        .map((v) => StringUtil.formatVersionWithFlag(v, widget.extraOnly))
+        .join(', ');
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1210,7 +1454,8 @@ class _SongSearchPageState extends State<SongSearchPage> {
               children: _versionList.map((version) {
                 return FilterChip(
                   label: Text(
-                    StringUtil.formatVersion2WithFlag(version, widget.extraOnly),
+                    StringUtil.formatVersion2WithFlag(
+                        version, widget.extraOnly),
                     style: TextStyle(fontSize: screenWidth * 0.03),
                   ),
                   selected: _selectedVersions.contains(version),
@@ -1756,12 +2001,16 @@ class _SongSearchPageState extends State<SongSearchPage> {
                   padding: EdgeInsets.fromLTRB(padding, 8, padding, padding),
                   child: _buildSearchEntry(baseFontSize, smallFontSize),
                 ),
+                _buildInlineSearchHistory(),
 
                 // 筛选条件、条目总数和搜索结果一起滚动
                 Expanded(
                   child: SingleChildScrollView(
                     padding: EdgeInsets.only(
-                        left: padding, right: padding, bottom: padding),
+                        left: padding,
+                        right: padding,
+                        bottom:
+                            padding + MediaQuery.viewInsetsOf(context).bottom),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
@@ -1800,7 +2049,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                                     ),
                                   ),
                                   Spacer(),
-                                  Switch(
+                                  AppSwitch(
                                     value: _searchByTitleOnly,
                                     onChanged: (value) {
                                       setState(() {
@@ -1858,19 +2107,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                         ),
 
                         // 搜索结果数量显示
-                        if ((_searchController.text.isNotEmpty ||
-                                _selectedVersions.isNotEmpty ||
-                                _selectedGenres.isNotEmpty ||
-                                _selectedTagIds.isNotEmpty ||
-                                            _selectedDifficulties.isNotEmpty ||
-                                _selectedCharter != null ||
-                                _selectedArtist != null ||
-                                _minLevelController.text.isNotEmpty ||
-                                _maxLevelController.text.isNotEmpty ||
-                                _minNotesController.text.isNotEmpty ||
-                                _maxNotesController.text.isNotEmpty ||
-                                _minBpmController.text.isNotEmpty ||
-                                _maxBpmController.text.isNotEmpty) &&
+                        if (_hasSearchCriteria &&
                             !_isSearching &&
                             _errorMessage == null)
                           Column(
@@ -1895,10 +2132,20 @@ class _SongSearchPageState extends State<SongSearchPage> {
                                   SizedBox(width: screenWidth * 0.02),
                                   ElevatedButton(
                                     onPressed: () {
+                                      _searchTimer?.cancel();
+                                      FocusManager.instance.primaryFocus
+                                          ?.unfocus();
                                       setState(() {
                                         _searchController.clear();
                                         _minLevelController.clear();
                                         _maxLevelController.clear();
+                                        for (final controller
+                                            in _difficultyLevelControllers
+                                                .values) {
+                                          controller.clear();
+                                        }
+                                        _difficultyConstantFilter =
+                                            _readDifficultyConstants();
                                         _minNotesController.clear();
                                         _maxNotesController.clear();
                                         _minBpmController.clear();
@@ -1910,8 +2157,8 @@ class _SongSearchPageState extends State<SongSearchPage> {
                                         _selectedCharter = null;
                                         _selectedArtist = null;
                                         _showAllFilters = true;
-                                        _performSearch('');
                                       });
+                                      _performSearch('');
                                     },
                                     style: ElevatedButton.styleFrom(
                                       shape: RoundedRectangleBorder(
@@ -2026,7 +2273,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                             ),
                           )
                         else if (_allSearchResults.isEmpty &&
-                            _searchController.text.isNotEmpty)
+                            _hasSearchCriteria)
                           Center(
                             child: Padding(
                               padding: EdgeInsets.all(screenHeight * 0.1),
@@ -2403,7 +2650,9 @@ class _SongSearchPageState extends State<SongSearchPage> {
   }
 
   String _getDifficultyDisplayNameForSong(dynamic song, int index) {
-    return _isUtageSong(song) ? ChartDifficulty.utageLabel : _getDifficultyDisplayName(index);
+    return _isUtageSong(song)
+        ? ChartDifficulty.utageLabel
+        : _getDifficultyDisplayName(index);
   }
 
   String _getDifficultyByIndexForSong(dynamic song, int index) {
@@ -2431,7 +2680,20 @@ class _SongSearchPageState extends State<SongSearchPage> {
     }
 
     // 定数区间筛选：显示通过筛选的难度和定数。
-    if (_minLevelController.text.isNotEmpty ||
+    if (_constantFilterMode == _ConstantFilterMode.perDifficulty) {
+      final filter = _appliedDifficultyConstantFilter;
+      if (filter != null) {
+        final matches = <String>{};
+        for (final index in filter.matchingChartIndices(song.ds,
+            chartCount: song.charts.length, isUtage: _isUtageSong(song))) {
+          matches.add(
+              '${_getDifficultyDisplayNameForSong(song, index)}：${song.ds[index]}');
+        }
+        for (final value in matches) {
+          matchInfos.add({'type': '定数', 'value': value});
+        }
+      }
+    } else if (_minLevelController.text.isNotEmpty ||
         _maxLevelController.text.isNotEmpty) {
       double? minLevel = double.tryParse(_minLevelController.text);
       double? maxLevel = double.tryParse(_maxLevelController.text);
@@ -2446,8 +2708,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
         if (meetsMin && meetsMax) {
           matchInfos.add({
             'type': '定数',
-            'value':
-                '${_getDifficultyDisplayNameForSong(song, index)}：$level',
+            'value': '${_getDifficultyDisplayNameForSong(song, index)}：$level',
           });
         }
       }
@@ -2495,16 +2756,16 @@ class _SongSearchPageState extends State<SongSearchPage> {
 
     // 谱师筛选：列出歌曲中命中的谱师
     if (_selectedCharter != null) {
-      final matchedCharters = <String>{};
       for (final index in _selectedDifficultyIndices(song)) {
         if (index >= song.charts.length) continue;
         final chart = song.charts[index];
         if (chart.charter == _selectedCharter) {
-          matchedCharters.add(chart.charter);
+          matchInfos.add({
+            'type':
+                '${ChartDifficulty.labelOf(index, isUtage: _isUtageSong(song))}谱师',
+            'value': chart.charter
+          });
         }
-      }
-      for (final name in matchedCharters) {
-        matchInfos.add({'type': '谱师', 'value': name});
       }
     }
 
@@ -2551,8 +2812,11 @@ class _SongSearchPageState extends State<SongSearchPage> {
       if (index >= song.charts.length) continue;
       final chart = song.charts[index];
       if (chart.charter.toLowerCase().contains(query)) {
-        matchInfos.add({'type': '谱师', 'value': chart.charter});
-        break; // 只添加第一个匹配的谱师
+        matchInfos.add({
+          'type':
+              '${ChartDifficulty.labelOf(index, isUtage: _isUtageSong(song))}谱师',
+          'value': chart.charter
+        });
       }
     }
     // 检查流派匹配

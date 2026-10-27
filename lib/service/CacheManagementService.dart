@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -18,7 +19,6 @@ class CacheUsage {
     required this.pvFiles,
     required this.maidataBytes,
     required this.maidataFiles,
-    required this.maidataMemoryBytes,
   });
 
   final int audioBytes;
@@ -27,14 +27,40 @@ class CacheUsage {
   final int pvFiles;
   final int maidataBytes;
   final int maidataFiles;
-  final int maidataMemoryBytes;
 
   int get bytesForAll => audioBytes + pvBytes + maidataBytes;
 }
 
-class CacheManagementService {
+class CacheManagementService extends ChangeNotifier {
   CacheManagementService._();
   static final instance = CacheManagementService._();
+  bool reloadingBase = false;
+  String reloadText = '';
+  double? reloadProgress;
+
+  Future<void> reloadBaseMaidata() async {
+    if (reloadingBase) return;
+    reloadingBase = true;
+    reloadText = '正在发现基础量 maidata…';
+    reloadProgress = null;
+    notifyListeners();
+    try {
+      await MaidataManager().initialize();
+      await MaidataManager().fetchAndCacheFullMaidata(
+          onProgress: (current, total) {
+        reloadText = total > 0
+            ? '正在拉取 maidata：$current/$total'
+            : '已发现 $current 份 maidata';
+        reloadProgress = total > 0 ? (current / total).clamp(0.0, 1.0) : null;
+        notifyListeners();
+      });
+    } finally {
+      reloadingBase = false;
+      reloadText = '';
+      reloadProgress = null;
+      notifyListeners();
+    }
+  }
 
   Future<CacheUsage> inspect() async {
     final maidataManager = MaidataManager();
@@ -52,7 +78,6 @@ class CacheManagementService {
     );
     final prefs = await SharedPreferences.getInstance();
     var preferenceBytes = 0;
-    var preferenceCount = 0;
     for (final key in prefs.getKeys()) {
       if (key.startsWith(CacheKeyConstant.maidataCachePrefix) ||
           key == CacheKeyConstant.maidataIndexCache ||
@@ -60,7 +85,6 @@ class CacheManagementService {
         final value = prefs.getString(key);
         if (value != null) {
           preferenceBytes += utf8.encode(value).length;
-          preferenceCount++;
         }
       }
     }
@@ -70,8 +94,8 @@ class CacheManagementService {
       pvBytes: pv.$1,
       pvFiles: pv.$2,
       maidataBytes: maidata.$1 + preferenceBytes,
-      maidataFiles: maidata.$2 + preferenceCount,
-      maidataMemoryBytes: maidataManager.memoryCacheBytes,
+      // 全量 JSON 中每首歌曲也是一份 maidata，不能只数物理容器文件。
+      maidataFiles: maidataManager.cachedCount,
     );
   }
 

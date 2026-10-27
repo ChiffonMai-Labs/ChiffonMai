@@ -1,3 +1,5 @@
+import '../../service/CommunityAvatarStore.dart';
+import '../../widgets/RankingPlayerBriefSheet.dart';
 import '../../widgets/AnimatedChoiceBar.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
@@ -49,12 +51,18 @@ class _FittedRatingRankingListPageState
   @override
   void initState() {
     super.initState();
+    CommunityAvatarStore.profileChanges.addListener(_onAppearanceChanged);
     _currentMode = widget.initialMode;
     _loadData();
   }
 
+  void _onAppearanceChanged() {
+    if (mounted) _loadRankings(refresh: true);
+  }
+
   @override
   void dispose() {
+    CommunityAvatarStore.profileChanges.removeListener(_onAppearanceChanged);
     _scrollController.dispose();
     super.dispose();
   }
@@ -102,7 +110,6 @@ class _FittedRatingRankingListPageState
   // 带防抖的刷新方法
   Future<void> _onRefresh() async {
     _disableButtons();
-    await FittedRatingRankingListService.clearRankingsCache();
     await _loadRankings(refresh: true);
   }
 
@@ -286,52 +293,56 @@ class _FittedRatingRankingListPageState
     bool isCurrentUser = false,
     required Brightness brightness,
   }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        border: Border(
-            bottom: BorderSide(color: AppColors.tableBorder(brightness))),
-        color: isCurrentUser
-            ? AppColors.linkBlue(brightness).withValues(alpha: 0.08)
-            : null,
-      ),
-      child: Row(
-        children: [
-          // 排名
-          SizedBox(
-            width: 40,
-            child: Center(
-                child: _buildRankBadge(item.rank, brightness: brightness)),
+    return RankingPlayerRow(
+        playerId: item.playerId,
+        nickname: item.playerName,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            border: Border(
+                bottom: BorderSide(color: AppColors.tableBorder(brightness))),
+            color: isCurrentUser
+                ? AppColors.linkBlue(brightness).withValues(alpha: 0.08)
+                : null,
           ),
-
-          Expanded(
-            child: CommunityPlayerIdentity(
-              avatarId: item.avatarId,
-              dataSource: item.dataSource,
-              // 开发者白名单按 `<source>:<id>` 整串匹配，见 DataSourceTag
-              playerId: item.playerId,
-              name: item.playerName.isEmpty ? '未知玩家' : item.playerName,
-              // 头像高度对齐「玩家名 + 数据源标签」两行文字的总高
-              avatarMatchesTextHeight: true,
-              nameStyle: TextStyle(
-                fontSize: 14,
-                fontWeight: isCurrentUser ? FontWeight.bold : FontWeight.w500,
-                color: isCurrentUser
-                    ? AppColors.primaryText(brightness)
-                    : AppColors.secondaryText(brightness),
+          child: Row(
+            children: [
+              // 排名
+              SizedBox(
+                width: 40,
+                child: Center(
+                    child: _buildRankBadge(item.rank, brightness: brightness)),
               ),
-            ),
-          ),
-          const SizedBox(width: 8),
 
-          // 估值信息
-          SizedBox(
-            width: 130,
-            child: _buildValueCell(item, brightness: brightness),
+              Expanded(
+                child: CommunityPlayerIdentity(
+                  avatarId: item.avatarId,
+                  dataSource: item.dataSource,
+                  // 开发者白名单按 `<source>:<id>` 整串匹配，见 DataSourceTag
+                  playerId: item.playerId,
+                  name: item.playerName.isEmpty ? '未知玩家' : item.playerName,
+                  // 头像高度对齐「玩家名 + 数据源标签」两行文字的总高
+                  avatarMatchesTextHeight: true,
+                  nameStyle: TextStyle(
+                    fontSize: 14,
+                    fontWeight:
+                        isCurrentUser ? FontWeight.bold : FontWeight.w500,
+                    color: isCurrentUser
+                        ? AppColors.primaryText(brightness)
+                        : AppColors.secondaryText(brightness),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+
+              // 估值信息
+              SizedBox(
+                width: 130,
+                child: _buildValueCell(item, brightness: brightness),
+              ),
+            ],
           ),
-        ],
-      ),
-    );
+        ));
   }
 
   /// 定位用的「原型行」：内容最全的一行（第 1 名那 28dp 奖杯 + 拟合值 + 差值小字）。
@@ -446,7 +457,7 @@ class _FittedRatingRankingListPageState
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        '拟合总Rating排行榜基于玩家自愿上传的全量成绩与最新拟合定数（chart_stats）计算，仅供娱乐参考，不代表任何官方立场。',
+                        '拟合总Rating排行榜基于玩家自愿上传的全量成绩与最新拟合定数计算，每 6 小时更新一次，仅供娱乐参考，不代表任何官方立场。',
                         style: TextStyle(
                           fontSize: 12,
                           color: AppColors.warningOrange(brightness),

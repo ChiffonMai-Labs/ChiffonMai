@@ -1,7 +1,9 @@
 import 'dart:convert';
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../api/ApiUrls.dart';
 import '../constant/CacheKeyConstant.dart';
@@ -10,6 +12,11 @@ import '../utils/SecureCredentialStore.dart';
 import 'SyncStatsService.dart';
 import 'AWMC/AwmcQuickIdentityStore.dart';
 import 'AWMC/AwmcQuickSyncService.dart';
+import 'AccountStore.dart';
+import 'AccountSwitchService.dart';
+import 'PostSyncRefreshService.dart';
+import 'PlayerExperienceService.dart';
+import '../utils/CurrentDataSourceNotifier.dart';
 
 class AutoSyncException implements Exception {
   final String message;
@@ -297,11 +304,35 @@ class AutoSyncService {
 
   /// 设置变更后通知 Hub 摘要刷新；查询状态不会反复触发通知。
   static final changes = ValueNotifier<int>(0);
+
+  /// 全站匿名队列汇总，不依赖本机是否绑定账号或开启任务。
+  Future<AutoSyncQueue> queueOverview() async {
+    try {
+      final response = await ApiClient.get(
+          Uri.parse(ApiUrls.AutoSyncOverviewUrl),
+          timeout: const Duration(seconds: 15));
+      final data = jsonDecode(utf8.decode(response.bodyBytes));
+      if (response.statusCode != 200 ||
+          data is! Map ||
+          data['success'] != true ||
+          data['queue'] is! Map) {
+        throw const AutoSyncException('队列统计暂不可用，请稍后重试');
+      }
+      return AutoSyncQueue.fromJson(data['queue']);
+    } catch (_) {
+      throw const AutoSyncException('队列统计暂不可用，请稍后重试');
+    }
+  }
+
   Future<void> _writes = Future.value();
   final Map<SyncPlatform, Future<void>> _mutations = {};
   final Map<SyncPlatform, DateTime> _retryAfter = {};
   final Map<SyncPlatform, DateTime> _recoveryAfter = {};
   final Map<SyncPlatform, String> _credentialErrors = {};
+  Future<void> _refreshQueue = Future<void>.value();
+  final Set<String> _queuedRefreshes = {};
+  final Map<SyncPlatform, String> _refreshErrors = {};
+  String? refreshError(SyncPlatform platform) => _refreshErrors[platform];
   static const _personalKeys = {
     SyncPlatform.divingFish: CacheKeyConstant.probeDivingFishImportToken,
     SyncPlatform.luoXue: CacheKeyConstant.probeLxnsImportToken,
@@ -422,6 +453,10 @@ class AutoSyncService {
                   lastKnownEnabled: true));
         }
         changes.value++;
+        if (method == 'PUT' || method == 'POST') {
+          unawaited(PlayerExperienceService.instance
+              .onAccountAuthenticated(registration.accountKey));
+        }
       }
       return task;
     } on AutoSyncException {
@@ -433,6 +468,61 @@ class AutoSyncService {
   }
 
   Future<AutoSyncTask> status(SyncPlatform platform) async {
+    final before = await registration(platform);
+    final task = await _status(platform);
+    final after = await registration(platform);
+    if (after != null &&
+        (before == null || before.accountKey == after.accountKey)) {
+      // 状态轮询不等待完整刷新；同一轮只入队一次，所有源共享串行刷新队列。
+      _observeCompleted(after, task);
+    }
+    return task;
+  }
+
+  void _observeCompleted(AutoSyncRegistration entry, AutoSyncTask task) {
+    final result = task.lastResult;
+    final finished = result?.finishedAt ?? result?.scheduledAt;
+    final source = AwmcQuickSyncService.sourceOf(entry.platform);
+    if (result?.status != 'success' ||
+        finished == null ||
+        entry.source != source.key ||
+        CurrentDataSourceNotifier.instance.value != source) return;
+    final stamp = '${entry.accountKey}:${finished.millisecondsSinceEpoch}';
+    if (!_queuedRefreshes.add(stamp)) return;
+    final revision = AccountSwitchService.revision;
+    final next = _refreshQueue.then((_) async {
+      final prefs = await SharedPreferences.getInstance();
+      final marker = 'auto_sync_refreshed_${entry.platform.key}';
+      if (prefs.getString(marker) == stamp ||
+          CurrentDataSourceNotifier.instance.value != source ||
+          AccountSwitchService.revision != revision) return;
+      final current = (await AccountStore.loadAll())[source.key];
+      final registration = await this.registration(entry.platform);
+      if (current?.id != entry.accountId ||
+          registration?._token != entry._token ||
+          registration?.accountKey != entry.accountKey) return;
+      final refresh = await PostSyncRefreshOperation.capture(source);
+      if (AccountSwitchService.revision != revision ||
+          CurrentDataSourceNotifier.instance.value != source) return;
+      final error = await refresh.run(onProgress: (_, __) {});
+      // 失败也记录本轮已处理，防止三秒轮询反复请求；用户仍可手动刷新。
+      await prefs.setString(marker, stamp);
+      if (error == null) {
+        _refreshErrors.remove(entry.platform);
+      } else {
+        _refreshErrors[entry.platform] = error;
+      }
+      changes.value++;
+    });
+    _refreshQueue = next.then<void>((_) {
+      _queuedRefreshes.remove(stamp);
+    }, onError: (Object _) {
+      _queuedRefreshes.remove(stamp);
+      _refreshErrors[entry.platform] = '同步成功，本地数据刷新未完成，请手动刷新';
+    });
+  }
+
+  Future<AutoSyncTask> _status(SyncPlatform platform) async {
     final entry = await registration(platform);
     if (entry == null)
       return await recoverIfAvailable(platform) ?? const AutoSyncTask();
@@ -491,6 +581,10 @@ class AutoSyncService {
   Future<AutoSyncTask> _updatePersonalCredential(
       AutoSyncRegistration entry) async {
     try {
+      final account = (await AccountStore.loadAll())[entry.source];
+      if (account != null && account.id != entry.accountId) {
+        throw const AutoSyncException('账号已切换，请先关闭旧账号自动同步后重新开启');
+      }
       final credential =
           await SecureCredentialStore.read(_personalKeys[entry.platform]!);
       if (credential == null || credential.trim().isEmpty) {
@@ -553,6 +647,8 @@ class AutoSyncService {
         AutoSyncRegistration(platform, source, accountId, token,
             lastKnownEnabled: true));
     changes.value++;
+    unawaited(PlayerExperienceService.instance
+        .onAccountAuthenticated('$source:$accountId'));
     return AutoSyncTask.fromJson(Map<String, dynamic>.from(data['task']));
   }
 

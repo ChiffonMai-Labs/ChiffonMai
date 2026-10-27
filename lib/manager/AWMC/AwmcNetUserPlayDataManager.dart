@@ -205,6 +205,8 @@ class AwmcNetUserPlayDataManager {
       'nickname': payload['nickname'] ?? '',
       'rating': payload['rating'] ?? 0,
       'plate': payload['plate'] ?? '',
+      for (final key in ['trophy', 'frame', 'name_plate', 'icon'])
+        if (payload[key] is Map) key: payload[key],
       'username': payload['username'] ?? '',
     };
   }

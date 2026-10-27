@@ -132,44 +132,49 @@ class _MarqueeTextState extends State<MarqueeText>
         final period = textWidth + widget.gap;
         final scrollFraction = _scrollFraction;
 
-        return ClipRect(
-          child: AnimatedBuilder(
-            animation: _controller,
-            builder: (context, child) {
-              // 同一个 Text 摆两份（widget 是不可变配置，同实例放两处没问题）
-              final copy = child!;
-              // 相位 0→1 = 滚完一整个周期；之后（到本周期结束）停在相位 1。
-              // 相位 1 时位移正好 = 周期 → 第二个副本贴在左边缘 = 第一个字对齐。
-              final raw = _controller.value / scrollFraction;
-              final phase = raw <= 0 ? 0.0 : (raw >= 1 ? 1.0 : raw);
-              final shift = phase * period;
-              return Transform.translate(
-                offset: Offset(-shift, 0),
-                // ⚠️ 必须 OverflowBox 放开宽度：Row 的两份文本加起来比视口宽得多，
-                // 不放开就会被压缩/省略号截断，跑马灯就没内容可滚。
-                // 它自己的尺寸仍是外层给的（220 × 16.2），照旧被 ClipRect 裁掉溢出。
-                child: OverflowBox(
-                  alignment: Alignment.centerLeft,
-                  maxWidth: double.infinity,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      copy,
-                      // 两轮之间的空隙：由 SizedBox 给，所以**不依赖量出来的宽度**，
-                      // 量歪了也只是空隙大小变化，不会让停顿位置偏掉。
-                      SizedBox(width: widget.gap),
-                      copy,
-                    ],
+        // 纵向滚动页面中的 Column 不约束高度。OverflowBox 会取无限高度，
+        // 必须先按实际字体、缩放和行高给出单行高度，再允许横向溢出。
+        return SizedBox(
+          height: painter.height,
+          child: ClipRect(
+            child: AnimatedBuilder(
+              animation: _controller,
+              builder: (context, child) {
+                // 同一个 Text 摆两份（widget 是不可变配置，同实例放两处没问题）
+                final copy = child!;
+                // 相位 0→1 = 滚完一整个周期；之后（到本周期结束）停在相位 1。
+                // 相位 1 时位移正好 = 周期 → 第二个副本贴在左边缘 = 第一个字对齐。
+                final raw = _controller.value / scrollFraction;
+                final phase = raw <= 0 ? 0.0 : (raw >= 1 ? 1.0 : raw);
+                final shift = phase * period;
+                return Transform.translate(
+                  offset: Offset(-shift, 0),
+                  // ⚠️ 必须 OverflowBox 放开宽度：Row 的两份文本加起来比视口宽得多，
+                  // 不放开就会被压缩/省略号截断，跑马灯就没内容可滚。
+                  // 它自己的尺寸仍是外层给的（220 × 16.2），照旧被 ClipRect 裁掉溢出。
+                  child: OverflowBox(
+                    alignment: Alignment.centerLeft,
+                    maxWidth: double.infinity,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        copy,
+                        // 两轮之间的空隙：由 SizedBox 给，所以**不依赖量出来的宽度**，
+                        // 量歪了也只是空隙大小变化，不会让停顿位置偏掉。
+                        SizedBox(width: widget.gap),
+                        copy,
+                      ],
+                    ),
                   ),
-                ),
-              );
-            },
-            child: Text(
-              widget.text,
-              style: style,
-              maxLines: 1,
-              softWrap: false,
-              overflow: TextOverflow.visible,
+                );
+              },
+              child: Text(
+                widget.text,
+                style: style,
+                maxLines: 1,
+                softWrap: false,
+                overflow: TextOverflow.visible,
+              ),
             ),
           ),
         );

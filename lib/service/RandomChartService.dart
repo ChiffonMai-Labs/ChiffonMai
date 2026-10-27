@@ -6,6 +6,10 @@ import 'package:my_first_flutter_app/manager/DivingFish/MaimaiMusicDataManager.d
 import 'package:my_first_flutter_app/constant/VersionListConstant.dart';
 
 class RandomChartService {
+  static const int minimumDrawCount = 2;
+  static const int maximumDrawCount = 100;
+  static const int masterPresetCount = 4;
+
   // 单例模式
   static final RandomChartService _instance = RandomChartService._internal();
   factory RandomChartService() => _instance;
@@ -13,14 +17,19 @@ class RandomChartService {
 
   // 随机抽取歌曲
   Future<List<Song>> randomDrawSongs({
-    int count = 4,
+    int count = masterPresetCount,
     double? minDs,
     double? maxDs,
     List<String>? versions,
     List<String>? genres,
     bool requireMaster = false,
     bool excludeSixDigitId = false,
+    ValueChanged<List<Song>>? onPreviewCandidates,
   }) async {
+    if (count < minimumDrawCount || count > maximumDrawCount) {
+      throw RangeError.range(
+          count, minimumDrawCount, maximumDrawCount, 'count');
+    }
     // 获取所有歌曲
     final manager = MaimaiMusicDataManager();
     final allSongs = await manager.getCachedSongs();
@@ -113,6 +122,11 @@ class RandomChartService {
       return true;
     }).toList();
 
+    // 缓存中同一 ID 即使重复出现，本次结果也只保留一份。
+    final seenSongIds = <String>{};
+    filteredSongs =
+        filteredSongs.where((song) => seenSongIds.add(song.id)).toList();
+
     debugPrint('[RandomChartService] 过滤后歌曲数: ${filteredSongs.length}');
 
     // 如果过滤后没有歌曲，返回空列表并打印调试信息
@@ -132,7 +146,8 @@ class RandomChartService {
             if (requireMaster) {
               if (i >= song.level.length) continue;
               String level = song.level[i];
-              if ((level == ChartDifficulty.masterLabel || level == ChartDifficulty.reMasterLabel) &&
+              if ((level == ChartDifficulty.masterLabel ||
+                      level == ChartDifficulty.reMasterLabel) &&
                   meetsMin &&
                   meetsMax) {
                 return true;
@@ -177,24 +192,10 @@ class RandomChartService {
       return [];
     }
 
-    // 随机抽取歌曲
-    final random = Random();
-    final result = <Song>[];
-    final usedIndices = <int>{};
-
-    for (int i = 0;
-        i < count && usedIndices.length < filteredSongs.length;
-        i++) {
-      int index;
-      do {
-        index = random.nextInt(filteredSongs.length);
-      } while (usedIndices.contains(index));
-
-      usedIndices.add(index);
-      result.add(filteredSongs[index]);
-    }
-
-    return result;
+    // 只洗牌一次：轮播与最终结果共用这次筛选和抽取，不在动画中重抽。
+    filteredSongs.shuffle(Random());
+    onPreviewCandidates?.call(List<Song>.unmodifiable(filteredSongs.take(8)));
+    return List<Song>.unmodifiable(filteredSongs.take(count));
   }
 
   // 获取版本列表（排除从maidata追加的歌曲）

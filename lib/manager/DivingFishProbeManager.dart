@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../api/ApiUrls.dart';
 import '../constant/CacheKeyConstant.dart';
 import '../utils/SecureCredentialStore.dart';
+import '../service/PlayerExperienceService.dart';
 import 'package:my_first_flutter_app/utils/ApiClient.dart';
 
 // =============================================================================
@@ -1163,6 +1164,8 @@ class DivingFishProbeManager {
         final bindQQ = profile.tryGet<String>('bind_qq') ?? '';
         if (bindQQ.isNotEmpty) {
           await prefs.setString(CacheKeyConstant.probeDivingFishBindQQ, bindQQ);
+          unawaited(PlayerExperienceService.instance
+              .onAccountAuthenticated('shuiyu:$bindQQ'));
           _log('  bind_qq 已缓存: $bindQQ');
         } else {
           await prefs.remove(CacheKeyConstant.probeDivingFishBindQQ);
@@ -2166,7 +2169,7 @@ class DivingFishProbeManager {
       }
       if (hasLxns != true) {
         _log('✗ 未设置落雪 importToken');
-        return SyncResult.failure('尚未设置落雪个人 API 密钥，请在同步页面或账号管理中设置');
+        return SyncResult.failure('尚未设置落雪个人 API 密钥，请先在「账号管理」中设置');
       }
 
       _log('── 导出到落雪 ──');

@@ -181,10 +181,22 @@ class AppTheme {
     return VideoExportPageTransitionsTheme(builders: builders);
   }
 
+  /// 复用 Material 3 开关：关闭时滑块在左侧显示叉号，开启时在右侧显示对钩。
+  /// 不指定图标颜色，沿用主题对启用、禁用及明暗状态的配色。
+  static const SwitchThemeData _switchTheme = SwitchThemeData(
+        // 常量映射避免主题重建时反复创建图标和解析闭包，使开关画笔缓存可复用。
+        thumbIcon: WidgetStateMapper<Icon?>({
+          WidgetState.selected: Icon(Icons.check_rounded),
+          WidgetState.any: Icon(Icons.close_rounded),
+        }),
+        overlayColor: WidgetStatePropertyAll(Colors.transparent),
+      );
+
   static ThemeData lightTheme({Color? seedColor}) {
     final scheme = buildLightColorScheme(seedColor: seedColor);
     return ThemeData(
       useMaterial3: true,
+      switchTheme: _switchTheme,
       brightness: Brightness.light,
       colorScheme: scheme,
       scaffoldBackgroundColor: Colors.transparent,
@@ -274,6 +286,7 @@ class AppTheme {
     final scheme = buildDarkColorScheme(seedColor: seedColor);
     return ThemeData(
       useMaterial3: true,
+      switchTheme: _switchTheme,
       brightness: Brightness.dark,
       colorScheme: scheme,
       scaffoldBackgroundColor: const Color(0xFF121220),
@@ -363,6 +376,7 @@ class AppTheme {
     final scheme = buildPureBlackColorScheme(seedColor: seedColor);
     return ThemeData(
       useMaterial3: true,
+      switchTheme: _switchTheme,
       brightness: Brightness.dark,
       colorScheme: scheme,
       scaffoldBackgroundColor: Colors.black,
@@ -539,6 +553,14 @@ class AppColors {
           ? Colors.grey.shade700
           : Colors.grey.shade300;
 
+  /// 需要清晰分区的旧表格：浅色跟随主题描边，深色保留原有格线。
+  static Color readableTableBorder(BuildContext context) {
+    final theme = Theme.of(context);
+    return theme.brightness == Brightness.light
+        ? theme.colorScheme.outline
+        : tableBorder(theme.brightness);
+  }
+
   /// 语义红色（错误、危险）
   static Color errorRed(Brightness brightness) =>
       brightness == Brightness.dark ? const Color(0xFFEF5350) : Colors.red;
@@ -553,9 +575,11 @@ class AppColors {
   static Color guessCorrectBg(Brightness brightness) =>
       brightness == Brightness.dark ? const Color(0xFF2E7D32) : Colors.green;
 
-  /// 猜歌 - 接近（黄色）背景色
+  /// 猜歌 - 接近（橙色）背景色
   static Color guessCloseBg(Brightness brightness) =>
-      brightness == Brightness.dark ? const Color(0xFFE6A000) : Colors.yellow;
+      brightness == Brightness.dark
+          ? const Color(0xFFA95100)
+          : const Color(0xFFB85C00);
 
   /// 猜歌 - 错误（灰色）背景色
   static Color guessWrongBg(Brightness brightness) =>

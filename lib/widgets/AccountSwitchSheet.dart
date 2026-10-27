@@ -5,6 +5,7 @@ import '../service/AccountStore.dart';
 import '../service/AccountSwitchService.dart';
 import '../utils/CurrentDataSourceNotifier.dart';
 import 'FishIcon.dart';
+import 'MarqueeText.dart';
 
 /// 弹出「切换账号」底部面板。
 ///
@@ -19,6 +20,9 @@ Future<void> showAccountSwitchSheet(
   await showModalBottomSheet<void>(
     context: context,
     showDragHandle: true,
+    isScrollControlled: true,
+    constraints:
+        BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * .85),
     builder: (_) => _AccountSwitchSheet(
       initialMetas: metas,
       onNeedRefresh: onNeedRefresh,
@@ -166,7 +170,8 @@ class _AccountSwitchSheetState extends State<_AccountSwitchSheet> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return SafeArea(
-      child: Padding(
+      child: SingleChildScrollView(
+          child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -214,7 +219,7 @@ class _AccountSwitchSheetState extends State<_AccountSwitchSheet> {
                 style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
           ],
         ),
-      ),
+      )),
     );
   }
 
@@ -242,21 +247,21 @@ class _AccountSwitchSheetState extends State<_AccountSwitchSheet> {
     final String idLine = (meta?.id.isNotEmpty ?? false)
         ? '${source.idIsQQ ? 'QQ' : 'ID'} ${meta!.id}'
         : '未绑定';
-    final int ra = meta?.best50TotalRA ?? 0;
+    final ratingLine =
+        'RA ${meta?.best50TotalRA ?? 0}  B35 ${meta?.best35TotalRA ?? 0}  B15 ${meta?.best15TotalRA ?? 0}';
     final bool isSwitching = _switchingTo == source;
     final bool isClearing = _clearing == source;
 
     final tile = InkWell(
       borderRadius: BorderRadius.circular(12),
+      splashFactory: NoSplash.splashFactory,
+      highlightColor: Colors.transparent,
       onTap: () => _onTapAccount(source),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isCurrent ? scheme.primary : scheme.outlineVariant,
-            width: isCurrent ? 1.6 : 1,
-          ),
+          border: Border.all(color: scheme.outlineVariant),
           color: isCurrent
               ? scheme.primary.withValues(alpha: 0.06)
               : Colors.transparent,
@@ -270,21 +275,40 @@ class _AccountSwitchSheetState extends State<_AccountSwitchSheet> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(nickname,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: scheme.onSurface)),
+                  Row(children: [
+                    if (isCurrent) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: scheme.primary.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text('当前',
+                            style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: scheme.primary)),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    Expanded(
+                        child: MarqueeText(
+                            text: nickname,
+                            style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: scheme.onSurface))),
+                  ]),
                   const SizedBox(height: 2),
-                  Text(
-                    ra > 0 ? '$idLine · RA $ra' : idLine,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style:
-                        TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
-                  ),
+                  Text(idLine,
+                      style: TextStyle(
+                          fontSize: 12, color: scheme.onSurfaceVariant)),
+                  const SizedBox(height: 2),
+                  MarqueeText(
+                      text: ratingLine,
+                      style: TextStyle(
+                          fontSize: 12, color: scheme.onSurfaceVariant)),
                 ],
               ),
             ),
@@ -299,25 +323,11 @@ class _AccountSwitchSheetState extends State<_AccountSwitchSheet> {
                 ),
               )
             else ...[
-              if (isCurrent)
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: scheme.primary.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text('当前',
-                      style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: scheme.primary)),
-                )
-              else if (!hasData)
+              if (!isCurrent && !hasData)
                 Text('暂无缓存',
                     style:
                         TextStyle(fontSize: 11, color: scheme.onSurfaceVariant))
-              else
+              else if (!isCurrent)
                 Icon(Icons.chevron_right, color: scheme.onSurfaceVariant),
               // 只有缓存过数据才显示「清除」入口
               if (hasData)

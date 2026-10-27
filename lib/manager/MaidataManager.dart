@@ -428,6 +428,9 @@ class MaidataManager {
 
     // 汇总所有流派结果写入缓存
     if (_cacheGeneration != generation) return;
+    if (allGenreResults.every((results) => results.isEmpty)) {
+      throw StateError('未获取到基础量 maidata，原有缓存已保留，请检查网络后重试');
+    }
     _cachedMaidata.clear();
     for (final genreResults in allGenreResults) {
       for (final (songId, content) in genreResults) {

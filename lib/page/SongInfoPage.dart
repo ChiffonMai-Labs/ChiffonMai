@@ -1,3 +1,5 @@
+import '../widgets/SongTitleDialog.dart';
+import '../utils/ChartBpmInfo.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'dart:async';
 import 'dart:io';
@@ -140,6 +142,7 @@ class _SongInfoPageState extends State<SongInfoPage> {
       {}; // key: 难度索引(0-4), value: [trueZettaiTap, trueZettaiHold, protectedZettai, star]
   Map<int, String> _maidataBpmByDiffIndex =
       {}; // key: 难度索引，value: maidata 中该谱面的 BPM 或 BPM 区间
+  Map<int, List<double>> _maidataBpmChangesByDiffIndex = {};
   bool _maidataDecodedSuccessfully = false;
   bool _isBookmarked = false;
 
@@ -250,6 +253,7 @@ class _SongInfoPageState extends State<SongInfoPage> {
   Map<String, dynamic>? _chartUserRatingData;
   Map<String, int>? _chartRatingDistribution; // 评分分布：key 为 "5.0" 等，value 为投票数
   bool _chartRatingLoading = false;
+  int _chartRatingRequest = 0;
   double _selectedRating = 3.0;
   int? _userTotalRating;
   int? _theoreticalRating;
@@ -590,9 +594,6 @@ class _SongInfoPageState extends State<SongInfoPage> {
   // 难度索引 → dxrating 难度名
   static const List<String> _dxDifficultyNames = ChartDifficulty.apiNames;
 
-  // 定数历史起始版本：maimai でらっくす PLUS（DX PLUS）及之后
-  static const String _dxHistoryStartDate = '2020-01-23';
-
   // 找到当前歌曲（标题 + 类型 + 当前难度）对应的 sheet
   DXDataSheet? _findMatchedSheet() {
     final dxData = _dxData;
@@ -645,7 +646,7 @@ class _SongInfoPageState extends State<SongInfoPage> {
   }
 
   // 构建当前歌曲（标题 + 类型 + 当前难度）的定数历史
-  List<({String version, double value})> _buildDxHistory() {
+  List<({String version, double? value})> _buildDxHistory() {
     final dxData = _dxData;
     if (dxData == null) return [];
     final matchedSheet = _findMatchedSheet();
@@ -663,23 +664,26 @@ class _SongInfoPageState extends State<SongInfoPage> {
       () => matchedSheet.internalLevelValue,
     );
 
-    final versionOrder = <String, int>{};
-    final versionReleaseDate = <String, String>{};
-    for (int i = 0; i < dxData.versions.length; i++) {
-      versionOrder[dxData.versions[i].version] = i;
-      versionReleaseDate[dxData.versions[i].version] =
-          dxData.versions[i].releaseDate;
-    }
-
-    // 只保留 DX PLUS（含）之后的版本
-    final entries = versionValue.entries
-        .where((e) =>
-            (versionReleaseDate[e.key] ?? '').compareTo(_dxHistoryStartDate) >=
-            0)
-        .toList()
-      ..sort((a, b) =>
-          (versionOrder[a.key] ?? 999).compareTo(versionOrder[b.key] ?? 999));
-    return entries.map((e) => (version: e.key, value: e.value)).toList();
+    if (!versionValue.values.any((value) => value.isFinite && value > 0))
+      return [];
+    final versions = dxData.versions.toList()
+      ..sort((a, b) => a.releaseDate.compareTo(b.releaseDate));
+    // 统一从 DX 初代开始列出完整版本；缺失定数留空，不前填或后填。
+    final names = versions
+        .where((v) => v.releaseDate.compareTo('2019-07-11') >= 0)
+        .map((v) => v.version)
+        .toSet();
+    final entries = [
+      for (final version in names)
+        (
+          version: version,
+          value: switch (versionValue[version]) {
+            final double value when value.isFinite && value > 0 => value,
+            _ => null,
+          }
+        )
+    ];
+    return entries.any((entry) => entry.value != null) ? entries : [];
   }
 
   /// 成绩趋势（达成率 / DX 分曲线）板块。
@@ -721,21 +725,19 @@ class _SongInfoPageState extends State<SongInfoPage> {
   Widget _buildDxHistoryTable() {
     final entries = _buildDxHistory();
     if (entries.isEmpty) return const SizedBox.shrink();
+    final firstValueIndex =
+        math.max(0, entries.indexWhere((entry) => entry.value != null));
 
     final colorScheme = Theme.of(context).colorScheme;
 
     // 计算每个版本（除第一个外）相对前一个版本的定数变化方向：1=升 -1=降 0=不变 null=首个
-    final directions = <int?>[null];
-    for (int i = 1; i < entries.length; i++) {
-      final prev = entries[i - 1].value;
-      final curr = entries[i].value;
-      if (curr > prev) {
-        directions.add(1);
-      } else if (curr < prev) {
-        directions.add(-1);
-      } else {
-        directions.add(0);
-      }
+    final directions = <int?>[];
+    double? previous;
+    for (final entry in entries) {
+      final value = entry.value;
+      directions.add(
+          value == null || previous == null ? null : value.compareTo(previous));
+      if (value != null) previous = value;
     }
 
     // 版本表头单元格（仅保留底部一条横线分隔）
@@ -765,52 +767,12 @@ class _SongInfoPageState extends State<SongInfoPage> {
 
     // 定数单元格（带相对前一版本的变化箭头）
     Widget valueCell(String text, int? direction) {
-      String arrow = '';
-      TextStyle arrowStyle = const TextStyle();
-      if (direction != null) {
-        if (direction > 0) {
-          arrow = '↑';
-          arrowStyle = const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: Colors.redAccent,
-          );
-        } else if (direction < 0) {
-          arrow = '↓';
-          arrowStyle = const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: Colors.blueAccent,
-          );
-        } else {
-          arrow = '→';
-          arrowStyle = const TextStyle(color: Colors.grey);
-        }
-      }
-
       return Container(
         width: 84,
         height: 36,
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
         alignment: Alignment.center,
-        child: Text.rich(
-          TextSpan(
-            children: [
-              TextSpan(
-                text: text,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w400,
-                  color: colorScheme.onSurface,
-                ),
-              ),
-              if (arrow.isNotEmpty)
-                TextSpan(text: ' $arrow', style: arrowStyle),
-            ],
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
+        child: _valueWithDirection(text, direction),
       );
     }
 
@@ -830,8 +792,14 @@ class _SongInfoPageState extends State<SongInfoPage> {
           ),
         ),
         const SizedBox(height: 8),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
+        _DxHistoryScrollView(
+          key: ValueKey((
+            _currentDiffIndex,
+            entries.map((entry) => entry.version).join('|'),
+            firstValueIndex,
+          )),
+          initialOffset: firstValueIndex * 84.0,
+          contentWidth: entries.length * 84.0,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -844,8 +812,8 @@ class _SongInfoPageState extends State<SongInfoPage> {
               Row(
                 children: [
                   for (int i = 0; i < entries.length; i++)
-                    valueCell(
-                        entries[i].value.toStringAsFixed(1), directions[i]),
+                    valueCell(entries[i].value?.toStringAsFixed(1) ?? '',
+                        directions[i]),
                 ],
               ),
             ],
@@ -979,6 +947,7 @@ class _SongInfoPageState extends State<SongInfoPage> {
         Map<int, List<int>> newNoteCounts = {};
         Map<int, List<int>> newBreakCounts = {};
         Map<int, String> newBpmByDiffIndex = {};
+        final newBpmChanges = <int, List<double>>{};
         for (ChartData chart in maidata.charts) {
           // 难度索引转换：maidata的difficultyIndex是1-6，对应界面显示的0-4（跳过EASY）
           int index = chart.difficultyIndex - 2; // 转换为0-4
@@ -992,10 +961,12 @@ class _SongInfoPageState extends State<SongInfoPage> {
               '[MaidataDecode] chart[$index] inoteLength=${chart.inote.length}, bpm=$bpm');
           if (bpm != null && index >= 0 && index <= 5) {
             newBpmByDiffIndex[index] = bpm;
+            newBpmChanges[index] = _bpmChangesForChart(maidata, chart);
             // UTAGE 的 maidata 通常使用 difficultyIndex=7，页面仍以第一个
             // 难度槽显示，所以同步写入索引 0。
             if (widget.songId.length == 6 && index == 5) {
               newBpmByDiffIndex[0] = bpm;
+              newBpmChanges[0] = newBpmChanges[index]!;
             }
           }
 
@@ -1059,6 +1030,7 @@ class _SongInfoPageState extends State<SongInfoPage> {
             _maidataNoteCounts = newNoteCounts;
             _maidataBreakCounts = newBreakCounts;
             _maidataBpmByDiffIndex = newBpmByDiffIndex;
+            _maidataBpmChangesByDiffIndex = newBpmChanges;
             _maidataDecodedSuccessfully = true;
           });
         }
@@ -1078,32 +1050,131 @@ class _SongInfoPageState extends State<SongInfoPage> {
   ///
   /// 同一张谱面可能有多个 BPM：全部相同时显示单值，否则显示最小值-最大值。
   /// 没有合法标记时返回 null，让页面继续使用曲库中的默认 BPM。
-  String? _parseMaidataBpm(String inote) {
-    final values = RegExp(r'\((\d+(?:\.\d+)?)\)')
-        .allMatches(inote)
-        .map((match) => double.tryParse(match.group(1)!))
-        .whereType<double>()
-        .toSet()
-        .toList()
-      ..sort();
-    if (values.isEmpty) return null;
-    String format(double value) => value == value.roundToDouble()
-        ? value.toInt().toString()
-        : value.toString();
-    if (values.length == 1) return format(values.single);
-    return '${format(values.first)}-${format(values.last)}';
+  List<double> _parseBpmChanges(String inote) => ChartBpmInfo.parse(inote);
+
+  List<double> _bpmChangesForChart(MaidataData maidata, ChartData chart) {
+    final values = _parseBpmChanges(chart.inote);
+    if (values.isNotEmpty) return values;
+    final match =
+        RegExp('&inote_${chart.difficultyIndex}=([\\s\\S]*?)(?=\\r?\\n&|\$)')
+            .firstMatch(maidata.rawContent);
+    return _parseBpmChanges(match?.group(1) ?? '');
+  }
+
+  String _formatBpm(double value) => value == value.roundToDouble()
+      ? value.toInt().toString()
+      : value.toString();
+
+  static const _bpmRangeLabel = 'BPM 范围';
+  static const _defaultBpmLabel = '基准 BPM';
+
+  String _defaultBpm(dynamic basicInfo) {
+    final value = basicInfo is Map ? basicInfo['bpm'] : null;
+    return value is num && value.isFinite
+        ? _formatBpm(value.toDouble())
+        : value?.toString() ?? '-';
+  }
+
+  bool get _hasBpmChanges =>
+      (_maidataBpmChangesByDiffIndex[_currentDiffIndex] ?? const <double>[])
+          .toSet()
+          .length >
+      1;
+
+  /// 无变速时导出曲库默认值；有变速时同时标明当前谱面的范围与基准值。
+  String _exportBpm(dynamic basicInfo) {
+    final defaultBpm = _defaultBpm(basicInfo);
+    return _hasBpmChanges
+        ? '$_bpmRangeLabel：${_displayBpm(basicInfo)}\n$_defaultBpmLabel：$defaultBpm'
+        : defaultBpm;
   }
 
   String? _parseMaidataBpmForChart(MaidataData maidata, ChartData chart) {
-    final fromChart = _parseMaidataBpm(chart.inote);
-    if (fromChart != null) return fromChart;
+    final values = _bpmChangesForChart(maidata, chart).toSet().toList()..sort();
+    if (values.isEmpty) return null;
+    return values.length == 1
+        ? _formatBpm(values.single)
+        : '${_formatBpm(values.first)}-${_formatBpm(values.last)}';
+  }
 
-    // 某些缓存版本只保留了 chart 元数据，inote 没有完整回填时，
-    // 从同一 difficultyIndex 的原始字段再兜底取一次，避免把其它难度混进来。
-    final match = RegExp(
-      '&inote_${chart.difficultyIndex}=([\\s\\S]*?)(?=\\r?\\n&|\$)',
-    ).firstMatch(maidata.rawContent);
-    return _parseMaidataBpm(match?.group(1) ?? '');
+  Widget _valueWithDirection(String text, int? direction) {
+    final scheme = Theme.of(context).colorScheme;
+    final arrow = direction == null
+        ? ''
+        : direction > 0
+            ? '↑'
+            : direction < 0
+                ? '↓'
+                : '→';
+    return Text.rich(
+        TextSpan(children: [
+          TextSpan(
+              text: text,
+              style: TextStyle(fontSize: 13, color: scheme.onSurface)),
+          if (arrow.isNotEmpty)
+            TextSpan(
+                text: ' $arrow',
+                style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: direction! > 0
+                        ? Colors.redAccent
+                        : direction < 0
+                            ? Colors.blueAccent
+                            : scheme.onSurfaceVariant)),
+        ]),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis);
+  }
+
+  Widget _buildBpmDialogContent(String value) {
+    // 使用当前谱面的完整顺序，保留降速后再次升回同一 BPM 的记录。
+    final values =
+        _maidataBpmChangesByDiffIndex[_currentDiffIndex] ?? const <double>[];
+    Widget cell(Widget child) => Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          child: Center(child: child),
+        );
+    return ConstrainedBox(
+      constraints:
+          BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.6),
+      child: SingleChildScrollView(
+          child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+            Text(_hasBpmChanges ? '$_bpmRangeLabel：$value' : '谱面 BPM：$value'),
+            const SizedBox(height: 8),
+            Text('$_defaultBpmLabel：${_defaultBpm(_songData?['basic_info'])}'),
+            if (values.toSet().length > 1) ...[
+              const SizedBox(height: 16),
+              const Text('按当前谱面中 BPM 标记的出现顺序'),
+              const SizedBox(height: 8),
+              Center(
+                child: Table(
+                  defaultColumnWidth: const IntrinsicColumnWidth(),
+                  defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+                  border: TableBorder(
+                    horizontalInside: BorderSide(
+                        color: Theme.of(context).colorScheme.outlineVariant),
+                  ),
+                  children: [
+                    TableRow(children: [
+                      cell(const Text('变化序号')),
+                      cell(const Text('BPM')),
+                    ]),
+                    for (var i = 0; i < values.length; i++)
+                      TableRow(children: [
+                        cell(Text('${i + 1}')),
+                        cell(_valueWithDirection(_formatBpm(values[i]),
+                            i == 0 ? null : values[i].compareTo(values[i - 1]))),
+                      ]),
+                  ],
+                ),
+              ),
+            ],
+          ])),
+    );
   }
 
   String _displayBpm(dynamic basicInfo) {
@@ -1227,14 +1298,15 @@ class _SongInfoPageState extends State<SongInfoPage> {
   }) async {
     if (url == null || cacheFileName == null) return null;
     try {
-      final file = await SongMediaCache.instance.ensureAudio(widget.songId,
-          urls: [url]);
+      final file =
+          await SongMediaCache.instance.ensureAudio(widget.songId, urls: [url]);
       return file.path;
     } catch (error) {
       debugPrint('[RefDuration] $source 音源准备失败: $error');
       return null;
     }
   }
+
   // 格式化参考时长显示
   String _formatReferenceDuration() {
     if (_referenceDurationSeconds == null) {
@@ -1804,7 +1876,8 @@ class _SongInfoPageState extends State<SongInfoPage> {
       final String sheetType = songType == 'DX' ? 'dx' : 'std';
 
       // 映射难度索引到sheet_difficulty
-      final sheetDifficulty = ChartDifficulty.apiNameOf(_currentDiffIndex, fallback: 'master');
+      final sheetDifficulty =
+          ChartDifficulty.apiNameOf(_currentDiffIndex, fallback: 'master');
 
       // 过滤出当前曲目的当前难度的标签ID
       final List<int> tagIds = _tagSongsData!
@@ -2785,38 +2858,11 @@ class _SongInfoPageState extends State<SongInfoPage> {
                               // 根据标题长度决定是否使用滚动
                               GestureDetector(
                                 key: _songTitleKey,
-                                onTap: () {
-                                  showDialog(
-                                    context: context,
-                                    builder: (BuildContext context) {
-                                      return AlertDialog(
-                                        title: Text('歌曲标题'),
-                                        content: Text(basicInfo['title']),
-                                        actions: [
-                                          TextButton(
-                                            onPressed: () {
-                                              Clipboard.setData(ClipboardData(
-                                                  text: basicInfo['title']));
-                                              Navigator.of(context).pop();
-                                              ScaffoldMessenger.of(context)
-                                                  .showSnackBar(
-                                                SnackBar(
-                                                    content: Text('已复制到剪贴板')),
-                                              );
-                                            },
-                                            child: Text('复制'),
-                                          ),
-                                          TextButton(
-                                            onPressed: () {
-                                              Navigator.of(context).pop();
-                                            },
-                                            child: Text('关闭'),
-                                          ),
-                                        ],
-                                      );
-                                    },
-                                  );
-                                },
+                                onTap: () => showDialog<void>(
+                                  context: context,
+                                  builder: (_) => SongTitleDialog(
+                                      title: basicInfo['title'].toString()),
+                                ),
                                 child: LayoutBuilder(
                                   builder: (context, constraints) {
                                     final style = TextStyle(
@@ -3994,23 +4040,28 @@ class _SongInfoPageState extends State<SongInfoPage> {
   }
 
   Future<void> _loadChartRating() async {
+    if (!mounted) return;
+    final request = ++_chartRatingRequest;
+    final difficulty = _currentDiffIndex;
     setState(() {
       _chartRatingLoading = true;
+      _chartAverageScore = null;
+      _chartTotalVotes = 0;
+      _chartRatingDistribution = null;
+      _chartUserRatingData = null;
+      _chartUserScore = null;
+      _selectedRating = 3.0;
     });
 
     try {
-      // 1. 先通过API获取加权平均分和总投票数
+      // 总评分、分布和本账号评分由同一次后端请求返回。
       final result = await SongInfoService.getChartRating(
         songId: widget.songId,
-        levelIndex: _currentDiffIndex,
+        levelIndex: difficulty,
       );
-
-      // 2. 直接从 MySQL 查询用户自己的评分行
-      final userRatingFromMySQL =
-          await SongInfoService.getUserChartRatingFromMySQL(
-        songId: widget.songId,
-        levelIndex: _currentDiffIndex,
-      );
+      if (!mounted ||
+          request != _chartRatingRequest ||
+          difficulty != _currentDiffIndex) return;
 
       if (result['success'] == true) {
         setState(() {
@@ -4032,9 +4083,7 @@ class _SongInfoPageState extends State<SongInfoPage> {
               }
             }
           }
-          // 优先使用从 MySQL 直接查询的用户评分行数据
-          _chartUserRatingData = userRatingFromMySQL ??
-              result['userRating'] as Map<String, dynamic>?;
+          _chartUserRatingData = result['userRating'] as Map<String, dynamic>?;
           _chartUserScore = _chartUserRatingData != null &&
                   _chartUserRatingData!['score'] != null
               ? (_chartUserRatingData!['score'] as num).toDouble()
@@ -4042,46 +4091,15 @@ class _SongInfoPageState extends State<SongInfoPage> {
           if (_chartUserScore != null) {
             _selectedRating = _chartUserScore!;
           }
-          _chartRatingLoading = false;
-        });
-      } else {
-        setState(() {
-          // 即使 API 失败，也尝试从 MySQL 获取用户评分
-          _chartUserRatingData = userRatingFromMySQL;
-          _chartUserScore = _chartUserRatingData != null &&
-                  _chartUserRatingData!['score'] != null
-              ? (_chartUserRatingData!['score'] as num).toDouble()
-              : null;
-          if (_chartUserScore != null) {
-            _selectedRating = _chartUserScore!;
-          }
-          _chartRatingLoading = false;
         });
       }
     } catch (e) {
       debugPrint('加载谱面评分失败: $e');
-      // 失败时也尝试直接从 MySQL 获取用户评分
-      try {
-        final userRatingFromMySQL =
-            await SongInfoService.getUserChartRatingFromMySQL(
-          songId: widget.songId,
-          levelIndex: _currentDiffIndex,
-        );
-        setState(() {
-          _chartUserRatingData = userRatingFromMySQL;
-          _chartUserScore = _chartUserRatingData != null &&
-                  _chartUserRatingData!['score'] != null
-              ? (_chartUserRatingData!['score'] as num).toDouble()
-              : null;
-          if (_chartUserScore != null) {
-            _selectedRating = _chartUserScore!;
-          }
-          _chartRatingLoading = false;
-        });
-      } catch (_) {
-        setState(() {
-          _chartRatingLoading = false;
-        });
+    } finally {
+      if (mounted &&
+          request == _chartRatingRequest &&
+          difficulty == _currentDiffIndex) {
+        setState(() => _chartRatingLoading = false);
       }
     }
   }
@@ -4391,7 +4409,7 @@ class _SongInfoPageState extends State<SongInfoPage> {
             ),
             const SizedBox(height: 16),
 
-            // 我的最近评分卡片（直接从 MySQL 查询）
+            // 我的最近评分卡片（由后端按账号读取）
             if (_chartUserRatingData != null &&
                 _chartUserRatingData!['score'] != null)
               Container(
@@ -7004,7 +7022,9 @@ class _SongInfoPageState extends State<SongInfoPage> {
                       builder: (BuildContext context) {
                         return AlertDialog(
                           title: Text(label),
-                          content: Text(value),
+                          content: label == 'BPM'
+                              ? _buildBpmDialogContent(value)
+                              : Text(value),
                           actions: [
                             TextButton(
                               onPressed: () {
@@ -7434,7 +7454,7 @@ class _SongInfoPageState extends State<SongInfoPage> {
       ds: (data['ds'] as List<dynamic>?) ?? const [],
       songType: data['type']?.toString() ?? 'SD',
       diffData: _diffData,
-      bpm: _displayBpm(basicInfo),
+      bpm: _exportBpm(basicInfo),
       maidataNoteCounts: _maidataNoteCounts,
       maidataBreakCounts: _maidataBreakCounts,
       maidataDecodedSuccessfully: _maidataDecodedSuccessfully,
@@ -7487,7 +7507,7 @@ class _SongInfoPageState extends State<SongInfoPage> {
         ds: ds,
         songType: songType,
         diffData: _diffData,
-        bpm: _displayBpm(basicInfo),
+        bpm: _exportBpm(basicInfo),
         maidataNoteCounts: _maidataNoteCounts,
         maidataBreakCounts: _maidataBreakCounts,
         maidataDecodedSuccessfully: _maidataDecodedSuccessfully,
@@ -8232,8 +8252,9 @@ class _SongInfoPageState extends State<SongInfoPage> {
     final isUtage = widget.songId.length == 6;
     final rawLevel = (levels[_currentDiffIndex] ?? '').toString();
     const diffNames = ChartDifficulty.standardLabels;
-    final diffName =
-        isUtage ? ChartDifficulty.utageLabel : diffNames[_currentDiffIndex.clamp(0, 4)];
+    final diffName = isUtage
+        ? ChartDifficulty.utageLabel
+        : diffNames[_currentDiffIndex.clamp(0, 4)];
 
     final TextEditingController controller = TextEditingController(
       text: existingNote?.content ?? '',
@@ -9603,6 +9624,50 @@ class _BookmarkFolderSelectorDialogState
       ),
     );
   }
+}
+
+/// 进入或切换谱面时直接定位，保留用户随后手动滑动的位置。
+class _DxHistoryScrollView extends StatefulWidget {
+  const _DxHistoryScrollView(
+      {super.key,
+      required this.initialOffset,
+      required this.contentWidth,
+      required this.child});
+
+  final double initialOffset;
+  final double contentWidth;
+  final Widget child;
+
+  @override
+  State<_DxHistoryScrollView> createState() => _DxHistoryScrollViewState();
+}
+
+class _DxHistoryScrollViewState extends State<_DxHistoryScrollView> {
+  ScrollController? _controller;
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) {
+          // 仅在实际内容范围内定位，末尾版本无需为左对齐额外预留空白。
+          final maxOffset =
+              math.max(0.0, widget.contentWidth - constraints.maxWidth);
+          final controller = _controller ??= ScrollController(
+              initialScrollOffset:
+                  widget.initialOffset.clamp(0.0, maxOffset).toDouble(),
+              keepScrollOffset: false);
+          return SingleChildScrollView(
+            controller: controller,
+            scrollDirection: Axis.horizontal,
+            child: widget.child,
+          );
+        },
+      );
 }
 
 class _BookmarkFolderNameDialog extends StatefulWidget {

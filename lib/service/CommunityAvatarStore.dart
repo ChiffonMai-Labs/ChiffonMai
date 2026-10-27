@@ -1,277 +1,342 @@
 import 'dart:async';
 import 'dart:convert';
-
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
 import '../constant/CacheKeyConstant.dart';
-import '../manager/LuoXue/LuoXueOAuthManager.dart';
+import '../entity/LuoXue/Collection.dart';
 import '../utils/ApiClient.dart';
 import '../utils/CurrentDataSourceNotifier.dart';
 import '../utils/SecureCredentialStore.dart';
+import 'CommunityProfileAuthorization.dart';
+import 'RankingList/RatingRankListService.dart';
+import 'RankingList/AvgRankingListService.dart';
+import 'RankingList/FittedRatingRankingListService.dart';
 
-/// 头像同步的语义级别：UI 按它给状态文案着色，不要靠文案字符串反推。
-enum AvatarSyncLevel {
-  /// 仅本机保存（缺少账号凭据），需要用户处理
-  localOnly,
-
-  /// 同步请求进行中
-  syncing,
-
-  /// 社区头像已同步成功
-  synced,
-
-  /// 待同步，可点击重试
-  pending,
-
-  /// 读取或同步失败，状态异常
-  error,
-}
+/// 保留原类型名称，头像与其它装扮共用同步状态。
+enum AvatarSyncLevel { localOnly, syncing, synced, pending, error }
 
 class AvatarSyncState {
   final String? playerId;
-  final int avatarId;
+  final int avatarId, generation;
+  final Map<String, dynamic>? nameplate, frame, trophy;
   final String message;
   final bool pending;
   final AvatarSyncLevel level;
+  int? get plateId => nameplate?['id'] as int?;
+  int? get frameId => frame?['id'] as int?;
+  int? get trophyId => trophy?['id'] as int?;
   const AvatarSyncState(
       {this.playerId,
       this.avatarId = 1,
-      this.message = '头像仅保存在本机',
+      this.nameplate,
+      this.frame,
+      this.trophy,
+      this.generation = 0,
+      this.message = '装扮仅保存在本机',
       this.pending = false,
       this.level = AvatarSyncLevel.localOnly});
+  Map<String, dynamic> get appearance => {
+        'avatarId': avatarId,
+        'nameplate': nameplate,
+        'frame': frame,
+        'trophy': trophy,
+        'generation': generation
+      };
 }
 
-/// 每个玩家各自持有一份持久化的待发队列：请求会锁定发起时的玩家与所选头像，
-/// 因此切换账号或连续选择都不会把一次写入改投到别处。
+/// 每账号独立的持久化待发队列；只上传有改动的字段，版本冲突时重读并重试。
 class CommunityAvatarStore extends ValueNotifier<AvatarSyncState> {
   CommunityAvatarStore._() : super(const AvatarSyncState());
   static final instance = CommunityAvatarStore._();
-  static const _endpoint = 'https://chiffonmai.cloud/api/me/avatar';
+
+  /// 服务端确认装扮变化并清理缓存后通知公开资料页面重新读取。
+  static final profileChanges = ChangeNotifier();
+  static const _endpoint = 'https://chiffonmai.cloud/api/me/appearance';
   static const _legacyOwner = 'community_avatar_legacy_owner';
+  static const _localKey = 'community_appearance_local_v1';
+  static const _fields = ['avatarId', 'nameplate', 'frame', 'trophy'];
   static String _key(String player) => 'community_avatar_v1_$player';
   Future<void> _writes = Future.value();
-  final Set<String> _syncing = {};
-  final Set<String> _resync = {};
-  int _activation = 0;
+  final Set<String> _syncing = {}, _resync = {};
   Future<void>? _activationFuture;
+  bool _activateAgain = false;
   String? _lastActivatedPlayer;
 
   Future<T> _queue<T>(Future<T> Function() action) {
-    final operation = _writes.then((_) => action());
-    _writes =
-        operation.then<void>((_) {}, onError: (Object _, StackTrace __) {});
-    return operation;
+    final result = _writes.then((_) => action());
+    _writes = result.then<void>((_) {}, onError: (Object _, StackTrace __) {});
+    return result;
   }
 
-  Map<String, dynamic> _entry(SharedPreferences prefs, String player) {
+  Map<String, dynamic> _read(SharedPreferences prefs, String key) {
     try {
       return Map<String, dynamic>.from(
-          jsonDecode(prefs.getString(_key(player)) ?? '{}'));
+          jsonDecode(prefs.getString(key) ?? '{}') as Map);
     } catch (_) {
       return {};
     }
   }
 
-  Future<void> _persist(SharedPreferences prefs, String player,
-      Map<String, dynamic> entry) async {
-    if (!await prefs.setString(_key(player), jsonEncode(entry))) {
-      throw StateError('无法保存头像');
-    }
+  Map<String, dynamic> _entry(SharedPreferences prefs, String player) =>
+      _read(prefs, _key(player));
+  Future<void> _persist(
+      SharedPreferences prefs, String key, Map<String, dynamic> entry) async {
+    if (!await prefs.setString(key, jsonEncode(entry)))
+      throw StateError('无法保存装扮');
+  }
+
+  Set<String> _dirty(Map<String, dynamic> entry) => entry['dirtyFields'] is List
+      ? (entry['dirtyFields'] as List)
+          .whereType<String>()
+          .where(_fields.contains)
+          .toSet()
+      : entry['pending'] == true
+          ? {'avatarId'}
+          : {};
+  AvatarSyncState _state(String? player, Map<String, dynamic> entry,
+      String message, AvatarSyncLevel level) {
+    Map<String, dynamic>? item(String key) =>
+        entry[key] is Map ? Map<String, dynamic>.from(entry[key] as Map) : null;
+    return AvatarSyncState(
+        playerId: player,
+        avatarId: entry['avatarId'] as int? ?? 1,
+        nameplate: item('nameplate'),
+        frame: item('frame'),
+        trophy: item('trophy'),
+        generation: entry['generation'] as int? ?? 0,
+        pending: entry['pending'] == true,
+        message: message,
+        level: level);
+  }
+
+  void _publish(String player, Map<String, dynamic> entry, String message,
+      AvatarSyncLevel level) {
+    if (value.playerId != player ||
+        (value.pending &&
+            value.generation > (entry['generation'] as int? ?? 0))) return;
+    value = _state(player, entry, message, level);
   }
 
   Future<String?> _activePlayer(SharedPreferences prefs) async {
     final source = RefreshDataSource.fromKey(
         prefs.getString(CacheKeyConstant.lastDataSource));
     final marker = prefs.getString(source.userIdCacheKey);
-    if (marker != null &&
-        marker.startsWith('${source.key}:') &&
-        RefreshDataSource.parseUserIdMarker(marker) != null) {
-      return marker;
-    }
-    // 登录已确认的绑定 QQ 不依赖成绩刷新生成的排行榜身份标记。
-    // 不用共享 cachedQQ，避免把其它来源或查询对象当作当前水鱼账号。
-    final hasDivingFishToken = source == RefreshDataSource.shuiyu &&
-        ((await SecureCredentialStore.read(
-                    CacheKeyConstant.probeDivingFishToken)) ??
-                '')
-            .isNotEmpty;
-    if (hasDivingFishToken) {
+    if (marker?.startsWith('${source.key}:') == true &&
+        RefreshDataSource.parseUserIdMarker(marker) != null) return marker;
+    if (source == RefreshDataSource.shuiyu &&
+        (await SecureCredentialStore.read(
+                    CacheKeyConstant.probeDivingFishToken))
+                ?.isNotEmpty ==
+            true) {
       final qq =
           prefs.getString(CacheKeyConstant.probeDivingFishBindQQ)?.trim();
-      if (qq != null && RegExp(r'^[1-9]\d{4,11}$').hasMatch(qq)) {
+      if (qq != null && RegExp(r'^[1-9]\d{4,11}$').hasMatch(qq))
         return 'shuiyu:$qq';
-      }
     }
     return null;
   }
 
-  String _localOnlyMessage(SharedPreferences prefs, bool hasDivingFishToken) {
-    final source = RefreshDataSource.fromKey(
-        prefs.getString(CacheKeyConstant.lastDataSource));
-    if (source == RefreshDataSource.shuiyu) {
-      return !hasDivingFishToken ? '仅本机保存 · 登录水鱼后自动同步' : '仅本机保存 · 请先绑定水鱼 QQ';
+  Future<void> _compatibility(SharedPreferences prefs, String? player,
+      Map<String, dynamic> entry) async {
+    if (value.playerId != player ||
+        value.generation != (entry['generation'] as int? ?? 0)) return;
+    if (player != await _activePlayer(prefs)) return;
+    await prefs.setInt('selectedAvatarId', entry['avatarId'] as int? ?? 1);
+    if (value.playerId != player || player != await _activePlayer(prefs))
+      return;
+    final plate =
+        entry['nameplate'] is Map ? entry['nameplate']['id'] as int? : null;
+    if (plate == null) {
+      await prefs.remove(CacheKeyConstant.selectedPlateIdCache);
+    } else {
+      await prefs.setInt(CacheKeyConstant.selectedPlateIdCache, plate);
     }
-    return source == RefreshDataSource.awmc
-        ? '仅本机保存 · 请先设置 AWMC QQ'
-        : '仅本机保存 · 请先刷新落雪账号资料';
-  }
-
-  void _publish(String player, Map<String, dynamic> entry, String message,
-      AvatarSyncLevel level) {
-    if (value.playerId != player) return;
-    if (value.pending && value.avatarId != entry['avatarId']) return;
-    value = AvatarSyncState(
-        playerId: player,
-        avatarId: (entry['avatarId'] as int?) ?? 1,
-        pending: entry['pending'] == true,
-        message: message,
-        level: level);
   }
 
   Future<void> activate() {
-    final current = _activationFuture;
-    if (current != null) return current;
-
+    if (_activationFuture != null) {
+      _activateAgain = true;
+      return _activationFuture!;
+    }
     final future = _runActivation();
     _activationFuture = future;
-    future.whenComplete(() {
-      if (identical(_activationFuture, future)) _activationFuture = null;
-    });
+    future.whenComplete(() => _activationFuture = null);
     return future;
   }
 
   Future<void> _runActivation() async {
     try {
-      await _queue(_activate);
+      do {
+        _activateAgain = false;
+        await _queue(_activate);
+      } while (_activateAgain);
     } catch (_) {
       value = const AvatarSyncState(
-          message: '头像未能读取，请重新打开此页', level: AvatarSyncLevel.error);
+          message: '装扮未能读取，请重新打开此页', level: AvatarSyncLevel.error);
     }
   }
 
   Future<void> _activate() async {
-    final activation = ++_activation;
     final prefs = await SharedPreferences.getInstance();
     final player = await _activePlayer(prefs);
-    final hasDivingFishToken = (await SecureCredentialStore.read(
-                CacheKeyConstant.probeDivingFishToken))
-            ?.isNotEmpty ==
-        true;
-    if (activation != _activation) return;
+    if (player != await _activePlayer(prefs)) {
+      _activateAgain = true;
+      return;
+    }
     if (player == null) {
       _lastActivatedPlayer = null;
-      value = AvatarSyncState(
-          avatarId: prefs.getInt('selectedAvatarId') ?? 1,
-          message: _localOnlyMessage(prefs, hasDivingFishToken),
-          level: AvatarSyncLevel.localOnly);
+      var local = _read(prefs, _localKey);
+      if (local.isEmpty && prefs.getString(_legacyOwner) == null)
+        local = {
+          'avatarId': prefs.getInt('selectedAvatarId') ?? 1,
+          if (prefs.getInt(CacheKeyConstant.selectedPlateIdCache) != null)
+            'nameplate': {
+              'id': prefs.getInt(CacheKeyConstant.selectedPlateIdCache)
+            }
+        };
+      final source = RefreshDataSource.fromKey(
+          prefs.getString(CacheKeyConstant.lastDataSource));
+      final message = switch (source) {
+        RefreshDataSource.shuiyu => '仅本机保存 · 登录水鱼后自动同步',
+        RefreshDataSource.luoxue => '仅本机保存 · 请先登录并刷新落雪账号',
+        RefreshDataSource.awmc => '仅本机保存 · 请先填写 AWMC 账号的 QQ 号',
+      };
+      value = _state(null, local, message, AvatarSyncLevel.localOnly);
       return;
     }
     var entry = _entry(prefs, player);
-    if (entry.isEmpty &&
+    // 落雪的首次装扮由服务端按上游资料初始化；不把本机默认值当成用户选择上传。
+    final preferRemote = player.startsWith('luoxue:');
+    final local = _read(prefs, _localKey);
+    if (!preferRemote && entry.isEmpty && local['pending'] == true) {
+      entry = Map<String, dynamic>.from(local);
+      await _persist(prefs, _key(player), entry);
+      await prefs.remove(_localKey);
+    }
+    if (!preferRemote &&
+        entry.isEmpty &&
         prefs.getString(_legacyOwner) == null &&
         prefs.containsKey('selectedAvatarId')) {
-      // Attribute the global legacy choice once; never copy it to every account.
       entry = {
         'avatarId': prefs.getInt('selectedAvatarId') ?? 1,
         'pending': true,
-        'generation': 1
+        'generation': 1,
+        'dirtyFields': ['avatarId']
       };
-      await _persist(prefs, player, entry);
     }
-    // Even when there was no legacy preference, finish migration before a new
-    // account choice populates the export compatibility key.
-    if (prefs.getString(_legacyOwner) == null) {
+    if (entry['appearanceMigrated'] != true) {
+      final dirty = _dirty(entry),
+          plate = prefs.getInt(CacheKeyConstant.selectedPlateIdCache);
+      final source = RefreshDataSource.fromKey(
+          prefs.getString(CacheKeyConstant.lastDataSource));
+      if (!preferRemote &&
+          plate != null &&
+          (prefs.getString(source.userIdCacheKey) == player ||
+              prefs.getString(_legacyOwner) == null) &&
+          !entry.containsKey('nameplate')) {
+        entry['nameplate'] = {'id': plate};
+        dirty.add('nameplate');
+      }
+      entry.addAll({
+        'appearanceMigrated': true,
+        'dirtyFields': dirty.toList(),
+        'pending': dirty.isNotEmpty
+      });
+      await _persist(prefs, _key(player), entry);
+    }
+    if (prefs.getString(_legacyOwner) == null)
       await prefs.setString(_legacyOwner, player);
+    if (player != await _activePlayer(prefs)) {
+      _activateAgain = true;
+      return;
     }
-    if (activation != _activation) return;
-    if (_lastActivatedPlayer == player && value.playerId == player) return;
+    if (_lastActivatedPlayer == player && value.playerId == player) {
+      if (preferRemote) unawaited(sync(player));
+      return;
+    }
     _lastActivatedPlayer = player;
-    final waitSync = entry['pending'] == true;
-    value = AvatarSyncState(
-        playerId: player,
-        avatarId: (entry['avatarId'] as int?) ?? 1,
-        pending: waitSync,
-        message: waitSync ? '头像待同步' : '正在读取社区头像',
-        // 读取动作本身尚未失败，「正在读取」用中性色，待同步才用提醒色。
-        level: waitSync ? AvatarSyncLevel.pending : AvatarSyncLevel.syncing);
-    await prefs.setInt('selectedAvatarId', value.avatarId);
+    value = _state(
+        player,
+        entry,
+        entry['pending'] == true ? '装扮待同步' : '正在读取社区装扮',
+        AvatarSyncLevel.syncing);
+    await _compatibility(prefs, player, entry);
     unawaited(sync(player));
   }
 
-  Future<void> select(int avatarId) {
-    final player = value.playerId;
-    value = AvatarSyncState(
-        playerId: player,
-        avatarId: avatarId,
-        pending: player != null,
-        message: player == null ? value.message : '头像待同步',
-        level: player == null ? value.level : AvatarSyncLevel.pending);
+  Future<void> select(int avatarId) => _select('avatarId', avatarId);
+  Future<void> selectPlate(Collection? item) =>
+      _select('nameplate', _item(item));
+  Future<void> selectFrame(Collection? item) => _select('frame', _item(item));
+  Future<void> selectTrophy(Collection? item) => _select('trophy', _item(item));
+  Map<String, dynamic>? _item(Collection? item) => item == null
+      ? null
+      : {
+          'id': item.id,
+          'name': item.name,
+          if (item.color != null) 'color': item.color
+        };
+  Future<void> _select(String field, dynamic choice) {
+    final player = value.playerId,
+        optimistic = {
+          ...value.appearance,
+          field: choice,
+          'pending': true,
+          'generation': value.generation + 1
+        };
+    value = _state(player, optimistic, player == null ? value.message : '装扮待同步',
+        player == null ? AvatarSyncLevel.localOnly : AvatarSyncLevel.pending);
     return _queue(() async {
-      final prefs = await SharedPreferences.getInstance();
-      if (player == null) {
-        if (value.playerId == null) {
-          await prefs.setInt('selectedAvatarId', avatarId);
-        }
-        return;
-      }
-      final entry = _entry(prefs, player);
+      final prefs = await SharedPreferences.getInstance(),
+          key = player == null ? _localKey : _key(player);
+      final entry = player == null ? _read(prefs, key) : _entry(prefs, player);
+      final dirty = _dirty(entry)..add(field);
       entry.addAll({
-        'avatarId': avatarId,
+        field: choice,
+        'dirtyFields': dirty.toList(),
         'pending': true,
-        'generation': ((entry['generation'] as int?) ?? 0) + 1
+        'generation': optimistic['generation'],
+        'appearanceMigrated': true
       });
-      await _persist(prefs, player, entry);
-      if (value.playerId == player) {
-        await prefs.setInt('selectedAvatarId', avatarId);
-      }
-      unawaited(sync(player));
+      await _persist(prefs, key, entry);
+      await _compatibility(prefs, player, entry);
+      if (player != null) unawaited(sync(player));
     });
   }
 
-  /// Shared ownership credentials for appearance and fresh nickname updates.
-  static Future<Map<String, String>?> authorizationHeaders(
-      String player) async {
-    final source = player.split(':').first;
-    final prefs = await SharedPreferences.getInstance();
-    if (source == 'awmc') {
-      final qq = player.substring('awmc:'.length);
-      if (!RegExp(r'^[1-9]\d{4,11}$').hasMatch(qq)) return null;
-      return {
-        'X-Profile-Source': 'awmc',
-        'X-Profile-QQ': qq,
-        'Content-Type': 'application/json'
-      };
-    }
-    final String? token;
-    if (source == 'shuiyu') {
-      token = await SecureCredentialStore.read(
-          CacheKeyConstant.probeDivingFishToken);
-    } else if (source == 'luoxue') {
-      token = await LuoXueOAuthManager().getAccessToken();
-    } else {
-      return null;
-    }
-    if (token == null || token.isEmpty) return null;
-    return {
-      'Authorization': 'Bearer $token',
-      'X-Profile-Source': source,
-      'Content-Type': 'application/json'
-    };
-  }
-
+  /// 保留旧昵称与资料接口的来源凭据入口。
+  static Future<Map<String, String>?> authorizationHeaders(String player) =>
+      CommunityProfileAuthorization.legacyHeaders(player);
   Future<void> retry() async {
     final player = value.playerId;
     if (player != null) await sync(player);
   }
 
-  String _failureMessage(String player, int status, {String? code}) {
-    if (player.startsWith('awmc:') && status == 403) {
-      return code == 'VERIFIED_PROFILE_PROTECTED'
-          ? '此头像受认证保护，QQ 方式无法修改'
-          : '头像待同步 · 请确认当前 AWMC QQ';
+  String _failure(int status) =>
+      [401, 403].contains(status) ? '装扮待同步 · 请登录或验证对应账号后重试' : '装扮待同步 · 点击重试';
+
+  bool _sameChoice(String key, dynamic local, dynamic remote) {
+    if (key == 'avatarId') {
+      return int.tryParse('$local') == int.tryParse('$remote');
     }
-    return [401, 403].contains(status) ? '头像待同步 · 请登录对应账号后重试' : '头像待同步 · 点击重试';
+    if (local == null || remote == null) return local == remote;
+    return local is Map && remote is Map && local['id'] == remote['id'];
+  }
+
+  Future<void> _invalidateProfileCaches(SharedPreferences prefs) async {
+    await Future.wait([
+      RatingRankListService.clearRankingsCache(),
+      AvgRankingListService.clearRankingsCache(),
+      FittedRatingRankingListService.clearRankingsCache(),
+    ]);
+    for (final key in prefs
+        .getKeys()
+        .where((key) =>
+            key.startsWith(CacheKeyConstant.songCommentsCacheTimestampPrefix))
+        .toList()) {
+      await prefs.remove(key);
+    }
+    profileChanges.notifyListeners();
   }
 
   Future<void> sync(String player) async {
@@ -282,129 +347,126 @@ class CommunityAvatarStore extends ValueNotifier<AvatarSyncState> {
     var rerun = false;
     try {
       await _writes;
-      final prefs = await SharedPreferences.getInstance();
-      final headers = await authorizationHeaders(player);
+      final prefs = await SharedPreferences.getInstance(),
+          headers = await CommunityProfileAuthorization.ownerHeaders(player);
       var entry = _entry(prefs, player);
-      if (headers == null) {
+      final hasAwmcQq = headers['X-Profile-Source'] == 'awmc' &&
+          headers['X-Profile-QQ'] != null &&
+          player == 'awmc:${headers['X-Profile-QQ']}';
+      if (!hasAwmcQq &&
+          !headers.containsKey('Authorization') &&
+          !headers.containsKey('X-Auto-Sync-Token')) {
         _publish(
-            player,
-            entry,
-            player.startsWith('awmc:')
-                ? '仅本机保存 · 请先设置有效的 AWMC QQ'
-                : '仅本机保存 · 请先登录对应查分器',
-            AvatarSyncLevel.localOnly);
+            player, entry, '仅本机保存 · 请先登录或验证对应账号', AvatarSyncLevel.localOnly);
         return;
       }
-      _publish(player, entry, '正在同步社区头像', AvatarSyncLevel.syncing);
-      final response = await ApiClient.get(
+      _publish(player, entry, '正在同步社区装扮', AvatarSyncLevel.syncing);
+      final get = await ApiClient.get(
           Uri.parse(_endpoint).replace(queryParameters: {'playerId': player}),
           headers: headers);
-      if (response.statusCode != 200) {
-        _publish(player, entry, _failureMessage(player, response.statusCode),
-            AvatarSyncLevel.error);
+      if (get.statusCode != 200) {
+        _publish(
+            player, entry, _failure(get.statusCode), AvatarSyncLevel.error);
         return;
       }
-      final remote = (jsonDecode(response.body) as Map<String, dynamic>)['data']
-          as Map<String, dynamic>;
-      if (remote['playerId'] != player) throw StateError('头像账号不匹配');
+      final readBody = jsonDecode(get.body) as Map;
+      if (readBody['success'] != true || readBody['data'] is! Map) {
+        throw StateError('装扮读取未被确认');
+      }
+      var remote = Map<String, dynamic>.from(readBody['data'] as Map);
+      if (remote['playerId'] != player) throw StateError('装扮账号不匹配');
       await _writes;
       entry = _entry(prefs, player);
       if (entry['pending'] != true) {
-        entry.addAll({
-          'avatarId': remote['avatarId'],
-          'revision': remote['profileRevision']
-        });
         final applied = await _queue(() async {
           final latest = _entry(prefs, player);
           if (latest['pending'] == true) return false;
-          await _persist(prefs, player, entry);
-          _publish(player, entry, '社区头像已同步', AvatarSyncLevel.synced);
+          final changed =
+              _fields.any((key) => !_sameChoice(key, latest[key], remote[key]));
+          latest.addAll({
+            for (final key in _fields) key: remote[key],
+            'revision': remote['profileRevision']
+          });
+          await _persist(prefs, _key(player), latest);
+          _publish(player, latest, '社区装扮已同步', AvatarSyncLevel.synced);
+          await _compatibility(prefs, player, latest);
+          if (changed) await _invalidateProfileCaches(prefs);
           return true;
         });
-        if (!applied) {
-          // A choice arrived while this GET was completing. Its durable outbox
-          // takes priority; retry after releasing this request's guard.
-          rerun = true;
-          return;
-        }
+        if (!applied) rerun = true;
       } else {
-        // Coalesce rapid selections; conflicts re-read revision and keep choice.
         for (var attempt = 0; attempt < 3; attempt++) {
-          final generation = entry['generation'];
+          final generation = entry['generation'], dirty = _dirty(entry);
           final result = await ApiClient.put(Uri.parse(_endpoint),
               headers: headers,
               timeout: const Duration(seconds: 25),
               body: jsonEncode({
                 'playerId': player,
-                'avatarId': entry['avatarId'],
-                'expectedProfileRevision': remote['profileRevision'].toString()
+                'expectedProfileRevision': remote['profileRevision'].toString(),
+                for (final key in dirty) key: entry[key]
               }));
-          final body = jsonDecode(result.body) as Map<String, dynamic>;
+          final body = jsonDecode(result.body) as Map;
           await _writes;
           final latest = _entry(prefs, player);
           if (result.statusCode == 409 && body['data'] is Map) {
-            remote['profileRevision'] = body['data']['profileRevision'];
+            remote = Map<String, dynamic>.from(body['data'] as Map);
+            if (remote['playerId'] != player) throw StateError('装扮账号不匹配');
             entry = latest;
             continue;
           }
           if (result.statusCode != 200 ||
               body['success'] != true ||
               body['data']?['playerId'] != player) {
-            _publish(
-                player,
-                latest,
-                _failureMessage(player, result.statusCode,
-                    code: body['code'] as String?),
+            _publish(player, latest, _failure(result.statusCode),
                 AvatarSyncLevel.error);
             return;
           }
-          remote['profileRevision'] = body['data']['profileRevision'];
-          if (latest['generation'] != generation) {
-            entry = latest;
-            continue;
+          remote = Map<String, dynamic>.from(body['data'] as Map);
+          // HTTP 成功并不等于选择已经保存；旧响应或接口忽略字段时保留待发选择。
+          if (dirty.any((key) =>
+              !remote.containsKey(key) ||
+              !_sameChoice(key, entry[key], remote[key]))) {
+            _publish(
+                player, latest, '装扮待同步 · 服务端尚未确认所选装扮', AvatarSyncLevel.error);
+            return;
           }
           final saved = await _queue(() async {
             final current = _entry(prefs, player);
             if (current['generation'] != generation) return false;
-            current.addAll(
-                {'pending': false, 'revision': remote['profileRevision']});
-            await _persist(prefs, player, current);
-            _publish(player, current, '社区头像已同步', AvatarSyncLevel.synced);
+            current.addAll({
+              for (final key in _fields) key: remote[key],
+              'pending': false,
+              'dirtyFields': <String>[],
+              'revision': remote['profileRevision']
+            });
+            await _persist(prefs, _key(player), current);
+            _publish(player, current, '社区装扮已同步', AvatarSyncLevel.synced);
+            await _compatibility(prefs, player, current);
             return true;
           });
           if (!saved) {
             entry = _entry(prefs, player);
             continue;
           }
-          // Refresh comment caches, whose stored avatar may belong to this player.
-          for (final key in prefs
-              .getKeys()
-              .where((key) => key.startsWith(
-                  CacheKeyConstant.songCommentsCacheTimestampPrefix))
-              .toList()) {
-            await prefs.remove(key);
-          }
+          await _invalidateProfileCaches(prefs);
           break;
         }
         entry = _entry(prefs, player);
-        if (entry['pending'] == true) {
-          _publish(player, entry, '头像待同步 · 点击重试', AvatarSyncLevel.pending);
-        }
-      }
-      if (value.playerId == player) {
-        await prefs.setInt('selectedAvatarId', value.avatarId);
+        if (entry['pending'] == true)
+          _publish(player, entry, '装扮待同步 · 点击重试', AvatarSyncLevel.pending);
       }
     } catch (_) {
       final prefs = await SharedPreferences.getInstance();
       _publish(
-          player, _entry(prefs, player), '头像待同步 · 点击重试', AvatarSyncLevel.error);
+          player, _entry(prefs, player), '装扮待同步 · 点击重试', AvatarSyncLevel.error);
     } finally {
       await _writes;
       final prefs = await SharedPreferences.getInstance();
       final pending = _entry(prefs, player)['pending'] == true;
       _syncing.remove(player);
       final requested = _resync.remove(player);
-      if (pending && (rerun || requested)) unawaited(sync(player));
+      if ((rerun || requested) && (pending || player.startsWith('luoxue:')))
+        unawaited(sync(player));
     }
   }
 }

@@ -2,6 +2,10 @@ import 'GuessRecord.dart';
 import 'PlayerEntity.dart';
 
 class GameStateEntity {
+  final String? roomId;
+  final String? roundId;
+  final int? serverNow;
+  final int? roundEndsAt;
   final int currentRound;
   final int totalRounds;
   final dynamic targetSong;
@@ -47,6 +51,10 @@ class GameStateEntity {
   final List<String> winners;
 
   GameStateEntity({
+    this.roomId,
+    this.roundId,
+    this.serverNow,
+    this.roundEndsAt,
     required this.currentRound,
     required this.totalRounds,
     this.targetSong,
@@ -77,8 +85,7 @@ class GameStateEntity {
     // Map<dynamic, dynamic>，赋给 Map<String, String> 字段会在运行时抛
     // 「type '_Map<dynamic, dynamic>' is not a subtype of type 'Map<String, String>'」。
     final Map<String, String> maskedTitles = {};
-    final dynamic rawMasked =
-        json['maskedTitles'] ?? json['masked_titles'];
+    final dynamic rawMasked = json['maskedTitles'] ?? json['masked_titles'];
     if (rawMasked is Map) {
       rawMasked.forEach((k, v) {
         if (k != null && v != null) {
@@ -88,8 +95,7 @@ class GameStateEntity {
     }
 
     final List<String> openedLetters = <String>[];
-    final dynamic rawOpened =
-        json['openedLetters'] ?? json['opened_letters'];
+    final dynamic rawOpened = json['openedLetters'] ?? json['opened_letters'];
     if (rawOpened is List) {
       for (final item in rawOpened) {
         if (item != null) openedLetters.add(item.toString());
@@ -97,8 +103,7 @@ class GameStateEntity {
     }
 
     final List<String> foundSongIds = <String>[];
-    final dynamic rawFound =
-        json['foundSongIds'] ?? json['found_song_ids'];
+    final dynamic rawFound = json['foundSongIds'] ?? json['found_song_ids'];
     if (rawFound is List) {
       for (final item in rawFound) {
         if (item != null) foundSongIds.add(item.toString());
@@ -106,8 +111,7 @@ class GameStateEntity {
     }
 
     final List<dynamic> targetSongs = <dynamic>[];
-    final dynamic rawTargets =
-        json['targetSongs'] ?? json['target_songs'];
+    final dynamic rawTargets = json['targetSongs'] ?? json['target_songs'];
     if (rawTargets is List) targetSongs.addAll(rawTargets);
 
     final List<String> winners = <String>[];
@@ -129,11 +133,21 @@ class GameStateEntity {
         }
       }
     }
-    
+
     return GameStateEntity(
+      roomId: (json['roomId'] ?? json['room_id'])?.toString(),
+      roundId: json['roundId']?.toString(),
+      serverNow: (json['serverNow'] as num?)?.toInt(),
+      roundEndsAt: (json['roundEndsAt'] as num?)?.toInt(),
       currentRound: json['currentRound'] ?? json['current_round'] ?? 1,
-      totalRounds: json['totalRounds'] ?? json['total_round'] ?? 5,
-      targetSong: json['targetSong'] ?? json['target_song'] ?? json['currentSong'] ?? json['current_song'],
+      totalRounds: json['totalRounds'] ??
+          json['total_rounds'] ??
+          json['total_round'] ??
+          5,
+      targetSong: json['targetSong'] ??
+          json['target_song'] ??
+          json['currentSong'] ??
+          json['current_song'],
       guesses: guessesList,
       timeRemaining: json['timeRemaining'] ?? json['time_remaining'] ?? 60,
       isGameOver: json['isGameOver'] ?? json['is_game_over'] ?? false,
@@ -152,6 +166,10 @@ class GameStateEntity {
 
   Map<String, dynamic> toJson() {
     return {
+      'roomId': roomId,
+      'roundId': roundId,
+      'serverNow': serverNow,
+      'roundEndsAt': roundEndsAt,
       'current_round': currentRound,
       'total_rounds': totalRounds,
       'target_song': targetSong,
@@ -172,6 +190,10 @@ class GameStateEntity {
   }
 
   GameStateEntity copyWith({
+    String? roomId,
+    String? roundId,
+    int? serverNow,
+    int? roundEndsAt,
     int? currentRound,
     int? totalRounds,
     dynamic targetSong,
@@ -190,6 +212,10 @@ class GameStateEntity {
     List<String>? winners,
   }) {
     return GameStateEntity(
+      roomId: roomId ?? this.roomId,
+      roundId: roundId ?? this.roundId,
+      serverNow: serverNow ?? this.serverNow,
+      roundEndsAt: roundEndsAt ?? this.roundEndsAt,
       currentRound: currentRound ?? this.currentRound,
       totalRounds: totalRounds ?? this.totalRounds,
       targetSong: targetSong ?? this.targetSong,

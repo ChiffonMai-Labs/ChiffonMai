@@ -66,35 +66,30 @@ class _SingleRatingCalculatorState extends State<SingleRatingCalculator> {
     super.dispose();
   }
 
+  void _validateInputs({bool requireValues = false}) {
+    String? validate(String text, double min, double max, String label) {
+      if (text.trim().isEmpty) return requireValues ? '请输入$label' : null;
+      final value = double.tryParse(text);
+      if (value == null || !value.isFinite) return '请输入有效的$label';
+      if (value < min || value > max) return '$label必须在$min到$max之间';
+      return null;
+    }
+
+    setState(() {
+      _difficultyError = validate(_difficultyController.text, 1, 15, '歌曲定数');
+      _completionError = validate(_completionController.text, 0, 101, '达成率');
+      _showResults = false;
+    });
+  }
+
   // 计算单曲Rating
   void _calculateSingleRating() {
     try {
       double difficulty = double.tryParse(_difficultyController.text) ?? 0.0;
       double completion = double.tryParse(_completionController.text) ?? 0.0;
 
-      // 先清除之前的错误
-      setState(() {
-        _difficultyError = null;
-        _completionError = null;
-      });
-
-      // 验证输入范围
-      bool hasError = false;
-      if (difficulty < 1.0 || difficulty > 15.0) {
-        setState(() {
-          _difficultyError = '歌曲定数必须在1.0到15.0之间';
-        });
-        hasError = true;
-      }
-
-      if (completion < 0 || completion > 101) {
-        setState(() {
-          _completionError = '达成率必须在0到101之间';
-        });
-        hasError = true;
-      }
-
-      if (hasError) return;
+      _validateInputs(requireValues: true);
+      if (_difficultyError != null || _completionError != null) return;
 
       // 特别处理：如果达成率大于100.5，则按100.5计算
       double adjustedCompletion = completion > 100.5 ? 100.5 : completion;
@@ -102,7 +97,7 @@ class _SingleRatingCalculatorState extends State<SingleRatingCalculator> {
 
       // 查找对应的评级和乘数
       Map<String, dynamic>? selectedRating;
-      
+
       // 遍历表格查找正确的区间
       for (var item in maimaiRatingMultiplier) {
         if (adjustedCompletion >= item['completion']) {
@@ -110,7 +105,7 @@ class _SingleRatingCalculatorState extends State<SingleRatingCalculator> {
           break;
         }
       }
-      
+
       // 如果没有找到（不应该发生），使用默认值
       selectedRating ??= {"rating": "D", "multiplier": 0.016};
 
@@ -249,6 +244,7 @@ class _SingleRatingCalculatorState extends State<SingleRatingCalculator> {
                       SizedBox(height: smallSpacing),
                       TextField(
                         controller: _difficultyController,
+                        onChanged: (_) => _validateInputs(),
                         keyboardType: TextInputType.numberWithOptions(
                           decimal: true,
                         ),
@@ -258,6 +254,9 @@ class _SingleRatingCalculatorState extends State<SingleRatingCalculator> {
                           ),
                         ],
                         decoration: InputDecoration(
+                          labelText: '歌曲定数',
+                          errorText: _difficultyError,
+                          errorStyle: TextStyle(fontSize: smallFontSize),
                           border: OutlineInputBorder(),
                           hintText: '请输入歌曲定数',
                           contentPadding: EdgeInsets.symmetric(
@@ -266,17 +265,6 @@ class _SingleRatingCalculatorState extends State<SingleRatingCalculator> {
                           ),
                         ),
                       ),
-                      if (_difficultyError != null)
-                        Padding(
-                          padding: EdgeInsets.only(top: smallSpacing * 0.5),
-                          child: Text(
-                            _difficultyError!,
-                            style: TextStyle(
-                              fontSize: smallFontSize,
-                              color: AppColors.errorRed(brightness),
-                            ),
-                          ),
-                        ),
                       SizedBox(height: mediumSpacing),
 
                       // 达成率输入
@@ -291,6 +279,7 @@ class _SingleRatingCalculatorState extends State<SingleRatingCalculator> {
                       SizedBox(height: smallSpacing),
                       TextField(
                         controller: _completionController,
+                        onChanged: (_) => _validateInputs(),
                         keyboardType: TextInputType.numberWithOptions(
                           decimal: true,
                         ),
@@ -300,6 +289,9 @@ class _SingleRatingCalculatorState extends State<SingleRatingCalculator> {
                           ),
                         ],
                         decoration: InputDecoration(
+                          labelText: '达成率（%）',
+                          errorText: _completionError,
+                          errorStyle: TextStyle(fontSize: smallFontSize),
                           border: OutlineInputBorder(),
                           hintText: '请输入达成率',
                           contentPadding: EdgeInsets.symmetric(
@@ -308,17 +300,6 @@ class _SingleRatingCalculatorState extends State<SingleRatingCalculator> {
                           ),
                         ),
                       ),
-                      if (_completionError != null)
-                        Padding(
-                          padding: EdgeInsets.only(top: smallSpacing * 0.5),
-                          child: Text(
-                            _completionError!,
-                            style: TextStyle(
-                              fontSize: smallFontSize,
-                              color: AppColors.errorRed(brightness),
-                            ),
-                          ),
-                        ),
                       SizedBox(height: mediumSpacing),
 
                       // 预留的深色结果区域

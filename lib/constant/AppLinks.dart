@@ -9,6 +9,21 @@ class AppLinks {
   /// 官网。
   static const String officialSite = 'https://chiffonmai.cloud/';
 
+  /// 查分器账号注册入口。
+  static const String divingFishRegistrationUrl =
+      'https://maimai.diving-fish.com/';
+  static const String luoXueRegistrationUrl = 'https://maimai.lxns.net/';
+
+  /// AWMC 注册引导：群名按展示约定，跳转使用官方群分享链接。
+  static const String awmcGroupOneName = 'AWMC 交流 1 群';
+  static const String awmcGroupOneNumber = '1072033605';
+  static const String awmcGroupOneJoinUrl = 'https://qm.qq.com/q/Gj3QmfEyY0';
+  static const String awmcGroupTwoName = 'AWMC 交流 2 群';
+  static const String awmcGroupTwoNumber = '993795066';
+  static const String awmcGroupTwoJoinUrl = 'https://qm.qq.com/q/PF5t1VXPi0';
+  static const String awmcBotName = 'AWMC BOT';
+  static const String awmcBotNumber = '4013752603';
+
   /// 官方交流 QQ 群号（跳转失败时复制这个给用户手动搜索）。
   static const String qqGroupNumber = '291826702';
 

@@ -14,6 +14,16 @@ import '../utils/ThemeManager.dart';
 import '../utils/UserProfileNotifier.dart';
 import '../utils/SecureCredentialStore.dart';
 import '../utils/ExportPathUtil.dart';
+import '../utils/CommonCacheUtil.dart';
+import '../utils/NavigationPreferences.dart';
+import '../utils/SearchInteractionPreferences.dart';
+import '../utils/ConfettiPreferences.dart';
+import 'History/ChartHistoryStore.dart';
+import 'RankTable/RankCompletionStore.dart';
+import 'NextPlayQueueStore.dart';
+import 'LoadingTipsStore.dart';
+import 'UserFileBackupService.dart';
+import 'GainRecommend/GainFeedbackStore.dart';
 import 'Best50/CustomBest50Store.dart';
 import 'ChartNoteService.dart';
 import 'ChartPackageHistoryStore.dart';
@@ -24,7 +34,7 @@ import 'PaiziProgressService.dart';
 import 'PersonalizedScoreService.dart';
 
 /// 数据备份服务
-/// 导出/导入所有 SharedPreferences 数据为 JSON 文件
+/// 导出/导入用户偏好及限定范围的用户文件，兼容旧版仅偏好备份。
 ///
 /// **可重新拉取的缓存不参与备份**（见 [_cacheExactKeys] / [_cacheKeyPrefixes]）：
 /// 它们体积大（cachedSongs / maidata 动辄数 MB），却只是服务端数据的副本；
@@ -64,6 +74,8 @@ class DataBackupService {
     'account_history_owners_v1',
     'user_play_data_last_update',
     'awmc_net_user_play_data_last_update',
+    'loading_tips_catalogue_v1',
+    'loading_tips_fetched_at_v1',
     CacheKeyConstant.diffMusicData,
     CacheKeyConstant.diffMusicDataTimestamp,
     CacheKeyConstant.recommendationResults,
@@ -121,6 +133,7 @@ class DataBackupService {
   /// 为什么需要：恢复是「先 `clear()` 再逐键写」。一旦中途抛错，用户会停在
   /// **「原来的数据已经清空、新数据只写了一半」**的状态——那比导入失败难恢复得多。
   Map<String, dynamic>? _rollbackSnapshot;
+  bool _restoring = false;
 
   /// 是否是「可重新拉取的缓存」——这类键不写进备份
   static bool isCacheKey(String key) {
@@ -151,6 +164,10 @@ class DataBackupService {
       // 但不会更新这份 legacy 快照。不 reload 的话：本次启动后改过的猜歌设置
       // 会导出成**旧值**，本次首次写入的键甚至整条不出现在备份里。
       final prefs = await SharedPreferences.getInstance();
+      await CommonCacheUtil().flush();
+      await NextPlayQueueStore.instance.flush();
+      await NavigationPreferences.instance.flush();
+      await SearchInteractionPreferences.instance.flush();
       await prefs.reload();
       final keys = prefs.getKeys();
       final data = <String, dynamic>{};
@@ -186,8 +203,9 @@ class DataBackupService {
           '$secretSkipped 个敏感凭据键');
 
       // 2. 构建备份元数据
+      final files = await UserFileBackupService.collect(prefs);
       final backup = {
-        'version': 2,
+        'version': 3,
         'appName': 'ChiffonMai',
         'exportedAt': DateTime.now().toIso8601String(),
         'exportedAtTimestamp': DateTime.now().millisecondsSinceEpoch,
@@ -195,11 +213,15 @@ class DataBackupService {
         'skippedCacheKeys': skipped,
         'skippedSecretKeys': secretSkipped,
         'data': data,
+        'files': files,
+        'fileCount': files.length,
       };
 
       // 3. 序列化为 JSON
       final jsonStr = const JsonEncoder.withIndent('  ').convert(backup);
       final bytes = utf8.encode(jsonStr);
+      if (bytes.length > maxImportBytes)
+        throw StateError('备份超过 50 MB 上限，请精简自定义谱面归档后重试');
 
       // 4. 文件名带时分秒：同一天导出多次不再互相覆盖
       final now = DateTime.now();
@@ -261,6 +283,12 @@ class DataBackupService {
       if (!backup.containsKey('version')) {
         throw Exception('无效的备份文件：缺少 version 字段');
       }
+      if (backup['version'] is! int ||
+          (backup['version'] as int) < 1 ||
+          (backup['version'] as int) > 3 ||
+          backup['appName'] != null && backup['appName'] != 'ChiffonMai') {
+        throw const FormatException('不支持的备份版本或应用格式');
+      }
 
       final data = backup['data'] as Map<String, dynamic>;
       if (data.isEmpty) {
@@ -308,25 +336,34 @@ class DataBackupService {
     Map<String, dynamic> backupData, {
     bool clearFirst = true,
   }) async {
+    if (_restoring) throw StateError('已有数据恢复正在进行');
+    _restoring = true;
     // 服务是单例，先清掉上一次可能残留的快照。
     _rollbackSnapshot = null;
 
     try {
       final prefs = await SharedPreferences.getInstance();
+      await CommonCacheUtil().flush();
+      await NextPlayQueueStore.instance.flush();
+      await NavigationPreferences.instance.flush();
+      await SearchInteractionPreferences.instance.flush();
       // 与导出同理：先让 legacy 快照与磁盘一致，否则回滚会丢掉
       // 「本会话里用 async 通道新写的猜歌设置」。
       await prefs.reload();
+      // 先完成旧凭据迁移；安全存储不可用时中止，避免覆盖恢复清掉本机授权。
+      await SecureCredentialStore.migrateLegacy();
+      if (prefs.getKeys().any(SecureCredentialStore.isCredentialKey)) {
+        throw StateError('安全凭据尚未完成迁移，请稍后重试恢复');
+      }
       final data = backupData;
 
-      if (clearFirst) {
-        final previous = <String, dynamic>{};
-        for (final key in prefs.getKeys()) {
-          previous[key] = prefs.get(key);
-        }
-        _rollbackSnapshot = previous;
+      _rollbackSnapshot = {
+        for (final key in prefs.getKeys()) key: prefs.get(key)
+      };
 
+      if (clearFirst) {
         final before = prefs.getKeys().length;
-        await prefs.clear();
+        if (!await prefs.clear()) throw StateError('清空旧设置失败');
         debugPrint('DataBackup: 已清空原有 $before 个键');
       }
 
@@ -341,19 +378,18 @@ class DataBackupService {
           debugPrint('DataBackup: 跳过敏感键 $key（不随备份恢复）');
           continue;
         }
+        if (isCacheKey(key)) continue;
         if (value is! Map<String, dynamic> || !value.containsKey('type')) {
           continue;
         }
 
+        if (value['type'] is! String) continue;
         final type = value['type'] as String;
         final rawValue = value['value'];
-        try {
-          final ok = await _writeOne(prefs, key, type, rawValue);
-          if (ok) restoredCount++;
-        } catch (e) {
-          // 单条坏数据（类型对不上等）不该拖垮整次恢复，记日志继续。
-          debugPrint('DataBackup: 恢复 $key 失败: $e');
-        }
+        if (!_validValue(type, rawValue)) continue;
+        if (!await _writeOne(prefs, key, type, rawValue))
+          throw StateError('写入备份设置失败：$key');
+        restoredCount++;
       }
 
       _rollbackSnapshot = null;
@@ -361,7 +397,42 @@ class DataBackupService {
       return restoredCount;
     } catch (e) {
       debugPrint('DataBackup: 恢复失败: $e');
-      if (clearFirst) await _rollbackToSnapshot();
+      await _rollbackToSnapshot();
+      rethrow;
+    } finally {
+      _restoring = false;
+    }
+  }
+
+  static bool _validValue(String type, Object? value) => switch (type) {
+        'String' => value is String,
+        'int' => value is int,
+        'double' => value is num && value.isFinite,
+        'bool' => value is bool,
+        'List<String>' =>
+          value is List && value.every((item) => item is String),
+        _ => false,
+      };
+
+  /// v1/v2 仅含偏好；v3 同时恢复用户文件，并将跨设备路径改写到当前沙箱。
+  Future<int> restoreBackup(Map<String, dynamic> backup) async {
+    final data = Map<String, dynamic>.from(backup['data'] as Map);
+    if (data.isNotEmpty && !data.entries.any((entry) {
+      final value = entry.value;
+      return !isCacheKey(entry.key) && !isNeverBackupKey(entry.key) &&
+          !SecureCredentialStore.isCredentialKey(entry.key) && value is Map &&
+          value['type'] is String && _validValue(value['type'] as String, value['value']);
+    })) {
+      throw const FormatException('备份没有可恢复的用户设置，已保留当前数据');
+    }
+    if (backup['version'] != 3) return restoreData(data);
+    final files =
+        await UserFileBackupService.prepare(backup['files'], clearFirst: true);
+    try {
+      await files.apply();
+      return await restoreData(files.rewritePaths(data));
+    } catch (_) {
+      await files.rollback();
       rethrow;
     }
   }
@@ -452,6 +523,15 @@ class DataBackupService {
     CustomBest50Store().invalidateCache();
     ChartPackageHistoryStore().invalidateCache();
     await ChartPlaySettingsStore().reload();
+    await CommonCacheUtil().reload();
+    await ChartHistoryStore.instance.invalidateCache();
+    await NavigationPreferences.instance.reload();
+    await SearchInteractionPreferences.instance.reload();
+    await ConfettiPreferences.instance.reload();
+    await RankCompletionStore.instance.reload();
+    await NextPlayQueueStore.instance.reload();
+    await LoadingTipsStore.instance.reloadPreferences();
+    await GainFeedbackStore.instance.reload();
 
     // 账号身份 / 主题 / 星标 / 昵称 / 线路。
     await ThemeManager().loadThemePreference();

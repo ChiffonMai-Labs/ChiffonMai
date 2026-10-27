@@ -1,5 +1,7 @@
 /// 缓存键常量统一管理
 class CacheKeyConstant {
+  static const String searchInteractionMode = 'search_interaction_mode';
+
   /// 三个数据源共用的快速同步凭据，仅存入系统安全存储；兼容旧的逐源映射。
   static const String awmcQuickIdentities = 'awmc_quick_identities_v1';
 
@@ -112,6 +114,7 @@ class CacheKeyConstant {
       'guessChart_peekDifficulties';
   // 歌曲片段猜歌的音频片段播放时长
   static const String guessChartPlayDuration = 'guessChart_playDuration';
+  static const String guessChartAudioRate = 'guess_chart_audio_rate';
 
   // KaleidXScope 标记歌曲相关
   static const String kaleidXBlackGateMarkedSongs =
@@ -129,6 +132,7 @@ class CacheKeyConstant {
   // 排行榜相关设置
   static const String participateRankings = 'participate_rankings';
   static const String showNickname = 'show_nickname';
+  static const String showBriefProfile = 'show_brief_profile';
   static const String forceFullRefresh = 'force_full_refresh';
 
   // 高级刷新模式下用户上次勾选的强制刷新缓存源 ID 列表（来自 CacheSourceRegistry）
@@ -214,6 +218,9 @@ class CacheKeyConstant {
   // 首页个人信息展示风格（true=卡片式，false=经典式）
   static const String profileCardStyle = 'profile_card_style';
 
+  // 系统 hub 个人信息区域的展开状态，未设置时默认收起。
+  static const String communityProfileExpanded = 'community_profile_expanded';
+
   // ===== AWMC 网关（api.wmc.pub）相关 =====
   // 旧版网关令牌键，仅为升级兼容保留；当前开发者令牌只在服务端保存。
   // 注意：机台 qrcode **不落盘**，只在一次会话的内存里保存。
@@ -252,6 +259,11 @@ class CacheKeyConstant {
   // 整数值沿用历史命名不换（详见 SyncRouteStore 顶部注释）。
   static const String syncRouteDivingFish = 'sync_route_diving_fish';
   static const String syncRouteLuoXue = 'sync_route_luoxue';
+
+  /// AWMC 网关「同步前探活」的超时（秒）。
+  /// 缺省与允许范围见 `AwmcGatewaySettings`（默认 15 秒，5–60 秒）。
+  static const String awmcGatewayProbeTimeoutSeconds =
+      'awmc_gateway_probe_timeout_seconds';
 
   // maimai Score Hub 探针同步相关
   static const String probeAuthToken = 'probe_auth_token';

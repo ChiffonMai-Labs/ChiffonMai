@@ -47,11 +47,10 @@ class FittedRankItem {
 
   factory FittedRankItem.fromJson(Map<String, dynamic> json) {
     final playerId = (json['playerId'] ?? json['player_id'] ?? '').toString();
-    final dataSource = (json['dataSource'] ?? json['data_source'] ?? '')
-        .toString()
-        .isNotEmpty
-        ? (json['dataSource'] ?? json['data_source'] ?? '').toString()
-        : _parseDataSource(playerId);
+    final dataSource =
+        (json['dataSource'] ?? json['data_source'] ?? '').toString().isNotEmpty
+            ? (json['dataSource'] ?? json['data_source'] ?? '').toString()
+            : _parseDataSource(playerId);
     return FittedRankItem(
       rank: _toInt(json['rank'] ?? 0),
       playerId: playerId,
@@ -96,9 +95,10 @@ class FittedRankItem {
 String _parseDataSource(String playerId) => parseDataSource(playerId);
 
 class FittedRatingRankingListService {
+  static int _cacheGeneration = 0;
   // 缓存有效期：从常量文件读取（分钟转秒）
   static int get _cacheExpirySeconds =>
-      CacheTimestampConstant.rankingsCacheMinutes * 60;
+      CacheTimestampConstant.computedRankingsCacheMinutes * 60;
 
   /// 测试专用：把排行榜请求打桩掉（见 [getRankings] 里的用法）。真机永远是 null。
   @visibleForTesting
@@ -116,29 +116,27 @@ class FittedRatingRankingListService {
     bool refresh = false,
     String? userId,
   }) async {
+    final generation = _cacheGeneration;
+    final stub = debugRankingsLoader;
+    if (stub != null) return stub();
     if (!refresh) {
       final cachedData = await _getCachedRankings(mode);
-      if (cachedData != null && cachedData.isNotEmpty) {
+      if (cachedData != null) {
         return cachedData;
       }
     }
 
-    // 测试专用打桩：这几个排行榜接口都不读缓存（rankingsCacheMinutes = -1），
-    // widget 测试里不打桩页面永远停在空状态，几何/间距问题就量不出来。
-    // 真机（debug/release）永远是 null。
-    final stub = debugRankingsLoader;
-    if (stub != null) return stub();
-
     try {
-      var url = Uri.parse(
-          '${ApiUrls.SongRankingsFittedUrl}?mode=${mode.name}&refresh=$refresh');
-      if (userId != null && userId.isNotEmpty) {
-        url = Uri.parse(
-            '${ApiUrls.SongRankingsFittedUrl}?mode=${mode.name}&refresh=$refresh&userId=$userId');
-      }
+      final url = Uri.parse(ApiUrls.SongRankingsFittedUrl).replace(
+        queryParameters: {
+          'mode': mode.name,
+          if (userId != null && userId.isNotEmpty) 'userId': userId,
+        },
+      );
       final response = await ApiClient.get(
         url,
         headers: {'Content-Type': 'application/json'},
+        timeout: const Duration(seconds: 10),
       );
 
       if (response.statusCode == 200) {
@@ -147,7 +145,10 @@ class FittedRatingRankingListService {
           final items = (result['data'] as List<dynamic>)
               .map((e) => FittedRankItem.fromJson(e as Map<String, dynamic>))
               .toList();
-          await _cacheRankings(mode, items);
+          if (generation == _cacheGeneration) {
+            await _cacheRankings(mode, items,
+                nextUpdateAt: (result['nextUpdateAt'] as num?)?.toInt());
+          }
           return items;
         }
       }
@@ -156,7 +157,7 @@ class FittedRatingRankingListService {
     } catch (e) {
       debugPrint('获取拟合总Rating排行榜失败: $e');
     }
-    return [];
+    return await _getCachedRankings(mode, allowExpired: true) ?? [];
   }
 
   // 获取当前用户在完整榜单中的条目（可能不在前100，由服务端返回）
@@ -165,11 +166,13 @@ class FittedRatingRankingListService {
     required String userId,
   }) async {
     try {
-      final url = Uri.parse(
-          '${ApiUrls.SongRankingsFittedUrl}?mode=${mode.name}&refresh=false&userId=$userId');
+      final url = Uri.parse(ApiUrls.SongRankingsFittedUrl).replace(
+        queryParameters: {'mode': mode.name, 'userId': userId},
+      );
       final response = await ApiClient.get(
         url,
         headers: {'Content-Type': 'application/json'},
+        timeout: const Duration(seconds: 10),
       );
       if (response.statusCode == 200) {
         final result = json.decode(response.body);
@@ -209,36 +212,43 @@ class FittedRatingRankingListService {
   }
 
   // 从缓存读取排行榜数据
-  static Future<List<FittedRankItem>?> _getCachedRankings(FittedMode mode) async {
+  static Future<List<FittedRankItem>?> _getCachedRankings(FittedMode mode,
+      {bool allowExpired = false}) async {
     final prefs = await SharedPreferences.getInstance();
-    final timestamp = prefs.getInt(_timestampKey(mode.name));
-
-    if (timestamp != null) {
-      final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-      if (now - timestamp < _cacheExpirySeconds) {
-        final cachedJson = prefs.getString(_cacheKey(mode.name));
-        if (cachedJson != null) {
-          try {
-            final List<dynamic> data = json.decode(cachedJson);
-            return data
-                .map((e) => FittedRankItem.fromJson(e as Map<String, dynamic>))
-                .toList();
-          } catch (e) {
-            debugPrint('解析缓存的拟合总Rating排行数据失败: $e');
-          }
-        }
-      }
+    final raw = prefs.getString(_cacheKey(mode.name));
+    if (raw == null) return null;
+    try {
+      final decoded = json.decode(raw);
+      if (decoded is! Map ||
+          decoded['version'] != 3 ||
+          decoded['items'] is! List ||
+          decoded['nextUpdateAt'] is! num) return null;
+      if (!allowExpired &&
+          DateTime.now().millisecondsSinceEpoch >= decoded['nextUpdateAt'])
+        return null;
+      return (decoded['items'] as List)
+          .map((row) => FittedRankItem.fromJson(Map<String, dynamic>.from(row)))
+          .toList();
+    } catch (_) {
+      return null;
     }
-    return null;
   }
 
   // 保存排行榜数据到缓存
   static Future<void> _cacheRankings(
-      FittedMode mode, List<FittedRankItem> items) async {
+      FittedMode mode, List<FittedRankItem> items,
+      {int? nextUpdateAt}) async {
+    final generation = _cacheGeneration;
     final prefs = await SharedPreferences.getInstance();
+    if (generation != _cacheGeneration) return;
     try {
-      final jsonString =
-          json.encode(items.map((item) => item.toJson()).toList());
+      final jsonString = json.encode({
+        // 旧版本曾混用公开昵称和匿名头像，升级后重新读取统一的公开资料。
+        'version': 3,
+        'items': items.map((item) => item.toJson()).toList(),
+        'nextUpdateAt': nextUpdateAt ??
+            DateTime.now().millisecondsSinceEpoch + _cacheExpirySeconds * 1000,
+      });
       await prefs.setString(_cacheKey(mode.name), jsonString);
       await prefs.setInt(
         _timestampKey(mode.name),
@@ -251,6 +261,8 @@ class FittedRatingRankingListService {
 
   // 清除拟合计分排行缓存（用于强制刷新）
   static Future<void> clearRankingsCache() async {
+    // 清理前发出的响应不能重新写回旧头像与资料。
+    _cacheGeneration++;
     final prefs = await SharedPreferences.getInstance();
     for (final mode in FittedMode.values) {
       await prefs.remove(_cacheKey(mode.name));

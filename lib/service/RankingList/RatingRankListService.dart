@@ -9,6 +9,7 @@ import 'package:my_first_flutter_app/utils/CurrentDataSourceNotifier.dart';
 import '../../utils/CommunityProfileUtil.dart';
 
 class RatingRankListService {
+  static int _cacheGeneration = 0;
   // 请求上限从旧版的 100 提升到服务端允许的 500；版本号避免继续读旧缓存。
   static const _cacheVersion = 'v2';
   // 缓存有效期：从常量文件读取（分钟转秒）
@@ -57,8 +58,9 @@ class RatingRankListService {
       if (limit != null) {
         url += '?limit=$limit';
       }
+      final generation = _cacheGeneration;
       final items = await _fetch(url);
-      if (items.isNotEmpty) {
+      if (items.isNotEmpty && generation == _cacheGeneration) {
         // 保存到缓存
         await _cacheRankings(
           items,
@@ -98,8 +100,9 @@ class RatingRankListService {
       if (limit != null) {
         url += '?limit=$limit';
       }
+      final generation = _cacheGeneration;
       final items = await _fetch(url);
-      if (items.isNotEmpty) {
+      if (items.isNotEmpty && generation == _cacheGeneration) {
         // 保存到缓存
         await _cacheRankings(items, cacheKey, cacheTimestampKey);
       }
@@ -248,7 +251,9 @@ class RatingRankListService {
   // 保存排行榜数据到缓存
   static Future<void> _cacheRankings(
       List<RankItem> items, String cacheKey, String timestampKey) async {
+    final generation = _cacheGeneration;
     final prefs = await SharedPreferences.getInstance();
+    if (generation != _cacheGeneration) return;
     try {
       final jsonString =
           json.encode(items.map((item) => item.toJson()).toList());
@@ -265,6 +270,8 @@ class RatingRankListService {
   // 按 [RefreshDataSource.values] 枚举清，不要再逐个手写 ——
   // 原来只清了 水鱼 / 落雪，加第三个源时必然漏（这次就是靠枚举兜住的）。
   static Future<void> clearRankingsCache() async {
+    // 清理前发出的响应不能重新写回旧头像与资料。
+    _cacheGeneration++;
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(CacheKeyConstant.totalRankingsCache);
     await prefs.remove(CacheKeyConstant.totalRankingsCacheTimestamp);

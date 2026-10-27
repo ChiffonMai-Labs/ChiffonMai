@@ -166,6 +166,9 @@ class _GainRecommendPageState extends State<GainRecommendPage> {
       content: Text(kind == GainFeedbackKind.dislike
           ? '不再推荐 $label（可在反馈管理里撤销）'
           : '$label 暂停推荐 14 天'),
+      // Flutter 3.41 起，带 action 的 SnackBar 默认 persist（不自动消失），
+      // 这里仍按 duration 自动收回，避免底部提示一直挂着挡内容。
+      persist: false,
       action: SnackBarAction(
         label: '撤销',
         onPressed: () => _undoFeedback(c.key),
@@ -474,7 +477,7 @@ class _CandidateCard extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.fromLTRB(10, 10, 0, 10),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
@@ -496,7 +499,7 @@ class _CandidateCard extends StatelessWidget {
                               _Tag(text: c.route.label, color: routeColor),
                               _Tag(
                                 text:
-                                    '${StringUtil.formatSongType(c.type)} ${c.level} ${c.ds.toStringAsFixed(1)}',
+                                    '${StringUtil.formatSongType(c.type)} ${c.ds.toStringAsFixed(1)}',
                                 color: AppColors.difficultyForegroundByIndex(
                                     c.levelIndex,
                                     brightness: brightness),
@@ -530,14 +533,24 @@ class _CandidateCard extends StatelessWidget {
                     Text(
                       achv == null
                           ? '未记录成绩 → 参考目标 ${c.target.toStringAsFixed(4)}%'
-                          : '${achv.toStringAsFixed(4)}% → ${c.target.toStringAsFixed(4)}%'
-                              '（提升 ${c.need.toStringAsFixed(4)}%）',
+                          : '${achv.toStringAsFixed(4)}% → ${c.target.toStringAsFixed(4)}%',
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
                         color: scheme.onSurface,
                       ),
                     ),
+                    if (achv != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        '提升 ${c.need.toStringAsFixed(4)}%',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: scheme.onSurface,
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 2),
                     Text(c.reason, style: _hintStyle(context)),
                   ],

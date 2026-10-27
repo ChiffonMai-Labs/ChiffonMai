@@ -14,6 +14,7 @@ import '../service/AccountStore.dart';
 import '../service/SyncRouteStore.dart';
 import '../service/SyncStatsService.dart';
 import '../service/MultiScoreSyncRunner.dart';
+import '../service/PostSyncRefreshService.dart';
 import '../service/AWMC/AwmcQuickSyncService.dart';
 import '../utils/SyncRouteNotifier.dart';
 import '../utils/SecureCredentialStore.dart';
@@ -279,6 +280,10 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
           msg: outcome.localDataRefreshed
               ? '同步完成！${outcome.exportedCount} 条成绩已同步，本地数据已刷新'
               : '同步完成！${outcome.exportedCount} 条成绩已推送到水鱼');
+      if (outcome.refreshError != null && mounted) {
+        await showErrorMessageDialog(context,
+            message: '同步成功，但刷新数据失败：${outcome.refreshError}');
+      }
     } on SyncFlowException catch (e) {
       if (!mounted) return;
       await showErrorMessageDialog(context, message: e.message);
@@ -358,9 +363,11 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
     final stopwatch = Stopwatch()..start();
     int? syncDurationMs;
     var syncOk = false;
+    String? refreshError;
     try {
       final count = await executeLuoXueSync(
         input,
+        onRefreshFailed: (error) => refreshError = error,
         onSyncFinished: (durationMs) => syncDurationMs = durationMs,
         onSyncSucceeded: () {
           if (mounted) ConfettiEffect.show(context);
@@ -373,6 +380,10 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
       syncOk = true;
       if (!mounted) return;
       Fluttertoast.showToast(msg: '同步完成！共 $count 条成绩已导出到落雪');
+      if (refreshError != null && mounted) {
+        await showErrorMessageDialog(context,
+            message: '同步成功，但刷新数据失败：$refreshError');
+      }
     } on SyncFlowException catch (e) {
       if (mounted) {
         await showErrorMessageDialog(context, message: e.message);
@@ -463,6 +474,7 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
     _updateSyncState(multi: true, multiText: '准备同步…');
     final successes = <String>[];
     final failures = <String>[];
+    final refreshFailures = <String>[];
     var anySynchronized = false;
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -521,6 +533,9 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
               multiProgress: completedPlatforms / input.platforms.length);
           try {
             if (input.quickUpdateFor(platform)) {
+              final refresh = await PostSyncRefreshOperation.capture(
+                  AwmcQuickSyncService.sourceOf(platform),
+                  request: input.refreshRequests[platform]);
               final result = await AwmcQuickSyncService.run(
                 platform: platform,
                 readSession: quickReadSession,
@@ -530,6 +545,11 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
                         (completedPlatforms + p) / input.platforms.length),
               );
               anySynchronized = true;
+              final refreshError = await refresh.run(
+                  onProgress: (p, text) =>
+                      _updateSyncState(multiText: '${platform.label}：$text'));
+              if (refreshError != null)
+                refreshFailures.add('${platform.label}：$refreshError');
               return result.submitted == 0
                   ? '${platform.label}（成绩已是最新）'
                   : '${platform.label}（快速同步，更新 ${result.submitted} 条）';
@@ -546,6 +566,7 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
               final outcome = await AwmcSyncFlow.runWithInput(
                 qrCode: qrCode,
                 target: target,
+                refreshRequest: input.refreshRequests[platform],
                 onBusy: (text) =>
                     _updateSyncState(multiText: '${platform.label}（线路1）：$text'),
                 onProgress: (p, text) => _updateSyncState(
@@ -558,6 +579,9 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
                 throw SyncFlowException(outcome.message ?? '线路1同步失败');
               }
               anySynchronized = true;
+              if (outcome.refreshError != null)
+                refreshFailures
+                    .add('${platform.label}：${outcome.refreshError}');
               return '${platform.label}（线路1）';
             }
             switch (platform) {
@@ -576,6 +600,7 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
                     qrCode: qrCode,
                     participateRankings: participate,
                     showNickname: nickname,
+                    refreshRequest: input.refreshRequests[platform],
                   ),
                   onSyncSucceeded: () => anySynchronized = true,
                   onProgress: (p, text) => _updateSyncState(
@@ -583,6 +608,8 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
                       multiProgress:
                           (completedPlatforms + p) / input.platforms.length),
                 );
+                if (result.refreshError != null)
+                  refreshFailures.add('水鱼：${result.refreshError}');
                 return '水鱼（线路2，${result.exportedCount} 条）';
               case SyncPlatform.luoXue:
                 if (!await ensureMaimaiHubLogin(context, reason: '落雪线路2')) {
@@ -596,7 +623,11 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
                 final token = await SecureCredentialStore.read(
                     CacheKeyConstant.probeLxnsImportToken);
                 final count = await executeLuoXueSync(
-                  LuoXueSyncInput(qrCode: qrCode, lxnsImportToken: token),
+                  LuoXueSyncInput(
+                      qrCode: qrCode,
+                      lxnsImportToken: token,
+                      refreshRequest: input.refreshRequests[platform]),
+                  onRefreshFailed: (error) => refreshFailures.add('落雪：$error'),
                   onSyncSucceeded: () => anySynchronized = true,
                   onProgress: (p, text) => _updateSyncState(
                       multiText: '落雪（线路2）：$text ${(p * 100).round()}%',
@@ -615,7 +646,10 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
                   throw const SyncFlowException('未设置 AWMC NET 成绩导入 Token');
                 }
                 final outcome = await AwmcNetSyncFlow.runWithInput(
-                  AwmcNetSyncInput(qr: qrCode, importToken: token),
+                  AwmcNetSyncInput(
+                      qr: qrCode,
+                      importToken: token,
+                      refreshRequest: input.refreshRequests[platform]),
                   onBusy: (label) =>
                       _updateSyncState(multiText: 'AWMC NET：$label'),
                   onIdle: () {},
@@ -624,6 +658,8 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
                   throw SyncFlowException(AwmcNetSyncFlow.toastFor(outcome));
                 }
                 anySynchronized = true;
+                if (outcome.refreshError != null)
+                  refreshFailures.add('AWMC NET：${outcome.refreshError}');
                 return 'AWMC NET';
             }
           } finally {
@@ -643,13 +679,14 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
 
       if (!mounted) return;
       if (anySynchronized) ConfettiEffect.show(context);
-      if (failures.isEmpty) {
+      if (failures.isEmpty && refreshFailures.isEmpty) {
         Fluttertoast.showToast(msg: '多端同步完成：${successes.join('、')}');
       } else {
         await showErrorMessageDialog(
           context,
-          message:
-              '已完成：${successes.isEmpty ? '无' : successes.join('、')}\n\n失败：\n${failures.join('\n')}',
+          message: '同步已完成：${successes.isEmpty ? '无' : successes.join('、')}'
+              '${failures.isEmpty ? '' : '\n\n同步失败：\n${failures.join('\n')}'}'
+              '${refreshFailures.isEmpty ? '' : '\n\n同步成功，但刷新数据失败：\n${refreshFailures.join('\n')}'}',
         );
       }
     } finally {

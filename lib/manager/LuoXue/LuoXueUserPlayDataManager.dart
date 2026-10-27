@@ -1,5 +1,7 @@
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'dart:convert';
+import 'dart:async';
+import '../../service/PlayerExperienceService.dart';
 import '../DivingFish/UserPlayDataManager.dart';
 import 'package:flutter/foundation.dart';
 import './LuoXueOAuthManager.dart';
@@ -48,7 +50,10 @@ class LuoXueUserPlayDataManager {
 
         final data = json.decode(responseBody);
         final playerData = data['data'] ?? data;
-        return LuoXuePlayer.fromJson(playerData);
+        final player = LuoXuePlayer.fromJson(playerData);
+        unawaited(PlayerExperienceService.instance
+            .onAccountAuthenticated('luoxue:${player.friendCode}'));
+        return player;
       } else {
         print('获取玩家信息失败: ${response.statusCode} - ${response.body}');
         return null;

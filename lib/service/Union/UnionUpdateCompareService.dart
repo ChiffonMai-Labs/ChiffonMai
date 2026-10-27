@@ -9,7 +9,8 @@ import '../../utils/SongFilterUtil.dart';
 ///   * 水鱼（`music_data`）是**国服目前的全量歌曲**，union（`/api/union/musics`）
 ///     是**全量歌曲**（含日服已上、国服未上的），合并时后者独有的会被打上
 ///     `Song.isExtra = true`（见 `MaimaiMusicDataManager.fetchAndUpdateMusicData`）；
-///   * 于是「union 独有 且 id 比国服最新曲更大」= **下次更新最可能上的歌**。
+///   * union 独有只说明国服尚未收录；候选要按日服首发日期识别，不能假设
+///     id 严格随上线日期递增。已确认待补批次用于补齐前沿日期之前的遗漏。
 ///
 /// 判据：先筛出国服常规曲，再按歌曲的首发日期从新到旧排列，第一首作为前沿。
 /// 日期缺失或格式异常时，才回退到数值 id 作为稳定的排序依据。
@@ -32,16 +33,14 @@ class UnionUpdateCompare {
   /// 国服（水鱼）当前首发日期最新的**常规**曲；曲库为空时为 null。
   final Song? frontier;
 
-  /// union 独有、id 比 [frontier] 更大的常规曲 → 近期更新最可能上的歌（id 升序）。
-  ///
-  /// 升序不是随手排的：国服是一批一批往前补的，**id 最小 = 日服上得最早 =
-  /// 最可能先补上**，所以列表第一屏就该是这个顺序。
+  /// union 独有的近期常规曲及已确认待补曲目（id 升序，仅用于稳定展示）。
+  /// 候选不表示官方排期，id 顺序也不代表实际补入国服的先后。
   final List<Song> upcoming;
 
-  /// union 独有、但 id 比 [frontier] 还小的常规曲（id 升序）。
+  /// union 独有、首发日期早于候选参考起点的常规曲（id 升序）。
   ///
   /// 这些多半是**区域限定 / 国服跳过**的曲子（联动曲、日服独占），
-  /// 也可能只是 union 的 id 顺序有偏差 —— 单独一段展示，并如实说明不确定性。
+  /// 也可能以后补入国服；日期缺失时才参考 id，不能据此断定区域独占。
   final List<Song> skipped;
 
   /// union 独有的宴会场（6 位 id）。宴会场不按版本更新，单独一段。
@@ -115,17 +114,15 @@ class UnionUpdateCompareService {
 
   /// 直接算作「下次更新候选」的曲目 id（不看 id 前沿）。
   ///
-  /// 为什么需要：候选段的判据是「union 独有 且 id 比国服前沿大」，但国服的更新
-  /// 顺序并不严格按 id —— 这几首（11815~11821，日服 2025-07-11/12 的 PRiSM PLUS
-  /// 批次）id 比当前前沿 11878 小，却会随下次更新补上。不特殊处理的话它们会掉进
-  /// 「国服未收录旧曲」那段、被当成区域限定，正好从候选里消失。
+  /// 这几首（11815~11821，日服 2025-07-11/12 的 PRiSM PLUS 批次）已确认
+  /// 待补，日期也早于当前前沿 11878（2025-08-01）。只要仍有未收录曲目，
+  /// 以这批里最早的有效首发日期下移候选起点，一并补齐其后的其他遗漏曲目。
   ///
   /// 只对 **union 独有**（水鱼没有）的曲目生效：哪天国服真上了，它们自然回到
   /// 「国服已上」，这一条不再有任何影响。
   /// 11819 目前两个源都没有，留在区间里只是为了保持 11815~11821 的可读性。
   ///
-  /// 页面上**不做任何标记**：它们本来就是 id 最小的几首，候选段那句
-  /// 「越靠前越可能先补上」已经解释了它们为什么排在最前面。
+  /// 待补曲全部被水鱼收录后，不再影响候选起点；没有日期时只保留精确 id 例外。
   static const Set<String> confirmedNextUpdateIds = {
     '11815',
     '11816',
@@ -168,14 +165,21 @@ class UnionUpdateCompareService {
   /// 日期缺失或无法解析时返回 0，调用方会用 id 做稳定回退。
   static int releaseDateKey(String raw) {
     final value = raw.trim();
-    if (value.isEmpty) return 0;
-    final parsed = DateTime.tryParse(value);
-    if (parsed != null) {
-      return parsed.year * 10000 + parsed.month * 100 + parsed.day;
+    final match = RegExp(r'^(\d{4})(\d{2})(\d{2})$').firstMatch(value) ??
+        RegExp(r'^(\d{4})-(\d{2})-(\d{2})(?:[T ].*)?$').firstMatch(value);
+    if (match == null) return 0;
+    final year = int.parse(match[1]!);
+    final month = int.parse(match[2]!);
+    final day = int.parse(match[3]!);
+    final date = DateTime.utc(year, month, day);
+    // DateTime 会把 2 月 30 日等越界日期自动进位，这里必须排除。
+    if (year < 1 ||
+        date.year != year ||
+        date.month != month ||
+        date.day != day) {
+      return 0;
     }
-    final digits = value.replaceAll(RegExp(r'[^0-9]'), '');
-    if (digits.length < 8) return 0;
-    return int.tryParse(digits.substring(0, 8)) ?? 0;
+    return year * 10000 + month * 100 + day;
   }
 
   static int compareByReleaseDateDesc(Song a, Song b) {
@@ -223,6 +227,15 @@ class UnionUpdateCompareService {
     cnRegular.sort(compareByReleaseDateDesc);
     final frontier = cnRegular.isEmpty ? null : cnRegular.first;
     final frontierId = frontier == null ? -1 : numericId(frontier.id);
+    var candidateDateFloor =
+        frontier == null ? 0 : releaseDateKey(frontier.basicInfo.releaseDate);
+    if (candidateDateFloor > 0) {
+      for (final song in unionOnly) {
+        if (!confirmedNextUpdateIds.contains(song.id)) continue;
+        final date = releaseDateKey(song.basicInfo.releaseDate);
+        if (date > 0 && date < candidateDateFloor) candidateDateFloor = date;
+      }
+    }
 
     final upcoming = <Song>[];
     final skipped = <Song>[];
@@ -231,18 +244,20 @@ class UnionUpdateCompareService {
       if (SongFilterUtil.isUtageSong(song.id)) {
         utage.add(song);
       } else if (confirmedNextUpdateIds.contains(song.id)) {
-        // 名单内（见 confirmedNextUpdateIds）：直接算候选，
-        // 不受"id 必须大于前沿"这条限制
-        upcoming.add(song);
-      } else if (numericId(song.id) > frontierId) {
+        // 已确认待补的曲目即使缺失日期，也保留在候选中。
         upcoming.add(song);
       } else {
-        skipped.add(song);
+        final date = releaseDateKey(song.basicInfo.releaseDate);
+        // 11859 / 11876 的 id 小于 11878，首发却更晚；同日曲也应纳入，
+        // 不能用 id 再挡一次。只有双方日期无法比较时才回退到原来的 id 判据。
+        final isUpcoming = candidateDateFloor > 0 && date > 0
+            ? date >= candidateDateFloor
+            : numericId(song.id) > frontierId;
+        (isUpcoming ? upcoming : skipped).add(song);
       }
     }
 
-    int byId(Song a, Song b) =>
-        numericId(a.id).compareTo(numericId(b.id));
+    int byId(Song a, Song b) => numericId(a.id).compareTo(numericId(b.id));
     upcoming.sort(byId);
     skipped.sort(byId);
     utage.sort(byId);

@@ -38,6 +38,7 @@ app.*.symbols
 
 # Obfuscation related
 app.*.map.json
+/symbols/
 
 # Android Studio will place build artifacts here
 /android/app/debug
@@ -51,21 +52,10 @@ lib/api/DeveloperToken.dart
 # Environment variables
 .env.local
 
-# ===== AWMC 网关（内部功能，暂不进版本库）=====
-# 「系统 → AWMC 网关」入口已由 lib/utils/FeatureFlags.dart 的 `awmcGateway`
-# 开关隐藏（代码全部保留在本机，随时可以再打开）。
-# ⚠️ 注意两件事：
-#   1. HomePage / SystemHubPage 仍然 import 这些文件 —— 少了它们的克隆 /
-#      新机器是**编译不过**的（入口隐藏只是 UI 层，不等于解耦）；
-#   2. 被 ignore 的文件不受 `git clean -fd` 影响，但 `git clean -xdf` 会删掉，
-#      清理工作区时务必确认，重要改动请另外备份。
+# 弃用的 AWMC 控制台已移除。同步线路、快速更新和游玩次数依赖的
+# AWMC 客户端源码随客户端追踪；旧令牌文件仍忽略，网关令牌由服务端管理。
 lib/api/AwmcToken.dart
 lib/api/AwmcTokenShow.dart
-lib/page/Awmc/
-lib/service/AWMC/
-# ⚠️ entity/AWMC 整个目录**不能**忽略：MaimaiServerStatus*.dart 是「服务器状态」
-#    在用的公开模型，只有 AwmcUserMusic.dart 属于网关
-lib/entity/AWMC/AwmcUserMusic.dart
 test/awmc_*_test.dart
 
 # AWMC 网关令牌（构建期注入用，绝不要提交）
@@ -120,3 +110,15 @@ tool/backup/
 /docs/analysis-remediation-plan.md
 /docs/interaction-updates-2026-10-07.md
 /docs/account-state-audit.md
+
+# 生产实现草案及过往一次性排版验收材料，仅本地保留。
+/docs/ranking_profile_checkin_implementation_plan.md
+/test/hub_footer_gap_test.dart
+/test/ranking_list_top_gap_test.dart
+/test/b50_card_scale_wiring_test.dart
+/test/b50_card_scale_test.dart
+/test/.fonts/NotoSansSC-Bold.ttf
+/test/shots/room_light.png
+
+# 应用图标完整回滚快照，仅本地保留。
+/.local-backups/

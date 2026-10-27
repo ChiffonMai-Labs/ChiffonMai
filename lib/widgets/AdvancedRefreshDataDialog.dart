@@ -1,3 +1,4 @@
+import 'RankingPrivacyOptions.dart';
 import '../widgets/AnimatedChoiceBar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -124,7 +125,9 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
 
   bool _participateRankings = false;
   bool _showNickname = false;
+  bool _showBriefProfile = false;
   bool _hasSavedLuoXueToken = false;
+  late final Future<void> _settingsReady;
 
   /// 用户勾选要强制刷新的缓存源 ID 集合。默认空集（全不勾选）；在 initState
   /// 里异步加载上次保存的勾选，被持久化到 SharedPreferences（key 见
@@ -148,13 +151,15 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
     _awmcQqController.text = widget.awmcQQ;
     _validities = {for (final s in CacheSourceRegistry.all) s.id: '加载中…'};
     _checkedIds = <String>{}; // 同步初始化，避免 late 在 build 之前未赋值
-    _loadRankingSettings();
+    _settingsReady = Future.wait([
+      _loadRankingSettings(),
+      _loadCheckedIds(),
+      _loadLuoXueToken(),
+    ]);
     _loadAllValidities();
-    _loadCheckedIds();
     if (_bindQQ.isNotEmpty) {
       _checkAuthorization();
     }
-    _loadLuoXueToken();
   }
 
   Future<void> _loadLuoXueToken() async {
@@ -260,6 +265,7 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
       _participateRankings =
           settings[CacheKeyConstant.participateRankings] == true;
       _showNickname = settings[CacheKeyConstant.showNickname] == true;
+      _showBriefProfile = settings[CacheKeyConstant.showBriefProfile] == true;
     });
   }
 
@@ -325,56 +331,61 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
     }
   }
 
-  Future<RefreshDataRequest?> collectRequest() async {
-    // 水鱼：三态分别给不同交代（同 RefreshDataDialog）
-    if (_currentDataSource == RefreshDataSource.shuiyu) {
-      switch (resolveDivingFishQqState(
-        loggedIn: widget.hasDivingFishLogin,
-        bindQq: _bindQQ,
-      )) {
-        case DivingFishQqState.notLoggedIn:
-          Fluttertoast.showToast(msg: '请先在「系统 → 登录水鱼」登录水鱼账号');
-          return null;
-        case DivingFishQqState.noBindQq:
-          Fluttertoast.showToast(msg: '你的水鱼账号还没绑定 QQ 号，请先到水鱼官网「编辑个人资料」里填上');
-          return null;
-        case DivingFishQqState.bound:
-          break;
-      }
-    }
-    // 落雪：没填授权码就点确认，原来会静默地「什么都不做但报成功」
-    if (_currentDataSource == RefreshDataSource.luoxue &&
-        _authCodeController.text.trim().isEmpty &&
-        !_hasSavedLuoXueToken) {
-      Fluttertoast.showToast(msg: '请先填写落雪授权码');
-      return null;
-    }
-    // AWMC NET 无需登录，但必须有 QQ 号才查得到
-    if (_currentDataSource == RefreshDataSource.awmc) {
-      final qq = _awmcQqController.text.trim();
-      if (qq.isEmpty) {
-        Fluttertoast.showToast(msg: '请输入 AWMC NET 的 QQ 号');
-        return null;
-      }
-      if (!RegExp(r'^\d{5,12}$').hasMatch(qq)) {
-        Fluttertoast.showToast(msg: 'QQ 号格式不对（应为 5–12 位数字）');
-        return null;
-      }
-    }
-    // 离线检查
-    final isOnline = await ConnectivityService().hasConnection();
-    if (!isOnline) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('当前无网络连接，无法刷新数据。请联网后重试。'),
-            duration: Duration(seconds: 3),
-          ),
-        );
-      }
-      return null;
-    }
+  Future<RefreshDataRequest?> collectRequest({bool validate = true}) async {
+    await _settingsReady;
     if (!mounted) return null;
+    // 同步表单先收集配置；缺少刷新授权只影响同步后的刷新，不阻止成绩上传。
+    if (validate) {
+      // 水鱼：三态分别给不同交代（同 RefreshDataDialog）
+      if (_currentDataSource == RefreshDataSource.shuiyu) {
+        switch (resolveDivingFishQqState(
+          loggedIn: widget.hasDivingFishLogin,
+          bindQq: _bindQQ,
+        )) {
+          case DivingFishQqState.notLoggedIn:
+            Fluttertoast.showToast(msg: '请先在「系统 → 登录水鱼」登录水鱼账号');
+            return null;
+          case DivingFishQqState.noBindQq:
+            Fluttertoast.showToast(msg: '你的水鱼账号还没绑定 QQ 号，请先到水鱼官网「编辑个人资料」里填上');
+            return null;
+          case DivingFishQqState.bound:
+            break;
+        }
+      }
+      // 落雪：没填授权码就点确认，原来会静默地「什么都不做但报成功」
+      if (_currentDataSource == RefreshDataSource.luoxue &&
+          _authCodeController.text.trim().isEmpty &&
+          !_hasSavedLuoXueToken) {
+        Fluttertoast.showToast(msg: '请先填写落雪授权码');
+        return null;
+      }
+      // AWMC NET 无需登录，但必须有 QQ 号才查得到
+      if (_currentDataSource == RefreshDataSource.awmc) {
+        final qq = _awmcQqController.text.trim();
+        if (qq.isEmpty) {
+          Fluttertoast.showToast(msg: '请输入 AWMC NET 的 QQ 号');
+          return null;
+        }
+        if (!RegExp(r'^\d{5,12}$').hasMatch(qq)) {
+          Fluttertoast.showToast(msg: 'QQ 号格式不对（应为 5–12 位数字）');
+          return null;
+        }
+      }
+      // 离线检查
+      final isOnline = await ConnectivityService().hasConnection();
+      if (!isOnline) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('当前无网络连接，无法刷新数据。请联网后重试。'),
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+        return null;
+      }
+      if (!mounted) return null;
+    }
 
     // 持久化本次勾选，下次打开对话框时自动恢复
     final prefs = await SharedPreferences.getInstance();
@@ -389,6 +400,7 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
       authCode: _authCodeController.text.trim(),
       participateRankings: _participateRankings,
       showNickname: _showNickname,
+      showBriefProfile: _showBriefProfile,
       forceFullRefresh: false, // 高级模式不依赖此字段
       forceSourceIds: Set<String>.from(_checkedIds),
       useSavedAuthorization: _currentDataSource == RefreshDataSource.luoxue &&
@@ -578,26 +590,15 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
     return Column(
       children: [
         const SizedBox(height: 16),
-        CheckboxListTile(
-          title: const Text('参与排行榜'),
-          value: _participateRankings,
-          onChanged: (value) {
-            setState(() {
-              _participateRankings = value ?? false;
-              if (!_participateRankings) _showNickname = false;
-            });
-          },
-          controlAffinity: ListTileControlAffinity.leading,
-        ),
-        if (_participateRankings)
-          CheckboxListTile(
-            title: const Text('展示昵称（不勾选则显示为匿名用户）'),
-            value: _showNickname,
-            onChanged: (value) {
-              setState(() => _showNickname = value ?? false);
-            },
-            controlAffinity: ListTileControlAffinity.leading,
-          ),
+        RankingPrivacyOptions(
+            participate: _participateRankings,
+            showNickname: _showNickname,
+            showBriefProfile: _showBriefProfile,
+            onChanged: (participate, nickname, brief) => setState(() {
+                  _participateRankings = participate;
+                  _showNickname = nickname;
+                  _showBriefProfile = brief;
+                })),
       ],
     );
   }

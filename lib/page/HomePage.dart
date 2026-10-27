@@ -1,6 +1,9 @@
+import '../service/GuessChartGame/GuessAudioService.dart';
+import 'GuessChartGame/GuessGameSettingsPage.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../widgets/MainNavigationInsets.dart';
+import '../utils/SearchInteractionPreferences.dart';
 import 'package:flutter/services.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:my_first_flutter_app/page/RankingList/AvgScoreRankingListPage.dart';
@@ -17,6 +20,8 @@ import '../constant/LoadingTipsConstant.dart';
 import '../service/HomeService.dart';
 import '../manager/LZYCheckUpdateManager.dart';
 import '../widgets/ThemePreferenceControls.dart';
+import '../widgets/AccountRegistrationGuideDialog.dart';
+import '../service/CacheManagementService.dart';
 import '../widgets/SmoothLinearProgressIndicator.dart';
 import '../utils/AppTheme.dart';
 import '../utils/AppConstants.dart';
@@ -81,7 +86,6 @@ import 'FriendLinksPage.dart';
 import 'CoverRecognitionPage.dart';
 import 'ScoreOcrPage.dart';
 import 'DataBackupPage.dart';
-import 'Awmc/AwmcConsolePage.dart';
 import 'DailyRecommendPage.dart';
 import '../widgets/RefreshDataDialog.dart'
     show
@@ -102,7 +106,6 @@ import 'RecentRatingsPage.dart';
 import '../manager/DivingFishProbeManager.dart';
 import '../manager/DivingFish/DivingFishOAuthManager.dart';
 import 'package:my_first_flutter_app/utils/FavoriteFeaturesNotifier.dart';
-import 'package:my_first_flutter_app/utils/FeatureFlags.dart';
 import 'package:my_first_flutter_app/utils/LoginStateNotifier.dart';
 import 'package:my_first_flutter_app/utils/UserProfileNotifier.dart';
 import '../widgets/AccountSwitchSheet.dart';
@@ -337,9 +340,16 @@ class _AwmcNetTokenSectionState extends State<_AwmcNetTokenSection> {
             ),
           ],
           if (_hasToken) ...[
-            const SizedBox(height: 8),
+            // 与落雪密钥区一致：紧贴「已设置」一行，去掉 TextButton 默认的上下留白。
+            const SizedBox(height: 2),
             TextButton(
               onPressed: _clear,
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                alignment: Alignment.centerLeft,
+              ),
               child: Text(
                 '清除 Token',
                 style: TextStyle(
@@ -486,13 +496,16 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
   /// 任意长任务进行中：收藏区那三个同步入口之间也要互斥，
   /// 否则能同时点起两个同步互相踩缓存（「系统」hub 页一直有这个保护）。
   @override
-  bool get anyBusy => !syncFlowsIdle || _isRefreshing;
+  bool get anyBusy => !syncFlowsIdle || _isRefreshing || CacheManagementService.instance.reloadingBase;
 
   // 初始化方法，用于从本地存储加载数据
   @override
   void initState() {
     super.initState();
     // 监听用户档案共享状态（昵称 / Rating / QQ 跨页面同步）
+    SearchInteractionPreferences.instance
+        .addListener(_onSearchInteractionChanged);
+    SearchInteractionPreferences.instance.load();
     UserProfileNotifier.instance.addListener(_onUserProfileChanged);
     _onUserProfileChanged();
     _loadUserData();
@@ -506,6 +519,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
     _initializeDataInBackground();
     // 同步入口的线路 + 统计（与「系统」hub 页共享同一份状态；重复调用幂等）
     SyncRouteNotifier.instance.addListener(_onSyncRouteChanged);
+    CacheManagementService.instance.addListener(_onSyncRouteChanged);
     SyncRouteNotifier.instance.ensureLoaded();
 
     // 在第一帧渲染完成后触发字体加载
@@ -638,7 +652,10 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
   @override
   void dispose() {
     UserProfileNotifier.instance.removeListener(_onUserProfileChanged);
+    SearchInteractionPreferences.instance
+        .removeListener(_onSearchInteractionChanged);
     SyncRouteNotifier.instance.removeListener(_onSyncRouteChanged);
+    CacheManagementService.instance.removeListener(_onSyncRouteChanged);
     _loginStateNotifier.dispose();
     super.dispose();
   }
@@ -814,7 +831,12 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
     );
   }
 
+  void _onSearchInteractionChanged() {
+    if (mounted) setState(() {});
+  }
+
   Widget _buildHomeFeatureSearch(BuildContext context) {
+    final usesOverlay = SearchInteractionPreferences.instance.usesOverlay;
     return Opacity(
       opacity: _featureSearchOpen ? 0 : 1,
       child: Row(
@@ -824,14 +846,19 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
             child: QuickSearchBar(
               padding: EdgeInsets.zero,
               query: _hubSearchQuery,
-              onTap: _openHomeFeatureSearch,
+              onTap: usesOverlay ? _openHomeFeatureSearch : null,
               onChanged: (query) {
                 if (mounted) setState(() => _hubSearchQuery = query.trim());
               },
             ),
           ),
           const SizedBox(width: 8),
-          TouchSearchButton(onPressed: _openHomeFeatureSearch),
+          TouchSearchButton(
+              onPressed: usesOverlay
+                  ? _openHomeFeatureSearch
+                  : () {
+                      FocusManager.instance.primaryFocus?.unfocus();
+                    }),
         ],
       ),
     );
@@ -964,8 +991,15 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                                 ? null
                                 : () {
                                     FocusScope.of(context).unfocus();
-                                    onSelected(entry.item);
+                                    // 必须先关搜索层再跳转：搜索层是 push 在同一个
+                                    // Navigator 上的透明路由，closeOverlay 内部就是
+                                    // Navigator.pop，弹的永远是「栈顶」而不是搜索层。
+                                    // 若先跳转后关闭，pop 会命中刚 push 的功能页——
+                                    // 功能页被弹掉、搜索层却留在栈顶进入 closing 态
+                                    // （IgnorePointer 且不再响应点击），表现就是点了
+                                    // 结果卡死，只能手势返回才恢复到首页。
                                     closeOverlay?.call();
+                                    onSelected(entry.item);
                                   },
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
@@ -2104,7 +2138,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
     );
   }
 
-  // 与「主题与交互偏好」页面使用同一组控件和缓存。
+  // 与「系统设置」页面使用同一组控件和缓存。
   void _showThemeDialog() {
     showDialog<void>(
       context: context,
@@ -2483,13 +2517,10 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
               )
             else ...[
               if (hasToken == true)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Text('已设置',
-                      style: TextStyle(
-                          color: AppColors.successGreen(brightness),
-                          fontSize: 13)),
-                )
+                Text('已设置',
+                    style: TextStyle(
+                        color: AppColors.successGreen(brightness),
+                        fontSize: 13))
               else ...[
                 Text('未设置',
                     style: TextStyle(
@@ -2599,7 +2630,9 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                 ),
               ],
               if (hasToken == true) ...[
-                const SizedBox(height: 8),
+                // 紧贴「已设置」一行：TextButton 默认有 48dp 的 tap 尺寸和内部
+                // 上下留白，不加这个紧凑样式时看起来离上面那行很远。
+                const SizedBox(height: 2),
                 TextButton(
                   onPressed: saving
                       ? null
@@ -2621,6 +2654,12 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                             if (ctx.mounted) setState(() => saving = false);
                           }
                         },
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    alignment: Alignment.centerLeft,
+                  ),
                   child: Text('清除密钥',
                       style: TextStyle(
                           color: AppColors.errorRed(brightness), fontSize: 12)),
@@ -2863,12 +2902,17 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
   Future<void> _handleFeatureTap(ButtonItem item) async {
     FocusManager.instance.primaryFocus?.unfocus();
     debugPrint("点击了：${item.title}");
+    if (item.title == '账号注册引导') {
+      await showAccountRegistrationGuide(context);
+      return;
+    }
     if (const {
       '登录 maimai Score Hub',
       '自动同步',
       '打印日志',
       '缓存管理',
       '刷新数据（高级）',
+      '刷新机台游玩次数',
     }.contains(item.title)) {
       await widget.onSystemFeatureTap?.call(item);
       return;
@@ -3074,6 +3118,21 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
         context,
         MaterialPageRoute(builder: (context) => GuessChartByBlurredCoverPage()),
       );
+    }
+    if (item.title == '单人猜歌游戏设置') {
+      Navigator.push(context,
+          MaterialPageRoute(builder: (_) => const GuessGameSettingsPage()));
+      return;
+    }
+    if (item.title == '倒放音频猜歌' || item.title == '变速变调猜歌') {
+      Navigator.push(
+          context,
+          MaterialPageRoute(
+              builder: (_) => GuessChartBySongExcerptPage(
+                  mode: item.title == '倒放音频猜歌'
+                      ? GuessAudioMode.reverseAudio
+                      : GuessAudioMode.pitchAudio)));
+      return;
     }
     if (item.title == '根据歌曲片段猜歌') {
       Navigator.push(
@@ -3401,7 +3460,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
             builder: (context) => const DifficultyDistributionPage()),
       );
     }
-    if (item.title == '主题与交互偏好') {
+    if (item.title == '系统设置') {
       _showThemeDialog();
     }
     if (item.title == '收藏夹') {
@@ -3470,14 +3529,6 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
       Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => const DataBackupPage()),
-      );
-    }
-    // 「AWMC 网关」入口默认隐藏（FeatureFlags.awmcGateway），这里跟着开关走：
-    // 入口不显示时根本点不到，留着分支是为了开关一开就立刻可用。
-    if (item.title == 'AWMC 网关' && FeatureFlags.awmcGateway) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const AwmcConsolePage()),
       );
     }
     if (item.title == '查看友情链接') {
@@ -3554,7 +3605,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
             progressValue: _syncProgressFor(item.title),
             disabled: !_sortingFavorites &&
                 _isSyncBlockedFeature(item.title) &&
-                anySyncBusy &&
+                anyBusy &&
                 !_syncBusyFor(item.title),
             footerLift: item.title == '同步成绩到 AWMC NET' || item.title == '自动同步'
                 ? SyncStatsFooter.footerLift
@@ -3660,6 +3711,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
   ///
   /// 只有这一个入口为 true 时按钮才会转；同一时刻最多一个在跑（[anyBusy] 互斥）。
   bool _syncBusyFor(String title) {
+    if (title == '缓存管理') return CacheManagementService.instance.reloadingBase;
     if (title == '同步成绩到水鱼') return syncingDivingFish;
     if (title == '同步成绩到落雪') return syncingLuoXue;
     if (title == '同步成绩到 AWMC NET') return syncingAwmcNet;
@@ -3678,10 +3730,13 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
       title == '登录水鱼' ||
       title == '登出水鱼账号' ||
       title == '刷新数据' ||
-      title == '刷新数据（高级）';
+      title == '刷新数据（高级）' ||
+      title == '缓存管理' ||
+      title == '刷新机台游玩次数';
 
   /// 收藏区某个同步入口按钮上的进度文案。
   String _syncTextFor(String title) {
+    if (title == '缓存管理') return CacheManagementService.instance.reloadText;
     if (title == '同步成绩到水鱼') return syncText;
     if (title == '同步成绩到落雪') return luoXueText;
     if (title == '同步成绩到 AWMC NET') return awmcNetText;
@@ -3690,6 +3745,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
   }
 
   double? _syncProgressFor(String title) {
+    if (title == '缓存管理') return CacheManagementService.instance.reloadProgress;
     if (title == '同步成绩到水鱼') return divingFishProgress;
     if (title == '同步成绩到落雪') return luoXueProgress;
     if (title == '同步成绩到 AWMC NET') return awmcNetProgress;

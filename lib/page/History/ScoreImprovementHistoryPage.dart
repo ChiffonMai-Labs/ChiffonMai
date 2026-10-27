@@ -11,6 +11,7 @@ import '../../utils/UserProfileNotifier.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
 import '../../widgets/NoRipple.dart';
 import '../../widgets/ScoreImprovementCard.dart';
+import '../../widgets/SongSearchEntry.dart';
 import '../SongInfoPage.dart';
 
 class ScoreImprovementHistoryPage extends StatefulWidget {
@@ -171,45 +172,11 @@ class _ScoreImprovementHistoryPageState
     }
   }
 
-  Widget _buildSearchEntry() {
-    final colors = Theme.of(context).colorScheme;
-    final fontSize = (MediaQuery.sizeOf(context).width * .04).clamp(14.0, 18.0);
-    final border = OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide(color: colors.outlineVariant));
-    return Row(children: [
-      Expanded(
-          child: TextField(
+  Widget _buildSearchEntry() => SongSearchEntry(
         controller: _search,
-        textInputAction: TextInputAction.search,
         onChanged: _searchChanged,
         onSubmitted: _submitSearch,
-        onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
-        style: TextStyle(fontSize: fontSize),
-        decoration: InputDecoration(
-          hintText: '歌名/BPM/谱师/曲师/别名/歌曲ID/...',
-          hintStyle: TextStyle(fontSize: fontSize * .875),
-          prefixIcon: const Icon(Icons.search),
-          suffixIcon: _search.text.isEmpty
-              ? null
-              : IconButton(
-                  tooltip: '清空搜索',
-                  icon: const Icon(Icons.close),
-                  onPressed: () => _submitSearch('')),
-          filled: true,
-          fillColor: colors.surfaceContainerLow,
-          border: border,
-          enabledBorder: border,
-        ),
-      )),
-      const SizedBox(width: 8),
-      IconButton.filled(
-        tooltip: '搜索',
-        onPressed: () => _submitSearch(_search.text),
-        icon: const Icon(Icons.search),
-      ),
-    ]);
-  }
+      );
 
   void _showHelp() {
     FocusManager.instance.primaryFocus?.unfocus();

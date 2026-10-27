@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:my_first_flutter_app/entity/DivingFish/Song.dart';
 import 'package:my_first_flutter_app/manager/DivingFish/MaimaiMusicDataManager.dart';
 import 'package:my_first_flutter_app/manager/SongAliasManager.dart';
+import 'package:my_first_flutter_app/service/SongSearchService.dart';
 
 class GuessSongByOpenLettersService {
   // 随机选择指定数量的歌曲
@@ -136,35 +137,9 @@ class GuessSongByOpenLettersService {
     return false;
   }
   
-  // 搜索歌曲（支持原曲名和别名）
+  // 与乐曲查询页的常规搜索共用规则，不限制结果数量。
   static Future<List<Song>> searchSongs(String query) async {
-    final allSongs = await loadAllSongs();
-    if (allSongs == null || allSongs.isEmpty) {
-      return [];
-    }
-    
-    List<Song> results = [];
-    query = query.toLowerCase();
-
-    // 搜索原曲名
-    results.addAll(allSongs
-        .where((song) => song.basicInfo.title.toLowerCase().contains(query)));
-
-    // 搜索别名
-    for (var song in allSongs) {
-      if (!results.contains(song)) {
-        // 检查别名
-        final songTitle = song.title;
-        final aliases = SongAliasManager.instance.aliases[songTitle];
-        if (aliases != null &&
-            aliases.any((alias) => alias.toLowerCase().contains(query))) {
-          results.add(song);
-        }
-      }
-    }
-
-    // 限制结果数量
-    return results.take(20).toList();
+    return SongSearchService.searchSongs(query.trim(), titleOnly: false);
   }
   
   // 判断是否是从maidata追加的歌曲（cids全为0表示从maidata解析）

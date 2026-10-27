@@ -1,3 +1,6 @@
+import '../../widgets/GuessCoverImage.dart';
+import '../../widgets/GuessGameStatusPanel.dart';
+import '../../widgets/GuessBpmHistoryFields.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'dart:async';
 import 'dart:math';
@@ -9,19 +12,21 @@ import 'package:my_first_flutter_app/entity/DivingFish/Song.dart';
 import 'package:my_first_flutter_app/entity/GuessChartGame/GuessSong.dart';
 import 'package:my_first_flutter_app/manager/MaidataManager.dart';
 import 'package:my_first_flutter_app/manager/SongAliasManager.dart';
+import 'package:my_first_flutter_app/service/SongSearchService.dart';
 import 'package:my_first_flutter_app/service/GuessChartGame/GuessChartByInfoService.dart';
 import 'package:my_first_flutter_app/service/GuessChartGame/GuessChartCommonSettingsService.dart';
 import 'package:my_first_flutter_app/utils/CommonWidgetUtil.dart';
-import 'package:my_first_flutter_app/utils/CoverUtil.dart';
 import 'package:my_first_flutter_app/utils/CommonCacheUtil.dart';
 import 'package:my_first_flutter_app/utils/StringUtil.dart';
 import 'package:my_first_flutter_app/utils/SongFilterUtil.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
+import '../../utils/ColorUtil.dart';
 import '../../utils/ExternalLaunchUtil.dart';
 import 'package:my_first_flutter_app/utils/LuoXueSongUtil.dart';
 import 'package:my_first_flutter_app/utils/RefreshRateUtil.dart';
 import 'package:my_first_flutter_app/page/SongInfoPage.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
+import '../../widgets/NoRipple.dart';
 
 /// 谱面片段猜歌（看谱猜歌）：从已缓存 maidata 的曲库中随机选一首，
 /// 随机截取一段 N 秒的谱面片段，**无声**播放谱面动画，凭「看谱」猜出歌名。
@@ -96,7 +101,8 @@ class GuessChartByChartPeekPage extends StatefulWidget {
   }
 
   /// inote 编号 → 难度名（多人「谱面片段猜歌」直接复用这一份，别再抄一遍）
-  static const Map<String, String> difficultyNames = ChartDifficulty.standardMaidataLabels;
+  static const Map<String, String> difficultyNames =
+      ChartDifficulty.standardMaidataLabels;
 
   /// 难度标签底色（与 SongMaidataPageService.inoteColorMap 同一套值）
   static const Map<String, Color> difficultyColors = {
@@ -160,6 +166,7 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
   List<Song> _searchResults = [];
   bool _isSearching = false;
   Timer? _searchTimer;
+  int _searchGeneration = 0;
   static const Duration _searchDelay = Duration(milliseconds: 800);
   bool _showSearchResults = false;
 
@@ -182,6 +189,8 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
 
   // 游戏时间记录
   DateTime? _gameStartTime;
+  bool _resultRecorded = false;
+  int _statsGeneration = 0;
 
   @override
   void initState() {
@@ -203,24 +212,25 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
 
   // 加载统计数据
   Future<void> _loadStats() async {
+    final generation = ++_statsGeneration;
     final stats = await _cacheUtil.getStats('9');
-    setState(() {
-      _stats = Map.from(stats);
-    });
+    if (!mounted || generation != _statsGeneration) return;
+    setState(() => _stats = Map.from(stats));
   }
 
   // 重置并刷新统计数据
   Future<void> _resetAndRefreshStats() async {
-    await _cacheUtil.resetStats('9');
-    final stats = await _cacheUtil.getStats('9');
-    setState(() {
-      _stats = Map.from(stats);
+    final generation = ++_statsGeneration;
+    await _cacheUtil.resetStats('9', onUpdated: (stats) {
+      if (!mounted || generation != _statsGeneration) return;
+      setState(() => _stats = Map.from(stats));
     });
   }
 
   // 加载设置
   Future<void> _loadSettings() async {
     final settings = await _settingsService.loadSettings();
+    if (!mounted) return;
     setState(() {
       _selectedVersions = settings['selectedVersions'] ?? [];
       _masterMinDx = settings['masterMinDx'] ?? 1.0;
@@ -266,9 +276,12 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
 
   // 开始新游戏：随机选一首「曲库中有谱面缓存」的歌
   Future<void> _startNewGame() async {
+    _searchTimer?.cancel();
+    _searchGeneration++;
     _countdownTimer?.cancel();
 
     await _loadSettings();
+    if (!mounted) return;
 
     setState(() {
       _isGameStarted = false;
@@ -279,7 +292,9 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
       _searchController.clear();
       _searchResults = [];
       _showSearchResults = false;
+      _isSearching = false;
       _remainingTime = _timeLimit;
+      _resultRecorded = false;
       _gameStartTime = DateTime.now();
       _clipFinished = false;
       _clipStarted = false;
@@ -648,76 +663,62 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
 
   // 记录游戏结果
   Future<void> _recordGameResult(bool isWon) async {
-    if (_gameStartTime == null) return;
+    if (_gameStartTime == null || _resultRecorded) return;
+    // 先锁定结算状态，倒计时与提交答案同时完成时也只记一局。
+    _resultRecorded = true;
     final gameTime = DateTime.now().difference(_gameStartTime!).inSeconds;
-
-    if (isWon) {
-      await _cacheUtil.recordSuccess('9');
-    } else {
-      await _cacheUtil.recordFailure('9');
-    }
-    await _cacheUtil.settleGame('9', gameTime);
-    await _loadStats();
+    final generation = ++_statsGeneration;
+    await _cacheUtil.recordGameResult(
+      '9',
+      isWon: isWon,
+      timeUsedInSeconds: gameTime,
+      onUpdated: (stats) {
+        if (!mounted || generation != _statsGeneration) return;
+        setState(() => _stats = Map.from(stats));
+      },
+    );
   }
 
   // 处理搜索输入
   void _handleSearchInput(String value) {
     _searchTimer?.cancel();
-
-    if (value.isEmpty) {
-      setState(() {
-        _searchResults = [];
-        _showSearchResults = false;
-      });
-      return;
-    }
+    final generation = ++_searchGeneration;
+    final query = value.trim();
+    setState(() {
+      _searchResults = [];
+      _showSearchResults = false;
+      _isSearching = query.isNotEmpty;
+    });
+    if (query.isEmpty) return;
 
     _searchTimer = Timer(_searchDelay, () async {
-      if (value.isEmpty) return;
-
-      setState(() {
-        _isSearching = true;
-      });
-
-      final allSongs = await GuessChartByInfoService.loadAllSongs();
-      if (allSongs != null) {
-        final results = await _searchSongs(allSongs, value);
+      if (!_isCurrentSearch(generation, query)) return;
+      try {
+        // 与乐曲查询的常规搜索共用匹配规则，保留全部结果。
+        final results =
+            await SongSearchService.searchSongs(query, titleOnly: false);
+        if (!_isCurrentSearch(generation, query)) return;
         setState(() {
-          _searchResults = results;
-          _showSearchResults = results.isNotEmpty;
+          _searchResults =
+              results.where((song) => !_isMaidataSong(song)).toList();
+          _showSearchResults = !_isGameOver && _searchResults.isNotEmpty;
           _isSearching = false;
         });
-      } else {
+      } catch (e) {
+        if (!_isCurrentSearch(generation, query)) return;
         setState(() {
           _isSearching = false;
         });
+        debugPrint('单人猜歌搜索失败: $e');
       }
     });
   }
 
-  // 搜索歌曲（支持原曲名和别名）
-  Future<List<Song>> _searchSongs(List<Song> songs, String query) async {
-    List<Song> results = [];
-    query = query.toLowerCase();
-
-    var filteredSongs =
-        songs.where((song) => !song.isExtra && !_isMaidataSong(song)).toList();
-
-    results.addAll(filteredSongs
-        .where((song) => song.basicInfo.title.toLowerCase().contains(query)));
-
-    for (var song in filteredSongs) {
-      if (!results.contains(song)) {
-        final aliases = _songAliasManager.aliases[song.title];
-        if (aliases != null &&
-            aliases.any((alias) => alias.toLowerCase().contains(query))) {
-          results.add(song);
-        }
-      }
-    }
-
-    return results.take(20).toList();
-  }
+  // 输入变更、清空、新开一局或离页后，不再回填旧搜索结果。
+  bool _isCurrentSearch(int generation, String query) =>
+      mounted &&
+      generation == _searchGeneration &&
+      _searchController.text.trim() == query;
 
   // 判断是否是从maidata追加的歌曲（cids全为0表示从maidata解析），或union独有的歌曲
   bool _isMaidataSong(Song song) {
@@ -743,6 +744,7 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
       _searchController.clear();
       _searchResults = [];
       _showSearchResults = false;
+      _isSearching = false;
       return;
     }
 
@@ -757,6 +759,7 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
       _searchController.clear();
       _searchResults = [];
       _showSearchResults = false;
+      _isSearching = false;
     });
 
     if (guessedSong.basicInfo.title == _targetSong!.basicInfo.title) {
@@ -812,8 +815,11 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
       _answerAudioFailed = false;
       _answerAudioPath = null;
     });
-    await _enterAnswerMode();
-    await _recordGameResult(isWon);
+    // 结算与音频准备并行，音源下载不能推迟统计或被计入本局用时。
+    await Future.wait([
+      _recordGameResult(isWon),
+      _enterAnswerMode(),
+    ]);
   }
 
   Future<void> _prepareAnswerAudio(Song song) async {
@@ -868,7 +874,7 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
         decoration: BoxDecoration(
           border: Border(
               bottom: BorderSide(
-                  color: AppColors.tableBorder(Theme.of(context).brightness))),
+                  color: AppColors.readableTableBorder(context))),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
@@ -881,8 +887,7 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child:
-                    CoverUtil.buildCoverWidgetWithContext(context, song.id, 60),
+                child: GuessCoverImage(songId: song.id, size: 60),
               ),
             ),
             const SizedBox(width: 12),
@@ -974,8 +979,8 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(4),
-                  child: CoverUtil.buildCoverWidgetWithContext(
-                      context, guessSong.songId.toString(), 60),
+                  child: GuessCoverImage(
+                      songId: guessSong.songId.toString(), size: 60),
                 ),
               ),
               const SizedBox(width: 12),
@@ -1039,19 +1044,23 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
           ),
           const SizedBox(height: 8),
 
+          GuessBpmHistoryFields(
+              songId: guessSong.songId.toString(),
+              targetSongId: _targetSong?.id),
+
           // 第三行：Master定数，Master谱师
           Row(
             children: [
               Expanded(
                 flex: 2,
-                child: _buildInfoItem('Master定数', guessSong.masterDs,
+                child: _buildInfoItem('MASTER定数', guessSong.masterDs,
                     guessSong.masterLevelBgColor ?? Colors.grey,
                     arrow: guessSong.masterLevelArrow),
               ),
               const SizedBox(width: 8),
               Expanded(
                 flex: 3,
-                child: _buildInfoItem('Master谱师', guessSong.masterCharter,
+                child: _buildInfoItem('MASTER谱师', guessSong.masterCharter,
                     guessSong.masterCharterBgColor ?? Colors.grey),
               ),
             ],
@@ -1064,7 +1073,7 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
               Expanded(
                 flex: 2,
                 child: _buildInfoItem(
-                    'ReMaster定数',
+                    'Re:MASTER定数',
                     guessSong.remasterDs.isNotEmpty
                         ? guessSong.remasterDs
                         : '-',
@@ -1084,7 +1093,7 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'ReMaster谱师',
+                        'Re:MASTER谱师',
                         style: TextStyle(fontSize: 10, color: Colors.white),
                       ),
                       const SizedBox(height: 2),
@@ -1177,7 +1186,7 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Master标签',
+                  'MASTER标签',
                   style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
@@ -1278,12 +1287,12 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
                 const SizedBox(height: 16),
                 const Text('绿色 - 该属性与你猜的完全一致。'),
                 const SizedBox(height: 8),
-                const Text('黄色 - 该属性与你猜的"接近"：'),
+                const Text('橙色 - 该属性与你猜的"接近"：'),
                 const SizedBox(height: 4),
                 const Text('灰色 - 该属性与你猜的"差距较大"：'),
                 const SizedBox(height: 8),
                 const Text('BPM 相差在 ±20 范围内；'),
-                const Text('Master 难度或 Re:Master 难度相差在 ±0.4范围内；'),
+                const Text('MASTER 难度或 Re:MASTER 难度相差在 ±0.4范围内；'),
                 const Text('版本相差一个世代（例如 maimai ← maimai PLUS → maimai GreeN）。'),
                 const SizedBox(height: 16),
                 const Text('箭头：'),
@@ -1293,7 +1302,7 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
                 const SizedBox(height: 16),
                 const Text('标签：'),
                 const SizedBox(height: 4),
-                const Text('显示您猜测的曲目的 Master 难度的配置、难度和评价标签。'),
+                const Text('显示您猜测的曲目的 MASTER 难度的配置、难度和评价标签。'),
                 const Text('当一个标签与目标曲目的属性一致时，该标签会变为绿色。'),
                 const Text('注意，有些曲目可能未添加标签。'),
                 const SizedBox(height: 16),
@@ -1302,18 +1311,13 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
                   onTap: () async {
                     final url = Uri.parse('https://maimai.yukineko2233.top/');
 
-                    if (!await ExternalLaunchUtil.open(url) && context.mounted) {
-
+                    if (!await ExternalLaunchUtil.open(url) &&
+                        context.mounted) {
                       await ExternalLaunchUtil.copyFallback(
-
                         context,
-
                         url.toString(),
-
                         message: '无法打开该链接，链接已复制到剪贴板',
-
                       );
-
                     }
                   },
                   child: Text(
@@ -1531,9 +1535,32 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
                               final String label = entry.value;
                               final bool selected =
                                   tempPeekDifficulties.contains(inote);
-                              return FilterChip(
+                              final color = ColorUtil.getCardColor(
+                                  ChartDifficulty.fromMaidataIndex(
+                                      int.parse(inote))!);
+                              final foreground =
+                                  ThemeData.estimateBrightnessForColor(color) ==
+                                          Brightness.dark
+                                      ? Colors.white
+                                      : Colors.black87;
+                              return NoRipple(
+                                  child: FilterChip(
                                 label: Text(label),
                                 selected: selected,
+                                selectedColor: color,
+                                checkmarkColor: foreground,
+                                labelStyle: TextStyle(
+                                    color: selected
+                                        ? foreground
+                                        : Theme.of(context)
+                                            .colorScheme
+                                            .onSurface),
+                                side: BorderSide(
+                                    color: selected
+                                        ? color
+                                        : Theme.of(context)
+                                            .colorScheme
+                                            .outlineVariant),
                                 onSelected: (value) {
                                   setState(() {
                                     if (value) {
@@ -1547,7 +1574,7 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
                                     }
                                   });
                                 },
-                              );
+                              ));
                             }).toList(),
                           ),
                         ],
@@ -1684,635 +1711,458 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
     return BackgroundPageScaffold(
       title: '猜歌（谱面片段）',
       resizeToAvoidBottomInset: false,
-      contentPadding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom + 10),
+      contentPadding:
+          EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom + 10),
       child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      double padding = screenWidth * 0.04;
+        builder: (context, constraints) {
+          double padding = screenWidth * 0.04;
 
-                      return Column(
-                        children: [
-                          Expanded(
-                            child: SingleChildScrollView(
-                              padding: EdgeInsets.fromLTRB(padding, 8, padding, padding),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  _isGameStarted
-                                      ? Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.stretch,
-                                          children: [
-                                            // 游戏状态
-                                            Container(
-                                              padding: const EdgeInsets.all(16),
-                                              decoration: BoxDecoration(
+          return Column(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.fromLTRB(padding, 8, padding, padding),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _isGameStarted
+                          ? Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                // 本局状态与每日统计共用布局。
+                                GuessGameStatusPanel(
+                                  roundLabel: '剩余次数',
+                                  roundValue: _maxGuesses > 0
+                                      ? (_maxGuesses - _guessCount)
+                                          .clamp(0, _maxGuesses)
+                                          .toString()
+                                      : '∞',
+                                  roundTotal:
+                                      _maxGuesses > 0 ? '$_maxGuesses' : '∞',
+                                  answer: _targetSong?.basicInfo.title,
+                                  stats: _stats,
+                                  onResetStats: _resetAndRefreshStats,
+                                  timeLimit: _timeLimit,
+                                  remainingTime: _remainingTime,
+                                  isGameOver: _isGameOver,
+                                  isWon: _isWon,
+                                ),
+                                const SizedBox(height: 20),
+
+                                // 谱面片段区（裸谱面 + 自制控件）
+                                // 游戏结束后保留：可无限复播且带音频对答案
+                                _buildChartClipArea(),
+                                const SizedBox(height: 10),
+                                // 播放控制行
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    // 本局播放难度的标签（带难度底色）
+                                    if (_resolvedDifficulty != null &&
+                                        GuessChartByChartPeekPage
+                                            .difficultyNames
+                                            .containsKey(_resolvedDifficulty))
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 10, vertical: 6),
+                                        decoration: BoxDecoration(
+                                          color: GuessChartByChartPeekPage
+                                                      .difficultyColors[
+                                                  _resolvedDifficulty] ??
+                                              Colors.grey,
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                        ),
+                                        child: Text(
+                                          GuessChartByChartPeekPage
+                                                      .difficultyNames[
+                                                  _resolvedDifficulty!] ??
+                                              '',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    const SizedBox(width: 10),
+                                    // 播放/暂停/复播
+                                    ElevatedButton.icon(
+                                      onPressed: (_answerAudioLoading ||
+                                              (!_isGameOver &&
+                                                  _clipFinished &&
+                                                  _replaysLeft <= 0))
+                                          ? null
+                                          : _togglePlayPause,
+                                      icon: Icon(
+                                        (_clipFinished ||
+                                                (_isGameOver &&
+                                                    !_answerAudioFailed))
+                                            ? Icons.replay
+                                            : Icons.play_arrow,
+                                        size: 20,
+                                      ),
+                                      label: Text(
+                                        _isGameOver
+                                            ? (_answerAudioLoading
+                                                ? '正在加载音频…'
+                                                : (_answerAudioFailed
+                                                    ? '复播片段（音频不可用）'
+                                                    : (_answerAudioReady
+                                                        ? '复播片段（带音频）'
+                                                        : '复播片段')))
+                                            : (!_clipStarted
+                                                ? '播放片段'
+                                                : (_clipFinished
+                                                    ? '复播$_replayLabel'
+                                                    : '暂停')),
+                                      ),
+                                      style: ElevatedButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 16),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 20),
+
+                                // 搜索输入框和结果
+                                Container(
+                                  child: Column(
+                                    children: [
+                                      Container(
+                                        decoration: BoxDecoration(
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                          border: Border.all(
+                                              color: AppColors.readableTableBorder(
+                                                  context)),
+                                        ),
+                                        child: TextField(
+                                          controller: _searchController,
+                                          onChanged: _handleSearchInput,
+                                          enabled: !_isGameOver,
+                                          decoration: const InputDecoration(
+                                            hintText: '搜索歌名、别名、编号等',
+                                            border: OutlineInputBorder(
+                                              borderRadius:
+                                                  BorderRadius.all(Radius.circular(8)),
+                                              borderSide: BorderSide.none,
+                                            ),
+                                            contentPadding: EdgeInsets.all(12),
+                                          ),
+                                        ),
+                                      ),
+                                      if (_showSearchResults &&
+                                          _searchResults.isNotEmpty)
+                                        Container(
+                                          decoration: BoxDecoration(
+                                            borderRadius:
+                                                BorderRadius.circular(8),
+                                            border: Border.all(
+                                                color: AppColors.readableTableBorder(
+                                                    context)),
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .surface,
+                                            boxShadow: [
+                                              AppColors.defaultShadow(
+                                                  brightness)
+                                            ],
+                                          ),
+                                          constraints: BoxConstraints(
+                                              maxHeight: screenHeight * 0.3),
+                                          child: ListView.builder(
+                                            padding: EdgeInsets.zero,
+                                            itemCount: _searchResults.length,
+                                            itemBuilder: (context, index) {
+                                              return _buildSearchResultItem(
+                                                  _searchResults[index]);
+                                            },
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+
+                                if (_isSearching)
+                                  Container(
+                                    margin: const EdgeInsets.only(top: 8),
+                                    padding: const EdgeInsets.all(16),
+                                    child: const Center(
+                                      child: CircularProgressIndicator(),
+                                    ),
+                                  ),
+
+                                // 按钮区域
+                                Container(
+                                  margin: const EdgeInsets.only(top: 12),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          IconButton(
+                                            icon: Icon(Icons.info_outline,
                                                 color: Theme.of(context)
                                                     .colorScheme
-                                                    .surfaceContainerHighest,
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                              ),
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  Text(
-                                                    '猜测次数: $_guessCount/${_maxGuesses > 0 ? _maxGuesses : '无限制'}',
-                                                    style: TextStyle(
-                                                        fontSize:
-                                                            screenWidth * 0.04),
-                                                  ),
-                                                  if (_timeLimit > 0)
-                                                    Text(
-                                                      '剩余时间: ${_remainingTime > 0 ? _remainingTime : 0}秒',
-                                                      style: TextStyle(
-                                                          fontSize:
-                                                              screenWidth *
-                                                                  0.04,
-                                                          color: _remainingTime /
-                                                                      _timeLimit <=
-                                                                  0.3
-                                                              ? Colors.red
-                                                              : null),
-                                                    ),
-                                                  Container(
-                                                    margin:
-                                                        const EdgeInsets.only(
-                                                            top: 8),
-                                                    child: Row(
-                                                      crossAxisAlignment:
-                                                          CrossAxisAlignment
-                                                              .start,
-                                                      children: [
-                                                        Expanded(
-                                                          child: Column(
-                                                            crossAxisAlignment:
-                                                                CrossAxisAlignment
-                                                                    .start,
-                                                            children: [
-                                                              Text(
-                                                                '今日统计: 正确${_stats['correct']} | 错误${_stats['wrong']}',
-                                                                style: TextStyle(
-                                                                    fontSize:
-                                                                        screenWidth *
-                                                                            0.04,
-                                                                    color: Theme.of(
-                                                                            context)
-                                                                        .colorScheme
-                                                                        .onSurface),
-                                                              ),
-                                                              Text(
-                                                                '正确率${_stats['accuracy'].toStringAsFixed(1)}% | 平均用时${_stats['avgTime'].toStringAsFixed(1)}秒',
-                                                                style: TextStyle(
-                                                                    fontSize:
-                                                                        screenWidth *
-                                                                            0.04,
-                                                                    color: Theme.of(
-                                                                            context)
-                                                                        .colorScheme
-                                                                        .onSurface),
-                                                              ),
-                                                            ],
-                                                          ),
-                                                        ),
-                                                        const SizedBox(
-                                                            width: 4),
-                                                        IconButton(
-                                                          padding:
-                                                              EdgeInsets.zero,
-                                                          icon: Icon(
-                                                              Icons.refresh,
-                                                              color: Theme.of(
-                                                                      context)
-                                                                  .colorScheme
-                                                                  .onSurface,
-                                                              size: 20),
-                                                          onPressed: () async {
-                                                            await _resetAndRefreshStats();
-                                                          },
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                  if (_isGameOver)
-                                                    Text(
-                                                      _isWon
-                                                          ? '恭喜你猜对了！'
-                                                          : '游戏结束，你没有猜对',
-                                                      style: TextStyle(
-                                                        fontSize:
-                                                            screenWidth * 0.04,
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                        color: _isWon
-                                                            ? AppColors
-                                                                .successGreen(
-                                                                    brightness)
-                                                            : AppColors
-                                                                .errorRed(
-                                                                    brightness),
-                                                      ),
-                                                    ),
-                                                  if (_isGameOver && !_isWon)
-                                                    Text(
-                                                      '正确答案: ${_targetSong?.basicInfo.title}',
-                                                      style: TextStyle(
-                                                        fontSize:
-                                                            screenWidth * 0.04,
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                      ),
-                                                    ),
-                                                ],
-                                              ),
+                                                    .onSurface,
+                                                size: 24),
+                                            onPressed: _showRulesDialog,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          IconButton(
+                                            icon: Icon(Icons.settings,
+                                                color: Theme.of(context)
+                                                    .colorScheme
+                                                    .onSurface,
+                                                size: 24),
+                                            onPressed: _showSettingsDialog,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          IconButton(
+                                            icon: Icon(Icons.refresh,
+                                                color: Theme.of(context)
+                                                    .colorScheme
+                                                    .onSurface,
+                                                size: 24),
+                                            onPressed: _startNewGame,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          IconButton(
+                                            icon: Icon(
+                                              _isAscending
+                                                  ? Icons.sort_by_alpha
+                                                  : Icons
+                                                      .sort_by_alpha_outlined,
+                                              color: Theme.of(context)
+                                                  .colorScheme
+                                                  .onSurface,
+                                              size: 24,
                                             ),
-                                            const SizedBox(height: 20),
+                                            onPressed: () {
+                                              setState(() {
+                                                _isAscending = !_isAscending;
+                                              });
+                                            },
+                                          ),
+                                          const SizedBox(width: 8),
+                                          if (!_isGameOver)
+                                            TextButton(
+                                              onPressed: () async {
+                                                _playerController?.pause();
+                                                // 走统一入口：置结束标记
+                                                // + 准备答案音频（否则复播无声）
+                                                await _endRound(isWon: false);
+                                              },
+                                              child: const Text('投降'),
+                                            ),
+                                          if (_isGameOver)
+                                            ElevatedButton(
+                                              onPressed: _startNewGame,
+                                              child: const Text('新游戏'),
+                                            ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
 
-                                            // 谱面片段区（裸谱面 + 自制控件）
-                                            // 游戏结束后保留：可无限复播且带音频对答案
-                                            _buildChartClipArea(),
-                                            const SizedBox(height: 10),
-                                            // 播放控制行
+                                // 游戏结果显示
+                                if (_isGameOver)
+                                  GestureDetector(
+                                    onTap: () {
+                                      if (_targetSong != null) {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) => SongInfoPage(
+                                              songId: _targetSong!.id,
+                                            ),
+                                          ),
+                                        );
+                                      }
+                                    },
+                                    child: Container(
+                                      margin: const EdgeInsets.only(top: 20),
+                                      padding: const EdgeInsets.all(16),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.guessAnswerCardBg(
+                                            brightness),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            _isWon ? '恭喜你猜对了！' : '本局答案',
+                                            style: TextStyle(
+                                              fontSize: screenWidth * 0.04,
+                                              fontWeight: FontWeight.bold,
+                                              color: _isWon
+                                                  ? AppColors.successGreen(
+                                                      brightness)
+                                                  : AppColors.linkBlue(
+                                                      brightness),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          if (_targetSong != null)
                                             Row(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment.center,
                                               children: [
-                                                // 本局播放难度的标签（带难度底色）
-                                                if (_resolvedDifficulty !=
-                                                        null &&
-                                                    GuessChartByChartPeekPage
-                                                        .difficultyNames
-                                                        .containsKey(
-                                                            _resolvedDifficulty))
-                                                  Container(
-                                                    padding: const EdgeInsets
-                                                        .symmetric(
-                                                        horizontal: 10,
-                                                        vertical: 6),
-                                                    decoration: BoxDecoration(
-                                                      color: GuessChartByChartPeekPage
-                                                                  .difficultyColors[
-                                                              _resolvedDifficulty] ??
-                                                          Colors.grey,
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                              8),
-                                                    ),
-                                                    child: Text(
-                                                      GuessChartByChartPeekPage
-                                                                  .difficultyNames[
-                                                              _resolvedDifficulty!] ??
-                                                          '',
-                                                      style: const TextStyle(
-                                                        color: Colors.white,
-                                                        fontSize: 13,
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                const SizedBox(width: 10),
-                                                // 播放/暂停/复播
-                                                ElevatedButton.icon(
-                                                  onPressed:
-                                                      (_answerAudioLoading ||
-                                                              (!_isGameOver &&
-                                                                  _clipFinished &&
-                                                                  _replaysLeft <=
-                                                                      0))
-                                                          ? null
-                                                          : _togglePlayPause,
-                                                  icon: Icon(
-                                                    (_clipFinished ||
-                                                            (_isGameOver &&
-                                                                !_answerAudioFailed))
-                                                        ? Icons.replay
-                                                        : Icons.play_arrow,
-                                                    size: 20,
-                                                  ),
-                                                  label: Text(
-                                                    _isGameOver
-                                                        ? (_answerAudioLoading
-                                                            ? '正在加载音频…'
-                                                            : (_answerAudioFailed
-                                                                ? '复播片段（音频不可用）'
-                                                                : (_answerAudioReady
-                                                                    ? '复播片段（带音频）'
-                                                                    : '复播片段')))
-                                                        : (!_clipStarted
-                                                            ? '播放片段'
-                                                            : (_clipFinished
-                                                                ? '复播$_replayLabel'
-                                                                : '暂停')),
-                                                  ),
-                                                  style:
-                                                      ElevatedButton.styleFrom(
-                                                    padding: const EdgeInsets
-                                                        .symmetric(
-                                                        horizontal: 16),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                            const SizedBox(height: 20),
-
-                                            // 搜索输入框和结果
-                                            Container(
-                                              child: Column(
-                                                children: [
-                                                  Container(
-                                                    decoration: BoxDecoration(
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                              8),
-                                                      border: Border.all(
-                                                          color: AppColors
-                                                              .tableBorder(
-                                                                  brightness)),
-                                                    ),
-                                                    child: TextField(
-                                                      controller:
-                                                          _searchController,
-                                                      onChanged:
-                                                          _handleSearchInput,
-                                                      enabled: !_isGameOver,
-                                                      decoration:
-                                                          const InputDecoration(
-                                                        hintText: '输入歌曲名称或别名',
-                                                        border:
-                                                            InputBorder.none,
-                                                        contentPadding:
-                                                            EdgeInsets.all(12),
-                                                      ),
-                                                    ),
-                                                  ),
-                                                  if (_showSearchResults &&
-                                                      _searchResults.isNotEmpty)
-                                                    Container(
-                                                      decoration: BoxDecoration(
-                                                        borderRadius:
-                                                            BorderRadius
-                                                                .circular(8),
-                                                        border: Border.all(
-                                                            color: AppColors
-                                                                .tableBorder(
-                                                                    brightness)),
-                                                        color: Theme.of(context)
-                                                            .colorScheme
-                                                            .surface,
-                                                        boxShadow: [
-                                                          AppColors
-                                                              .defaultShadow(
-                                                                  brightness)
-                                                        ],
-                                                      ),
-                                                      constraints:
-                                                          BoxConstraints(
-                                                              maxHeight:
-                                                                  screenHeight *
-                                                                      0.3),
-                                                      child: ListView.builder(
-                                                        padding:
-                                                            EdgeInsets.zero,
-                                                        itemCount:
-                                                            _searchResults
-                                                                .length,
-                                                        itemBuilder:
-                                                            (context, index) {
-                                                          return _buildSearchResultItem(
-                                                              _searchResults[
-                                                                  index]);
-                                                        },
-                                                      ),
-                                                    ),
-                                                ],
-                                              ),
-                                            ),
-
-                                            if (_isSearching)
-                                              Container(
-                                                margin: const EdgeInsets.only(
-                                                    top: 8),
-                                                padding:
-                                                    const EdgeInsets.all(16),
-                                                child: const Center(
-                                                  child:
-                                                      CircularProgressIndicator(),
-                                                ),
-                                              ),
-
-                                            // 按钮区域
-                                            Container(
-                                              margin: const EdgeInsets.only(
-                                                  top: 12),
-                                              child: Row(
-                                                mainAxisAlignment:
-                                                    MainAxisAlignment.center,
-                                                children: [
-                                                  Row(
-                                                    mainAxisSize:
-                                                        MainAxisSize.min,
-                                                    children: [
-                                                      IconButton(
-                                                        icon: Icon(
-                                                            Icons.info_outline,
-                                                            color: Theme.of(
-                                                                    context)
-                                                                .colorScheme
-                                                                .onSurface,
-                                                            size: 24),
-                                                        onPressed:
-                                                            _showRulesDialog,
-                                                      ),
-                                                      const SizedBox(width: 8),
-                                                      IconButton(
-                                                        icon: Icon(
-                                                            Icons.settings,
-                                                            color: Theme.of(
-                                                                    context)
-                                                                .colorScheme
-                                                                .onSurface,
-                                                            size: 24),
-                                                        onPressed:
-                                                            _showSettingsDialog,
-                                                      ),
-                                                      const SizedBox(width: 8),
-                                                      IconButton(
-                                                        icon: Icon(
-                                                            Icons.refresh,
-                                                            color: Theme.of(
-                                                                    context)
-                                                                .colorScheme
-                                                                .onSurface,
-                                                            size: 24),
-                                                        onPressed:
-                                                            _startNewGame,
-                                                      ),
-                                                      const SizedBox(width: 8),
-                                                      IconButton(
-                                                        icon: Icon(
-                                                          _isAscending
-                                                              ? Icons
-                                                                  .sort_by_alpha
-                                                              : Icons
-                                                                  .sort_by_alpha_outlined,
-                                                          color:
-                                                              Theme.of(context)
-                                                                  .colorScheme
-                                                                  .onSurface,
-                                                          size: 24,
-                                                        ),
-                                                        onPressed: () {
-                                                          setState(() {
-                                                            _isAscending =
-                                                                !_isAscending;
-                                                          });
-                                                        },
-                                                      ),
-                                                      const SizedBox(width: 8),
-                                                      if (!_isGameOver)
-                                                        TextButton(
-                                                          onPressed: () async {
-                                                            _playerController
-                                                                ?.pause();
-                                                            // 走统一入口：置结束标记
-                                                            // + 准备答案音频（否则复播无声）
-                                                            await _endRound(
-                                                                isWon: false);
-                                                          },
-                                                          child:
-                                                              const Text('投降'),
-                                                        ),
-                                                      if (_isGameOver)
-                                                        ElevatedButton(
-                                                          onPressed:
-                                                              _startNewGame,
-                                                          child:
-                                                              const Text('新游戏'),
-                                                        ),
-                                                    ],
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-
-                                            // 游戏结果显示
-                                            if (_isGameOver)
-                                              GestureDetector(
-                                                onTap: () {
-                                                  if (_targetSong != null) {
-                                                    Navigator.push(
-                                                      context,
-                                                      MaterialPageRoute(
-                                                        builder: (context) =>
-                                                            SongInfoPage(
-                                                          songId:
-                                                              _targetSong!.id,
-                                                        ),
-                                                      ),
-                                                    );
-                                                  }
-                                                },
-                                                child: Container(
-                                                  margin: const EdgeInsets.only(
-                                                      top: 20),
-                                                  padding:
-                                                      const EdgeInsets.all(16),
+                                                Container(
+                                                  width: 60,
+                                                  height: 60,
                                                   decoration: BoxDecoration(
-                                                    color: AppColors
-                                                        .guessAnswerCardBg(
-                                                            brightness),
                                                     borderRadius:
                                                         BorderRadius.circular(
-                                                            8),
+                                                            4),
                                                   ),
+                                                  child: ClipRRect(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            4),
+                                                    child: GuessCoverImage(
+                                                        songId: _targetSong!.id,
+                                                        size: 60),
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 12),
+                                                Expanded(
                                                   child: Column(
                                                     crossAxisAlignment:
                                                         CrossAxisAlignment
                                                             .start,
                                                     children: [
-                                                      Text(
-                                                        _isWon
-                                                            ? '恭喜你猜对了！'
-                                                            : '本局答案',
-                                                        style: TextStyle(
-                                                          fontSize:
-                                                              screenWidth *
-                                                                  0.04,
-                                                          fontWeight:
-                                                              FontWeight.bold,
-                                                          color: _isWon
-                                                              ? AppColors
-                                                                  .successGreen(
-                                                                      brightness)
-                                                              : AppColors
-                                                                  .linkBlue(
-                                                                      brightness),
-                                                        ),
+                                                      Row(
+                                                        children: [
+                                                          Text(
+                                                            _targetSong!.type ==
+                                                                    'SD'
+                                                                ? 'ST'
+                                                                : _targetSong!
+                                                                    .type,
+                                                            style: TextStyle(
+                                                              fontSize:
+                                                                  screenWidth *
+                                                                      0.035,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .bold,
+                                                              color: _targetSong!
+                                                                          .type ==
+                                                                      'SD'
+                                                                  ? Colors.blue
+                                                                  : Colors
+                                                                      .orange,
+                                                            ),
+                                                          ),
+                                                          SizedBox(width: 8),
+                                                          Expanded(
+                                                            child: Text(
+                                                              _targetSong!
+                                                                  .basicInfo
+                                                                  .title,
+                                                              style: TextStyle(
+                                                                  fontSize:
+                                                                      screenWidth *
+                                                                          0.035,
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .bold),
+                                                              overflow:
+                                                                  TextOverflow
+                                                                      .ellipsis,
+                                                            ),
+                                                          ),
+                                                        ],
                                                       ),
-                                                      const SizedBox(height: 8),
-                                                      if (_targetSong != null)
-                                                        Row(
-                                                          children: [
-                                                            Container(
-                                                              width: 60,
-                                                              height: 60,
-                                                              decoration:
-                                                                  BoxDecoration(
-                                                                borderRadius:
-                                                                    BorderRadius
-                                                                        .circular(
-                                                                            4),
-                                                              ),
-                                                              child: ClipRRect(
-                                                                borderRadius:
-                                                                    BorderRadius
-                                                                        .circular(
-                                                                            4),
-                                                                child: CoverUtil
-                                                                    .buildCoverWidgetWithContext(
-                                                                        context,
-                                                                        _targetSong!
-                                                                            .id,
-                                                                        60),
-                                                              ),
-                                                            ),
-                                                            const SizedBox(
-                                                                width: 12),
-                                                            Expanded(
-                                                              child: Column(
-                                                                crossAxisAlignment:
-                                                                    CrossAxisAlignment
-                                                                        .start,
-                                                                children: [
-                                                                  Row(
-                                                                    children: [
-                                                                      Text(
-                                                                        _targetSong!.type ==
-                                                                                'SD'
-                                                                            ? 'ST'
-                                                                            : _targetSong!.type,
-                                                                        style:
-                                                                            TextStyle(
-                                                                          fontSize:
-                                                                              screenWidth * 0.035,
-                                                                          fontWeight:
-                                                                              FontWeight.bold,
-                                                                          color: _targetSong!.type == 'SD'
-                                                                              ? Colors.blue
-                                                                              : Colors.orange,
-                                                                        ),
-                                                                      ),
-                                                                      SizedBox(
-                                                                          width:
-                                                                              8),
-                                                                      Expanded(
-                                                                        child:
-                                                                            Text(
-                                                                          _targetSong!
-                                                                              .basicInfo
-                                                                              .title,
-                                                                          style: TextStyle(
-                                                                              fontSize: screenWidth * 0.035,
-                                                                              fontWeight: FontWeight.bold),
-                                                                          overflow:
-                                                                              TextOverflow.ellipsis,
-                                                                        ),
-                                                                      ),
-                                                                    ],
-                                                                  ),
-                                                                  Text(
-                                                                    '${_targetSong!.basicInfo.artist} | ${_targetSong!.basicInfo.genre}',
-                                                                    style: TextStyle(
-                                                                        fontSize:
-                                                                            screenWidth *
-                                                                                0.03,
-                                                                        color: Theme.of(context)
-                                                                            .colorScheme
-                                                                            .onSurfaceVariant),
-                                                                    overflow:
-                                                                        TextOverflow
-                                                                            .ellipsis,
-                                                                  ),
-                                                                  Text(
-                                                                    '${_targetSong!.ds.length > 3 ? _targetSong!.ds[3].toString() : '-'} | ${_targetSong!.ds.length > 4 ? _targetSong!.ds[4].toString() : '-'} | ${StringUtil.formatVersion2WithFlag(_targetSong!.basicInfo.from, _targetSong!.isExtra)}',
-                                                                    style: TextStyle(
-                                                                        fontSize:
-                                                                            screenWidth *
-                                                                                0.03,
-                                                                        color: Theme.of(context)
-                                                                            .colorScheme
-                                                                            .onSurfaceVariant),
-                                                                    overflow:
-                                                                        TextOverflow
-                                                                            .ellipsis,
-                                                                  ),
-                                                                ],
-                                                              ),
-                                                            ),
-                                                          ],
-                                                        ),
+                                                      Text(
+                                                        '${_targetSong!.basicInfo.artist} | ${_targetSong!.basicInfo.genre}',
+                                                        style: TextStyle(
+                                                            fontSize:
+                                                                screenWidth *
+                                                                    0.03,
+                                                            color: Theme.of(
+                                                                    context)
+                                                                .colorScheme
+                                                                .onSurfaceVariant),
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                      ),
+                                                      Text(
+                                                        '${_targetSong!.ds.length > 3 ? _targetSong!.ds[3].toString() : '-'} | ${_targetSong!.ds.length > 4 ? _targetSong!.ds[4].toString() : '-'} | ${StringUtil.formatVersion2WithFlag(_targetSong!.basicInfo.from, _targetSong!.isExtra)}',
+                                                        style: TextStyle(
+                                                            fontSize:
+                                                                screenWidth *
+                                                                    0.03,
+                                                            color: Theme.of(
+                                                                    context)
+                                                                .colorScheme
+                                                                .onSurfaceVariant),
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                      ),
                                                     ],
                                                   ),
                                                 ),
-                                              ),
+                                              ],
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
 
-                                            const SizedBox(height: 20),
+                                const SizedBox(height: 20),
 
-                                            // 猜测历史
-                                            if (_guessHistory.isNotEmpty)
-                                              Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  Text(
-                                                    '猜测历史',
-                                                    style: TextStyle(
-                                                      fontSize:
-                                                          screenWidth * 0.045,
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                    ),
-                                                  ),
-                                                  const SizedBox(height: 12),
-                                                  ...(_isAscending
-                                                          ? _guessHistory
-                                                          : _guessHistory
-                                                              .reversed
-                                                              .toList())
-                                                      .asMap()
-                                                      .entries
-                                                      .map((entry) {
-                                                    int displayIndex =
-                                                        _isAscending
-                                                            ? entry.key
-                                                            : _guessHistory
-                                                                    .length -
-                                                                1 -
-                                                                entry.key;
-                                                    return _buildGuessHistoryItem(
-                                                        entry.value,
-                                                        displayIndex);
-                                                  }),
-                                                ],
-                                              ),
-                                          ],
-                                        )
-                                      : Center(
-                                          child: Padding(
-                                            padding: EdgeInsets.all(
-                                                screenHeight * 0.1),
-                                            child: CircularProgressIndicator(),
-                                          ),
+                                // 猜测历史
+                                if (_guessHistory.isNotEmpty)
+                                  Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        '猜测历史',
+                                        style: TextStyle(
+                                          fontSize: screenWidth * 0.045,
+                                          fontWeight: FontWeight.bold,
                                         ),
-                                ],
+                                      ),
+                                      const SizedBox(height: 12),
+                                      ...(_isAscending
+                                              ? _guessHistory
+                                              : _guessHistory.reversed.toList())
+                                          .asMap()
+                                          .entries
+                                          .map((entry) {
+                                        int displayIndex = _isAscending
+                                            ? entry.key
+                                            : _guessHistory.length -
+                                                1 -
+                                                entry.key;
+                                        return _buildGuessHistoryItem(
+                                            entry.value, displayIndex);
+                                      }),
+                                    ],
+                                  ),
+                              ],
+                            )
+                          : Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(screenHeight * 0.1),
+                                child: CircularProgressIndicator(),
                               ),
                             ),
-                          ),
-                        ],
-                      );
-                    },
+                    ],
                   ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 }

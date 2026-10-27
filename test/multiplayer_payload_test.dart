@@ -14,8 +14,15 @@ import 'package:my_first_flutter_app/entity/Multiplayer/RoomEntity.dart';
 import 'package:my_first_flutter_app/entity/Multiplayer/GameType.dart';
 
 const List<String> _modes = [
-  'info', 'cover', 'blurred', 'audio', 'alia', 'letters',
-  'flash', 'tileReveal', 'chartPeek',
+  'info',
+  'cover',
+  'blurred',
+  'audio',
+  'alia',
+  'letters',
+  'flash',
+  'tileReveal',
+  'chartPeek',
 ];
 
 // 采集结果里存在两种层级，必须分开取：
@@ -77,7 +84,8 @@ void main() {
             _stateOfPayload(entry['round_start'] as Map<String, dynamic>));
         // 这两个字段缺失会让客户端倒计时回落到默认 60 秒
         expect(state.timeLimit, 40, reason: 'timeLimit 应随 gameState 下发');
-        expect(state.timeRemaining, greaterThan(0), reason: 'timeRemaining 应有值');
+        expect(state.timeRemaining, greaterThan(0),
+            reason: 'timeRemaining 应有值');
         expect(state.timeRemaining, lessThanOrEqualTo(40),
             reason: 'timeRemaining 不应超过房间设置');
       });
@@ -88,14 +96,20 @@ void main() {
     // letters 模式走的是「开字母 + 猜歌」流程，采集时没有单独抓 wrong/right
     // 报文，它的猜测记录在下面的 letters 分组里单独验证。
     const guessModes = [
-      'info', 'cover', 'blurred', 'audio', 'alia',
-      'flash', 'tileReveal', 'chartPeek',
+      'info',
+      'cover',
+      'blurred',
+      'audio',
+      'alia',
+      'flash',
+      'tileReveal',
+      'chartPeek',
     ];
     for (final mode in guessModes) {
       test('$mode: 猜错的记录判 false 且得 0 分', () {
         final guess = GuessRecord.fromJson(
-            _payload(fixtures['${mode}_wrong_guess'] as Map<String, dynamic>)['guess']
-                as Map<String, dynamic>);
+            _payload(fixtures['${mode}_wrong_guess'] as Map<String, dynamic>)[
+                'guess'] as Map<String, dynamic>);
         expect(guess.isCorrect, isFalse);
         expect(guess.score, 0);
         expect(guess.playerNickname, isNotEmpty);
@@ -104,8 +118,8 @@ void main() {
 
       test('$mode: 猜对的记录判 true 且分数在合理范围', () {
         final guess = GuessRecord.fromJson(
-            _payload(fixtures['${mode}_right_guess'] as Map<String, dynamic>)['guess']
-                as Map<String, dynamic>);
+            _payload(fixtures['${mode}_right_guess'] as Map<String, dynamic>)[
+                'guess'] as Map<String, dynamic>);
         expect(guess.isCorrect, isTrue);
         // 得分上限 100（立即作答），下限 10
         expect(guess.score, inInclusiveRange(10, 100),
@@ -116,13 +130,18 @@ void main() {
 
   group('回合结束状态', () {
     for (final mode in [
-      'info', 'cover', 'blurred', 'audio', 'alia',
-      'flash', 'tileReveal', 'chartPeek',
+      'info',
+      'cover',
+      'blurred',
+      'audio',
+      'alia',
+      'flash',
+      'tileReveal',
+      'chartPeek',
     ]) {
       test('$mode: round_over 后 isRoundOver=true', () {
-        final state = GameStateEntity.fromJson(
-            _stateOfMessage(
-                fixtures['${mode}_round_over'] as Map<String, dynamic>));
+        final state = GameStateEntity.fromJson(_stateOfMessage(
+            fixtures['${mode}_round_over'] as Map<String, dynamic>));
         expect(state.isRoundOver, isTrue);
         expect(state.isGameOver, isFalse, reason: '还有后续回合');
       });
@@ -151,9 +170,8 @@ void main() {
     });
 
     test('开字母后掩码揭示对应字符', () {
-      final afterOpen = GameStateEntity.fromJson(
-          _stateOfMessage(
-              fixtures['letters_after_open'] as Map<String, dynamic>));
+      final afterOpen = GameStateEntity.fromJson(_stateOfMessage(
+          fixtures['letters_after_open'] as Map<String, dynamic>));
       final opened = afterOpen.openedLetters;
       expect(opened, isNotEmpty, reason: '应记录已开字母');
 
@@ -161,32 +179,27 @@ void main() {
       final changed = afterOpen.maskedTitles.values
           .where((m) => m.contains(letter))
           .toList();
-      expect(changed, isNotEmpty,
-          reason: '开字母「$letter」后，至少一个掩码应包含该字符');
+      expect(changed, isNotEmpty, reason: '开字母「$letter」后，至少一个掩码应包含该字符');
     });
 
     test('猜中一首后 foundSongIds 增加，且该曲公开完整曲名', () {
-      final before = GameStateEntity.fromJson(
-          _stateOfMessage(
-              fixtures['letters_after_open'] as Map<String, dynamic>));
-      final afterGuess = GameStateEntity.fromJson(
-          _stateOfMessage(
-              fixtures['letters_after_guess'] as Map<String, dynamic>));
+      final before = GameStateEntity.fromJson(_stateOfMessage(
+          fixtures['letters_after_open'] as Map<String, dynamic>));
+      final afterGuess = GameStateEntity.fromJson(_stateOfMessage(
+          fixtures['letters_after_guess'] as Map<String, dynamic>));
 
-      expect(afterGuess.foundSongIds.length, greaterThan(before.foundSongIds.length),
+      expect(afterGuess.foundSongIds.length,
+          greaterThan(before.foundSongIds.length),
           reason: '猜中后应记录到 foundSongIds');
       final foundId = afterGuess.foundSongIds.last;
       final masked = afterGuess.maskedTitles[foundId]!;
-      expect(masked.contains('□'), isFalse,
-          reason: '已猜中的曲目应公开完整曲名，实际=$masked');
+      expect(masked.contains('□'), isFalse, reason: '已猜中的曲目应公开完整曲名，实际=$masked');
     });
 
     test('猜中一首不结束回合（还有未猜中的曲目）', () {
-      final afterGuess = GameStateEntity.fromJson(
-          _stateOfMessage(
-              fixtures['letters_after_guess'] as Map<String, dynamic>));
-      expect(afterGuess.isRoundOver, isFalse,
-          reason: 'letters 需全部猜中才结束回合');
+      final afterGuess = GameStateEntity.fromJson(_stateOfMessage(
+          fixtures['letters_after_guess'] as Map<String, dynamic>));
+      expect(afterGuess.isRoundOver, isFalse, reason: 'letters 需全部猜中才结束回合');
     });
 
     test('letters 的猜中记录同样判 true 且得分在合理范围', () {
@@ -201,8 +214,8 @@ void main() {
     });
 
     test('开字母回执带 letter 与 openedLetters', () {
-      final receipt = _payload(
-          fixtures['letters_letter_opened'] as Map<String, dynamic>);
+      final receipt =
+          _payload(fixtures['letters_letter_opened'] as Map<String, dynamic>);
       expect(receipt['success'], isTrue);
       expect(receipt['letter'], isNotEmpty);
       expect((receipt['openedLetters'] as List), isNotEmpty);
@@ -216,11 +229,9 @@ void main() {
     // 快照，必须能解析出来。
     for (final mode in _modes) {
       test('$mode: gameState.players 可解析且分数为整数', () {
-        final state = GameStateEntity.fromJson(
-            _stateOfPayload((fixtures[mode] as Map<String, dynamic>)['round_start']
-                as Map<String, dynamic>));
-        expect(state.players, isNotEmpty,
-            reason: 'gameState 应下发玩家分数快照');
+        final state = GameStateEntity.fromJson(_stateOfPayload((fixtures[mode]
+            as Map<String, dynamic>)['round_start'] as Map<String, dynamic>));
+        expect(state.players, isNotEmpty, reason: 'gameState 应下发玩家分数快照');
         for (final player in state.players) {
           expect(player.playerId, isNotEmpty);
           expect(player.nickname, isNotEmpty);
@@ -237,11 +248,9 @@ void main() {
             _stateOfMessage(over as Map<String, dynamic>));
         expect(state.players, isNotEmpty);
         // 结算后至少要有人拿到分（采集脚本里每个模式都完成了一回合）
-        final total = state.players
-            .map((p) => p.score)
-            .fold<int>(0, (acc, s) => acc + s);
-        expect(total, greaterThan(0),
-            reason: 'round_over 快照应含本回合结算出来的分数');
+        final total =
+            state.players.map((p) => p.score).fold<int>(0, (acc, s) => acc + s);
+        expect(total, greaterThan(0), reason: 'round_over 快照应含本回合结算出来的分数');
       });
     }
 
@@ -296,8 +305,7 @@ void main() {
           {'id': 'p2', 'nickname': '乙', 'score': 100},
         ],
       ));
-      expect(state.winners, ['p1', 'p2'],
-          reason: '同分应并列获胜，不能靠排序先后定输赢');
+      expect(state.winners, ['p1', 'p2'], reason: '同分应并列获胜，不能靠排序先后定输赢');
     });
 
     test('全场无人得分时 winners 为空（平局）', () {
@@ -309,8 +317,7 @@ void main() {
         ],
       ));
       expect(state.isGameOver, isTrue);
-      expect(state.winners, isEmpty,
-          reason: '全员 0 分是平局，不是「获胜」');
+      expect(state.winners, isEmpty, reason: '全员 0 分是平局，不是「获胜」');
     });
 
     test('回合进行中不含 winners（避免提前弹获胜）', () {
@@ -386,8 +393,7 @@ void main() {
       expect(room.tileCount, 1000);
       expect(room.tileRevealIntervalMs, 1500);
       expect(room.peekDurationSeconds, 8);
-      expect(room.peekDifficulties, ['4'],
-          reason: '难度池缺省应与单人谱面片段猜歌一致（EXPERT）');
+      expect(room.peekDifficulties, ['4'], reason: '难度池缺省应与单人谱面片段猜歌一致（EXPERT）');
     });
 
     test('中文游戏类型名也能解析（兼容旧服务端）', () {
@@ -453,7 +459,8 @@ void main() {
       });
       final merged = created.withModeSettingsFallback(created);
       expect(merged.tileCount, RoomEntity.defaultTileCount);
-      expect(merged.tileRevealIntervalMs, RoomEntity.defaultTileRevealIntervalMs);
+      expect(
+          merged.tileRevealIntervalMs, RoomEntity.defaultTileRevealIntervalMs);
       expect(merged.peekDifficulties, RoomEntity.defaultPeekDifficulties);
     });
 
@@ -465,7 +472,7 @@ void main() {
         expect(type.description.trim(), isNotEmpty,
             reason: '${type.apiKey} 缺描述');
       }
-      expect(GameType.values.length, 9);
+      expect(GameType.values.length, 11);
     });
   });
 }

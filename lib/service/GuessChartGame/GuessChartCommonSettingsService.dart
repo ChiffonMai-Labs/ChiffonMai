@@ -3,7 +3,8 @@ import 'GuessChartSettingsStore.dart';
 
 class GuessChartCommonSettingsService {
   // 单例模式
-  static final GuessChartCommonSettingsService _instance = GuessChartCommonSettingsService._internal();
+  static final GuessChartCommonSettingsService _instance =
+      GuessChartCommonSettingsService._internal();
   factory GuessChartCommonSettingsService() => _instance;
   GuessChartCommonSettingsService._internal();
 
@@ -27,14 +28,21 @@ class GuessChartCommonSettingsService {
     '4'
   ]; // 谱面片段猜歌的难度随机池（inote 编号），默认 EXPERT
   static const int defaultPlayDurationSeconds = 5; // 歌曲片段猜歌的播放时长，默认5秒
+  static const double defaultAudioRate = 1.25;
+  static const double minAudioRate = 0.1;
+  static const double maxAudioRate = 5.0;
+  static const String _audioRateKey = CacheKeyConstant.guessChartAudioRate;
+
+  static double normalizeAudioRate(num? value) =>
+      value == null || !value.isFinite
+          ? defaultAudioRate
+          : value.toDouble().clamp(minAudioRate, maxAudioRate);
 
   /// 合法的难度编号（inote）。与页面 `GuessChartByChartPeekPage._difficultyNames`
   /// 保持同一套取值：**没有 '1'**（BASIC 是 '2'）。
   /// 原先这里写成 {'1'...'6'}，比实际可选的难度多了一个不存在的 '1'，
   /// 真正接入校验时会放进一个永远取不到谱面的难度。
-  static const Set<String> allowedDifficultyInotes = {
-    '2', '3', '4', '5', '6'
-  };
+  static const Set<String> allowedDifficultyInotes = {'2', '3', '4', '5', '6'};
 
   // 保存设置
   Future<void> saveSettings({
@@ -53,6 +61,7 @@ class GuessChartCommonSettingsService {
     int? peekDurationSeconds,
     List<String>? peekDifficulties,
     int? playDurationSeconds,
+    double? audioRate,
   }) async {
     final values = <String, Object>{
       CacheKeyConstant.guessChartSelectedVersions: selectedVersions,
@@ -62,6 +71,9 @@ class GuessChartCommonSettingsService {
       CacheKeyConstant.guessChartMaxGuesses: maxGuesses,
       CacheKeyConstant.guessChartTimeLimit: timeLimit,
     };
+    if (audioRate != null) {
+      values[_audioRateKey] = normalizeAudioRate(audioRate);
+    }
     if (blurLevel != null) {
       values[CacheKeyConstant.guessChartBlurLevel] = blurLevel;
     }
@@ -106,7 +118,9 @@ class GuessChartCommonSettingsService {
       return value is T ? value : fallback;
     }
 
+    final audioRate = values[_audioRateKey];
     return {
+      'audioRate': normalizeAudioRate(audioRate is num ? audioRate : null),
       'selectedVersions': stringList(
         CacheKeyConstant.guessChartSelectedVersions,
         defaultSelectedVersions,
@@ -171,6 +185,7 @@ class GuessChartCommonSettingsService {
   }
 
   static const Set<String> _settingsKeys = {
+    _audioRateKey,
     CacheKeyConstant.guessChartSelectedVersions,
     CacheKeyConstant.guessChartMasterMinDx,
     CacheKeyConstant.guessChartMasterMaxDx,
@@ -206,6 +221,7 @@ class GuessChartCommonSettingsService {
       peekDurationSeconds: defaultPeekDurationSeconds,
       peekDifficulties: defaultPeekDifficulties,
       playDurationSeconds: defaultPlayDurationSeconds,
+      audioRate: defaultAudioRate,
     );
   }
 
@@ -219,6 +235,7 @@ class GuessChartCommonSettingsService {
   /// `test/guess_settings_test.dart` 会断言它和 [resetToDefault] 之后
   /// [loadSettings] 的结果一致，防止两边再次走偏。
   Map<String, dynamic> defaultSettings() => {
+        'audioRate': defaultAudioRate,
         'selectedVersions': List<String>.from(defaultSelectedVersions),
         'masterMinDx': defaultMasterMinDx,
         'masterMaxDx': defaultMasterMaxDx,
@@ -238,6 +255,11 @@ class GuessChartCommonSettingsService {
 
   // 验证设置
   bool validateSettings(Map<String, dynamic> settings) {
+    final rate =
+        (settings['audioRate'] as num?)?.toDouble() ?? defaultAudioRate;
+    if (!rate.isFinite || rate < minAudioRate || rate > maxAudioRate) {
+      return false;
+    }
     // 检查MASTER定数范围
     double minDx = settings['masterMinDx'] ?? defaultMasterMinDx;
     double maxDx = settings['masterMaxDx'] ?? defaultMasterMaxDx;
@@ -247,7 +269,8 @@ class GuessChartCommonSettingsService {
 
     // 检查猜测次数
     int maxGuesses = settings['maxGuesses'] ?? defaultMaxGuesses;
-    if (maxGuesses < 1 && maxGuesses != 0) { // 0表示无限制
+    if (maxGuesses < 1 && maxGuesses != 0) {
+      // 0表示无限制
       return false;
     }
 
@@ -270,7 +293,8 @@ class GuessChartCommonSettingsService {
     }
 
     // 检查非英文字符占比阈值
-    int nonEnglishCharThreshold = settings['nonEnglishCharThreshold'] ?? defaultNonEnglishCharThreshold;
+    int nonEnglishCharThreshold =
+        settings['nonEnglishCharThreshold'] ?? defaultNonEnglishCharThreshold;
     if (nonEnglishCharThreshold < 0 || nonEnglishCharThreshold > 100) {
       return false;
     }
@@ -288,20 +312,23 @@ class GuessChartCommonSettingsService {
     }
 
     // 检查小块揭示间隔
-    int tileRevealIntervalMs = settings['tileRevealIntervalMs'] ?? defaultTileRevealIntervalMs;
+    int tileRevealIntervalMs =
+        settings['tileRevealIntervalMs'] ?? defaultTileRevealIntervalMs;
     if (tileRevealIntervalMs < 100 || tileRevealIntervalMs > 10000) {
       return false;
     }
 
     // 检查谱面片段时长
-    int peekDurationSeconds = settings['peekDurationSeconds'] ?? defaultPeekDurationSeconds;
+    int peekDurationSeconds =
+        settings['peekDurationSeconds'] ?? defaultPeekDurationSeconds;
     if (peekDurationSeconds < 3 || peekDurationSeconds > 60) {
       return false;
     }
 
     // 检查谱面片段难度池（允许的 inote 编号）
     final List<String> peekDifficulties =
-        (settings['peekDifficulties'] as List?)?.cast<String>() ?? defaultPeekDifficulties;
+        (settings['peekDifficulties'] as List?)?.cast<String>() ??
+            defaultPeekDifficulties;
     if (peekDifficulties.isEmpty ||
         peekDifficulties.any((d) => !allowedDifficultyInotes.contains(d))) {
       return false;

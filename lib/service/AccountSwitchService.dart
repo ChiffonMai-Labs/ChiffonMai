@@ -15,6 +15,7 @@ import 'AWMC/AwmcPlayCountStore.dart';
 import 'History/ChartHistoryStore.dart';
 import 'PaiziProgressService.dart';
 import 'PersonalizedScoreService.dart';
+import 'PlayerExperienceService.dart';
 
 enum SwitchOutcome { switched, noCache, sameSource, busy, failed }
 
@@ -26,12 +27,23 @@ class AccountSwitchService {
   static bool _busy = false;
   static int revision = 0;
   static final Object _refreshScope = Object();
+  static final Object _refreshGuard = Object();
+  static final Object _expectedRefreshIdentity = Object();
   static Future<void>? _initializing;
   static bool get isBusy => _busy;
 
   static void requireIdle() {
     if (_busy) throw StateError('账号数据正在更新，请完成后重试');
   }
+
+  /// 同步等待期间允许切换账号；自动刷新在真正获取活动槽锁时再核对快照。
+  static Future<T> guardedRefresh<T>(
+          bool Function() isCurrent, Future<T> Function() body,
+          {String? accountId}) =>
+      runZoned(body, zoneValues: {
+        _refreshGuard: isCurrent,
+        _expectedRefreshIdentity: accountId,
+      });
 
   static void _invalidateRecords() {
     PersonalizedScoreService().clearRecordsCache();
@@ -110,10 +122,14 @@ class AccountSwitchService {
       RefreshDataSource source, Future<T> Function() body) async {
     await ensureMigrated();
     requireIdle();
+    final guard = Zone.current[_refreshGuard] as bool Function()?;
     _busy = true;
-    revision++;
     final previous = CurrentDataSourceNotifier.instance.value;
     try {
+      if (guard != null && !guard()) {
+        throw StateError('账号已切换，已跳过本次同步后的数据刷新');
+      }
+      revision++;
       await AccountStore.writeActiveSlotToArchive(previous.key);
       await _pending(previous, target: source);
       // 无缓存目标也要清空旧活动槽，再明确切到目标源。
@@ -124,6 +140,15 @@ class AccountSwitchService {
           await AccountStore.buildMetaFromActiveSlot(source));
       await _publish(source);
       await _finish();
+      // AWMC 当前按 QQ 确认归属；另两源由各自登录／授权成功入口通知。
+      if (source == RefreshDataSource.awmc) {
+        final prefs = await SharedPreferences.getInstance();
+        final player = prefs.getString(source.userIdCacheKey);
+        if (player != null) {
+          unawaited(PlayerExperienceService.instance
+              .onAccountAuthenticated(player));
+        }
+      }
       return result;
     } catch (_) {
       await _restorePending();
@@ -145,6 +170,10 @@ class AccountSwitchService {
   static Future<void> bindIdentity(RefreshDataSource source, String id) async {
     requireRefresh(source);
     if (id.isEmpty) throw StateError('账号 ID 不能为空');
+    final expected = Zone.current[_expectedRefreshIdentity] as String?;
+    if (expected != null && expected.isNotEmpty && id != expected) {
+      throw StateError('返回的数据属于其他账号，已取消本次自动刷新');
+    }
     final prefs = await SharedPreferences.getInstance();
     final oldId = RefreshDataSource.parseUserIdMarker(
             prefs.getString(source.userIdCacheKey)) ??

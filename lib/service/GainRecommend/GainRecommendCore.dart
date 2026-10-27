@@ -15,7 +15,14 @@ library;
 
 const String gainRouteConfigVersion = 'gain-routes-v3';
 const List<double> gainTargetLadder = [97.0, 98.0, 99.0, 99.5, 100.0, 100.5];
+/// Rating 计算用的达成率封顶：超过 100.5% 一律按 100.5% 折算单曲 RA。
 const double gainAchvCap = 100.5;
+
+/// 成绩合法上限：舞萌达成率最高 101.0000%（AP+，全 PERFECT 且 BREAK 全 PERFECT）。
+///
+/// 注意别拿 [gainAchvCap] 当校验上界：那样会把所有 100.5% 以上的 AP+ 成绩
+/// 当成脏数据整条丢掉，B35/B15 里最顶上的一批谱就没了，B50 总 Rating 会明显偏低。
+const double gainAchvMaxValid = 101.0;
 const double gainStableMaxNeed = 0.20; // 稳妥：提升 ≤ 0.20pp
 const double gainChallengeMaxNeed = 0.80; // 挑战：提升 ≤ 0.80pp
 const int gainPageSize = 12;
@@ -259,7 +266,7 @@ List<GainChartRecord> normalizeGainRecords(Iterable<GainChartRecord> raw) {
         !r.achievements.isFinite ||
         r.ds <= 0 ||
         r.achievements <= 0 ||
-        r.achievements > gainAchvCap) {
+        r.achievements > gainAchvMaxValid) {
       continue;
     }
     final prev = best[r.key];

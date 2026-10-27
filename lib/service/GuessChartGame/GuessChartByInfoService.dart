@@ -15,7 +15,7 @@ import 'package:my_first_flutter_app/utils/AppTheme.dart';
    * 猜歌过程
    * 提示说明
      绿色 - 该属性与你猜的完全一致。
-     黄色 - 该属性与你猜的“接近”：
+     橙色 - 该属性与你猜的“接近”：
      灰色 - 该属性与你猜的“差距较大”：
      BPM 相差在 ±20 范围内；
      Master 难度或 Re:Master 难度相差在 ±0.4范围内；

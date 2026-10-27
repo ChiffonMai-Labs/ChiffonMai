@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import '../utils/CoverUtil.dart';
 
 /// Best50 系列卡片通用 widget。
-/// 采用两段式布局：上方 70% 卡色背景（曲绘 + 歌名 + 达成率 + 定数→RA | 分数/满分），
-/// 下方 30% 白底（谱面 ID + 类型 chip + 评级 + FC + FS + 星数）。
+/// 采用两段式布局：上方 73% 卡色背景（曲绘 + 歌名 + 达成率 + 定数→RA | 分数/满分），
+/// 下方 27% 白底（谱面 ID + 类型 chip + 评级 + FC + FS + 星数）。
 ///
 /// 字号常量的标定基准是「导出图片单卡实际可见宽度」[refCardWidth] = 335，
 /// 通过 [scale] 适配不同使用场景：
@@ -28,7 +28,7 @@ class B50GameCardWidget extends StatelessWidget {
   /// 360 屏估 178.2、真实格子 163.4（1.09 倍）。换成真实宽度后卡片内容
   /// 整体小了 ~9%，这里在**屏幕口径**上把这一截还回来。
   ///
-  /// 旧尺寸**装得下**（上半区 7:3 + 现有内边距实测还有 ~4% 余量）：
+  /// 旧尺寸**装得下**（原 7:3 分区 + 现有内边距实测还有 ~4% 余量）：
   /// `test/b50_card_scale_test.dart` 按格子宽 145~335 × dpr 2.75/3.0 逐个核对
   /// 「上半区装得下 + 后代不出卡片」；320~480 屏的「真实格子 / 旧估算」实测
   /// 落在 1.082~1.097，取中值 1.088。
@@ -64,7 +64,7 @@ class B50GameCardWidget extends StatelessWidget {
         : 1.0;
   }
 
-  /// 卡片的设计宽高比（由"上下 7:3 定高"决定）。
+  /// 卡片的固定设计宽高比，调整内部分区占比时保持此值不变。
   ///
   /// 页面摆放时**高度要按这个比例跟着宽度走**：卡片内部是定高分区 + 按宽度
   /// 缩放的字号，高度给错了会挤到溢出。
@@ -162,7 +162,7 @@ class B50GameCardWidget extends StatelessWidget {
 
   /// 在卡片上**叠**一枚角标（PC50 的 `PC 1234` 就是它）。
   ///
-  /// 刻意做成叠层、而不是往卡里塞一个格子：卡片上下两块是 7:3 定高，
+  /// 刻意做成叠层、而不是往卡里塞一个格子：卡片上下两块按比例定高，
   /// 加内容会把里面挤到溢出（调试期就是黄黑条）。位置用本组件的设计稿常量 ——
   /// 内边距 [10.2] + 曲绘 [100] 高的正下方，那块区域是空的，
   /// 不压歌名 / 达成率 / `定数 → RA  DX分`，也碰不到下方白色信息条。
@@ -305,14 +305,14 @@ class B50GameCardWidget extends StatelessWidget {
     final String diffMain = diffParts[0];
     final String diffDecimal = '.${diffParts[1]}';
 
-    // 卡片下方 30% 区域固定使用白色背景 + 深色文字，
+    // 卡片下方 27% 区域固定使用白色背景 + 深色文字，
     // 避免深色 / 浅色模式影响屏幕显示与导出图片效果，保证导出一致性。
     const Color cardBottomBg = Colors.white;
     const Color cardBottomText = Colors.black;
 
     return Container(
       decoration: BoxDecoration(
-        // 外层填色：上半 cardColor / 下半白色，70% 处硬切换。
+        // 外层填色：上半 cardColor / 下半白色，73% 处硬切换。
         // 同时充当 border 缝隙（ClipRRect 因 border 内缩 2px 留出的几像素环）
         // 的兜底，让圆角四周都能被正确颜色覆盖。
         gradient: LinearGradient(
@@ -324,7 +324,7 @@ class B50GameCardWidget extends StatelessWidget {
             cardBottomBg,
             cardBottomBg,
           ],
-          stops: const [0.0, 0.7, 0.7, 1.0],
+          stops: const [0.0, 0.73, 0.73, 1.0],
         ),
         border: Border.all(color: Colors.black, width: 2.0),
         borderRadius: BorderRadius.circular(8.0),
@@ -334,9 +334,9 @@ class B50GameCardWidget extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.max,
           children: [
-            // ★ 上方 70%（卡色）：曲绘顶对齐 + 三行信息
+            // ★ 上方 73%（卡色）：曲绘顶对齐 + 三行信息
             Expanded(
-              flex: 7,
+              flex: 73,
               child: Container(
                 decoration: BoxDecoration(
                   color: cardColor,
@@ -423,9 +423,9 @@ class B50GameCardWidget extends StatelessWidget {
                 ),
               ),
             ),
-            // ★ 下方 30%：固定白色背景 + 深色文字，导出图片与屏幕显示一致
+            // ★ 下方 27%：固定白色背景 + 深色文字，导出图片与屏幕显示一致
             Expanded(
-              flex: 3,
+              flex: 27,
               child: Container(
                 decoration: BoxDecoration(
                   color: cardBottomBg,
@@ -486,48 +486,60 @@ class B50GameCardWidget extends StatelessWidget {
                         buildTypeChip(isUtage, dxMode, typeFontSize),
                       ],
                     ),
-                    const Spacer(),
-                    // 评级图
-                    if (rate.isNotEmpty)
-                      Transform.translate(
-                        offset: Offset(2 * scale, -1 * scale),
-                        child: Padding(
-                          padding: EdgeInsets.only(top: 3 * scale),
-                          child: SizedBox(
-                            width: gradeFontSize * 2.0 * 110 / 44,
-                            height: gradeFontSize * 2.0,
-                            child: Image.asset(
-                              'assets/gamrank/$rate.png',
+                    // 六位歌曲 ID 会挤占底栏宽度；右侧信息只在空间不足时等比缩小。
+                    Expanded(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerRight,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // 评级图
+                            if (rate.isNotEmpty)
+                              Transform.translate(
+                                offset: Offset(2 * scale, -1 * scale),
+                                child: Padding(
+                                  padding: EdgeInsets.only(top: 3 * scale),
+                                  child: SizedBox(
+                                    width: gradeFontSize * 2.0 * 110 / 44,
+                                    height: gradeFontSize * 2.0,
+                                    child: Image.asset(
+                                      'assets/gamrank/$rate.png',
+                                      fit: BoxFit.contain,
+                                      alignment: Alignment.center,
+                                      errorBuilder:
+                                          (context, error, stackTrace) =>
+                                              const SizedBox.shrink(),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            SizedBox(width: 0.5 * scale),
+                            // FC 图
+                            Image.asset(
+                              'assets/grade/${fc.isNotEmpty ? fc : 'empty'}.png',
+                              height: gradeFontSize * 3.0,
                               fit: BoxFit.contain,
-                              alignment: Alignment.center,
                               errorBuilder: (context, error, stackTrace) =>
                                   const SizedBox.shrink(),
                             ),
-                          ),
+                            SizedBox(width: 0.5 * scale),
+                            // FS 图
+                            Image.asset(
+                              'assets/grade/${fs.isNotEmpty ? fs : 'empty'}.png',
+                              height: gradeFontSize * 3.0,
+                              fit: BoxFit.contain,
+                              errorBuilder: (context, error, stackTrace) =>
+                                  const SizedBox.shrink(),
+                            ),
+                            SizedBox(width: 0.5 * scale),
+                            // 星数
+                            buildStarsWidget(stars, starsColor, otherFontSize,
+                                heightMultiplier: 2.0),
+                          ],
                         ),
                       ),
-                    SizedBox(width: 0.5 * scale),
-                    // FC 图
-                    Image.asset(
-                      'assets/grade/${fc.isNotEmpty ? fc : 'empty'}.png',
-                      height: gradeFontSize * 3.0,
-                      fit: BoxFit.contain,
-                      errorBuilder: (context, error, stackTrace) =>
-                          const SizedBox.shrink(),
                     ),
-                    SizedBox(width: 0.5 * scale),
-                    // FS 图
-                    Image.asset(
-                      'assets/grade/${fs.isNotEmpty ? fs : 'empty'}.png',
-                      height: gradeFontSize * 3.0,
-                      fit: BoxFit.contain,
-                      errorBuilder: (context, error, stackTrace) =>
-                          const SizedBox.shrink(),
-                    ),
-                    SizedBox(width: 0.5 * scale),
-                    // 星数
-                    buildStarsWidget(stars, starsColor, otherFontSize,
-                        heightMultiplier: 2.0),
                   ],
                 ),
               ),

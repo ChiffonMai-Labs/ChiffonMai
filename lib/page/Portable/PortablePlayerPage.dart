@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/widgets/AppSwitch.dart';
 /*
  * 随身听 —— 曲库列表页。
  *
@@ -410,7 +411,7 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
       builder: (dialogContext) => StatefulBuilder(
         builder: (dialogContext, setDialogState) => AlertDialog(
           title: const Text('随身听设置'),
-          content: SwitchListTile.adaptive(
+          content: AppSwitchListTile(
             contentPadding: EdgeInsets.zero,
             value: PortablePlayerScope.showBallOnLibraryExit.value,
             title: const Text('退出随身听页面时显示悬浮球'),

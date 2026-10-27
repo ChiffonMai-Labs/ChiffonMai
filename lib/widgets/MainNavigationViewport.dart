@@ -25,6 +25,23 @@ class _MainNavigationViewportState extends State<MainNavigationViewport>
     value: 1,
   );
   late int _fromIndex = widget.index;
+  Size? _windowSize;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final size = MediaQuery.sizeOf(context);
+    if (_windowSize != null && size != _windowSize) {
+      // 小窗/分屏切换会重建 Surface。结束正在进行的淡出，避免焦点和
+      // 生命周期同时变化时，当前页留在透明的中间态；保留每个页面的 State。
+      _controller.stop();
+      _controller.value = 1;
+      _fromIndex = widget.index;
+      debugPrint(
+          '[Window] 主页面尺寸 $_windowSize -> $size，当前页 ${widget.index}，过渡已收尾');
+    }
+    _windowSize = size;
+  }
 
   @override
   void didUpdateWidget(covariant MainNavigationViewport oldWidget) {

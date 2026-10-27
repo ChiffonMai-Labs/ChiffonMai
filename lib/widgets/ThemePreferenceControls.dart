@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/widgets/AppSwitch.dart';
 import 'package:flutter/material.dart';
 
 import '../utils/NavigationPreferences.dart';
@@ -6,8 +7,9 @@ import '../utils/ConfettiPreferences.dart';
 import 'ConfettiEffect.dart';
 import 'AppColorPickerDialog.dart';
 import 'AnimatedChoiceLabel.dart';
+import 'AnimatedChoiceBar.dart';
 
-/// 首页主题弹窗与「主题与交互偏好」共用的控件和状态，所有修改写入同一份缓存。
+/// 首页主题弹窗与「系统设置」共用的控件和状态，所有修改写入同一份缓存。
 class ThemePreferenceControls extends StatefulWidget {
   const ThemePreferenceControls({super.key});
 
@@ -109,7 +111,7 @@ class _ThemePreferenceControlsState extends State<ThemePreferenceControls> {
                 onTap: () => manager.setThemeMode(option.$1),
               ),
             if (dark)
-              SwitchListTile.adaptive(
+              AppSwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('纯黑背景'),
                 subtitle: const Text('使用真正的纯黑背景，隐藏背景图'),
@@ -120,15 +122,27 @@ class _ThemePreferenceControlsState extends State<ThemePreferenceControls> {
             Text('导航体验',
                 style: TextStyle(
                     color: scheme.onSurface, fontWeight: FontWeight.w600)),
-            SwitchListTile.adaptive(
-              contentPadding: EdgeInsets.zero,
-              value: navigation.liquidGlassEnabled,
-              onChanged: navigation.setLiquidGlassEnabled,
-              title: const Text('液态玻璃导航栏'),
-              subtitle: const Text('使用通透玻璃与高光效果，关闭后恢复原有样式（默认关闭）'),
-              secondary: Icon(Icons.blur_on_rounded, color: scheme.primary),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('导航栏样式'),
+                  const SizedBox(height: 8),
+                  AnimatedChoiceBar<NavigationBarStyle>(
+                    values: NavigationBarStyle.values,
+                    value: navigation.barStyle,
+                    label: (style) => style.label,
+                    onChanged: navigation.loaded ? navigation.setBarStyle : null,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(navigation.barStyle.description,
+                      style: TextStyle(
+                          fontSize: 12, color: scheme.onSurfaceVariant)),
+                ],
+              ),
             ),
-            SwitchListTile.adaptive(
+            AppSwitchListTile(
               contentPadding: EdgeInsets.zero,
               value: navigation.transitionEnabled,
               onChanged: navigation.setTransitionEnabled,
@@ -136,7 +150,7 @@ class _ThemePreferenceControlsState extends State<ThemePreferenceControls> {
               subtitle: const Text('切换主界面时使用淡入滑动过渡，并淡化图标状态'),
               secondary: Icon(Icons.animation_outlined, color: scheme.primary),
             ),
-            SwitchListTile.adaptive(
+            AppSwitchListTile(
               contentPadding: EdgeInsets.zero,
               value: navigation.swipeEnabled,
               onChanged: navigation.setSwipeEnabled,
@@ -144,7 +158,7 @@ class _ThemePreferenceControlsState extends State<ThemePreferenceControls> {
               subtitle: const Text('在主界面内容区域左右滑动即可切换底部导航项'),
               secondary: Icon(Icons.swipe_outlined, color: scheme.primary),
             ),
-            SwitchListTile.adaptive(
+            AppSwitchListTile(
               contentPadding: EdgeInsets.zero,
               value: navigation.immersiveStatusBarEnabled,
               onChanged: navigation.setImmersiveStatusBarEnabled,
@@ -152,7 +166,7 @@ class _ThemePreferenceControlsState extends State<ThemePreferenceControls> {
               subtitle: const Text('隐藏顶部时间、电量等状态信息，保留底部系统导航'),
               secondary: Icon(Icons.fullscreen_rounded, color: scheme.primary),
             ),
-            SwitchListTile.adaptive(
+            AppSwitchListTile(
               contentPadding: EdgeInsets.zero,
               value: navigation.busyHintEnabled,
               onChanged: navigation.setBusyHintEnabled,
@@ -166,7 +180,7 @@ class _ThemePreferenceControlsState extends State<ThemePreferenceControls> {
             Text('纸屑特效',
                 style: TextStyle(
                     color: scheme.onSurface, fontWeight: FontWeight.w600)),
-            SwitchListTile.adaptive(
+            AppSwitchListTile(
               contentPadding: EdgeInsets.zero,
               value: ConfettiPreferences.instance.enabled,
               onChanged: ConfettiPreferences.instance.setEnabled,
@@ -175,7 +189,7 @@ class _ThemePreferenceControlsState extends State<ThemePreferenceControls> {
               secondary:
                   Icon(Icons.celebration_outlined, color: scheme.primary),
             ),
-            SwitchListTile.adaptive(
+            AppSwitchListTile(
               contentPadding: EdgeInsets.zero,
               value: ConfettiPreferences.instance.gravityEnabled,
               onChanged: ConfettiPreferences.instance.setGravityEnabled,

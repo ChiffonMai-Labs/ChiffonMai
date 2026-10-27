@@ -46,11 +46,14 @@ class FavoriteFeaturesNotifier {
   /// 所以功能一改名，用户原来的收藏就会变成一条谁也匹配不上的脏数据、
   /// 表现为「星标莫名其妙没了」。加载时顺手替换掉。
   static const Map<String, String> _renamedTitles = {
+    '猜歌游戏设置': '单人猜歌游戏设置',
     '成绩截图 OCR': '结算画面识别',
     // maidata 入口已并入缓存管理，旧收藏迁移到新的入口。
     '刷新 maidata': '缓存管理',
     'maidata管理': '缓存管理',
-    '主题与背景': '主题与交互偏好',
+    // 「主题与交互偏好」改名为「系统设置」，老收藏要跟着迁移，否则星标会消失。
+    '主题与背景': '系统设置',
+    '主题与交互偏好': '系统设置',
   };
 
   /// 从 SharedPreferences 加载收藏列表（应用启动时调用一次）。
@@ -63,6 +66,11 @@ class FavoriteFeaturesNotifier {
     final migrated = <String>{};
     var changed = false;
     for (final title in titles) {
+      // 已弃用的控制台不再保留收藏，其他 AWMC 同步功能仍然保留。
+      if (title == 'AWMC 网关') {
+        changed = true;
+        continue;
+      }
       final renamed = _renamedTitles[title];
       if (renamed != null) {
         migrated.add(renamed);

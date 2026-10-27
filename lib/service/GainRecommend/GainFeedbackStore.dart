@@ -47,9 +47,8 @@ class GainFeedbackRecord {
 
   static GainFeedbackRecord? tryParse(Map raw) {
     final key = GainChartKey.tryParse('${raw['key']}');
-    final kind = GainFeedbackKind.values
-        .where((k) => k.name == raw['kind'])
-        .firstOrNull;
+    final kind =
+        GainFeedbackKind.values.where((k) => k.name == raw['kind']).firstOrNull;
     final created = raw['created_at'];
     if (key == null || kind == null || created is! int) return null;
     final expires = raw['expires_at'];
@@ -79,6 +78,13 @@ class GainFeedbackStore {
   final Map<GainChartKey, GainFeedbackRecord> _records = {};
   Future<void>? _loading;
   bool _loaded = false;
+
+  Future<void> reload() async {
+    await _loading;
+    _records.clear();
+    _loaded = false;
+    await ensureLoaded();
+  }
 
   @visibleForTesting
   void debugReset() {

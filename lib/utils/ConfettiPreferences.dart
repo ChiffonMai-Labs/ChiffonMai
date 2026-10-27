@@ -50,6 +50,12 @@ class ConfettiPreferences extends ChangeNotifier {
     return future.whenComplete(() => _loadFuture = null);
   }
 
+  Future<void> reload() async {
+    await _loadFuture;
+    _loaded = false;
+    await load();
+  }
+
   Future<void> _loadInternal() async {
     try {
       final prefs = await SharedPreferences.getInstance();

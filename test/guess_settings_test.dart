@@ -58,8 +58,7 @@ void main() {
         timeLimit: 30,
       );
       final loaded = await service.loadSettings();
-      expect(loaded['playDurationSeconds'], 17,
-          reason: '未传该参数应保持不变，而不是被重置');
+      expect(loaded['playDurationSeconds'], 17, reason: '未传该参数应保持不变，而不是被重置');
       expect(loaded['maxGuesses'], 8);
     });
   });
@@ -115,6 +114,7 @@ void main() {
         peekDurationSeconds: 3,
         peekDifficulties: const ['4'],
         playDurationSeconds: 1,
+        audioRate: 1.35,
       );
       final prefs = await SharedPreferences.getInstance();
       final loaded = await service.loadSettings();
@@ -132,8 +132,8 @@ void main() {
     test('与页面可选项一致（BASIC 是 2，没有 1）', () {
       // 页面 GuessChartByChartPeekPage._difficultyNames 的键
       const pageInotes = {'2', '3', '4', '5', '6'};
-      expect(GuessChartCommonSettingsService.allowedDifficultyInotes,
-          pageInotes);
+      expect(
+          GuessChartCommonSettingsService.allowedDifficultyInotes, pageInotes);
     });
   });
 
@@ -156,17 +156,25 @@ void main() {
     test('越界的模式专属参数判为非法', () {
       expect(service.validateSettings({'blurLevel': 150}), isFalse);
       expect(service.validateSettings({'songCount': 99}), isFalse);
-      expect(service.validateSettings({'nonEnglishCharThreshold': 200}),
-          isFalse);
+      expect(
+          service.validateSettings({'nonEnglishCharThreshold': 200}), isFalse);
       expect(service.validateSettings({'playDurationSeconds': 31}), isFalse);
       expect(service.validateSettings({'playDurationSeconds': 0}), isFalse);
     });
 
     test('难度池为空或含非法编号判为非法', () {
-      expect(service.validateSettings({'peekDifficulties': <String>[]}),
+      expect(
+          service.validateSettings({'peekDifficulties': <String>[]}), isFalse);
+      expect(
+          service.validateSettings({
+            'peekDifficulties': ['9']
+          }),
           isFalse);
-      expect(service.validateSettings({'peekDifficulties': ['9']}), isFalse);
-      expect(service.validateSettings({'peekDifficulties': ['1']}), isFalse,
+      expect(
+          service.validateSettings({
+            'peekDifficulties': ['1']
+          }),
+          isFalse,
           reason: "'1' 在页面里不是可选难度");
     });
   });

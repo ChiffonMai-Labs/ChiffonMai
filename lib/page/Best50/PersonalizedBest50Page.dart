@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/widgets/AppSwitch.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'dart:convert';
 import 'dart:io';
@@ -1460,7 +1461,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
               ],
             ),
           ),
-          Switch(
+          AppSwitch(
             value: _isInclusiveMode,
             onChanged: (value) {
               setState(() {
@@ -1468,7 +1469,6 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
               });
               _fetchPersonalizedData();
             },
-            activeColor: AppColors.linkBlue(brightness),
           ),
         ],
       ),

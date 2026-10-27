@@ -1,3 +1,5 @@
+import 'RankingPrivacyOptions.dart';
+import '../service/PlayerExperienceService.dart';
 import '../widgets/AnimatedChoiceBar.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -32,7 +34,6 @@ import '../service/AccountStore.dart';
 import '../service/AccountSwitchService.dart';
 import '../utils/SecureCredentialStore.dart';
 import '../service/CommunityNicknameSyncService.dart';
-import '../service/CommunityAvatarStore.dart';
 import '../service/ConnectivityService.dart';
 import '../service/PaiziProgressService.dart';
 import '../service/PersonalizedScoreService.dart';
@@ -81,6 +82,7 @@ class RefreshDataRequest {
   final String authCode;
   final bool participateRankings;
   final bool showNickname;
+  final bool showBriefProfile;
   final bool forceFullRefresh;
 
   /// 高级模式下用户勾选要强制刷新的缓存源 ID 集合（来自 CacheSourceRegistry）。
@@ -96,6 +98,7 @@ class RefreshDataRequest {
     required this.authCode,
     required this.participateRankings,
     required this.showNickname,
+    this.showBriefProfile = false,
     required this.forceFullRefresh,
     this.forceSourceIds,
     this.useSavedAuthorization = false,
@@ -188,6 +191,7 @@ Future<bool> executeRefreshData(
             onProgress,
             participateRankings: request.participateRankings,
             showNickname: request.showNickname,
+            showBriefProfile: request.showBriefProfile,
             forceFullRefresh: request.forceFullRefresh,
           );
           break;
@@ -197,6 +201,7 @@ Future<bool> executeRefreshData(
             onProgress,
             participateRankings: request.participateRankings,
             showNickname: request.showNickname,
+            showBriefProfile: request.showBriefProfile,
             forceFullRefresh: request.forceFullRefresh,
           );
           break;
@@ -206,6 +211,7 @@ Future<bool> executeRefreshData(
             onProgress,
             participateRankings: request.participateRankings,
             showNickname: request.showNickname,
+            showBriefProfile: request.showBriefProfile,
             forceFullRefresh: request.forceFullRefresh,
           );
           break;
@@ -259,6 +265,7 @@ Future<bool> executeAdvancedRefreshData(
             onProgress,
             participateRankings: request.participateRankings,
             showNickname: request.showNickname,
+            showBriefProfile: request.showBriefProfile,
             forceMap: forceMap,
           );
           break;
@@ -268,6 +275,7 @@ Future<bool> executeAdvancedRefreshData(
             onProgress,
             participateRankings: request.participateRankings,
             showNickname: request.showNickname,
+            showBriefProfile: request.showBriefProfile,
             forceMap: forceMap,
           );
           break;
@@ -277,6 +285,7 @@ Future<bool> executeAdvancedRefreshData(
             onProgress,
             participateRankings: request.participateRankings,
             showNickname: request.showNickname,
+            showBriefProfile: request.showBriefProfile,
             forceMap: forceMap,
           );
           break;
@@ -352,6 +361,7 @@ class _RefreshDataDialogState extends State<_RefreshDataDialog> {
   // 排行榜相关选项
   bool participateRankings = false;
   bool showNickname = false;
+  bool showBriefProfile = false;
   bool forceFullRefresh = false;
   bool _hasSavedLuoXueToken = false;
 
@@ -481,6 +491,7 @@ class _RefreshDataDialogState extends State<_RefreshDataDialog> {
       participateRankings =
           settings[CacheKeyConstant.participateRankings] == true;
       showNickname = settings[CacheKeyConstant.showNickname] == true;
+      showBriefProfile = settings[CacheKeyConstant.showBriefProfile] == true;
     });
   }
 
@@ -490,38 +501,41 @@ class _RefreshDataDialogState extends State<_RefreshDataDialog> {
 
     return AlertDialog(
       title: const Text('刷新数据'),
-      content: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 数据源选择。三个选项在窄屏上一行放不下（还有「当前数据源：」标题），
-            // 所以标题单独一行，避免 RenderFlex overflow。
-            const Text('当前数据源：'),
-            const SizedBox(height: 6),
-            AnimatedChoiceBar<RefreshDataSource>(
-              values: RefreshDataSource.values,
-              value: _currentDataSource,
-              label: (source) => source.shortDisplayName,
-              onChanged: (source) {
-                // 这里只选「本次要刷新的数据源」，不直接切活动源：
-                // 真正的切换/换槽在 executeRefreshData 里由 runRefresh 完成，
-                // 否则活动槽与数据源会不一致。
-                setState(() {
-                  _currentDataSource = source;
-                  authCodeController.clear();
-                });
-                _loadRankingSettings();
-              },
-            ),
-            const SizedBox(height: 12),
-            if (_currentDataSource == RefreshDataSource.shuiyu)
-              _buildShuiyuPanel(brightness),
-            if (_currentDataSource == RefreshDataSource.luoxue)
-              _buildLuoXuePanel(brightness),
-            if (_currentDataSource == RefreshDataSource.awmc)
-              _buildAwmcPanel(brightness),
-            _buildRankingOptions(brightness),
-          ],
+      content: SizedBox(
+        width: 520,
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 数据源选择。三个选项在窄屏上一行放不下（还有「当前数据源：」标题），
+              // 所以标题单独一行，避免 RenderFlex overflow。
+              const Text('当前数据源：'),
+              const SizedBox(height: 6),
+              AnimatedChoiceBar<RefreshDataSource>(
+                values: RefreshDataSource.values,
+                value: _currentDataSource,
+                label: (source) => source.shortDisplayName,
+                onChanged: (source) {
+                  // 这里只选「本次要刷新的数据源」，不直接切活动源：
+                  // 真正的切换/换槽在 executeRefreshData 里由 runRefresh 完成，
+                  // 否则活动槽与数据源会不一致。
+                  setState(() {
+                    _currentDataSource = source;
+                    authCodeController.clear();
+                  });
+                  _loadRankingSettings();
+                },
+              ),
+              const SizedBox(height: 12),
+              if (_currentDataSource == RefreshDataSource.shuiyu)
+                _buildShuiyuPanel(brightness),
+              if (_currentDataSource == RefreshDataSource.luoxue)
+                _buildLuoXuePanel(brightness),
+              if (_currentDataSource == RefreshDataSource.awmc)
+                _buildAwmcPanel(brightness),
+              _buildRankingOptions(brightness),
+            ],
+          ),
         ),
       ),
       actions: [
@@ -734,28 +748,15 @@ class _RefreshDataDialogState extends State<_RefreshDataDialog> {
     return Column(
       children: [
         const SizedBox(height: 16),
-        CheckboxListTile(
-          title: const Text('参与排行榜'),
-          value: participateRankings,
-          onChanged: (value) {
-            setState(() {
-              participateRankings = value ?? false;
-              if (!participateRankings) {
-                showNickname = false;
-              }
-            });
-          },
-          controlAffinity: ListTileControlAffinity.leading,
-        ),
-        if (participateRankings)
-          CheckboxListTile(
-            title: const Text('展示昵称（不勾选则显示为匿名用户）'),
-            value: showNickname,
-            onChanged: (value) {
-              setState(() => showNickname = value ?? false);
-            },
-            controlAffinity: ListTileControlAffinity.leading,
-          ),
+        RankingPrivacyOptions(
+            participate: participateRankings,
+            showNickname: showNickname,
+            showBriefProfile: showBriefProfile,
+            onChanged: (participate, nickname, brief) => setState(() {
+                  participateRankings = participate;
+                  showNickname = nickname;
+                  showBriefProfile = brief;
+                })),
         CheckboxListTile(
           title: const Text('强制完整刷新（忽略静态数据缓存）'),
           subtitle: const Text('maidata 仍作为独立后台辅助任务更新'),
@@ -832,6 +833,7 @@ class _RefreshDataDialogState extends State<_RefreshDataDialog> {
       authCode: authCodeController.text.trim(),
       participateRankings: participateRankings,
       showNickname: showNickname,
+      showBriefProfile: showBriefProfile,
       forceFullRefresh: forceFullRefresh,
       useSavedAuthorization: _currentDataSource == RefreshDataSource.luoxue &&
           authCodeController.text.trim().isEmpty &&
@@ -932,6 +934,7 @@ Future<void> refreshBest50DataWithProgress(
   Function(int, String) onProgress, {
   bool participateRankings = false,
   bool showNickname = false,
+  bool? showBriefProfile,
   bool forceFullRefresh = false,
   Map<String, bool>? forceMap,
 }) async {
@@ -939,6 +942,7 @@ Future<void> refreshBest50DataWithProgress(
     await _refreshBest50DataWithProgressImpl(qq, onProgress,
         participateRankings: participateRankings,
         showNickname: showNickname,
+        showBriefProfile: showBriefProfile,
         forceFullRefresh: forceFullRefresh,
         forceMap: forceMap);
   });
@@ -949,6 +953,7 @@ Future<void> _refreshBest50DataWithProgressImpl(
   Function(int, String) onProgress, {
   bool participateRankings = false,
   bool showNickname = false,
+  bool? showBriefProfile,
   bool forceFullRefresh = false,
   Map<String, bool>? forceMap,
 }) async {
@@ -1036,6 +1041,13 @@ Future<void> _refreshBest50DataWithProgressImpl(
     await settingsPrefs.setBool(
         CacheKeyConstant.participateRankings, participateRankings);
     await settingsPrefs.setBool(CacheKeyConstant.showNickname, showNickname);
+    await settingsPrefs.setBool(
+        CacheKeyConstant.showBriefProfile,
+        participateRankings &&
+            showNickname &&
+            (showBriefProfile ??
+                settingsPrefs.getBool(CacheKeyConstant.showBriefProfile) ??
+                false));
     await UserPlayDataManager().storeFetchedData(userPlayData,
         source: RefreshDataSource.shuiyu, accountId: qq);
     final songs = await MaimaiMusicDataManager().getCachedSongs();
@@ -1086,6 +1098,7 @@ Future<void> _refreshBest50DataWithProgressImpl(
           : <Map<String, dynamic>>[];
       final rankingResults = await Future.wait<Object?>([
         _updateRankings(
+          sourceProfile: userPlayData,
           dataSource: 'shuiyu',
           originalId: qq,
           nickname: displayNickname,
@@ -1155,6 +1168,7 @@ Future<void> refreshAwmcNetDataWithProgress(
   Function(int, String) onProgress, {
   bool participateRankings = false,
   bool showNickname = false,
+  bool? showBriefProfile,
   bool forceFullRefresh = false,
   Map<String, bool>? forceMap,
 }) async {
@@ -1162,6 +1176,7 @@ Future<void> refreshAwmcNetDataWithProgress(
     await _refreshAwmcNetDataWithProgressImpl(qq, onProgress,
         participateRankings: participateRankings,
         showNickname: showNickname,
+        showBriefProfile: showBriefProfile,
         forceFullRefresh: forceFullRefresh,
         forceMap: forceMap);
   });
@@ -1172,6 +1187,7 @@ Future<void> _refreshAwmcNetDataWithProgressImpl(
   Function(int, String) onProgress, {
   bool participateRankings = false,
   bool showNickname = false,
+  bool? showBriefProfile,
   bool forceFullRefresh = false,
   Map<String, bool>? forceMap,
 }) async {
@@ -1261,6 +1277,13 @@ Future<void> _refreshAwmcNetDataWithProgressImpl(
   await settingsPrefs.setBool(
       CacheKeyConstant.participateRankings, participateRankings);
   await settingsPrefs.setBool(CacheKeyConstant.showNickname, showNickname);
+  await settingsPrefs.setBool(
+      CacheKeyConstant.showBriefProfile,
+      participateRankings &&
+          showNickname &&
+          (showBriefProfile ??
+              settingsPrefs.getBool(CacheKeyConstant.showBriefProfile) ??
+              false));
   await UserPlayDataManager().storeFetchedData(userPlayData,
       source: RefreshDataSource.awmc, accountId: qq);
   final songs = await MaimaiMusicDataManager().getCachedSongs();
@@ -1314,6 +1337,7 @@ Future<void> _refreshAwmcNetDataWithProgressImpl(
     final displayNickname = showNickname ? currentNickname : '匿名用户';
     final rankingResults = await Future.wait<Object?>([
       _updateRankings(
+        sourceProfile: userPlayData,
         dataSource: 'awmc',
         originalId: qq,
         nickname: displayNickname,
@@ -1365,6 +1389,7 @@ Future<void> _handleLuoXueAuthWithProgress(
   Function(int, String) onProgress, {
   bool participateRankings = false,
   bool showNickname = false,
+  bool? showBriefProfile,
   bool forceFullRefresh = false,
   Map<String, bool>? forceMap,
 }) async {
@@ -1372,6 +1397,7 @@ Future<void> _handleLuoXueAuthWithProgress(
     await _handleLuoXueAuthWithProgressImpl(authCode, onProgress,
         participateRankings: participateRankings,
         showNickname: showNickname,
+        showBriefProfile: showBriefProfile,
         forceFullRefresh: forceFullRefresh,
         forceMap: forceMap);
   });
@@ -1382,6 +1408,7 @@ Future<void> _handleLuoXueAuthWithProgressImpl(
   Function(int, String) onProgress, {
   bool participateRankings = false,
   bool showNickname = false,
+  bool? showBriefProfile,
   bool forceFullRefresh = false,
   Map<String, bool>? forceMap,
 }) async {
@@ -1491,6 +1518,13 @@ Future<void> _handleLuoXueAuthWithProgressImpl(
     await settingsPrefs.setBool(
         CacheKeyConstant.participateRankings, participateRankings);
     await settingsPrefs.setBool(CacheKeyConstant.showNickname, showNickname);
+    await settingsPrefs.setBool(
+        CacheKeyConstant.showBriefProfile,
+        participateRankings &&
+            showNickname &&
+            (showBriefProfile ??
+                settingsPrefs.getBool(CacheKeyConstant.showBriefProfile) ??
+                false));
     final songs = await MaimaiMusicDataManager().getCachedSongs();
     final playerRecords = await LuoXueUserPlayDataManager()
         .getPlayerRecordsAsRecordItems(
@@ -1552,6 +1586,7 @@ Future<void> _handleLuoXueAuthWithProgressImpl(
         final records = playerRecords.map((record) => record.toJson()).toList();
         final rankingResults = await Future.wait<Object?>([
           _updateRankings(
+            sourceProfile: playerInfo.toJson(),
             dataSource: 'luoxue',
             originalId: playerInfo.friendCode.toString(),
             nickname: displayNickname,
@@ -1607,6 +1642,7 @@ Future<void> _handleLuoXueAuthWithProgressImpl(
 
 Future<String?> _updateRankings({
   required String dataSource,
+  Map<String, dynamic> sourceProfile = const {},
   required String originalId,
   required String nickname,
   required int totalRating,
@@ -1662,10 +1698,41 @@ Future<String?> _updateRankings({
       return '$errorMsg，可能存在非法数据，请检查';
     }
 
+    final prefs = await SharedPreferences.getInstance();
+    final share = prefs.getBool(CacheKeyConstant.showBriefProfile) == true &&
+        nickname != '匿名用户';
+    Map<String, dynamic>? b1(List<RecordItem>? records) {
+      if (records == null || records.isEmpty) return null;
+      return records.reduce((a, b) => a.ra >= b.ra ? a : b).toJson();
+    }
+
+    final sourcePlate = sourceProfile['name_plate'];
+    final selectedPlate = prefs.getInt(CacheKeyConstant.selectedPlateIdCache);
     final response = await ApiClient.post(
       Uri.parse(ApiUrls.RankingsUpdateUrl),
-      headers: {'Content-Type': 'application/json'},
+      headers: share || dataSource == 'luoxue'
+          ? await PlayerExperienceService.ownerHeaders(
+              '$dataSource:$originalId')
+          : {'Content-Type': 'application/json'},
       body: json.encode({
+        if (dataSource == 'luoxue')
+          'initialAppearance': {
+            'friend_code': int.parse(originalId),
+            for (final key in ['icon', 'name_plate', 'frame', 'trophy'])
+              key: sourceProfile[key],
+          },
+        'showRankNickname': nickname != '匿名用户',
+        'showBriefProfile': share,
+        if (share)
+          'briefProfile': {
+            'trophy': sourceProfile['trophy'],
+            'frame': sourceProfile['frame'],
+            'sourceAvatar': sourceProfile['icon'],
+            'nameplate': sourcePlate ??
+                (selectedPlate == null ? null : {'id': selectedPlate}),
+            'best35B1': b1(best35Records),
+            'best15B1': b1(best15Records),
+          },
         'dataSource': dataSource,
         'originalId': originalId,
         'nickname': nickname,
@@ -1683,7 +1750,8 @@ Future<String?> _updateRankings({
         return '排行榜数据更新失败：${result['error'] ?? 'unknown'}';
       }
     } else {
-      return '排行榜数据更新失败，状态码: ${response.statusCode}';
+      final body = jsonDecode(response.body);
+      return '排行榜数据更新失败：${body is Map ? body['error'] ?? response.statusCode : response.statusCode}';
     }
     return null;
   } catch (e) {
@@ -1694,8 +1762,7 @@ Future<String?> _updateRankings({
 
 Future<bool> _deleteRankings(String userId) async {
   try {
-    final headers = await CommunityAvatarStore.authorizationHeaders(userId);
-    if (headers == null) return false;
+    final headers = await PlayerExperienceService.ownerHeaders(userId);
     final response = await ApiClient.delete(
       Uri.parse('${ApiUrls.RankingsBaseUrl}/user/$userId'),
       headers: headers,

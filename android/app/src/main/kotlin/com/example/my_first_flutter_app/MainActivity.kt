@@ -15,6 +15,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
 import android.view.WindowInsetsController
+import android.view.WindowManager
 import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -194,13 +195,25 @@ class MainActivity : AudioServiceActivity() {
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        // 键盘、相册和外部应用关闭后重新应用，偏好尚未载入时不干预系统。
-        if (hasFocus) applyStatusBarVisibility()
+        // Flutter 在窗口恢复时也会重设系统栏，等其完成后再恢复用户的可见性偏好。
+        if (hasFocus) window.decorView.post { applyStatusBarVisibility() }
+    }
+
+    override fun onPostResume() {
+        super.onPostResume()
+        window.decorView.post { applyStatusBarVisibility() }
     }
 
     @Suppress("DEPRECATION")
     private fun applyStatusBarVisibility() {
         val hidden = statusBarHidden ?: return
+        val decor = window.decorView
+        // Android 14 及以前同时保留窗口级全屏标志，避免部分系统在刷新浅色
+        // 状态栏外观时把 InsetsController 的隐藏请求覆盖。只隐藏顶部系统栏。
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+            if (hidden) window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
+            else window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             window.insetsController?.let { controller ->
                 controller.systemBarsBehavior = WindowInsetsController.BEHAVIOR_DEFAULT
@@ -212,7 +225,6 @@ class MainActivity : AudioServiceActivity() {
                 }
             }
         } else {
-            val decor = window.decorView
             // 只切换 FULLSCREEN，清理会吞边缘手势的全屏导航标志。
             var flags = decor.systemUiVisibility and
                 (View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE or
@@ -221,6 +233,8 @@ class MainActivity : AudioServiceActivity() {
                 else flags and View.SYSTEM_UI_FLAG_FULLSCREEN.inv()
             decor.systemUiVisibility = flags
         }
+        // 让 Flutter 重新取得真实的状态栏、刘海和导航栏安全区域，不补固定边距。
+        decor.requestApplyInsets()
     }
 
     // ---------------------------------------------------------------------

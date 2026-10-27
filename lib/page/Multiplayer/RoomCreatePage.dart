@@ -34,19 +34,21 @@ class _RoomCreatePageState extends State<RoomCreatePage> {
   List<String> _selectedGenres = [];
 
   // 模式专属设置
-  int _blurLevel = 50;            // 模糊程度 (blurred 模式)
-  int _playDuration = 5;           // 音频播放时长秒 (audio 模式)
-  int _songCount = 3;              // 抽取歌曲数 (letters 模式)
+  int _blurLevel = 50; // 模糊程度 (blurred 模式)
+  double _audioRate = 1.25;
+  int _playDuration = 5; // 音频播放时长秒 (audio 模式)
+  int _songCount = 3; // 抽取歌曲数 (letters 模式)
   int _nonEnglishCharThreshold = 50; // 非英文字符过滤阈值 (letters 模式)
-  int _flashDurationMs = 300;      // 快闪时长毫秒 (flash 模式)
-  int _tileCount = 1000;           // 拼图切块数 (tileReveal 模式)
+  int _flashDurationMs = 300; // 快闪时长毫秒 (flash 模式)
+  int _tileCount = 1000; // 拼图切块数 (tileReveal 模式)
   int _tileRevealIntervalMs = 1500; // 拼图揭示间隔毫秒 (tileReveal 模式)
-  int _peekDurationSeconds = 8;    // 谱面片段时长秒 (chartPeek 模式)
+  int _peekDurationSeconds = 8; // 谱面片段时长秒 (chartPeek 模式)
   List<String> _peekDifficulties = ['4']; // 谱面难度随机池 (chartPeek 模式)
 
   /// chartPeek 难度池可选值（inote 编号 → 显示名，与单人谱面片段猜歌一致：
   /// BASIC 是 '2'，没有 '1'）
-  static const Map<String, String> _difficultyLabels = ChartDifficulty.standardMaidataLabels;
+  static const Map<String, String> _difficultyLabels =
+      ChartDifficulty.standardMaidataLabels;
 
   // 所有版本和流派列表
   List<String> _allVersions = [];
@@ -73,6 +75,14 @@ class _RoomCreatePageState extends State<RoomCreatePage> {
       final settings = await GuessChartCommonSettingsService().loadSettings();
       if (!mounted) return;
       setState(() {
+        _audioRate = (settings['audioRate'] as num?)?.toDouble() ?? 1.25;
+        _timeLimit = settings['timeLimit'] ?? _timeLimit;
+        _maxGuesses = settings['maxGuesses'] ?? _maxGuesses;
+        _selectedVersions =
+            List<String>.from(settings['selectedVersions'] ?? []);
+        _selectedGenres = List<String>.from(settings['selectedGenres'] ?? []);
+        _masterMinDx = (settings['masterMinDx'] as num?)?.toDouble() ?? 1;
+        _masterMaxDx = (settings['masterMaxDx'] as num?)?.toDouble() ?? 15;
         _blurLevel = settings['blurLevel'] ?? _blurLevel;
         _playDuration = settings['playDurationSeconds'] ?? _playDuration;
         _songCount = settings['songCount'] ?? _songCount;
@@ -84,6 +94,14 @@ class _RoomCreatePageState extends State<RoomCreatePage> {
             settings['tileRevealIntervalMs'] ?? _tileRevealIntervalMs;
         _peekDurationSeconds =
             settings['peekDurationSeconds'] ?? _peekDurationSeconds;
+        _blurLevel = _blurLevel.clamp(0, 100);
+        _playDuration = _playDuration.clamp(1, 30);
+        _songCount = _songCount.clamp(1, 10);
+        _nonEnglishCharThreshold = _nonEnglishCharThreshold.clamp(0, 100);
+        _flashDurationMs = _flashDurationMs.clamp(100, 3000);
+        _tileCount = _tileCount.clamp(100, 10000);
+        _tileRevealIntervalMs = _tileRevealIntervalMs.clamp(100, 10000);
+        _peekDurationSeconds = _peekDurationSeconds.clamp(3, 60);
         final pool = (settings['peekDifficulties'] as List?)?.cast<String>();
         if (pool != null && pool.isNotEmpty) {
           _peekDifficulties = List<String>.from(pool);
@@ -115,33 +133,19 @@ class _RoomCreatePageState extends State<RoomCreatePage> {
     } catch (e) {
       debugPrint('[ERROR][RoomCreatePage] 加载歌曲数据失败: $e');
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   Future<void> _handleCreateRoom() async {
     if (_isCreating) return;
 
+    FocusManager.instance.primaryFocus?.unfocus();
     setState(() => _isCreating = true);
 
     try {
-      // 根据游戏类型检查是否有符合条件的歌曲
-      final testSong = await GuessChartByInfoService.randomSelectSong(
-        selectedVersions: _selectedVersions,
-        masterMinDx: _masterMinDx,
-        masterMaxDx: _masterMaxDx,
-        selectedGenres: _selectedGenres,
-      );
-
-      if (testSong == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('没有找到符合条件的乐曲！请检查设置！')),
-        );
-        setState(() => _isCreating = false);
-        return;
-      }
-
-      debugPrint('[DEBUG][RoomCreatePage] 创建房间 - 选择的游戏模式: ${_gameType.name} (${_gameType.description})');
+      debugPrint(
+          '[DEBUG][RoomCreatePage] 创建房间 - 选择的游戏模式: ${_gameType.name} (${_gameType.description})');
 
       final room = await _manager.createRoom(
         gameType: _gameType,
@@ -154,6 +158,7 @@ class _RoomCreatePageState extends State<RoomCreatePage> {
         selectedGenres: _selectedGenres,
         blurLevel: _blurLevel,
         playDuration: _playDuration,
+        audioRate: _audioRate,
         songCount: _songCount,
         nonEnglishCharThreshold: _nonEnglishCharThreshold,
         flashDurationMs: _flashDurationMs,
@@ -163,6 +168,7 @@ class _RoomCreatePageState extends State<RoomCreatePage> {
         peekDifficulties: _peekDifficulties,
       );
 
+      if (!mounted) return;
       if (room != null) {
         Navigator.pop(context, room);
       } else {
@@ -171,22 +177,23 @@ class _RoomCreatePageState extends State<RoomCreatePage> {
         );
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('创建房间失败: $e')),
       );
     } finally {
-      setState(() => _isCreating = false);
+      if (mounted) setState(() => _isCreating = false);
     }
   }
 
   /// 当前游戏模式是否需要模式专属设置
   bool get _needsModeSettings {
     return _gameType == GameType.blurred ||
-           _gameType == GameType.audio ||
-           _gameType == GameType.letters ||
-           _gameType == GameType.flash ||
-           _gameType == GameType.tileReveal ||
-           _gameType == GameType.chartPeek;
+        _gameType.isAudio ||
+        _gameType == GameType.letters ||
+        _gameType == GameType.flash ||
+        _gameType == GameType.tileReveal ||
+        _gameType == GameType.chartPeek;
   }
 
   /// 单个游戏模式按钮（平铺展开用，见「游戏模式」区域）。
@@ -199,7 +206,11 @@ class _RoomCreatePageState extends State<RoomCreatePage> {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () => setState(() => _gameType = type),
+        splashFactory: NoSplash.splashFactory,
+        highlightColor: Colors.transparent,
+        onTap: selected || _isCreating
+            ? null
+            : () => setState(() => _gameType = type),
         borderRadius: BorderRadius.circular(10 * scaleFactor),
         child: Ink(
           padding: EdgeInsets.symmetric(
@@ -225,10 +236,8 @@ class _RoomCreatePageState extends State<RoomCreatePage> {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 14 * scaleFactor,
-                    fontWeight:
-                        selected ? FontWeight.bold : FontWeight.w500,
-                    color:
-                        selected ? scheme.onPrimary : scheme.onSurface,
+                    fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+                    color: selected ? scheme.onPrimary : scheme.onSurface,
                   ),
                 ),
               ),
@@ -280,7 +289,7 @@ class _RoomCreatePageState extends State<RoomCreatePage> {
                   onChanged: (v) => setState(() => _blurLevel = v.toInt()),
                 ),
               // 播放时长 (音频片段模式)
-              if (_gameType == GameType.audio)
+              if (_gameType.isAudio)
                 _buildSliderSetting(
                   label: '播放时长',
                   value: _playDuration.toDouble(),
@@ -291,6 +300,18 @@ class _RoomCreatePageState extends State<RoomCreatePage> {
                   scaleFactor: scaleFactor,
                   brightness: brightness,
                   onChanged: (v) => setState(() => _playDuration = v.toInt()),
+                ),
+              if (_gameType == GameType.pitchAudio)
+                DropdownButtonFormField<double>(
+                  initialValue: _audioRate,
+                  decoration: const InputDecoration(labelText: '变速变调倍率'),
+                  items: [
+                    for (final rate in [.65, .75, .85, 1.15, 1.25, 1.35, 1.5])
+                      DropdownMenuItem(value: rate, child: Text('${rate}×'))
+                  ],
+                  onChanged: (value) {
+                    if (value != null) setState(() => _audioRate = value);
+                  },
                 ),
               // 歌曲数量 (开字母模式)
               if (_gameType == GameType.letters) ...[
@@ -315,7 +336,8 @@ class _RoomCreatePageState extends State<RoomCreatePage> {
                   suffix: '%',
                   scaleFactor: scaleFactor,
                   brightness: brightness,
-                  onChanged: (v) => setState(() => _nonEnglishCharThreshold = v.toInt()),
+                  onChanged: (v) =>
+                      setState(() => _nonEnglishCharThreshold = v.toInt()),
                 ),
               ],
               // 快闪时长 (曲绘快闪模式)
@@ -329,8 +351,8 @@ class _RoomCreatePageState extends State<RoomCreatePage> {
                   suffix: ' ms',
                   scaleFactor: scaleFactor,
                   brightness: brightness,
-                  onChanged: (v) =>
-                      setState(() => _flashDurationMs = (v / 100).round() * 100),
+                  onChanged: (v) => setState(
+                      () => _flashDurationMs = (v / 100).round() * 100),
                 ),
               // 切块数与揭示间隔 (曲绘拼图模式)
               if (_gameType == GameType.tileReveal) ...[
@@ -427,7 +449,8 @@ class _RoomCreatePageState extends State<RoomCreatePage> {
   ///
   /// 与单人谱面片段猜歌同一套口径：池内每个难度各自的定数落在房间的
   /// MASTER 定数范围内即可入选，抽谱时从池内随机挑一个难度播放。
-  Widget _buildDifficultyPoolSetting(double scaleFactor, Brightness brightness) {
+  Widget _buildDifficultyPoolSetting(
+      double scaleFactor, Brightness brightness) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -477,204 +500,196 @@ class _RoomCreatePageState extends State<RoomCreatePage> {
     return BackgroundPageScaffold(
       title: '创建房间',
       resizeToAvoidBottomInset: false,
-      contentPadding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom + 10),
+      contentPadding:
+          EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom + 10),
       child: _isLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : SingleChildScrollView(
-                          padding: EdgeInsets.fromLTRB(paddingM, 8, paddingM, paddingM),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // ======== 游戏模式选择 ========
-                              Text(
-                                '游戏模式',
-                                style: TextStyle(
-                                  fontSize: 16 * scaleFactor,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              SizedBox(height: paddingM),
-                              // 模式平铺展开：每个模式一个按钮，点一下就选中
-                              // （原来是下拉框，要先点开再看列表，选项多时容易漏看）
-                              LayoutBuilder(
-                                builder: (context, constraints) {
-                                  // 两个一行；窄屏自动退成一列
-                                  const double gap = 8;
-                                  final bool twoColumns =
-                                      constraints.maxWidth >= 320;
-                                  final double itemWidth = twoColumns
-                                      ? (constraints.maxWidth - gap) / 2
-                                      : constraints.maxWidth;
-                                  return Wrap(
-                                    spacing: gap,
-                                    runSpacing: gap,
-                                    children: [
-                                      for (final type in GameType.values)
-                                        SizedBox(
-                                          width: itemWidth,
-                                          child: _buildGameTypeButton(
-                                              type, scaleFactor),
-                                        ),
-                                    ],
-                                  );
-                                },
-                              ),
-                              // 模式描述
-                              Padding(
-                                padding:
-                                    EdgeInsets.only(top: paddingS, left: 4),
-                                child: Text(
-                                  _gameType.description,
-                                  style: TextStyle(
-                                    fontSize: 13 * scaleFactor,
-                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                    fontStyle: FontStyle.italic,
-                                  ),
-                                ),
-                              ),
-                              SizedBox(height: paddingL * 1.2),
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(paddingM, 8, paddingM, paddingM),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // ======== 游戏模式选择 ========
+                  Text(
+                    '游戏模式',
+                    style: TextStyle(
+                      fontSize: 16 * scaleFactor,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  SizedBox(height: paddingM),
+                  // 模式平铺展开：每个模式一个按钮，点一下就选中
+                  // （原来是下拉框，要先点开再看列表，选项多时容易漏看）
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      // 两个一行；窄屏自动退成一列
+                      const double gap = 8;
+                      final bool twoColumns = constraints.maxWidth >= 320;
+                      final double itemWidth = twoColumns
+                          ? (constraints.maxWidth - gap) / 2
+                          : constraints.maxWidth;
+                      return Wrap(
+                        spacing: gap,
+                        runSpacing: gap,
+                        children: [
+                          for (final type in GameType.values)
+                            SizedBox(
+                              width: itemWidth,
+                              child: _buildGameTypeButton(type, scaleFactor),
+                            ),
+                        ],
+                      );
+                    },
+                  ),
+                  // 模式描述
+                  Padding(
+                    padding: EdgeInsets.only(top: paddingS, left: 4),
+                    child: Text(
+                      _gameType.description,
+                      style: TextStyle(
+                        fontSize: 13 * scaleFactor,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: paddingL * 1.2),
 
-                              // ======== 歌曲筛选设置 ========
-                              Text(
-                                '歌曲筛选设置',
-                                style: TextStyle(
-                                  fontSize: 16 * scaleFactor,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              SizedBox(height: paddingM),
-                              CommonWidgetUtil.buildGuessChartSettingsWidget(
-                                context,
-                                _allVersions,
-                                _allGenres,
-                                _selectedVersions,
-                                _masterMinDx,
-                                _masterMaxDx,
-                                _selectedGenres,
-                                _maxGuesses,
-                                _timeLimit,
-                                (versions) {
-                                  setState(
-                                      () => _selectedVersions = versions);
-                                },
-                                (min, max) {
-                                  setState(() {
-                                    _masterMinDx = min;
-                                    _masterMaxDx = max;
-                                  });
-                                },
-                                (genres) {
-                                  setState(
-                                      () => _selectedGenres = genres);
-                                },
-                                (guesses) {
-                                  setState(() => _maxGuesses = guesses);
-                                },
-                                (time) {
-                                  setState(() => _timeLimit = time);
-                                },
-                              ),
+                  // ======== 歌曲筛选设置 ========
+                  Text(
+                    '歌曲筛选设置',
+                    style: TextStyle(
+                      fontSize: 16 * scaleFactor,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  SizedBox(height: paddingM),
+                  CommonWidgetUtil.buildGuessChartSettingsWidget(
+                    context,
+                    _allVersions,
+                    _allGenres,
+                    _selectedVersions,
+                    _masterMinDx,
+                    _masterMaxDx,
+                    _selectedGenres,
+                    _maxGuesses,
+                    _timeLimit,
+                    (versions) {
+                      setState(() => _selectedVersions = versions);
+                    },
+                    (min, max) {
+                      setState(() {
+                        _masterMinDx = min;
+                        _masterMaxDx = max;
+                      });
+                    },
+                    (genres) {
+                      setState(() => _selectedGenres = genres);
+                    },
+                    (guesses) {
+                      setState(() => _maxGuesses = guesses);
+                    },
+                    (time) {
+                      setState(() => _timeLimit = time);
+                    },
+                  ),
 
-                              // ======== 房间基础设置 ========
-                              SizedBox(height: paddingL * 1.2),
-                              Text(
-                                '房间设置',
-                                style: TextStyle(
-                                  fontSize: 16 * scaleFactor,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              SizedBox(height: paddingM),
-                              Container(
-                                padding: EdgeInsets.all(paddingM),
-                                decoration: BoxDecoration(
-                                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                                  borderRadius:
-                                      BorderRadius.circular(borderRadiusSmall),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                        child: Text('最大玩家数',
-                                            style: TextStyle(
-                                                fontSize:
-                                                    14 * scaleFactor))),
-                                    DropdownButton<int>(
-                                      value: _maxPlayers,
-                                      items: [2, 3, 4, 5, 6].map((value) {
-                                        return DropdownMenuItem(
-                                          value: value,
-                                          child: Text('$value 人',
-                                              style: TextStyle(
-                                                  fontSize:
-                                                      14 * scaleFactor)),
-                                        );
-                                      }).toList(),
-                                      onChanged: (value) =>
-                                          setState(() => _maxPlayers = value!),
-                                    ),
-                                  ],
-                                ),
-                              ),
-
-                              // ======== 模式专属设置 ========
-                              _buildModeSpecificSettings(scaleFactor, brightness),
-
-                              // ======== 重置按钮 ========
-                              SizedBox(height: paddingL * 1.2),
-                              Center(
-                                child: ElevatedButton(
-                                  onPressed: () {
-                                    setState(() {
-                                      _selectedVersions = [];
-                                      _masterMinDx = 1.0;
-                                      _masterMaxDx = 15.0;
-                                      _selectedGenres = [];
-                                      _maxGuesses = 10;
-                                      _timeLimit = 60;
-                                      _maxPlayers = 4;
-                                      _blurLevel = 50;
-                                      _playDuration = 5;
-                                      _songCount = 3;
-                                      _nonEnglishCharThreshold = 50;
-                                    });
-                                  },
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-                                  ),
-                                  child: Text('重置所有设置',
-                                      style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
-                                ),
-                              ),
-
-                              // ======== 创建按钮 ========
-                              SizedBox(height: paddingL),
-                              ElevatedButton(
-                                onPressed: _isCreating ? null : _handleCreateRoom,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor:
-                                      Theme.of(context).colorScheme.primary,
-                                  padding: EdgeInsets.symmetric(
-                                      vertical: 16 * scaleFactor),
-                                  minimumSize: Size(
-                                      double.infinity, 50 * scaleFactor),
-                                ),
-                                child: _isCreating
-                                    ? SizedBox(
-                                        width: 24 * scaleFactor,
-                                        height: 24 * scaleFactor,
-                                        child: CircularProgressIndicator(
-                                            color: Theme.of(context).colorScheme.onPrimary),
-                                      )
-                                    : Text('创建房间',
-                                        style: TextStyle(
-                                            color: Theme.of(context).colorScheme.onPrimary,
-                                            fontSize: 16 * scaleFactor)),
-                              ),
-                              SizedBox(height: paddingL),
-                            ],
-                          ),
+                  // ======== 房间基础设置 ========
+                  SizedBox(height: paddingL * 1.2),
+                  Text(
+                    '房间设置',
+                    style: TextStyle(
+                      fontSize: 16 * scaleFactor,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  SizedBox(height: paddingM),
+                  Container(
+                    padding: EdgeInsets.all(paddingM),
+                    decoration: BoxDecoration(
+                      color:
+                          Theme.of(context).colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(borderRadiusSmall),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                            child: Text('最大玩家数',
+                                style: TextStyle(fontSize: 14 * scaleFactor))),
+                        DropdownButton<int>(
+                          value: _maxPlayers,
+                          items: [2, 3, 4, 5, 6].map((value) {
+                            return DropdownMenuItem(
+                              value: value,
+                              child: Text('$value 人',
+                                  style: TextStyle(fontSize: 14 * scaleFactor)),
+                            );
+                          }).toList(),
+                          onChanged: (value) =>
+                              setState(() => _maxPlayers = value!),
                         ),
+                      ],
+                    ),
+                  ),
+
+                  // ======== 模式专属设置 ========
+                  _buildModeSpecificSettings(scaleFactor, brightness),
+
+                  // ======== 重置按钮 ========
+                  SizedBox(height: paddingL * 1.2),
+                  Center(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        setState(() {
+                          _selectedVersions = [];
+                          _masterMinDx = 1.0;
+                          _masterMaxDx = 15.0;
+                          _selectedGenres = [];
+                          _maxGuesses = 10;
+                          _timeLimit = 60;
+                          _maxPlayers = 4;
+                          _blurLevel = 50;
+                          _playDuration = 5;
+                          _songCount = 3;
+                          _nonEnglishCharThreshold = 50;
+                        });
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Theme.of(context)
+                            .colorScheme
+                            .surfaceContainerHighest,
+                      ),
+                      child: Text('重置所有设置',
+                          style: TextStyle(
+                              color: Theme.of(context).colorScheme.onSurface)),
+                    ),
+                  ),
+
+                  // ======== 创建按钮 ========
+                  SizedBox(height: paddingL),
+                  ElevatedButton(
+                    onPressed: _isCreating ? null : _handleCreateRoom,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Theme.of(context).colorScheme.primary,
+                      padding: EdgeInsets.symmetric(vertical: 16 * scaleFactor),
+                      minimumSize: Size(double.infinity, 50 * scaleFactor),
+                    ),
+                    child: _isCreating
+                        ? SizedBox(
+                            width: 24 * scaleFactor,
+                            height: 24 * scaleFactor,
+                            child: CircularProgressIndicator(
+                                color: Theme.of(context).colorScheme.onPrimary),
+                          )
+                        : Text('创建房间',
+                            style: TextStyle(
+                                color: Theme.of(context).colorScheme.onPrimary,
+                                fontSize: 16 * scaleFactor)),
+                  ),
+                  SizedBox(height: paddingL),
+                ],
+              ),
+            ),
     );
   }
 }

@@ -1,9 +1,7 @@
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert';
-import 'package:mysql1/mysql1.dart';
 import '../api/ApiUrls.dart';
-import '../api/DeveloperToken.dart';
 import '../constant/CacheKeyConstant.dart';
 import '../constant/CacheTimestampConstant.dart';
 import '../utils/SongFilterUtil.dart';
@@ -1224,65 +1222,28 @@ class SongInfoService {
       });
       final response = await ApiClient.get(url);
       if (response.statusCode == 200) {
-        return json.decode(response.body);
+        final result = Map<String, dynamic>.from(
+            json.decode(utf8.decode(response.bodyBytes)) as Map);
+        // MySQL DECIMAL 经代理返回时可能是字符串，统一转换后供页面回显。
+        double? scoreOf(dynamic value) {
+          final score = value is num
+              ? value.toDouble()
+              : double.tryParse(value?.toString() ?? '');
+          return score != null && score.isFinite ? score : null;
+        }
+
+        result['averageScore'] = scoreOf(result['averageScore']);
+        final userRating = result['userRating'];
+        result['userRating'] = userRating is Map
+            ? (Map<String, dynamic>.from(userRating)
+              ..['score'] = scoreOf(userRating['score']))
+            : null;
+        return result;
       }
       return {'success': false, 'error': '获取评分信息失败'};
     } catch (e) {
       debugPrint('获取谱面评分失败: $e');
       return {'success': false, 'error': e.toString()};
-    }
-  }
-
-  // 直接从 MySQL 查询用户的谱面评分行（只取 score 和 createdAt）
-  static Future<Map<String, dynamic>?> getUserChartRatingFromMySQL({
-    required String songId,
-    required int levelIndex,
-  }) async {
-    final identity = await getCommentIdentity();
-    if (identity == null) {
-      return null;
-    }
-
-    final String userId = '${identity.dataSource}:${identity.originalId}';
-
-    MySqlConnection? conn;
-    try {
-      final settings = ConnectionSettings(
-        host: DeveloperToken.MySQLHost,
-        port: DeveloperToken.MySQLPort,
-        db: DeveloperToken.MySQLDatabase,
-        user: DeveloperToken.MySQLUsername,
-        password: DeveloperToken.MySQLPassword,
-        timeout: const Duration(seconds: 10),
-      );
-
-      conn = await MySqlConnection.connect(settings);
-
-      final results = await conn.query(
-        'SELECT score, created_at FROM chart_ratings WHERE user_id = ? AND song_id = ? AND level_index = ?',
-        [userId, songId, levelIndex],
-      );
-
-      if (results.isNotEmpty) {
-        final row = results.first;
-        return {
-          'score': row[0] is num
-              ? (row[0] as num).toDouble()
-              : (row[0] != null ? double.tryParse(row[0].toString()) : null),
-          'createdAt': row[1]?.toString(),
-        };
-      }
-
-      return null;
-    } catch (e) {
-      debugPrint('从MySQL获取用户评分失败: $e');
-      return null;
-    } finally {
-      if (conn != null) {
-        try {
-          await conn.close();
-        } catch (_) {}
-      }
     }
   }
 

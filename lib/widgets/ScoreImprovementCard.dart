@@ -19,6 +19,23 @@ class ScoreImprovementCard extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final score = entry.after;
+    // 白底 B50 的固定标签色仅用于浅色，深色使用亮蓝、亮橙和宴谱粉色。
+    final typeLabel = theme.brightness == Brightness.dark
+        ? Text(
+            score.isUtage ? 'UT' : (score.type == 'DX' ? 'DX' : 'ST'),
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+              height: 1,
+              color: score.isUtage
+                  ? AppColors.utageAccent(brightness: theme.brightness)
+                  : score.type == 'DX'
+                      ? AppColors.warningOrange(theme.brightness)
+                      : AppColors.linkBlue(theme.brightness),
+            ),
+          )
+        : B50GameCardWidget.buildTypeChip(
+            score.isUtage, score.type == 'DX', 12);
     final accent = score.isUtage
         ? AppColors.utageAccent(brightness: theme.brightness)
         : AppColors.difficultyForegroundByIndex(score.levelIndex,
@@ -81,8 +98,7 @@ class ScoreImprovementCard extends StatelessWidget {
                               Text('#${score.songId}',
                                   style: theme.textTheme.bodySmall?.copyWith(
                                       color: colors.onSurfaceVariant)),
-                              B50GameCardWidget.buildTypeChip(
-                                  score.isUtage, score.type == 'DX', 12),
+                              typeLabel,
                               Text(
                                   '${ChartDifficulty.labelOf(score.levelIndex, isUtage: score.isUtage)}'
                                   ' ${score.level}  定数 ${score.ds.toStringAsFixed(1)}',

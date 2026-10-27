@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../api/ApiUrls.dart';
 import '../../constant/CacheKeyConstant.dart';
@@ -90,7 +89,6 @@ class _SyncToAwmcNetPageState extends State<SyncToAwmcNetPage> {
   }
 
   Future<void> _loadToken() async {
-    final prefs = await SharedPreferences.getInstance();
     final token =
         await SecureCredentialStore.read(CacheKeyConstant.awmcNetImportToken);
     if (!mounted) return;
@@ -107,7 +105,6 @@ class _SyncToAwmcNetPageState extends State<SyncToAwmcNetPage> {
       Fluttertoast.showToast(msg: '请输入 AWMC NET 成绩导入 Token');
       return;
     }
-    final prefs = await SharedPreferences.getInstance();
     await SecureCredentialStore.write(
         CacheKeyConstant.awmcNetImportToken, token);
     if (!mounted) return;
@@ -120,7 +117,6 @@ class _SyncToAwmcNetPageState extends State<SyncToAwmcNetPage> {
   }
 
   Future<void> _clearToken() async {
-    final prefs = await SharedPreferences.getInstance();
     await SecureCredentialStore.delete(CacheKeyConstant.awmcNetImportToken);
     if (!mounted) return;
     setState(() {
@@ -147,13 +143,10 @@ class _SyncToAwmcNetPageState extends State<SyncToAwmcNetPage> {
     }
     // 用户是直接在输入框里填的（没点保存）：顺手存下来，下次不用再填
     if (_savedToken == null) {
-      final prefs = await SharedPreferences.getInstance();
       await SecureCredentialStore.write(
           CacheKeyConstant.awmcNetImportToken, token);
     }
     final refreshRequest = await _refreshKey.currentState?.collectRequest();
-    if (_refreshKey.currentState?.enabled == true && refreshRequest == null)
-      return;
     if (!mounted) return;
     Navigator.of(context).pop(AwmcNetSyncInput(
       qr: qr,

@@ -1144,7 +1144,7 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surface,
             border: Border.all(
-                color: AppColors.tableBorder(Theme.of(context).brightness),
+                color: AppColors.readableTableBorder(context),
                 width: 1),
             borderRadius: BorderRadius.circular(_borderRadiusSmall),
           ),
@@ -1217,7 +1217,7 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
                     border: Border.all(
                       color: isCompleted
                           ? Colors.green
-                          : AppColors.tableBorder(Theme.of(context).brightness),
+                          : AppColors.readableTableBorder(context),
                       width: 1,
                     ),
                   ),
@@ -1364,7 +1364,7 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
           width: double.infinity,
           decoration: BoxDecoration(
             border: Border.all(
-                color: AppColors.tableBorder(Theme.of(context).brightness),
+                color: AppColors.readableTableBorder(context),
                 width: 1.0),
             borderRadius: BorderRadius.circular(_borderRadiusSmall),
           ),
@@ -1669,7 +1669,7 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surface,
             border: Border.all(
-                color: AppColors.tableBorder(Theme.of(context).brightness),
+                color: AppColors.readableTableBorder(context),
                 width: 1),
             borderRadius: BorderRadius.circular(_borderRadiusSmall),
           ),

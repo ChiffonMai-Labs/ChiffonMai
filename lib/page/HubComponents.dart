@@ -77,6 +77,7 @@ class HubSection extends StatelessWidget {
   final List<Widget> children;
   final int? badgeCount;
   final Widget? trailing;
+  final EdgeInsetsGeometry contentPadding;
 
   const HubSection({
     super.key,
@@ -86,6 +87,7 @@ class HubSection extends StatelessWidget {
     this.subtitle,
     this.badgeCount,
     this.trailing,
+    this.contentPadding = EdgeInsets.zero,
   });
 
   @override
@@ -181,7 +183,10 @@ class HubSection extends StatelessWidget {
             borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
             border: Border.all(color: scheme.outlineVariant),
           ),
-          child: Column(children: children),
+          child: Padding(
+            padding: contentPadding,
+            child: Column(children: children),
+          ),
         ),
       ],
     );
@@ -255,8 +260,26 @@ class HubActionTile extends StatelessWidget {
   /// 可选：标题颜色。默认跟随主题（未禁用时用 `onSurface`）。
   final Color? titleColor;
 
-  /// 可选：单独调整标题字号，避免少数较长标题频繁换行。
-  final double titleFontSize;
+  /// 可选：单独调整标题字号。
+  ///
+  /// 不传时按 [titleFontSizeFor] 自动取：长标题 13、其余 [defaultTitleFontSize]。
+  /// 特殊字号只在 [specialTitleFontSizes] 里定义一份，不要在调用点各写各的。
+  final double? titleFontSize;
+
+  /// 默认标题字号。
+  static const double defaultTitleFontSize = 14.5;
+
+  /// 少数长标题的专用字号，避免在窄列里频繁换行。
+  ///
+  /// 首页「收藏的功能」区和各 hub 页显示的是同一个功能，字号必须共用这一份：
+  /// 之前 hub 页单独传 13、收藏区走默认 14.5，同一个标题在两处观感不一致。
+  static const Map<String, double> specialTitleFontSizes = {
+    '登录 maimai Score Hub': 13,
+    '平均DX分数达成率排行榜': 13,
+  };
+
+  static double titleFontSizeFor(String title) =>
+      specialTitleFontSizes[title] ?? defaultTitleFontSize;
 
   const HubActionTile({
     super.key,
@@ -283,7 +306,7 @@ class HubActionTile extends StatelessWidget {
     this.footerLift = 0,
     this.leading,
     this.titleColor,
-    this.titleFontSize = 14.5,
+    this.titleFontSize,
   }) : assert(footerLift >= 0 && footerLift <= 10,
             'footerLift 只能是 0~10：底部内边距一共就 10，再多就贴死了');
 
@@ -366,7 +389,7 @@ class HubActionTile extends StatelessWidget {
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
           fontWeight: FontWeight.w600,
-          fontSize: titleFontSize,
+          fontSize: titleFontSize ?? titleFontSizeFor(title),
           color: _isInactive
               ? scheme.onSurface.withValues(alpha: 0.6)
               : (awaitingConfirm ? scheme.error : titleColor),
@@ -448,7 +471,7 @@ class HubActionTile extends StatelessWidget {
         // 利用 ListTile 底部已有的留白上提提示，同时收掉原来的尾部间距。
         Transform.translate(
           offset: const Offset(0, -10),
-          // 红字原因是否显示由「主题与交互偏好」里的开关决定（默认关闭），
+          // 红字原因是否显示由「系统设置」里的开关决定（默认关闭），
           // 这里就地订阅偏好，调用方不用逐个透传。
           child: ListenableBuilder(
             listenable: NavigationPreferences.instance,

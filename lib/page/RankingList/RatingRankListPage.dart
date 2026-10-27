@@ -1,3 +1,5 @@
+import '../../service/CommunityAvatarStore.dart';
+import '../../widgets/RankingPlayerBriefSheet.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -66,12 +68,18 @@ class _RatingRankListPageState extends State<RatingRankListPage>
   @override
   void initState() {
     super.initState();
+    CommunityAvatarStore.profileChanges.addListener(_onAppearanceChanged);
     _tabs = TabController(length: _tabNames.length, vsync: this);
     _loadData();
   }
 
+  void _onAppearanceChanged() {
+    if (mounted) _loadRankings();
+  }
+
   @override
   void dispose() {
+    CommunityAvatarStore.profileChanges.removeListener(_onAppearanceChanged);
     _scrollController.dispose();
     _tabs.dispose();
     super.dispose();
@@ -272,88 +280,91 @@ class _RatingRankListPageState extends State<RatingRankListPage>
 
   Widget _buildRankItem(RankItem item,
       {bool isCurrentUser = false, required Brightness brightness}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        border: Border(
-            bottom: BorderSide(color: AppColors.tableBorder(brightness))),
-        color: isCurrentUser
-            ? AppColors.linkBlue(brightness).withValues(alpha: 0.08)
-            : null,
-      ),
-      child: Row(
-        children: [
-          // 排名
-          SizedBox(
-            width: 40,
-            child: Center(
-              child: _buildRankBadge(item.rank, brightness: brightness),
-            ),
+    return RankingPlayerRow(
+        playerId: item.userId,
+        nickname: item.nickname,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            border: Border(
+                bottom: BorderSide(color: AppColors.tableBorder(brightness))),
+            color: isCurrentUser
+                ? AppColors.linkBlue(brightness).withValues(alpha: 0.08)
+                : null,
           ),
-
-          Expanded(
-            child: CommunityPlayerIdentity(
-              avatarId: item.avatarId,
-              dataSource: item.dataSource,
-              // 开发者白名单按 `<source>:<id>` 整串匹配，见 DataSourceTag
-              playerId: item.userId,
-              name: item.nickname ?? '未知玩家',
-              // 头像高度对齐「玩家名 + 数据源标签」两行文字的总高
-              avatarMatchesTextHeight: true,
-              nameStyle: TextStyle(
-                fontSize: 14,
-                fontWeight: isCurrentUser ? FontWeight.bold : FontWeight.w500,
-                color: isCurrentUser
-                    ? AppColors.primaryText(brightness)
-                    : AppColors.secondaryText(brightness),
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-
-          // Rating 信息
-          SizedBox(
-            width: 140,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                // 总Rating
-                ColorUtil.buildRatingBadge(
-                  item.totalRating,
-                  height: 24,
+          child: Row(
+            children: [
+              // 排名
+              SizedBox(
+                width: 40,
+                child: Center(
+                  child: _buildRankBadge(item.rank, brightness: brightness),
                 ),
-                // Best35 和 Best15
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
+              ),
+
+              Expanded(
+                child: CommunityPlayerIdentity(
+                  avatarId: item.avatarId,
+                  dataSource: item.dataSource,
+                  // 开发者白名单按 `<source>:<id>` 整串匹配，见 DataSourceTag
+                  playerId: item.userId,
+                  name: item.nickname ?? '未知玩家',
+                  // 头像高度对齐「玩家名 + 数据源标签」两行文字的总高
+                  avatarMatchesTextHeight: true,
+                  nameStyle: TextStyle(
+                    fontSize: 14,
+                    fontWeight:
+                        isCurrentUser ? FontWeight.bold : FontWeight.w500,
+                    color: isCurrentUser
+                        ? AppColors.primaryText(brightness)
+                        : AppColors.secondaryText(brightness),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+
+              // Rating 信息
+              SizedBox(
+                width: 140,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    if (item.best35Rating > 0)
-                      Text(
-                        'B35: ${item.best35Rating}',
-                        textAlign: TextAlign.right,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: AppColors.greyHint(brightness),
-                        ),
-                      ),
-                    if (item.best35Rating > 0 && item.best15Rating > 0)
-                      const SizedBox(width: 8),
-                    if (item.best15Rating > 0)
-                      Text(
-                        'B15: ${item.best15Rating}',
-                        textAlign: TextAlign.right,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: AppColors.greyHint(brightness),
-                        ),
-                      ),
+                    // 总Rating
+                    ColorUtil.buildRatingBadge(
+                      item.totalRating,
+                      height: 24,
+                    ),
+                    // Best35 和 Best15
+                    Wrap(
+                      alignment: WrapAlignment.end,
+                      spacing: 8,
+                      children: [
+                        if (item.best35Rating > 0)
+                          Text(
+                            'B35: ${item.best35Rating}',
+                            textAlign: TextAlign.right,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: AppColors.greyHint(brightness),
+                            ),
+                          ),
+                        if (item.best15Rating > 0)
+                          Text(
+                            'B15: ${item.best15Rating}',
+                            textAlign: TextAlign.right,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: AppColors.greyHint(brightness),
+                            ),
+                          ),
+                      ],
+                    ),
                   ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
-    );
+        ));
   }
 
   /// 定位用的「原型行」：内容最全的一行（第 1 名那 28dp 奖杯 + 总 Rating 徽章 +
@@ -647,8 +658,9 @@ class _RatingRankListPageState extends State<RatingRankListPage>
                                   _currentUserRankItem!.totalRating,
                                   height: 24,
                                 ),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.end,
+                                Wrap(
+                                  alignment: WrapAlignment.end,
+                                  spacing: 8,
                                   children: [
                                     if (_currentUserRankItem!.best35Rating > 0)
                                       Text(
@@ -658,10 +670,6 @@ class _RatingRankListPageState extends State<RatingRankListPage>
                                           color: AppColors.greyHint(brightness),
                                         ),
                                       ),
-                                    if (_currentUserRankItem!.best35Rating >
-                                            0 &&
-                                        _currentUserRankItem!.best15Rating > 0)
-                                      const SizedBox(width: 8),
                                     if (_currentUserRankItem!.best15Rating > 0)
                                       Text(
                                         'B15: ${_currentUserRankItem!.best15Rating}',

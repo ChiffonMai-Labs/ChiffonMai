@@ -4,14 +4,15 @@ import 'package:flutter/material.dart';
 import '../utils/AppDesignTokens.dart';
 import '../utils/NavigationPreferences.dart';
 import '../widgets/LiquidGlassNavigationBar.dart';
+import '../widgets/ExpandingPillNavigationBar.dart';
 import '../widgets/MainNavigationViewport.dart';
 import '../widgets/MainNavigationInsets.dart';
 import '../widgets/ThemeAwareBackground.dart';
 import 'HomePage.dart';
-import 'Best50HubPage.dart';
+import 'ScoreHubPage.dart';
 import 'LibraryHubPage.dart';
-import 'GuessHubPage.dart';
-import 'ToolsHubPage.dart';
+import 'PlayHubPage.dart';
+import 'AttendanceHubPage.dart';
 import 'SystemHubPage.dart';
 import 'Portable/PortablePlayerPage.dart';
 
@@ -58,29 +59,29 @@ class _AppShellState extends State<AppShell> {
       activeIcon: Icons.home_rounded,
     ),
     _NavTab(
-      label: '曲库与数据',
+      label: '曲库',
       icon: Icons.library_music_outlined,
       activeIcon: Icons.library_music_rounded,
     ),
     _NavTab(
-      label: 'Best50',
-      icon: Icons.emoji_events_outlined,
-      activeIcon: Icons.emoji_events_rounded,
+      label: '成绩',
+      icon: Icons.analytics_outlined,
+      activeIcon: Icons.analytics_rounded,
     ),
     _NavTab(
-      label: '猜歌游戏',
-      icon: Icons.casino_outlined,
-      activeIcon: Icons.casino_rounded,
+      label: '出勤',
+      icon: Icons.explore_outlined,
+      activeIcon: Icons.explore_rounded,
     ),
     _NavTab(
-      label: '实用工具',
-      icon: Icons.handyman_outlined,
-      activeIcon: Icons.handyman_rounded,
+      label: '休闲',
+      icon: Icons.sports_esports_outlined,
+      activeIcon: Icons.sports_esports_rounded,
     ),
     _NavTab(
-      label: '系统',
-      icon: Icons.settings_outlined,
-      activeIcon: Icons.settings_rounded,
+      label: '我的',
+      icon: Icons.person_outline_rounded,
+      activeIcon: Icons.person_rounded,
     ),
   ];
 
@@ -103,15 +104,15 @@ class _AppShellState extends State<AppShell> {
     _pages = [
       HomePage(
         key: _homePageKey,
-        onEntertainmentTap: () => _selectIndex(3),
+        onEntertainmentTap: () => _selectIndex(4),
         onSystemFeatureTap: (item) async {
           await _systemPageKey.currentState?.openFeature(item);
         },
       ),
       const LibraryHubPage(),
-      const Best50HubPage(),
-      const GuessHubPage(),
-      const ToolsHubPage(),
+      const ScoreHubPage(),
+      const AttendanceHubPage(),
+      const PlayHubPage(),
       SystemHubPage(
         key: _systemPageKey,
         onAccountManageTap: () =>
@@ -250,20 +251,31 @@ class _AppShellState extends State<AppShell> {
   }
 
   Widget _buildFloatingNavigation(ColorScheme scheme) {
+    final navigation = NavigationPreferences.instance;
+    final destinations = [
+      for (final tab in _tabs)
+        LiquidGlassDestination(
+          label: tab.label,
+          icon: tab.icon,
+          selectedIcon: tab.activeIcon,
+        ),
+    ];
+    if (navigation.barStyle == NavigationBarStyle.expandingPill) {
+      return ExpandingPillNavigationBar(
+        height: barH,
+        selectedIndex: _index,
+        onSelected: _selectIndex,
+        animationEnabled: navigation.transitionEnabled,
+        destinations: destinations,
+      );
+    }
     if (NavigationPreferences.instance.liquidGlassEnabled) {
       return LiquidGlassNavigationBar(
         height: barH,
         selectedIndex: _index,
         onSelected: _selectIndex,
         animationEnabled: NavigationPreferences.instance.transitionEnabled,
-        destinations: [
-          for (final tab in _tabs)
-            LiquidGlassDestination(
-              label: tab.label,
-              icon: tab.icon,
-              selectedIcon: tab.activeIcon,
-            ),
-        ],
+        destinations: destinations,
       );
     }
     return Material(

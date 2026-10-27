@@ -15,6 +15,15 @@ class RankCompletionStore extends ChangeNotifier {
   RankCompletion status(String rank) =>
       _values[rank] ?? RankCompletion.unplayed;
   Future<void> load() => _loading ??= _load();
+  Future<void> reload() async {
+    await _loading;
+    _values.clear();
+    _achievements.clear();
+    _loading = null;
+    await load();
+    notifyListeners();
+  }
+
   Future<void> _load() async {
     _prefs = await SharedPreferences.getInstance();
     for (final key

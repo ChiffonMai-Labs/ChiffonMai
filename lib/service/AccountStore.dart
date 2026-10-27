@@ -102,6 +102,7 @@ class AccountStore {
     CacheKeyConstant.recommendationResults,
     CacheKeyConstant.participateRankings,
     CacheKeyConstant.showNickname,
+    CacheKeyConstant.showBriefProfile,
     'last_used_qq',
   ];
 
@@ -337,6 +338,8 @@ class AccountStore {
             prefs.getBool(CacheKeyConstant.participateRankings) ?? false,
         CacheKeyConstant.showNickname:
             prefs.getBool(CacheKeyConstant.showNickname) ?? false,
+        CacheKeyConstant.showBriefProfile:
+            prefs.getBool(CacheKeyConstant.showBriefProfile) ?? false,
       };
     }
     final raw = prefs.getString(_playArchiveKey(source.key));
@@ -349,7 +352,8 @@ class AccountStore {
   static Future<List<dynamic>> recordsForAccount(
       RefreshDataSource source, String accountId) async {
     final prefs = await SharedPreferences.getInstance();
-    final active = RefreshDataSource.fromKey(prefs.getString(CacheKeyConstant.lastDataSource));
+    final active = RefreshDataSource.fromKey(
+        prefs.getString(CacheKeyConstant.lastDataSource));
     String? raw;
     String? owner;
     if (active == source) {
@@ -363,7 +367,8 @@ class AccountStore {
         final play = jsonDecode(playRaw) as Map;
         final marker = identity[source.userIdCacheKey]?.toString();
         owner = (marker?.startsWith('${source.key}:') == true
-                ? RefreshDataSource.parseUserIdMarker(marker) : null) ??
+                ? RefreshDataSource.parseUserIdMarker(marker)
+                : null) ??
             identity[CacheKeyConstant.cachedQQ]?.toString();
         raw = play[CacheKeyConstant.userPlayData]?.toString();
       }
@@ -373,7 +378,8 @@ class AccountStore {
     }
     final data = jsonDecode(raw);
     final records = data is Map ? data['records'] : null;
-    if (records is! List) throw StateError('${source.displayName}成绩缓存无效，请先刷新数据');
+    if (records is! List)
+      throw StateError('${source.displayName}成绩缓存无效，请先刷新数据');
     return records;
   }
 

@@ -1,16 +1,23 @@
 enum GameType {
-  info,       // 无提示猜歌
-  cover,      // 根据部分曲绘猜歌
-  blurred,    // 根据模糊曲绘猜歌
-  audio,      // 根据歌曲片段猜歌
-  alia,       // 根据别名猜歌
-  letters,    // 舞萌开字母
-  flash,      // 曲绘快闪
+  info, // 无提示猜歌
+  cover, // 根据部分曲绘猜歌
+  blurred, // 根据模糊曲绘猜歌
+  reverseAudio, // 倒放音频
+  pitchAudio, // 变速变调
+  audio, // 根据歌曲片段猜歌
+  alia, // 根据别名猜歌
+  letters, // 舞萌开字母
+  flash, // 曲绘快闪
   tileReveal, // 曲绘拼图
-  chartPeek,  // 谱面片段
+  chartPeek, // 谱面片段
 }
 
 extension GameTypeExtension on GameType {
+  bool get isAudio =>
+      this == GameType.audio ||
+      this == GameType.reverseAudio ||
+      this == GameType.pitchAudio;
+
   /// 用于 API 通信的英文字段名
   /// (info, cover, blurred, audio, alia, letters, flash, tileReveal, chartPeek)
   ///
@@ -24,6 +31,10 @@ extension GameTypeExtension on GameType {
         return 'cover';
       case GameType.blurred:
         return 'blurred';
+      case GameType.reverseAudio:
+        return 'reverseAudio';
+      case GameType.pitchAudio:
+        return 'pitchAudio';
       case GameType.audio:
         return 'audio';
       case GameType.alia:
@@ -48,6 +59,10 @@ extension GameTypeExtension on GameType {
         return '曲绘猜歌';
       case GameType.blurred:
         return '模糊曲绘';
+      case GameType.reverseAudio:
+        return '倒放音频';
+      case GameType.pitchAudio:
+        return '变速变调';
       case GameType.audio:
         return '歌曲片段';
       case GameType.alia:
@@ -71,6 +86,10 @@ extension GameTypeExtension on GameType {
         return '根据部分曲绘猜歌名';
       case GameType.blurred:
         return '根据模糊曲绘猜歌名';
+      case GameType.reverseAudio:
+        return '根据倒放的歌曲片段猜歌名';
+      case GameType.pitchAudio:
+        return '根据速度和音高联动改变的片段猜歌名';
       case GameType.audio:
         return '根据歌曲片段猜歌名';
       case GameType.alia:

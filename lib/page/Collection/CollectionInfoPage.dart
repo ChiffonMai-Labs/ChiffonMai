@@ -1,3 +1,4 @@
+import '../../service/PaiziProgressService.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
@@ -18,6 +19,8 @@ import '../../utils/AppTheme.dart';
 import '../SongInfoPage.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
 import '../../widgets/LxnsAssetImage.dart';
+import '../../widgets/TrophyTitleBadge.dart';
+import '../../entity/DivingFish/Song.dart';
 
 class CollectionInfoPage extends StatefulWidget {
   final int collectionId;
@@ -39,6 +42,7 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
   bool _isLoading = true;
   Map<CollectionRequiredSong, dynamic>? _songMap;
   bool _isLoadingSongs = false;
+  List<Song> _excludedSongs = [];
   String? _translatedName;
   String? _translatedDescription;
   bool _isTranslatingName = false;
@@ -202,6 +206,7 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
         widget.collectionType,
       );
 
+      if (!mounted) return;
       setState(() {
         _collection = collection;
       });
@@ -215,9 +220,10 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
     } catch (e) {
       debugPrint('加载收藏品详情时出错: $e');
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted)
+        setState(() {
+          _isLoading = false;
+        });
     }
   }
 
@@ -313,15 +319,23 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
     try {
       final songMap =
           await LuoXueToDivingFishUtil.getSongsFromCache(collection);
+      final excluded = widget.collectionType == 'plates' &&
+              PaiziProgressService().isProgressPlate(collection)
+          ? await LuoXueToDivingFishUtil.getConditionExcludedSongs(collection,
+              matched: songMap)
+          : <Song>[];
+      if (!mounted) return;
       setState(() {
+        _excludedSongs = excluded;
         _songMap = songMap;
       });
     } catch (e) {
       debugPrint('加载歌曲信息时出错: $e');
     } finally {
-      setState(() {
-        _isLoadingSongs = false;
-      });
+      if (mounted)
+        setState(() {
+          _isLoadingSongs = false;
+        });
     }
   }
 
@@ -531,6 +545,133 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
     }
   }
 
+  Widget _buildCollectionSongCard(
+      CollectionRequiredSong requiredSong, Song? song) {
+    // 获取定数列表
+    List<double> dsList = [];
+    if (song != null && song.ds != null && song.ds is List) {
+      dsList = song.ds;
+    }
+    return GestureDetector(
+      onTap: () {
+        // 跳转到歌曲详情页面，默认选择MASTER难度
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => SongInfoPage(
+              songId: song?.id.toString() ?? requiredSong.id.toString(),
+              initialLevelIndex: 3, // 3 代表 MASTER 难度
+            ),
+          ),
+        );
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outlineVariant,
+            width: 1,
+          ),
+        ),
+        padding: EdgeInsets.all(4),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // 曲绘
+            Container(
+              width: 40,
+              height: 40,
+              child: CoverUtil.buildCoverWidgetWithContext(
+                context,
+                song?.id.toString() ?? requiredSong.id.toString(),
+                40,
+              ),
+            ),
+            SizedBox(width: 6),
+            // 歌曲信息
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    requiredSong.title,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  SizedBox(height: 1),
+                  // 第二行：类型|版本
+                  Text(
+                    '${_getTypeDisplay(requiredSong.type)} | ${song != null ? StringUtil.formatVersion2WithFlag(song.basicInfo.from, song.isExtra) : '-'}',
+                    style: TextStyle(
+                      fontSize: 9,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  SizedBox(height: 1),
+                  // 第三行：第3,4,5个定数（EXPERT/MASTER/Re:MASTER）
+                  Text(
+                    _getDsDisplay(dsList),
+                    style: TextStyle(
+                      fontSize: 9,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildExcludedSongSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionHeading(
+            context, Icons.playlist_remove_outlined, '条件外排除曲目'),
+        const SizedBox(height: 8),
+        Text('共 ${_excludedSongs.length} 首，不计入所需条件',
+            style: TextStyle(
+                fontSize: 14,
+                color: Theme.of(context).colorScheme.onSurfaceVariant)),
+        const SizedBox(height: 6),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          padding: EdgeInsets.zero,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 4,
+              mainAxisSpacing: 4,
+              childAspectRatio: 2,
+              mainAxisExtent: 54),
+          itemCount: _excludedSongs.length,
+          itemBuilder: (context, index) {
+            final song = _excludedSongs[index];
+            return _buildCollectionSongCard(
+                CollectionRequiredSong(
+                    id: int.tryParse(song.id) ?? 0,
+                    title: song.title,
+                    type: song.type),
+                song);
+          },
+        ),
+      ],
+    );
+  }
+
   // 获取唯一的歌曲列表
   List<Widget> _getUniqueSongLists(List<CollectionRequired> requiredList) {
     final Set<String> seenSongLists = {};
@@ -568,103 +709,9 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
                     mainAxisExtent: 54, // 给曲绘、上下内边距和边框留出完整空间，避免卡片底部溢出
                   ),
                   itemCount: requiredItem.songs!.length,
-                  itemBuilder: (context, index) {
-                    final requiredSong = requiredItem.songs![index];
-                    final song = _songMap?[requiredSong];
-                    // 获取定数列表
-                    List<double> dsList = [];
-                    if (song != null && song.ds != null && song.ds is List) {
-                      dsList = song.ds;
-                    }
-                    return GestureDetector(
-                      onTap: () {
-                        // 跳转到歌曲详情页面，默认选择MASTER难度
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => SongInfoPage(
-                              songId: song?.id.toString() ??
-                                  requiredSong.id.toString(),
-                              initialLevelIndex: 3, // 3 代表 MASTER 难度
-                            ),
-                          ),
-                        );
-                      },
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.surface,
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(
-                            color: AppColors.tableBorder(
-                                Theme.of(context).brightness),
-                            width: 1,
-                          ),
-                        ),
-                        padding: EdgeInsets.all(4),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            // 曲绘
-                            Container(
-                              width: 40,
-                              height: 40,
-                              child: CoverUtil.buildCoverWidgetWithContext(
-                                context,
-                                song?.id.toString() ??
-                                    requiredSong.id.toString(),
-                                40,
-                              ),
-                            ),
-                            SizedBox(width: 6),
-                            // 歌曲信息
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    requiredSong.title,
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  SizedBox(height: 1),
-                                  // 第二行：类型|版本
-                                  Text(
-                                    '${_getTypeDisplay(requiredSong.type)} | ${song != null ? StringUtil.formatVersion2WithFlag(song.basicInfo.from, song.isExtra) : '-'}',
-                                    style: TextStyle(
-                                      fontSize: 9,
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .onSurfaceVariant,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  SizedBox(height: 1),
-                                  // 第三行：第3,4,5个定数（EXPERT/MASTER/Re:MASTER）
-                                  Text(
-                                    _getDsDisplay(dsList),
-                                    style: TextStyle(
-                                      fontSize: 9,
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .onSurfaceVariant,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
+                  itemBuilder: (context, index) => _buildCollectionSongCard(
+                      requiredItem.songs![index],
+                      _songMap?[requiredItem.songs![index]]),
                 ),
                 SizedBox(height: 12), // 减小底部间距
               ],
@@ -1157,6 +1204,16 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
           ),
         ],
         const SizedBox(height: 24),
+        if (widget.collectionType == 'trophies') ...[
+          _buildSectionHeading(context, Icons.badge_outlined, '称号展示预览'),
+          const SizedBox(height: 10),
+          TrophyTitleBadge(
+              name: collection.name,
+              color: collection.color,
+              trophyId: collection.id,
+              staticTextOffsetY: 1),
+          const SizedBox(height: 24),
+        ],
         if (widget.collectionType == 'trophies' &&
             collection.color != null) ...[
           _buildSectionHeading(context, Icons.palette_outlined, '底色'),
@@ -1228,6 +1285,11 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
           _buildSectionHeading(context, Icons.library_music_outlined, '歌曲列表'),
           const SizedBox(height: 8),
           ..._getUniqueSongLists(collection.required!),
+          if (!_isLoadingSongs &&
+              widget.collectionType == 'plates' &&
+              _collection != null &&
+              PaiziProgressService().isProgressPlate(_collection!))
+            _buildExcludedSongSection(),
         ],
         if (_isLoadingSongs)
           const Padding(

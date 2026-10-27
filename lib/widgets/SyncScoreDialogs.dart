@@ -1,3 +1,4 @@
+import 'RankingPrivacyOptions.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
@@ -7,7 +8,9 @@ import '../constant/CacheKeyConstant.dart';
 import '../constant/LoadingTipsConstant.dart';
 import '../manager/DivingFishProbeManager.dart';
 import '../service/SyncStatsService.dart';
+import '../service/PostSyncRefreshService.dart';
 import '../utils/AppTheme.dart';
+import '../utils/ExternalLaunchUtil.dart';
 import '../utils/SyncRouteNotifier.dart';
 import '../utils/SecureCredentialStore.dart';
 import 'QrQuickFillButtons.dart';
@@ -16,8 +19,7 @@ import 'QuickSyncOption.dart';
 import 'PostSyncRefreshOptions.dart';
 import 'SmoothLinearProgressIndicator.dart';
 import 'ConfettiEffect.dart';
-import 'RefreshDataDialog.dart'
-    show RefreshDataRequest, RefreshDataSource, executeAdvancedRefreshData;
+import 'RefreshDataDialog.dart' show RefreshDataRequest, RefreshDataSource;
 
 export 'MultiScoreSyncDialog.dart'
     show MultiScoreSyncInput, showMultiScoreSyncInputDialog;
@@ -79,9 +81,11 @@ class SyncFlowException implements Exception {
 class DivingFishSyncOutcome {
   final int exportedCount;
   final bool localDataRefreshed;
+  final String? refreshError;
   const DivingFishSyncOutcome({
     required this.exportedCount,
     required this.localDataRefreshed,
+    this.refreshError,
   });
 }
 
@@ -208,8 +212,6 @@ Future<DivingFishSyncInput?> showDivingFishSyncInputDialog(BuildContext context,
                         CacheKeyConstant.showNickname, showNickname);
                     final refreshRequest =
                         await refreshKey.currentState?.collectRequest();
-                    if (refreshKey.currentState?.enabled == true &&
-                        refreshRequest == null) return;
                     if (!dialogContext.mounted) return;
                     Navigator.of(dialogContext).pop(DivingFishSyncInput(
                       qrCode: qrCode,
@@ -252,7 +254,7 @@ class LuoXueSyncInput {
   final String qrCode;
   final bool quickUpdate;
 
-  /// 落雪个人 API 密钥；已在本地保存过时为 null（执行时从缓存读取）
+  /// 落雪个人 API 密钥；统一从本地缓存读取（在「账号管理」里维护）。
   final String? lxnsImportToken;
   final RefreshDataRequest? refreshRequest;
 
@@ -266,19 +268,21 @@ class LuoXueSyncInput {
 
 /// 只收集输入的「同步成绩到落雪」对话框。
 ///
-/// 返回 null 表示用户取消。已在本地保存过落雪 API 密钥时不再要求重新填写。
+/// 返回 null 表示用户取消。落雪 API 密钥统一在「账号管理」里维护，
+/// 这个对话框不再要求填写，执行时会直接从本地缓存读取。
 Future<LuoXueSyncInput?> showLuoXueSyncInputDialog(BuildContext context,
     {bool allowQuickUpdate = false}) async {
   final brightness = Theme.of(context).brightness;
-  final savedToken =
-      await SecureCredentialStore.read(CacheKeyConstant.probeLxnsImportToken);
-  final hasSavedToken = savedToken != null && savedToken.isNotEmpty;
   final qrController = TextEditingController();
   var quickUpdate = false;
-  final tokenController = TextEditingController();
   final refreshKey = GlobalKey<PostSyncRefreshOptionsState>();
   String? error;
   ModalRoute<LuoXueSyncInput>? dialogRoute;
+
+  // 打开时就检查密钥是否已保存：缺失时直接展示获取引导（与 AWMC NET 对话框一致）。
+  final savedToken =
+      await SecureCredentialStore.read(CacheKeyConstant.probeLxnsImportToken);
+  final hasSavedToken = savedToken != null && savedToken.isNotEmpty;
 
   if (!context.mounted) return null;
 
@@ -336,33 +340,10 @@ Future<LuoXueSyncInput?> showLuoXueSyncInputDialog(BuildContext context,
                   ),
                   const SizedBox(height: 16),
                 ],
-                if (hasSavedToken)
-                  Row(
-                    children: [
-                      Icon(Icons.check_circle,
-                          size: 16, color: AppColors.successGreen(brightness)),
-                      const SizedBox(width: 6),
-                      Text('已保存落雪 API 密钥',
-                          style: TextStyle(
-                              fontSize: 13,
-                              color: AppColors.successGreen(brightness))),
-                    ],
-                  )
-                else ...[
-                  Text(
-                    '需要落雪个人 API 密钥（落雪咖啡屋 → 设置 → 个人 API 密钥）：',
-                    style: TextStyle(
-                        fontSize: 13, color: AppColors.greyHint(brightness)),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: tokenController,
-                    decoration: InputDecoration(
-                      labelText: '落雪个人 API 密钥',
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8)),
-                    ),
-                  ),
+                // 密钥缺失时的详细获取引导：和「同步成绩到 AWMC NET」对话框同一套写法。
+                if (!hasSavedToken) ...[
+                  _buildLuoXueKeyGuide(context, brightness),
+                  const SizedBox(height: 12),
                 ],
                 if (error != null) ...[
                   const SizedBox(height: 10),
@@ -393,21 +374,17 @@ Future<LuoXueSyncInput?> showLuoXueSyncInputDialog(BuildContext context,
                       setState(() => error = '无效的二维码，请使用舞萌|中二公众号生成的登入二维码');
                       return;
                     }
-                    String? token;
-                    if (!hasSavedToken) {
-                      token = tokenController.text.trim();
-                      if (token.isEmpty) {
-                        setState(() => error = '请先填写落雪个人 API 密钥');
-                        return;
-                      }
-                      // 先落盘，执行阶段就不用再传了
-                      await SecureCredentialStore.write(
-                          CacheKeyConstant.probeLxnsImportToken, token);
+                    // 密钥统一在「账号管理」里维护，这里只读本地缓存，
+                    // 不再让用户在同步对话框里输入。
+                    final token = await SecureCredentialStore.read(
+                        CacheKeyConstant.probeLxnsImportToken);
+                    if (!dialogContext.mounted) return;
+                    if (token == null || token.isEmpty) {
+                      setState(() => error = '尚未设置落雪个人 API 密钥，请先在「账号管理」中设置');
+                      return;
                     }
                     final refreshRequest =
                         await refreshKey.currentState?.collectRequest();
-                    if (refreshKey.currentState?.enabled == true &&
-                        refreshRequest == null) return;
                     if (!dialogContext.mounted) return;
                     Navigator.of(dialogContext).pop(LuoXueSyncInput(
                       qrCode: qrCode,
@@ -431,8 +408,85 @@ Future<LuoXueSyncInput?> showLuoXueSyncInputDialog(BuildContext context,
     },
   );
 
-  await _disposeAfterDialogCloses(dialogRoute, [qrController, tokenController]);
+  await _disposeAfterDialogCloses(dialogRoute, [qrController]);
   return result;
+}
+
+/// 落雪个人 API 密钥的获取页面（密钥在页面最底部生成）。
+const String _luoXueProfileUrl =
+    'https://maimai.lxns.net/user/profile?tab=thirdparty';
+
+/// 落雪个人 API 密钥的获取引导。
+///
+/// 与「同步成绩到 AWMC NET」对话框里的 Token 引导同一套结构：
+/// 说明 + 编号步骤 + 可点击链接。密钥统一在「账号管理 → 落雪 API 密钥」保存，
+/// 所以第三步直接写清粘贴路径，避免用户拿到密钥后还要再找入口。
+Widget _buildLuoXueKeyGuide(BuildContext context, Brightness brightness) {
+  final hintStyle =
+      TextStyle(fontSize: 12, color: AppColors.greyHint(brightness));
+  final warn = AppColors.warningOrange(brightness);
+  final scheme = Theme.of(context).colorScheme;
+  return Container(
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: warn.withValues(alpha: 0.08),
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: warn.withValues(alpha: 0.2)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.vpn_key, size: 18, color: warn),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                '设置落雪个人 API 密钥',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: scheme.onSurface,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text('落雪导出需要你本人的个人 API 密钥（不是账号密码）：', style: hintStyle),
+        const SizedBox(height: 4),
+        Text('① 点击下面的链接打开落雪个人主页', style: hintStyle),
+        Text('② 滑到页面最底部，找到「个人 API 密钥」并复制', style: hintStyle),
+        Text('③ 回到 App，打开「账号管理 → 落雪 API 密钥」粘贴并保存', style: hintStyle),
+        const SizedBox(height: 6),
+        GestureDetector(
+          onTap: _openLuoXueProfilePage,
+          child: Text(
+            _luoXueProfileUrl,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: AppColors.linkBlue(brightness),
+              decoration: TextDecoration.underline,
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text('保存后重新打开本对话框即可同步。', style: hintStyle),
+      ],
+    ),
+  );
+}
+
+/// 打开落雪个人主页（密钥在页面最底部），打不开浏览器时给出手动地址。
+Future<void> _openLuoXueProfilePage() async {
+  final uri = Uri.parse(_luoXueProfileUrl);
+  try {
+    if (await ExternalLaunchUtil.open(uri)) return;
+  } catch (e) {
+    debugPrint('打开落雪个人主页失败: $e');
+  }
+  Fluttertoast.showToast(msg: '打不开浏览器，请手动访问 $_luoXueProfileUrl');
 }
 
 /// 执行「同步成绩到落雪」：抓取机台成绩 → 导出到落雪。
@@ -441,10 +495,14 @@ Future<int> executeLuoXueSync(
   required void Function(double progress, String text) onProgress,
   void Function(int durationMs)? onSyncFinished,
   VoidCallback? onSyncSucceeded,
+  void Function(String error)? onRefreshFailed,
 }) async {
   if (input.quickUpdate) {
     throw const SyncFlowException('快速同步仅支持线路1');
   }
+  final refresh = await PostSyncRefreshOperation.capture(
+      RefreshDataSource.luoxue,
+      request: input.refreshRequest);
   onProgress(0.05, '准备同步...');
   final syncStopwatch = Stopwatch()..start();
   final result = await DivingFishProbeManager().syncByCabinetQrToLxns(
@@ -461,17 +519,10 @@ Future<int> executeLuoXueSync(
   syncStopwatch.stop();
   onSyncFinished?.call(syncStopwatch.elapsedMilliseconds);
   onSyncSucceeded?.call();
-  if (input.refreshRequest != null) {
-    onProgress(0.72, '同步完成，正在刷新本地数据...');
-    try {
-      await executeAdvancedRefreshData(
-        input.refreshRequest!,
-        onProgress: (p, text) => onProgress(0.72 + p / 1000, text),
-      );
-    } catch (e) {
-      throw SyncFlowException('同步已完成，但刷新数据失败：$e');
-    }
-  }
+  onProgress(0.72, '同步完成，正在刷新本地数据...');
+  final refreshError = await refresh.run(
+      onProgress: (p, text) => onProgress(0.72 + p * 0.0028, text));
+  if (refreshError != null) onRefreshFailed?.call(refreshError);
   onProgress(1.0, '同步完成！共 ${result.exportedCount} 条成绩已导出到落雪');
   return result.exportedCount;
 }
@@ -495,6 +546,9 @@ Future<DivingFishSyncOutcome> executeDivingFishSync(
   if (input.quickUpdate) {
     throw const SyncFlowException('快速同步仅支持线路1');
   }
+  final refresh = await PostSyncRefreshOperation.capture(
+      RefreshDataSource.shuiyu,
+      request: input.refreshRequest);
   onProgress(0.05, '准备同步...');
   final syncStopwatch = Stopwatch()..start();
   final result = await DivingFishProbeManager().syncByCabinetQr(
@@ -520,36 +574,15 @@ Future<DivingFishSyncOutcome> executeDivingFishSync(
   onSyncFinished?.call(syncStopwatch.elapsedMilliseconds);
   onSyncSucceeded?.call();
 
-  onProgress(
-    0.70,
-    input.refreshRequest == null ? '同步成功，正在收尾...' : '同步成功！正在刷新本地数据...',
-  );
-
-  String? qq = await DivingFishProbeManager().fetchBindQQ();
-  qq ??= await DivingFishProbeManager().fetchBindQQ();
-  final hasQQ = qq != null && qq.isNotEmpty;
-
-  var refreshed = false;
-  if (hasQQ) {
-    await callbacks.onSaveQQ(qq);
-    if (input.refreshRequest != null) {
-      await executeAdvancedRefreshData(
-        input.refreshRequest!,
-        onProgress: (p, text) => onProgress(0.70 + p / 333, text),
-      );
-      refreshed = true;
-    }
-  }
-
-  onProgress(
-    1.0,
-    input.refreshRequest != null
-        ? (refreshed ? '全部完成！本地数据已刷新' : '同步完成！')
-        : '同步完成！',
-  );
+  // 不先写共用 QQ 槽；刷新事务会把目标账号与数据一起提交。
+  onProgress(0.70, '同步成功！正在刷新本地数据...');
+  final refreshError = await refresh.run(
+      onProgress: (p, text) => onProgress(0.70 + p * 0.003, text));
+  onProgress(1.0, refresh.refreshed ? '全部完成！本地数据已刷新' : '同步完成！');
   return DivingFishSyncOutcome(
     exportedCount: result.exportedCount,
-    localDataRefreshed: refreshed,
+    localDataRefreshed: refresh.refreshed,
+    refreshError: refreshError,
   );
 }
 
@@ -564,6 +597,7 @@ class SyncScoreDialogs {
       BuildContext context, SyncCallbacks callbacks,
       {String? presetQrCode}) async {
     final brightness = Theme.of(context).brightness;
+    final refreshKey = GlobalKey<PostSyncRefreshOptionsState>();
     final TextEditingController qrController =
         TextEditingController(text: presetQrCode ?? '');
     final TextEditingController dfUserController = TextEditingController();
@@ -580,12 +614,15 @@ class SyncScoreDialogs {
 
     bool participateRankings = false;
     bool showNickname = false;
+    bool showBriefProfile = false;
 
     Future<void> loadRankingSettings() async {
       final prefs = await SharedPreferences.getInstance();
       participateRankings =
           prefs.getBool(CacheKeyConstant.participateRankings) ?? false;
       showNickname = prefs.getBool(CacheKeyConstant.showNickname) ?? false;
+      showBriefProfile =
+          prefs.getBool(CacheKeyConstant.showBriefProfile) ?? false;
     }
 
     Future<void> saveRankingSettings() async {
@@ -593,6 +630,8 @@ class SyncScoreDialogs {
       await prefs.setBool(
           CacheKeyConstant.participateRankings, participateRankings);
       await prefs.setBool(CacheKeyConstant.showNickname, showNickname);
+      await prefs.setBool(CacheKeyConstant.showBriefProfile,
+          participateRankings && showNickname && showBriefProfile);
     }
 
     await loadRankingSettings();
@@ -702,28 +741,18 @@ class SyncScoreDialogs {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        CheckboxListTile(
-                          title: const Text('参与排行榜',
-                              style: TextStyle(fontSize: 14)),
-                          value: participateRankings,
-                          onChanged: (value) {
-                            setState(() {
-                              participateRankings = value ?? false;
-                              if (!participateRankings) showNickname = false;
-                            });
-                          },
-                        ),
-                        if (participateRankings)
-                          CheckboxListTile(
-                            title: const Text('在排行榜中显示昵称',
-                                style: TextStyle(fontSize: 14)),
-                            value: showNickname,
-                            onChanged: (value) {
-                              setState(() {
-                                showNickname = value ?? false;
-                              });
-                            },
-                          ),
+                        RankingPrivacyOptions(
+                            participate: participateRankings,
+                            showNickname: showNickname,
+                            showBriefProfile: showBriefProfile,
+                            onChanged: (participate, nickname, brief) =>
+                                setState(() {
+                                  participateRankings = participate;
+                                  showNickname = nickname;
+                                  showBriefProfile = brief;
+                                })),
+                        PostSyncRefreshOptions(
+                            key: refreshKey, source: RefreshDataSource.shuiyu),
                         const SizedBox(height: 12),
                         ElevatedButton.icon(
                           icon: const Icon(Icons.send, size: 18),
@@ -741,7 +770,14 @@ class SyncScoreDialogs {
                               Fluttertoast.showToast(msg: '请先粘贴舞萌|中二登入二维码字符串');
                               return;
                             }
+                            final request =
+                                await refreshKey.currentState?.collectRequest();
+                            final refresh =
+                                await PostSyncRefreshOperation.capture(
+                                    RefreshDataSource.shuiyu,
+                                    request: request);
                             await saveRankingSettings();
+                            if (!dialogContext.mounted) return;
                             setState(() {
                               isSyncing = true;
                               statusText = '准备同步...';
@@ -783,6 +819,7 @@ class SyncScoreDialogs {
                             tipSub?.cancel();
 
                             if (result.isSuccess) {
+                              finishAttempt(ok: true);
                               if (context.mounted) ConfettiEffect.show(context);
                               setState(() {
                                 currentStage = SyncStage.exporting;
@@ -790,45 +827,24 @@ class SyncScoreDialogs {
                                 progress = 0.70;
                               });
 
-                              String? qq =
-                                  await DivingFishProbeManager().fetchBindQQ();
-                              if (qq == null) {
-                                qq = await DivingFishProbeManager()
-                                    .fetchBindQQ();
-                              }
-                              final hasQQ = qq != null && qq.isNotEmpty;
-                              if (hasQQ) {
-                                await callbacks.onSaveQQ(qq);
-                              }
-
-                              if (hasQQ) {
-                                await callbacks.onRefreshAfterSync(
-                                  qq: qq,
-                                  onProgress: (p, t) {
-                                    setState(() {
-                                      progress = p;
-                                      statusText = t;
-                                    });
-                                  },
-                                  participateRankings: participateRankings,
-                                  showNickname: showNickname,
-                                );
-                              } else {
+                              final refreshError =
+                                  await refresh.run(onProgress: (p, t) {
+                                if (!dialogContext.mounted) return;
                                 setState(() {
-                                  progress = 0.70;
+                                  progress = .7 + p * .003;
+                                  statusText = t;
                                 });
-                              }
-
-                              finishAttempt(ok: true);
+                              });
+                              if (!dialogContext.mounted) return;
                               setState(() {
                                 currentStage = SyncStage.completed;
                                 progress = 1.0;
-                                if (hasQQ) {
+                                if (refresh.refreshed) {
                                   statusText =
                                       '全部完成！${result.exportedCount} 条成绩已同步，本地数据已刷新';
                                 } else {
                                   statusText =
-                                      '同步完成！${result.exportedCount} 条成绩已推送到水鱼\n（需先登录水鱼才能自动刷新本地数据）';
+                                      '同步完成！${result.exportedCount} 条成绩已推送到水鱼\n刷新数据失败：$refreshError';
                                 }
                               });
                             } else if (result.errorMessage == '用户取消同步') {
@@ -1037,6 +1053,9 @@ class SyncScoreDialogs {
                                 return;
                               }
 
+                              final refresh =
+                                  await PostSyncRefreshOperation.capture(
+                                      RefreshDataSource.shuiyu);
                               final exportResult =
                                   await DivingFishProbeManager()
                                       .exportLatestToDivingFish(
@@ -1050,44 +1069,36 @@ class SyncScoreDialogs {
                                 bindCachedImportToken: false,
                               );
                               if (exportResult.isSuccess) {
+                                finishAttempt(ok: true);
                                 if (context.mounted)
                                   ConfettiEffect.show(context);
                                 setState(() {
                                   statusText = '同步成功！正在刷新本地数据...';
                                   progress = 0.70;
                                 });
-                                String? qq = await DivingFishProbeManager()
-                                    .fetchBindQQ();
-                                if (qq == null) {
-                                  qq = await DivingFishProbeManager()
-                                      .fetchBindQQ();
-                                }
-                                final hasQQ = qq != null && qq.isNotEmpty;
-                                if (hasQQ) {
-                                  await callbacks.onSaveQQ(qq);
-                                  await callbacks.onRefreshAfterSync(
-                                    qq: qq,
-                                    onProgress: (p, t) {
-                                      setState(() {
-                                        progress = p;
-                                        statusText = t;
-                                      });
-                                    },
-                                    participateRankings: participateRankings,
-                                    showNickname: showNickname,
-                                  );
-                                }
-                                finishAttempt(ok: true);
+                                final refreshError =
+                                    await refresh.run(onProgress: (p, t) {
+                                  if (!dialogContext.mounted) return;
+                                  setState(() {
+                                    progress = .7 + p * .003;
+                                    statusText = t;
+                                  });
+                                });
+                                if (!dialogContext.mounted) return;
                                 setState(() {
                                   isBinding = false;
                                   currentStage = SyncStage.completed;
                                   progress = 1.0;
-                                  statusText = hasQQ
+                                  statusText = refresh.refreshed
                                       ? '全部完成！${exportResult.exportedCount} 条成绩已同步，本地数据已刷新'
-                                      : '同步完成！${exportResult.exportedCount} 条成绩已推送到水鱼\n（需先登录水鱼才能自动刷新本地数据）';
+                                      : '同步完成！${exportResult.exportedCount} 条成绩已推送到水鱼\n刷新数据失败：$refreshError';
                                 });
                                 final fc =
                                     DivingFishProbeManager().currentFriendCode;
+                                if (refreshError != null) {
+                                  Fluttertoast.showToast(
+                                      msg: '同步成功，但刷新数据失败：$refreshError');
+                                }
                                 Navigator.of(dialogContext).pop(fc);
                               } else {
                                 finishAttempt(ok: false);

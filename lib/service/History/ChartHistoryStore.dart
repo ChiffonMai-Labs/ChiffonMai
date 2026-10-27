@@ -74,6 +74,15 @@ class ChartHistoryStore {
   final Map<String, Future<_HistoryDoc>> _loading = {};
   final Map<String, Future<void>> _writes = {};
 
+  Future<void> flush() => Future.wait(_writes.values.toList());
+
+  Future<void> invalidateCache() async {
+    await flush();
+    await Future.wait(_loading.values.toList());
+    _cache.clear();
+    _loading.clear();
+  }
+
   /// 采集抑制深度（好友对比期间 > 0）。
   static final Object _suppressionKey = Object();
 
@@ -139,7 +148,8 @@ class ChartHistoryStore {
       final doc = await _load(source);
       doc.improvements.record(records,
           atMs: nowMs ?? DateTime.now().millisecondsSinceEpoch,
-          previousRecords: previousUserData?['records'], maxScores: maxScores);
+          previousRecords: previousUserData?['records'],
+          maxScores: maxScores);
       final diff = diffChartSnapshots(
         previousCurrent: doc.current.isEmpty ? null : doc.current,
         incoming: snapshots,
@@ -281,7 +291,8 @@ class ChartHistoryStore {
     int best35 = 0,
     int best15 = 0,
     String? sourceKey,
-    String? accountId,  }) async {
+    String? accountId,
+  }) async {
     if (rating <= 0 || historySecond(tMs) <= 0 || best35 < 0 || best15 < 0) {
       throw ArgumentError('Rating 或时间无效');
     }

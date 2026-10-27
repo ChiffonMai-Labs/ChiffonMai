@@ -13,6 +13,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:my_first_flutter_app/service/GuessChartGame/MultiplayerCloudBaseService.dart';
 import 'package:my_first_flutter_app/service/Multiplayer/WebSocketBroadcastService.dart';
@@ -25,6 +26,7 @@ void main() {
   HttpOverrides? savedOverrides;
 
   setUp(() {
+    SharedPreferences.setMockInitialValues({});
     // flutter_test 默认把 HttpClient 换成桩，真连本机 socket 要先摘掉
     savedOverrides = HttpOverrides.current;
     HttpOverrides.global = null;

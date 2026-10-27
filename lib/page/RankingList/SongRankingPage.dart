@@ -1,3 +1,5 @@
+import '../../service/CommunityAvatarStore.dart';
+import '../../widgets/RankingPlayerBriefSheet.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
@@ -59,6 +61,7 @@ class SongRankingPage extends StatefulWidget {
 
 class _SongRankingPageState extends State<SongRankingPage> {
   final SongRankingService _service = SongRankingService();
+  int _requestGeneration = 0;
   bool _isLoading = true;
   List<RankingEntry> _rankingList = [];
   RankingEntry? _currentUserEntry;
@@ -88,6 +91,7 @@ class _SongRankingPageState extends State<SongRankingPage> {
   @override
   void initState() {
     super.initState();
+    CommunityAvatarStore.profileChanges.addListener(_onAppearanceChanged);
     _loadSongData();
     // 延迟显示免责声明对话框（等待 context 初始化完成）
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -95,8 +99,13 @@ class _SongRankingPageState extends State<SongRankingPage> {
     });
   }
 
+  void _onAppearanceChanged() {
+    if (mounted) _loadRankingData();
+  }
+
   @override
   void dispose() {
+    CommunityAvatarStore.profileChanges.removeListener(_onAppearanceChanged);
     _scrollController.dispose();
     super.dispose();
   }
@@ -456,8 +465,9 @@ class _SongRankingPageState extends State<SongRankingPage> {
               itemBuilder: (context, index) {
                 // UTAGE歌曲全部显示为UTAGE，否则按下标显示标准标签
                 final bool isUtage = widget.songId.length == 6;
-                String levelLabel =
-                    isUtage ? ChartDifficulty.utageLabel : _getDifficultyLabelByIndex(index);
+                String levelLabel = isUtage
+                    ? ChartDifficulty.utageLabel
+                    : _getDifficultyLabelByIndex(index);
                 double ds = dsList[index] is num
                     ? (dsList[index] as num).toDouble()
                     : 0.0;
@@ -551,8 +561,12 @@ class _SongRankingPageState extends State<SongRankingPage> {
     if (index != null) return ChartDifficulty.labelOf(index);
     // 兼容调用方传入“难度名 + 等级”的旧文案，先检查 Re:MASTER，避免误认成 MASTER。
     final compact = label.toUpperCase().replaceAll(':', '');
-    for (final index in [ChartDifficulty.reMaster, ...ChartDifficulty.indices]) {
-      if (compact.contains(ChartDifficulty.labelOf(index).toUpperCase().replaceAll(':', ''))) {
+    for (final index in [
+      ChartDifficulty.reMaster,
+      ...ChartDifficulty.indices
+    ]) {
+      if (compact.contains(
+          ChartDifficulty.labelOf(index).toUpperCase().replaceAll(':', ''))) {
         return ChartDifficulty.labelOf(index);
       }
     }
@@ -588,6 +602,8 @@ class _SongRankingPageState extends State<SongRankingPage> {
   }
 
   Future<void> _loadRankingData() async {
+    if (!mounted) return;
+    final generation = ++_requestGeneration;
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -603,6 +619,7 @@ class _SongRankingPageState extends State<SongRankingPage> {
       );
 
       String currentPlayerId = await _service.getCurrentPlayerId();
+      if (!mounted || generation != _requestGeneration) return;
       setState(() {
         _currentPlayerId = currentPlayerId;
       });
@@ -612,6 +629,12 @@ class _SongRankingPageState extends State<SongRankingPage> {
         widget.rankingType,
         currentPlayerId,
       );
+      if (!mounted || generation != _requestGeneration) return;
+      // 榜内用户沿用当前列表快照，避免两次请求之间更新或并列口径差异。
+      userEntry = rankingList
+              .where((entry) => entry.playerId == currentPlayerId)
+              .firstOrNull ??
+          userEntry;
 
       // 校验当前用户数据是否合法
       if (userEntry != null) {
@@ -621,6 +644,7 @@ class _SongRankingPageState extends State<SongRankingPage> {
           userEntry.achievementRate,
           userEntry.dxScore,
         );
+        if (!mounted || generation != _requestGeneration) return;
         if (!isValid) {
           setState(() {
             _showInvalidScoreWarning = true;
@@ -634,6 +658,7 @@ class _SongRankingPageState extends State<SongRankingPage> {
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted || generation != _requestGeneration) return;
       debugPrint('[SongRankingPage] Error loading ranking data: $e');
       setState(() {
         _isLoading = false;
@@ -661,117 +686,123 @@ class _SongRankingPageState extends State<SongRankingPage> {
 
   Widget _buildRankingItem(
       RankingEntry entry, bool isCurrentUser, Brightness brightness) {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        border: Border(
-            bottom: BorderSide(color: AppColors.tableBorder(brightness))),
-        color: isCurrentUser
-            ? AppColors.linkBlue(brightness).withValues(alpha: 0.08)
-            : null,
-      ),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 40,
-            child: Center(
-              child: _buildRankBadge(entry.rank, brightness),
-            ),
+    return RankingPlayerRow(
+        playerId: entry.playerId,
+        nickname: entry.playerName,
+        child: Container(
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            border: Border(
+                bottom: BorderSide(color: AppColors.tableBorder(brightness))),
+            color: isCurrentUser
+                ? AppColors.linkBlue(brightness).withValues(alpha: 0.08)
+                : null,
           ),
-
-          SizedBox(width: 12),
-
-          Expanded(
-            child: CommunityPlayerIdentity(
-              avatarId: entry.avatarId,
-              dataSource: entry.dataSource,
-              // 开发者白名单按 `<source>:<id>` 整串匹配，见 DataSourceTag
-              playerId: entry.playerId,
-              name: entry.playerName,
-              // 头像高度对齐「玩家名 + 数据源标签」两行文字的总高
-              // （单曲排行榜 / DX 分数排行榜共用这一行）
-              avatarMatchesTextHeight: true,
-              nameStyle: TextStyle(
-                fontSize: 14,
-                fontWeight: isCurrentUser ? FontWeight.bold : FontWeight.w500,
-                color: isCurrentUser ? AppColors.linkBlue(brightness) : null,
+          child: Row(
+            children: [
+              SizedBox(
+                width: 40,
+                child: Center(
+                  child: _buildRankBadge(entry.rank, brightness),
+                ),
               ),
-            ),
-          ),
-          const SizedBox(width: 8),
 
-          // 数值区按内容收缩（上限 [_valueColumnMaxWidth]），不再固定占满 130dp：
-          // 右对齐靠不满的那一截空白本来就没人用，现在让给昵称。
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: _valueColumnMaxWidth),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
+              SizedBox(width: 12),
+
+              Expanded(
+                child: CommunityPlayerIdentity(
+                  avatarId: entry.avatarId,
+                  dataSource: entry.dataSource,
+                  // 开发者白名单按 `<source>:<id>` 整串匹配，见 DataSourceTag
+                  playerId: entry.playerId,
+                  name: entry.playerName,
+                  // 头像高度对齐「玩家名 + 数据源标签」两行文字的总高
+                  // （单曲排行榜 / DX 分数排行榜共用这一行）
+                  avatarMatchesTextHeight: true,
+                  nameStyle: TextStyle(
+                    fontSize: 14,
+                    fontWeight:
+                        isCurrentUser ? FontWeight.bold : FontWeight.w500,
+                    color:
+                        isCurrentUser ? AppColors.linkBlue(brightness) : null,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+
+              // 数值区按内容收缩（上限 [_valueColumnMaxWidth]），不再固定占满 130dp：
+              // 右对齐靠不满的那一截空白本来就没人用，现在让给昵称。
+              ConstrainedBox(
+                constraints:
+                    const BoxConstraints(maxWidth: _valueColumnMaxWidth),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // DX分数排行榜显示星星等级
-                    if (widget.rankingType == RankingType.dxScore)
-                      _buildDxScoreLabel(entry.dxScore, brightness),
-                    if (widget.rankingType == RankingType.dxScore)
-                      SizedBox(width: 8),
-                    // AP/AP+ 标签
-                    if (widget.rankingType == RankingType.achievementRate &&
-                        (entry.fc?.toLowerCase() == 'ap' ||
-                            entry.fc?.toLowerCase() == 'app'))
-                      Container(
-                        padding:
-                            EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        margin: EdgeInsets.only(right: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.orange,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          entry.fc?.toLowerCase() == 'app'
-                              ? 'AP+'
-                              : entry.fc?.toUpperCase() ?? '',
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // DX分数排行榜显示星星等级
+                        if (widget.rankingType == RankingType.dxScore)
+                          _buildDxScoreLabel(entry.dxScore, brightness),
+                        if (widget.rankingType == RankingType.dxScore)
+                          SizedBox(width: 8),
+                        // AP/AP+ 标签
+                        if (widget.rankingType == RankingType.achievementRate &&
+                            (entry.fc?.toLowerCase() == 'ap' ||
+                                entry.fc?.toLowerCase() == 'app'))
+                          Container(
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            margin: EdgeInsets.only(right: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.orange,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              entry.fc?.toLowerCase() == 'app'
+                                  ? 'AP+'
+                                  : entry.fc?.toUpperCase() ?? '',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        Text(
+                          widget.rankingType == RankingType.achievementRate
+                              ? '${entry.achievementRate.toStringAsFixed(4)}%'
+                              : entry.dxScore.toString(),
+                          textAlign: TextAlign.right,
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                            color: Theme.of(context).colorScheme.onSurface,
                           ),
                         ),
-                      ),
+                      ],
+                    ),
+                    // 同步时间
+                    //
+                    // 单行 + 省略号：数值区现在是「按内容收缩」的，没有固定宽度兜着，
+                    // 超长的绝对时间（`2024-01-01 12:00`）必须自己截断而不是换行把行撑高。
                     Text(
-                      widget.rankingType == RankingType.achievementRate
-                          ? '${entry.achievementRate.toStringAsFixed(4)}%'
-                          : entry.dxScore.toString(),
-                      textAlign: TextAlign.right,
+                      _formatUpdateTime(entry.updateTime),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.onSurface,
+                        fontSize: 10,
+                        color: AppColors.greyHint(brightness),
                       ),
                     ),
                   ],
                 ),
-                // 同步时间
-                //
-                // 单行 + 省略号：数值区现在是「按内容收缩」的，没有固定宽度兜着，
-                // 超长的绝对时间（`2024-01-01 12:00`）必须自己截断而不是换行把行撑高。
-                Text(
-                  _formatUpdateTime(entry.updateTime),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: AppColors.greyHint(brightness),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
-    );
+        ));
   }
 
   RankingEntry get _prototypeEntry => RankingEntry(
@@ -974,8 +1005,10 @@ class _SongRankingPageState extends State<SongRankingPage> {
                             child: Text(
                               StringUtil.formatVersion2WithFlag(
                                   widget.from,
-                                  widget.isExtra && !ChartDifficulty.isUtageSong(
-                                      widget.songId, type: widget.songType)),
+                                  widget.isExtra &&
+                                      !ChartDifficulty.isUtageSong(
+                                          widget.songId,
+                                          type: widget.songType)),
                               style: TextStyle(
                                 fontSize: 12,
                                 color: AppColors.greyHint(brightness),

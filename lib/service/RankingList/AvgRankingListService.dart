@@ -47,8 +47,8 @@ class AvgRankItem {
       playerId: playerId,
       playerName: (json['playerName'] ?? json['player_name'] ?? '').toString(),
       dataSource: (json['dataSource'] ?? json['data_source'] ?? '')
-          .toString()
-          .isNotEmpty
+              .toString()
+              .isNotEmpty
           ? (json['dataSource'] ?? json['data_source'] ?? '').toString()
           : _parseDataSource(playerId),
       avgAchievement:
@@ -88,9 +88,10 @@ class AvgRankItem {
 String _parseDataSource(String playerId) => parseDataSource(playerId);
 
 class AvgRankingListService {
+  static int _cacheGeneration = 0;
   // 缓存有效期：从常量文件读取（分钟转秒）
   static int get _cacheExpirySeconds =>
-      CacheTimestampConstant.rankingsCacheMinutes * 60;
+      CacheTimestampConstant.computedRankingsCacheMinutes * 60;
 
   /// 测试专用：把排行榜请求打桩掉（见 [getAverages] 里的用法）。真机永远是 null。
   @visibleForTesting
@@ -98,25 +99,22 @@ class AvgRankingListService {
 
   // 获取所有玩家的平均值数据（原始、未排序），可读缓存
   static Future<List<AvgRankItem>> getAverages({bool refresh = false}) async {
+    final generation = _cacheGeneration;
+    final stub = debugRankingsLoader;
+    if (stub != null) return stub();
     if (!refresh) {
       final cachedData = await _getCachedRankings();
-      if (cachedData != null && cachedData.isNotEmpty) {
+      if (cachedData != null) {
         return cachedData;
       }
     }
 
-    // 测试专用打桩：这几个排行榜接口都不读缓存（rankingsCacheMinutes = -1），
-    // widget 测试里不打桩页面永远停在空状态，几何/间距问题就量不出来。
-    // 真机（debug/release）永远是 null。
-    final stub = debugRankingsLoader;
-    if (stub != null) return stub();
-
     try {
-      final url =
-          Uri.parse('${ApiUrls.SongRankingsAveragesUrl}?refresh=$refresh');
+      final url = Uri.parse('${ApiUrls.SongRankingsAveragesUrl}');
       final response = await ApiClient.get(
         url,
         headers: {'Content-Type': 'application/json'},
+        timeout: const Duration(seconds: 10),
       );
 
       if (response.statusCode == 200) {
@@ -125,7 +123,10 @@ class AvgRankingListService {
           final items = (result['data'] as List<dynamic>)
               .map((e) => AvgRankItem.fromJson(e as Map<String, dynamic>))
               .toList();
-          await _cacheRankings(items);
+          if (generation == _cacheGeneration) {
+            await _cacheRankings(items,
+                nextUpdateAt: (result['nextUpdateAt'] as num?)?.toInt());
+          }
           return items;
         }
       }
@@ -133,7 +134,7 @@ class AvgRankingListService {
     } catch (e) {
       debugPrint('获取平均值排行榜失败: $e');
     }
-    return [];
+    return await _getCachedRankings(allowExpired: true) ?? [];
   }
 
   // 按指标排序并分配排名（并列名次，1,1,3,3,5 风格）
@@ -143,8 +144,9 @@ class AvgRankingListService {
   ) {
     if (items.isEmpty) return items;
 
-    double valueOf(AvgRankItem item) =>
-        metric == AvgMetric.achievement ? item.avgAchievement : item.avgDxAchievement;
+    double valueOf(AvgRankItem item) => metric == AvgMetric.achievement
+        ? item.avgAchievement
+        : item.avgDxAchievement;
 
     final sortedItems = List<AvgRankItem>.from(items)
       ..sort((a, b) => valueOf(b).compareTo(valueOf(a)));
@@ -165,35 +167,42 @@ class AvgRankingListService {
   }
 
   // 从缓存读取平均值排行数据
-  static Future<List<AvgRankItem>?> _getCachedRankings() async {
+  static Future<List<AvgRankItem>?> _getCachedRankings(
+      {bool allowExpired = false}) async {
     final prefs = await SharedPreferences.getInstance();
-    final timestamp = prefs.getInt(CacheKeyConstant.avgRankingsCacheTimestamp);
-
-    if (timestamp != null) {
-      final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-      if (now - timestamp < _cacheExpirySeconds) {
-        final cachedJson = prefs.getString(CacheKeyConstant.avgRankingsCache);
-        if (cachedJson != null) {
-          try {
-            final List<dynamic> data = json.decode(cachedJson);
-            return data
-                .map((e) => AvgRankItem.fromJson(e as Map<String, dynamic>))
-                .toList();
-          } catch (e) {
-            debugPrint('解析缓存的平均值排行数据失败: $e');
-          }
-        }
-      }
+    final raw = prefs.getString(CacheKeyConstant.avgRankingsCache);
+    if (raw == null) return null;
+    try {
+      final decoded = json.decode(raw);
+      if (decoded is! Map ||
+          decoded['version'] != 3 ||
+          decoded['items'] is! List ||
+          decoded['nextUpdateAt'] is! num) return null;
+      if (!allowExpired &&
+          DateTime.now().millisecondsSinceEpoch >= decoded['nextUpdateAt'])
+        return null;
+      return (decoded['items'] as List)
+          .map((row) => AvgRankItem.fromJson(Map<String, dynamic>.from(row)))
+          .toList();
+    } catch (_) {
+      return null;
     }
-    return null;
   }
 
   // 保存平均值排行数据到缓存
-  static Future<void> _cacheRankings(List<AvgRankItem> items) async {
+  static Future<void> _cacheRankings(List<AvgRankItem> items,
+      {int? nextUpdateAt}) async {
+    final generation = _cacheGeneration;
     final prefs = await SharedPreferences.getInstance();
+    if (generation != _cacheGeneration) return;
     try {
-      final jsonString =
-          json.encode(items.map((item) => item.toJson()).toList());
+      final jsonString = json.encode({
+        // 旧版本曾混用公开昵称和匿名头像，升级后重新读取统一的公开资料。
+        'version': 3,
+        'items': items.map((item) => item.toJson()).toList(),
+        'nextUpdateAt': nextUpdateAt ??
+            DateTime.now().millisecondsSinceEpoch + _cacheExpirySeconds * 1000,
+      });
       await prefs.setString(CacheKeyConstant.avgRankingsCache, jsonString);
       await prefs.setInt(
         CacheKeyConstant.avgRankingsCacheTimestamp,
@@ -206,6 +215,8 @@ class AvgRankingListService {
 
   // 清除平均值排行缓存（用于强制刷新）
   static Future<void> clearRankingsCache() async {
+    // 清理前发出的响应不能重新写回旧头像与资料。
+    _cacheGeneration++;
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(CacheKeyConstant.avgRankingsCache);
     await prefs.remove(CacheKeyConstant.avgRankingsCacheTimestamp);

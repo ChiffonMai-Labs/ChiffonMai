@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
+import '../../entity/Multiplayer/GameType.dart';
 import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:web_socket_channel/status.dart' as status;
@@ -15,6 +16,7 @@ class WebSocketBroadcastService {
   WebSocketBroadcastService._internal();
 
   WebSocketChannel? _channel;
+  Future<void>? _connecting;
   final Map<String, List<MessageCallback>> _listeners = {};
   bool _isConnected = false;
   String? _currentPlayerId;
@@ -41,6 +43,21 @@ class WebSocketBroadcastService {
   String? _host;
   String? _appkey;
   String? _username;
+  int _avatarId = 1;
+  String? _roomId;
+  String? _roundId;
+  int _requestSerial = 0;
+
+  /// 回合令牌阻止延迟操作串到下一回合；请求编号供服务端识别网络重发。
+  Map<String, dynamic> _roundCommandPayload(
+          [Map<String, dynamic> fields = const {}]) =>
+      {
+        ...fields,
+        if (_roomId != null) 'roomId': _roomId,
+        if (_roundId != null) 'roundId': _roundId,
+        'requestId':
+            '${DateTime.now().microsecondsSinceEpoch}-${_requestSerial++}',
+      };
 
   /// 本机上一位玩家的 ID：重连时重放给服务端，用来接回原座位。
   String? _resumePlayerId;
@@ -57,6 +74,21 @@ class WebSocketBroadcastService {
   Future<void> initialize({
     required String host,
     String appkey = '',
+    String? username,
+  }) async {
+    if (_connecting != null) return _connecting!;
+    final pending = _connect(host: host, appkey: appkey, username: username);
+    _connecting = pending;
+    try {
+      await pending;
+    } finally {
+      if (identical(_connecting, pending)) _connecting = null;
+    }
+  }
+
+  Future<void> _connect({
+    required String host,
+    required String appkey,
     String? username,
   }) async {
     // 重置主动断开标志，允许重连
@@ -90,13 +122,21 @@ class WebSocketBroadcastService {
       debugPrint('[WebSocket] 连接到: $wsUrl');
 
       final url = Uri.parse(wsUrl);
-      _channel = WebSocketChannel.connect(url);
+      final local = const ['localhost', '127.0.0.1', '::1'].contains(url.host);
+      final endpoint =
+          local && (host.startsWith('ws://') || host.startsWith('http://'))
+              ? url.replace(scheme: 'ws')
+              : url;
+      final channel = WebSocketChannel.connect(endpoint);
+      _channel = channel;
 
-      _channel!.stream.listen(
+      channel.stream.listen(
         (message) {
+          if (!identical(_channel, channel)) return;
           _handleMessage(message);
         },
         onError: (error) {
+          if (!identical(_channel, channel)) return;
           debugPrint('[WebSocket] 错误: $error');
           _isConnected = false;
           _stopHeartbeat();
@@ -106,6 +146,7 @@ class WebSocketBroadcastService {
           }
         },
         onDone: () {
+          if (!identical(_channel, channel)) return;
           debugPrint('[WebSocket] 连接关闭');
           _isConnected = false;
           _stopHeartbeat();
@@ -117,7 +158,10 @@ class WebSocketBroadcastService {
       );
 
       // 等待连接真正建立
-      await Future.delayed(const Duration(milliseconds: 500));
+      await channel.ready.timeout(const Duration(seconds: 10));
+      if (_isDisconnecting || !identical(_channel, channel)) {
+        throw StateError('连接已取消');
+      }
 
       _isConnected = true;
       _reconnectAttempts = 0;
@@ -126,6 +170,7 @@ class WebSocketBroadcastService {
       // 启动心跳
       _startHeartbeat();
     } catch (e) {
+      _isConnected = false;
       debugPrint('[WebSocket] 初始化失败: $e');
       rethrow;
     }
@@ -224,7 +269,8 @@ class WebSocketBroadcastService {
         // 新 socket 接回原座位。少了这一步，服务端只看到一个陌生连接，
         // 而原座位还在断线宽限期里等着 —— 玩家就真的被挤出去了。
         _lastInitResumed = false;
-        await sendInitialize(_username, resumePlayerId: _resumePlayerId);
+        await sendInitialize(_username,
+            resumePlayerId: _resumePlayerId, avatarId: _avatarId);
 
         // 调用重连成功回调
         if (onReconnected != null) {
@@ -247,15 +293,15 @@ class WebSocketBroadcastService {
   // 房间都还在，客户端不用重新 join（对局中途本来也 join 不进去）。
   // 服务端不认识这个 ID（宽限期已过 / 旧版服务端）时会当成新玩家，行为与从前一致。
   Future<void> sendInitialize(String? nickname,
-      {String? resumePlayerId}) async {
+      {String? resumePlayerId, int avatarId = 1}) async {
+    _avatarId = avatarId;
     // 记住身份与昵称：重连时自动重放（见 _reconnect）
     if (nickname != null && nickname.isNotEmpty) _username = nickname;
     if (resumePlayerId != null && resumePlayerId.isNotEmpty) {
       _resumePlayerId = resumePlayerId;
     }
     if (!_isConnected || _channel == null) {
-      debugPrint('[WebSocket] 未连接，无法发送消息');
-      return;
+      throw StateError('连接已断开，请重新连接后重试');
     }
 
     try {
@@ -263,6 +309,7 @@ class WebSocketBroadcastService {
         'action': 'initialize',
         'payload': {
           'nickname': nickname,
+          'avatarId': _avatarId,
           if (_resumePlayerId != null) 'resumePlayerId': _resumePlayerId,
         },
       });
@@ -271,14 +318,25 @@ class WebSocketBroadcastService {
       debugPrint('[WebSocket] 初始化消息已发送');
     } catch (e) {
       debugPrint('[WebSocket] 发送初始化消息失败: $e');
+      rethrow;
     }
+  }
+
+  /// 社区头像切换后通知房间；离线时只记住头像，重连初始化时自动带上。
+  void sendUpdateAvatar(int avatarId) {
+    if (_avatarId == avatarId) return;
+    _avatarId = avatarId;
+    if (!_isConnected || _channel == null || _currentPlayerId == null) return;
+    _channel!.sink.add(json.encode({
+      'action': 'update_avatar',
+      'payload': {'avatarId': avatarId},
+    }));
   }
 
   // 发送创建房间消息
   Future<void> sendCreateRoom(Map<String, dynamic> options) async {
     if (!_isConnected || _channel == null) {
-      debugPrint('[WebSocket] 未连接，无法发送消息');
-      return;
+      throw StateError('连接已断开，请重新连接后重试');
     }
 
     try {
@@ -290,14 +348,14 @@ class WebSocketBroadcastService {
       debugPrint('[WebSocket] 发送创建房间消息');
     } catch (e) {
       debugPrint('[WebSocket] 发送创建房间消息失败: $e');
+      rethrow;
     }
   }
 
   // 发送加入房间消息（支持房间ID或房间码）
   Future<void> sendJoinRoom(String roomId, String? nickname) async {
     if (!_isConnected || _channel == null) {
-      debugPrint('[WebSocket] 未连接，无法发送消息');
-      return;
+      throw StateError('连接已断开，请重新连接后重试');
     }
 
     try {
@@ -316,6 +374,8 @@ class WebSocketBroadcastService {
           'action': 'join_room_by_code',
           'payload': {
             'code': roomId,
+            'supportedGameTypes':
+                GameType.values.map((type) => type.apiKey).toList(),
             'nickname': nickname,
           },
         });
@@ -325,6 +385,8 @@ class WebSocketBroadcastService {
           'action': 'join_room',
           'payload': {
             'roomId': roomId,
+            'supportedGameTypes':
+                GameType.values.map((type) => type.apiKey).toList(),
             'nickname': nickname,
           },
         });
@@ -334,14 +396,14 @@ class WebSocketBroadcastService {
       debugPrint('[WebSocket] 发送加入房间消息成功');
     } catch (e) {
       debugPrint('[WebSocket] 发送加入房间消息失败: $e');
+      rethrow;
     }
   }
 
   // 发送更新准备状态消息
   Future<void> sendUpdateReady(bool ready) async {
     if (!_isConnected || _channel == null) {
-      debugPrint('[WebSocket] 未连接，无法发送消息');
-      return;
+      throw StateError('连接已断开，请重新连接后重试');
     }
 
     try {
@@ -353,14 +415,14 @@ class WebSocketBroadcastService {
       debugPrint('[WebSocket] 发送更新准备状态消息: $ready');
     } catch (e) {
       debugPrint('[WebSocket] 发送更新准备状态消息失败: $e');
+      rethrow;
     }
   }
 
   // 发送开始游戏消息
   Future<void> sendStartGame() async {
     if (!_isConnected || _channel == null) {
-      debugPrint('[WebSocket] 未连接，无法发送消息');
-      return;
+      throw StateError('连接已断开，请重新连接后重试');
     }
 
     try {
@@ -372,74 +434,74 @@ class WebSocketBroadcastService {
       debugPrint('[WebSocket] 发送开始游戏消息');
     } catch (e) {
       debugPrint('[WebSocket] 发送开始游戏消息失败: $e');
+      rethrow;
     }
   }
 
   // 发送开始下一回合消息
   Future<void> sendStartNextRound() async {
     if (!_isConnected || _channel == null) {
-      debugPrint('[WebSocket] 未连接，无法发送消息');
-      return;
+      throw StateError('连接已断开，请重新连接后重试');
     }
 
     try {
       final data = json.encode({
         'action': 'start_next_round',
-        'payload': {},
+        'payload': _roundCommandPayload(),
       });
       _channel!.sink.add(data);
       debugPrint('[WebSocket] 发送开始下一回合消息');
     } catch (e) {
       debugPrint('[WebSocket] 发送开始下一回合消息失败: $e');
+      rethrow;
     }
   }
 
   // 发送猜测消息
   Future<void> sendGuess(String songId, String songName) async {
     if (!_isConnected || _channel == null) {
-      debugPrint('[WebSocket] 未连接，无法发送消息');
-      return;
+      throw StateError('连接已断开，本次猜测未提交，请连接后重试');
     }
 
     try {
       final data = json.encode({
         'action': 'submit_guess',
-        'payload': {
+        'payload': _roundCommandPayload({
           'songId': songId,
           'songName': songName,
-        },
+        }),
       });
       _channel!.sink.add(data);
       debugPrint('[WebSocket] 发送猜测消息: $songId');
     } catch (e) {
       debugPrint('[WebSocket] 发送猜测消息失败: $e');
+      rethrow;
     }
   }
 
   // 发送开字母消息（letters 模式）
   Future<void> sendOpenLetter(String letter) async {
     if (!_isConnected || _channel == null) {
-      debugPrint('[WebSocket] 未连接，无法发送消息');
-      return;
+      throw StateError('连接已断开，请重新连接后重试');
     }
 
     try {
       final data = json.encode({
         'action': 'open_letter',
-        'payload': {'letter': letter},
+        'payload': _roundCommandPayload({'letter': letter}),
       });
       _channel!.sink.add(data);
       debugPrint('[WebSocket] 发送开字母消息: $letter');
     } catch (e) {
       debugPrint('[WebSocket] 发送开字母消息失败: $e');
+      rethrow;
     }
   }
 
   // 发送离开房间消息
   Future<void> sendLeaveRoom() async {
     if (!_isConnected || _channel == null) {
-      debugPrint('[WebSocket] 未连接，无法发送消息');
-      return;
+      throw StateError('连接已断开，请重新连接后再退出房间');
     }
 
     try {
@@ -451,6 +513,7 @@ class WebSocketBroadcastService {
       debugPrint('[WebSocket] 发送离开房间消息');
     } catch (e) {
       debugPrint('[WebSocket] 发送离开房间消息失败: $e');
+      rethrow;
     }
   }
 
@@ -476,19 +539,19 @@ class WebSocketBroadcastService {
   // 发送投降消息
   Future<void> sendSurrender() async {
     if (!_isConnected || _channel == null) {
-      debugPrint('[WebSocket] 未连接，无法发送消息');
-      return;
+      throw StateError('连接已断开，请重新连接后重试');
     }
 
     try {
       final data = json.encode({
         'action': 'surrender',
-        'payload': {},
+        'payload': _roundCommandPayload(),
       });
       _channel!.sink.add(data);
       debugPrint('[WebSocket] 发送投降消息');
     } catch (e) {
       debugPrint('[WebSocket] 发送投降消息失败: $e');
+      rethrow;
     }
   }
 
@@ -539,7 +602,9 @@ class WebSocketBroadcastService {
     if (!_listeners.containsKey(channel)) {
       _listeners[channel] = [];
     }
-    _listeners[channel]!.add(onMessage);
+    if (!_listeners[channel]!.contains(onMessage)) {
+      _listeners[channel]!.add(onMessage);
+    }
     debugPrint('[WebSocket] 订阅频道: $channel');
   }
 
@@ -572,23 +637,47 @@ class WebSocketBroadcastService {
 
   void _handleMessage(dynamic message) {
     try {
-      debugPrint('[WebSocket] ====== 收到消息 ======');
-      debugPrint(
-          '[WebSocket] 原始消息: ${message.toString().substring(0, message.toString().length > 500 ? 500 : message.toString().length)}');
-
       final Map<String, dynamic> data = json.decode(message.toString());
-      debugPrint('[WebSocket] 解析后的消息: $data');
-
       final String action = data['action'] ?? '';
-      debugPrint('[WebSocket] 消息 action: "$action"');
+      // 避免高频打印整份歌曲与猜测历史；只保留必要的连接和错误日志。
 
       // 如果是初始化响应，保存玩家ID
       if (action == 'initialized') {
         _currentPlayerId = data['payload']?['playerId'];
         _lastInitResumed = data['payload']?['resumed'] == true;
+        if (!_lastInitResumed) {
+          _roomId = null;
+          _roundId = null;
+        }
         debugPrint('[WebSocket] 收到初始化响应，playerId: $_currentPlayerId'
             '${_lastInitResumed ? '（服务端已把我们接回原座位）' : ''}');
         debugPrint('[WebSocket] 响应 payload: ${data['payload']}');
+      }
+
+      final payload = data['payload'];
+      if (payload is Map) {
+        final room = payload['room'];
+        if (room is Map &&
+            (action == 'room_created' ||
+                action == 'room_joined' ||
+                room['id'] == _roomId)) {
+          _roomId = (room['id'] ?? room['roomId'])?.toString();
+          if (room.containsKey('roundId'))
+            _roundId = room['roundId']?.toString();
+        }
+        final gameState = payload['gameState'];
+        if (gameState is Map &&
+            (gameState['roomId'] == _roomId || _roomId == null)) {
+          _roomId = gameState['roomId']?.toString() ?? _roomId;
+          if (gameState.containsKey('roundId'))
+            _roundId = gameState['roundId']?.toString();
+        }
+      }
+      if (action == 'left_room') {
+        _roomId = null;
+        _roundId = null;
+        _resumePlayerId = null;
+        _lastInitResumed = false;
       }
 
       // 处理心跳响应，更新最后收到心跳的时间
@@ -599,7 +688,6 @@ class WebSocketBroadcastService {
 
       // 检查是否有全局监听器
       if (_listeners.containsKey('global')) {
-        debugPrint('[WebSocket] 全局监听器数量: ${_listeners['global']!.length}');
         for (final callback in _listeners['global']!) {
           callback(data);
         }

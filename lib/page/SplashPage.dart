@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../widgets/AppLauncherIcon.dart';
 
 /// 应用启动加载页：主题底色 + 应用图标 + 应用名称 + 加载动画。
 /// 设计目标：克制、聚焦，把视觉权重留给 Logo。
@@ -24,7 +25,7 @@ class SplashPage extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _buildLogo(context),
+              const AppLauncherIcon(size: 108),
               const SizedBox(height: 28),
               _buildBrand(scheme),
               const SizedBox(height: 32),
@@ -33,34 +34,6 @@ class SplashPage extends StatelessWidget {
           ),
         ),
       ),
-      ),
-    );
-  }
-
-  // Logo：app 自身图标，按 Android 自适应图标的「72/108 安全区」裁剪显示，
-  // 跟 AboutAppPage 的 _AndroidLauncherIcon 同款，还原启动器观感。
-  Widget _buildLogo(BuildContext context) {
-    final size = 108.0;
-    const double safeZoneRatio = 72 / 108;
-    final cacheWidth =
-        (size / safeZoneRatio * MediaQuery.of(context).devicePixelRatio).round();
-
-    return SizedBox(
-      width: size,
-      height: size,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(size * 0.24),
-        child: Transform.scale(
-          scale: 1 / safeZoneRatio,
-          child: Image.asset(
-            'assets/icon.png',
-            width: size,
-            height: size,
-            fit: BoxFit.cover,
-            cacheWidth: cacheWidth,
-            gaplessPlayback: true,
-          ),
-        ),
       ),
     );
   }

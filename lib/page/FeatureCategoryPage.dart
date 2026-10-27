@@ -43,12 +43,12 @@ class _FeatureCategoryPageState extends State<FeatureCategoryPage> {
       FavoriteFeaturesNotifier.toggle(title);
 
   List<ButtonItem> _buildItems(bool isLoggedIn) {
-    // 根据当前登录状态动态替换"系统"分类中的登录/登出按钮
+    // 登录状态变化时保持与“我的”页、首页搜索一致的功能标题和收藏键。
     List<ButtonItem> items = widget.category.items.map((item) {
       if (item.title == '登录水鱼' && isLoggedIn) {
-        return const ButtonItem(icon: Icons.logout, title: '登出账号', subtitle: '清除水鱼登录状态');
+        return const ButtonItem(icon: Icons.logout, title: '登出水鱼账号', subtitle: '清除水鱼登录状态');
       }
-      if (item.title == '登出账号' && !isLoggedIn) {
+      if ((item.title == '登出水鱼账号' || item.title == '登出账号') && !isLoggedIn) {
         return const ButtonItem(icon: Icons.login, title: '登录水鱼', subtitle: '获取ImportToken以便同步成绩');
       }
       return item;

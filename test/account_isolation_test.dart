@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -14,6 +15,7 @@ import 'package:my_first_flutter_app/service/PersonalizedScoreService.dart';
 import 'package:my_first_flutter_app/utils/CurrentDataSourceNotifier.dart';
 import 'package:my_first_flutter_app/utils/UserProfileNotifier.dart';
 import 'package:my_first_flutter_app/utils/ApiClient.dart';
+import 'package:my_first_flutter_app/utils/SecureCredentialStore.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -44,6 +46,7 @@ void main() {
   }
 
   setUp(() async {
+    FlutterSecureStorage.setMockInitialValues({});
     ApiClient.debugClient = MockClient((_) async => http.Response('{}', 503));
     SharedPreferences.setMockInitialValues({});
     prefs = await SharedPreferences.getInstance();
@@ -126,11 +129,14 @@ void main() {
   });
 
   test('登出非活动水鱼仅清水鱼，当前 AWMC 成绩与源指针保留', () async {
-    await prefs.setString(CacheKeyConstant.probeDivingFishToken, 'test-token');
+    await SecureCredentialStore.write(
+        CacheKeyConstant.probeDivingFishToken, 'test-token');
     await AccountSwitchService.runRefresh(
         RefreshDataSource.awmc, () => seed(RefreshDataSource.awmc, 14000));
     await UserProfileNotifier.clearShuiyuAccountCache();
-    expect(prefs.getString(CacheKeyConstant.probeDivingFishToken), isNull);
+    expect(
+        await SecureCredentialStore.read(CacheKeyConstant.probeDivingFishToken),
+        isNull);
     expect(await AccountStore.hasCache('shuiyu'), isFalse);
     expect(CurrentDataSourceNotifier.instance.value, RefreshDataSource.awmc);
     expect(prefs.getString(CacheKeyConstant.lastDataSource), 'awmc');

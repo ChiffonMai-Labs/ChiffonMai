@@ -1,3 +1,6 @@
+import '../../service/GuessChartGame/GuessAudioService.dart';
+import '../../widgets/GuessBpmHistoryFields.dart';
+import '../../widgets/GuessOriginalAudioCard.dart';
 import 'dart:async';
 import 'dart:math';
 import 'dart:ui' as ui;
@@ -18,6 +21,7 @@ import 'package:my_first_flutter_app/manager/MultiplayerManager.dart';
 import 'package:my_first_flutter_app/manager/SongAliasManager.dart';
 import 'package:my_first_flutter_app/page/GuessChartGame/GuessChartByChartPeekPage.dart';
 import 'package:my_first_flutter_app/service/GuessChartGame/GuessChartByInfoService.dart';
+import 'package:my_first_flutter_app/service/SongSearchService.dart';
 import 'package:my_first_flutter_app/utils/StringUtil.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import 'package:my_first_flutter_app/utils/CoverUtil.dart';
@@ -25,6 +29,7 @@ import 'package:my_first_flutter_app/widgets/BackgroundPageScaffold.dart';
 import 'package:my_first_flutter_app/utils/GameSeedUtil.dart';
 import 'package:my_first_flutter_app/utils/LuoXueSongUtil.dart';
 import 'package:my_first_flutter_app/widgets/TileRevealImage.dart';
+import '../../widgets/MultiplayerRoomOverview.dart';
 
 class GameRoomPage extends StatefulWidget {
   final RoomEntity room;
@@ -40,42 +45,53 @@ class _GameRoomPageState extends State<GameRoomPage> {
   RoomEntity? _currentRoom;
   GameStateEntity? _gameState;
   PlayerEntity? _currentPlayer;
-  
+  String? _initializationError;
+  bool _isLeaving = false;
+  bool _leaveDialogOpen = false;
+  bool _canPopAfterLeave = false;
+
   // 搜索相关
   final TextEditingController _searchController = TextEditingController();
   List<Song> _searchResults = [];
   Timer? _searchTimer;
+  int _searchGeneration = 0;
+  int _targetSongLoadGeneration = 0;
   static const Duration _searchDelay = Duration(milliseconds: 800);
   bool _showSearchResults = false;
-  
+
   // 猜测历史
-  final List<GuessSong> _guessHistory = [];
   bool _isSubmitting = false;
 
   // 搜索中状态（与单人猜歌页一致，用于显示转圈提示）
   bool _isSearching = false;
-  
+
   // 歌曲别名管理器
   late SongAliasManager _songAliasManager;
-  
+
   // 目标歌曲（用于本地判定）
   Song? _targetSong;
-  
+
   // 倒计时相关
   int _remainingTime = 0;
   Timer? _countdownTimer;
-  
+
   // 回合结束原因
-  bool _isRoundOverByTimeout = false;
-  
+  DateTime? _roundDeadline;
+  int _modeGeneration = 0;
+  final Map<String, Future<GuessSong?>> _guessDetails = {};
+  bool _audioLoading = false;
+  bool _actionPending = false;
+  String? _pendingAction, _pendingSongId, _pendingLetter;
+  bool? _requestedReady;
+  Timer? _actionTimer;
+
   // 当前玩家是否已投降
   bool _hasSurrendered = false;
-  
+
   // 房主变更提示消息
   String? _hostChangeMessage;
-  
+
   // 游戏是否已结算（房主点击结算后变为true）
-  bool _isGameSettled = false;
 
   // ==================== 模式专属状态 ====================
   // 开字母输入（letters 模式，房间共享进度）
@@ -83,6 +99,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
 
   // 曲绘截取参数 (cover 模式，基于种子确定性生成)
   CropRect? _cropRect;
+  ImageProvider? _croppedCoverProvider;
 
   // 音频播放相关 (audio 模式)
   bool _isPlaying = false;
@@ -115,10 +132,13 @@ class _GameRoomPageState extends State<GameRoomPage> {
   bool _peekPreparing = false;
   bool _peekClipFinished = false;
   String? _peekUnavailableReason;
+
   /// 本回合实际播放的难度（inote 编号），用于显示与单人一致的难度标签。
   String? _peekResolvedInote;
+
   /// 本回合谱面（回合结束后重建带音频的播放器要用同一份谱面）。
   MaiChart? _peekChart;
+
   /// 答案模式（回合结束后）：
   /// 音频就绪后把播放器换成带音频实例，可无限复播对答案。
   bool _peekAnswerModeEntered = false;
@@ -126,6 +146,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
   bool _peekAnswerAudioFailed = false;
   bool _peekAudioAttached = false;
   String? _peekAnswerAudioPath;
+
   /// 手动复播次数（自动播放那一次不计）。**每人独立计数**。
   int _peekReplaysLeft = kPeekMaxReplays;
   static const int kPeekMaxReplays = 3; // 与单人谱面片段猜歌一致
@@ -133,18 +154,20 @@ class _GameRoomPageState extends State<GameRoomPage> {
   // 获取玩家显示名称（处理重复昵称）
   String _getPlayerDisplayName(PlayerEntity player) {
     if (_currentRoom == null) return player.nickname;
-    
+
     // 检查是否有重复昵称
     int nicknameCount = _currentRoom!.players
         .where((p) => p.nickname == player.nickname)
         .length;
-    
+
     if (nicknameCount > 1) {
       // 有重复昵称，显示昵称+ID后缀
-      String idSuffix = player.playerId.substring(0, 4).toUpperCase();
+      String idSuffix = player.playerId
+          .substring(0, min(4, player.playerId.length))
+          .toUpperCase();
       return '${player.nickname}($idSuffix)';
     }
-    
+
     return player.nickname;
   }
 
@@ -153,39 +176,6 @@ class _GameRoomPageState extends State<GameRoomPage> {
     if (_currentRoom == null) return false;
     return _currentRoom!.players.every((p) => p.isSurrendered);
   }
-
-  // 当前是否处于 letters（开字母）模式
-  bool get _isLettersMode =>
-      (_currentRoom?.gameType ?? widget.room.gameType) == GameType.letters;
-
-  // 判断一条猜测是否命中本回合的目标曲。
-  //
-  // letters 一回合有多首目标曲（服务端 gameState.targetSongs），要逐首比对；
-  // 其它模式目标曲只有一首，取 targetSongs[0] 或 _targetSong 均可。
-  bool _isGuessCorrectForCurrentRound(String guessedTitle) {
-    final titles = <String>[];
-    for (final song in _gameState?.targetSongs ?? const []) {
-      if (song is Map) {
-        final t = song['title'] ?? song['basic_info']?['title'];
-        if (t != null) titles.add(t.toString());
-      }
-    }
-    if (titles.isEmpty && _targetSong != null) {
-      titles.add(_targetSong!.basicInfo.title);
-    }
-    if (titles.isEmpty) return false;
-    // 服务端用「归一化后完全相等」判定，这里保持同一口径
-    final String target = _normalizeTitle(guessedTitle);
-    return titles.any((t) => _normalizeTitle(t) == target);
-  }
-
-  // 与服务端 normalizeTitle 同口径：去首尾空白、转小写、连续空白折叠成单个空格。
-  // 注意是「折叠」不是「删除」——服务端用的就是 `\s+ -> ' '`，
-  // 写成删除会让「A B」和「AB」在本地被当成同一首，与服务端判定不一致。
-  static String _normalizeTitle(String title) => title
-      .trim()
-      .toLowerCase()
-      .replaceAll(RegExp(r'\s+'), ' ');
 
   /// 终局横幅：显示本局获胜者（并列则列出所有人），无人得分时显示平局。
   ///
@@ -219,7 +209,8 @@ class _GameRoomPageState extends State<GameRoomPage> {
           ];
 
     // 全场 0 分（例如全员投降 / 一题都没答出来）算平局，不写「获胜」
-    final bool iAmWinner = !isDraw && winnerIds.contains(_manager.currentPlayerId);
+    final bool iAmWinner =
+        !isDraw && winnerIds.contains(_manager.currentPlayerId);
     final String headline = isDraw
         ? '🤝 平局'
         : (winnerIds.length > 1
@@ -276,36 +267,15 @@ class _GameRoomPageState extends State<GameRoomPage> {
 
   // 构建回合获胜者显示组件（只有当有人答对时才显示）
   Widget _buildRoundWinner() {
-    // 如果是时间用完导致的回合结束，不显示答对提示
-    if (_isRoundOverByTimeout) {
-      return const SizedBox.shrink();
-    }
-    
-    if (_gameState?.guesses.isEmpty ?? true) {
-      return const SizedBox.shrink();
-    }
-    
-    final correctGuesses = _gameState!.guesses.where((g) => g.isCorrect).toList();
-    if (correctGuesses.isEmpty) {
-      return const SizedBox.shrink();
-    }
-    
-    // 只显示最新的答对记录（当前回合的）
+    final gains = _roundScoresByPlayer();
+    final correctGuesses = _gameState?.guesses
+            .where((g) =>
+                g.isCorrect && g.score > 0 && (gains[g.playerId] ?? 0) > 0)
+            .toList() ??
+        [];
+    if (correctGuesses.isEmpty) return const SizedBox.shrink();
     final latestGuess = correctGuesses.last;
-    
-    // 检查这个答对记录是否是当前回合的
-    // 通过检查时间戳，只有在回合结束前较短时间内的答对才显示
-    // 这是一个简单的判断方法，假设回合时间不会太短
-    if (_gameState != null && _gameState!.isRoundOver) {
-      // 检查是否有任何猜测是在当前回合的时间范围内
-      // 由于我们无法区分回合，这里检查最新的正确猜测是否足够新
-      DateTime now = DateTime.now();
-      if (latestGuess.guessedAt.isBefore(now.subtract(const Duration(minutes: 2)))) {
-        // 如果答对记录太旧，说明是上一回合的，不显示
-        return const SizedBox.shrink();
-      }
-    }
-    
+
     return Container(
       padding: const EdgeInsets.all(12),
       margin: const EdgeInsets.only(bottom: 12),
@@ -314,7 +284,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
-        '🎉 ${_getGuessPlayerDisplayName(latestGuess.playerId, latestGuess.playerNickname)} 答对了! +${latestGuess.score}分', 
+        '🎉 ${_getGuessPlayerDisplayName(latestGuess.playerId, latestGuess.playerNickname)} 答对了! +${latestGuess.score}分',
         style: TextStyle(
           color: AppColors.successForeground(Theme.of(context).brightness),
           fontSize: 16,
@@ -327,7 +297,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
   // 获取猜测记录中玩家的显示名称
   String _getGuessPlayerDisplayName(String playerId, String playerNickname) {
     if (_currentRoom == null) return playerNickname;
-    
+
     // 查找对应的玩家
     PlayerEntity? player;
     for (var p in _currentRoom!.players) {
@@ -336,22 +306,21 @@ class _GameRoomPageState extends State<GameRoomPage> {
         break;
       }
     }
-    
+
     if (player != null) {
       return _getPlayerDisplayName(player);
     }
-    
+
     // 如果找不到玩家，检查是否有重复昵称
-    int nicknameCount = _currentRoom!.players
-        .where((p) => p.nickname == playerNickname)
-        .length;
-    
+    int nicknameCount =
+        _currentRoom!.players.where((p) => p.nickname == playerNickname).length;
+
     if (nicknameCount > 1) {
       // 有重复昵称，显示昵称+ID后缀
       String idSuffix = playerId.substring(0, 4).toUpperCase();
       return '${playerNickname}($idSuffix)';
     }
-    
+
     return playerNickname;
   }
 
@@ -367,10 +336,10 @@ class _GameRoomPageState extends State<GameRoomPage> {
     }
     return player.score;
   }
-  
+
   // 排序状态
   bool _isAscending = true;
-  
+
   // Stream订阅
   StreamSubscription? _roomSubscription;
   StreamSubscription? _gameStateSubscription;
@@ -379,43 +348,62 @@ class _GameRoomPageState extends State<GameRoomPage> {
   @override
   void initState() {
     super.initState();
+    _currentRoom = widget.room;
     _songAliasManager = SongAliasManager.instance;
     _initRoom();
   }
 
   Future<void> _initRoom() async {
+    try {
+      if (mounted) setState(() => _initializationError = null);
+      await _initializeRoomState();
+    } catch (error) {
+      if (mounted) setState(() => _initializationError = '房间连接失败，请检查网络后重试');
+    }
+  }
+
+  Future<void> _initializeRoomState() async {
     await _songAliasManager.init();
+    if (!mounted) return;
 
     // 确保 MultiplayerManager 已初始化（建立事件订阅）
     await _manager.initialize();
+    if (!mounted) return;
 
-    debugPrint('[DEBUG][GameRoomPage] 初始化房间 - gameType: ${widget.room.gameType.name} (${widget.room.gameType.description})');
-    debugPrint('[DEBUG][GameRoomPage] 房间码: ${widget.room.roomCode}, 房间ID: ${widget.room.roomId}');
-    
+    debugPrint(
+        '[DEBUG][GameRoomPage] 初始化房间 - gameType: ${widget.room.gameType.name} (${widget.room.gameType.description})');
+    debugPrint(
+        '[DEBUG][GameRoomPage] 房间码: ${widget.room.roomCode}, 房间ID: ${widget.room.roomId}');
+
     setState(() {
-      _currentRoom = widget.room;
+      _currentRoom = _manager.currentRoom?.roomId == widget.room.roomId
+          ? _manager.currentRoom
+          : widget.room;
       // 初始化时就从房间信息中获取当前玩家
-      if (widget.room.players.isNotEmpty) {
-        _currentPlayer = widget.room.players.firstWhere(
-          (p) => p.playerId == _manager.currentPlayerId,
-          orElse: () => widget.room.players.first,
-        );
+      if (_currentRoom!.players.isNotEmpty) {
+        _currentPlayer = _currentRoom!.players
+            .where((p) => p.playerId == _manager.currentPlayerId)
+            .firstOrNull;
       }
+      _hasSurrendered = _currentPlayer?.isSurrendered ?? false;
     });
-    
+
     _manager.startListeningToRoom(widget.room.roomId);
-    
+
     _roomSubscription = _manager.roomStream.listen((room) {
       debugPrint('[DEBUG][GameRoomPage] 收到 roomStream 更新: ${room?.roomId}');
-      if (!mounted) return;
-      
+      if (!mounted ||
+          _isLeaving ||
+          (room != null && room.roomId != widget.room.roomId)) return;
+
       // 打印玩家投降状态（调试）
       if (room != null) {
         room.players.forEach((p) {
-          debugPrint('[DEBUG][GameRoomPage] 玩家 ${p.nickname} - 投降: ${p.isSurrendered}');
+          debugPrint(
+              '[DEBUG][GameRoomPage] 玩家 ${p.nickname} - 投降: ${p.isSurrendered}');
         });
       }
-      
+
       // 强制创建新的房间对象，确保 Flutter 检测到变化。
       //
       // ⚠️ 这里**必须用 copyWith()**，不要手写字段列表：以前是逐字段 new 一个
@@ -429,15 +417,37 @@ class _GameRoomPageState extends State<GameRoomPage> {
       RoomEntity? newRoom = room
           ?.copyWith(players: List.from(room.players))
           .withModeSettingsFallback(_currentRoom ?? widget.room);
-      
+
       setState(() {
         // 检测房主变更
         if (_currentRoom != null && newRoom != null) {
-          String? oldHostName = _currentRoom!.players.firstWhere((p) => p.isHost, orElse: () => PlayerEntity(playerId: '', nickname: '', score: 0, isHost: false, isReady: false, isOnline: false, isSurrendered: false)).nickname;
-          String? newHostName = newRoom.players.firstWhere((p) => p.isHost, orElse: () => PlayerEntity(playerId: '', nickname: '', score: 0, isHost: false, isReady: false, isOnline: false, isSurrendered: false)).nickname;
-          
+          String? oldHostName = _currentRoom!.players
+              .firstWhere((p) => p.isHost,
+                  orElse: () => PlayerEntity(
+                      playerId: '',
+                      nickname: '',
+                      score: 0,
+                      isHost: false,
+                      isReady: false,
+                      isOnline: false,
+                      isSurrendered: false))
+              .nickname;
+          String? newHostName = newRoom.players
+              .firstWhere((p) => p.isHost,
+                  orElse: () => PlayerEntity(
+                      playerId: '',
+                      nickname: '',
+                      score: 0,
+                      isHost: false,
+                      isReady: false,
+                      isOnline: false,
+                      isSurrendered: false))
+              .nickname;
+
           // 如果房主变更了且不是同一个人
-          if (oldHostName != null && newHostName != null && oldHostName != newHostName) {
+          if (oldHostName != null &&
+              newHostName != null &&
+              oldHostName != newHostName) {
             _hostChangeMessage = '$newHostName 成为了房主';
             // 3秒后清除提示
             Future.delayed(const Duration(seconds: 3), () {
@@ -449,171 +459,128 @@ class _GameRoomPageState extends State<GameRoomPage> {
             });
           }
         }
-        
+
         _currentRoom = newRoom;
         // 每次收到房间更新都更新当前玩家信息，确保状态同步
         if (newRoom != null) {
-          _currentPlayer = newRoom.players.firstWhere(
-            (p) => p.playerId == _manager.currentPlayerId,
-            orElse: () => newRoom.players.first,
-          );
+          _currentPlayer = newRoom.players
+              .where((p) => p.playerId == _manager.currentPlayerId)
+              .firstOrNull;
         }
-        
-        // 检查是否所有人都投降了，如果是，结束当前回合
-        if (_gameState != null && !_gameState!.isRoundOver && _isAllPlayersSurrendered()) {
-          _gameState = _gameState!.copyWith(isRoundOver: true);
-          _countdownTimer?.cancel();
-        }
+
+        _hasSurrendered = _currentPlayer?.isSurrendered ?? false;
+        if ((_pendingAction == 'ready' &&
+                _currentPlayer?.isReady == _requestedReady) ||
+            (_pendingAction == 'surrender' && _hasSurrendered))
+          _completeAction();
       });
     });
 
-    _gameStateSubscription = _manager.gameStateStream.listen((state) {
-      if (!mounted) return;
-      setState(() {
-        if (state != null) {
-          // 检查是否是新回合
-          bool isNewRound = _gameState == null || _gameState!.currentRound != state.currentRound;
-          
-          // 在覆盖之前保存本地状态
-          int? localCurrentGuesses = _gameState?.currentGuesses;
-          bool wasRoundOver = _gameState?.isRoundOver ?? false;
-          
-          if (isNewRound) {
-            // 调试信息
-            debugPrint('[DEBUG][GameRoomPage] 新回合开始:');
-            debugPrint('  - 当前回合: ${state.currentRound}/${state.totalRounds}');
-            debugPrint('  - 共享猜测次数: ${state.currentGuesses}/${state.maxGuesses}');
-            debugPrint('  - 本地投降状态已重置: _hasSurrendered=$_hasSurrendered');
-
-            // 以服务端下发的剩余秒数为准；服务端未带时退化为房间设置
-            // （GameStateEntity.timeRemaining 缺省 60，房间设 30 秒时倒计时会从 60 开始）
-            _remainingTime = state.timeRemaining > 0
-                ? state.timeRemaining
-                : (state.timeLimit > 0
-                    ? state.timeLimit
-                    : (_currentRoom?.timeLimit ?? 60));
-            // 重置投降状态
-            _hasSurrendered = false;
-            // 重置回合结束原因（重要：防止显示上一回合的获胜者）
-            _isRoundOverByTimeout = false;
-            // 重置模式专属状态（曲绘截取、音频起始时间等）
-            _resetModeSpecificState();
-            // 清空搜索框 / 搜索结果：
-            // 输入框里残留着上一回合的文字时，新回合的搜索列表会被旧关键字过滤，
-            // 玩家看着像「搜不到歌」而错过抢答（也让「输入即匹配」的判定失效）。
-            _clearSearchInput();
-            
-            // 新回合开始时，使用服务器状态并强制清空猜测历史
-            _gameState = state.copyWith(guesses: []);
-          } else {
-            // 同一回合内，合并服务器和本地的猜测历史
-            // 服务器返回的猜测可能延迟，所以保留本地已有的猜测
-            List<GuessRecord> combinedGuesses = [];
-            
-            // 添加服务器返回的猜测
-            if (state.guesses.isNotEmpty) {
-              combinedGuesses.addAll(state.guesses);
-            }
-            
-            // 如果服务器返回的猜测为空，但本地有猜测，保留本地猜测
-            // 这可以防止服务器延迟导致猜测记录消失
-            List<GuessRecord> localGuesses = _gameState?.guesses ?? [];
-            if (state.guesses.isEmpty && localGuesses.isNotEmpty) {
-              combinedGuesses.addAll(localGuesses);
-            }
-            
-            // 去重：根据playerId、songId和guessedAt组合去重
-            Map<String, GuessRecord> uniqueGuesses = {};
-            for (var guess in combinedGuesses) {
-              String key = '${guess.playerId}_${guess.songId}_${guess.guessedAt.millisecondsSinceEpoch}';
-              uniqueGuesses[key] = guess;
-            }
-            
-            _gameState = state.copyWith(guesses: uniqueGuesses.values.toList());
-
-            // 同回合内也用服务端剩余秒数对齐，避免本地 tick 与服务端计时漂移
-            if (state.timeRemaining > 0 &&
-                !state.isRoundOver &&
-                !state.isGameOver) {
-              _remainingTime = state.timeRemaining;
-            }
-            
-            // 保留本地更新的猜测次数（避免服务器延迟导致的覆盖）
-            if (localCurrentGuesses != null && localCurrentGuesses > _gameState!.currentGuesses) {
-              _gameState = _gameState!.copyWith(currentGuesses: localCurrentGuesses);
-            }
-            
-            // 调试信息
-            debugPrint('[DEBUG][GameRoomPage] 游戏状态更新:');
-            debugPrint('  - 当前回合: ${state.currentRound}');
-            debugPrint('  - 服务器猜测次数: ${state.currentGuesses}');
-            debugPrint('  - 本地猜测次数: ${_gameState!.currentGuesses}');
-            debugPrint('  - 最大猜测次数: ${state.maxGuesses}');
-            debugPrint('  - 剩余猜测次数: ${state.maxGuesses - _gameState!.currentGuesses}');
-          }
-          
-          // 如果回合已经结束（无论是因为投降还是答对），保持结束状态
-          // 这可以防止服务器延迟导致的界面闪烁
-          // 但新回合开始时不保留上一回合的结束状态
-          if (wasRoundOver && !isNewRound) {
-            _gameState = _gameState!.copyWith(isRoundOver: true);
-          }
-          
-          // 如果本地已经因为超时结束回合，强制保持结束状态
-          // 这可以防止服务器延迟导致的按钮消失
-          if (_isRoundOverByTimeout) {
-            _gameState = _gameState!.copyWith(isRoundOver: true);
-          }
-
-          // 回合/游戏结束时停掉本地倒计时（否则会残留一个不动的秒数）
-          if (_gameState!.isRoundOver || _gameState!.isGameOver) {
-            _countdownTimer?.cancel();
-            // chartPeek：回合结束后进入「答案模式」（照搬单人谱面片段猜歌）——
-            // 备好带音频的片段，之后可无限复播对答案
-            _enterPeekAnswerModeIfNeeded();
-          }
-          
-          // 只有在回合未结束或新回合开始时才加载目标歌曲
-          if (state.targetSong != null && (!wasRoundOver || isNewRound)) {
-            _loadTargetSong(state.targetSong!);
-          }
-          // 如果游戏开始且未结束，启动倒计时
-          // 只在没有在跑的倒计时时启动：每次 state 更新都重建 Timer 会把 1 秒的
-          // 计时相位不断重置，更新足够频繁时倒计时看起来就是卡住不动的。
-          if (!state.isGameOver && !_gameState!.isRoundOver) {
-            if (_countdownTimer?.isActive != true) {
-              _startCountdown();
-            }
-          } else {
-            _countdownTimer?.cancel();
-          }
-        } else {
-          _gameState = null;
-        }
-      });
-    });
+    _gameStateSubscription = _manager.gameStateStream.listen(_applyGameState);
+    if (_manager.currentGameState != null)
+      _applyGameState(_manager.currentGameState);
 
     // 监听服务器错误消息
     _errorMessageSubscription = _manager.errorMessageStream.listen((message) {
-      Fluttertoast.showToast(
-        msg: message,
-        toastLength: Toast.LENGTH_SHORT,
-        gravity: ToastGravity.BOTTOM,
-        timeInSecForIosWeb: 1,
-        backgroundColor: Colors.red,
-        textColor: Colors.white,
-        fontSize: 16.0,
-      );
+      if (!mounted || _isLeaving) return;
+      setState(_completeAction);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
+    });
+  }
+
+  void _applyGameState(GameStateEntity? state) {
+    if (!mounted || _isLeaving) return;
+    if (state?.roomId != null && state!.roomId != widget.room.roomId) return;
+    setState(() {
+      if (state == null) {
+        _gameState = null;
+        _roundDeadline = null;
+        _countdownTimer?.cancel();
+        return;
+      }
+      final previous = _gameState;
+      final isNewRound = previous == null ||
+          previous.currentRound != state.currentRound ||
+          (state.roundId != null && previous.roundId != state.roundId) ||
+          (previous.isGameOver && !state.isGameOver);
+      if (isNewRound) {
+        _countdownTimer?.cancel();
+        _resetModeSpecificState();
+        _targetSong = null;
+        _targetSongLoadGeneration++;
+        _clearSearchInput();
+      }
+      _gameState = state;
+      final self = state.players
+              .where((p) => p.playerId == _manager.currentPlayerId)
+              .firstOrNull ??
+          _currentPlayer;
+      _hasSurrendered = self?.isSurrendered ?? false;
+      if (_hasSurrendered) {
+        _playbackTimer?.cancel();
+        _audioPlayer?.stop();
+        _isPlaying = false;
+        _peekController?.pause();
+        _peekPlaying = false;
+      }
+      final guessConfirmed = _pendingAction == 'guess' &&
+          state.guesses.any((guess) =>
+              guess.playerId == _manager.currentPlayerId &&
+              guess.songId.toString() == _pendingSongId);
+      if (guessConfirmed) _clearSearchInput();
+      if (_pendingAction == 'letter' &&
+          state.openedLetters.any((letter) =>
+              letter.toLowerCase() == _pendingLetter?.toLowerCase()))
+        _openLetterController.clear();
+      if (isNewRound ||
+          state.isRoundOver ||
+          state.isGameOver ||
+          guessConfirmed ||
+          (_pendingAction == 'surrender' && _hasSurrendered) ||
+          (_pendingAction == 'letter' &&
+              state.openedLetters.any((letter) =>
+                  letter.toLowerCase() == _pendingLetter?.toLowerCase())))
+        _completeAction();
+      final milliseconds = state.timeLimit <= 0
+          ? 0
+          : state.serverNow != null && state.roundEndsAt != null
+              ? max(0, state.roundEndsAt! - state.serverNow!)
+              : max(0, state.timeRemaining * 1000);
+      _remainingTime = (milliseconds / 1000).ceil();
+      _roundDeadline = state.timeLimit > 0
+          ? DateTime.now().add(Duration(milliseconds: milliseconds))
+          : null;
+      if (state.isRoundOver || state.isGameOver) {
+        _countdownTimer?.cancel();
+        _flashTimer?.cancel();
+        _tileRevealTimer?.cancel();
+        _playbackTimer?.cancel();
+        _audioPlayer?.stop();
+        _isPlaying = false;
+        _enterPeekAnswerModeIfNeeded();
+      } else if (_countdownTimer?.isActive != true) {
+        _startCountdown();
+      }
+      if (state.targetSong != null) _loadTargetSong(state.targetSong);
     });
   }
 
   Future<void> _loadTargetSong(dynamic targetSongData) async {
+    final requestedId = targetSongData is Map
+        ? targetSongData['id']?.toString()
+        : targetSongData?.toString();
+    if (requestedId == null ||
+        requestedId.isEmpty ||
+        _targetSong?.id == requestedId) return;
+    final generation = ++_targetSongLoadGeneration;
     try {
       final allSongs = await GuessChartByInfoService.loadAllSongs();
-      if (allSongs == null || allSongs.isEmpty) return;
-      
+      if (!mounted || _isLeaving || generation != _targetSongLoadGeneration)
+        return;
+
       String targetSongId;
-      
+
       // 处理两种情况：字符串ID或歌曲对象
       if (targetSongData is String) {
         targetSongId = targetSongData;
@@ -623,28 +590,54 @@ class _GameRoomPageState extends State<GameRoomPage> {
         debugPrint('[DEBUG][GameRoom] 无法解析目标歌曲数据');
         return;
       }
-      
+
       if (targetSongId.isEmpty) {
         debugPrint('[DEBUG][GameRoom] 目标歌曲ID为空');
         return;
       }
-      
+
       // 根据歌曲ID查找目标歌曲
-      _targetSong = allSongs.firstWhere(
-        (song) => song.id == targetSongId,
-        orElse: () => allSongs.first,
-      );
-      
-      // 添加调试日志
-      if (_targetSong != null) {
-        debugPrint('[DEBUG][GameRoom] 加载到目标歌曲:');
-        debugPrint('[DEBUG][GameRoom]   歌曲ID: ${_targetSong!.id}');
-        debugPrint('[DEBUG][GameRoom]   歌曲名: ${_targetSong!.basicInfo.title}');
-        debugPrint('[DEBUG][GameRoom]   艺术家: ${_targetSong!.basicInfo.artist}');
-        debugPrint('[DEBUG][GameRoom]   BPM: ${_targetSong!.basicInfo.bpm}');
-        debugPrint('[DEBUG][GameRoom]   类型: ${_targetSong!.type}');
-        debugPrint('[DEBUG][GameRoom]   Master定数: ${_targetSong!.ds.length > 0 ? _targetSong!.ds[0] : "-"}');
-        debugPrint('[DEBUG][GameRoom]   版本: ${_targetSong!.basicInfo.from}');
+      final target =
+          allSongs?.where((song) => song.id == targetSongId).firstOrNull ??
+              (targetSongData is Map
+                  ? Song.fromJson(Map<String, dynamic>.from(targetSongData))
+                  : null);
+      final coverProvider = target != null &&
+              (_currentRoom?.gameType == GameType.cover ||
+                  _currentRoom?.gameType == GameType.flash) &&
+              _croppedCoverProvider == null
+          ? await CoverUtil.resolveCoverProvider(target.id)
+          : _croppedCoverProvider;
+      if (!mounted || _isLeaving || generation != _targetSongLoadGeneration)
+        return;
+      if (_currentRoom?.gameType == GameType.flash && coverProvider != null) {
+        await precacheImage(coverProvider, context);
+        if (!mounted || _isLeaving || generation != _targetSongLoadGeneration)
+          return;
+      }
+      if (_targetSong?.id != target?.id ||
+          _croppedCoverProvider != coverProvider) {
+        setState(() {
+          _targetSong = target;
+          _croppedCoverProvider = coverProvider;
+          if (_currentRoom?.gameType == GameType.flash &&
+              _gameState?.isRoundOver == false) _startFlashCover();
+        });
+        final type = _currentRoom?.gameType;
+        if (target != null && _gameState?.isRoundOver == false &&
+            (type == GameType.reverseAudio || type == GameType.pitchAudio)) {
+          final musicId = LuoXueSongUtil.toLxnsMusicId(target.id);
+          if (musicId > 0) {
+            GuessAudioService.prefetch(
+              musicId: musicId.toString(),
+              mode: type == GameType.reverseAudio
+                  ? GuessAudioMode.reverseAudio : GuessAudioMode.pitchAudio,
+              duration: _currentRoom?.playDuration ?? 5,
+              rate: _currentRoom?.audioRate ?? 1.25,
+              seed: '${widget.room.roomId}-${_gameState?.roundId ?? _gameState?.currentRound}-${target.id}',
+            );
+          }
+        }
       }
     } catch (e) {
       debugPrint('[DEBUG][GameRoom] 加载目标歌曲失败: $e');
@@ -660,6 +653,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
     _openLetterController.dispose();
     _searchTimer?.cancel();
     _countdownTimer?.cancel();
+    _actionTimer?.cancel();
 
     // 取消房间和游戏状态订阅
     _roomSubscription?.cancel();
@@ -678,68 +672,79 @@ class _GameRoomPageState extends State<GameRoomPage> {
     _peekController?.dispose();
     _peekController = null;
 
-    // 通知管理器停止监听房间
-    _manager.stopListening();
+    // 大厅与房间共用管理器和连接；这里只取消本页订阅，不能关闭大厅的连接。
 
     super.dispose();
   }
 
+  bool get _canAct =>
+      !_actionPending &&
+      !_isLeaving &&
+      _gameState != null &&
+      !_gameState!.isRoundOver &&
+      !_gameState!.isGameOver &&
+      (_gameState!.timeLimit <= 0 || _remainingTime > 0);
+
+  void _completeAction() {
+    _actionPending = false;
+    _pendingAction = null;
+    _actionTimer?.cancel();
+  }
+
+  void _beginAction(String action) {
+    _pendingAction = action;
+    setState(() => _actionPending = true);
+    _actionTimer?.cancel();
+    _actionTimer = Timer(const Duration(seconds: 8), () {
+      if (!mounted || !_actionPending) return;
+      setState(_completeAction);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('操作未收到确认，请检查连接后重试')));
+    });
+  }
+
   void _handleReady() {
+    if (_actionPending || _isLeaving) return;
+    _requestedReady = !(_currentPlayer?.isReady ?? false);
+    _beginAction('ready');
     if (_currentRoom != null) {
       _manager.updatePlayerReady(!(_currentPlayer?.isReady ?? false));
     }
   }
 
   void _handleStartGame() {
+    if (_actionPending || _isLeaving) return;
+    _beginAction('start');
     _manager.startGame();
   }
-  
-  // 启动倒计时
+
+  // 按快照中的截止时刻倒数，后台停留后也能按实际经过的时间恢复。
   void _startCountdown() {
     _countdownTimer?.cancel();
-    
-    if (_remainingTime <= 0) return;
-    
-    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted) {
+    if (_roundDeadline == null || _remainingTime <= 0) return;
+    _countdownTimer =
+        Timer.periodic(const Duration(milliseconds: 200), (timer) {
+      if (!mounted || _roundDeadline == null) {
         timer.cancel();
         return;
       }
-      setState(() {
-        if (_remainingTime > 0) {
-          _remainingTime--;
-        } else {
-          _countdownTimer?.cancel();
-          // 倒计时结束，设置回合结束（标记为时间用完）
-          _isRoundOverByTimeout = true;
-          _gameState = _gameState?.copyWith(isRoundOver: true);
-        }
-      });
-      if (_isRoundOverByTimeout) {
-        // chartPeek：超时同样要进入答案模式（否则复播没声音）
-        _enterPeekAnswerModeIfNeeded();
-      }
+      final seconds = max(
+          0,
+          (_roundDeadline!.difference(DateTime.now()).inMilliseconds / 1000)
+              .ceil());
+      if (seconds != _remainingTime) setState(() => _remainingTime = seconds);
+      if (seconds == 0) timer.cancel();
+      // 到零只等待服务端结算，不提前揭晓答案或开放“下一轮”。
     });
   }
-  
-  // 投降
-  void _handleSurrender() {
-    _manager.updatePlayerSurrendered(true);
-    
-    // 调试信息
-    debugPrint('[DEBUG][GameRoomPage] 玩家发起投降:');
-    debugPrint('  - 当前回合: ${_gameState?.currentRound}');
-    debugPrint('  - 投降前状态: _hasSurrendered=$_hasSurrendered');
-    
-    setState(() {
-      // 投降后不结束回合，只标记投降状态
-      _hasSurrendered = true;
-    });
-    
-    // 调试信息
-    debugPrint('  - 投降后状态: _hasSurrendered=$_hasSurrendered');
+
+  Future<void> _handleSurrender() async {
+    if (!_canAct || _hasSurrendered) return;
+    _beginAction('surrender');
+    await _manager.updatePlayerSurrendered(true);
+    // 投降状态由 player_surrendered / room_updated / 游戏快照确认。
   }
-  
+
   // 显示规则说明对话框
   void _showRulesDialog() {
     final brightness = Theme.of(context).brightness;
@@ -823,7 +828,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
                 sectionTitle('颜色含义'),
                 bullet('绿色 - 该属性与你猜的完全一致。'),
                 bullet('黄色 - 该属性与你猜的接近：BPM 相差 ±20 以内；'
-                    'Master / Re:Master 难度相差 ±0.4 以内；'
+                    'MASTER / Re:MASTER 难度相差 ±0.4 以内；'
                     '版本相差一个世代（maimai ← maimai PLUS → maimai GreeN）。'),
                 bullet('灰色 - 该属性与你猜的差距较大。'),
 
@@ -834,7 +839,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
 
                 // ---------- 标签 ----------
                 sectionTitle('标签'),
-                bullet('显示你猜的曲目在 Master 难度下的配置、难度和评价标签。'),
+                bullet('显示你猜的曲目在 MASTER 难度下的配置、难度和评价标签。'),
                 bullet('当某个标签与目标曲目一致时，该标签会变绿。'),
                 bullet('注意：有些曲目可能未添加标签。'),
 
@@ -875,69 +880,35 @@ class _GameRoomPageState extends State<GameRoomPage> {
     );
   }
 
-  // 处理搜索输入
-  // 处理搜索输入（与单人猜歌页同款：800ms 防抖 + 搜索中状态）
+  // 保留房间的防抖与候选数限制，匹配规则直接复用歌曲搜索页的常规搜索。
   void _handleSearchInput(String value) {
     _searchTimer?.cancel();
-
-    if (value.isEmpty) {
-      setState(() {
-        _searchResults = [];
-        _showSearchResults = false;
-        _isSearching = false;
-      });
-      return;
-    }
+    final generation = ++_searchGeneration;
+    final query = value.trim();
+    setState(() {
+      _searchResults = [];
+      _showSearchResults = false;
+      _isSearching = query.isNotEmpty;
+    });
+    if (query.isEmpty) return;
 
     _searchTimer = Timer(_searchDelay, () async {
-      if (value.isEmpty) return;
-
-      setState(() {
-        _isSearching = true;
-      });
-
-      final allSongs = await GuessChartByInfoService.loadAllSongs();
-      if (!mounted) return;
-      if (allSongs != null) {
-        final results = await _searchSongs(allSongs, value);
-        if (!mounted) return;
+      try {
+        final results = await SongSearchService.searchSongs(query);
+        if (!mounted || generation != _searchGeneration) return;
         setState(() {
-          _searchResults = results;
-          _showSearchResults = results.isNotEmpty;
+          // 题库范围仍排除非国服与 maidata 追加曲，保留原房间规则。
+          _searchResults =
+              results.where((song) => !_isMaidataSong(song)).take(20).toList();
+          _showSearchResults = _searchResults.isNotEmpty;
           _isSearching = false;
         });
-      } else {
-        setState(() {
-          _isSearching = false;
-        });
+      } catch (e) {
+        if (!mounted || generation != _searchGeneration) return;
+        setState(() => _isSearching = false);
+        debugPrint('[GameRoom] 搜索失败: $e');
       }
     });
-  }
-
-  // 搜索歌曲（支持原曲名和别名）
-  Future<List<Song>> _searchSongs(List<Song> songs, String query) async {
-    List<Song> results = [];
-    query = query.toLowerCase();
-
-    // 过滤掉从maidata追加的歌曲（cids全为0表示从maidata解析）
-    var filteredSongs = songs.where((song) => !_isMaidataSong(song)).toList();
-
-    // 搜索原曲名
-    results.addAll(filteredSongs
-        .where((song) => song.basicInfo.title.toLowerCase().contains(query)));
-
-    // 搜索别名
-    for (var song in filteredSongs) {
-      if (!results.contains(song)) {
-        final aliases = _songAliasManager.aliases[song.title];
-        if (aliases != null &&
-            aliases.any((alias) => alias.toLowerCase().contains(query))) {
-          results.add(song);
-        }
-      }
-    }
-
-    return results.take(20).toList();
   }
 
   // 判断是否是从maidata追加的歌曲（cids全为0表示从maidata解析），或union独有的歌曲
@@ -949,13 +920,13 @@ class _GameRoomPageState extends State<GameRoomPage> {
 
   // 处理猜测
   Future<void> _handleGuess(Song guessedSong) async {
-    if (_isSubmitting) return;
-    
+    if (_isSubmitting || !_canAct || _hasSurrendered) return;
+
     // 检查是否已经猜过这首歌（用 id 字符串比对：宴会场 id 或异常数据下
     // int.parse 会直接抛异常，导致点选即崩）
-    final int? guessedId = int.tryParse(guessedSong.id);
-    bool hasGuessed = guessedId != null &&
-        _guessHistory.any((guess) => guess.songId == guessedId);
+    bool hasGuessed = _gameState!.guesses.any((guess) =>
+        guess.playerId == _manager.currentPlayerId &&
+        guess.songId.toString() == guessedSong.id);
     if (hasGuessed) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -967,48 +938,12 @@ class _GameRoomPageState extends State<GameRoomPage> {
     }
 
     _isSubmitting = true;
-    
+    _pendingSongId = guessedSong.id;
+    _beginAction('guess');
     try {
-      // 构建猜测实体
-      var guessSong = await GuessChartByInfoService.buildGuessSongEntity(guessedSong);
-      
-      // 计算猜测结果（本地判定）
-      bool isCorrect = false;
-      if (_targetSong != null) {
-        guessSong = await GuessChartByInfoService.calculateGuessResult(
-            guessSong, _targetSong!, Theme.of(context).brightness);
-        // 检查是否答对。
-        // letters 模式一回合有 songCount 首目标曲（targetSongs），只比对
-        // _targetSong（=第一首）会让「猜中第二首」被判成错的；而且猜中任意
-        // 一首就把回合标记结束也是错的——letters 要**全部猜中**才结束回合，
-        // 且下面的合并逻辑会把本地的 isRoundOver 状态粘住，导致服务端说
-        // 「还在继续」时界面上输入框已经消失。
-        isCorrect = _isGuessCorrectForCurrentRound(guessedSong.basicInfo.title);
-      }
-
-      // 更新本地UI状态
-      setState(() {
-        // 提交后清空搜索框，让下一次猜测从空输入开始
-        _clearSearchInput();
-
-        // 猜测次数以服务端 game_state_updated 为准。原先本地先 +1，再在合并时
-        // 与服务端值取较大值，导致「提交被拒绝」时次数也会虚高且无法回退。
-        
-        // 如果答对了：非 letters 模式本回合就此结束；letters 模式要等
-        // 全部猜中，服务端会在最后一首猜中时广播 isRoundOver。
-        if (isCorrect && !_isLettersMode) {
-          _countdownTimer?.cancel();
-          if (_gameState != null) {
-            _gameState = _gameState!.copyWith(isRoundOver: true);
-          }
-        }
-      });
-      // 猜对即本回合结束：chartPeek 要立刻进入答案模式（等服务器广播会慢一拍）
-      if (isCorrect && !_isLettersMode) {
-        _enterPeekAnswerModeIfNeeded();
-      }
-
-      // 提交猜测到服务器（服务器会推送更新，包括猜测历史）
+      // 作答直接发给服务端；抢答输赢、扣次数和回合结束均等待权威状态，
+      // 避免本地先判答对后把被拒绝的请求粘成「回合已结束」。
+      FocusManager.instance.primaryFocus?.unfocus();
       await _manager.submitGuess(guessedSong.id, guessedSong.basicInfo.title);
     } finally {
       _isSubmitting = false;
@@ -1016,38 +951,22 @@ class _GameRoomPageState extends State<GameRoomPage> {
   }
 
   void _handleNextRound() {
-    setState(() {
-      _guessHistory.clear();
-      // 重置回合结束原因
-      _isRoundOverByTimeout = false;
-      // 上一回合的搜索关键字不能带到下一回合
-      _clearSearchInput();
-    });
-    _resetModeSpecificState();
+    if (_actionPending || _isLeaving) return;
+    _beginAction('next');
     _manager.startNextRound();
   }
 
   void _handleRestartGame() {
-    // 开始新一轮游戏
-    setState(() {
-      _guessHistory.clear();
-      _clearSearchInput();
-    });
-    _resetModeSpecificState();
+    if (_actionPending || _isLeaving) return;
+    _beginAction('start');
     _manager.startGame();
   }
 
-  void _handleSettleGame() {
-    // 结算游戏，保持游戏结束状态，不再进行新回合
-    // 可以添加一些结算逻辑，比如更新最终分数等
-    setState(() {
-      _isGameSettled = true;
-    });
-    debugPrint('[DEBUG][GameRoom] 游戏已结算');
-  }
-
-  void _showLeaveRoomConfirmDialog() {
-    showDialog(
+  void _showLeaveRoomConfirmDialog() async {
+    if (_isLeaving || _leaveDialogOpen) return;
+    _leaveDialogOpen = true;
+    FocusManager.instance.primaryFocus?.unfocus();
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
@@ -1062,8 +981,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
             ),
             TextButton(
               onPressed: () {
-                Navigator.of(context).pop();
-                _handleLeaveRoom();
+                Navigator.of(context).pop(true);
               },
               child: const Text('离开'),
             ),
@@ -1071,127 +989,38 @@ class _GameRoomPageState extends State<GameRoomPage> {
         );
       },
     );
+    _leaveDialogOpen = false;
+    if (mounted && confirmed == true) await _handleLeaveRoom();
   }
 
-  void _handleLeaveRoom() async {
-    await _manager.leaveRoom();
-    Navigator.pop(context);
+  Future<void> _handleLeaveRoom() async {
+    if (_isLeaving) return;
+    setState(() => _isLeaving = true);
+    try {
+      await _manager.leaveRoom();
+      if (!mounted) return;
+      debugPrint('[GameRoom] 已收到退房确认，准备返回大厅');
+      setState(() => _canPopAfterLeave = true);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        debugPrint('[GameRoom] 执行返回大厅');
+        if (mounted) Navigator.pop(context);
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _isLeaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+              error is TimeoutException ? '退出房间未收到确认，请重试' : '退出房间失败：$error')));
+    }
   }
 
-  Widget _buildPlayerList() {
-    if (_currentRoom == null) return const SizedBox();
-    final brightness = Theme.of(context).brightness;
-
-    return Column(
-      children: _currentRoom!.players.map((player) {
-        bool isCurrentPlayer = player.playerId == _manager.currentPlayerId;
-        return Container(
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-          margin: const EdgeInsets.symmetric(vertical: 4),
-          decoration: BoxDecoration(
-            color: isCurrentPlayer
-                ? AppColors.successSurface(brightness)
-                : (player.isHost
-                    ? AppColors.infoSurface(brightness)
-                    : Theme.of(context).colorScheme.surfaceContainerHighest),
-            borderRadius: BorderRadius.circular(8),
-            border: isCurrentPlayer
-                ? Border.all(color: AppColors.successGreen(brightness), width: 2)
-                : Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            _getPlayerDisplayName(player),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontWeight: player.isHost ? FontWeight.bold : FontWeight.normal,
-                            ),
-                          ),
-                        ),
-                        if (isCurrentPlayer) ...[
-                          const SizedBox(width: 6),
-                          _buildRoleChip('我', AppColors.successForeground(brightness)),
-                        ],
-                        if (player.isHost) ...[
-                          const SizedBox(width: 6),
-                          _buildRoleChip('房主', AppColors.infoForeground(brightness)),
-                        ],
-                      ],
-                    ),
-                    Row(
-                      children: [
-                        Text('分数: ${_settledScoreOf(player)}',
-                            style: const TextStyle(fontSize: 12)),
-                        // 显示投降状态（红色）
-                        if (player.isSurrendered) ...[
-                          const SizedBox(width: 16),
-                          Text(
-                            '已投降',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: AppColors.errorRed(brightness),
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ] else if (_gameState == null) ...[
-                          // 游戏未开始时显示准备状态
-                          const SizedBox(width: 16),
-                          Text(
-                            player.isReady ? '已准备' : '未准备',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: player.isReady
-                                  ? AppColors.successForeground(brightness)
-                                  : AppColors.warningOrange(brightness),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              // 游戏未开始时显示准备复选框
-              if (_gameState == null && _currentPlayer?.playerId == player.playerId)
-                Checkbox(
-                  value: player.isReady,
-                  onChanged: (value) => _handleReady(),
-                ),
-            ],
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  // 玩家列表里的「我 / 房主」小徽章
-  Widget _buildRoleChip(String label, Color foreground) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-      decoration: BoxDecoration(
-        color: foreground.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: foreground.withValues(alpha: 0.4)),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-          color: foreground,
-        ),
-      ),
-    );
-  }
+  Widget _buildPlayerList() => MultiplayerRoomPlayers(
+        room: _currentRoom ?? widget.room,
+        currentPlayerId: _manager.currentPlayerId,
+        playing: _gameState != null,
+        displayName: _getPlayerDisplayName,
+        scoreOf: _settledScoreOf,
+      );
 
   Widget _buildGameArea(Brightness brightness) {
     if (_gameState == null) {
@@ -1206,7 +1035,10 @@ class _GameRoomPageState extends State<GameRoomPage> {
             ),
             const SizedBox(height: 12),
             Text(
-              '等待游戏开始...',
+              (_currentRoom?.status == RoomStatus.playing ||
+                      _currentRoom?.status == RoomStatus.ended)
+                  ? '正在恢复对局…'
+                  : '等待游戏开始...',
               style: TextStyle(
                 fontSize: 15,
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -1223,15 +1055,18 @@ class _GameRoomPageState extends State<GameRoomPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.emoji_events, size: 26, color: AppColors.warningOrange(brightness)),
+              Icon(Icons.emoji_events,
+                  size: 26, color: AppColors.warningOrange(brightness)),
               const SizedBox(width: 8),
-              const Text('游戏结束!', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+              const Text('游戏结束!',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
             ],
           ),
           const SizedBox(height: 12),
           _buildGameResultBanner(brightness),
           const SizedBox(height: 16),
-          
+          _buildAudioAnswerArea(),
+
           // 显示答案区域（绿色背景）
           if (_targetSong != null)
             Container(
@@ -1243,32 +1078,24 @@ class _GameRoomPageState extends State<GameRoomPage> {
               ),
               child: _buildAnswerDisplay(),
             ),
-          
+
           const SizedBox(height: 16),
           _buildScoreboard(),
-          
-          // 游戏未结算时显示房主操作按钮
-          if (_currentPlayer?.isHost == true && !_isGameSettled)
+
+          // 服务端已完成终局结算；房主可直接开启一局新游戏。
+          if (_currentPlayer?.isHost == true)
             Container(
               margin: const EdgeInsets.only(top: 20),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   ElevatedButton(
-                    onPressed: _handleRestartGame,
+                    onPressed: _actionPending ? null : _handleRestartGame,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Theme.of(context).colorScheme.primary,
                       foregroundColor: Theme.of(context).colorScheme.onPrimary,
                     ),
-                    child: const Text('开始新一轮'),
-                  ),
-                  const SizedBox(width: 16),
-                  ElevatedButton(
-                    onPressed: _handleSettleGame,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-                    ),
-                    child: Text('结算游戏', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+                    child: const Text('再来一局'),
                   ),
                 ],
               ),
@@ -1283,16 +1110,19 @@ class _GameRoomPageState extends State<GameRoomPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.flag, size: 22, color: Theme.of(context).colorScheme.primary),
+              Icon(Icons.flag,
+                  size: 22, color: Theme.of(context).colorScheme.primary),
               const SizedBox(width: 8),
-              const Text('回合结束!', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              const Text('回合结束!',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
             ],
           ),
           const SizedBox(height: 16),
-          
+
           // 显示当前回合答对的玩家（只显示最新的答对记录）
           _buildRoundWinner(),
-          
+          _buildAudioAnswerArea(),
+
           // 显示答案区域（绿色背景）
           if (_targetSong != null)
             Container(
@@ -1304,27 +1134,18 @@ class _GameRoomPageState extends State<GameRoomPage> {
               ),
               child: _buildAnswerDisplay(),
             ),
-          
+
           const SizedBox(height: 16),
-          
+
           // 显示排行榜（放在下一轮按钮之前）
           _buildScoreboard(),
-          
+
           const SizedBox(height: 16),
-          
-          // 只有房主可以控制下一轮。
-          //
-          // 只要走到这个分支，就说明回合已经结束了（isRoundOver 为 true），
-          // 所以这里**不再**额外要求「超时 / 全投降 / 有人答对」三选一。
-          // 原先那三个条件会漏掉「共享猜测次数用完」这种结束方式：服务端已经
-          // 结束回合并广播了 isRoundOver，但三个条件一个都不成立，于是房主看不到
-          // 「下一轮」按钮（local _isRoundOverByTimeout 只在本地倒计时归零时才置位，
-          // 而回合结束后倒计时已被取消，永远不会归零）—— 全房间卡死，谁也走不了。
-          // 中途重连/后进房间同理：服务端下发的 timeRemaining 若已是 0，
-          // 本地倒计时压根不会启动。
+
+          // 以服务端确认的回合结束状态开放下一轮，包括共享次数耗尽。
           if (_currentPlayer?.isHost == true)
             ElevatedButton(
-              onPressed: _handleNextRound,
+              onPressed: _actionPending ? null : _handleNextRound,
               style: ElevatedButton.styleFrom(
                 backgroundColor: Theme.of(context).colorScheme.primary,
                 foregroundColor: Theme.of(context).colorScheme.onPrimary,
@@ -1348,7 +1169,8 @@ class _GameRoomPageState extends State<GameRoomPage> {
           const SizedBox(height: 12),
           const Text(
             '已投降，请等待其他玩家……',
-            style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Colors.grey),
+            style: TextStyle(
+                fontSize: 17, fontWeight: FontWeight.bold, color: Colors.grey),
           ),
           const SizedBox(height: 12),
 
@@ -1403,16 +1225,22 @@ class _GameRoomPageState extends State<GameRoomPage> {
         // 玩家扫一眼看不到「还剩多少时间/几次机会」。改成带图标的徽章，
         // 并用底色表达危险程度（时间紧迫 / 次数将尽）。
         _buildStatusBadges(brightness),
-        
+        if (_actionPending ||
+            (_gameState!.timeLimit > 0 && _remainingTime == 0))
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(_actionPending ? '正在等待服务端确认…' : '时间到，正在等待回合结算…'),
+          ),
+
         const SizedBox(height: 16),
         _buildSearchField(),
-        
+
         const SizedBox(height: 16),
-        
+
         // 搜索结果
         if (_showSearchResults && _searchResults.isNotEmpty)
           _buildSearchResults(),
-        
+
         // 按钮区域
         Container(
           margin: const EdgeInsets.only(top: 12),
@@ -1425,8 +1253,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
                   // 规则按钮
                   IconButton(
                     tooltip: '规则说明',
-                    icon: Icon(
-                        Icons.info_outline,
+                    icon: Icon(Icons.info_outline,
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
                         size: 24),
                     onPressed: _showRulesDialog,
@@ -1451,13 +1278,17 @@ class _GameRoomPageState extends State<GameRoomPage> {
                   const SizedBox(width: 8),
                   // 投降按钮
                   OutlinedButton(
-                    onPressed: _handleSurrender,
+                    onPressed: _canAct ? _handleSurrender : null,
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Theme.of(context).colorScheme.error,
                       side: BorderSide(
-                        color: Theme.of(context).colorScheme.error.withValues(alpha: 0.5),
+                        color: Theme.of(context)
+                            .colorScheme
+                            .error
+                            .withValues(alpha: 0.5),
                       ),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
                       minimumSize: Size.zero,
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
@@ -1468,9 +1299,9 @@ class _GameRoomPageState extends State<GameRoomPage> {
             ],
           ),
         ),
-        
+
         const SizedBox(height: 16),
-        
+
         // 猜测历史（从游戏状态获取，实时更新）
         if (_gameState != null && _gameState!.guesses.isNotEmpty)
           _buildGuessHistory(),
@@ -1486,9 +1317,10 @@ class _GameRoomPageState extends State<GameRoomPage> {
           children: [
             Expanded(
               child: TextField(
+                enabled: _canAct && !_hasSurrendered,
                 controller: _searchController,
                 decoration: InputDecoration(
-                  hintText: '输入歌曲名称或别名',
+                  hintText: '搜索歌曲、ID、BPM、谱师等',
                   prefixIcon: const Icon(Icons.search, size: 20),
                   border: const OutlineInputBorder(),
                   isDense: true,
@@ -1498,10 +1330,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
                           icon: const Icon(Icons.clear, size: 20),
                           onPressed: () {
                             setState(() {
-                              _searchController.clear();
-                              _searchResults = [];
-                              _showSearchResults = false;
-                              _isSearching = false;
+                              _clearSearchInput();
                             });
                           },
                         ),
@@ -1529,18 +1358,19 @@ class _GameRoomPageState extends State<GameRoomPage> {
   /// 两者都是「一眼要知道」的读数，用同一种徽章形态并排显示；进入危险区间
   /// （时间 ≤10 秒 / 次数 ≤3）时整块变底色，比只改文字颜色更容易被注意到。
   Widget _buildStatusBadges(Brightness brightness) {
-    final int? guessesLeft = _gameState == null
+    final int? guessesLeft = _gameState == null || _gameState!.maxGuesses <= 0
         ? null
-        : _gameState!.maxGuesses - _gameState!.currentGuesses;
+        : max(0, _gameState!.maxGuesses - _gameState!.currentGuesses);
 
     final List<Widget> badges = [];
 
-    if (_remainingTime > 0) {
-      final bool urgent = _remainingTime <= 10;
+    if (_gameState != null) {
+      final bool unlimited = _gameState!.timeLimit <= 0;
+      final bool urgent = !unlimited && _remainingTime <= 10;
       badges.add(_buildStatusBadge(
         icon: Icons.timer_outlined,
         label: '剩余时间',
-        value: '$_remainingTime 秒',
+        value: unlimited ? '不限时' : '$_remainingTime 秒',
         accent: urgent
             ? AppColors.errorRed(brightness)
             : Theme.of(context).colorScheme.primary,
@@ -1550,12 +1380,12 @@ class _GameRoomPageState extends State<GameRoomPage> {
       ));
     }
 
-    if (guessesLeft != null) {
-      final bool low = guessesLeft <= 3;
+    if (_gameState != null) {
+      final bool low = guessesLeft != null && guessesLeft <= 3;
       badges.add(_buildStatusBadge(
         icon: Icons.search_outlined,
         label: '剩余次数',
-        value: '$guessesLeft 次',
+        value: guessesLeft == null ? '不限' : '$guessesLeft 次',
         accent: low
             ? AppColors.warningOrange(brightness)
             : Theme.of(context).colorScheme.primary,
@@ -1666,7 +1496,8 @@ class _GameRoomPageState extends State<GameRoomPage> {
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: CoverUtil.buildCoverWidgetWithContext(context, song.id, 60),
+                child:
+                    CoverUtil.buildCoverWidgetWithContext(context, song.id, 60),
               ),
             ),
             const SizedBox(width: 12),
@@ -1681,7 +1512,8 @@ class _GameRoomPageState extends State<GameRoomPage> {
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: song.type == 'SD' ? Colors.blue : Colors.orange,
+                          color:
+                              song.type == 'SD' ? Colors.blue : Colors.orange,
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -1700,14 +1532,19 @@ class _GameRoomPageState extends State<GameRoomPage> {
                   ),
                   Text(
                     song.basicInfo.artist,
-                    style: TextStyle(fontSize: 14, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                    style: TextStyle(
+                        fontSize: 14,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                   if (aliasText.isNotEmpty)
                     Text(
                       aliasText,
-                      style: TextStyle(fontSize: 14, color: AppColors.linkBlue(Theme.of(context).brightness)),
+                      style: TextStyle(
+                          fontSize: 14,
+                          color:
+                              AppColors.linkBlue(Theme.of(context).brightness)),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -1724,35 +1561,37 @@ class _GameRoomPageState extends State<GameRoomPage> {
     if (_gameState == null || _gameState!.guesses.isEmpty) {
       return const SizedBox.shrink();
     }
-    
+
     List<GuessRecord> guesses = List.from(_gameState!.guesses);
-    
+
     // 去重：根据playerId、songId和guessedAt组合去重
     Map<String, GuessRecord> uniqueGuesses = {};
     for (var guess in guesses) {
-      String key = '${guess.playerId}_${guess.songId}_${guess.guessedAt.millisecondsSinceEpoch}';
+      String key =
+          '${guess.playerId}_${guess.songId}_${guess.guessedAt.millisecondsSinceEpoch}';
       uniqueGuesses[key] = guess;
     }
     guesses = uniqueGuesses.values.toList();
-    
+
     // 先按时间排序确定实际提交顺序
     List<GuessRecord> timeSortedGuesses = List.from(guesses);
     timeSortedGuesses.sort((a, b) => a.guessedAt.compareTo(b.guessedAt));
-    
+
     // 创建猜测序号映射
     Map<String, int> guessOrderMap = {};
     for (int i = 0; i < timeSortedGuesses.length; i++) {
-      String key = '${timeSortedGuesses[i].playerId}_${timeSortedGuesses[i].songId}_${timeSortedGuesses[i].guessedAt.millisecondsSinceEpoch}';
+      String key =
+          '${timeSortedGuesses[i].playerId}_${timeSortedGuesses[i].songId}_${timeSortedGuesses[i].guessedAt.millisecondsSinceEpoch}';
       guessOrderMap[key] = i + 1;
     }
-    
+
     // 根据排序状态排序显示顺序
     if (_isAscending) {
       guesses.sort((a, b) => a.guessedAt.compareTo(b.guessedAt));
     } else {
       guesses.sort((a, b) => b.guessedAt.compareTo(a.guessedAt));
     }
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1766,7 +1605,8 @@ class _GameRoomPageState extends State<GameRoomPage> {
         ),
         const SizedBox(height: 8),
         ...guesses.map((guess) {
-          String key = '${guess.playerId}_${guess.songId}_${guess.guessedAt.millisecondsSinceEpoch}';
+          String key =
+              '${guess.playerId}_${guess.songId}_${guess.guessedAt.millisecondsSinceEpoch}';
           int guessNumber = guessOrderMap[key] ?? 1;
           return _buildGuessHistoryItemFromRecord(guess, guessNumber);
         }),
@@ -1775,18 +1615,22 @@ class _GameRoomPageState extends State<GameRoomPage> {
   }
 
   Widget _buildGuessHistoryItemFromRecord(GuessRecord guess, int guessNumber) {
+    final detailsKey =
+        '${guess.songId}:${_targetSong?.id}:${Theme.of(context).brightness.name}';
     return FutureBuilder<GuessSong?>(
-      future: _buildGuessSongForRecord(guess),
+      future: _guessDetails.putIfAbsent(
+          detailsKey, () => _buildGuessSongForRecord(guess)),
       builder: (context, snapshot) {
         GuessSong? guessSong = snapshot.data;
-        
+
         return Container(
           margin: const EdgeInsets.symmetric(vertical: 6),
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+            border:
+                Border.all(color: Theme.of(context).colorScheme.outlineVariant),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1799,7 +1643,10 @@ class _GameRoomPageState extends State<GameRoomPage> {
                     height: 22,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
+                      color: Theme.of(context)
+                          .colorScheme
+                          .primary
+                          .withValues(alpha: 0.12),
                       shape: BoxShape.circle,
                     ),
                     child: Text(
@@ -1815,7 +1662,8 @@ class _GameRoomPageState extends State<GameRoomPage> {
                   Expanded(
                     child: Text(
                       guess.playerNickname,
-                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                      style: const TextStyle(
+                          fontSize: 13, fontWeight: FontWeight.w600),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -1836,13 +1684,15 @@ class _GameRoomPageState extends State<GameRoomPage> {
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(4),
-                      child: CoverUtil.buildCoverWidgetWithContext(context, guess.songId, 60),
+                      child: CoverUtil.buildCoverWidgetWithContext(
+                          context, guess.songId, 60),
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: _buildInfoItem('曲名', 
-                        guessSong?.title ?? guess.songName, 
+                    child: _buildInfoItem(
+                        '曲名',
+                        guessSong?.title ?? guess.songName,
                         guessSong?.titleBgColor ?? Colors.grey),
                   ),
                 ],
@@ -1856,7 +1706,8 @@ class _GameRoomPageState extends State<GameRoomPage> {
                     Expanded(
                       flex: 1,
                       child: _buildInfoItem(
-                          '类型', guessSong.type == 'SD' ? 'ST' : guessSong.type, 
+                          '类型',
+                          guessSong.type == 'SD' ? 'ST' : guessSong.type,
                           guessSong.typeBgColor ?? Colors.grey),
                     ),
                     const SizedBox(width: 8),
@@ -1880,7 +1731,8 @@ class _GameRoomPageState extends State<GameRoomPage> {
                           children: [
                             const Text(
                               '曲师',
-                              style: TextStyle(fontSize: 10, color: Colors.white),
+                              style:
+                                  TextStyle(fontSize: 10, color: Colors.white),
                             ),
                             const SizedBox(height: 2),
                             Text(
@@ -1901,20 +1753,22 @@ class _GameRoomPageState extends State<GameRoomPage> {
                 ),
               const SizedBox(height: 8),
 
+              GuessBpmHistoryFields(songId: guess.songId, targetSongId: _currentRoom?.gameType == GameType.letters && guess.isCorrect ? guess.songId : _targetSong?.id),
+
               // 第三行：Master定数，Master谱师
               if (guessSong != null)
                 Row(
                   children: [
                     Expanded(
                       flex: 2,
-                      child: _buildInfoItem('Master定数', guessSong.masterDs,
+                      child: _buildInfoItem('MASTER定数', guessSong.masterDs,
                           guessSong.masterLevelBgColor ?? Colors.grey,
                           arrow: guessSong.masterLevelArrow),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       flex: 3,
-                      child: _buildInfoItem('Master谱师', guessSong.masterCharter,
+                      child: _buildInfoItem('MASTER谱师', guessSong.masterCharter,
                           guessSong.masterCharterBgColor ?? Colors.grey),
                     ),
                   ],
@@ -1928,7 +1782,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
                     Expanded(
                       flex: 2,
                       child: _buildInfoItem(
-                          'ReMaster定数',
+                          'Re:MASTER定数',
                           guessSong.remasterDs.isNotEmpty
                               ? guessSong.remasterDs
                               : '-',
@@ -1941,15 +1795,17 @@ class _GameRoomPageState extends State<GameRoomPage> {
                       child: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: guessSong.remasterCharterBgColor ?? Colors.grey,
+                          color:
+                              guessSong.remasterCharterBgColor ?? Colors.grey,
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const Text(
-                              'ReMaster谱师',
-                              style: TextStyle(fontSize: 10, color: Colors.white),
+                              'Re:MASTER谱师',
+                              style:
+                                  TextStyle(fontSize: 10, color: Colors.white),
                             ),
                             const SizedBox(height: 2),
                             Text(
@@ -1995,14 +1851,16 @@ class _GameRoomPageState extends State<GameRoomPage> {
                           children: [
                             const Text(
                               '版本',
-                              style: TextStyle(fontSize: 10, color: Colors.white),
+                              style:
+                                  TextStyle(fontSize: 10, color: Colors.white),
                             ),
                             const SizedBox(height: 2),
                             Row(
                               children: [
                                 Expanded(
                                   child: Text(
-                                    StringUtil.formatVersion2(guessSong.version),
+                                    StringUtil.formatVersion2(
+                                        guessSong.version),
                                     style: const TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.bold,
@@ -2043,15 +1901,16 @@ class _GameRoomPageState extends State<GameRoomPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Master标签',
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                      'MASTER标签',
+                      style:
+                          TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
-                      children:
-                          List.generate(guessSong!.masterTags?.length ?? 0, (i) {
+                      children: List.generate(
+                          guessSong!.masterTags?.length ?? 0, (i) {
                         return Container(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 12, vertical: 6),
@@ -2071,8 +1930,6 @@ class _GameRoomPageState extends State<GameRoomPage> {
                     ),
                   ],
                 ),
-
-              
             ],
           ),
         );
@@ -2081,10 +1938,17 @@ class _GameRoomPageState extends State<GameRoomPage> {
   }
 
   Future<GuessSong?> _buildGuessSongForRecord(GuessRecord guess) async {
+    final generation = _modeGeneration;
+    final target = _targetSong;
+    final brightness = Theme.of(context).brightness;
     try {
       final songs = await GuessChartByInfoService.loadAllSongs();
-      if (songs == null || songs.isEmpty) return null;
-      
+      if (!mounted ||
+          _isLeaving ||
+          generation != _modeGeneration ||
+          songs == null ||
+          songs.isEmpty) return null;
+
       Song? song;
       for (var s in songs) {
         if (s.id == guess.songId) {
@@ -2093,14 +1957,16 @@ class _GameRoomPageState extends State<GameRoomPage> {
         }
       }
       if (song == null) return null;
-      
-      GuessSong guessSong = await GuessChartByInfoService.buildGuessSongEntity(song);
-      
-      if (_targetSong != null) {
+
+      GuessSong guessSong =
+          await GuessChartByInfoService.buildGuessSongEntity(song);
+      if (!mounted || _isLeaving || generation != _modeGeneration) return null;
+
+      if (target != null) {
         guessSong = await GuessChartByInfoService.calculateGuessResult(
-            guessSong, _targetSong!, Theme.of(context).brightness);
+            guessSong, target, brightness);
       }
-      
+
       return guessSong;
     } catch (e) {
       return null;
@@ -2108,7 +1974,8 @@ class _GameRoomPageState extends State<GameRoomPage> {
   }
 
   // 构建信息项
-  Widget _buildInfoItem(String label, String value, Color color, {String? arrow}) {
+  Widget _buildInfoItem(String label, String value, Color color,
+      {String? arrow}) {
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
@@ -2158,15 +2025,18 @@ class _GameRoomPageState extends State<GameRoomPage> {
 
   // 构建答案显示区域
   Widget _buildAnswerDisplay() {
+    if ((_currentRoom?.gameType ?? widget.room.gameType) == GameType.letters)
+      return _buildLettersHint();
     if (_targetSong == null) return const SizedBox();
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // 标题
         Row(
           children: [
-            Icon(Icons.check_circle, size: 18, color: Theme.of(context).colorScheme.primary),
+            Icon(Icons.check_circle,
+                size: 18, color: Theme.of(context).colorScheme.primary),
             const SizedBox(width: 6),
             Text(
               '本局答案',
@@ -2179,7 +2049,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
           ],
         ),
         const SizedBox(height: 8),
-        
+
         // 曲绘和信息
         Row(
           children: [
@@ -2192,7 +2062,8 @@ class _GameRoomPageState extends State<GameRoomPage> {
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(4),
-                child: CoverUtil.buildCoverWidgetWithContext(context, _targetSong!.id, 60),
+                child: CoverUtil.buildCoverWidgetWithContext(
+                    context, _targetSong!.id, 60),
               ),
             ),
             const SizedBox(width: 12),
@@ -2208,7 +2079,9 @@ class _GameRoomPageState extends State<GameRoomPage> {
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
-                          color: _targetSong!.type == 'SD' ? Colors.blue : Colors.orange,
+                          color: _targetSong!.type == 'SD'
+                              ? Colors.blue
+                              : Colors.orange,
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -2247,10 +2120,50 @@ class _GameRoomPageState extends State<GameRoomPage> {
             ),
           ],
         ),
+        if ((_currentRoom?.gameType ?? widget.room.gameType) ==
+            GameType.chartPeek)
+          _buildChartPeekHint(
+              widget.room.roomId, _gameState!.currentRound, _targetSong!.id),
       ],
     );
   }
-  
+
+  Widget _buildAudioAnswerArea() {
+    final room = _currentRoom ?? widget.room;
+    final state = _gameState;
+    final target = _targetSong;
+    if (state == null || target == null ||
+        (!state.isRoundOver && !state.isGameOver) ||
+        (room.gameType != GameType.reverseAudio &&
+            room.gameType != GameType.pitchAudio)) {
+      return const SizedBox.shrink();
+    }
+    final musicId = LuoXueSongUtil.toLxnsMusicId(target.id);
+    if (musicId <= 0) return const SizedBox.shrink();
+    final seed = '${room.roomId}-${state.roundId ?? state.currentRound}-${target.id}';
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildAudioPlayerHint(room.roomId, state.currentRound, target.id),
+          const SizedBox(height: 16),
+          GuessOriginalAudioCard(
+            key: ValueKey(seed),
+            musicId: musicId.toString(),
+            mode: room.gameType == GameType.reverseAudio
+                ? GuessAudioMode.reverseAudio : GuessAudioMode.pitchAudio,
+            duration: room.playDuration,
+            rate: room.audioRate,
+            seed: seed,
+          ),
+          const SizedBox(height: 16),
+          _buildSearchField(),
+        ],
+      ),
+    );
+  }
+
   Widget _buildScoreboard() {
     if (_currentRoom == null) return const SizedBox();
     final brightness = Theme.of(context).brightness;
@@ -2354,7 +2267,8 @@ class _GameRoomPageState extends State<GameRoomPage> {
                 // 本回合增量：让「得分怎么来的」一眼可见
                 if (gain > 0) ...[
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
                       color: AppColors.successSurface(brightness),
                       borderRadius: BorderRadius.circular(6),
@@ -2389,9 +2303,13 @@ class _GameRoomPageState extends State<GameRoomPage> {
   /// 服务端正是按 (playerId, matchedSongId) 去重取最大值的，这里按
   /// (playerId, songId) 复刻同一套逻辑，保证界面上的增量之和与总分对得上。
   Map<String, int> _roundScoresByPlayer() {
+    final surrendered = {
+      for (final player in _gameState?.players ?? const <PlayerEntity>[])
+        if (player.isSurrendered) player.playerId,
+    };
     final Map<String, int> best = {};
     for (final guess in _gameState?.guesses ?? const <GuessRecord>[]) {
-      if (!guess.isCorrect) continue;
+      if (!guess.isCorrect || surrendered.contains(guess.playerId)) continue;
       final String key = '${guess.playerId}\u0000${guess.songId}';
       final int prev = best[key] ?? -1;
       if (guess.score > prev) best[key] = guess.score;
@@ -2471,21 +2389,24 @@ class _GameRoomPageState extends State<GameRoomPage> {
                   spacing: 8,
                   runSpacing: 6,
                   alignment: WrapAlignment.center,
-                  children: aliases.map((alias) => Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      alias,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  )).toList(),
+                  children: aliases
+                      .map((alias) => Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              alias,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ))
+                      .toList(),
                 ),
               ],
             ] else
@@ -2519,29 +2440,35 @@ class _GameRoomPageState extends State<GameRoomPage> {
     final random = GameSeedUtil.createRandom(seed);
 
     // 随机选1-2个别名
-    final hintCount = aliases.length == 1 ? 1 : (1 + random.nextInt(2.clamp(1, aliases.length)));
+    final hintCount = aliases.length == 1
+        ? 1
+        : (1 + random.nextInt(2.clamp(1, aliases.length)));
     final shuffled = List<String>.from(aliases)..shuffle(random);
     final hints = shuffled.take(hintCount).toList();
 
-    return hints.map((alias) => Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.25),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withOpacity(0.5), width: 1),
-        ),
-        child: Text(
-          alias,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 15,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
-    )).toList();
+    return hints
+        .map((alias) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 3),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.25),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                      color: Colors.white.withOpacity(0.5), width: 1),
+                ),
+                child: Text(
+                  alias,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ))
+        .toList();
   }
 
   /// 构建开字母提示（letters 模式）
@@ -2556,8 +2483,9 @@ class _GameRoomPageState extends State<GameRoomPage> {
     final bool isRoundOver = _gameState!.isRoundOver;
 
     // 目标曲目：优先用服务端下发的 targetSongs；旧版服务端只给 currentSong
-    final List<dynamic> rawSongs =
-        _gameState!.targetSongs.isNotEmpty ? _gameState!.targetSongs : [_targetSong];
+    final List<dynamic> rawSongs = _gameState!.targetSongs.isNotEmpty
+        ? _gameState!.targetSongs
+        : [_targetSong];
     final List<dynamic> targetSongs = rawSongs.where((e) => e != null).toList();
     if (targetSongs.isEmpty) return const SizedBox.shrink();
 
@@ -2613,7 +2541,10 @@ class _GameRoomPageState extends State<GameRoomPage> {
                 isGameOver || isRoundOver
                     ? '本回合已结束'
                     : '剩余 ${targetSongs.length - foundCount} / ${targetSongs.length} 首',
-                style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600),
               ),
             ),
             const SizedBox(height: 12),
@@ -2627,7 +2558,8 @@ class _GameRoomPageState extends State<GameRoomPage> {
                   : <String, dynamic>{'id': song.toString()};
               final String id = (map['id'] ?? '').toString();
               final String title =
-                  (map['title'] ?? (map['basic_info']?['title'] ?? '')).toString();
+                  (map['title'] ?? (map['basic_info']?['title'] ?? ''))
+                      .toString();
               // 未结束时用服务端掩码；结束后直接显示完整曲名
               final String display = (isGameOver || isRoundOver)
                   ? title
@@ -2679,7 +2611,8 @@ class _GameRoomPageState extends State<GameRoomPage> {
                         style: TextStyle(color: Colors.white70, fontSize: 13),
                       ),
                       ..._gameState!.openedLetters.map((letter) => Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
                               color: Colors.white.withValues(alpha: 0.25),
                               borderRadius: BorderRadius.circular(6),
@@ -2741,17 +2674,22 @@ class _GameRoomPageState extends State<GameRoomPage> {
 
   /// 提交开字母（交给服务端判定并广播，保证各端掩码一致）
   void _handleOpenLetter() {
+    if (!_canAct || _hasSurrendered) return;
     final String letter = _openLetterController.text.trim();
     if (letter.isEmpty) return;
     if (_manager.currentPlayerId == null) return;
 
+    _pendingLetter = letter;
+    _beginAction('letter');
     _manager.openLetter(letter);
-    _openLetterController.clear();
   }
 
   /// 构建模式专属的提示区域（曲绘截取、模糊曲绘、音频播放器）
   Widget _buildModeSpecificHint() {
-    if (_targetSong == null || _gameState == null) return const SizedBox.shrink();
+    if (_gameState == null) return const SizedBox.shrink();
+    if ((_currentRoom?.gameType ?? widget.room.gameType) == GameType.letters)
+      return _buildLettersHint();
+    if (_targetSong == null) return const SizedBox.shrink();
 
     final gameType = _currentRoom?.gameType;
     final roomId = _currentRoom?.roomId ?? '';
@@ -2765,6 +2703,8 @@ class _GameRoomPageState extends State<GameRoomPage> {
       case GameType.blurred:
         return _buildBlurredCoverHint(roomId, roundNumber, targetSongId);
 
+      case GameType.reverseAudio:
+      case GameType.pitchAudio:
       case GameType.audio:
         return _buildAudioPlayerHint(roomId, roundNumber, targetSongId);
 
@@ -2815,12 +2755,17 @@ class _GameRoomPageState extends State<GameRoomPage> {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(10),
               child: showCover
-                  ? CoverUtil.buildCoverWidgetWithContext(
-                      context, targetSongId, 200)
+                  ? (_croppedCoverProvider == null
+                      ? CoverUtil.buildCoverWidgetWithContext(
+                          context, targetSongId, 200)
+                      : Image(
+                          image: _croppedCoverProvider!,
+                          width: 200,
+                          height: 200,
+                          fit: BoxFit.cover))
                   : Container(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .surfaceContainerHighest,
+                      color:
+                          Theme.of(context).colorScheme.surfaceContainerHighest,
                       alignment: Alignment.center,
                       child: Icon(
                         Icons.visibility_off_outlined,
@@ -3077,8 +3022,8 @@ class _GameRoomPageState extends State<GameRoomPage> {
             children: [
               // 本回合播放难度的标签（与单人同一套名字与底色）
               if (_peekResolvedInote != null &&
-                  GuessChartByChartPeekPage
-                      .difficultyNames.containsKey(_peekResolvedInote))
+                  GuessChartByChartPeekPage.difficultyNames
+                      .containsKey(_peekResolvedInote))
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -3131,10 +3076,13 @@ class _GameRoomPageState extends State<GameRoomPage> {
   /// 准备本回合的谱面片段（缓存优先，缺失则按需拉取）
   Future<void> _prepareChartPeek(
       String roomId, int roundNumber, String targetSongId) async {
+    final generation = _modeGeneration;
+    bool current() => mounted && !_isLeaving && generation == _modeGeneration;
     _peekPreparing = true;
     try {
       final manager = MaidataManager();
       await manager.initialize();
+      if (!current()) return;
 
       String? content = manager.getMaidata(targetSongId);
       if (content == null || content.isEmpty) {
@@ -3142,7 +3090,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
         await manager.fetchMaidataForSongIds([targetSongId]);
         content = manager.getMaidata(targetSongId);
       }
-      if (!mounted) return;
+      if (!current()) return;
       if (content == null || content.isEmpty) {
         setState(() => _peekUnavailableReason = '本机没有该曲的谱面缓存，自动拉取也没拿到');
         return;
@@ -3168,8 +3116,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
         salt: 'chartPeekDifficulty',
       );
       if (inote == null) {
-        setState(() =>
-            _peekUnavailableReason = '这首曲没有符合难度池 / 定数范围的谱面');
+        setState(() => _peekUnavailableReason = '这首曲没有符合难度池 / 定数范围的谱面');
         return;
       }
 
@@ -3218,7 +3165,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
         initialChartTime: window.start,
       );
       controller.timeNotifier.addListener(_onPeekTimeChanged);
-      if (!mounted) {
+      if (!current()) {
         controller.dispose();
         return;
       }
@@ -3234,14 +3181,18 @@ class _GameRoomPageState extends State<GameRoomPage> {
         // 进回合自动播放一次（不计入复播次数）
         _peekReplaysLeft = kPeekMaxReplays;
       });
-      _autoPlayPeek();
+      if (_gameState?.isRoundOver == true || _gameState?.isGameOver == true) {
+        _enterPeekAnswerModeIfNeeded();
+      } else {
+        _autoPlayPeek();
+      }
     } catch (e) {
       debugPrint('[GameRoomPage] chartPeek 准备失败: $e');
-      if (mounted) {
+      if (current()) {
         setState(() => _peekUnavailableReason = '谱面解析失败');
       }
     } finally {
-      _peekPreparing = false;
+      if (generation == _modeGeneration) _peekPreparing = false;
     }
   }
 
@@ -3262,9 +3213,20 @@ class _GameRoomPageState extends State<GameRoomPage> {
   Future<void> _autoPlayPeek() async {
     final controller = _peekController;
     if (controller == null) return;
-    await controller.seek(_peekClipStart);
-    await controller.play();
-    if (mounted) setState(() => _peekPlaying = true);
+    if (_gameState?.isRoundOver != false || _hasSurrendered) return;
+    try {
+      await controller.seek(_peekClipStart);
+      if (!mounted ||
+          _isLeaving ||
+          !identical(controller, _peekController) ||
+          _gameState?.isRoundOver != false) return;
+      await controller.play();
+      if (mounted && identical(controller, _peekController))
+        setState(() => _peekPlaying = true);
+    } catch (error) {
+      if (mounted && !_isLeaving && identical(controller, _peekController))
+        setState(() => _peekUnavailableReason = '谱面片段播放失败，请重试');
+    }
   }
 
   // ==================== chartPeek：回合结束后的答案模式 ====================
@@ -3280,12 +3242,15 @@ class _GameRoomPageState extends State<GameRoomPage> {
     if (_peekAnswerModeEntered) return;
     final gameType = _currentRoom?.gameType ?? widget.room.gameType;
     if (gameType != GameType.chartPeek) return;
+    if (_targetSong == null || _peekChart == null) return;
     _peekAnswerModeEntered = true;
     unawaited(_enterPeekAnswerMode());
   }
 
   Future<void> _enterPeekAnswerMode() async {
+    final generation = _modeGeneration;
     await _peekController?.pause();
+    if (!mounted || _isLeaving || generation != _modeGeneration) return;
     if (mounted) setState(() => _peekPlaying = false);
     final song = _targetSong;
     if (song == null || _peekChart == null) return;
@@ -3294,15 +3259,17 @@ class _GameRoomPageState extends State<GameRoomPage> {
   }
 
   Future<void> _preparePeekAnswerAudio(Song song) async {
+    final generation = _modeGeneration;
+    bool current() => mounted && !_isLeaving && generation == _modeGeneration;
     try {
       final int musicId = LuoXueSongUtil.toLxnsMusicId(song.id);
       if (musicId <= 0) {
         debugPrint('[GameRoomPage] chartPeek 歌曲 id 异常，答案模式保持无声: ${song.id}');
-        if (mounted) setState(() => _peekAnswerAudioFailed = true);
+        if (current()) setState(() => _peekAnswerAudioFailed = true);
         return;
       }
       final file = await LuoXueSongUtil().getMusicFile(musicId.toString());
-      if (!mounted || !_peekAnswerModeEntered) return;
+      if (!current() || !_peekAnswerModeEntered) return;
       if (file == null) {
         setState(() => _peekAnswerAudioFailed = true);
         return;
@@ -3312,7 +3279,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
       debugPrint('[GameRoomPage] chartPeek 答案音频就绪: ${file.path}');
     } catch (e) {
       debugPrint('[GameRoomPage] chartPeek 答案音频获取失败: $e');
-      if (mounted) setState(() => _peekAnswerAudioFailed = true);
+      if (current()) setState(() => _peekAnswerAudioFailed = true);
     }
   }
 
@@ -3327,7 +3294,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
     final path = _peekAnswerAudioPath;
     if (chart == null || path == null || !mounted) return;
 
-    _peekController?.removeListener(_onPeekTimeChanged);
+    _peekController?.timeNotifier.removeListener(_onPeekTimeChanged);
     _peekController?.dispose();
 
     final controller = GuessChartByChartPeekPage.buildChartOnlyController(
@@ -3385,7 +3352,8 @@ class _GameRoomPageState extends State<GameRoomPage> {
   }
 
   /// 构建曲绘截取提示（cover 模式）
-  Widget _buildCroppedCoverHint(String roomId, int roundNumber, String targetSongId) {
+  Widget _buildCroppedCoverHint(
+      String roomId, int roundNumber, String targetSongId) {
     // 使用确定性种子生成截取区域，确保所有玩家看到相同的截取
     if (_cropRect == null) {
       _cropRect = GameSeedUtil.generateCropRect(
@@ -3398,6 +3366,9 @@ class _GameRoomPageState extends State<GameRoomPage> {
     final rect = _cropRect!;
     final double size = 200.0;
     final bool isGameOver = _gameState?.isGameOver ?? false;
+    // 提前解析实际存在的资源，避免倒计时、搜索或主题重建时反复触发
+    // 不存在的 DX 原始 ID 的 errorBuilder，导致已加载的备用曲绘消失。
+    final provider = _croppedCoverProvider;
 
     return Center(
       child: Column(
@@ -3420,23 +3391,37 @@ class _GameRoomPageState extends State<GameRoomPage> {
                 fit: StackFit.expand,
                 children: [
                   // 完整曲绘
-                  CoverUtil.buildCoverWidgetWithContext(context, targetSongId, size),
+                  if (provider != null)
+                    Image(
+                        image: provider,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) =>
+                            CoverUtil.buildCoverWidgetWithContext(
+                                context, targetSongId, size))
+                  else
+                    const ColoredBox(color: Colors.black),
                   // 游戏未结束时用黑色遮盖非截取区域
                   if (!isGameOver) ...[
                     // 顶部遮盖
                     Positioned(
-                      top: 0, left: 0, right: 0,
+                      top: 0,
+                      left: 0,
+                      right: 0,
                       height: rect.y1 * size,
                       child: Container(color: Colors.black),
                     ),
                     // 底部遮盖
                     Positioned(
-                      top: rect.y2 * size, left: 0, right: 0, bottom: 0,
+                      top: rect.y2 * size,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
                       child: Container(color: Colors.black),
                     ),
                     // 左侧遮盖
                     Positioned(
-                      top: rect.y1 * size, left: 0,
+                      top: rect.y1 * size,
+                      left: 0,
                       width: rect.x1 * size,
                       height: (rect.y2 - rect.y1) * size,
                       child: Container(color: Colors.black),
@@ -3444,7 +3429,8 @@ class _GameRoomPageState extends State<GameRoomPage> {
                     // 右侧遮盖
                     Positioned(
                       top: rect.y1 * size,
-                      left: rect.x2 * size, right: 0,
+                      left: rect.x2 * size,
+                      right: 0,
                       height: (rect.y2 - rect.y1) * size,
                       child: Container(color: Colors.black),
                     ),
@@ -3481,7 +3467,8 @@ class _GameRoomPageState extends State<GameRoomPage> {
   }
 
   /// 构建模糊曲绘提示（blurred 模式）
-  Widget _buildBlurredCoverHint(String roomId, int roundNumber, String targetSongId) {
+  Widget _buildBlurredCoverHint(
+      String roomId, int roundNumber, String targetSongId) {
     final int blurLevel = _currentRoom?.blurLevel ?? 50;
     final bool isGameOver = _gameState?.isGameOver ?? false;
 
@@ -3511,13 +3498,15 @@ class _GameRoomPageState extends State<GameRoomPage> {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: isGameOver
-                  ? CoverUtil.buildCoverWidgetWithContext(context, targetSongId, 200)
+                  ? CoverUtil.buildCoverWidgetWithContext(
+                      context, targetSongId, 200)
                   : ImageFiltered(
                       imageFilter: ui.ImageFilter.blur(
                         sigmaX: effectiveBlur / 3,
                         sigmaY: effectiveBlur / 3,
                       ),
-                      child: CoverUtil.buildCoverWidgetWithContext(context, targetSongId, 200),
+                      child: CoverUtil.buildCoverWidgetWithContext(
+                          context, targetSongId, 200),
                     ),
             ),
           ),
@@ -3537,7 +3526,8 @@ class _GameRoomPageState extends State<GameRoomPage> {
   }
 
   /// 构建音频播放器提示（audio 模式）
-  Widget _buildAudioPlayerHint(String roomId, int roundNumber, String targetSongId) {
+  Widget _buildAudioPlayerHint(
+      String roomId, int roundNumber, String targetSongId) {
     final int playDuration = _currentRoom?.playDuration ?? 5;
     final bool isGameOver = _gameState?.isGameOver ?? false;
 
@@ -3563,6 +3553,10 @@ class _GameRoomPageState extends State<GameRoomPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            Text(_currentRoom?.gameType.name ?? '歌曲片段',
+                style: const TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
             // 进度条（拖动仅预览位置；音频以服务端种子的起始点整段播放，
             // 不支持 seek 到任意位置——只是把拖动反馈做得更平滑）
             SliderTheme(
@@ -3572,9 +3566,15 @@ class _GameRoomPageState extends State<GameRoomPage> {
                 overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
               ),
               child: Slider(
-                value: _currentPosition.clamp(0.0, _totalDuration > 0 ? _totalDuration : playDuration.toDouble()),
+                value: _currentPosition.clamp(
+                    0.0,
+                    _totalDuration > 0
+                        ? _totalDuration
+                        : playDuration.toDouble()),
                 min: 0.0,
-                max: _totalDuration > 0 ? _totalDuration : playDuration.toDouble(),
+                max: _totalDuration > 0
+                    ? _totalDuration
+                    : playDuration.toDouble(),
                 onChanged: (value) {
                   setState(() {
                     _currentPosition = value;
@@ -3601,19 +3601,29 @@ class _GameRoomPageState extends State<GameRoomPage> {
             const SizedBox(height: 12),
             // 播放/暂停按钮
             ElevatedButton.icon(
-              onPressed: isGameOver
+              onPressed: isGameOver ||
+                      _audioLoading ||
+                      !_canAct ||
+                      _hasSurrendered
                   ? null
-                  : (_isPlaying ? _pausePlayback : () => _playSongExcerpt(roomId, roundNumber, targetSongId)),
+                  : (_isPlaying
+                      ? _pausePlayback
+                      : () =>
+                          _playSongExcerpt(roomId, roundNumber, targetSongId)),
               icon: Icon(
-                isGameOver ? Icons.block : (_isPlaying ? Icons.pause : Icons.play_arrow),
+                isGameOver
+                    ? Icons.block
+                    : (_isPlaying ? Icons.pause : Icons.play_arrow),
                 size: 20,
               ),
               label: Text(
                 isGameOver
                     ? '游戏已结束'
-                    : (_isPlaying
-                        ? '暂停'
-                        : (_hasPlayed ? '重新播放' : '播放歌曲片段')),
+                    : (_audioLoading
+                        ? '正在加载音频…'
+                        : _isPlaying
+                            ? '暂停'
+                            : (_hasPlayed ? '重新播放' : '播放歌曲片段')),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.white,
@@ -3632,94 +3642,102 @@ class _GameRoomPageState extends State<GameRoomPage> {
   }
 
   /// 播放歌曲片段（使用确定性起始时间）
-  Future<void> _playSongExcerpt(String roomId, int roundNumber, String targetSongId) async {
-    if (_targetSong == null) return;
-
-    final int playDuration = _currentRoom?.playDuration ?? 5;
-
+  Future<void> _playSongExcerpt(
+      String roomId, int roundNumber, String targetSongId) async {
+    if (_targetSong == null || _audioLoading || !_canAct || _hasSurrendered)
+      return;
+    final generation = _modeGeneration;
+    bool current() =>
+        mounted &&
+        !_isLeaving &&
+        generation == _modeGeneration &&
+        _gameState?.isRoundOver == false &&
+        !_hasSurrendered;
+    final playDuration = _currentRoom?.playDuration ?? 5;
+    AudioPlayer? player;
+    setState(() => _audioLoading = true);
     try {
-      setState(() {
-        _isPlaying = true;
-        _totalDuration = playDuration.toDouble();
-        _currentPosition = 0.0;
-      });
-
-      // 停止之前的播放
       _playbackTimer?.cancel();
-      _positionSubscription?.cancel();
-      await _audioPlayer?.stop();
-      await _audioPlayer?.dispose();
+      final previous = _audioPlayer;
       _audioPlayer = null;
-
-      // 尝试通过落雪获取音乐文件（id 必须先转成落雪体系，否则 DX 曲 404）
-      final luoXueSongUtil = LuoXueSongUtil();
-      final int musicId = LuoXueSongUtil.toLxnsMusicId(targetSongId);
-      if (musicId <= 0) {
-        debugPrint('[GameRoomPage] 歌曲 id 异常，跳过音频播放: $targetSongId');
-        return;
-      }
-      final file = await luoXueSongUtil.getMusicFile(musicId.toString());
-
-      if (file != null) {
-        // 获取歌曲时长
-        final duration = await luoXueSongUtil.getSongDuration(musicId.toString());
-        int totalSongDuration = duration?.inSeconds ?? 180;
-
-        // 使用确定性种子生成音频起始时间，确保所有玩家听到相同的片段
-        if (_audioStartTime == null) {
-          _audioStartTime = GameSeedUtil.generateAudioStartTime(
+      await previous?.dispose();
+      if (!current()) return;
+      final utility = LuoXueSongUtil();
+      final musicId = LuoXueSongUtil.toLxnsMusicId(targetSongId);
+      if (musicId <= 0) throw StateError('歌曲编号无效');
+      final mode = switch (_currentRoom?.gameType) {
+        GameType.reverseAudio => GuessAudioMode.reverseAudio,
+        GameType.pitchAudio => GuessAudioMode.pitchAudio,
+        _ => GuessAudioMode.normal,
+      };
+      player = AudioPlayer();
+      _audioPlayer = player;
+      if (mode == GuessAudioMode.normal) {
+        final file = await utility.getMusicFile(musicId.toString());
+        if (!current()) return;
+        if (file == null) throw StateError('未能获取音频，请稍后重试');
+        final durationEvent = player.onDurationChanged.first
+            .timeout(const Duration(seconds: 3))
+            .then<Duration?>((value) => value, onError: (_) => null);
+        await player.setSource(DeviceFileSource(file.path));
+        if (!current()) return;
+        final duration = await player.getDuration() ?? await durationEvent;
+        if (!current()) return;
+        if (duration == null || duration <= Duration.zero)
+          throw StateError('无法读取音源时长');
+        _audioStartTime ??= GameSeedUtil.generateAudioStartTime(
             roomId: roomId,
             roundNumber: roundNumber,
             targetSongId: targetSongId,
-            totalDuration: totalSongDuration,
-            playDuration: playDuration,
-          );
-        }
-
-        _audioPlayer = AudioPlayer();
-        await _audioPlayer!.setSource(DeviceFileSource(file.path));
-        await _audioPlayer!.seek(Duration(seconds: _audioStartTime!));
-        await _audioPlayer!.play(DeviceFileSource(file.path));
-
-        final playStartTime = DateTime.now();
-
-        _playbackTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
-          if (!_isPlaying) {
-            timer.cancel();
-            return;
-          }
-          final elapsed = DateTime.now().difference(playStartTime).inMilliseconds / 1000;
-          setState(() {
-            _currentPosition = elapsed;
-          });
-          if (elapsed >= playDuration) {
-            timer.cancel();
-            _handlePlaybackComplete();
-          }
-        });
+            totalDuration: duration.inSeconds,
+            playDuration: playDuration);
+        await player.seek(Duration(seconds: _audioStartTime!));
       } else {
-        // 没有音频文件，模拟播放（仅显示进度条动画）
-        debugPrint('[GameRoomPage] 未找到歌曲音频文件，使用模拟播放');
-        final playStartTime = DateTime.now();
-
-        _playbackTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
-          if (!_isPlaying) {
-            timer.cancel();
-            return;
-          }
-          final elapsed = DateTime.now().difference(playStartTime).inMilliseconds / 1000;
-          setState(() {
-            _currentPosition = elapsed;
-          });
-          if (elapsed >= playDuration) {
-            timer.cancel();
-            _handlePlaybackComplete();
-          }
-        });
+        final file = await GuessAudioService.excerpt(
+            musicId: musicId.toString(),
+            mode: mode,
+            start: 0,
+            duration: playDuration,
+            rate: _currentRoom?.audioRate ?? 1.25,
+            seed:
+                '$roomId-${_gameState?.roundId ?? roundNumber}-$targetSongId');
+        if (!current()) return;
+        await player.setSource(DeviceFileSource(file.path));
       }
-    } catch (e) {
-      debugPrint('[GameRoomPage] 播放歌曲失败: $e');
-      _handlePlaybackComplete();
+      if (!current() || !identical(player, _audioPlayer)) return;
+      await player.resume();
+      if (!current() || !identical(player, _audioPlayer)) return;
+      setState(() {
+        _isPlaying = true;
+        _totalDuration = playDuration.toDouble();
+        _currentPosition = 0;
+      });
+      final started = DateTime.now();
+      _playbackTimer =
+          Timer.periodic(const Duration(milliseconds: 100), (timer) {
+        if (!current() || !_isPlaying) {
+          timer.cancel();
+          return;
+        }
+        final elapsed =
+            DateTime.now().difference(started).inMilliseconds / 1000;
+        setState(
+            () => _currentPosition = min(elapsed, playDuration.toDouble()));
+        if (elapsed >= playDuration) _handlePlaybackComplete();
+      });
+    } catch (error) {
+      if (current()) {
+        setState(() => _isPlaying = false);
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('音频播放失败：$error')));
+      }
+    } finally {
+      if (!current() && player != null && identical(player, _audioPlayer)) {
+        _audioPlayer = null;
+        await player.dispose();
+      }
+      if (mounted && generation == _modeGeneration)
+        setState(() => _audioLoading = false);
     }
   }
 
@@ -3750,16 +3768,23 @@ class _GameRoomPageState extends State<GameRoomPage> {
   /// 关键字过滤，玩家看到「搜不出歌」，或者以为要重新输入而耽误抢答——
   /// 结果就是白白丢掉一次获胜机会。
   void _clearSearchInput() {
+    _searchTimer?.cancel();
+    _searchGeneration++;
     if (_searchController.text.isNotEmpty) {
       _searchController.clear();
     }
     _searchResults = [];
     _showSearchResults = false;
+    _isSearching = false;
   }
 
   void _resetModeSpecificState() {
+    _modeGeneration++;
+    _guessDetails.clear();
+    _audioLoading = false;
     _openLetterController.clear();
     _cropRect = null;
+    _croppedCoverProvider = null;
     _audioStartTime = null;
     _isPlaying = false;
     _hasPlayed = false;
@@ -3773,8 +3798,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
 
     // flash：回合开始就闪现一次（时长来自房间设置，各端一致）
     _flashTimer?.cancel();
-    _flashVisible = false;
-    _startFlashCover();
+    _flashVisible = false; // 图片实际解码就绪后才开始快闪。
 
     // tileReveal：顺序/进度由题面构建时按确定性种子惰性初始化
     _tileRevealTimer?.cancel();
@@ -3817,134 +3841,82 @@ class _GameRoomPageState extends State<GameRoomPage> {
 
   @override
   Widget build(BuildContext context) {
-    final brightness = Theme.of(context).brightness;
-    final screenWidth = MediaQuery.of(context).size.width;
-    final scaleFactor = screenWidth / 375.0;
-    final paddingS = 4.0 * scaleFactor;
-    final paddingM = 12.0 * scaleFactor;
-    final paddingL = 10.0 * scaleFactor;
-    final borderRadiusSmall = 8.0 * scaleFactor;
-
-    return BackgroundPageScaffold(
-      title: _currentRoom?.gameType.name ?? '多人猜歌',
-      onBack: _showLeaveRoomConfirmDialog,
-      resizeToAvoidBottomInset: false,
-      contentPadding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom + 10),
-      child: Column(children: [// 房主变更提示
-              if (_hostChangeMessage != null)
-                Container(
-                  padding: EdgeInsets.symmetric(vertical: paddingS, horizontal: paddingM),
-                  margin: EdgeInsets.symmetric(horizontal: paddingM, vertical: paddingS),
-                  decoration: BoxDecoration(
-                    color: AppColors.infoSurface(brightness),
-                    borderRadius: BorderRadius.circular(borderRadiusSmall),
-                    border: Border.all(color: AppColors.infoForeground(brightness), width: 1),
-                  ),
-                  child: Center(
-                    child: Text(
-                      _hostChangeMessage!,
-                      style: TextStyle(
-                        color: AppColors.infoForeground(brightness),
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-Expanded(child: SingleChildScrollView(
-                    padding: EdgeInsets.all(paddingM),
-                    child: Padding(
-                      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom + paddingL),
-                      child: Column(
-                        children: [
-                          // 房间码显示
-                          // 注意：底色不要用 colorScheme.onSurface。
-                          // 暗色主题下 onSurface 是近白色，配下面这组白色文字就是
-                          // 「白底白字」，房间码完全读不出来。改用 primary/onPrimary
-                          // 这一对，浅色与暗色主题都有保证的对比度。
-                          Container(
-                            padding: EdgeInsets.symmetric(vertical: paddingS, horizontal: paddingM),
-                            decoration: BoxDecoration(
-                              color: Theme.of(context).colorScheme.primary,
-                              borderRadius: BorderRadius.circular(borderRadiusSmall),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Row(
-                                  children: [
-                                    Icon(Icons.key,
-                                        color: Theme.of(context).colorScheme.onPrimary,
-                                        size: 16),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      '房间码:',
-                                      style: TextStyle(
-                                          color: Theme.of(context).colorScheme.onPrimary,
-                                          fontSize: 14),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      _currentRoom?.roomCode ?? '-',
-                                      style: TextStyle(
-                                        color: Theme.of(context).colorScheme.onPrimary,
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                        letterSpacing: 1.5,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                // 当前人数/房间人数上限
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onPrimary
-                                        .withValues(alpha: 0.22),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Icon(Icons.people,
-                                          color: Theme.of(context).colorScheme.onPrimary,
-                                          size: 14),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        '${_currentRoom?.players.length ?? 0}/${_currentRoom?.maxPlayers ?? 4}',
-                                        style: TextStyle(
-                                          color: Theme.of(context).colorScheme.onPrimary,
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          SizedBox(height: paddingL),
-                          _buildPlayerList(),
-                          SizedBox(height: paddingL * 1.5),
-                          // 只有在等待状态且游戏未开始时显示开始按钮
-                          if (_currentRoom?.status == RoomStatus.waiting && 
-                              _currentPlayer?.isHost == true &&
-                              _gameState == null)
-                            ElevatedButton(
-                              onPressed: _handleStartGame,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Theme.of(context).colorScheme.primary,
-                                foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                              ),
-                              child: const Text('开始游戏'),
-                            ),
-                          SizedBox(height: paddingL * 1.5),
-                          _buildGameArea(brightness),
-                        ],
-                      ),
-                    ),
-                  )),]),
+    final room = _currentRoom ?? widget.room;
+    final waiting = room.status == RoomStatus.waiting && _gameState == null;
+    final scheme = Theme.of(context).colorScheme;
+    return PopScope(
+      canPop: _canPopAfterLeave,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) _showLeaveRoomConfirmDialog();
+      },
+      child: AbsorbPointer(
+        absorbing: _isLeaving,
+        child: BackgroundPageScaffold(
+          title: '多人房间',
+          onBack: _showLeaveRoomConfirmDialog,
+          resizeToAvoidBottomInset: false,
+          child: Column(children: [
+            if (_isLeaving)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Text('正在退出房间…'),
+              ),
+            if (_initializationError != null)
+              MaterialBanner(
+                content: Text(_initializationError!),
+                leading: Icon(Icons.wifi_off_rounded, color: scheme.error),
+                actions: [
+                  TextButton(onPressed: _initRoom, child: const Text('重新连接'))
+                ],
+              ),
+            if (_hostChangeMessage != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+                child: Text(_hostChangeMessage!,
+                    style: TextStyle(color: scheme.primary)),
+              ),
+            Expanded(child: LayoutBuilder(builder: (context, constraints) {
+              final wide = constraints.maxWidth >= 840;
+              final gameArea = _buildGameArea(Theme.of(context).brightness);
+              return SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(
+                    20,
+                    8,
+                    20,
+                    24 +
+                        MediaQuery.viewInsetsOf(context).bottom +
+                        (waiting ? 0 : MediaQuery.paddingOf(context).bottom)),
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      MultiplayerRoomHeader(room: room, compact: !waiting),
+                      const SizedBox(height: 24),
+                      if (wide)
+                        Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              SizedBox(width: 280, child: _buildPlayerList()),
+                              const SizedBox(width: 28),
+                              Expanded(child: gameArea),
+                            ])
+                      else ...[
+                        _buildPlayerList(),
+                        const SizedBox(height: 24),
+                        gameArea,
+                      ],
+                    ]),
+              );
+            })),
+            if (waiting)
+              MultiplayerRoomReadyBar(
+                  room: room,
+                  player: _currentPlayer,
+                  busy: _actionPending,
+                  onReady: _handleReady,
+                  onStart: _handleStartGame),
+          ]),
+        ),
+      ),
     );
   }
 }
