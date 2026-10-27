@@ -2,6 +2,8 @@
 
 工作流：`.github/workflows/build_ios.yml`。采用 Flutter 3.41.7、macOS 15 和 Xcode 16.4，与当前客户端依赖版本配套；保留 `pubspec.lock`，不在构建时升级依赖。
 
+`PUB_HOSTED_URL` 固定为 `https://pub.flutter-io.cn`，与当前锁文件的依赖来源一致。CI 继续使用 `flutter pub get --enforce-lockfile`；不要仅为消除来源不一致错误而取消锁定或升级依赖。包源切换也会改变依赖身份，即使部分版本号相同，也可能触发重新解析并使构建失败。
+
 ## 配置和触发
 
 在 GitHub 仓库的 **Settings → Secrets and variables → Actions → Repository secrets** 中新增 `CLIENT_API_KEY`，值填本地 APK 命令中使用的同一个客户端网关 Key。不要将值写进 workflow、命令输入参数或源码。

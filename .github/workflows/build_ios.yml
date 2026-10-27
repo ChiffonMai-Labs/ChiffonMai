@@ -15,6 +15,8 @@ concurrency:
 
 env:
   FLUTTER_VERSION: '3.41.7'
+  # 与锁文件的 hosted 来源一致，避免切换包源时重解依赖。
+  PUB_HOSTED_URL: 'https://pub.flutter-io.cn'
   DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
   COCOAPODS_DISABLE_STATS: 'true'
 
