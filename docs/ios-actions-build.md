@@ -2,7 +2,7 @@
 
 工作流：`.github/workflows/build_ios.yml`。采用 Flutter 3.41.7、macOS 15 和 Xcode 16.4，与当前客户端依赖版本配套；保留 `pubspec.lock`，不在构建时升级依赖。
 
-`PUB_HOSTED_URL` 固定为 `https://pub.flutter-io.cn`，与当前锁文件的依赖来源一致。CI 继续使用 `flutter pub get --enforce-lockfile`；不要仅为消除来源不一致错误而取消锁定或升级依赖。包源切换也会改变依赖身份，即使部分版本号相同，也可能触发重新解析并使构建失败。
+海外 runner 使用 `PUB_HOSTED_URL=https://pub.dev`，避免国内镜像对 GitHub runner 返回 409。安装依赖前执行 `.github/scripts/prepare_ci_lockfile.py`，仅将 CI 工作目录内锁文件的 `pub.flutter-io.cn` 地址转换为官方地址，保留全部版本、SHA-256 和 SDK 约束，再运行 `flutter pub get --enforce-lockfile`。提交到仓库的锁文件继续保留本地镜像地址；不要取消严格锁定或重新解析依赖来绕过错误。
 
 ## 配置和触发
 

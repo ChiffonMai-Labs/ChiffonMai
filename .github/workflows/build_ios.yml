@@ -15,8 +15,8 @@ concurrency:
 
 env:
   FLUTTER_VERSION: '3.41.7'
-  # 与锁文件的 hosted 来源一致，避免切换包源时重解依赖。
-  PUB_HOSTED_URL: 'https://pub.flutter-io.cn'
+  # 海外 runner 使用官方源；准备阶段仅转换锁文件来源，不升级依赖。
+  PUB_HOSTED_URL: 'https://pub.dev'
   DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
   COCOAPODS_DISABLE_STATS: 'true'
 
@@ -59,6 +59,7 @@ jobs:
           # 继续使用现有工程的 CocoaPods 集成，不在 CI 隐式迁移到 Swift Package Manager。
           flutter config --no-analytics --no-enable-swift-package-manager
           flutter precache --ios
+          python3 .github/scripts/prepare_ci_lockfile.py
           # macOS 上的 pub get 会准备 Podfile 和 xcconfig；构建时由 Flutter 执行 pod install。
           flutter pub get --enforce-lockfile
 
