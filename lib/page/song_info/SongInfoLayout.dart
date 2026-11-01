@@ -6,9 +6,9 @@ part of '../SongInfoPage.dart';
 /// 1. [_buildSongHero]：全出血难度色头图 —— 返回 / 笔记 / 收藏 / 分享、曲绘、标题、曲师、
 ///    类型 / 编号 / DX·ST 切换、别名、难度切换；
 /// 2. [_buildBestScoreCard]：玩家最佳成绩（达成率 + 评级 + 连击同步 + 四项数值）；
-/// 3. 成绩趋势（`_buildChartHistoryCard`，独立板块，见 song_info_section_order_test）；
-/// 4. [_buildKeyStatsRow]：官方定数 / 拟合定数 / 定数差值 / 平均达成；
-/// 5. [_buildDetailTabBar] + [_buildDetailTabContent]：谱面 / 数据 / 社区 / 工具；
+/// 3. [_buildKeyStatsRow]：官方定数 / 拟合定数 / 定数差值 / 平均达成；
+/// 4. [_buildChartInfo]：谱面信息（基础信息、定数历史、物量、标签）；
+/// 5. [_buildDetailTabBar] + [_buildDetailTabContent]：成绩历史 / 数据 / 社区 / 工具；
 /// 6. [_buildSongActionBar]：贴底操作栏（原两列十个按钮，常用三个 + 更多 + 主按钮）。
 ///
 /// 各板块的**数据与交互逻辑沿用原实现**（统计项、物量、分布图、对照表、
@@ -613,61 +613,80 @@ extension _SongInfoLayout on _SongInfoPageState {
       Map<String, dynamic>? userRecord, dynamic basicInfo, dynamic levels) {
     final scheme = Theme.of(context).colorScheme;
     final muted = TextStyle(fontSize: 12, color: scheme.onSurfaceVariant);
+    final title = '我的成绩 · ${_getDiffLabel(_currentDiffIndex)}';
+    final plays =
+        _currentPlayCount == null ? '' : '游玩 ${_currentPlayCount!} 次';
+    final motion =
+        AppDesignTokens.motion(context, AppDesignTokens.mediumMotion);
     return AppCard(
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
               Expanded(
-                child: Text(
-                  '我的成绩 · ${_getDiffLabel(_currentDiffIndex)}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: muted.copyWith(fontWeight: FontWeight.w700),
+                child: FadeSwitcher(
+                  value: title,
+                  child: Text(
+                    title,
+                    style: muted.copyWith(fontWeight: FontWeight.w700),
+                  ),
                 ),
               ),
-              if (_currentPlayCount != null)
-                Text('游玩 ${_currentPlayCount!} 次', style: muted),
+              FadeSwitcher(
+                value: plays,
+                alignment: AlignmentDirectional.centerEnd,
+                child: Text(plays, style: muted),
+              ),
             ],
           ),
           const SizedBox(height: 10),
-          if (userRecord == null)
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '还没有 ${_getDiffLabel(_currentDiffIndex)} 的成绩',
-                        style: const TextStyle(
-                            fontSize: 15, fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: 2),
-                      Text('打完同步一下就会显示在这里', style: muted),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 12),
-                FilledButton(
-                  onPressed: _isLoading ? null : _addToNextPlayQueue,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppSurfaces.inset(context),
-                    foregroundColor: scheme.onSurface,
-                    minimumSize: const Size(0, 40),
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14)),
-                    textStyle: const TextStyle(
-                        fontSize: 13, fontWeight: FontWeight.w600),
-                  ),
-                  child: const Text('加入下次想玩'),
-                ),
-              ],
-            )
-          else
-            _buildBestScoreBody(userRecord),
+          AnimatedSize(
+            duration: motion,
+            curve: AppDesignTokens.emphasizedCurve,
+            alignment: Alignment.topCenter,
+            // 有成绩 ↔ 有成绩之间 Key 不变，数字才能从旧值滚到新值。
+            child: FadeSwitcher(
+              value: userRecord != null,
+              alignment: AlignmentDirectional.topStart,
+              child: userRecord != null
+                  ? _buildBestScoreBody(userRecord)
+                  : Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '还没有 ${_getDiffLabel(_currentDiffIndex)} 的成绩',
+                                style: const TextStyle(
+                                    fontSize: 15, fontWeight: FontWeight.w700),
+                              ),
+                              const SizedBox(height: 2),
+                              Text('打完同步一下就会显示在这里', style: muted),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        FilledButton(
+                          onPressed: _isLoading ? null : _addToNextPlayQueue,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppSurfaces.inset(context),
+                            foregroundColor: scheme.onSurface,
+                            minimumSize: const Size(0, 40),
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 14),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14)),
+                            textStyle: const TextStyle(
+                                fontSize: 13, fontWeight: FontWeight.w600),
+                          ),
+                          child: const Text('加入下次想玩'),
+                        ),
+                      ],
+                    ),
+            ),
+          ),
         ],
       ),
     );
@@ -677,107 +696,132 @@ extension _SongInfoLayout on _SongInfoPageState {
     final scheme = Theme.of(context).colorScheme;
     final songIdInt = int.parse(widget.songId);
     final achievement = (userRecord['achievements'] as num).toDouble();
-    final dxScore = userRecord['dxScore'];
+    final int dxScore = (userRecord['dxScore'] as num).toInt();
     final maxDx = _calculateMaxDxScore(songIdInt, _currentDiffIndex);
     final fc = (userRecord['fc'] ?? '').toString();
     final fs = (userRecord['fs'] ?? '').toString();
+    final rank = _rankLabelFor(achievement);
+    final starsText = _showNextStarDiff
+        ? _calculateNextStarDiff(songIdInt, _currentDiffIndex, dxScore)
+        : _calculateStarsBonus(songIdInt, _currentDiffIndex, dxScore);
+    final statStyle = AppTheme.number(
+      fontSize: 17,
+      fontWeight: FontWeight.w700,
+      color: scheme.onSurface,
+    );
 
-    return Padding(
-      padding: EdgeInsets.zero,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Expanded(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    '${achievement.toStringAsFixed(4)}%',
-                    style: AppTheme.number(
-                      fontSize: 36,
-                      fontWeight: FontWeight.w700,
-                      height: 1,
-                      letterSpacing: -0.5,
-                      color: scheme.onSurface,
-                    ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Expanded(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: RollingNumber(
+                  value: achievement,
+                  fractionDigits: 4,
+                  suffix: '%',
+                  style: AppTheme.number(
+                    fontSize: 36,
+                    fontWeight: FontWeight.w700,
+                    height: 1,
+                    letterSpacing: -0.5,
+                    color: scheme.onSurface,
                   ),
                 ),
               ),
-              const SizedBox(width: 10),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text('Rating',
-                      style: TextStyle(
-                          fontSize: 11, color: scheme.onSurfaceVariant)),
-                  Text('${userRecord['ra']}',
-                      style: AppTheme.number(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w700,
-                          color: scheme.onSurface)),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          // 评级，连击，同步
-          Wrap(
+            ),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text('Rating',
+                    style: TextStyle(
+                        fontSize: 11, color: scheme.onSurfaceVariant)),
+                RollingNumber(
+                  value: userRecord['ra'] as num,
+                  style: AppTheme.number(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: scheme.onSurface),
+                ),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        // 评级，连击，同步
+        FadeSwitcher(
+          value: '$rank|$fc|$fs',
+          child: Wrap(
             spacing: 6,
             runSpacing: 6,
             children: [
-              RankBadge(rank: _rankLabelFor(achievement)),
+              RankBadge(rank: rank),
               if (fc.isNotEmpty) _buildBadge(fc),
               if (fs.isNotEmpty) _buildBadge(fs),
             ],
           ),
-          const SizedBox(height: 14),
-          // DX分数 / DX分数达成率
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: StatTile(
-                  label: 'DX分数（MAX -${maxDx - dxScore}）',
-                  value: '$dxScore / $maxDx',
+        ),
+        const SizedBox(height: 14),
+        // DX分数 / DX分数达成率
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: StatTile(
+                label: 'DX分数（MAX -${maxDx - dxScore}）',
+                value: '$dxScore / $maxDx',
+                valueWidget: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    RollingNumber(value: dxScore, style: statStyle),
+                    Text(' / ', style: statStyle),
+                    RollingNumber(value: maxDx, style: statStyle),
+                  ],
                 ),
               ),
-              Expanded(
-                child: Semantics(
-                  button: true,
-                  label: _showNextStarDiff ? '显示星级加成' : '显示距下一星还差多少',
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () =>
-                        _update(() => _showNextStarDiff = !_showNextStarDiff),
-                    child: StatTile(
-                      label: 'DX分数达成率',
-                      value:
-                          '${((dxScore as num).toDouble() / maxDx * 100).toStringAsFixed(2)}%',
-                      trailing: Text(
-                        _showNextStarDiff
-                            ? _calculateNextStarDiff(songIdInt,
-                                _currentDiffIndex, dxScore.toInt())
-                            : _calculateStarsBonus(songIdInt,
-                                _currentDiffIndex, dxScore.toInt()),
+            ),
+            Expanded(
+              child: Semantics(
+                button: true,
+                label: _showNextStarDiff ? '显示星级加成' : '显示距下一星还差多少',
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () =>
+                      _update(() => _showNextStarDiff = !_showNextStarDiff),
+                  child: StatTile(
+                    label: 'DX分数达成率',
+                    value: '${(dxScore / maxDx * 100).toStringAsFixed(2)}%',
+                    valueWidget: RollingNumber(
+                      value: dxScore / maxDx * 100,
+                      fractionDigits: 2,
+                      suffix: '%',
+                      style: statStyle,
+                    ),
+                    trailing: FadeSwitcher(
+                      value: starsText,
+                      child: Text(
+                        starsText,
                         style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w700,
                             color: _getStarsColor(
-                                _calculateStars(songIdInt, _currentDiffIndex,
-                                    dxScore.toInt()),
+                                _calculateStars(
+                                    songIdInt, _currentDiffIndex, dxScore),
                                 scheme.brightness)),
                       ),
                     ),
                   ),
                 ),
               ),
-            ],
-          ),
-        ],
-      ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -869,7 +913,7 @@ extension _SongInfoLayout on _SongInfoPageState {
 
   Widget _buildDetailTabBar(Color accentColor) {
     return UnderlineTabs(
-      labels: const ['谱面', '数据', '社区', '工具'],
+      labels: const ['成绩历史', '数据', '社区', '工具'],
       selectedIndex: _detailTab,
       indicatorColor: _heroColor(accentColor),
       onChanged: (index) => _update(() => _detailTab = index),
@@ -877,8 +921,7 @@ extension _SongInfoLayout on _SongInfoPageState {
   }
 
   Widget _buildDetailTabContent({
-    required dynamic basicInfo,
-    required dynamic currentChart,
+    required Widget chartHistory,
     required dynamic currentDiffData,
     required Color accentColor,
   }) {
@@ -900,7 +943,7 @@ extension _SongInfoLayout on _SongInfoPageState {
         children = _buildToolsTab();
         break;
       default:
-        children = _buildChartTab(basicInfo, currentChart, accentColor);
+        children = [chartHistory];
     }
     return AnimatedSwitcher(
       duration: AppDesignTokens.motion(context, AppDesignTokens.mediumMotion),
@@ -931,8 +974,8 @@ extension _SongInfoLayout on _SongInfoPageState {
     );
   }
 
-  /// 标签页「谱面」：基础信息、定数历史、物量与绝赞、谱面标签。
-  List<Widget> _buildChartTab(
+  /// 谱面信息：基础信息、定数历史、物量与绝赞、谱面标签。
+  List<Widget> _buildChartInfo(
       dynamic basicInfo, dynamic currentChart, Color accentColor) {
     final scheme = Theme.of(context).colorScheme;
     final noteCounts = _getNoteCounts(currentChart);

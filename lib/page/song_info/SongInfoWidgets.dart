@@ -78,7 +78,7 @@ extension _SongInfoWidgets on _SongInfoPageState {
                 Flexible(
                   child: Text(
                     _formatBiliPlayCount(),
-                    style: TextStyle(
+                    style: AppTheme.number(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
                       color: Theme.of(context).colorScheme.onSurface,
@@ -177,7 +177,7 @@ extension _SongInfoWidgets on _SongInfoPageState {
     // 2026-11：数值放在白卡片上，统一用正文色；标签用次要文字色。
     // （难度色只留给头图和难度切换，避免浅色难度色在白底上看不清）
     final scheme = Theme.of(context).colorScheme;
-    final textStyle = TextStyle(
+    final textStyle = AppTheme.number(
       fontSize: 15,
       fontWeight: FontWeight.w700,
       color: valueColor ?? scheme.onSurface,
@@ -358,7 +358,8 @@ extension _SongInfoWidgets on _SongInfoPageState {
         children: [
           Text(
             type,
-            style: TextStyle(
+            style: AppTheme.number(
+              fontWeight: FontWeight.w500,
               fontSize: (screenWidth * 0.025).clamp(9.5, 11.0).toDouble(),
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),

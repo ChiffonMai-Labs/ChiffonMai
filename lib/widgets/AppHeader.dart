@@ -62,6 +62,7 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
     final circleButton = IconButton.styleFrom(
       backgroundColor: AppSurfaces.card(context),
       foregroundColor: scheme.onSurface,
+      overlayColor: Colors.transparent,
       disabledBackgroundColor: AppSurfaces.card(context).withValues(alpha: 0.5),
       fixedSize: const Size(44, 44),
       minimumSize: const Size(44, 44),

@@ -107,6 +107,7 @@ class AppTheme {
         fontFeatures: features,
       );
     }
+    // Outfit 没有中文，谱师名这类混排内容回落到全局思源黑体，不用系统字体。
     return GoogleFonts.outfit(
       fontSize: fontSize,
       fontWeight: fontWeight ?? FontWeight.w600,
@@ -114,6 +115,10 @@ class AppTheme {
       height: height,
       letterSpacing: letterSpacing,
       fontFeatures: features,
+    ).copyWith(
+      fontFamilyFallback: [
+        font(fontWeight: fontWeight ?? FontWeight.w600).fontFamily!,
+      ],
     );
   }
 
@@ -249,7 +254,23 @@ class AppTheme {
         RoundedRectangleBorder(borderRadius: BorderRadius.circular(r));
     OutlineInputBorder input(BorderSide side) => OutlineInputBorder(
         borderRadius: BorderRadius.circular(12), borderSide: side);
+    const noOverlay = WidgetStatePropertyAll<Color>(Colors.transparent);
     return base.copyWith(
+      // 所有点击都不要波纹和按下高亮，按压反馈用 PressScale（§19）。
+      splashFactory: NoSplash.splashFactory,
+      splashColor: Colors.transparent,
+      highlightColor: Colors.transparent,
+      iconButtonTheme: const IconButtonThemeData(
+        style: ButtonStyle(overlayColor: noOverlay),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: scheme.primary,
+          overlayColor: Colors.transparent,
+        ),
+      ),
+      checkboxTheme: const CheckboxThemeData(overlayColor: noOverlay),
+      radioTheme: const RadioThemeData(overlayColor: noOverlay),
       cardTheme: base.cardTheme.copyWith(color: card, shape: radius(22)),
       dialogTheme: base.dialogTheme.copyWith(
         backgroundColor: card,
@@ -279,15 +300,20 @@ class AppTheme {
           foregroundColor: scheme.onPrimary,
           elevation: 0,
           shadowColor: Colors.transparent,
+          overlayColor: Colors.transparent,
           shape: radius(16),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
-        style: FilledButton.styleFrom(shape: radius(16)),
+        style: FilledButton.styleFrom(
+          overlayColor: Colors.transparent,
+          shape: radius(16),
+        ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: scheme.onSurface,
+          overlayColor: Colors.transparent,
           side: BorderSide(color: scheme.outlineVariant),
           shape: radius(16),
         ),

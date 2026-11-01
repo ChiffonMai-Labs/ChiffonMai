@@ -926,6 +926,7 @@ class _B50PageState extends State<B50Page> {
     };
 
     return AppCard(
+      padding: EdgeInsets.zero,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -939,17 +940,17 @@ class _B50PageState extends State<B50Page> {
                         _isTagStatsExpanded = !_isTagStatsExpanded;
                       })
                   : null,
-              borderRadius:
-                  BorderRadius.circular(AppDesignTokens.radiusSmall),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 2.0),
+              child: Container(
+                // 与 Best50AveragesCard 的标题行同高
+                constraints: const BoxConstraints(minHeight: 48),
+                padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
                 child: Row(
                   children: [
                     Expanded(
                       child: Text(
                         '标签统计',
                         style: TextStyle(
-                          fontSize: 15,
+                          fontSize: 14,
                           fontWeight: FontWeight.w700,
                           color: colorScheme.onSurface,
                         ),
@@ -995,7 +996,7 @@ class _B50PageState extends State<B50Page> {
               width: double.infinity,
               child: _isTagStatsExpanded && canExpand
                   ? Padding(
-                      padding: const EdgeInsets.only(top: 8.0),
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: _tagStats.entries.map((groupEntry) {

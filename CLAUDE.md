@@ -451,7 +451,8 @@ AppHeader(
 
 ## 19. Tab 与模式切换不使用波纹
 
-- Tab、来源、类型、模式等切换控件保留选中指示移动、文字淡化等状态动画，但不使用点击波纹和按下高亮遮罩。
+- **全 App 的点击都不使用波纹和按下高亮遮罩**（`AppTheme._canvasStyle` 已全局关闭），新增控件也不要自己加回来；按压反馈用 `PressScale`。
+- Tab、来源、类型、模式等切换控件保留选中指示移动、文字淡化等状态动画。
 - 标准 `TabBar`、`SegmentedButton` 走 `AppTheme` 三套主题的配置；`AnimatedChoiceBar` 默认关闭波纹。用于切换的 `ChoiceChip` 通过 `NoRipple` 包装，自定义 `InkWell` 则显式设置 `NoSplash.splashFactory` 与透明 `highlightColor`。
 - 再次点击当前选中的选项不应重新加载数据；快速切换时异步结果必须校验当前请求，避免旧选项的数据覆盖新选项。
 
@@ -539,7 +540,7 @@ AppHeader(
 
 | 文件 | 内容 |
 |---|---|
-| `SongInfoLayout.dart` | 页面布局：全出血头图、成绩卡、关键数值、四个标签页、贴底操作栏 |
+| `SongInfoLayout.dart` | 页面布局：全出血头图、成绩卡、关键数值、谱面信息、四个标签页（成绩历史 / 数据 / 社区 / 工具）、贴底操作栏 |
 | `SongInfoLoaders.dart` | 数据加载、解析与数值计算 |
 | `SongInfoTables.dart` | 定数历史、成绩趋势、分布图、对照表、容错计算 |
 | `SongInfoCommunity.dart` | 谱面评分与评论区 |
@@ -551,7 +552,9 @@ AppHeader(
 1. **扩展方法里不能直接调 `setState`**（protected，会报 `invalid_use_of_protected_member`），统一用 `_update(() { ... })`。
 2. 扩展方法里**不能不带类名访问 static 成员**，所以原来的 `static` 常量（`_tapWeight` 等）已经提升为库级私有常量；新增常量也放在库级。
 
-结构回归测试 `test/song_info_section_order_test.dart` 会把主文件和 `song_info/*.dart` 拼起来检查「成绩趋势是独立板块、排在成绩卡下方」。
+切难度时成绩卡不重新入场：数字用 `RollingNumber` 滚动，文字和徽章用 `FadeSwitcher` 淡入淡出。
+
+⚠️ 同一个父节点下的 `ValueKey` 不能撞值：曾经给成绩卡用 `ValueKey(难度序号)`、给标签页内容用 `ValueKey(标签序号)`，切到 BASIC（0）时两者都是 0，框架直接报错。
 
 ### 22.10 文字不截断
 

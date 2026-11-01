@@ -297,8 +297,8 @@ class _SongInfoPageState extends State<SongInfoPage> {
 
     // 布局（各块的实现见 song_info/SongInfoLayout.dart）：
     //   全出血的难度色头图（返回 / 笔记 / 收藏 / 分享、曲绘、标题、别名、难度切换）
-    //   → 压在头图上的圆角内容区：玩家最佳成绩 → 成绩趋势（独立板块）→ 关键数值
-    //   → 谱面 / 数据 / 社区 / 工具 四个标签页
+    //   → 压在头图上的圆角内容区：玩家最佳成绩 → 关键数值 → 谱面信息
+    //   → 成绩历史 / 数据 / 社区 / 工具 四个标签页
     //   → 贴底操作栏
     final surface = Theme.of(context).colorScheme.surface;
     final title = _songData!['basic_info']?['title']?.toString() ?? '歌曲详情';
@@ -348,37 +348,28 @@ class _SongInfoPageState extends State<SongInfoPage> {
                                       CrossAxisAlignment.stretch,
                                   children: [
                                     // 玩家最佳成绩
-                                    EntranceAnimation(
-                                      key: ValueKey(_currentDiffIndex),
-                                      duration:
-                                          const Duration(milliseconds: 350),
-                                      offset: const Offset(0, 10),
-                                      child: _buildBestScoreCard(
-                                          userRecord, basicInfo, levels),
-                                    ),
+                                    // 玩家最佳成绩：切难度时数字滚动、文字淡入淡出，
+                                    // 卡片本身不重新入场。
+                                    _buildBestScoreCard(
+                                        userRecord, basicInfo, levels),
                                     if (_best50OpportunityText != null) ...[
                                       const SizedBox(height: 8),
                                       _buildBest50OpportunityBanner(),
                                     ],
-                                    // 成绩趋势：**独立于「玩家最佳成绩」卡片之外的板块**。
-                                    const SizedBox(height: 12),
-                                    _buildChartHistoryCard(),
                                     const SizedBox(height: 12),
                                     _buildKeyStatsRow(currentDiffData),
                                     const SizedBox(height: 12),
+                                    // 谱面信息（基础信息、定数历史、物量、标签）
+                                    ..._buildChartInfo(
+                                        basicInfo, currentChart, accentColor),
+                                    const SizedBox(height: 12),
                                     _buildDetailTabBar(accentColor),
                                     const SizedBox(height: 12),
-                                    EntranceAnimation(
-                                      key: ValueKey(_detailTab),
-                                      duration:
-                                          const Duration(milliseconds: 350),
-                                      offset: const Offset(0, 10),
-                                      child: _buildDetailTabContent(
-                                        basicInfo: basicInfo,
-                                        currentChart: currentChart,
-                                        currentDiffData: currentDiffData,
-                                        accentColor: accentColor,
-                                      ),
+                                    _buildDetailTabContent(
+                                      // 成绩历史：标签页里的一页
+                                      chartHistory: _buildChartHistoryCard(),
+                                      currentDiffData: currentDiffData,
+                                      accentColor: accentColor,
                                     ),
                                   ],
                                 ),

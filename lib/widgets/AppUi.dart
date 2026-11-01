@@ -43,6 +43,22 @@ class AppCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final content = Padding(padding: padding, child: child);
+    if (onTap != null) {
+      return PressScale(
+        scale: 0.98,
+        child: Material(
+          color: color ?? AppSurfaces.card(context),
+          clipBehavior: Clip.antiAlias,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(radius),
+            side: outlined
+                ? BorderSide(color: scheme.outlineVariant)
+                : BorderSide.none,
+          ),
+          child: InkWell(onTap: onTap, child: content),
+        ),
+      );
+    }
     return Material(
       color: color ?? AppSurfaces.card(context),
       clipBehavior: Clip.antiAlias,
@@ -52,7 +68,7 @@ class AppCard extends StatelessWidget {
             ? BorderSide(color: scheme.outlineVariant)
             : BorderSide.none,
       ),
-      child: onTap == null ? content : InkWell(onTap: onTap, child: content),
+      child: content,
     );
   }
 }
@@ -222,6 +238,9 @@ class StatTile extends StatelessWidget {
   /// 紧跟在数值右边的内容（DX 分数达成率右边的星级）。
   final Widget? trailing;
 
+  /// 自定义数值部件（数字滚动），优先于 [value] 的默认文字。
+  final Widget? valueWidget;
+
   const StatTile({
     super.key,
     required this.label,
@@ -230,6 +249,7 @@ class StatTile extends StatelessWidget {
     this.card = false,
     this.valueSize = 17,
     this.trailing,
+    this.valueWidget,
   });
 
   @override
@@ -241,23 +261,27 @@ class StatTile extends StatelessWidget {
           alignment: Alignment.centerLeft,
           child: child,
         );
-    final valueText = Text(
-      value,
-      maxLines: 1,
-      style: AppTheme.number(
-        fontSize: valueSize,
-        fontWeight: FontWeight.w700,
-        color: valueColor ?? scheme.onSurface,
-      ),
-    );
+    final valueText = valueWidget ??
+        Text(
+          value,
+          maxLines: 1,
+          style: AppTheme.number(
+            fontSize: valueSize,
+            fontWeight: FontWeight.w700,
+            color: valueColor ?? scheme.onSurface,
+          ),
+        );
     final body = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        fit(Text(
-          label,
-          maxLines: 1,
-          style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
+        fit(FadeSwitcher(
+          value: label,
+          child: Text(
+            label,
+            maxLines: 1,
+            style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
+          ),
         )),
         const SizedBox(height: 2),
         fit(trailing == null
@@ -1426,6 +1450,67 @@ class _EntranceAnimationState extends State<EntranceAnimation>
           ),
         );
       },
+    );
+  }
+}
+
+/// 数字滚动：值变化时从旧值滚到新值，首次显示不滚动。
+class RollingNumber extends StatelessWidget {
+  final num value;
+  final int fractionDigits;
+  final String suffix;
+  final TextStyle style;
+
+  const RollingNumber({
+    super.key,
+    required this.value,
+    required this.style,
+    this.fractionDigits = 0,
+    this.suffix = '',
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(end: value.toDouble()),
+      duration: AppDesignTokens.motion(context, AppDesignTokens.slowMotion),
+      curve: AppDesignTokens.emphasizedCurve,
+      builder: (context, v, _) => Text(
+        '${v.toStringAsFixed(fractionDigits)}$suffix',
+        maxLines: 1,
+        style: style,
+      ),
+    );
+  }
+}
+
+/// [value] 变化时淡入淡出切换内容（文字说明、徽章）。
+class FadeSwitcher extends StatelessWidget {
+  final Object value;
+  final Widget child;
+  final AlignmentGeometry alignment;
+
+  const FadeSwitcher({
+    super.key,
+    required this.value,
+    required this.child,
+    this.alignment = AlignmentDirectional.centerStart,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: AppDesignTokens.motion(context, AppDesignTokens.mediumMotion),
+      switchInCurve: Curves.easeOut,
+      switchOutCurve: Curves.easeIn,
+      layoutBuilder: (current, previous) => Stack(
+        alignment: alignment,
+        children: [
+          ...previous,
+          if (current != null) current,
+        ],
+      ),
+      child: KeyedSubtree(key: ValueKey(value), child: child),
     );
   }
 }
