@@ -61,6 +61,7 @@ import 'package:my_first_flutter_app/widgets/AppHeader.dart';
 import 'package:my_first_flutter_app/widgets/NextPlayAddDialog.dart';
 import 'package:my_first_flutter_app/widgets/ChartHistorySection.dart';
 import 'package:my_first_flutter_app/widgets/CommunityAvatar.dart';
+import '../widgets/MarqueeText.dart';
 
 
 part 'song_info/SongInfoLoaders.dart';
@@ -297,8 +298,8 @@ class _SongInfoPageState extends State<SongInfoPage> {
 
     // 布局（各块的实现见 song_info/SongInfoLayout.dart）：
     //   全出血的难度色头图（返回 / 笔记 / 收藏 / 分享、曲绘、标题、别名、难度切换）
-    //   → 压在头图上的圆角内容区：玩家最佳成绩 → 关键数值 → 谱面信息
-    //   → 成绩历史 / 数据 / 社区 / 工具 四个标签页
+    //   → 压在头图上的圆角内容区：玩家最佳成绩 → 关键数值
+    //   → 谱面 / 数据 / 社区 / 工具 四个标签页
     //   → 贴底操作栏
     final surface = Theme.of(context).colorScheme.surface;
     final title = _songData!['basic_info']?['title']?.toString() ?? '歌曲详情';
@@ -358,15 +359,13 @@ class _SongInfoPageState extends State<SongInfoPage> {
                                     ],
                                     const SizedBox(height: 12),
                                     _buildKeyStatsRow(currentDiffData),
-                                    const SizedBox(height: 12),
-                                    // 谱面信息（基础信息、定数历史、物量、标签）
-                                    ..._buildChartInfo(
-                                        basicInfo, currentChart, accentColor),
-                                    const SizedBox(height: 12),
+                                    const SizedBox(height: 4),
                                     _buildDetailTabBar(accentColor),
                                     const SizedBox(height: 12),
                                     _buildDetailTabContent(
-                                      // 成绩历史：标签页里的一页
+                                      basicInfo: basicInfo,
+                                      currentChart: currentChart,
+                                      // 成绩历史放在「数据」标签页最上面
                                       chartHistory: _buildChartHistoryCard(),
                                       currentDiffData: currentDiffData,
                                       accentColor: accentColor,

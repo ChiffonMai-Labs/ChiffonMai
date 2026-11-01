@@ -804,6 +804,15 @@ class AppColors {
     return list[index.clamp(0, list.length - 1)];
   }
 
+  /// 物量分布条的色块，顺序：TAP / HOLD / SLIDE / BREAK / TOUCH。
+  static const List<Color> noteDistribution = [
+    Color(0xFF4A8FE0),
+    Color(0xFFE39B2F),
+    Color(0xFF38A3A0),
+    Color(0xFFD9467A),
+    Color(0xFF8C6CF0),
+  ];
+
   /// 评级分布条的色块（SSS+ / SSS / SS+ / SS / 其余）。
   static Color rankDistribution(int index, Brightness brightness) {
     const light = [

@@ -169,11 +169,39 @@ extension _SongInfoWidgets on _SongInfoPageState {
     );
   }
 
-  Widget _buildStatItem(String label, String value, {Color? valueColor}) {
-    // 使用MediaQuery获取屏幕尺寸
-    final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
+  /// 查看完整内容并复制（BPM 额外显示变速明细）。
+  void _showStatDialog(String label, String value) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text(label),
+          content:
+              label == 'BPM' ? _buildBpmDialogContent(value) : Text(value),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: value));
+                Navigator.of(context).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('已复制到剪贴板')),
+                );
+              },
+              child: Text('复制'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: Text('关闭'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
+  Widget _buildStatItem(String label, String value, {Color? valueColor}) {
     // 2026-11：数值放在白卡片上，统一用正文色；标签用次要文字色。
     // （难度色只留给头图和难度切换，避免浅色难度色在白底上看不清）
     final scheme = Theme.of(context).colorScheme;
@@ -184,198 +212,45 @@ extension _SongInfoWidgets on _SongInfoPageState {
     );
 
     return Expanded(
-      child: Column(
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11.5,
-              color: scheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 4),
-          // 为超出容器宽度的文本添加水平滚动
-          (label == '谱师' || label == '曲师' || label == '类别')
-              ? LayoutBuilder(
-                  builder: (context, constraints) {
-                    // 计算文本宽度
-                    final TextPainter textPainter = TextPainter(
-                      text: TextSpan(text: value, style: textStyle),
-                      maxLines: 1,
-                      textDirection: TextDirection.ltr,
-                    )..layout(minWidth: 0, maxWidth: double.infinity);
-
-                    final textWidth = textPainter.width;
-                    final containerWidth = constraints.maxWidth;
-
-                    // 文本宽度未超过容器宽度时不需要滚动
-                    final safeContainerWidth = containerWidth;
-
-                    // 如果文本宽度小于安全容器宽度，不需要滚动，但仍然添加点击事件
-                    if (textWidth <= safeContainerWidth) {
-                      return GestureDetector(
-                        onTap: () {
-                          showDialog(
-                            context: context,
-                            builder: (BuildContext context) {
-                              return AlertDialog(
-                                title: Text(label),
-                                content: Text(value),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () {
-                                      Clipboard.setData(
-                                          ClipboardData(text: value));
-                                      Navigator.of(context).pop();
-                                      ScaffoldMessenger.of(context)
-                                          .showSnackBar(
-                                        SnackBar(content: Text('已复制到剪贴板')),
-                                      );
-                                    },
-                                    child: Text('复制'),
-                                  ),
-                                  TextButton(
-                                    onPressed: () {
-                                      Navigator.of(context).pop();
-                                    },
-                                    child: Text('关闭'),
-                                  ),
-                                ],
-                              );
-                            },
-                          );
-                        },
-                        child: Text(value, style: textStyle),
-                      );
-                    }
-
-                    // 否则使用Marquee组件，并添加点击事件
-                    return GestureDetector(
-                      onTap: () {
-                        showDialog(
-                          context: context,
-                          builder: (BuildContext context) {
-                            return AlertDialog(
-                              title: Text(label),
-                              content: Text(value),
-                              actions: [
-                                TextButton(
-                                  onPressed: () {
-                                    Clipboard.setData(
-                                        ClipboardData(text: value));
-                                    Navigator.of(context).pop();
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('已复制到剪贴板')),
-                                    );
-                                  },
-                                  child: Text('复制'),
-                                ),
-                                TextButton(
-                                  onPressed: () {
-                                    Navigator.of(context).pop();
-                                  },
-                                  child: Text('关闭'),
-                                ),
-                              ],
-                            );
-                          },
-                        );
-                      },
-                      child: SizedBox(
-                        height: screenHeight * 0.03, // 容器高度为屏幕高度的3%
-                        child: Marquee(
-                          text: value,
-                          style: textStyle,
-                          scrollAxis: Axis.horizontal,
-                          blankSpace: screenWidth * 0.05, // 空白空间为屏幕宽度的5%
-                          velocity: screenWidth * 0.08, // 滚动速度为屏幕宽度的8%
-                          pauseAfterRound: Duration(seconds: 3),
-                        ),
-                      ),
-                    );
-                  },
-                )
-              : GestureDetector(
-                  onTap: () {
-                    showDialog(
-                      context: context,
-                      builder: (BuildContext context) {
-                        return AlertDialog(
-                          title: Text(label),
-                          content: label == 'BPM'
-                              ? _buildBpmDialogContent(value)
-                              : Text(value),
-                          actions: [
-                            TextButton(
-                              onPressed: () {
-                                Clipboard.setData(ClipboardData(text: value));
-                                Navigator.of(context).pop();
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('已复制到剪贴板')),
-                                );
-                              },
-                              child: Text('复制'),
-                            ),
-                            TextButton(
-                              onPressed: () {
-                                Navigator.of(context).pop();
-                              },
-                              child: Text('关闭'),
-                            ),
-                          ],
-                        );
-                      },
-                    );
-                  },
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      value,
-                      style: textStyle,
-                      maxLines: 1,
-                    ),
-                  ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => _showStatDialog(label, value),
+          child: Column(
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  color: scheme.onSurfaceVariant,
                 ),
-        ],
+              ),
+              const SizedBox(height: 4),
+              // 放得下居中显示，放不下横向滚动
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final painter = TextPainter(
+                    text: TextSpan(text: value, style: textStyle),
+                    maxLines: 1,
+                    textDirection: Directionality.of(context),
+                    textScaler: MediaQuery.textScalerOf(context),
+                  )..layout();
+                  final fits = painter.width <= constraints.maxWidth;
+                  painter.dispose();
+                  return fits
+                      ? Text(value, style: textStyle, maxLines: 1)
+                      : MarqueeText(text: value, style: textStyle);
+                },
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  // 构建音符项
-  Widget _buildNoteItem(String type, String count) {
-    // 获取当前难度的强调颜色
-    final brightness = Theme.of(context).brightness;
-    final accentColor = _getAccentColor(_currentDiffIndex, brightness);
-    final screenWidth = MediaQuery.of(context).size.width;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: AppSurfaces.inset(context),
-        borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-      ),
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-      child: Column(
-        children: [
-          Text(
-            type,
-            style: AppTheme.number(
-              fontWeight: FontWeight.w500,
-              fontSize: (screenWidth * 0.025).clamp(9.5, 11.0).toDouble(),
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-          Text(
-            count,
-            style: AppTheme.number(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: accentColor,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   // 构建Break统计项
   Widget _buildBreakItem(String type, String count) {

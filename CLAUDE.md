@@ -540,7 +540,7 @@ AppHeader(
 
 | 文件 | 内容 |
 |---|---|
-| `SongInfoLayout.dart` | 页面布局：全出血头图、成绩卡、关键数值、谱面信息、四个标签页（成绩历史 / 数据 / 社区 / 工具）、贴底操作栏 |
+| `SongInfoLayout.dart` | 页面布局：全出血头图、成绩卡、关键数值、四个标签页（谱面 / 数据 / 社区 / 工具）、贴底操作栏 |
 | `SongInfoLoaders.dart` | 数据加载、解析与数值计算 |
 | `SongInfoTables.dart` | 定数历史、成绩趋势、分布图、对照表、容错计算 |
 | `SongInfoCommunity.dart` | 谱面评分与评论区 |
@@ -551,6 +551,8 @@ AppHeader(
 
 1. **扩展方法里不能直接调 `setState`**（protected，会报 `invalid_use_of_protected_member`），统一用 `_update(() { ... })`。
 2. 扩展方法里**不能不带类名访问 static 成员**，所以原来的 `static` 常量（`_tapWeight` 等）已经提升为库级私有常量；新增常量也放在库级。
+
+信息分类按设计稿 SongB：版本、BPM 在头图；时长在关键数值；物量分布、绝赞、谱师、基础信息、定数历史、谱面标签在「谱面」；成绩历史、分布图、对照表在「数据」；评分和评论在「社区」；容错和计算器在「工具」。
 
 切难度时成绩卡不重新入场：数字用 `RollingNumber` 滚动，文字和徽章用 `FadeSwitcher` 淡入淡出。
 
