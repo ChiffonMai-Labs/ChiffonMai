@@ -283,11 +283,11 @@ class _AchievementRateCalculatorState extends State<AchievementRateCalculator> {
           builder: (context, constraints) => Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // 顶部最多占一半高度，再矮的屏幕（横屏 + 键盘）也不会溢出。
+              // 顶部高度有上限，再矮的屏幕（横屏 + 键盘）也不会溢出。
               ConstrainedBox(
                 constraints: BoxConstraints(
                   maxHeight:
-                      ((constraints.maxHeight - keyboardInset) * 0.5)
+                      ((constraints.maxHeight - keyboardInset) * 0.6)
                           .clamp(120.0, double.infinity)
                           .toDouble(),
                 ),
@@ -409,6 +409,23 @@ class _AchievementRateCalculatorState extends State<AchievementRateCalculator> {
         _countOf('HOLD') +
         _countOf('SLIDE') +
         _countOf('TOUCH');
+
+    if (result == null && compact) {
+      return EmphasisCard(
+        padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text('实时达成率',
+                  style: TextStyle(fontSize: 12, color: muted)),
+            ),
+            Text('—',
+                style: AppTheme.number(
+                    fontSize: 24, fontWeight: FontWeight.w700, color: onCard)),
+          ],
+        ),
+      );
+    }
 
     if (result == null) {
       return EmphasisCard(
