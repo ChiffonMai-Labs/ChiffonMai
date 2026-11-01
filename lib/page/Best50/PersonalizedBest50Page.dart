@@ -22,6 +22,8 @@ import 'package:my_first_flutter_app/utils/ImageEncodeUtil.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import '../../widgets/B50GameCardWidget.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
+import '../../widgets/AppUi.dart';
+import '../../utils/AppDesignTokens.dart';
 
 class PersonalizedBest50Page extends StatefulWidget {
   const PersonalizedBest50Page({super.key});
@@ -649,33 +651,22 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
       );
     }
 
-    final brightness = Theme.of(context).brightness;
-
     return BackgroundPageScaffold(
       title: '个性化Best50',
       resizeToAvoidBottomInset: false,
       contentPadding:
           EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
       child: SingleChildScrollView(
-        padding: EdgeInsets.fromLTRB(
-            MediaQuery.of(context).size.width * 0.03,
-            8,
-            MediaQuery.of(context).size.width * 0.03,
-            MediaQuery.of(context).size.width * 0.03),
+        padding: const EdgeInsets.fromLTRB(AppDesignTokens.gutter, 8,
+            AppDesignTokens.gutter, AppDesignTokens.gutter),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // 选择按钮
-            ElevatedButton(
+            Best50ActionButton(
+              icon: Icons.tune_rounded,
               onPressed: _showTypeSelectionDialog,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.linkBlue(brightness),
-                padding: EdgeInsets.symmetric(vertical: 12.0),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8.0),
-                ),
-              ),
-              child: Text(
+              label: (
                 _selectedType == 'charter_50' && _selectedCharter != null
                     ? '选择类型: 谱师50 - ${_selectedCharter!}'
                     : _selectedType == 'version_50' && _selectedVersion != null
@@ -699,13 +690,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
                                                 ? '选择类型: 难度50 - ${_difficultyLabel(_selectedDifficultyLevel!)}'
                                                 : _selectedType == 'best_n'
                                                     ? '选择类型: Best $_selectedN'
-                                                    : '选择类型: ${_options.firstWhere((option) => option['value'] == _selectedType)['label']!}',
-                style: TextStyle(
-                  fontSize: MediaQuery.of(context).size.width * 0.04,
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+                                                    : '选择类型: ${_options.firstWhere((option) => option['value'] == _selectedType)['label']!}'),
             ),
             SizedBox(height: 12.0),
 
@@ -995,17 +980,9 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
 
   // Best N 输入行 + 生成按钮（仅在 _selectedType == 'best_n' 时显示）
   Widget _buildBestNInputRow() {
-    final brightness = Theme.of(context).brightness;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        border: Border.all(
-          color: AppColors.linkBlue(brightness).withValues(alpha: 0.6),
-          width: 1.5,
-        ),
-        borderRadius: BorderRadius.circular(8),
-        color: AppColors.linkBlue(brightness).withValues(alpha: 0.05),
-      ),
+    return AppCard(
+      radius: AppDesignTokens.radiusMedium,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
           const Text('N =', style: TextStyle(fontWeight: FontWeight.w600)),
@@ -1018,31 +995,27 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               textAlign: TextAlign.center,
               style: const TextStyle(fontWeight: FontWeight.w600),
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 isDense: true,
+                filled: true,
+                fillColor: AppSurfaces.inset(context),
                 contentPadding:
-                    EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-                border: OutlineInputBorder(),
+                    const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                border: OutlineInputBorder(
+                  borderRadius:
+                      BorderRadius.circular(AppDesignTokens.radiusSmall),
+                  borderSide: BorderSide.none,
+                ),
               ),
             ),
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: ElevatedButton.icon(
+            child: Best50ActionButton(
+              icon: Icons.search_rounded,
+              label: '生成 Best N',
+              primary: true,
               onPressed: _triggerBestN,
-              icon: const Icon(Icons.search, color: Colors.white, size: 18),
-              label: const Text(
-                '生成 Best N',
-                style:
-                    TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.linkBlue(brightness),
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
             ),
           ),
         ],
@@ -1289,17 +1262,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
     double averageAchievement =
         totalSongs > 0 ? totalAchievement / totalSongs : 0.0;
 
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(
-            color: Theme.of(context).colorScheme.onSurface, width: 2.0),
-        borderRadius: BorderRadius.circular(8.0),
-      ),
-      padding: EdgeInsets.all(12.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
+    final title =
             _selectedType == 'charter_50' && _selectedCharter != null
                 ? '谱师50 - ${_selectedCharter!} 统计'
                 : _selectedType == 'version_50' && _selectedVersion != null
@@ -1311,104 +1274,24 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
                             : _selectedType == 'tag_50' &&
                                     _selectedTagName != null
                                 ? '标签50 - ${_selectedTagName!} 统计'
-                                : '${_options.firstWhere((option) => option['value'] == _selectedType)['label']!} 统计',
-            style: TextStyle(
-              fontSize: MediaQuery.of(context).size.width * 0.045,
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
-          ),
-          SizedBox(height: 8.0),
+                                : '${_options.firstWhere((option) => option['value'] == _selectedType)['label']!} 统计';
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AppSectionHeader(title: title, padding: EdgeInsets.zero),
+          const SizedBox(height: 12),
           Row(
             children: [
+              Expanded(child: StatTile(label: '总谱面数', value: '$totalSongs')),
+              Expanded(child: StatTile(label: '总RA值', value: '$totalRa')),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Text(
-                      '总谱面数',
-                      style: TextStyle(
-                        fontSize: MediaQuery.of(context).size.width * 0.035,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
-                    ),
-                    Text(
-                      '$totalSongs',
-                      style: TextStyle(
-                        fontSize: MediaQuery.of(context).size.width * 0.04,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+                  child: StatTile(
+                      label: '平均RA值', value: averageRa.toStringAsFixed(1))),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Text(
-                      '总RA值',
-                      style: TextStyle(
-                        fontSize: MediaQuery.of(context).size.width * 0.035,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
-                    ),
-                    Text(
-                      '$totalRa',
-                      style: TextStyle(
-                        fontSize: MediaQuery.of(context).size.width * 0.04,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Text(
-                      '平均RA值',
-                      style: TextStyle(
-                        fontSize: MediaQuery.of(context).size.width * 0.035,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
-                    ),
-                    Text(
-                      '${averageRa.toStringAsFixed(1)}',
-                      style: TextStyle(
-                        fontSize: MediaQuery.of(context).size.width * 0.04,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Text(
-                      '平均达成率',
-                      style: TextStyle(
-                        fontSize: MediaQuery.of(context).size.width * 0.035,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
-                    ),
-                    Text(
-                      '${averageAchievement.toStringAsFixed(2)}%',
-                      style: TextStyle(
-                        fontSize: MediaQuery.of(context).size.width * 0.04,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+                  child: StatTile(
+                      label: '平均达成率',
+                      value: '${averageAchievement.toStringAsFixed(2)}%')),
             ],
           ),
         ],
@@ -1419,20 +1302,9 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
   // 构建包容关系模式开关
   Widget _buildInclusiveModeToggle() {
     final brightness = Theme.of(context).brightness;
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
-      decoration: BoxDecoration(
-        border: Border.all(
-          color: _isInclusiveMode
-              ? AppColors.linkBlue(brightness)
-              : Theme.of(context).colorScheme.onSurface.withOpacity(0.3),
-          width: 1.5,
-        ),
-        borderRadius: BorderRadius.circular(8.0),
-        color: _isInclusiveMode
-            ? AppColors.linkBlue(brightness).withOpacity(0.05)
-            : Colors.transparent,
-      ),
+    return AppCard(
+      radius: AppDesignTokens.radiusMedium,
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -1444,8 +1316,8 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
                 Text(
                   '包含关系模式',
                   style: TextStyle(
-                    fontSize: MediaQuery.of(context).size.width * 0.035,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
                     color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
@@ -1453,7 +1325,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
                 Text(
                   _getInclusiveModeLabel(),
                   style: TextStyle(
-                    fontSize: MediaQuery.of(context).size.width * 0.028,
+                    fontSize: 12,
                     color: AppColors.linkBlue(brightness),
                     fontWeight: FontWeight.w500,
                   ),
@@ -1477,28 +1349,19 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
 
   // 「再抽一次」按钮（仅随机50 显示）
   Widget _buildRerollButton() {
-    return OutlinedButton.icon(
+    return Best50ActionButton(
+      icon: Icons.casino_outlined,
+      label: '再抽一次',
       onPressed: _fetchPersonalizedData,
-      icon: const Icon(Icons.refresh, color: Colors.white, size: 18),
-      label: const Text(
-        '再抽一次',
-        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-      ),
-      style: OutlinedButton.styleFrom(
-        backgroundColor: AppColors.linkBlue(Theme.of(context).brightness),
-        side:
-            BorderSide(color: AppColors.linkBlue(Theme.of(context).brightness)),
-        padding: const EdgeInsets.symmetric(vertical: 12.0),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8.0),
-        ),
-      ),
     );
   }
 
   // 构建导出按钮
   Widget _buildExportButton() {
-    return ElevatedButton(
+    return Best50ActionButton(
+      icon: Icons.image_outlined,
+      label: '导出为图片',
+      primary: true,
       onPressed: () async {
         try {
           await _exportToImage();
@@ -1506,28 +1369,6 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
           debugPrint('Error in personalized export: $e');
         }
       },
-      style: ElevatedButton.styleFrom(
-        backgroundColor: AppColors.linkBlue(Theme.of(context).brightness),
-        padding: EdgeInsets.symmetric(vertical: 12.0),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8.0),
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.image, color: Colors.white),
-          SizedBox(width: 8.0),
-          Text(
-            '导出为图片',
-            style: TextStyle(
-              fontSize: MediaQuery.of(context).size.width * 0.04,
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -1591,8 +1432,8 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
       padding: EdgeInsets.zero,
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        crossAxisSpacing: MediaQuery.of(context).size.width * 0.01,
-        mainAxisSpacing: MediaQuery.of(context).size.width * 0.01,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
         childAspectRatio: B50GameCardWidget.designAspectRatio,
       ),
       itemCount: _personalizedSongs.length,

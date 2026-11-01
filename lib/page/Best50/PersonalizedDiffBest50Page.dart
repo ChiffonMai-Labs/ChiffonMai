@@ -15,9 +15,10 @@ import 'package:my_first_flutter_app/manager/MaiTagsManager.dart';
 import 'package:my_first_flutter_app/entity/DXRating/MaiTagsModel.dart';
 import 'package:my_first_flutter_app/utils/ExportQualitySelector.dart';
 import 'package:my_first_flutter_app/utils/ImageEncodeUtil.dart';
-import 'package:my_first_flutter_app/utils/TextStyleUtil.dart';
 import '../../widgets/B50GameCardWidget.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
+import '../../widgets/AppUi.dart';
+import '../../utils/AppDesignTokens.dart';
 
 class PersonalizedDiffBest50Page extends StatefulWidget {
   const PersonalizedDiffBest50Page({super.key});
@@ -395,7 +396,6 @@ class _PersonalizedDiffBest50PageState
 
   @override
   Widget build(BuildContext context) {
-    final brightness = Theme.of(context).brightness;
     screenWidth = MediaQuery.of(context).size.width;
     cardPadding = screenWidth * 0.02;
     fontSizeBase = screenWidth * 0.035;
@@ -410,30 +410,18 @@ class _PersonalizedDiffBest50PageState
         children: [
           // 内容区域 - 卡片占满可用高度，空状态内容居中显示
           Padding(
-            padding: EdgeInsets.fromLTRB(screenWidth * 0.03, 8, screenWidth * 0.03, screenWidth * 0.03),
+            padding: const EdgeInsets.fromLTRB(AppDesignTokens.gutter, 8,
+                AppDesignTokens.gutter, AppDesignTokens.gutter),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // 标签选择按钮（始终在顶部）
-                ElevatedButton(
+                Best50ActionButton(
+                  icon: Icons.sell_outlined,
+                  label: _selectedTagName != null
+                      ? '选择标签: $_selectedTagName'
+                      : '选择标签',
                   onPressed: _showTagSelectionDialog,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.linkBlue(brightness),
-                    padding: EdgeInsets.symmetric(vertical: 12.0),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8.0),
-                    ),
-                  ),
-                  child: Text(
-                    _selectedTagName != null
-                        ? '选择标签: $_selectedTagName'
-                        : '选择标签',
-                    style: TextStyle(
-                      fontSize: screenWidth * 0.04,
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
                 ),
                 SizedBox(height: 12.0),
 
@@ -459,7 +447,6 @@ class _PersonalizedDiffBest50PageState
                           _buildExportButton(),
                           SizedBox(height: 12.0),
                           _buildSectionTitle('基于拟合难度的个性化Best50', context),
-                          SizedBox(height: screenWidth * 0.02),
                           _buildDataCardGrid(),
                         ],
                       ),
@@ -474,7 +461,10 @@ class _PersonalizedDiffBest50PageState
             Positioned.fill(
               child: IgnorePointer(
                 child: Container(
-                  color: Theme.of(context).colorScheme.surface.withOpacity(0.5),
+                  color: Theme.of(context)
+                      .colorScheme
+                      .surface
+                      .withValues(alpha: 0.5),
                   child: Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -612,136 +602,51 @@ class _PersonalizedDiffBest50PageState
       return song['use_official_diff'] ?? false;
     }).length;
 
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(
-            color: Theme.of(context).colorScheme.onSurface, width: 2.0),
-        borderRadius: BorderRadius.circular(8.0),
-      ),
-      padding: EdgeInsets.all(12.0),
-      child: Row(
-        children: [
-          // 左侧评分
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '拟合总Rating',
-                  style: TextStyle(
-                    fontSize: screenWidth * 0.045,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.onSurface,
-                  ),
-                ),
-                SizedBox(height: 4.0),
-                RichText(
-                  text: TextSpan(
-                    children: [
-                      TextStyleUtil.span(
-                        diffRatingSum.toString(),
-                        TextStyle(
-                          fontSize: screenWidth * 0.045,
-                          color: Theme.of(context).colorScheme.onSurface,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      TextStyleUtil.span(
-                        '(平均${diffRatingAverage.toStringAsFixed(1)})',
-                        TextStyle(
-                          fontSize: screenWidth * 0.03,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                SizedBox(height: 8.0),
-                Text(
-                  '标签: $_selectedTagName',
-                  style: TextStyle(
-                    fontSize: screenWidth * 0.035,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.linkBlue(Theme.of(context).brightness),
-                  ),
-                ),
-                Text(
-                  '共${_diffSongs.length}张谱面',
-                  style: TextStyle(
-                    fontSize: screenWidth * 0.035,
-                    color: Theme.of(context).colorScheme.onSurface,
-                  ),
-                ),
-                if (noFitDiffCount > 0)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4.0),
-                    child: Text(
-                      '${noFitDiffCount}首暂无拟合定数，按照官方定数计算',
-                      style: TextStyle(
-                        fontSize: screenWidth * 0.028,
-                        color: AppColors.warningOrange(
-                            Theme.of(context).brightness),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
+    final brightness = Theme.of(context).brightness;
+    final scheme = Theme.of(context).colorScheme;
+    return Best50SummaryCard(
+      label: '拟合总 Rating',
+      rating: diffRatingSum,
+      ratingAverage: diffRatingAverage,
+      showTier: false,
+      averages: [
+        Best50AverageRow('平均', averageAchievement, averageScoreRate),
+      ],
+      footer: [
+        Wrap(
+          spacing: 8,
+          runSpacing: 6,
+          children: [
+            if (_selectedTagName != null)
+              AppBadge(
+                  text: '标签：$_selectedTagName',
+                  numeric: false,
+                  background: scheme.secondaryContainer,
+                  foreground: scheme.onSecondaryContainer),
+            AppBadge(
+                text: '共${_diffSongs.length}张谱面',
+                numeric: false,
+                background: AppSurfaces.inset(context),
+                foreground: scheme.onSurfaceVariant),
+          ],
+        ),
+        if (noFitDiffCount > 0)
+          Text(
+            '$noFitDiffCount首暂无拟合定数，按照官方定数计算',
+            style: TextStyle(
+                fontSize: 12, color: AppColors.warningOrange(brightness)),
           ),
-
-          // 右侧达成率
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '平均达成率/DX分数达成率',
-                  style: TextStyle(
-                    fontSize: screenWidth * 0.04,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.onSurface,
-                  ),
-                ),
-                _buildDualDecimalText(
-                    averageAchievement, averageScoreRate * 100,
-                    scoreRate: averageScoreRate),
-                SizedBox(height: 8.0),
-                Text(
-                  '在拟合定数下计算单曲Rating\n取前50的谱面',
-                  style: TextStyle(
-                    fontSize: screenWidth * 0.028,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+        Text(
+          '在拟合定数下计算单曲Rating，取前50的谱面',
+          style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+        ),
+      ],
     );
   }
 
   // 构建区域标题
-  Widget _buildSectionTitle(String title, BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(
-            color: Theme.of(context).colorScheme.onSurface, width: 2.0),
-        borderRadius: BorderRadius.circular(8.0),
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      ),
-      padding: EdgeInsets.all(screenWidth * 0.02),
-      child: Center(
-        child: Text(
-          title,
-          style: TextStyle(
-            fontSize: screenWidth * 0.04,
-            fontWeight: FontWeight.bold,
-            color: Theme.of(context).colorScheme.onSurface,
-          ),
-        ),
-      ),
-    );
-  }
+  Widget _buildSectionTitle(String title, BuildContext context) =>
+      Best50SectionHeader(title);
 
   // 构建数据卡片网格
   Widget _buildDataCardGrid() {
@@ -757,8 +662,8 @@ class _PersonalizedDiffBest50PageState
       padding: EdgeInsets.zero,
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        crossAxisSpacing: screenWidth * 0.01,
-        mainAxisSpacing: screenWidth * 0.01,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
         childAspectRatio: B50GameCardWidget.designAspectRatio,
       ),
       itemCount: _diffSongs.length,
@@ -884,79 +789,8 @@ class _PersonalizedDiffBest50PageState
   }
 
   // 构建小数文本
-  Widget _buildDecimalText(double value, BuildContext context,
-      {bool isPercentage = false,
-      int decimalPlaces = 4,
-      Color color = Colors.white}) {
-    String text = value.toStringAsFixed(decimalPlaces);
-    List<String> parts = text.split('.');
-    String integerPart = parts[0];
-    String decimalPart = parts.length > 1 ? '.${parts[1]}' : '';
-    String percentageSymbol = isPercentage ? '%' : '';
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.baseline,
-      textBaseline: TextBaseline.alphabetic,
-      children: [
-        Text(
-          integerPart,
-          style: TextStyle(
-              fontSize: screenWidth * 0.045,
-              fontWeight: FontWeight.w800,
-              color: color),
-        ),
-        Text(
-          '$decimalPart$percentageSymbol',
-          style: TextStyle(
-              fontSize: screenWidth * 0.03,
-              fontWeight: FontWeight.w800,
-              color: color),
-        ),
-      ],
-    );
-  }
 
   // 构建双小数文本
-  Widget _buildDualDecimalText(double value1, double value2,
-      {int decimalPlaces1 = 4,
-      int decimalPlaces2 = 2,
-      Color? color,
-      double? scoreRate}) {
-    final resolvedColor = color ?? Theme.of(context).colorScheme.onSurface;
-    final starsText =
-        scoreRate != null ? StringUtil.formatStars(scoreRate) : null;
-    final starsColor =
-        scoreRate != null ? ColorUtil.getStarsColor(starsText!) : null;
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _buildDecimalText(value1, context,
-            decimalPlaces: decimalPlaces1, color: resolvedColor),
-        Text('/',
-            style: TextStyle(
-                fontSize: screenWidth * 0.04,
-                fontWeight: FontWeight.bold,
-                color: resolvedColor)),
-        _buildDecimalText(value2, context,
-            decimalPlaces: decimalPlaces2, color: resolvedColor),
-        // DX 分达成率右侧添加星级（achievement / dxScore% / ✦x）
-        if (starsText != null) ...[
-          Text('/',
-              style: TextStyle(
-                  fontSize: screenWidth * 0.04,
-                  fontWeight: FontWeight.bold,
-                  color: resolvedColor)),
-          Text(starsText,
-              style: TextStyle(
-                  fontSize: screenWidth * 0.04,
-                  fontWeight: FontWeight.bold,
-                  color: starsColor)),
-        ],
-      ],
-    );
-  }
 
   // 根据level_index获取卡片颜色
   Color _getCardColor(int levelIndex) {
@@ -1016,7 +850,10 @@ class _PersonalizedDiffBest50PageState
 
   // 构建导出按钮
   Widget _buildExportButton() {
-    return ElevatedButton(
+    return Best50ActionButton(
+      icon: Icons.image_outlined,
+      label: '导出为图片',
+      primary: true,
       onPressed: () async {
         try {
           await _exportToImage();
@@ -1024,28 +861,6 @@ class _PersonalizedDiffBest50PageState
           debugPrint('Error in personalized diff export: $e');
         }
       },
-      style: ElevatedButton.styleFrom(
-        backgroundColor: AppColors.linkBlue(Theme.of(context).brightness),
-        padding: EdgeInsets.symmetric(vertical: 12.0),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8.0),
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.image, color: Colors.white),
-          SizedBox(width: 8.0),
-          Text(
-            '导出为图片',
-            style: TextStyle(
-              fontSize: screenWidth * 0.04,
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

@@ -16,6 +16,8 @@ import '../../utils/StringUtil.dart';
 import '../../widgets/B50GameCardWidget.dart';
 import '../SongInfoPage.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
+import '../../widgets/AppUi.dart';
+import '../../utils/AppDesignTokens.dart';
 
 /// 理想 Best50：把全部游玩记录里非 SSS+ 的成绩升一档（100.4 → 100.5），
 /// 重算 RA 后重新取 B35 + B15，并列出相对原榜的新进榜歌曲。
@@ -283,8 +285,8 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
 
   Widget _buildContent() {
     return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(MediaQuery.of(context).size.width * 0.03, 8,
-          MediaQuery.of(context).size.width * 0.03, MediaQuery.of(context).size.width * 0.03),
+      padding: const EdgeInsets.fromLTRB(AppDesignTokens.gutter, 8,
+          AppDesignTokens.gutter, AppDesignTokens.gutter),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -295,11 +297,9 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
           _buildExportButton(),
           const SizedBox(height: 12.0),
           _buildSectionTitle('Best35 | 非当前版本'),
-          const SizedBox(height: 8.0),
           _buildGrid(_sdSongs),
-          SizedBox(height: MediaQuery.of(context).size.height * 0.02),
+          const SizedBox(height: AppDesignTokens.sectionGap - 12),
           _buildSectionTitle('Best15 | 当前版本'),
-          const SizedBox(height: 8.0),
           _buildGrid(_dxSongs),
         ],
       ),
@@ -307,7 +307,7 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
   }
 
   Widget _buildStatsSection() {
-    final onSurface = Theme.of(context).colorScheme.onSurface;
+    final scheme = Theme.of(context).colorScheme;
     final originalRating = (_data!['originalRating'] ?? 0) as int;
     final idealRating = (_data!['rating'] ?? 0) as int;
     final delta = idealRating - originalRating;
@@ -321,70 +321,65 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
                     (double.tryParse(m['achievements'].toString()) ?? 0.0)) /
             all.length;
 
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: onSurface, width: 2.0),
-        borderRadius: BorderRadius.circular(8.0),
-      ),
-      padding: const EdgeInsets.all(12.0),
+    final brightness = Theme.of(context).brightness;
+    return AppCard(
+      radius: AppDesignTokens.radiusLarge,
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '理想 Best50 统计',
-            style: TextStyle(
-              fontSize: MediaQuery.of(context).size.width * 0.045,
-              fontWeight: FontWeight.bold,
-              color: onSurface,
-            ),
-          ),
-          const SizedBox(height: 4.0),
-          Text(
-            '规则：非 SSS+ 成绩升到上一档的下限',
-            style: TextStyle(
-              fontSize: MediaQuery.of(context).size.width * 0.031,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 8.0),
+          Text('理想 Rating',
+              style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: scheme.onSurfaceVariant)),
+          const SizedBox(height: 2),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
             children: [
-              _statColumn('原 Rating', '$originalRating'),
-              _statColumn('理想 Rating', '$idealRating'),
-              _statColumn('提升', delta >= 0 ? '+$delta' : '$delta'),
-              _statColumn('新进榜', '${_newEntries.length}'),
+              Text(
+                '$idealRating',
+                style: AppTheme.number(
+                  fontSize: 44,
+                  fontWeight: FontWeight.w700,
+                  height: 1.1,
+                  letterSpacing: -1,
+                  color: scheme.onSurface,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                delta >= 0 ? '+$delta' : '$delta',
+                style: AppTheme.number(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: delta >= 0
+                      ? AppColors.successGreen(brightness)
+                      : AppColors.errorRed(brightness),
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 6.0),
+          const SizedBox(height: 2),
           Text(
-            '平均达成率 ${avgAchievement.toStringAsFixed(2)}%',
-            style: TextStyle(
-              fontSize: MediaQuery.of(context).size.width * 0.033,
-              color: onSurface,
-            ),
+            '规则：非 SSS+ 成绩升到上一档的下限',
+            style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _statColumn(String label, String value) {
-    final onSurface = Theme.of(context).colorScheme.onSurface;
-    return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Text(label,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  fontSize: MediaQuery.of(context).size.width * 0.033,
-                  color: onSurface)),
-          Text(value,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  fontSize: MediaQuery.of(context).size.width * 0.04,
-                  fontWeight: FontWeight.bold,
-                  color: onSurface)),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                  child: StatTile(label: '原 Rating', value: '$originalRating')),
+              Expanded(
+                  child: StatTile(
+                      label: '新进榜', value: '${_newEntries.length}')),
+              Expanded(
+                  child: StatTile(
+                      label: '平均达成率',
+                      value: '${avgAchievement.toStringAsFixed(2)}%')),
+            ],
+          ),
         ],
       ),
     );
@@ -392,24 +387,14 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
 
   Widget _buildNewEntriesSection() {
     final scheme = Theme.of(context).colorScheme;
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: scheme.outlineVariant, width: 1.5),
-        borderRadius: BorderRadius.circular(8.0),
-      ),
-      padding: const EdgeInsets.all(12.0),
+    return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '本次新进榜（${_newEntries.length} 首）',
-            style: TextStyle(
-              fontSize: MediaQuery.of(context).size.width * 0.04,
-              fontWeight: FontWeight.bold,
-              color: scheme.onSurface,
-            ),
+          AppSectionHeader(
+            title: '本次新进榜（${_newEntries.length} 首）',
+            padding: const EdgeInsets.only(bottom: 6),
           ),
-          const SizedBox(height: 6.0),
           if (_newEntries.isEmpty)
             Text(
               '无新歌进榜（升档后榜单成员不变）',
@@ -430,41 +415,15 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
   }
 
   Widget _buildExportButton() {
-    final brightness = Theme.of(context).brightness;
-    return ElevatedButton.icon(
+    return Best50ActionButton(
+      icon: Icons.image_outlined,
+      label: '导出为图片',
+      primary: true,
       onPressed: _exportToImage,
-      icon: const Icon(Icons.image_outlined, color: Colors.white),
-      label: const Text('导出为图片', style: TextStyle(color: Colors.white)),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: AppColors.linkBlue(brightness),
-        padding: const EdgeInsets.symmetric(vertical: 12.0),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8.0),
-        ),
-      ),
     );
   }
 
-  Widget _buildSectionTitle(String title) {
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(
-            color: Theme.of(context).colorScheme.onSurface, width: 2.0),
-        borderRadius: BorderRadius.circular(8.0),
-      ),
-      padding: const EdgeInsets.all(10.0),
-      child: Center(
-        child: Text(
-          title,
-          style: TextStyle(
-            fontSize: MediaQuery.of(context).size.width * 0.042,
-            fontWeight: FontWeight.bold,
-            color: Theme.of(context).colorScheme.onSurface,
-          ),
-        ),
-      ),
-    );
-  }
+  Widget _buildSectionTitle(String title) => Best50SectionHeader(title);
 
   Widget _buildGrid(List<Map<String, dynamic>> songs) {
     if (songs.isEmpty) {
@@ -487,8 +446,8 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
       padding: EdgeInsets.zero,
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        crossAxisSpacing: MediaQuery.of(context).size.width * 0.01,
-        mainAxisSpacing: MediaQuery.of(context).size.width * 0.01,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
         childAspectRatio: B50GameCardWidget.designAspectRatio,
       ),
       itemCount: songs.length,

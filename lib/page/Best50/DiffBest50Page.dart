@@ -11,12 +11,13 @@ import '../../service/Best50/DiffBest50Service.dart';
 import '../../service/Best50/DiffBest50ConvertToImgService.dart';
 import '../../manager/DivingFish/MaimaiMusicDataManager.dart';
 import '../SongInfoPage.dart';
-import '../../utils/TextStyleUtil.dart';
 import '../../utils/AppTheme.dart';
 import '../../widgets/B50GameCardWidget.dart';
 import 'package:my_first_flutter_app/utils/ExportQualitySelector.dart';
 import 'package:my_first_flutter_app/utils/ImageEncodeUtil.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
+import '../../widgets/AppUi.dart';
+import '../../utils/AppDesignTokens.dart';
 
 class DiffBest50Page extends StatefulWidget {
   const DiffBest50Page({super.key});
@@ -159,7 +160,10 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
           // 加载中状态（覆盖层）
           if (_isLoading)
             Container(
-              color: Theme.of(context).colorScheme.surface.withOpacity(0.9),
+              color: Theme.of(context)
+                  .colorScheme
+                  .surface
+                  .withValues(alpha: 0.9),
               child: Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -224,9 +228,9 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
     // 主内容直接布局在背景上，局部歌曲卡片负责建立阅读层次。
     return SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(
-        MediaQuery.of(context).size.width * 0.03,
+        AppDesignTokens.gutter,
         8,
-        MediaQuery.of(context).size.width * 0.03,
+        AppDesignTokens.gutter,
         MediaQuery.paddingOf(context).bottom + 20,
       ),
       child: Column(
@@ -247,8 +251,6 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
               Column(
                   children: [
                     _buildSectionTitle('基于拟合难度的Best50', context),
-                    SizedBox(
-                        height: MediaQuery.of(context).size.height * 0.015),
                     _buildDataCardGrid(
                         _diffSongs, B50GameCardWidget.designAspectRatio),
                   ],
@@ -263,18 +265,16 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
                             ? 'Best35 | 非当前版本最好成绩'
                             : '非当前版本前35 | 拟合Rating排名',
                         context),
-                    SizedBox(
-                        height: MediaQuery.of(context).size.height * 0.015),
                     _buildDataCardGrid(
                         _diffSdSongs, B50GameCardWidget.designAspectRatio),
-                    SizedBox(height: MediaQuery.of(context).size.height * 0.02),
+                    const SizedBox(
+                        height: AppDesignTokens.sectionGap - 12),
                     // Best15 标题区域
                     _buildSectionTitle(
                         _currentMode == 1
                             ? 'Best15 | 当前版本最好成绩'
                             : '当前版本前15 | 拟合Rating排名',
                         context),
-                    SizedBox(height: 12.0),
                     _buildDataCardGrid(
                         _diffDxSongs, B50GameCardWidget.designAspectRatio),
                   ],
@@ -315,142 +315,61 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
     }).length;
 
     final ratingBrightness = Theme.of(context).brightness;
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(
-            color: Theme.of(context).colorScheme.onSurface, width: 2.0),
-        borderRadius: BorderRadius.circular(8.0),
-      ),
-      padding: EdgeInsets.all(12.0),
-      child: Row(
-        children: [
-          // 左侧评分
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '拟合总Rating',
-                  style: TextStyle(
-                    fontSize: MediaQuery.of(context).size.width * 0.045,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.onSurface,
-                  ),
-                ),
-                SizedBox(height: 4.0),
-                RichText(
-                  text: TextSpan(
-                    children: [
-                      TextStyleUtil.span(
-                        diffRatingSum.toString(),
-                        TextStyle(
-                          fontSize: MediaQuery.of(context).size.width * 0.045,
-                          color: Theme.of(context).colorScheme.onSurface,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      TextStyleUtil.span(
-                        '(平均${diffRatingAverage.toStringAsFixed(1)})',
-                        TextStyle(
-                          fontSize: MediaQuery.of(context).size.width * 0.03,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                SizedBox(height: 8.0),
-                Text(
-                  '与Best50差值',
-                  style: TextStyle(
-                    fontSize: MediaQuery.of(context).size.width * 0.045,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.onSurface,
-                  ),
-                ),
-                Text(
-                  '${best50Diff > 0 ? '+' : ''}$best50Diff',
-                  style: TextStyle(
-                    fontSize: MediaQuery.of(context).size.width * 0.045,
-                    color: best50Diff >= 0
-                        ? AppColors.successGreen(ratingBrightness)
-                        : AppColors.errorRed(ratingBrightness),
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                // 显示暂无拟合定数的歌曲数量
-                if (noFitDiffCount > 0) SizedBox(height: 8.0),
-                if (noFitDiffCount > 0)
-                  Text(
-                    '${noFitDiffCount}首暂无拟合定数，按照官方定数计算',
-                    style: TextStyle(
-                      fontSize: MediaQuery.of(context).size.width * 0.035,
-                      color: AppColors.warningOrange(ratingBrightness),
-                    ),
-                  ),
-              ],
+    final scheme = Theme.of(context).colorScheme;
+    const modeNotes = [
+      '模式A：不分类Best35和Best15，直接获取拟合定数下的Rating前50的谱面',
+      '模式B：将您的Best35和Best15中的所有谱面的定数都替换为其拟合定数，然后计算Rating并降序排序',
+      '模式C：在非当前版本中取拟合定数下的Rating前35的谱面，在当前版本中取拟合定数下Rating前15的谱面',
+    ];
+    return Best50SummaryCard(
+      label: '拟合总 Rating',
+      rating: diffRatingSum,
+      ratingAverage: diffRatingAverage,
+      // 拟合口径不是官方 Rating，不挂段位标签
+      showTier: false,
+      averages: [
+        Best50AverageRow('B50', diffBest50AchievementAverage,
+            diffBest50ScoreRateAverage),
+      ],
+      footer: [
+        Row(
+          children: [
+            Text('与 Best50 差值',
+                style:
+                    TextStyle(fontSize: 13, color: scheme.onSurfaceVariant)),
+            const SizedBox(width: 8),
+            Text(
+              '${best50Diff > 0 ? '+' : ''}$best50Diff',
+              style: AppTheme.number(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: best50Diff >= 0
+                    ? AppColors.successGreen(ratingBrightness)
+                    : AppColors.errorRed(ratingBrightness),
+              ),
+            ),
+          ],
+        ),
+        if (noFitDiffCount > 0)
+          Text(
+            '$noFitDiffCount首暂无拟合定数，按照官方定数计算',
+            style: TextStyle(
+              fontSize: 12,
+              color: AppColors.warningOrange(ratingBrightness),
             ),
           ),
-
-          // 右侧达成率
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '拟合Best50 平均达成率/DX分数达成率',
-                  style: TextStyle(
-                    fontSize: MediaQuery.of(context).size.width * 0.04,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.onSurface,
-                  ),
-                ),
-                _buildDualDecimalText(diffBest50AchievementAverage,
-                    diffBest50ScoreRateAverage * 100,
-                    scoreRate: diffBest50ScoreRateAverage),
-                SizedBox(height: 8.0),
-                // 模式说明
-                Text(
-                  _currentMode == 0
-                      ? '模式A：不分类Best35和Best15，直接获取拟合定数下的Rating前50的谱面'
-                      : (_currentMode == 1
-                          ? "模式B：将您的Best35和Best15中的所有谱面的定数都替换为其拟合定数，然后计算Rating并降序排序"
-                          : '模式C：在非当前版本中取拟合定数下的Rating前35的谱面，在当前版本中取拟合定数下Rating前15的谱面'),
-                  style: TextStyle(
-                    fontSize: MediaQuery.of(context).size.width * 0.028,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+        Text(
+          modeNotes[_currentMode],
+          style: TextStyle(
+              fontSize: 12, height: 1.4, color: scheme.onSurfaceVariant),
+        ),
+      ],
     );
   }
 
   // 构建区域标题
-  Widget _buildSectionTitle(String title, BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(
-            color: Theme.of(context).colorScheme.onSurface, width: 2.0),
-        borderRadius: BorderRadius.circular(8.0),
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      ),
-      padding: EdgeInsets.all(MediaQuery.of(context).size.width * 0.02),
-      child: Center(
-        child: Text(
-          title,
-          style: TextStyle(
-            fontSize: MediaQuery.of(context).size.width * 0.04,
-            fontWeight: FontWeight.bold,
-            color: Theme.of(context).colorScheme.onSurface,
-          ),
-        ),
-      ),
-    );
-  }
+  Widget _buildSectionTitle(String title, BuildContext context) =>
+      Best50SectionHeader(title);
 
   // 构建游戏卡片（委托至通用 widget B50GameCardWidget，
   // 字号按卡片**实际**宽度自适应（`scale: autoScale`）。
@@ -499,101 +418,8 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
   }
 
   // 构建小数文本，整数部分字号大，小数部分和百分号字号小且底部对齐
-  Widget _buildDecimalText(double value, BuildContext context,
-      {bool isPercentage = false,
-      int decimalPlaces = 4,
-      Color color = Colors.white}) {
-    String text = value.toStringAsFixed(decimalPlaces);
-
-    // 分割整数部分和小数部分
-    List<String> parts = text.split('.');
-    String integerPart = parts[0];
-    String decimalPart = parts.length > 1 ? '.${parts[1]}' : '';
-    String percentageSymbol = isPercentage ? '%' : '';
-
-    // 整数与小数共用基线，数字底边自然齐平（与 B50 卡片一致）
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.baseline,
-      textBaseline: TextBaseline.alphabetic,
-      children: [
-        // 整数部分
-        Text(
-          integerPart,
-          style: TextStyle(
-            fontSize: MediaQuery.of(context).size.width * 0.045,
-            fontWeight: FontWeight.w800,
-            color: color,
-          ),
-        ),
-        // 小数部分和百分号
-        Text(
-          '$decimalPart$percentageSymbol',
-          style: TextStyle(
-            fontSize: MediaQuery.of(context).size.width * 0.03,
-            fontWeight: FontWeight.w800,
-            color: color,
-          ),
-        ),
-      ],
-    );
-  }
 
   // 构建双小数文本，如 "100.1234/97.54"
-  Widget _buildDualDecimalText(double value1, double value2,
-      {int decimalPlaces1 = 4,
-      int decimalPlaces2 = 2,
-      Color? color,
-      double? scoreRate}) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final resolvedColor = color ?? Theme.of(context).colorScheme.onSurface;
-        double fontSize = MediaQuery.of(context).size.width * 0.04;
-
-        final starsText =
-            scoreRate != null ? StringUtil.formatStars(scoreRate) : null;
-        final starsColor =
-            scoreRate != null ? ColorUtil.getStarsColor(starsText!) : null;
-
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildDecimalText(value1, context,
-                decimalPlaces: decimalPlaces1, color: resolvedColor),
-            Text(
-              '/',
-              style: TextStyle(
-                fontSize: fontSize,
-                fontWeight: FontWeight.bold,
-                color: resolvedColor,
-              ),
-            ),
-            _buildDecimalText(value2, context,
-                decimalPlaces: decimalPlaces2, color: resolvedColor),
-            // DX 分达成率右侧添加星级（achievement / dxScore% / ✦x）
-            if (starsText != null) ...[
-              Text(
-                '/',
-                style: TextStyle(
-                  fontSize: fontSize,
-                  fontWeight: FontWeight.bold,
-                  color: resolvedColor,
-                ),
-              ),
-              Text(
-                starsText,
-                style: TextStyle(
-                  fontSize: fontSize,
-                  fontWeight: FontWeight.bold,
-                  color: starsColor,
-                ),
-              ),
-            ],
-          ],
-        );
-      },
-    );
-  }
 
   // 构建数据驱动的卡片网格
   Widget _buildDataCardGrid(
@@ -610,8 +436,8 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
       padding: EdgeInsets.zero, // 移除默认padding
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        crossAxisSpacing: MediaQuery.of(context).size.width * 0.01,
-        mainAxisSpacing: MediaQuery.of(context).size.width * 0.01,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
         childAspectRatio: childAspectRatio,
       ),
       itemCount: songs.length,
@@ -769,27 +595,14 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
       // 此行位于纵向 SingleChildScrollView 内，不能向子项传递无限高度。
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        SizedBox(
-          width: MediaQuery.of(context).size.width * 0.5,
-          child: _buildExportButton(),
-        ),
-        const SizedBox(width: 10),
+        Expanded(flex: 3, child: _buildExportButton()),
+        const SizedBox(width: AppDesignTokens.itemGap),
         Expanded(
-          child: ElevatedButton.icon(
+          flex: 2,
+          child: Best50ActionButton(
+            icon: Icons.tune_rounded,
+            label: '模式 ${['A', 'B', 'C'][_currentMode]}',
             onPressed: _toggleMode,
-            icon: const Icon(Icons.tune_rounded, size: 18),
-            label: Text('模式 ${['A', 'B', 'C'][_currentMode]}'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.primary,
-              foregroundColor: Theme.of(context).colorScheme.onPrimary,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              elevation: 0,
-              overlayColor: Colors.transparent,
-              splashFactory: NoSplash.splashFactory,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
           ),
         ),
       ],
@@ -797,7 +610,10 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
   }
 
   Widget _buildExportButton() {
-    return ElevatedButton(
+    return Best50ActionButton(
+      icon: Icons.image_outlined,
+      label: '导出为图片',
+      primary: true,
       onPressed: () async {
         debugPrint('=== DIFF EXPORT BUTTON CLICKED ===');
         try {
@@ -806,28 +622,6 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
           debugPrint('Error in diff export: $e');
         }
       },
-      style: ElevatedButton.styleFrom(
-        backgroundColor: AppColors.linkBlue(Theme.of(context).brightness),
-        padding: EdgeInsets.symmetric(vertical: 12.0),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8.0),
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.image, color: Colors.white),
-          SizedBox(width: 8.0),
-          Text(
-            '导出为图片',
-            style: TextStyle(
-              fontSize: MediaQuery.of(context).size.width * 0.04,
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
     );
   }
 

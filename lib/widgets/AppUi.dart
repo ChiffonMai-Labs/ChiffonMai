@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 
 import '../utils/AppDesignTokens.dart';
 import '../utils/AppTheme.dart';
+import '../utils/ColorUtil.dart';
+import '../utils/StringUtil.dart';
 
 /// 2026-11 UI 重构（B 方案）的公共组件。
 ///
@@ -759,6 +761,459 @@ class EmphasisCard extends StatelessWidget {
         child: IconTheme.merge(
           data: IconThemeData(color: scheme.onInverseSurface),
           child: child,
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 拼贴入口
+// ---------------------------------------------------------------------------
+
+/// Hub 页顶部「卡片拼贴」里的一格：图标 + 标题 + 一行说明。
+///
+/// [emphasis] 为 true 时用反色底（与 [EmphasisCard] 同色），整块拼贴里只给
+/// 最主要的那个入口用；[compact] 用于一行三格的小方块（图标在上、只留标题）。
+/// 高度由外层决定（`SizedBox` / `Expanded`），内容贴底对齐。
+class AppCollageTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final VoidCallback onTap;
+  final bool emphasis;
+  final bool compact;
+
+  const AppCollageTile({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.onTap,
+    this.subtitle,
+    this.emphasis = false,
+    this.compact = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final fg = emphasis ? scheme.onInverseSurface : scheme.onSurface;
+    final muted = emphasis
+        ? scheme.onInverseSurface.withValues(alpha: 0.72)
+        : scheme.onSurfaceVariant;
+    final iconBg = emphasis
+        ? scheme.onInverseSurface.withValues(alpha: 0.12)
+        : scheme.primaryContainer;
+    final iconFg = emphasis ? scheme.onInverseSurface : scheme.onPrimaryContainer;
+
+    return Semantics(
+      button: true,
+      label: subtitle == null ? title : '$title，$subtitle',
+      excludeSemantics: true,
+      child: AppCard(
+        onTap: onTap,
+        color: emphasis ? scheme.inverseSurface : null,
+        radius: emphasis
+            ? AppDesignTokens.radiusLarge
+            : AppDesignTokens.radiusCard,
+        padding: compact
+            ? const EdgeInsets.fromLTRB(12, 14, 12, 12)
+            : const EdgeInsets.all(16),
+        child: SizedBox.expand(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: compact ? 32 : 36,
+                height: compact ? 32 : 36,
+                decoration: BoxDecoration(
+                  color: iconBg,
+                  borderRadius:
+                      BorderRadius.circular(AppDesignTokens.radiusSmall),
+                ),
+                child: Icon(icon, size: compact ? 18 : 20, color: iconFg),
+              ),
+              const Spacer(),
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: emphasis ? 20 : (compact ? 13 : 15),
+                  fontWeight: FontWeight.w700,
+                  color: fg,
+                ),
+              ),
+              if (subtitle != null && !compact) ...[
+                const SizedBox(height: 2),
+                Text(
+                  subtitle!,
+                  maxLines: emphasis ? 2 : 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 12, height: 1.3, color: muted),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Best50 系列
+// ---------------------------------------------------------------------------
+
+/// Rating 段位小标签（渐变底），首页总览卡与 Best50 汇总卡共用。
+class RatingTierChip extends StatelessWidget {
+  final int rating;
+
+  const RatingTierChip({super.key, required this.rating});
+
+  @override
+  Widget build(BuildContext context) {
+    final tier = AppColors.ratingTier(rating);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(colors: tier.colors),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusPill),
+      ),
+      child: Text(
+        tier.label,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          color: tier.foreground,
+        ),
+      ),
+    );
+  }
+}
+
+/// [Best50SummaryCard] 下方的一行平均值：达成率 / DX 分数达成率 / 星级。
+class Best50AverageRow {
+  final String label;
+  final double achievement;
+
+  /// DX 分数达成率，0~1。
+  final double scoreRate;
+
+  const Best50AverageRow(this.label, this.achievement, this.scoreRate);
+}
+
+/// Best50 系列页顶部的汇总卡：大号总 Rating + B35 / B15 构成条 + 平均值。
+///
+/// 只负责展示，数值由各页面自己算好传进来（各页的口径略有不同：
+/// 理论模式、拟合定数、个性化筛选），这里不做任何计算。
+class Best50SummaryCard extends StatelessWidget {
+  final String label;
+  final int rating;
+  final double ratingAverage;
+  /// B35 / B15 构成；任一为 null 时不显示构成条（例如拟合 Best50 模式 A）。
+  final int? best35Sum;
+  final double? best35Average;
+  final int? best15Sum;
+  final double? best15Average;
+  final List<Best50AverageRow> averages;
+
+  /// 卡片最下方的附加内容（差值、说明文字等），按顺序竖排。
+  final List<Widget> footer;
+
+  /// 是否显示段位标签（拟合 / 理论这类非官方口径传 false）。
+  final bool showTier;
+
+  /// 「B35 / B15」的叫法，个性化 BestN 页可以改成别的。
+  final String best35Label;
+  final String best15Label;
+
+  const Best50SummaryCard({
+    super.key,
+    this.label = 'Rating',
+    required this.rating,
+    required this.ratingAverage,
+    this.best35Sum,
+    this.best35Average,
+    this.best15Sum,
+    this.best15Average,
+    this.averages = const [],
+    this.footer = const [],
+    this.showTier = true,
+    this.best35Label = 'B35',
+    this.best15Label = 'B15',
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final b35 = best35Sum, b15 = best15Sum;
+    final hasSplit = b35 != null && b15 != null;
+    final total = hasSplit ? b35 + b15 : 0;
+    final secondary = scheme.primary.withValues(alpha: 0.32);
+
+    Widget metric(String name, int sum, double avg, Color dot) => Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 6),
+            Text(name,
+                style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+            const SizedBox(width: 6),
+            Text('$sum',
+                style: AppTheme.number(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: scheme.onSurface)),
+            const SizedBox(width: 4),
+            Text('均 ${avg.toStringAsFixed(1)}',
+                style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
+          ],
+        );
+
+    return AppCard(
+      radius: AppDesignTokens.radiusLarge,
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(label,
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: scheme.onSurfaceVariant)),
+              if (showTier && rating > 0) ...[
+                const SizedBox(width: 8),
+                RatingTierChip(rating: rating),
+              ],
+            ],
+          ),
+          const SizedBox(height: 2),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                '$rating',
+                style: AppTheme.number(
+                  fontSize: 44,
+                  fontWeight: FontWeight.w700,
+                  height: 1.1,
+                  letterSpacing: -1,
+                  color: scheme.onSurface,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text('平均 ${ratingAverage.toStringAsFixed(1)}',
+                  style:
+                      TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+            ],
+          ),
+          if (hasSplit) ...[
+            const SizedBox(height: 10),
+            SplitBar(
+              fraction: total > 0 ? b35 / total : 0.7,
+              primary: scheme.primary,
+              secondary: secondary,
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 16,
+              runSpacing: 6,
+              children: [
+                metric(best35Label, b35, best35Average ?? 0, scheme.primary),
+                metric(best15Label, b15, best15Average ?? 0, secondary),
+              ],
+            ),
+          ],
+          if (averages.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Container(
+              decoration: BoxDecoration(
+                color: AppSurfaces.inset(context),
+                borderRadius:
+                    BorderRadius.circular(AppDesignTokens.radiusMedium),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+              child: Column(
+                children: [
+                  for (var i = 0; i < averages.length; i++) ...[
+                    if (i > 0)
+                      Divider(height: 1, color: AppSurfaces.hairline(context)),
+                    _Best50AverageLine(row: averages[i]),
+                  ],
+                ],
+              ),
+            ),
+          ],
+          for (final w in footer) ...[
+            const SizedBox(height: 10),
+            w,
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _Best50AverageLine extends StatelessWidget {
+  final Best50AverageRow row;
+
+  const _Best50AverageLine({required this.row});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final stars = StringUtil.formatStars(row.scoreRate);
+    final numStyle = AppTheme.number(
+        fontSize: 14, fontWeight: FontWeight.w600, color: scheme.onSurface);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 36,
+            child: Text(row.label,
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: scheme.onSurfaceVariant)),
+          ),
+          Expanded(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerRight,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('${row.achievement.toStringAsFixed(4)}%',
+                      style: numStyle),
+                  const SizedBox(width: 12),
+                  Text('DX ${(row.scoreRate * 100).toStringAsFixed(2)}%',
+                      style:
+                          numStyle.copyWith(color: scheme.onSurfaceVariant)),
+                  const SizedBox(width: 8),
+                  StarBadge(stars: stars),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Best50 页里 Best35 / Best15 网格上方的标题。
+///
+/// 旧标题是一整行 `Best35 | 非当前版本最好成绩`：按 ` | ` 拆成标题 + 说明，
+/// 没有分隔符时整行当标题。
+class Best50SectionHeader extends StatelessWidget {
+  final String title;
+  final Widget? trailing;
+
+  const Best50SectionHeader(this.title, {super.key, this.trailing});
+
+  @override
+  Widget build(BuildContext context) {
+    final parts = title.split(' | ');
+    return AppSectionHeader(
+      title: parts.first.trim(),
+      subtitle: parts.length > 1 ? parts.sublist(1).join(' | ').trim() : null,
+      trailing: trailing,
+      padding: const EdgeInsets.fromLTRB(4, 8, 4, 10),
+    );
+  }
+}
+
+/// Best50 系列页的操作按钮（保存 / 历史 / 导出图片 / 切换模式）。
+///
+/// [primary] 为 true 用主题色实心按钮（每页只给最主要的「导出」），
+/// 其余用白卡片底的次级按钮。
+class Best50ActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback? onPressed;
+  final bool primary;
+
+  const Best50ActionButton({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+    this.primary = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final shape = RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium));
+    const padding = EdgeInsets.symmetric(horizontal: 12, vertical: 14);
+    final child = Row(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(icon, size: 18),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w700)),
+        ),
+      ],
+    );
+    return FilledButton(
+      onPressed: onPressed,
+      style: primary
+          ? FilledButton.styleFrom(shape: shape, padding: padding)
+          : FilledButton.styleFrom(
+              shape: shape,
+              padding: padding,
+              backgroundColor: AppSurfaces.card(context),
+              foregroundColor: scheme.onSurface,
+            ),
+      child: child,
+    );
+  }
+}
+
+/// 星级徽章（`✦5` 这类）：底色取游戏内的星级配色（[ColorUtil.getStarsColor]），
+/// 字固定深色。
+///
+/// 不直接把星级色当字色：黄 / 金 / 浅绿放在白卡片上几乎看不见。
+class StarBadge extends StatelessWidget {
+  final String stars;
+  final double fontSize;
+
+  const StarBadge({super.key, required this.stars, this.fontSize = 12});
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = ColorUtil.getStarsColor(stars);
+    // 没有星级（getStarsColor 回落到白色）时用凹槽色，免得白底上一块白
+    final isEmpty = bg == Colors.white;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
+      decoration: BoxDecoration(
+        color: isEmpty ? AppSurfaces.inset(context) : bg,
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusPill),
+      ),
+      child: Text(
+        stars,
+        style: AppTheme.number(
+          fontSize: fontSize,
+          fontWeight: FontWeight.w800,
+          color: isEmpty
+              ? Theme.of(context).colorScheme.onSurfaceVariant
+              : const Color(0xFF1F1A10),
         ),
       ),
     );

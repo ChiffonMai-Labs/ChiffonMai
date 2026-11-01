@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/AppDesignTokens.dart';
 import '../utils/CoverUtil.dart';
 
 /// Best50 系列卡片通用 widget。
@@ -305,10 +306,16 @@ class B50GameCardWidget extends StatelessWidget {
     final String diffMain = diffParts[0];
     final String diffDecimal = '.${diffParts[1]}';
 
-    // 卡片下方 27% 区域固定使用白色背景 + 深色文字，
+    // 卡片下方 27% 区域固定使用浅色背景 + 深色文字，
     // 避免深色 / 浅色模式影响屏幕显示与导出图片效果，保证导出一致性。
-    const Color cardBottomBg = Colors.white;
-    const Color cardBottomText = Colors.black;
+    const Color cardBottomBg = Color(0xFFF7F8FA);
+    const Color cardBottomText = Color(0xFF1F2328);
+
+    // B 方案：圆角取 `radiusSmall`（12），小卡（页面里 scale < 1）不再跟着缩，
+    // 否则 160dp 宽的卡片只剩 6dp 圆角，和周围的白卡片对不齐。
+    final double radius =
+        AppDesignTokens.radiusSmall * (scale < 1 ? 1.0 : scale);
+    final Radius r = Radius.circular(radius);
 
     return Container(
       decoration: BoxDecoration(
@@ -326,11 +333,13 @@ class B50GameCardWidget extends StatelessWidget {
           ],
           stops: const [0.0, 0.73, 0.73, 1.0],
         ),
-        border: Border.all(color: Colors.black, width: 2.0),
-        borderRadius: BorderRadius.circular(8.0),
+        // 细描边只用来在白色页面底 / 导出图白底上勾出下半白条的边界。
+        border: Border.all(
+            color: Colors.black.withValues(alpha: 0.12), width: 1.0),
+        borderRadius: BorderRadius.all(r),
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(8.0),
+        borderRadius: BorderRadius.all(r),
         child: Column(
           mainAxisSize: MainAxisSize.max,
           children: [
@@ -339,11 +348,16 @@ class B50GameCardWidget extends StatelessWidget {
               flex: 73,
               child: Container(
                 decoration: BoxDecoration(
-                  color: cardColor,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(8.0),
-                    topRight: Radius.circular(8.0),
+                  // 自上而下轻微加深，白字在浅难度色（BASIC 绿）上也压得住。
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Color.lerp(cardColor, Colors.white, 0.08)!,
+                      Color.lerp(cardColor, Colors.black, 0.14)!,
+                    ],
                   ),
+                  borderRadius: BorderRadius.only(topLeft: r, topRight: r),
                 ),
                 padding: EdgeInsets.fromLTRB(
                     spacing, spacing, spacing, smallSpacing * 0.5),
@@ -354,9 +368,13 @@ class B50GameCardWidget extends StatelessWidget {
                     Container(
                       width: coverSize,
                       height: coverSize,
+                      clipBehavior: Clip.antiAlias,
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        border: Border.all(color: Colors.black, width: 1.0),
+                        borderRadius: BorderRadius.circular(radius * 0.6),
+                        border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.7),
+                            width: 1.0),
                       ),
                       child: songId != 0
                           ? CoverUtil.buildCoverWidgetWithContext(
@@ -429,10 +447,8 @@ class B50GameCardWidget extends StatelessWidget {
               child: Container(
                 decoration: BoxDecoration(
                   color: cardBottomBg,
-                  borderRadius: const BorderRadius.only(
-                    bottomLeft: Radius.circular(8.0),
-                    bottomRight: Radius.circular(8.0),
-                  ),
+                  borderRadius:
+                      BorderRadius.only(bottomLeft: r, bottomRight: r),
                 ),
                 padding: EdgeInsets.symmetric(horizontal: smallSpacing),
                 child: Row(

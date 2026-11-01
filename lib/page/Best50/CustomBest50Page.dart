@@ -23,6 +23,8 @@ import '../../utils/SongFilterUtil.dart';
 import '../../utils/StringUtil.dart';
 import '../../widgets/B50GameCardWidget.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
+import '../../widgets/AppUi.dart';
+import '../../utils/AppDesignTokens.dart';
 
 /// 自定义 Best50 的一键排序方式。
 enum _SortMode { raDesc, raAsc, dsDesc, dsAsc }
@@ -983,8 +985,8 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
       contentPadding:
           EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
       child: SingleChildScrollView(
-        padding: EdgeInsets.fromLTRB(MediaQuery.of(context).size.width * 0.03, 8,
-            MediaQuery.of(context).size.width * 0.03, MediaQuery.of(context).size.width * 0.03),
+        padding: const EdgeInsets.fromLTRB(AppDesignTokens.gutter, 8,
+            AppDesignTokens.gutter, AppDesignTokens.gutter),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -1010,25 +1012,13 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
         totalSongs > 0 ? totalAchievement / totalSongs : 0.0;
     final warning = _warningText;
 
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(
-            color: Theme.of(context).colorScheme.onSurface, width: 2.0),
-        borderRadius: BorderRadius.circular(8.0),
-      ),
-      padding: const EdgeInsets.all(12.0),
+    return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '自定义 Best50 统计',
-            style: TextStyle(
-              fontSize: MediaQuery.of(context).size.width * 0.045,
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
-          ),
-          const SizedBox(height: 8.0),
+          const AppSectionHeader(
+              title: '自定义 Best50 统计', padding: EdgeInsets.zero),
+          const SizedBox(height: 12.0),
           Row(
             children: [
               _statColumn(
@@ -1043,9 +1033,8 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
             Text(
               '当前排序：$_sortLabel（卡片变动后自动清除）',
               style: TextStyle(
-                fontSize: MediaQuery.of(context).size.width * 0.034,
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.onSurface,
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ],
@@ -1054,7 +1043,7 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
             Text(
               warning,
               style: TextStyle(
-                fontSize: MediaQuery.of(context).size.width * 0.034,
+                fontSize: 13,
                 fontWeight: FontWeight.bold,
                 color: Theme.of(context).colorScheme.error,
               ),
@@ -1065,81 +1054,42 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
     );
   }
 
-  Widget _statColumn(String label, String value) {
-    final onSurface = Theme.of(context).colorScheme.onSurface;
-    return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Text(label,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  fontSize: MediaQuery.of(context).size.width * 0.033,
-                  color: onSurface)),
-          Text(value,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  fontSize: MediaQuery.of(context).size.width * 0.037,
-                  fontWeight: FontWeight.bold,
-                  color: onSurface)),
-        ],
-      ),
-    );
-  }
+  Widget _statColumn(String label, String value) =>
+      Expanded(child: StatTile(label: label, value: value));
 
   Widget _buildActionButtons() {
-    final brightness = Theme.of(context).brightness;
+    const gap = AppDesignTokens.itemGap;
+    final error = Theme.of(context).colorScheme.error;
     return Column(
       children: [
         Row(
           children: [
             Expanded(
-              child: ElevatedButton.icon(
+              child: Best50ActionButton(
+                icon: Icons.image_outlined,
+                label: '导出为图片',
+                primary: true,
                 onPressed: _exportToImage,
-                icon: const Icon(Icons.image_outlined, color: Colors.white),
-                label:
-                    const Text('导出为图片', style: TextStyle(color: Colors.white)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.linkBlue(brightness),
-                  padding: const EdgeInsets.symmetric(vertical: 12.0),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8.0),
-                  ),
-                ),
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: gap),
             Expanded(
-              child: OutlinedButton.icon(
-                onPressed: _confirmClearAll,
-                icon: Icon(Icons.delete_outline,
-                    color: Theme.of(context).colorScheme.error),
-                label: Text('清空全部',
-                    style:
-                        TextStyle(color: Theme.of(context).colorScheme.error)),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 12.0),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8.0),
-                  ),
-                ),
+              child: Best50ActionButton(
+                icon: Icons.sort_rounded,
+                label: '一键排序',
+                onPressed: _showSortDialog,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 8.0),
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
-            onPressed: _showSortDialog,
-            icon: const Icon(Icons.sort_rounded),
-            label: const Text('一键排序'),
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 12.0),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8.0),
-              ),
-            ),
+        const SizedBox(height: 4),
+        // 危险操作单独放一行文字按钮，不和常用操作抢位置
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton.icon(
+            onPressed: _confirmClearAll,
+            icon: Icon(Icons.delete_outline, color: error, size: 18),
+            label: Text('清空全部', style: TextStyle(color: error)),
           ),
         ),
       ],
@@ -1158,8 +1108,8 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
       padding: EdgeInsets.zero,
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        crossAxisSpacing: MediaQuery.of(context).size.width * 0.01,
-        mainAxisSpacing: MediaQuery.of(context).size.width * 0.01,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
         childAspectRatio: B50GameCardWidget.designAspectRatio,
       ),
       itemCount: CustomBest50Store.slotCount,
@@ -1178,15 +1128,15 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
 
   Widget _buildEmptySlot(int index) {
     final scheme = Theme.of(context).colorScheme;
-    return InkWell(
-      borderRadius: BorderRadius.circular(8.0),
+    return AppCard(
+      radius: AppDesignTokens.radiusSmall,
+      padding: EdgeInsets.zero,
+      color: AppSurfaces.card(context).withValues(alpha: 0.7),
+      outlined: true,
       onTap: () => _showEditSheet(index),
-      child: Container(
-        decoration: BoxDecoration(
-          border: Border.all(color: scheme.outlineVariant, width: 2.0),
-          borderRadius: BorderRadius.circular(8.0),
-        ),
+      child: Center(
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(Icons.add_circle_outline,
@@ -1247,7 +1197,9 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
             decoration: BoxDecoration(
               border: Border.all(
                   color: Theme.of(context).colorScheme.error, width: 3.0),
-              borderRadius: BorderRadius.circular(8.0),
+              // 与 B50GameCardWidget 的圆角一致（radiusSmall，小卡不缩）
+              borderRadius:
+                  BorderRadius.circular(AppDesignTokens.radiusSmall),
             ),
           ),
         ),

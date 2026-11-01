@@ -19,7 +19,6 @@ import '../../manager/MaiTagsManager.dart';
 import '../../entity/DXRating/MaiTagsModel.dart';
 import '../SongInfoPage.dart';
 import '../../utils/CoverUtil.dart';
-import '../../utils/TextStyleUtil.dart';
 import '../../entity/DivingFish/RecordItem.dart';
 import 'package:my_first_flutter_app/utils/ExportQualitySelector.dart';
 import 'package:my_first_flutter_app/utils/ImageEncodeUtil.dart';
@@ -28,6 +27,8 @@ import '../../service/AccountStore.dart';
 import '../../service/AccountSwitchService.dart';
 import '../../utils/SongFilterUtil.dart';
 import '../../widgets/SmoothLinearProgressIndicator.dart';
+import '../../widgets/AppUi.dart';
+import '../../utils/AppDesignTokens.dart';
 
 class B50Page extends StatefulWidget {
   final Map<String, dynamic>? b50Data;
@@ -543,8 +544,8 @@ class _B50PageState extends State<B50Page> {
       contentPadding:
           EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
       child: SingleChildScrollView(
-        padding: EdgeInsets.fromLTRB(MediaQuery.of(context).size.width * 0.03, 8,
-            MediaQuery.of(context).size.width * 0.03, MediaQuery.of(context).size.width * 0.03),
+        padding: const EdgeInsets.fromLTRB(AppDesignTokens.gutter, 8,
+            AppDesignTokens.gutter, AppDesignTokens.gutter),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -559,19 +560,17 @@ class _B50PageState extends State<B50Page> {
                     ? '理论Best35 | 非当前版本最高定数'
                     : 'Best35 | 非当前版本最好成绩',
                 context),
-            SizedBox(height: MediaQuery.of(context).size.height * 0.015),
             _buildDataCardGrid(
               _isTheoreticalMode ? _theoreticalSdSongs : _sdSongs,
               B50GameCardWidget.designAspectRatio,
               remainingInfo: _isTheoreticalMode ? _remainingSdSongsInfo : null,
             ),
-            SizedBox(height: MediaQuery.of(context).size.height * 0.02),
+            const SizedBox(height: AppDesignTokens.sectionGap - 12),
             _buildSectionTitle(
                 _isTheoreticalMode
                     ? '理论Best15 | 当前版本最高定数'
                     : 'Best15 | 当前版本最好成绩',
                 context),
-            SizedBox(height: 12.0),
             _buildDataCardGrid(
               _isTheoreticalMode ? _theoreticalDxSongs : _dxSongs,
               B50GameCardWidget.designAspectRatio,
@@ -846,283 +845,26 @@ class _B50PageState extends State<B50Page> {
           : 0.0;
     }
 
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(
-            color: Theme.of(context).colorScheme.onSurface, width: 2.0),
-        borderRadius: BorderRadius.circular(8.0),
-      ),
-      padding: EdgeInsets.all(12.0),
-      // 理论模式下使用单列居中布局，否则使用双列布局
-      child: _isTheoreticalMode
-          ? Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Text(
-                  '理论Rating',
-                  style: TextStyle(
-                    fontSize: MediaQuery.of(context).size.width * 0.05,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.onSurface,
-                  ),
-                ),
-                SizedBox(height: 8.0),
-                RichText(
-                  text: TextSpan(
-                    children: [
-                      TextStyleUtil.span(
-                        rating.toString(),
-                        TextStyle(
-                          fontSize: MediaQuery.of(context).size.width * 0.05,
-                          color: Theme.of(context).colorScheme.onSurface,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      TextStyleUtil.span(
-                        ' (平均${ratingAverage.toStringAsFixed(1)})',
-                        TextStyle(
-                          fontSize: MediaQuery.of(context).size.width * 0.035,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                SizedBox(height: 12.0),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Text(
-                          'Best 35',
-                          style: TextStyle(
-                            fontSize: MediaQuery.of(context).size.width * 0.038,
-                            fontWeight: FontWeight.bold,
-                            color: Theme.of(context).colorScheme.onSurface,
-                          ),
-                        ),
-                        SizedBox(height: 4.0),
-                        RichText(
-                          text: TextSpan(
-                            children: [
-                              TextStyleUtil.span(
-                                best35Sum.toString(),
-                                TextStyle(
-                                  fontSize:
-                                      MediaQuery.of(context).size.width * 0.04,
-                                  color:
-                                      Theme.of(context).colorScheme.onSurface,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              TextStyleUtil.span(
-                                ' (平均${best35Average.toStringAsFixed(1)})',
-                                TextStyle(
-                                  fontSize:
-                                      MediaQuery.of(context).size.width * 0.028,
-                                  color:
-                                      Theme.of(context).colorScheme.onSurface,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Text(
-                          'Best 15',
-                          style: TextStyle(
-                            fontSize: MediaQuery.of(context).size.width * 0.038,
-                            fontWeight: FontWeight.bold,
-                            color: Theme.of(context).colorScheme.onSurface,
-                          ),
-                        ),
-                        SizedBox(height: 4.0),
-                        RichText(
-                          text: TextSpan(
-                            children: [
-                              TextStyleUtil.span(
-                                best15Sum.toString(),
-                                TextStyle(
-                                  fontSize:
-                                      MediaQuery.of(context).size.width * 0.04,
-                                  color:
-                                      Theme.of(context).colorScheme.onSurface,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              TextStyleUtil.span(
-                                ' (平均${best15Average.toStringAsFixed(1)})',
-                                TextStyle(
-                                  fontSize:
-                                      MediaQuery.of(context).size.width * 0.028,
-                                  color:
-                                      Theme.of(context).colorScheme.onSurface,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ],
-            )
-          : Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Rating',
-                        style: TextStyle(
-                          fontSize: MediaQuery.of(context).size.width * 0.045,
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
-                      ),
-                      SizedBox(height: 4.0),
-                      RichText(
-                        text: TextSpan(
-                          children: [
-                            TextStyleUtil.span(
-                              rating.toString(),
-                              TextStyle(
-                                fontSize:
-                                    MediaQuery.of(context).size.width * 0.04,
-                                color: Theme.of(context).colorScheme.onSurface,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            TextStyleUtil.span(
-                              '(平均${ratingAverage.toStringAsFixed(1)})',
-                              TextStyle(
-                                fontSize:
-                                    MediaQuery.of(context).size.width * 0.03,
-                                color: Theme.of(context).colorScheme.onSurface,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      SizedBox(height: 8.0),
-                      Text(
-                        'Best 35',
-                        style: TextStyle(
-                          fontSize: MediaQuery.of(context).size.width * 0.04,
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
-                      ),
-                      RichText(
-                        text: TextSpan(
-                          children: [
-                            TextStyleUtil.span(
-                              best35Sum.toString(),
-                              TextStyle(
-                                fontSize:
-                                    MediaQuery.of(context).size.width * 0.04,
-                                color: Theme.of(context).colorScheme.onSurface,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            TextStyleUtil.span(
-                              '(平均${best35Average.toStringAsFixed(1)})',
-                              TextStyle(
-                                fontSize:
-                                    MediaQuery.of(context).size.width * 0.03,
-                                color: Theme.of(context).colorScheme.onSurface,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      SizedBox(height: 8.0),
-                      Text(
-                        'Best 15',
-                        style: TextStyle(
-                          fontSize: MediaQuery.of(context).size.width * 0.04,
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
-                      ),
-                      RichText(
-                        text: TextSpan(
-                          children: [
-                            TextStyleUtil.span(
-                              best15Sum.toString(),
-                              TextStyle(
-                                fontSize:
-                                    MediaQuery.of(context).size.width * 0.04,
-                                color: Theme.of(context).colorScheme.onSurface,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            TextStyleUtil.span(
-                              '(平均${best15Average.toStringAsFixed(1)})',
-                              TextStyle(
-                                fontSize:
-                                    MediaQuery.of(context).size.width * 0.03,
-                                color: Theme.of(context).colorScheme.onSurface,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Best 50 平均达成率/DX分数达成率',
-                        style: TextStyle(
-                          fontSize: MediaQuery.of(context).size.width * 0.035,
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
-                      ),
-                      _buildDualDecimalText(best50AchievementAverage,
-                          best50ScoreRateAverage * 100,
-                          scoreRate: best50ScoreRateAverage),
-                      SizedBox(height: 8.0),
-                      Text(
-                        'Best 35 平均达成率/DX分数达成率',
-                        style: TextStyle(
-                          fontSize: MediaQuery.of(context).size.width * 0.035,
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
-                      ),
-                      _buildDualDecimalText(best35AchievementAverage,
-                          best35ScoreRateAverage * 100,
-                          scoreRate: best35ScoreRateAverage),
-                      SizedBox(height: 8.0),
-                      Text(
-                        'Best 15 平均达成率/DX分数达成率',
-                        style: TextStyle(
-                          fontSize: MediaQuery.of(context).size.width * 0.035,
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
-                      ),
-                      _buildDualDecimalText(best15AchievementAverage,
-                          best15ScoreRateAverage * 100,
-                          scoreRate: best15ScoreRateAverage),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+    return Best50SummaryCard(
+      label: _isTheoreticalMode ? '理论 Rating' : 'Rating',
+      rating: rating,
+      ratingAverage: ratingAverage,
+      best35Sum: best35Sum,
+      best35Average: best35Average,
+      best15Sum: best15Sum,
+      best15Average: best15Average,
+      showTier: !_isTheoreticalMode,
+      // 理论模式下平均值恒为 101% / 100%，不再单独列出
+      averages: _isTheoreticalMode
+          ? const []
+          : [
+              Best50AverageRow(
+                  'B50', best50AchievementAverage, best50ScoreRateAverage),
+              Best50AverageRow(
+                  'B35', best35AchievementAverage, best35ScoreRateAverage),
+              Best50AverageRow(
+                  'B15', best15AchievementAverage, best15ScoreRateAverage),
+            ],
     );
   }
 
@@ -1135,17 +877,11 @@ class _B50PageState extends State<B50Page> {
     // 分组颜色映射
     Map<String, Color> groupColors = {
       '配置': AppColors.linkBlue(tagBrightness),
-      '评价': Colors.amber[700]!,
+      '评价': colorScheme.tertiary,
       '难度': AppColors.linkBlue(tagBrightness),
     };
 
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(
-            color: Theme.of(context).colorScheme.onSurface, width: 2.0),
-        borderRadius: BorderRadius.circular(8.0),
-      ),
-      padding: EdgeInsets.all(12.0),
+    return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1159,7 +895,8 @@ class _B50PageState extends State<B50Page> {
                         _isTagStatsExpanded = !_isTagStatsExpanded;
                       })
                   : null,
-              borderRadius: BorderRadius.circular(6.0),
+              borderRadius:
+                  BorderRadius.circular(AppDesignTokens.radiusSmall),
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 2.0),
                 child: Row(
@@ -1168,8 +905,8 @@ class _B50PageState extends State<B50Page> {
                       child: Text(
                         '标签统计',
                         style: TextStyle(
-                          fontSize: MediaQuery.of(context).size.width * 0.04,
-                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
                           color: colorScheme.onSurface,
                         ),
                       ),
@@ -1187,14 +924,15 @@ class _B50PageState extends State<B50Page> {
                       Text(
                         '暂无标签数据',
                         style: TextStyle(
-                          fontSize: MediaQuery.of(context).size.width * 0.03,
+                          fontSize: 12,
                           color: colorScheme.onSurfaceVariant,
                         ),
                       )
                     else
                       AnimatedRotation(
                         turns: _isTagStatsExpanded ? 0.5 : 0.0,
-                        duration: const Duration(milliseconds: 240),
+                        duration: AppDesignTokens.motion(
+                            context, const Duration(milliseconds: 240)),
                         curve: Curves.easeOutCubic,
                         child: Icon(Icons.expand_more_rounded,
                             color: colorScheme.onSurfaceVariant),
@@ -1205,7 +943,8 @@ class _B50PageState extends State<B50Page> {
             ),
           ),
           AnimatedSize(
-            duration: const Duration(milliseconds: 260),
+            duration: AppDesignTokens.motion(
+                context, const Duration(milliseconds: 260)),
             curve: Curves.easeInOutCubic,
             alignment: Alignment.topCenter,
             child: SizedBox(
@@ -1234,16 +973,14 @@ class _B50PageState extends State<B50Page> {
                                   horizontal: 8.0, vertical: 4.0),
                               margin: EdgeInsets.only(top: 8.0),
                               decoration: BoxDecoration(
-                                color: groupColor.withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(6.0),
-                                border: Border.all(
-                                    color: groupColor.withOpacity(0.3)),
+                                color: groupColor.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(
+                                    AppDesignTokens.radiusPill),
                               ),
                               child: Text(
                                 groupName,
                                 style: TextStyle(
-                                  fontSize:
-                                      MediaQuery.of(context).size.width * 0.035,
+                                  fontSize: 12,
                                   fontWeight: FontWeight.bold,
                                   color: groupColor,
                                 ),
@@ -1252,7 +989,8 @@ class _B50PageState extends State<B50Page> {
                             SizedBox(height: 6.0),
                             ...sortedTags.map((tagEntry) {
                               double percentage = (tagEntry.value / 50) * 100;
-                              Color barColor = groupColor.withOpacity(0.7);
+                              Color barColor =
+                                  groupColor.withValues(alpha: 0.7);
 
                               return Padding(
                                 padding: EdgeInsets.only(bottom: 4.0),
@@ -1263,10 +1001,7 @@ class _B50PageState extends State<B50Page> {
                                       child: Text(
                                         tagEntry.key,
                                         style: TextStyle(
-                                          fontSize: MediaQuery.of(context)
-                                                  .size
-                                                  .width *
-                                              0.03,
+                                          fontSize: 12,
                                           color: colorScheme.onSurface,
                                         ),
                                         overflow: TextOverflow.ellipsis,
@@ -1278,12 +1013,12 @@ class _B50PageState extends State<B50Page> {
                                       child: SmoothLinearProgressIndicator(
                                         value: (percentage / 100)
                                             .clamp(0.0, 1.0),
-                                        minHeight: 20.0,
+                                        minHeight: 14.0,
                                         color: barColor,
                                         backgroundColor:
-                                            colorScheme.surfaceContainerHighest,
-                                        borderRadius:
-                                            BorderRadius.circular(10.0),
+                                            AppSurfaces.inset(context),
+                                        borderRadius: BorderRadius.circular(
+                                            AppDesignTokens.radiusPill),
                                       ),
                                     ),
                                     SizedBox(width: 8.0),
@@ -1292,10 +1027,7 @@ class _B50PageState extends State<B50Page> {
                                       child: Text(
                                         '${tagEntry.value}(${percentage.toStringAsFixed(0)}%)',
                                         style: TextStyle(
-                                          fontSize: MediaQuery.of(context)
-                                                  .size
-                                                  .width *
-                                              0.03,
+                                          fontSize: 12,
                                           color: colorScheme.onSurface,
                                         ),
                                         textAlign: TextAlign.right,
@@ -1319,27 +1051,8 @@ class _B50PageState extends State<B50Page> {
     );
   }
 
-  Widget _buildSectionTitle(String title, BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(
-            color: Theme.of(context).colorScheme.onSurface, width: 2.0),
-        borderRadius: BorderRadius.circular(8.0),
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      ),
-      padding: EdgeInsets.symmetric(vertical: 8.0, horizontal: 12.0),
-      child: Center(
-        child: Text(
-          title,
-          style: TextStyle(
-            fontSize: MediaQuery.of(context).size.width * 0.04,
-            fontWeight: FontWeight.bold,
-            color: Theme.of(context).colorScheme.onSurface,
-          ),
-        ),
-      ),
-    );
-  }
+  Widget _buildSectionTitle(String title, BuildContext context) =>
+      Best50SectionHeader(title);
 
   // 构建"查看剩余"卡片
   Widget _buildRemainingCard(Map<String, dynamic> remainingInfo) {
@@ -1347,23 +1060,11 @@ class _B50PageState extends State<B50Page> {
     double ds = remainingInfo['ds'] ?? 0.0;
     int count = remainingInfo['count'] ?? 0;
 
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(
-            color: Theme.of(context).colorScheme.onSurface, width: 2.0),
-        borderRadius: BorderRadius.circular(8.0),
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      ),
-      child: TextButton(
-        onPressed: () {
-          _showRemainingSongsDialog(remainingInfo, '');
-        },
-        style: TextButton.styleFrom(
-          padding: EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(6.0),
-          ),
-        ),
+    return AppCard(
+      radius: AppDesignTokens.radiusSmall,
+      padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
+      onTap: () => _showRemainingSongsDialog(remainingInfo, ''),
+      child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
@@ -1381,11 +1082,11 @@ class _B50PageState extends State<B50Page> {
               ),
             ),
             Text(
-              '${ds.toStringAsFixed(1)}',
-              style: TextStyle(
-                fontSize: MediaQuery.of(context).size.width * 0.028,
+              ds.toStringAsFixed(1),
+              style: AppTheme.number(
+                fontSize: 13,
                 color: AppColors.linkBlue(remainingBrightness),
-                fontWeight: FontWeight.bold,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ],
@@ -1523,98 +1224,6 @@ class _B50PageState extends State<B50Page> {
     );
   }
 
-  Widget _buildDecimalText(double value, BuildContext context,
-      {bool isPercentage = false,
-      int decimalPlaces = 4,
-      Color color = Colors.white}) {
-    String text = value.toStringAsFixed(decimalPlaces);
-
-    List<String> parts = text.split('.');
-    String integerPart = parts[0];
-    String decimalPart = parts.length > 1 ? '.${parts[1]}' : '';
-    String percentageSymbol = isPercentage ? '%' : '';
-
-    // 整数与小数共用基线，数字底边自然齐平（与 B50 卡片一致）
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.baseline,
-      textBaseline: TextBaseline.alphabetic,
-      children: [
-        Text(
-          integerPart,
-          style: TextStyle(
-            fontSize: MediaQuery.of(context).size.width * 0.045,
-            fontWeight: FontWeight.w800,
-            color: color,
-          ),
-        ),
-        Text(
-          '$decimalPart$percentageSymbol',
-          style: TextStyle(
-            fontSize: MediaQuery.of(context).size.width * 0.035,
-            fontWeight: FontWeight.w800,
-            color: color,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDualDecimalText(double value1, double value2,
-      {int decimalPlaces1 = 4,
-      int decimalPlaces2 = 2,
-      Color? color,
-      double? scoreRate}) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final resolvedColor = color ?? Theme.of(context).colorScheme.onSurface;
-        double fontSize = MediaQuery.of(context).size.width * 0.04;
-
-        final starsText =
-            scoreRate != null ? StringUtil.formatStars(scoreRate) : null;
-        final starsColor =
-            scoreRate != null ? ColorUtil.getStarsColor(starsText!) : null;
-
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildDecimalText(value1, context,
-                decimalPlaces: decimalPlaces1, color: resolvedColor),
-            Text(
-              '/',
-              style: TextStyle(
-                fontSize: fontSize,
-                fontWeight: FontWeight.bold,
-                color: resolvedColor,
-              ),
-            ),
-            _buildDecimalText(value2, context,
-                decimalPlaces: decimalPlaces2, color: resolvedColor),
-            // DX 分达成率右侧添加星级（achievement / dxScore% / ✦x）
-            if (starsText != null) ...[
-              Text(
-                '/',
-                style: TextStyle(
-                  fontSize: fontSize,
-                  fontWeight: FontWeight.bold,
-                  color: resolvedColor,
-                ),
-              ),
-              Text(
-                starsText,
-                style: TextStyle(
-                  fontSize: fontSize,
-                  fontWeight: FontWeight.bold,
-                  color: starsColor,
-                ),
-              ),
-            ],
-          ],
-        );
-      },
-    );
-  }
-
   Widget _buildDataCardGrid(
       List<Map<String, dynamic>> songs, double childAspectRatio,
       {Map<String, dynamic>? remainingInfo}) {
@@ -1632,8 +1241,8 @@ class _B50PageState extends State<B50Page> {
       padding: EdgeInsets.zero,
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        crossAxisSpacing: MediaQuery.of(context).size.width * 0.01,
-        mainAxisSpacing: MediaQuery.of(context).size.width * 0.01,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
         childAspectRatio: childAspectRatio,
       ),
       itemCount: itemCount,
@@ -1763,64 +1372,16 @@ class _B50PageState extends State<B50Page> {
   }
 
   Widget _buildActionButtons() {
-    final actionBrightness = Theme.of(context).brightness;
+    const gap = AppDesignTokens.itemGap;
     return Column(
       children: [
         Row(
           children: [
             Expanded(
-              child: ElevatedButton(
-                onPressed: () => _saveSnapshot(),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.linkBlue(actionBrightness),
-                  padding: EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8)),
-                ),
-                child:
-                    Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Icon(Icons.save, color: Colors.white, size: 18),
-                  SizedBox(width: 6),
-                  Text('保存当前记录',
-                      style: TextStyle(
-                          fontSize: MediaQuery.of(context).size.width * 0.033,
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold)),
-                ]),
-              ),
-            ),
-            SizedBox(width: 8),
-            Expanded(
-              child: ElevatedButton(
-                onPressed: () async {
-                  await _loadSnapshots();
-                  _showSnapshotDialog();
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.linkBlue(actionBrightness),
-                  padding: EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8)),
-                ),
-                child:
-                    Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Icon(Icons.history, color: Colors.white, size: 18),
-                  SizedBox(width: 6),
-                  Text('历史记录',
-                      style: TextStyle(
-                          fontSize: MediaQuery.of(context).size.width * 0.033,
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold)),
-                ]),
-              ),
-            ),
-          ],
-        ),
-        SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: ElevatedButton(
+              child: Best50ActionButton(
+                icon: Icons.image_outlined,
+                label: '导出为图片',
+                primary: true,
                 onPressed: () async {
                   debugPrint('=== EXPORT BUTTON CLICKED ===');
                   try {
@@ -1829,58 +1390,39 @@ class _B50PageState extends State<B50Page> {
                     debugPrint('Error in export: $e');
                   }
                 },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.linkBlue(actionBrightness),
-                  padding: EdgeInsets.symmetric(vertical: 12.0),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8.0),
-                  ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.image, color: Colors.white),
-                    SizedBox(width: 8.0),
-                    Text(
-                      '导出为图片',
-                      style: TextStyle(
-                        fontSize: MediaQuery.of(context).size.width * 0.035,
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
               ),
             ),
-            SizedBox(width: 8.0),
+            const SizedBox(width: gap),
             Expanded(
-              child: ElevatedButton(
+              child: Best50ActionButton(
+                icon: _isTheoreticalMode
+                    ? Icons.undo_rounded
+                    : Icons.trending_up_rounded,
+                label: _isTheoreticalMode ? '返回实际Best50' : '理论Rating B50',
                 onPressed: _toggleTheoreticalMode,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _isTheoreticalMode
-                      ? AppColors.warningOrange(actionBrightness)
-                      : AppColors.successGreen(actionBrightness),
-                  padding: EdgeInsets.symmetric(vertical: 12.0),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8.0),
-                  ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.trending_up, color: Colors.white),
-                    SizedBox(width: 8.0),
-                    Text(
-                      _isTheoreticalMode ? '返回实际Best50' : '查看理论Rating B50',
-                      style: TextStyle(
-                        fontSize: MediaQuery.of(context).size.width * 0.035,
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: gap),
+        Row(
+          children: [
+            Expanded(
+              child: Best50ActionButton(
+                icon: Icons.bookmark_add_outlined,
+                label: '保存当前记录',
+                onPressed: () => _saveSnapshot(),
+              ),
+            ),
+            const SizedBox(width: gap),
+            Expanded(
+              child: Best50ActionButton(
+                icon: Icons.history_rounded,
+                label: '历史记录',
+                onPressed: () async {
+                  await _loadSnapshots();
+                  _showSnapshotDialog();
+                },
               ),
             ),
           ],

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'HubComponents.dart';
+import '../utils/AppDesignTokens.dart';
+import '../widgets/AppUi.dart';
 import '../utils/FavoriteFeaturesNotifier.dart';
 import '../utils/FeatureRegistry.dart';
 import '../service/RankingList/AvgRankingListService.dart';
@@ -35,6 +37,99 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
   void _open(BuildContext context, Widget page) {
     FocusManager.instance.primaryFocus?.unfocus();
     Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+  }
+
+  /// 顶部卡片拼贴：最常用的六个入口。下方分组仍列出全部功能（含收藏星标），
+  /// 这里只是快捷方式，不承担收藏。
+  Widget _buildCollage(BuildContext context) {
+    // 固定高度在系统大字号下会把标题挤出去，按字号放大（封顶 1.6 倍）。
+    final ts = MediaQuery.textScalerOf(context).scale(1.0).clamp(1.0, 1.6);
+    const gap = AppDesignTokens.cardGap;
+    return Column(
+      children: [
+        SizedBox(
+          height: 180 * ts,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                flex: 6,
+                child: AppCollageTile(
+                  icon: Icons.leaderboard_rounded,
+                  title: 'Best50',
+                  subtitle: '当前 Best35 与 Best15，一键导出成绩图',
+                  emphasis: true,
+                  onTap: () => _open(context, const B50Page()),
+                ),
+              ),
+              const SizedBox(width: gap),
+              Expanded(
+                flex: 5,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      child: AppCollageTile(
+                        icon: Icons.score_outlined,
+                        title: '成绩查询',
+                        subtitle: '全部游玩记录',
+                        onTap: () =>
+                            _open(context, const UserScoreSearchPage()),
+                      ),
+                    ),
+                    const SizedBox(height: gap),
+                    Expanded(
+                      child: AppCollageTile(
+                        icon: Icons.timeline_rounded,
+                        title: 'Rating 历史',
+                        subtitle: '随时间的变化',
+                        onTap: () =>
+                            _open(context, const RatingHistoryPage()),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: gap),
+        SizedBox(
+          height: 92 * ts,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: AppCollageTile(
+                  icon: Icons.auto_graph_rounded,
+                  title: '拟合 Best50',
+                  compact: true,
+                  onTap: () => _open(context, const DiffBest50Page()),
+                ),
+              ),
+              const SizedBox(width: gap),
+              Expanded(
+                child: AppCollageTile(
+                  icon: Icons.workspace_premium_outlined,
+                  title: '牌子进度',
+                  compact: true,
+                  onTap: () => _open(context, const PaiziProgressPage()),
+                ),
+              ),
+              const SizedBox(width: gap),
+              Expanded(
+                child: AppCollageTile(
+                  icon: Icons.people_outline_rounded,
+                  title: '好友对比',
+                  compact: true,
+                  onTap: () => _open(context, const FriendComparePage()),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 
   bool _isFavorited(String title) =>
@@ -240,6 +335,7 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
             title: '成绩',
             subtitle: '查成绩、看提升、比排名与追踪进度',
             icon: Icons.analytics_rounded,
+            hero: _buildCollage(context),
             children: [
               for (final section in sections) ...[
                 HubSection(
