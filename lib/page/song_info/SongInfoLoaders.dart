@@ -47,7 +47,9 @@ extension _SongInfoLoaders on _SongInfoPageState {
           Offset(0, titleBox.size.height),
         )
         .dy;
-    final shouldShow = titleBottom <= viewportTop + 1;
+    // 头图铺到状态栏下面，歌名要算上状态栏 + 顶部栏才算「滚出去了」。
+    final shouldShow = titleBottom <=
+        viewportTop + MediaQuery.paddingOf(context).top + kToolbarHeight;
     if (shouldShow != _showSongTitleInAppBar) {
       _update(() => _showSongTitleInAppBar = shouldShow);
     }
@@ -1454,27 +1456,7 @@ extension _SongInfoLoaders on _SongInfoPageState {
   // 原来写死 `Colors.grey`（=`Colors.grey[500]`=`#9E9E9E`），在 `Colors.white`
   // 的卡片底上几乎看不见；而且 `default` 分支兜底是 `Colors.white` —— 纯白叠
   // 纯白，无论何时都看不见，是个**潜伏 bug**。这里统一改成跟主题走。
-  Color _getStarsColor(String stars, Brightness brightness) {
-    switch (stars) {
-      case '\u2726 6':
-      case '\u2726 5.5':
-      case '\u2726 5':
-        return Colors.yellow;
-      case '\u2726 4':
-      case '\u2726 3':
-        return Colors.orange;
-      case '\u2726 2':
-      case '\u2726 1':
-        return Colors.green.shade300;
-      case '\u2726 0':
-      default:
-        // `★ 0` 跟 `default` 走同一个灰：保证浅色下也跟得上 `onSurfaceVariant`
-        // 的对比度，深色下不会糊在暗底上。
-        return brightness == Brightness.dark
-            ? Colors.grey.shade400
-            : Colors.grey.shade700;
-    }
-  }
+
 
   // 获取当前难度的定数
   double _getCurrentDs() {

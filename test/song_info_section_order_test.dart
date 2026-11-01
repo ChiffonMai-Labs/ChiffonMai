@@ -78,7 +78,7 @@ void main() {
       'Widget _buildBestScoreBody(',
     ]) {
       final body = _methodBody(src, sig);
-      expect(body.contains("'玩家最佳成绩'") || sig.contains('Body'), isTrue);
+      expect(body.contains("'我的成绩 · ") || sig.contains('Body'), isTrue);
       expect(body.contains('ChartHistorySection('), isFalse,
           reason: '成绩趋势还在「玩家最佳成绩」卡片里面（$sig）');
       expect(body.contains('_buildChartHistoryCard('), isFalse,
@@ -134,23 +134,19 @@ void main() {
         reason: '曲线为空时整块高度 0，函数体外层不许垫固定高度');
   });
 
-  test('「玩家最佳成绩」四项数值齐全且顺序不变', () {
-    // 2026-11 起四行文字改成两行两列的数值块（StatTile），
-    // 间距由布局统一控制；这里钉住「四项都在、顺序不变」。
-    final body = _methodBody(_src(), 'Widget _buildBestScoreBody(');
-    final rows = <String, int>{
-      'Rating': body.indexOf("label: 'Rating'"),
-      '游玩次数': body.indexOf("label: '游玩次数'"),
-      'DX分数': body.indexOf("label: 'DX分数（MAX"),
-      'DX分数达成率': body.indexOf("label: 'DX分数达成率'"),
-    };
-    for (final e in rows.entries) {
-      expect(e.value, greaterThan(0), reason: '找不到「${e.key}」这一项');
-    }
-    final ordered = rows.entries.toList()
-      ..sort((a, b) => a.value.compareTo(b.value));
-    expect(ordered.map((e) => e.key).toList(),
-        ['Rating', '游玩次数', 'DX分数', 'DX分数达成率']);
+  test('「我的成绩」四项数值都还在', () {
+    // 2026-11 布局：达成率右边是 Rating，游玩次数在卡片标题行，
+    // DX 分数和 DX 分数达成率在下面两列。这里钉住「四项都没丢」。
+    final src = _src();
+    final body = _methodBody(src, 'Widget _buildBestScoreBody(');
+    final card = _methodBody(src, 'Widget _buildBestScoreCard(');
+    expect(body.contains("'Rating'"), isTrue, reason: '找不到 Rating');
+    expect(card.contains("'游玩 \${_currentPlayCount!} 次'"), isTrue,
+        reason: '找不到游玩次数');
+    final dx = body.indexOf("label: 'DX分数（MAX");
+    final rate = body.indexOf("label: 'DX分数达成率'");
+    expect(dx, greaterThan(0), reason: '找不到 DX 分数');
+    expect(rate, greaterThan(dx), reason: 'DX 分数达成率要排在 DX 分数后面');
   });
 
   group('ChartHistorySection 的三种形态与内边距', () {

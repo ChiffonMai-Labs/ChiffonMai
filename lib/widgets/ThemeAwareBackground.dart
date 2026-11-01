@@ -95,7 +95,9 @@ class _BgImage extends StatelessWidget {
       builder: (context, _) {
         final opacity = ThemeManager().lightOverlayOpacity;
         final overlayAlpha = (opacity * 255).round().clamp(0, 255);
-        final lightOverlay = Color.fromARGB(overlayAlpha, 255, 255, 255);
+        // 覆层取页面底色而不是纯白：纯白会把背景刷成白色，白卡片就看不出层次了。
+        final lightOverlay =
+            Theme.of(context).colorScheme.surface.withAlpha(overlayAlpha);
 
         final ImageProvider<Object> backgroundImage =
             ThemeManager().customBackgroundPath == null

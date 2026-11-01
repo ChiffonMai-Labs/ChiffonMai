@@ -259,68 +259,106 @@ class _AchievementRateCalculatorState extends State<AchievementRateCalculator> {
     final isBreak = type == 'BREAK';
     final judges = isBreak ? _breakJudges : _normalJudges;
     final scheme = Theme.of(context).colorScheme;
-    final bottomInset = MediaQuery.paddingOf(context).bottom;
+    final media = MediaQuery.of(context);
+    final keyboardOpen = media.viewInsets.bottom > 0;
+    // 结果卡和音符类型固定在顶部、边填边看；屏幕太矮（横屏 + 键盘）放不下时
+    // 让它们一起滚动，避免溢出。
+    final pinHeader = media.size.height - media.viewInsets.bottom >= 520;
+    final header = <Widget>[
+      _buildResultCard(result),
+      const SizedBox(height: AppDesignTokens.cardGap),
+      PillTabs(
+        items: [
+          for (final t in _types) SegmentedTabItem(t, caption: '${_countOf(t)}'),
+        ],
+        selectedIndex: _tab,
+        onChanged: (i) {
+          FocusScope.of(context).unfocus();
+          setState(() => _tab = i);
+        },
+      ),
+    ];
 
     return BackgroundPageScaffold(
       title: '达成率计算器',
       resizeToAvoidBottomInset: true,
       actions: [
-        IconButton(
-          tooltip: '清空',
+        TextButton(
           onPressed: _hasAny ? _clearAll : null,
-          icon: const Icon(Icons.restart_alt_rounded),
+          child: const Text('清空',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
         ),
+        const SizedBox(width: 4),
       ],
       child: GestureDetector(
         onTap: () => FocusScope.of(context).unfocus(),
         behavior: HitTestBehavior.translucent,
-        child: ListView(
-          padding: EdgeInsets.fromLTRB(AppDesignTokens.gutter, 4,
-              AppDesignTokens.gutter, 24 + bottomInset),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _buildResultCard(result),
-            const SizedBox(height: AppDesignTokens.cardGap),
-            SegmentedTabs(
-              items: [
-                for (final t in _types)
-                  SegmentedTabItem(t, caption: '${_countOf(t)}'),
-              ],
-              selectedIndex: _tab,
-              onChanged: (i) {
-                FocusScope.of(context).unfocus();
-                setState(() => _tab = i);
-              },
-            ),
-            const SizedBox(height: AppDesignTokens.cardGap),
-            AppCard(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Column(
+            if (pinHeader)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                    AppDesignTokens.gutter, 4, AppDesignTokens.gutter, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: header,
+                ),
+              ),
+            Expanded(
+              child: ListView(
+                padding: EdgeInsets.fromLTRB(
+                    AppDesignTokens.gutter,
+                    pinHeader ? AppDesignTokens.cardGap : 4,
+                    AppDesignTokens.gutter,
+                    AppDesignTokens.gutter),
                 children: [
-                  for (var i = 0; i < judges.length; i++)
-                    _buildJudgeRow(type, i, judges[i], result),
+                  if (!pinHeader) ...[
+                    ...header,
+                    const SizedBox(height: AppDesignTokens.cardGap),
+                  ],
+                  AppCard(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Column(
+                      children: [
+                        for (var i = 0; i < judges.length; i++)
+                          _buildJudgeRow(type, i, judges[i], result),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Text(
+                      isBreak
+                          ? 'BREAK 共 ${_countOf('BREAK')} 个 · 每行下方是基础分 / 奖励分比例'
+                          : '$type 共 ${_countOf(type)} 个 · 红字是这一档判定丢掉的达成率',
+                      style: TextStyle(
+                          fontSize: 12, color: scheme.onSurfaceVariant),
+                    ),
+                  ),
                 ],
               ),
             ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    isBreak
-                        ? 'BREAK 共 ${_countOf('BREAK')} 个 · 每行下方是基础分 / 奖励分比例'
-                        : '$type 共 ${_countOf(type)} 个 · 红字是这一档判定丢掉的达成率',
-                    style:
-                        TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+            if (!keyboardOpen)
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                    AppDesignTokens.gutter,
+                    0,
+                    AppDesignTokens.gutter,
+                    media.padding.bottom + 12),
+                child: SizedBox(
+                  height: 52,
+                  child: FilledButton(
+                    onPressed: result == null
+                        ? null
+                        : () => _showSingleNoteLossDialog(result),
+                    child: const Text('查看单音符损失',
+                        style: TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.w700)),
                   ),
                 ),
-                TextButton(
-                  onPressed: result == null
-                      ? null
-                      : () => _showSingleNoteLossDialog(result),
-                  child: const Text('单音符损失'),
-                ),
-              ],
-            ),
+              ),
           ],
         ),
       ),

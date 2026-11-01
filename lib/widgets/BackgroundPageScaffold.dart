@@ -34,7 +34,7 @@ class BackgroundPageScaffold extends StatelessWidget {
     this.actions = const <Widget>[],
     this.onBack,
     this.showBack = true,
-    this.titleAlign = PageTopBarTitleAlign.center,
+    this.titleAlign = PageTopBarTitleAlign.start,
     this.resizeToAvoidBottomInset = false,
     this.showDecorativeImage = true,
     this.contentPadding = EdgeInsets.zero,

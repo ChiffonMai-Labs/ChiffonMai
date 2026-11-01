@@ -9,18 +9,18 @@ import 'package:flutter/material.dart';
 /// |---|---|
 /// | [radiusSmall] 12 | 输入框、按钮、图标底块、小标签 |
 /// | [radiusMedium] 16 | 列表分组卡片、次级卡片 |
-/// | [radiusCard] 20 | 主内容卡片（B 方案白卡片） |
+/// | [radiusCard] 22 | 主内容卡片（白卡片） |
 /// | [radiusLarge] 24 | 大号强调卡片（Rating 总览、计算结果） |
 /// | [radiusPill] 999 | 胶囊（筛选标签、徽章） |
 class AppDesignTokens {
   AppDesignTokens._();
 
   // ===== 页面布局 =====
-  static const pagePadding = EdgeInsets.fromLTRB(20, 18, 20, 28);
+  static const pagePadding = EdgeInsets.fromLTRB(16, 16, 16, 28);
 
   /// 详情页 / 工具页左右留白。
   static const double gutter = 16;
-  static const sectionGap = 28.0;
+  static const sectionGap = 20.0;
   static const itemGap = 12.0;
   static const double cardGap = 12;
   static const cardPadding = EdgeInsets.all(16);
@@ -28,7 +28,7 @@ class AppDesignTokens {
   // ===== 圆角 =====
   static const double radiusSmall = 12.0;
   static const radiusMedium = 16.0;
-  static const double radiusCard = 20.0;
+  static const double radiusCard = 22.0;
   static const radiusLarge = 24.0;
   static const double radiusPill = 999.0;
 
@@ -71,8 +71,17 @@ class AppSurfaces {
         : scheme.surfaceContainerLowest;
   }
 
-  /// 卡片内的凹槽（输入框底、步进器底、未选中的分段按钮）。
+  /// 卡片内的凹槽（输入框底、步进器底、物量格、胶囊入口）。
   static Color inset(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return theme.brightness == Brightness.dark
+        ? scheme.surfaceContainerHigh
+        : scheme.surfaceContainer;
+  }
+
+  /// 页面上的轨道（分段切换的底、未选中的筛选胶囊）。比 [inset] 深一级。
+  static Color track(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     return theme.brightness == Brightness.dark

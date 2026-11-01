@@ -149,16 +149,20 @@ class AppTheme {
   }
 
   // ========== 默认 seed 色（用户未自定义时使用） ==========
-  static const Color defaultLightSeed = Color(0xFF546161);
-  static const Color defaultDarkSeed = Color(0xFFB0C4C4);
+  static const Color defaultLightSeed = Color(0xFF006A6A);
+  static const Color defaultDarkSeed = Color(0xFF006A6A);
   static const Color defaultPureBlackSeed = Color(0xFFE0E0E0);
 
   /// 派生浅色 ColorScheme（基于 seed 色）
-  static ColorScheme buildLightColorScheme({Color? seedColor}) =>
-      ColorScheme.fromSeed(
-        seedColor: seedColor ?? defaultLightSeed,
-        brightness: Brightness.light,
-      );
+  ///
+  /// 页面底色取 `surfaceContainerLow`（比纯 surface 略灰），白卡片才浮得起来。
+  static ColorScheme buildLightColorScheme({Color? seedColor}) {
+    final base = ColorScheme.fromSeed(
+      seedColor: seedColor ?? defaultLightSeed,
+      brightness: Brightness.light,
+    );
+    return base.copyWith(surface: base.surfaceContainerLow);
+  }
 
   /// 派生暗色 ColorScheme（基于 seed 色）
   static ColorScheme buildDarkColorScheme({Color? seedColor}) =>
@@ -231,7 +235,83 @@ class AppTheme {
         overlayColor: WidgetStatePropertyAll(Colors.transparent),
       );
 
-  static ThemeData lightTheme({Color? seedColor}) {
+  /// 全局组件观感（2026-11 UI 重构）：三套主题共用一份。
+  ///
+  /// 没有单独改版的老页面也靠这里拿到同一套圆角、按钮和输入框。
+  static ThemeData _canvasStyle(ThemeData base) {
+    final scheme = base.colorScheme;
+    final dark = base.brightness == Brightness.dark;
+    final card = dark ? scheme.surfaceContainer : scheme.surfaceContainerLowest;
+    final inset = dark ? scheme.surfaceContainerHigh : scheme.surfaceContainer;
+    final track =
+        dark ? scheme.surfaceContainerHighest : scheme.surfaceContainerHigh;
+    RoundedRectangleBorder radius(double r) =>
+        RoundedRectangleBorder(borderRadius: BorderRadius.circular(r));
+    OutlineInputBorder input(BorderSide side) => OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12), borderSide: side);
+    return base.copyWith(
+      cardTheme: base.cardTheme.copyWith(color: card, shape: radius(22)),
+      dialogTheme: base.dialogTheme.copyWith(
+        backgroundColor: card,
+        shape: radius(28),
+      ),
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: card,
+        modalBackgroundColor: card,
+        surfaceTintColor: Colors.transparent,
+        shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: card,
+        surfaceTintColor: Colors.transparent,
+        shape: radius(16),
+      ),
+      listTileTheme: base.listTileTheme.copyWith(shape: radius(16)),
+      chipTheme: base.chipTheme.copyWith(
+        backgroundColor: track,
+        side: BorderSide.none,
+        shape: radius(10),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: scheme.primary,
+          foregroundColor: scheme.onPrimary,
+          elevation: 0,
+          shadowColor: Colors.transparent,
+          shape: radius(16),
+        ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(shape: radius(16)),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: scheme.onSurface,
+          side: BorderSide(color: scheme.outlineVariant),
+          shape: radius(16),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: inset,
+        border: input(BorderSide.none),
+        enabledBorder: input(BorderSide.none),
+        focusedBorder: input(BorderSide(color: scheme.primary, width: 2)),
+      ),
+      appBarTheme: base.appBarTheme.copyWith(
+        iconTheme: IconThemeData(color: scheme.onSurface),
+        actionsIconTheme: IconThemeData(color: scheme.onSurface),
+        titleTextStyle:
+            base.appBarTheme.titleTextStyle?.copyWith(color: scheme.onSurface),
+      ),
+    );
+  }
+
+  static ThemeData lightTheme({Color? seedColor}) =>
+      _canvasStyle(_lightThemeBase(seedColor: seedColor));
+
+  static ThemeData _lightThemeBase({Color? seedColor}) {
     final scheme = buildLightColorScheme(seedColor: seedColor);
     return ThemeData(
       useMaterial3: true,
@@ -321,7 +401,10 @@ class AppTheme {
     );
   }
 
-  static ThemeData darkTheme({Color? seedColor}) {
+  static ThemeData darkTheme({Color? seedColor}) =>
+      _canvasStyle(_darkThemeBase(seedColor: seedColor));
+
+  static ThemeData _darkThemeBase({Color? seedColor}) {
     final scheme = buildDarkColorScheme(seedColor: seedColor);
     return ThemeData(
       useMaterial3: true,
@@ -411,7 +494,10 @@ class AppTheme {
     );
   }
 
-  static ThemeData pureBlackTheme({Color? seedColor}) {
+  static ThemeData pureBlackTheme({Color? seedColor}) =>
+      _canvasStyle(_pureBlackThemeBase(seedColor: seedColor));
+
+  static ThemeData _pureBlackThemeBase({Color? seedColor}) {
     final scheme = buildPureBlackColorScheme(seedColor: seedColor);
     return ThemeData(
       useMaterial3: true,
@@ -667,7 +753,49 @@ class AppColors {
 
   /// 语义蓝色（链接、信息）
   static Color linkBlue(Brightness brightness) =>
-      brightness == Brightness.dark ? const Color(0xFF64B5F6) : Colors.blue;
+      brightness == Brightness.dark
+          ? const Color(0xFF4FD8D7)
+          : const Color(0xFF006A6A);
+
+  /// 评级分布条的色块（SSS+ / SSS / SS+ / SS / 其余）。
+  static Color rankDistribution(int index, Brightness brightness) {
+    const light = [
+      Color(0xFFE8B400),
+      Color(0xFFF0CF5A),
+      Color(0xFF8FA3B8),
+      Color(0xFFB6C3D1),
+      Color(0xFFCBD3D2),
+    ];
+    const dark = [
+      Color(0xFFE8B400),
+      Color(0xFFB99A3A),
+      Color(0xFF8FA3B8),
+      Color(0xFF647486),
+      Color(0xFF4A5453),
+    ];
+    return (brightness == Brightness.dark ? dark : light)[index];
+  }
+
+  /// 功能入口的图标底色（首页「常用」、成绩 Hub 小方块、功能列表）。
+  ///
+  /// 四组柔和色轮换；同一个功能在任何页面都是同一个颜色（按标题取）。
+  static ({Color background, Color foreground}) featureTint(
+      String title, Brightness brightness) {
+    final index = title.codeUnits.fold<int>(0, (a, b) => a + b) % 4;
+    const light = [
+      (background: Color(0xFFD5ECEB), foreground: Color(0xFF00504F)),
+      (background: Color(0xFFE4E0F5), foreground: Color(0xFF4A3F86)),
+      (background: Color(0xFFF6E3D3), foreground: Color(0xFF7A3F0B)),
+      (background: Color(0xFFF7DCE5), foreground: Color(0xFF8A1F48)),
+    ];
+    const dark = [
+      (background: Color(0xFF1E3A39), foreground: Color(0xFFA5DAD8)),
+      (background: Color(0xFF2E2A4A), foreground: Color(0xFFC9C2F2)),
+      (background: Color(0xFF43301E), foreground: Color(0xFFF2C9A2)),
+      (background: Color(0xFF44222F), foreground: Color(0xFFF5B5CB)),
+    ];
+    return (brightness == Brightness.dark ? dark : light)[index];
+  }
 
   /// 语义橙色（警告）
   static Color warningOrange(Brightness brightness) =>

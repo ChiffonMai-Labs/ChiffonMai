@@ -295,55 +295,118 @@ class _SongInfoPageState extends State<SongInfoPage> {
 
     _scheduleSongTitleVisibilityCheck();
 
-    // 2026-11 B 方案布局（各块的实现见 song_info/SongInfoLayout.dart）：
-    //   难度色头图（曲绘 / 标题 / 别名 / 难度切换）
-    //   → 玩家最佳成绩 → 成绩趋势（独立板块）→ 关键数值
+    // 布局（各块的实现见 song_info/SongInfoLayout.dart）：
+    //   全出血的难度色头图（返回 / 笔记 / 收藏 / 分享、曲绘、标题、别名、难度切换）
+    //   → 压在头图上的圆角内容区：玩家最佳成绩 → 成绩趋势（独立板块）→ 关键数值
     //   → 谱面 / 数据 / 社区 / 工具 四个标签页
-    //   → 贴底操作栏（原来两列十个按钮）
+    //   → 贴底操作栏
+    final surface = Theme.of(context).colorScheme.surface;
+    final title = _songData!['basic_info']?['title']?.toString() ?? '歌曲详情';
     return BackgroundPageScaffold(
-      title: _showSongTitleInAppBar
-          ? (_songData!['basic_info']?['title']?.toString() ?? '歌曲详情')
-          : '歌曲详情',
-      titleAlign: PageTopBarTitleAlign.center,
-      animateTitle: true,
+      title: title,
+      headerOverride: const SizedBox.shrink(),
       resizeToAvoidBottomInset: false,
       child: Column(
         children: [
           Expanded(
-            child: SingleChildScrollView(
-              key: _songScrollKey,
-              controller: _songScrollController,
-              // 标题栏下方只保留 8px，避免浅色底色形成明显的白色空带。
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _buildSongHero(basicInfo, levels, accentColor),
-                  const SizedBox(height: 12),
-                  // 玩家最佳成绩
-                  _buildBestScoreCard(userRecord, basicInfo, levels),
-                  if (_best50OpportunityText != null) ...[
-                    const SizedBox(height: 8),
-                    _buildBest50OpportunityBanner(),
-                  ],
-                  // 成绩趋势：**独立于「玩家最佳成绩」卡片之外的板块**。
-                  // 没有历史时它整块高度为 0（见 _buildChartHistoryCard），
-                  // 所以这个 10dp 间隔**只服务于"有曲线"的情形**。
-                  const SizedBox(height: 10),
-                  _buildChartHistoryCard(),
-                  const SizedBox(height: 12),
-                  _buildKeyStatsRow(currentDiffData),
-                  const SizedBox(height: 16),
-                  _buildDetailTabBar(),
-                  const SizedBox(height: 12),
-                  _buildDetailTabContent(
-                    basicInfo: basicInfo,
-                    currentChart: currentChart,
-                    currentDiffData: currentDiffData,
-                    accentColor: accentColor,
+            child: Stack(
+              children: [
+                AnnotatedRegion<SystemUiOverlayStyle>(
+                  // 头图是深色的，状态栏图标用浅色；滚过头图后由顶部栏接管。
+                  value: AppTheme.systemUiOverlayStyle(
+                    Brightness.dark,
+                    navigationBarColor: surface,
                   ),
-                ],
-              ),
+                  child: SingleChildScrollView(
+                    key: _songScrollKey,
+                    controller: _songScrollController,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildSongHero(
+                            basicInfo, levels, accentColor, userRecord),
+                        // 向上压住头图 24dp。只有圆角那一条是实色，下面的内容区保持
+                        // 透明，用户自定义背景图不会被盖住。
+                        Transform.translate(
+                          offset: const Offset(0, -24),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Container(
+                                height: 28,
+                                decoration: BoxDecoration(
+                                  color: surface,
+                                  borderRadius: const BorderRadius.vertical(
+                                      top: Radius.circular(28)),
+                                ),
+                              ),
+                              Padding(
+                                padding:
+                                    const EdgeInsets.fromLTRB(16, 0, 16, 0),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    // 玩家最佳成绩
+                                    _buildBestScoreCard(
+                                        userRecord, basicInfo, levels),
+                                    if (_best50OpportunityText != null) ...[
+                                      const SizedBox(height: 8),
+                                      _buildBest50OpportunityBanner(),
+                                    ],
+                                    // 成绩趋势：**独立于「玩家最佳成绩」卡片之外的板块**。
+                                    // 没有历史时它整块高度为 0（见 _buildChartHistoryCard），
+                                    // 所以这个 12dp 间隔**只服务于"有曲线"的情形**。
+                                    const SizedBox(height: 12),
+                                    _buildChartHistoryCard(),
+                                    _buildKeyStatsRow(currentDiffData),
+                                    const SizedBox(height: 12),
+                                    _buildDetailTabBar(accentColor),
+                                    const SizedBox(height: 12),
+                                    _buildDetailTabContent(
+                                      basicInfo: basicInfo,
+                                      currentChart: currentChart,
+                                      currentDiffData: currentDiffData,
+                                      accentColor: accentColor,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                // 歌名滚出屏幕后出现的顶部栏（标题换成歌名）。
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: IgnorePointer(
+                    ignoring: !_showSongTitleInAppBar,
+                    child: AnimatedOpacity(
+                      opacity: _showSongTitleInAppBar ? 1 : 0,
+                      duration: AppDesignTokens.motion(
+                          context, AppDesignTokens.fastMotion),
+                      child: PageTopBar(
+                        title: title,
+                        barBackground: surface,
+                        actions: [
+                          IconButton(
+                            tooltip: _isBookmarked ? '已收藏' : '收藏到收藏夹',
+                            onPressed: () => _showBookmarkDialog(),
+                            icon: Icon(_isBookmarked
+                                ? Icons.favorite
+                                : Icons.favorite_border),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           // 按钮行（跳转到B站、播放音乐、查看谱面代码等）→ 贴底操作栏

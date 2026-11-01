@@ -11,7 +11,7 @@ import 'package:my_first_flutter_app/widgets/PageTopBar.dart';
 /// 所以这里钉的是「它确实是标准 AppBar + 我们约定的那几项参数」：
 ///   1. 渲染出 `AppBar`，高度 = 状态栏 + `kToolbarHeight`；
 ///   2. 底色 `AppColors.cardBackground`、无阴影，与「Rating 排行榜」页同款；
-///   3. 标题 `primary` / 20 / bold / 居中，且带 `Semantics(header)`；
+///   3. 标题 `onSurface` / 20 / bold / 靠左，且带 `Semantics(header)`；
 ///   4. 返回键默认是标准 `BackButton`（可关、可换成自定义回调）；
 ///   5. `showDivider` / `toolbarHeight` / `bottom` 等参数按预期生效。
 void main() {
@@ -26,7 +26,7 @@ void main() {
     bool showDivider = false,
     double? toolbarHeight,
     PreferredSizeWidget? bottom,
-    PageTopBarTitleAlign titleAlign = PageTopBarTitleAlign.center,
+    PageTopBarTitleAlign titleAlign = PageTopBarTitleAlign.start,
     double statusBar = 32,
   }) async {
     tester.view.physicalSize = const Size(1080, 2400);
@@ -82,7 +82,7 @@ void main() {
       // 其余样式不能被顺手改掉
       expect(style?.fontSize, 20);
       expect(style?.fontWeight, FontWeight.bold);
-      expect(style?.color, theme.colorScheme.primary);
+      expect(style?.color, theme.colorScheme.onSurface);
     }
   });
 
@@ -106,20 +106,20 @@ void main() {
       expect(appBar.scrolledUnderElevation, 0);
     });
 
-    testWidgets('标题：primary / 20 / bold / centerTitle', (tester) async {
+    testWidgets('标题：onSurface / 20 / bold / 靠左', (tester) async {
       await pumpBar(tester, theme: dark);
 
       final appBar = tester.widget<AppBar>(find.byType(AppBar));
-      expect(appBar.centerTitle, isTrue);
+      expect(appBar.centerTitle, isFalse);
       final text = tester.widget<Text>(find.text('歌曲详情'));
       expect(text.style?.fontSize, 20);
       expect(text.style?.fontWeight, FontWeight.bold);
-      expect(text.style?.color, dark.colorScheme.primary);
+      expect(text.style?.color, dark.colorScheme.onSurface);
       // 与 appBarTheme.titleTextStyle 同口径
       expect(text.style?.fontSize, dark.appBarTheme.titleTextStyle?.fontSize);
     });
 
-    testWidgets('三种主题都有底、标题用各自的 primary', (tester) async {
+    testWidgets('三种主题都有底、标题用各自的 onSurface', (tester) async {
       for (final theme in [
         AppTheme.lightTheme(),
         AppTheme.darkTheme(),
@@ -129,7 +129,7 @@ void main() {
         final appBar = tester.widget<AppBar>(find.byType(AppBar));
         expect(appBar.backgroundColor, AppColors.cardBackground(theme.brightness));
         expect(tester.widget<Text>(find.text('歌曲详情')).style?.color,
-            theme.colorScheme.primary);
+            theme.colorScheme.onSurface);
       }
     });
 
@@ -182,13 +182,13 @@ void main() {
   });
 
   group('排布与无障碍', () {
-    testWidgets('默认居中；靠左时 centerTitle=false', (tester) async {
+    testWidgets('默认靠左；居中时 centerTitle=true', (tester) async {
       await pumpBar(tester, theme: dark);
-      expect(tester.widget<AppBar>(find.byType(AppBar)).centerTitle, isTrue);
+      expect(tester.widget<AppBar>(find.byType(AppBar)).centerTitle, isFalse);
 
       await pumpBar(tester, theme: dark,
-          titleAlign: PageTopBarTitleAlign.start);
-      expect(tester.widget<AppBar>(find.byType(AppBar)).centerTitle, isFalse);
+          titleAlign: PageTopBarTitleAlign.center);
+      expect(tester.widget<AppBar>(find.byType(AppBar)).centerTitle, isTrue);
     });
 
     testWidgets('标题带 header 语义（AppBar 自带）', (tester) async {

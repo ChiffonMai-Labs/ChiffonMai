@@ -86,11 +86,11 @@ class _AppShellState extends State<AppShell> {
   // ===== 底部导航尺寸 =====
   // 药丸 indicator 与图标槽共用 pillH/iconTop，图标天生在药丸内垂直居中，
   // 不再依赖 Column 在整栏里的居中位置（那样药丸和图标会有几像素错位）。
-  static const double barH = 68; // 导航栏总高
+  static const double barH = 72; // 导航栏总高
   static const double pillW = 56; // 药丸宽
   static const double pillH = 30; // 药丸高（也是图标槽高）
-  static const double iconTop = 10; // 药丸/图标槽的顶部偏移
-  static const double labelGap = 2; // 图标与文字间距
+  static const double iconTop = 11; // 药丸/图标槽的顶部偏移
+  static const double labelGap = 4; // 图标与文字间距
   static const double navigationBottomGap = 14;
   static const double contentBottomGap = 8;
 
@@ -284,7 +284,7 @@ class _AppShellState extends State<AppShell> {
         borderRadius: BorderRadius.circular(26),
         boxShadow: [
           BoxShadow(
-            color: scheme.shadow.withValues(alpha: 0.12),
+            color: scheme.shadow.withValues(alpha: 0.10),
             blurRadius: 24,
             offset: const Offset(0, 8),
           ),

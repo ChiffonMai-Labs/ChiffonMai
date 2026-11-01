@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import '../utils/AppDesignTokens.dart';
 import '../utils/AppTheme.dart';
 import '../utils/ColorUtil.dart';
-import '../utils/StringUtil.dart';
 
 /// 2026-11 UI 重构（B 方案）的公共组件。
 ///
@@ -140,11 +139,14 @@ class AppBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 列表里的小徽章贴着文字；结果卡上的大徽章（字号 ≥ 14）撑开一些。
+    final large = fontSize >= 14;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      padding: EdgeInsets.symmetric(
+          horizontal: large ? 10 : 5, vertical: large ? 3 : 0),
       decoration: BoxDecoration(
         color: background,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(large ? 10 : 5),
       ),
       child: Text(
         text,
@@ -292,6 +294,8 @@ class SplitBar extends StatelessWidget {
           return SizedBox(
             height: height,
             child: Row(
+              // 没有 child 的 DecoratedBox 高度取约束下限，不拉伸就是 0 高。
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Expanded(
                   flex: left,
@@ -341,12 +345,16 @@ class SegmentedTabs extends StatelessWidget {
   final ValueChanged<int> onChanged;
   final double height;
 
+  /// 数值放在名称右边（Best50 的 `B35 10670`），默认放在下面。
+  final bool inlineCaption;
+
   const SegmentedTabs({
     super.key,
     required this.items,
     required this.selectedIndex,
     required this.onChanged,
     this.height = 48,
+    this.inlineCaption = false,
   });
 
   @override
@@ -363,7 +371,7 @@ class SegmentedTabs extends StatelessWidget {
       height: height,
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: AppSurfaces.inset(context),
+        color: AppSurfaces.track(context),
         borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
       ),
       child: LayoutBuilder(
@@ -406,8 +414,12 @@ class SegmentedTabs extends StatelessWidget {
                             if (i != selectedIndex) onChanged(i);
                           },
                           child: Center(
-                            child: Column(
+                            child: Flex(
+                              direction: inlineCaption
+                                  ? Axis.horizontal
+                                  : Axis.vertical,
                               mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
                                 Text(
                                   items[i].label,
@@ -423,12 +435,14 @@ class SegmentedTabs extends StatelessWidget {
                                         : scheme.onSurfaceVariant,
                                   ),
                                 ),
+                                if (inlineCaption && items[i].caption != null)
+                                  const SizedBox(width: 6),
                                 if (items[i].caption != null)
                                   Text(
                                     items[i].caption!,
                                     maxLines: 1,
                                     style: AppTheme.number(
-                                      fontSize: 13,
+                                      fontSize: inlineCaption ? 15 : 13,
                                       fontWeight: FontWeight.w600,
                                       color: i == selectedIndex
                                           ? selectedText
@@ -447,6 +461,87 @@ class SegmentedTabs extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+}
+
+/// 一排独立的选项块（选中反色）：名称 + 数值，用于计算器的音符类型。
+class PillTabs extends StatelessWidget {
+  final List<SegmentedTabItem> items;
+  final int selectedIndex;
+  final ValueChanged<int> onChanged;
+
+  const PillTabs({
+    super.key,
+    required this.items,
+    required this.selectedIndex,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final selectedBg = theme.brightness == Brightness.dark
+        ? scheme.inverseSurface
+        : scheme.onSurface;
+    final duration =
+        AppDesignTokens.motion(context, AppDesignTokens.fastMotion);
+    return Row(
+      children: [
+        for (var i = 0; i < items.length; i++) ...[
+          if (i > 0) const SizedBox(width: 6),
+          Expanded(
+            child: Semantics(
+              button: true,
+              selected: i == selectedIndex,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {
+                  if (i != selectedIndex) onChanged(i);
+                },
+                child: AnimatedContainer(
+                  duration: duration,
+                  constraints: const BoxConstraints(minHeight: 48),
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  decoration: BoxDecoration(
+                    color: i == selectedIndex
+                        ? selectedBg
+                        : AppSurfaces.card(context),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Builder(builder: (context) {
+                    final fg = i == selectedIndex
+                        ? scheme.onInverseSurface
+                        : scheme.onSurfaceVariant;
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(items[i].label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.3,
+                                color: fg)),
+                        if (items[i].caption != null)
+                          Text(items[i].caption!,
+                              maxLines: 1,
+                              style: AppTheme.number(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: fg)),
+                      ],
+                    );
+                  }),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }
@@ -753,7 +848,10 @@ class EmphasisCard extends StatelessWidget {
       width: double.infinity,
       padding: padding,
       decoration: BoxDecoration(
-        color: scheme.inverseSurface,
+        // 浅色模式几乎是黑，比 inverseSurface 更压得住白字
+        color: Theme.of(context).brightness == Brightness.dark
+            ? scheme.inverseSurface
+            : scheme.onSurface,
         borderRadius: BorderRadius.circular(AppDesignTokens.radiusLarge),
       ),
       child: DefaultTextStyle.merge(
@@ -768,101 +866,7 @@ class EmphasisCard extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// 拼贴入口
-// ---------------------------------------------------------------------------
-
-/// Hub 页顶部「卡片拼贴」里的一格：图标 + 标题 + 一行说明。
-///
-/// [emphasis] 为 true 时用反色底（与 [EmphasisCard] 同色），整块拼贴里只给
-/// 最主要的那个入口用；[compact] 用于一行三格的小方块（图标在上、只留标题）。
-/// 高度由外层决定（`SizedBox` / `Expanded`），内容贴底对齐。
-class AppCollageTile extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String? subtitle;
-  final VoidCallback onTap;
-  final bool emphasis;
-  final bool compact;
-
-  const AppCollageTile({
-    super.key,
-    required this.icon,
-    required this.title,
-    required this.onTap,
-    this.subtitle,
-    this.emphasis = false,
-    this.compact = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final fg = emphasis ? scheme.onInverseSurface : scheme.onSurface;
-    final muted = emphasis
-        ? scheme.onInverseSurface.withValues(alpha: 0.72)
-        : scheme.onSurfaceVariant;
-    final iconBg = emphasis
-        ? scheme.onInverseSurface.withValues(alpha: 0.12)
-        : scheme.primaryContainer;
-    final iconFg = emphasis ? scheme.onInverseSurface : scheme.onPrimaryContainer;
-
-    return Semantics(
-      button: true,
-      label: subtitle == null ? title : '$title，$subtitle',
-      excludeSemantics: true,
-      child: AppCard(
-        onTap: onTap,
-        color: emphasis ? scheme.inverseSurface : null,
-        radius: emphasis
-            ? AppDesignTokens.radiusLarge
-            : AppDesignTokens.radiusCard,
-        padding: compact
-            ? const EdgeInsets.fromLTRB(12, 14, 12, 12)
-            : const EdgeInsets.all(16),
-        child: SizedBox.expand(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: compact ? 32 : 36,
-                height: compact ? 32 : 36,
-                decoration: BoxDecoration(
-                  color: iconBg,
-                  borderRadius:
-                      BorderRadius.circular(AppDesignTokens.radiusSmall),
-                ),
-                child: Icon(icon, size: compact ? 18 : 20, color: iconFg),
-              ),
-              const Spacer(),
-              Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: emphasis ? 20 : (compact ? 13 : 15),
-                  fontWeight: FontWeight.w700,
-                  color: fg,
-                ),
-              ),
-              if (subtitle != null && !compact) ...[
-                const SizedBox(height: 2),
-                Text(
-                  subtitle!,
-                  maxLines: emphasis ? 2 : 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 12, height: 1.3, color: muted),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Best50 系列
+// Rating / 星级徽章
 // ---------------------------------------------------------------------------
 
 /// Rating 段位小标签（渐变底），首页总览卡与 Best50 汇总卡共用。
@@ -888,299 +892,6 @@ class RatingTierChip extends StatelessWidget {
           color: tier.foreground,
         ),
       ),
-    );
-  }
-}
-
-/// [Best50SummaryCard] 下方的一行平均值：达成率 / DX 分数达成率 / 星级。
-class Best50AverageRow {
-  final String label;
-  final double achievement;
-
-  /// DX 分数达成率，0~1。
-  final double scoreRate;
-
-  const Best50AverageRow(this.label, this.achievement, this.scoreRate);
-}
-
-/// Best50 系列页顶部的汇总卡：大号总 Rating + B35 / B15 构成条 + 平均值。
-///
-/// 只负责展示，数值由各页面自己算好传进来（各页的口径略有不同：
-/// 理论模式、拟合定数、个性化筛选），这里不做任何计算。
-class Best50SummaryCard extends StatelessWidget {
-  final String label;
-  final int rating;
-  final double ratingAverage;
-  /// B35 / B15 构成；任一为 null 时不显示构成条（例如拟合 Best50 模式 A）。
-  final int? best35Sum;
-  final double? best35Average;
-  final int? best15Sum;
-  final double? best15Average;
-  final List<Best50AverageRow> averages;
-
-  /// 卡片最下方的附加内容（差值、说明文字等），按顺序竖排。
-  final List<Widget> footer;
-
-  /// 是否显示段位标签（拟合 / 理论这类非官方口径传 false）。
-  final bool showTier;
-
-  /// 「B35 / B15」的叫法，个性化 BestN 页可以改成别的。
-  final String best35Label;
-  final String best15Label;
-
-  const Best50SummaryCard({
-    super.key,
-    this.label = 'Rating',
-    required this.rating,
-    required this.ratingAverage,
-    this.best35Sum,
-    this.best35Average,
-    this.best15Sum,
-    this.best15Average,
-    this.averages = const [],
-    this.footer = const [],
-    this.showTier = true,
-    this.best35Label = 'B35',
-    this.best15Label = 'B15',
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final b35 = best35Sum, b15 = best15Sum;
-    final hasSplit = b35 != null && b15 != null;
-    final total = hasSplit ? b35 + b15 : 0;
-    final secondary = scheme.primary.withValues(alpha: 0.32);
-
-    Widget metric(String name, int sum, double avg, Color dot) => Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
-            ),
-            const SizedBox(width: 6),
-            Text(name,
-                style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
-            const SizedBox(width: 6),
-            Text('$sum',
-                style: AppTheme.number(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: scheme.onSurface)),
-            const SizedBox(width: 4),
-            Text('均 ${avg.toStringAsFixed(1)}',
-                style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
-          ],
-        );
-
-    return AppCard(
-      radius: AppDesignTokens.radiusLarge,
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(label,
-                  style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: scheme.onSurfaceVariant)),
-              if (showTier && rating > 0) ...[
-                const SizedBox(width: 8),
-                RatingTierChip(rating: rating),
-              ],
-            ],
-          ),
-          const SizedBox(height: 2),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(
-                '$rating',
-                style: AppTheme.number(
-                  fontSize: 44,
-                  fontWeight: FontWeight.w700,
-                  height: 1.1,
-                  letterSpacing: -1,
-                  color: scheme.onSurface,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text('平均 ${ratingAverage.toStringAsFixed(1)}',
-                  style:
-                      TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
-            ],
-          ),
-          if (hasSplit) ...[
-            const SizedBox(height: 10),
-            SplitBar(
-              fraction: total > 0 ? b35 / total : 0.7,
-              primary: scheme.primary,
-              secondary: secondary,
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 16,
-              runSpacing: 6,
-              children: [
-                metric(best35Label, b35, best35Average ?? 0, scheme.primary),
-                metric(best15Label, b15, best15Average ?? 0, secondary),
-              ],
-            ),
-          ],
-          if (averages.isNotEmpty) ...[
-            const SizedBox(height: 14),
-            Container(
-              decoration: BoxDecoration(
-                color: AppSurfaces.inset(context),
-                borderRadius:
-                    BorderRadius.circular(AppDesignTokens.radiusMedium),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-              child: Column(
-                children: [
-                  for (var i = 0; i < averages.length; i++) ...[
-                    if (i > 0)
-                      Divider(height: 1, color: AppSurfaces.hairline(context)),
-                    _Best50AverageLine(row: averages[i]),
-                  ],
-                ],
-              ),
-            ),
-          ],
-          for (final w in footer) ...[
-            const SizedBox(height: 10),
-            w,
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _Best50AverageLine extends StatelessWidget {
-  final Best50AverageRow row;
-
-  const _Best50AverageLine({required this.row});
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final stars = StringUtil.formatStars(row.scoreRate);
-    final numStyle = AppTheme.number(
-        fontSize: 14, fontWeight: FontWeight.w600, color: scheme.onSurface);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 36,
-            child: Text(row.label,
-                style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: scheme.onSurfaceVariant)),
-          ),
-          Expanded(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerRight,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('${row.achievement.toStringAsFixed(4)}%',
-                      style: numStyle),
-                  const SizedBox(width: 12),
-                  Text('DX ${(row.scoreRate * 100).toStringAsFixed(2)}%',
-                      style:
-                          numStyle.copyWith(color: scheme.onSurfaceVariant)),
-                  const SizedBox(width: 8),
-                  StarBadge(stars: stars),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Best50 页里 Best35 / Best15 网格上方的标题。
-///
-/// 旧标题是一整行 `Best35 | 非当前版本最好成绩`：按 ` | ` 拆成标题 + 说明，
-/// 没有分隔符时整行当标题。
-class Best50SectionHeader extends StatelessWidget {
-  final String title;
-  final Widget? trailing;
-
-  const Best50SectionHeader(this.title, {super.key, this.trailing});
-
-  @override
-  Widget build(BuildContext context) {
-    final parts = title.split(' | ');
-    return AppSectionHeader(
-      title: parts.first.trim(),
-      subtitle: parts.length > 1 ? parts.sublist(1).join(' | ').trim() : null,
-      trailing: trailing,
-      padding: const EdgeInsets.fromLTRB(4, 8, 4, 10),
-    );
-  }
-}
-
-/// Best50 系列页的操作按钮（保存 / 历史 / 导出图片 / 切换模式）。
-///
-/// [primary] 为 true 用主题色实心按钮（每页只给最主要的「导出」），
-/// 其余用白卡片底的次级按钮。
-class Best50ActionButton extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback? onPressed;
-  final bool primary;
-
-  const Best50ActionButton({
-    super.key,
-    required this.icon,
-    required this.label,
-    required this.onPressed,
-    this.primary = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final shape = RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium));
-    const padding = EdgeInsets.symmetric(horizontal: 12, vertical: 14);
-    final child = Row(
-      mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(icon, size: 18),
-        const SizedBox(width: 6),
-        Flexible(
-          child: Text(label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w700)),
-        ),
-      ],
-    );
-    return FilledButton(
-      onPressed: onPressed,
-      style: primary
-          ? FilledButton.styleFrom(shape: shape, padding: padding)
-          : FilledButton.styleFrom(
-              shape: shape,
-              padding: padding,
-              backgroundColor: AppSurfaces.card(context),
-              foregroundColor: scheme.onSurface,
-            ),
-      child: child,
     );
   }
 }
@@ -1214,6 +925,316 @@ class StarBadge extends StatelessWidget {
           color: isEmpty
               ? Theme.of(context).colorScheme.onSurfaceVariant
               : const Color(0xFF1F1A10),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 功能入口
+// ---------------------------------------------------------------------------
+
+/// 首页「常用」里的一格：彩色圆角图标块 + 标题。
+///
+/// 颜色按标题取（[AppColors.featureTint]），同一功能在各页同色。
+class FeatureIconTile extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final VoidCallback? onTap;
+
+  const FeatureIconTile({
+    super.key,
+    required this.title,
+    required this.icon,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tint = AppColors.featureTint(title, theme.brightness);
+    return Semantics(
+      button: true,
+      enabled: onTap != null,
+      label: title,
+      excludeSemantics: true,
+      child: Opacity(
+        opacity: onTap == null ? 0.5 : 1,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 60,
+                  height: 60,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: tint.background,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Icon(icon, size: 26, color: tint.foreground),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 12,
+                    height: 1.25,
+                    fontWeight: FontWeight.w500,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 下划线样式的标签栏（歌曲详情的谱面 / 数据 / 社区 / 工具）。
+class UnderlineTabs extends StatelessWidget {
+  final List<String> labels;
+  final int selectedIndex;
+  final ValueChanged<int> onChanged;
+
+  /// 下划线和选中文字的颜色，默认 onSurface。
+  final Color? indicatorColor;
+
+  const UnderlineTabs({
+    super.key,
+    required this.labels,
+    required this.selectedIndex,
+    required this.onChanged,
+    this.indicatorColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final accent = indicatorColor ?? scheme.onSurface;
+    return SizedBox(
+      height: 44,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final w = constraints.maxWidth / labels.length;
+          return Stack(
+            children: [
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: Container(
+                    height: 1, color: AppSurfaces.hairline(context)),
+              ),
+              AnimatedPositioned(
+                duration: AppDesignTokens.motion(
+                    context, AppDesignTokens.mediumMotion),
+                curve: AppDesignTokens.emphasizedCurve,
+                left: selectedIndex * w,
+                width: w,
+                bottom: 0,
+                height: 3,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: accent,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Row(
+                children: [
+                  for (var i = 0; i < labels.length; i++)
+                    Expanded(
+                      child: Semantics(
+                        button: true,
+                        selected: i == selectedIndex,
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () {
+                            if (i != selectedIndex) onChanged(i);
+                          },
+                          child: Center(
+                            child: Text(
+                              labels[i],
+                              maxLines: 1,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: i == selectedIndex
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
+                                color: i == selectedIndex
+                                    ? accent
+                                    : scheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// 可折叠的白卡片：默认收起的次要内容（详细统计等）。
+class CollapsibleCard extends StatefulWidget {
+  final String title;
+  final Widget child;
+  final bool initiallyExpanded;
+
+  const CollapsibleCard({
+    super.key,
+    required this.title,
+    required this.child,
+    this.initiallyExpanded = false,
+  });
+
+  @override
+  State<CollapsibleCard> createState() => _CollapsibleCardState();
+}
+
+class _CollapsibleCardState extends State<CollapsibleCard> {
+  late bool _expanded = widget.initiallyExpanded;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return AppCard(
+      padding: EdgeInsets.zero,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Semantics(
+            button: true,
+            expanded: _expanded,
+            child: InkWell(
+              onTap: () => setState(() => _expanded = !_expanded),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(widget.title,
+                          style: const TextStyle(
+                              fontSize: 13, fontWeight: FontWeight.w700)),
+                    ),
+                    AnimatedRotation(
+                      turns: _expanded ? 0.5 : 0,
+                      duration: AppDesignTokens.motion(
+                          context, AppDesignTokens.fastMotion),
+                      child: Icon(Icons.expand_more_rounded,
+                          color: scheme.onSurfaceVariant),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          AnimatedSize(
+            duration:
+                AppDesignTokens.motion(context, AppDesignTokens.mediumMotion),
+            curve: AppDesignTokens.emphasizedCurve,
+            alignment: Alignment.topCenter,
+            child: _expanded
+                ? Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                    child: widget.child,
+                  )
+                : const SizedBox(width: double.infinity),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 筛选胶囊：名称 + 下拉箭头；有筛选值时高亮并显示当前值。
+class FilterPill extends StatelessWidget {
+  final String label;
+  final String? value;
+  final VoidCallback onTap;
+
+  const FilterPill({
+    super.key,
+    required this.label,
+    required this.onTap,
+    this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final active = value != null && value!.isNotEmpty;
+    final fg = active ? scheme.onSecondaryContainer : scheme.onSurfaceVariant;
+    return Material(
+      color: active ? scheme.secondaryContainer : AppSurfaces.track(context),
+      borderRadius: BorderRadius.circular(10),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 7, 10, 7),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 160),
+                child: Text(
+                  active ? '$label：$value' : label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w600, color: fg),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: fg),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 一排胶囊入口里的一个（Best50 变体、排行榜）。
+class LinkPill extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+
+  const LinkPill({super.key, required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppSurfaces.inset(context),
+      shape: const StadiumBorder(),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 30),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            child: Text(label,
+                style:
+                    const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+          ),
         ),
       ),
     );

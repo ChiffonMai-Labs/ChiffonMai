@@ -432,26 +432,6 @@ extension _SongInfoWidgets on _SongInfoPageState {
   }
 
   // 构建占位符
-  Widget _buildPlaceholder() {
-    final brightness = Theme.of(context).brightness;
-    final isDark = brightness == Brightness.dark;
-    return Container(
-      margin: const EdgeInsets.only(right: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(6),
-        color: isDark ? Colors.grey.shade700 : Colors.grey.shade200,
-      ),
-      child: Text(
-        '-',
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-          color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
-        ),
-      ),
-    );
-  }
 
   // 构建徽章
   Widget _buildBadge(String text) {

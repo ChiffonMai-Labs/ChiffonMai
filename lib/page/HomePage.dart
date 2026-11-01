@@ -127,8 +127,13 @@ import '../widgets/AutoSyncStatusFooter.dart';
 import '../widgets/SyncFlowMixin.dart';
 import '../widgets/QuickSearchBar.dart';
 import '../widgets/FeatureSearchOverlay.dart';
-import '../widgets/TouchSearchButton.dart';
 import '../widgets/MarqueeText.dart';
+import 'SongInfoPage.dart';
+import '../service/DailyRecommendService.dart';
+import '../entity/DivingFish/Song.dart';
+import '../utils/CoverUtil.dart';
+import '../utils/ColorUtil.dart';
+import '../utils/ChartDifficulty.dart';
 
 // ds值与歌曲对应关系数据类已随 _calculateRatingLimits 一起抽离到
 // lib/widgets/RefreshDataDialog.dart，不再需要此处的定义。
@@ -401,14 +406,17 @@ class HomeGreetingText extends StatelessWidget {
   /// 允许缩到的最小字号。再小就不好看了，改用省略号。
   static const double minFontSize = 16;
 
-  const HomeGreetingText({super.key, required this.nickname});
+  /// 基准字号；不传时用主题的 headlineSmall。
+  final double? fontSize;
+
+  const HomeGreetingText({super.key, required this.nickname, this.fontSize});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final base =
         theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800);
-    final baseSize = base?.fontSize ?? 24;
+    final baseSize = fontSize ?? base?.fontSize ?? 24;
     final text = nickname.trim().isEmpty ? '请前往系统页获取账号数据' : '欢迎回来，$nickname';
 
     return LayoutBuilder(
@@ -486,6 +494,14 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
   bool _featureSearchOpen = false;
   bool _sortingFavorites = false;
 
+  /// 「搜索」按钮在非弹层模式下展开的内联搜索框。
+  bool _inlineSearchOpen = false;
+
+  /// 今日推荐的第一首（首页卡片），没有数据时不显示卡片。
+  Song? _dailyPick;
+  bool _autoSyncEnabled = false;
+  DateTime? _autoSyncLastRun;
+
   // 用户数据（昵称 / Rating）：实际数据来自 UserProfileNotifier，字段保留便于本地访问
   String _userNickname = "";
   // 0 表示尚未从水鱼/落雪拉取真实数据；UI 层用 _displayBest* 回落为 "-"
@@ -523,6 +539,9 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
     SyncRouteNotifier.instance.addListener(_onSyncRouteChanged);
     CacheManagementService.instance.addListener(_onSyncRouteChanged);
     SyncRouteNotifier.instance.ensureLoaded();
+    AutoSyncService.changes.addListener(_loadAutoSyncSummary);
+    unawaited(_loadAutoSyncSummary());
+    unawaited(_loadDailyPick());
 
     // 在第一帧渲染完成后触发字体加载
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -599,6 +618,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
         _isBackgroundInitializing = false;
         if (result.success) {
           _isInitializationCompleted = true;
+          unawaited(_loadDailyPick());
           _initializationProgress = '数据初始化完成！总耗时 ${result.durationStr}';
         } else {
           _initializationProgress =
@@ -658,6 +678,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
         .removeListener(_onSearchInteractionChanged);
     SyncRouteNotifier.instance.removeListener(_onSyncRouteChanged);
     CacheManagementService.instance.removeListener(_onSyncRouteChanged);
+    AutoSyncService.changes.removeListener(_loadAutoSyncSummary);
     _loginStateNotifier.dispose();
     super.dispose();
   }
@@ -765,7 +786,6 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
   }
 
   Widget _buildScaffold(BuildContext context, Set<String> favoriteTitles) {
-    final scheme = Theme.of(context).colorScheme;
     final brightness = Theme.of(context).brightness;
 
     return Scaffold(
@@ -775,62 +795,48 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
         bottom: false,
         child: ListView(
           padding: EdgeInsets.fromLTRB(
-            20,
-            18,
-            20,
-            32 + MainNavigationInsets.bottomOf(context),
+            AppDesignTokens.gutter + 4,
+            10,
+            AppDesignTokens.gutter + 4,
+            24 + MainNavigationInsets.bottomOf(context),
           ),
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'ChiffonMai',
-                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                              color: scheme.primary,
-                              letterSpacing: 2,
-                              fontWeight: FontWeight.w800,
-                            ),
-                      ),
-                      const SizedBox(height: 5),
-                      HomeGreetingText(nickname: _userNickname),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  tooltip: '主题与导航设置',
-                  onPressed: _showThemeDialog,
-                  style: IconButton.styleFrom(
-                    backgroundColor: AppSurfaces.card(context),
-                    foregroundColor: scheme.onSurface,
-                    fixedSize: const Size(44, 44),
-                  ),
-                  icon: const Icon(Icons.brightness_6_outlined, size: 20),
-                ),
-              ],
-            ),
-            const SizedBox(height: 22),
-            _buildDashboardSummary(context, brightness),
-            if (_refreshText.isNotEmpty) ...[
+            _buildHomeHeader(context),
+            if (_inlineSearchOpen ||
+                (_hubSearchQuery.isNotEmpty &&
+                    !SearchInteractionPreferences.instance.usesOverlay)) ...[
               const SizedBox(height: 12),
-              _buildRefreshProgress(context),
+              QuickSearchBar(
+                padding: EdgeInsets.zero,
+                query: _hubSearchQuery,
+                onChanged: (query) {
+                  if (mounted) setState(() => _hubSearchQuery = query.trim());
+                },
+              ),
             ],
-            const SizedBox(height: 16),
-            _buildHomeFeatureSearch(context),
-            const SizedBox(height: 12),
+            const SizedBox(height: 20),
             if (_hubSearchQuery.trim().isNotEmpty)
               _buildHomeFeatureSearchResults(
                   context, _hubSearchQuery, _handleFeatureTap)
             else ...[
+              _buildDashboardSummary(context, brightness),
+              if (_refreshText.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                _buildRefreshProgress(context),
+              ],
+              if (_dailyPick != null) ...[
+                const SizedBox(height: 20),
+                _buildDailyPickCard(context, _dailyPick!),
+              ],
+              const SizedBox(height: 20),
               // 顶层监听保证收藏区跨页面实时刷新。
               _buildFavoriteFeaturesSection(context, favoriteTitles),
               if (_isBackgroundInitializing || _isInitializationCompleted) ...[
                 const SizedBox(height: 16),
                 _buildInitializationStatus(context),
               ],
+              const SizedBox(height: 16),
+              _buildSyncStatusLine(context),
             ],
           ],
         ),
@@ -838,38 +844,324 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
     );
   }
 
-  void _onSearchInteractionChanged() {
-    if (mounted) setState(() {});
-  }
-
-  Widget _buildHomeFeatureSearch(BuildContext context) {
-    final usesOverlay = SearchInteractionPreferences.instance.usesOverlay;
-    return Opacity(
-      opacity: _featureSearchOpen ? 0 : 1,
-      child: Row(
-        key: _featureSearchFieldKey,
-        children: [
-          Expanded(
-            child: QuickSearchBar(
-              padding: EdgeInsets.zero,
-              query: _hubSearchQuery,
-              onTap: usesOverlay ? _openHomeFeatureSearch : null,
-              onChanged: (query) {
-                if (mounted) setState(() => _hubSearchQuery = query.trim());
-              },
+  /// 顶部一行：头像（环色 = Rating 段位）、问候 + 数据源、搜索、主题。
+  Widget _buildHomeHeader(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final tier = AppColors.ratingTier(_best50TotalRA);
+    final name = _userNickname.trim();
+    return Row(
+      children: [
+        Container(
+          width: 48,
+          height: 48,
+          padding: const EdgeInsets.all(2.5),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: _best50TotalRA > 0
+                ? SweepGradient(colors: [...tier.colors, tier.colors.first])
+                : null,
+            color: _best50TotalRA > 0 ? null : scheme.outlineVariant,
+          ),
+          child: Container(
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: scheme.secondaryContainer,
+              border: Border.all(color: scheme.surface, width: 2),
+            ),
+            child: Text(
+              name.isEmpty ? '?' : String.fromCharCode(name.runes.first),
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                color: scheme.onSecondaryContainer,
+              ),
             ),
           ),
-          const SizedBox(width: 8),
-          TouchSearchButton(
-              onPressed: usesOverlay
-                  ? _openHomeFeatureSearch
-                  : () {
-                      FocusManager.instance.primaryFocus?.unfocus();
-                    }),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              HomeGreetingText(nickname: _userNickname, fontSize: 17),
+              const SizedBox(height: 3),
+              _buildDataSourceChip(context),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        Opacity(
+          key: _featureSearchFieldKey,
+          opacity: _featureSearchOpen ? 0 : 1,
+          child: _headerIconButton(
+            context,
+            tooltip: '搜索功能',
+            icon: Icons.search_rounded,
+            onPressed: () {
+              if (SearchInteractionPreferences.instance.usesOverlay) {
+                _openHomeFeatureSearch();
+              } else {
+                FocusManager.instance.primaryFocus?.unfocus();
+                setState(() {
+                  _inlineSearchOpen = !_inlineSearchOpen;
+                  if (!_inlineSearchOpen) _hubSearchQuery = '';
+                });
+              }
+            },
+          ),
+        ),
+        const SizedBox(width: 8),
+        _headerIconButton(
+          context,
+          tooltip: '主题与导航设置',
+          icon: Icons.brightness_6_outlined,
+          onPressed: _showThemeDialog,
+        ),
+      ],
+    );
+  }
+
+  Widget _headerIconButton(
+    BuildContext context, {
+    required String tooltip,
+    required IconData icon,
+    required VoidCallback onPressed,
+  }) {
+    final scheme = Theme.of(context).colorScheme;
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: onPressed,
+      style: IconButton.styleFrom(
+        backgroundColor: AppSurfaces.card(context),
+        foregroundColor: scheme.onSurface,
+        fixedSize: const Size(44, 44),
+      ),
+      icon: Icon(icon, size: 20),
+    );
+  }
+
+  /// 点「数据源」即可切换 水鱼 / 落雪 / AWMC NET 账号（使用缓存，不联网）。
+  /// 用**短名**：`AWMC NET` 在窄屏上放不下，与排行榜 Tab 的叫法一致。
+  Widget _buildDataSourceChip(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return ValueListenableBuilder<RefreshDataSource>(
+      valueListenable: CurrentDataSourceNotifier.instance,
+      builder: (context, source, _) => Semantics(
+        button: true,
+        label: '切换数据源，当前 ${source.shortDisplayName}',
+        excludeSemantics: true,
+        child: Material(
+          color: AppSurfaces.track(context),
+          shape: const StadiumBorder(),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: _showAccountSwitchSheet,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(8, 3, 8, 3),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    source.shortDisplayName,
+                    style:
+                        TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(Icons.swap_horiz_rounded,
+                      size: 13, color: scheme.onSurfaceVariant),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _loadDailyPick() async {
+    try {
+      final songs = await DailyRecommendService().getDailyRecommendations();
+      if (!mounted) return;
+      setState(() => _dailyPick = songs.isEmpty ? null : songs.first);
+    } catch (e) {
+      // 拿不到推荐只是不显示卡片；「每日推荐」页本身不受影响。
+      debugPrint('首页今日推荐加载失败: $e');
+    }
+  }
+
+  Widget _buildDailyPickCard(BuildContext context, Song song) {
+    final scheme = Theme.of(context).colorScheme;
+    final index = song.ds.isEmpty ? 0 : song.ds.length - 1;
+    final level = song.level.length > index ? song.level[index] : '';
+    final difficulty = song.id.length >= 6
+        ? ''
+        : (ChartDifficulty.labels.length > index
+            ? ChartDifficulty.labels[index]
+            : '');
+    return AppCard(
+      padding: const EdgeInsets.all(14),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => SongInfoPage(
+            songId: song.id,
+            initialLevelIndex: index,
+            isDefaultLevelIndex: false,
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: CoverUtil.buildCoverWidgetWithContext(context, song.id, 72),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('今日推荐',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: scheme.primary)),
+                const SizedBox(height: 3),
+                Text(song.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 17, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 3),
+                Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: ColorUtil.getCardColor(index),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(difficulty,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              fontSize: 12, color: scheme.onSurfaceVariant)),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(level,
+                        style: AppTheme.number(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: scheme.onSurfaceVariant)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Icon(Icons.chevron_right_rounded,
+              size: 22, color: scheme.onSurfaceVariant),
         ],
       ),
     );
   }
+
+  Future<void> _loadAutoSyncSummary() async {
+    var enabled = false;
+    DateTime? last;
+    for (final platform in SyncPlatform.values) {
+      try {
+        final task = await AutoSyncService.instance.status(platform);
+        if (!task.enabled) continue;
+        enabled = true;
+        final run = task.lastRunAt;
+        if (run != null && (last == null || run.isAfter(last))) last = run;
+      } catch (_) {
+        // 单个平台读失败不影响其它平台的摘要。
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _autoSyncEnabled = enabled;
+      _autoSyncLastRun = last;
+    });
+  }
+
+  String _formatAutoSyncTime(DateTime time) {
+    final local = time.toLocal();
+    String two(int v) => v.toString().padLeft(2, '0');
+    final now = DateTime.now();
+    final sameDay = local.year == now.year &&
+        local.month == now.month &&
+        local.day == now.day;
+    final clock = '${two(local.hour)}:${two(local.minute)}';
+    return sameDay ? '今天 $clock' : '${local.month}月${local.day}日 $clock';
+  }
+
+  /// 底部状态行：左边是自动同步摘要（点它进设置），右边刷新数据。
+  Widget _buildSyncStatusLine(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final brightness = Theme.of(context).brightness;
+    final last = _autoSyncLastRun;
+    final text = !_autoSyncEnabled
+        ? '自动同步未开启'
+        : (last == null
+            ? '自动同步已开启'
+            : '自动同步已开启 · 上次同步 ${_formatAutoSyncTime(last)}');
+    ButtonItem? autoSyncItem;
+    for (final item in _searchableCategories.expand((c) => c.items)) {
+      if (item.title == '自动同步') autoSyncItem = item;
+    }
+    return Row(
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: _autoSyncEnabled
+                ? AppColors.successGreen(brightness)
+                : scheme.outline,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: autoSyncItem == null
+                ? null
+                : () => _handleFeatureTap(autoSyncItem!),
+            child: Text(text,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style:
+                    TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+          ),
+        ),
+        TextButton(
+          onPressed: anyBusy ? null : _openRefreshData,
+          style: TextButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            minimumSize: const Size(0, 32),
+            tapTargetSize: MaterialTapTargetSize.padded,
+          ),
+          child: const Text('刷新数据',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+        ),
+      ],
+    );
+  }
+
+  void _onSearchInteractionChanged() {
+    if (mounted) setState(() {});
+  }
+
+
 
   Future<void> _openHomeFeatureSearch() async {
     if (_featureSearchOpen) return;
@@ -1104,55 +1396,61 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
     final total = _best50TotalRA;
     final tier = AppColors.ratingTier(total);
     final fraction = total > 0 ? _best35TotalRA / total : 0.7;
-    final secondary = scheme.primary.withValues(alpha: 0.32);
+    final secondary = scheme.primary.withValues(alpha: 0.5);
 
-    return AppCard(
-      radius: AppDesignTokens.radiusLarge,
-      padding: const EdgeInsets.fromLTRB(20, 16, 16, 16),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // 上半部分 → 「刷新数据（高级）」
-          Material(
-            type: MaterialType.transparency,
-            child: InkWell(
+          // 大数字 → 「刷新数据（高级）」
+          Semantics(
+            button: true,
+            label: '总 Rating ${_displayBest50RA()}，打开高级刷新',
+            excludeSemantics: true,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
               onTap: anyBusy ? null : _openAdvancedRefreshData,
-              splashFactory: NoSplash.splashFactory,
-              highlightColor: Colors.transparent,
-              hoverColor: Colors.transparent,
-              borderRadius: BorderRadius.circular(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Row(
-                    children: [
-                      Text(
-                        'Rating',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: scheme.onSurfaceVariant,
+                  Flexible(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: TweenAnimationBuilder<double>(
+                        tween: Tween(end: total.toDouble()),
+                        duration: AppDesignTokens.motion(
+                            context, const Duration(milliseconds: 1100)),
+                        curve: Curves.easeOutCubic,
+                        builder: (context, value, _) => Text(
+                          total == 0 ? '-' : '${value.round()}',
+                          style: AppTheme.number(
+                            fontSize: 68,
+                            fontWeight: FontWeight.w700,
+                            height: 0.95,
+                            letterSpacing: -2,
+                            color: scheme.onSurface,
+                          ),
                         ),
                       ),
-                      if (total > 0) ...[
-                        const SizedBox(width: 8),
-                        _buildRatingTierChip(tier),
-                      ],
-                    ],
+                    ),
                   ),
-                  const SizedBox(height: 2),
-                  Semantics(
-                    label: '总 Rating ${_displayBest50RA()}',
-                    excludeSemantics: true,
-                    child: Text(
-                      _displayBest50RA(),
-                      style: AppTheme.number(
-                        fontSize: 56,
-                        fontWeight: FontWeight.w700,
-                        height: 1.05,
-                        letterSpacing: -1.5,
-                        color: scheme.onSurface,
-                      ),
+                  const SizedBox(width: 10),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (total > 0) ...[
+                          _buildRatingTierChip(tier),
+                          const SizedBox(height: 4),
+                        ],
+                        Text('Rating',
+                            style: TextStyle(
+                                fontSize: 12, color: scheme.onSurfaceVariant)),
+                      ],
                     ),
                   ),
                 ],
@@ -1165,53 +1463,13 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
             primary: scheme.primary,
             secondary: secondary,
           ),
-          const SizedBox(height: 10),
-          ValueListenableBuilder<RefreshDataSource>(
-            valueListenable: CurrentDataSourceNotifier.instance,
-            builder: (context, source, _) => Row(
-              children: [
-                _summaryMetric(context, 'B35', _displayBest35RA(),
-                    dot: scheme.primary),
-                const SizedBox(width: 16),
-                _summaryMetric(context, 'B15', _displayBest15RA(),
-                    dot: secondary),
-                const Spacer(),
-                // 点「数据源」即可切换 水鱼 / 落雪 / AWMC NET 账号（使用缓存，不联网）。
-                // 用**短名**：`AWMC NET` 在窄屏上放不下，与排行榜 Tab 的叫法一致。
-                Semantics(
-                  button: true,
-                  label: '切换数据源，当前 ${source.shortDisplayName}',
-                  excludeSemantics: true,
-                  child: Material(
-                    color: AppSurfaces.inset(context),
-                    shape: const StadiumBorder(),
-                    clipBehavior: Clip.antiAlias,
-                    child: InkWell(
-                      onTap: _showAccountSwitchSheet,
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(12, 7, 10, 7),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              source.shortDisplayName,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: scheme.onSurface,
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            Icon(Icons.swap_horiz_rounded,
-                                size: 16, color: scheme.onSurfaceVariant),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _summaryMetric(context, 'B35', _displayBest35RA()),
+              _summaryMetric(context, 'B15', _displayBest15RA()),
+            ],
           ),
         ],
       ),
@@ -1241,30 +1499,21 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
   // 顶部头像 / 姓名框入口已迁移到 MeHubPage；选择结果仍存于 SharedPreferences，
   // 供 Best50 / 拟合等图片导出时由 ExportUserInfoWidget 读取。
 
-  Widget _summaryMetric(BuildContext context, String label, String value,
-      {required Color dot}) {
+  Widget _summaryMetric(BuildContext context, String label, String value) {
     final scheme = Theme.of(context).colorScheme;
     return Row(
       mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
       children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 6),
         Text(label,
-            style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+            style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant)),
         const SizedBox(width: 4),
-        Text(
-          value,
-          style: AppTheme.number(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: scheme.onSurface,
-          ),
-        ),
+        Text(value,
+            style: AppTheme.number(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: scheme.onSurface)),
       ],
     );
   }
@@ -3676,93 +3925,148 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
       );
     }
 
-    return HubSection(
-      title: '收藏的功能',
-      icon: Icons.star_rounded,
-      subtitle: _sortingFavorites ? '点击箭头或长按拖动功能调整顺序' : '常用功能快速直达',
-      trailing: _buildFavoriteSortButton(context),
+    // 带进度 / 线路 / 统计的入口（同步、缓存管理、新版本）放不进小图标，
+    // 平时单独成组显示完整样式；其余收藏进「常用」图标网格。
+    bool needsFullTile(ButtonItem item) =>
+        _isSyncFeature(item.title) ||
+        item.title == '自动同步' ||
+        item.title == '缓存管理' ||
+        (UpdateNotifier.isUpdateEntry(item.title) &&
+            UpdateNotifier.available.value != null);
+    final gridItems = [
+      for (final item in items)
+        if (!needsFullTile(item)) item,
+    ];
+    final fullIndexes = [
+      for (var i = 0; i < items.length; i++)
+        if (needsFullTile(items[i])) i,
+    ];
+    final scheme = Theme.of(context).colorScheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (items.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-            child: Center(
-              child: Text(
-                '点击分类中的 ⭐ 星标即可收藏功能，收藏后直接显示在此处',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Row(
+            children: [
+              Expanded(
+                child: Semantics(
+                  header: true,
+                  child: const Text('常用',
+                      style:
+                          TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
                 ),
+              ),
+              _buildFavoriteSortButton(context),
+            ],
+          ),
+        ),
+        if (_sortingFavorites)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
+            child: Text('点星标取消收藏，点箭头或长按拖动调整顺序',
+                style:
+                    TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+          ),
+        if (items.isEmpty)
+          AppCard(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+            child: Text(
+              '点击分类中的 ⭐ 星标即可收藏功能，收藏后直接显示在此处',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
+            ),
+          )
+        else if (_sortingFavorites)
+          AppCard(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: ReorderableListView.builder(
+              shrinkWrap: true,
+              primary: false,
+              padding: EdgeInsets.zero,
+              physics: const NeverScrollableScrollPhysics(),
+              buildDefaultDragHandles: false,
+              itemCount: items.length,
+              onReorder: (oldIndex, newIndex) {
+                move(oldIndex, newIndex > oldIndex ? newIndex - 1 : newIndex);
+              },
+              proxyDecorator: (child, index, animation) => Material(
+                color: AppSurfaces.card(context),
+                borderRadius:
+                    BorderRadius.circular(AppDesignTokens.radiusMedium),
+                child: child,
+              ),
+              itemBuilder: (context, index) =>
+                  ReorderableDelayedDragStartListener(
+                key: ValueKey(items[index].title),
+                index: index,
+                child: buildItem(index),
               ),
             ),
           )
-        else
-          // 两种模式共用同一棵列表树，切换时按钮本身不会被销毁，
-          // trailing 中的星标 / 箭头才能由 AnimatedSwitcher 播放过渡。
-          ReorderableListView.builder(
-            shrinkWrap: true,
-            primary: false,
-            padding: EdgeInsets.zero,
-            physics: const NeverScrollableScrollPhysics(),
-            buildDefaultDragHandles: false,
-            itemCount: items.length,
-            onReorder: (oldIndex, newIndex) {
-              if (_sortingFavorites) {
-                move(oldIndex, newIndex > oldIndex ? newIndex - 1 : newIndex);
-              }
-            },
-            proxyDecorator: (child, index, animation) => Material(
-              color: Theme.of(context).colorScheme.surfaceContainerLow,
-              borderRadius: BorderRadius.circular(12),
-              child: child,
+        else ...[
+          if (gridItems.isNotEmpty)
+            LayoutBuilder(
+              builder: (context, constraints) {
+                const gap = 8.0;
+                final columns = constraints.maxWidth >= 600 ? 6 : 4;
+                final width =
+                    (constraints.maxWidth - gap * (columns - 1)) / columns;
+                return Wrap(
+                  spacing: gap,
+                  runSpacing: 8,
+                  children: [
+                    for (final item in gridItems)
+                      SizedBox(
+                        width: width,
+                        child: FeatureIconTile(
+                          key: ValueKey(item.title),
+                          title: item.title,
+                          icon: item.icon,
+                          onTap: _isSyncBlockedFeature(item.title) && anyBusy
+                              ? null
+                              : () => _handleFeatureTap(item),
+                        ),
+                      ),
+                  ],
+                );
+              },
             ),
-            itemBuilder: (context, index) =>
-                ReorderableDelayedDragStartListener(
-              key: ValueKey(items[index].title),
-              index: index,
-              enabled: _sortingFavorites,
-              child: buildItem(index),
+          if (fullIndexes.isNotEmpty) ...[
+            if (gridItems.isNotEmpty) const SizedBox(height: 12),
+            AppCard(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Column(
+                children: [
+                  for (final i in fullIndexes) buildItem(i),
+                ],
+              ),
             ),
-          ),
+          ],
+        ],
       ],
     );
   }
 
   Widget _buildFavoriteSortButton(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final reduceMotion = MediaQuery.disableAnimationsOf(context);
-    final duration =
-        reduceMotion ? Duration.zero : const Duration(milliseconds: 360);
     return Semantics(
       button: true,
       selected: _sortingFavorites,
-      label: _sortingFavorites ? '完成收藏功能排序' : '调整收藏功能顺序',
-      child: IconButton(
-        tooltip: _sortingFavorites ? '完成排序' : '调整顺序',
+      label: _sortingFavorites ? '完成收藏功能编辑' : '编辑收藏功能',
+      excludeSemantics: true,
+      child: TextButton(
         onPressed: () {
           FocusManager.instance.primaryFocus?.unfocus();
           setState(() => _sortingFavorites = !_sortingFavorites);
         },
-        style: IconButton.styleFrom(
-          foregroundColor:
-              _sortingFavorites ? scheme.primary : scheme.onSurfaceVariant,
-          backgroundColor: _sortingFavorites
-              ? scheme.primary.withValues(alpha: 0.14)
-              : scheme.surfaceContainerLow,
-          side: BorderSide(color: scheme.outlineVariant),
+        style: TextButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          minimumSize: const Size(44, 40),
         ),
-        icon: AnimatedSwitcher(
-          duration: duration,
-          transitionBuilder: (child, animation) => RotationTransition(
-            turns: Tween<double>(begin: -0.12, end: 0).animate(
-              CurvedAnimation(parent: animation, curve: Curves.easeOutBack),
-            ),
-            child: ScaleTransition(scale: animation, child: child),
-          ),
-          child: Icon(
-            _sortingFavorites ? Icons.check_rounded : Icons.edit_outlined,
-            key: ValueKey(_sortingFavorites),
-          ),
-        ),
+        child: Text(_sortingFavorites ? '完成' : '编辑',
+            style:
+                const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
       ),
     );
   }

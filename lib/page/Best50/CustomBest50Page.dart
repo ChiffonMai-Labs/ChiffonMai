@@ -14,17 +14,16 @@ import '../../service/Best50/DiffBest50Service.dart';
 import '../../service/Best50/PersonalizedBest50ConvertToImgService.dart';
 import '../../service/SongSearchService.dart';
 import '../../utils/AppTheme.dart';
-import '../../utils/ColorUtil.dart';
 import '../../utils/CoverUtil.dart';
 import '../../utils/ExportQualitySelector.dart';
 import '../../utils/ImageEncodeUtil.dart';
 import '../../utils/ScoreInputValidator.dart';
 import '../../utils/SongFilterUtil.dart';
 import '../../utils/StringUtil.dart';
-import '../../widgets/B50GameCardWidget.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
 import '../../widgets/AppUi.dart';
 import '../../utils/AppDesignTokens.dart';
+import '../../widgets/Best50Ui.dart';
 
 /// 自定义 Best50 的一键排序方式。
 enum _SortMode { raDesc, raAsc, dsDesc, dsAsc }
@@ -982,6 +981,14 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
     return BackgroundPageScaffold(
       title: '自定义 Best50',
       resizeToAvoidBottomInset: false,
+      actions: [
+        Best50IconAction(
+          tooltip: '导出为图片',
+          icon: Icons.image_outlined,
+          onPressed: _exportToImage,
+        ),
+        const SizedBox(width: 4),
+      ],
       contentPadding:
           EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
       child: SingleChildScrollView(
@@ -1012,45 +1019,49 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
         totalSongs > 0 ? totalAchievement / totalSongs : 0.0;
     final warning = _warningText;
 
-    return AppCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const AppSectionHeader(
-              title: '自定义 Best50 统计', padding: EdgeInsets.zero),
-          const SizedBox(height: 12.0),
-          Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Best50Hero(total: totalRa, label: '自定义 Best50 总 RA'),
+        const SizedBox(height: AppDesignTokens.cardGap),
+        AppCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _statColumn(
-                  '已填写', '$totalSongs / ${CustomBest50Store.slotCount}'),
-              _statColumn('总RA值', '$totalRa'),
-              _statColumn('平均RA值', averageRa.toStringAsFixed(1)),
-              _statColumn('平均达成率', '${averageAchievement.toStringAsFixed(2)}%'),
+              Row(
+                children: [
+                  _statColumn(
+                      '已填写', '$totalSongs / ${CustomBest50Store.slotCount}'),
+                  _statColumn('平均RA值', averageRa.toStringAsFixed(1)),
+                  _statColumn(
+                      '平均达成率', '${averageAchievement.toStringAsFixed(2)}%'),
+                ],
+              ),
+              if (_sortLabel != null) ...[
+                const SizedBox(height: 8.0),
+                Text(
+                  '当前排序：$_sortLabel（卡片变动后自动清除）',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+              if (warning != null) ...[
+                const SizedBox(height: 10.0),
+                Text(
+                  warning,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                ),
+              ],
             ],
           ),
-          if (_sortLabel != null) ...[
-            const SizedBox(height: 8.0),
-            Text(
-              '当前排序：$_sortLabel（卡片变动后自动清除）',
-              style: TextStyle(
-                fontSize: 12,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-          if (warning != null) ...[
-            const SizedBox(height: 10.0),
-            Text(
-              warning,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.error,
-              ),
-            ),
-          ],
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -1058,78 +1069,47 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
       Expanded(child: StatTile(label: label, value: value));
 
   Widget _buildActionButtons() {
-    const gap = AppDesignTokens.itemGap;
     final error = Theme.of(context).colorScheme.error;
-    return Column(
+    return Row(
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: Best50ActionButton(
-                icon: Icons.image_outlined,
-                label: '导出为图片',
-                primary: true,
-                onPressed: _exportToImage,
-              ),
-            ),
-            const SizedBox(width: gap),
-            Expanded(
-              child: Best50ActionButton(
-                icon: Icons.sort_rounded,
-                label: '一键排序',
-                onPressed: _showSortDialog,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        // 危险操作单独放一行文字按钮，不和常用操作抢位置
-        Align(
-          alignment: Alignment.centerRight,
-          child: TextButton.icon(
-            onPressed: _confirmClearAll,
-            icon: Icon(Icons.delete_outline, color: error, size: 18),
-            label: Text('清空全部', style: TextStyle(color: error)),
+        Expanded(
+          child: Best50ActionButton(
+            icon: Icons.sort_rounded,
+            label: '一键排序',
+            onPressed: _showSortDialog,
           ),
+        ),
+        const SizedBox(width: AppDesignTokens.itemGap),
+        TextButton.icon(
+          onPressed: _confirmClearAll,
+          icon: Icon(Icons.delete_outline, color: error, size: 18),
+          label: Text('清空全部', style: TextStyle(color: error)),
         ),
       ],
     );
   }
 
   Widget _buildGrid() {
-    final int maxIdLength = _entries
-        .whereType<CustomBest50Entry>()
-        .map((e) => e.songId.toString().length)
-        .fold<int>(5, (a, b) => a > b ? a : b);
-
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      padding: EdgeInsets.zero,
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 8,
-        mainAxisSpacing: 8,
-        childAspectRatio: B50GameCardWidget.designAspectRatio,
+    return LayoutBuilder(
+      builder: (context, constraints) => GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        padding: EdgeInsets.zero,
+        gridDelegate: Best50Grid.delegate(context, constraints.maxWidth),
+        itemCount: CustomBest50Store.slotCount,
+        itemBuilder: (context, index) {
+          final entry = _entries[index];
+          if (entry == null) return _buildEmptySlot(index);
+          return _buildEntryCard(entry, index);
+        },
       ),
-      itemCount: CustomBest50Store.slotCount,
-      itemBuilder: (context, index) {
-        final entry = _entries[index];
-        if (entry == null) {
-          return _buildEmptySlot(index);
-        }
-        return GestureDetector(
-          onTap: () => _showEditSheet(index),
-          child: _buildEntryCard(entry, maxIdLength),
-        );
-      },
     );
   }
 
   Widget _buildEmptySlot(int index) {
     final scheme = Theme.of(context).colorScheme;
     return AppCard(
-      radius: AppDesignTokens.radiusSmall,
+      radius: AppDesignTokens.radiusMedium,
       padding: EdgeInsets.zero,
       color: AppSurfaces.card(context).withValues(alpha: 0.7),
       outlined: true,
@@ -1150,60 +1130,31 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
     );
   }
 
-  Widget _buildEntryCard(CustomBest50Entry entry, int maxIdLength) {
-    final songId = entry.songId;
-    final isUtage = songId.toString().length == 6;
-    final cardColor = isUtage
-        ? AppColors.utageCard()
-        : ColorUtil.getCardColor(entry.levelIndex);
-    final maxScore = _cardMaxScore(entry);
+  Widget _buildEntryCard(CustomBest50Entry entry, int index) {
     final maxDx = _maxDxScore(entry);
     final scoreRate = maxDx > 0 ? entry.dxScore / maxDx : 0.0;
-    final stars = StringUtil.formatStars(scoreRate);
-    final starsColor = ColorUtil.getStarsColor(stars);
-    final isIllegal = _isIllegal(entry);
-
-    final card = B50GameCardWidget(
-      cardColor: cardColor,
-      songName: _effectiveTitle(entry),
-      achievementRate: entry.achievements,
-      difficulty: _effectiveDs(entry),
-      dxMode: _effectiveType(entry) == 'DX',
-      isUtage: isUtage,
-      score: entry.dxScore,
-      maxScore: maxScore,
-      rating: _raOf(entry),
-      stars: stars,
-      fc: entry.fc,
-      fs: entry.fs,
-      rate: StringUtil.rateCodeFromAchievement(entry.achievements),
-      songId: songId,
-      starsColor: starsColor,
-      maxIdLength: maxIdLength,
-      // 字号按卡片**实际**宽度自适应：别拿屏幕宽度估（容器 padding /
-      // 网格间距都会从可用宽里扣掉）。
-      scale: B50GameCardWidget.autoScale,
-    );
-
-    if (!isIllegal) return card;
-
-    // 非法条目：加红色描边便于定位（统计区/导出图另有红字告警）
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        card,
-        IgnorePointer(
-          child: Container(
-            decoration: BoxDecoration(
-              border: Border.all(
-                  color: Theme.of(context).colorScheme.error, width: 3.0),
-              // 与 B50GameCardWidget 的圆角一致（radiusSmall，小卡不缩）
-              borderRadius:
-                  BorderRadius.circular(AppDesignTokens.radiusSmall),
-            ),
-          ),
-        ),
-      ],
+    return Best50CoverCard(
+      rank: index + 1,
+      // 点卡片是编辑这一格，不走详情面板。
+      onTap: () => _showEditSheet(index),
+      // 非法条目：红色描边便于定位（统计区 / 导出图另有红字告警）
+      outlineColor:
+          _isIllegal(entry) ? Theme.of(context).colorScheme.error : null,
+      data: Best50CardData(
+        songId: entry.songId,
+        title: _effectiveTitle(entry),
+        levelIndex: entry.levelIndex,
+        type: _effectiveType(entry),
+        rating: _raOf(entry),
+        ds: _effectiveDs(entry),
+        achievement: entry.achievements,
+        fc: entry.fc,
+        fs: entry.fs,
+        stars: StringUtil.formatStars(scoreRate),
+        dxScore: entry.dxScore,
+        maxDxScore: _cardMaxScore(entry),
+        onOpenSong: () => _showEditSheet(index),
+      ),
     );
   }
 }

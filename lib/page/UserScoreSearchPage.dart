@@ -7,17 +7,19 @@ import '../manager/DivingFish/MaimaiMusicDataManager.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import 'SongInfoPage.dart';
 import '../utils/CoverUtil.dart';
-import 'package:my_first_flutter_app/widgets/B50GameCardWidget.dart';
 import 'package:my_first_flutter_app/constant/VersionListConstant.dart';
 import 'package:my_first_flutter_app/widgets/BackgroundPageScaffold.dart';
 import '../widgets/AppUi.dart';
 import '../utils/AppDesignTokens.dart';
 
 class UserScoreSearchPage extends StatefulWidget {
-  const UserScoreSearchPage({Key? key}) : super(key: key);
+  /// 进入页面时直接打开搜索框（成绩 Hub 的搜索入口）。
+  final bool openSearch;
+
+  const UserScoreSearchPage({super.key, this.openSearch = false});
 
   @override
-  _UserScoreSearchPageState createState() => _UserScoreSearchPageState();
+  State<UserScoreSearchPage> createState() => _UserScoreSearchPageState();
 }
 
 class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
@@ -28,6 +30,40 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
   List<dynamic> _pagedSongs = [];
   bool _isLoading = true;
   Map<String, int>? _stats; // 存储统计数据
+
+  /// 点评级分布条选中的评级（下标对应 [_rankBuckets]），null = 不筛。
+  int? _rankFilter;
+  static const List<String> _rankBuckets = ['SSS+', 'SSS', 'SS+', 'SS', 'S+以下'];
+
+  /// 曲名 / 定数搜索。
+  late bool _searchOpen = widget.openSearch;
+  String _searchQuery = '';
+
+  int _rankBucketOf(dynamic song) {
+    final a = double.tryParse(song['achievements']?.toString() ?? '0') ?? 0;
+    if (a >= 100.5) return 0;
+    if (a >= 100) return 1;
+    if (a >= 99.5) return 2;
+    if (a >= 99) return 3;
+    return 4;
+  }
+
+  bool _matchesSearch(dynamic song) {
+    final q = _searchQuery.trim().toLowerCase();
+    if (q.isEmpty) return true;
+    return (song['title']?.toString() ?? '').toLowerCase().contains(q) ||
+        (song['ds']?.toString() ?? '').startsWith(q) ||
+        (song['song_id']?.toString() ?? '') == q;
+  }
+
+  /// 通过搜索后的成绩（评级分布的统计口径）。
+  List<dynamic> get _searchedSongs =>
+      _sortedSongs.where(_matchesSearch).toList();
+
+  /// 最终显示的成绩（再叠加评级筛选）。
+  List<dynamic> get _visibleSongs => _rankFilter == null
+      ? _searchedSongs
+      : _searchedSongs.where((s) => _rankBucketOf(s) == _rankFilter).toList();
   
   int _currentPage = 1;
   int _pageSize = 50;
@@ -43,7 +79,7 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
   String _currentSortBy = 'Rating'; // 默认选择Rating
   
   // 显示模式：true为曲绘模式，false为列表模式
-  bool _isCoverMode = true;
+  bool _isCoverMode = false;
   
   // 筛选条件
   Map<String, String> _filterConditions = {
@@ -720,7 +756,7 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
   }
   
   void _updatePagedSongs() {
-    _pagedSongs = _service.getPagedSongs(_sortedSongs, _currentPage, _pageSize);
+    _pagedSongs = _service.getPagedSongs(_visibleSongs, _currentPage, _pageSize);
   }
   
   void _changePage(int page) {
@@ -742,7 +778,8 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
   }
   
   int _getTotalPages() {
-    return (_sortedSongs.length / _pageSize).ceil();
+    final count = _visibleSongs.length;
+    return count == 0 ? 1 : (count / _pageSize).ceil();
   }
 
   // 计算统计数据
@@ -920,6 +957,41 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
     return BackgroundPageScaffold(
       title: '成绩查询',
       resizeToAvoidBottomInset: false, // 防止键盘弹出时调整布局
+      actions: [
+        IconButton(
+          tooltip: _searchOpen ? '关闭搜索' : '搜索曲名或定数',
+          onPressed: () => setState(() {
+            _searchOpen = !_searchOpen;
+            if (!_searchOpen) _setSearchQuery('');
+          }),
+          icon: Icon(_searchOpen ? Icons.close_rounded : Icons.search_rounded),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: Material(
+            color: AppSurfaces.card(context),
+            shape: const StadiumBorder(),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: _showSortDialog,
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.sort_rounded, size: 16),
+                    const SizedBox(width: 6),
+                    Text(_currentSortBy,
+                        style: const TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.w600)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
       child: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _userPlayData == null
@@ -928,31 +1000,56 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
                       style: TextStyle(
                           color: Theme.of(context).colorScheme.onSurface)))
               : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Expanded(
                       child: SingleChildScrollView(
                         padding: const EdgeInsets.fromLTRB(
                             AppDesignTokens.gutter,
-                            8,
+                            4,
                             AppDesignTokens.gutter,
                             AppDesignTokens.gutter),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            _buildStatsCard(),
+                            if (_searchOpen) ...[
+                              _buildSearchField(),
+                              const SizedBox(height: AppDesignTokens.cardGap),
+                            ],
+                            _buildDistributionCard(),
                             const SizedBox(height: AppDesignTokens.cardGap),
-                            _buildFilterCard(),
+                            _buildFilterRow(),
                             const SizedBox(height: AppDesignTokens.cardGap),
-                            _buildDisplayCard(),
+                            if (_isCoverMode) ...[
+                              SegmentedTabs(
+                                height: 40,
+                                items: const [
+                                  SegmentedTabItem('评级'),
+                                  SegmentedTabItem('连击'),
+                                  SegmentedTabItem('同步'),
+                                  SegmentedTabItem('得分'),
+                                  SegmentedTabItem('星数'),
+                                  SegmentedTabItem('定数'),
+                                ],
+                                selectedIndex: _selectedButtonIndex,
+                                onChanged: (i) =>
+                                    setState(() => _selectedButtonIndex = i),
+                              ),
+                              const SizedBox(height: AppDesignTokens.cardGap),
+                              ConstrainedBox(
+                                // 设置最小高度确保内容显示
+                                constraints:
+                                    const BoxConstraints(minHeight: 300),
+                                child: _buildCoverGrid(),
+                              ),
+                            ] else
+                              _buildListGrid(),
                             const SizedBox(height: AppDesignTokens.cardGap),
-                            // 歌曲列表
-                            ConstrainedBox(
-                              // 设置最小高度确保内容显示
-                              constraints:
-                                  const BoxConstraints(minHeight: 300),
-                              child: _isCoverMode
-                                  ? _buildCoverGrid()
-                                  : _buildListGrid(),
+                            _buildPageSizeRow(),
+                            const SizedBox(height: AppDesignTokens.cardGap),
+                            CollapsibleCard(
+                              title: '详细统计',
+                              child: _buildStatsGrid(),
                             ),
                           ],
                         ),
@@ -964,8 +1061,160 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
     );
   }
 
-  // 统计卡：总数 / 评级 → 连击同步 → 星数
-  Widget _buildStatsCard() {
+  void _setSearchQuery(String query) {
+    _searchQuery = query;
+    _currentPage = 1;
+    _updatePagedSongs();
+  }
+
+  Widget _buildSearchField() {
+    return TextField(
+      autofocus: widget.openSearch,
+      onChanged: (value) => setState(() => _setSearchQuery(value)),
+      decoration: InputDecoration(
+        hintText: '查成绩：曲名、定数、曲目 ID',
+        prefixIcon: const Icon(Icons.search_rounded, size: 20),
+        fillColor: AppSurfaces.card(context),
+        contentPadding: const EdgeInsets.symmetric(vertical: 12),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
+          borderSide: BorderSide.none,
+        ),
+      ),
+    );
+  }
+
+  // 评级分布：色块宽度 = 数量，点色块或下方数字按评级筛选
+  Widget _buildDistributionCard() {
+    final scheme = Theme.of(context).colorScheme;
+    final brightness = Theme.of(context).brightness;
+    final songs = _searchedSongs;
+    final counts = List<int>.filled(_rankBuckets.length, 0);
+    for (final s in songs) {
+      counts[_rankBucketOf(s)]++;
+    }
+    void pick(int i) => setState(() {
+          _rankFilter = _rankFilter == i ? null : i;
+          _currentPage = 1;
+          _updatePagedSongs();
+        });
+    double opacityOf(int i) =>
+        _rankFilter == null || _rankFilter == i ? 1 : 0.3;
+    return AppCard(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              const Expanded(
+                child: Text('评级分布',
+                    style:
+                        TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+              ),
+              Text(
+                _rankFilter == null
+                    ? '点色块筛选 · 共 ${songs.length} 条'
+                    : '已筛选 ${_rankBuckets[_rankFilter!]} · 再点取消',
+                style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 14,
+            child: Row(
+              children: [
+                for (var i = 0; i < counts.length; i++)
+                  if (counts[i] > 0)
+                    Expanded(
+                      flex: counts[i],
+                      child: Semantics(
+                        button: true,
+                        label: '${_rankBuckets[i]} ${counts[i]} 条，点按筛选',
+                        excludeSemantics: true,
+                        child: GestureDetector(
+                          onTap: () => pick(i),
+                          child: AnimatedOpacity(
+                            opacity: opacityOf(i),
+                            duration: AppDesignTokens.motion(
+                                context, AppDesignTokens.fastMotion),
+                            child: Container(
+                              margin: const EdgeInsets.symmetric(horizontal: 1.5),
+                              decoration: BoxDecoration(
+                                color:
+                                    AppColors.rankDistribution(i, brightness),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              for (var i = 0; i < counts.length; i++)
+                Expanded(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => pick(i),
+                    child: Opacity(
+                      opacity: opacityOf(i),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                width: 6,
+                                height: 6,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color:
+                                      AppColors.rankDistribution(i, brightness),
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: Text(_rankBuckets[i],
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: AppTheme.number(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700,
+                                        color: scheme.onSurfaceVariant)),
+                              ),
+                            ],
+                          ),
+                          Text('${counts[i]}',
+                              style: AppTheme.number(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w700,
+                                  color: scheme.onSurface)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 详细统计（总数 / 连击同步 / 星数）
+  Widget _buildStatsGrid() {
     final s = _stats!;
     Widget row(List<Widget> cells) => Row(
           children: [
@@ -975,161 +1224,101 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
             ],
           ],
         );
-    return AppCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        row([
+          _buildStatItem('总谱面数', s['total']!),
+          _buildStatItem('SSS+', s['sssp']!),
+          _buildStatItem('SSS', s['sss']!),
+        ]),
+        const SizedBox(height: 8),
+        row([
+          _buildStatItem('FC/FC+', s['fc']!),
+          _buildStatItem('AP/AP+', s['ap']!),
+          _buildStatItem('FS/FS+', s['fs']!),
+          _buildStatItem('FDX/FDX+', s['fdx']!),
+        ]),
+        const SizedBox(height: 8),
+        row([
+          for (final n in [5, 4, 3, 2, 1])
+            _buildStarStatItem('✦$n', s['star$n']!),
+        ]),
+      ],
+    );
+  }
+
+  // 横向滑动的筛选胶囊
+  Widget _buildFilterRow() {
+    final version = _filterConditions['版本筛选'];
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      clipBehavior: Clip.none,
+      child: Row(
         children: [
-          row([
-            _buildStatItem('总谱面数', s['total']!),
-            _buildStatItem('SSS+', s['sssp']!),
-            _buildStatItem('SSS', s['sss']!),
-          ]),
-          const SizedBox(height: 8),
-          row([
-            _buildStatItem('FC/FC+', s['fc']!),
-            _buildStatItem('AP/AP+', s['ap']!),
-            _buildStatItem('FS/FS+', s['fs']!),
-            _buildStatItem('FDX/FDX+', s['fdx']!),
-          ]),
-          const SizedBox(height: 8),
-          row([
-            for (final n in [5, 4, 3, 2, 1])
-              _buildStarStatItem('✦$n', s['star$n']!),
-          ]),
+          FilterPill(
+            label: '版本',
+            value: version != null && version.isNotEmpty
+                ? _formatVersion(version)
+                : null,
+            onTap: _showVersionFilterDialog,
+          ),
+          const SizedBox(width: 6),
+          FilterPill(
+            label: '定数',
+            value: _filterConditions['定数筛选'],
+            onTap: _showDsFilterDialog,
+          ),
+          const SizedBox(width: 6),
+          FilterPill(
+            label: '难度',
+            value: _filterConditions['难度筛选'],
+            onTap: _showDifficultyFilterDialog,
+          ),
+          const SizedBox(width: 6),
+          FilterPill(
+            label: '达成率',
+            value: _filterConditions['达成率筛选'],
+            onTap: _showAchievementFilterDialog,
+          ),
+          const SizedBox(width: 6),
+          FilterPill(
+            label: '连击/同步',
+            value: _filterConditions['连击/同步筛选'],
+            onTap: _showComboFilterDialog,
+          ),
         ],
       ),
     );
   }
 
-  // 筛选卡：每格「名称 + 当前条件」，三列
-  Widget _buildFilterCard() {
-    final version = _filterConditions['版本筛选'];
-    final filters = <(String, String, VoidCallback)>[
-      ('排序方式', _currentSortBy, _showSortDialog),
-      (
-        '版本筛选',
-        version != null && version.isNotEmpty ? _formatVersion(version) : '',
-        _showVersionFilterDialog
-      ),
-      ('定数筛选', _filterConditions['定数筛选'] ?? '', _showDsFilterDialog),
-      ('难度筛选', _filterConditions['难度筛选'] ?? '', _showDifficultyFilterDialog),
-      ('达成率筛选', _filterConditions['达成率筛选'] ?? '', _showAchievementFilterDialog),
-      ('连击/同步筛选', _filterConditions['连击/同步筛选'] ?? '', _showComboFilterDialog),
-    ];
-    return AppCard(
-      padding: const EdgeInsets.all(12),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          const gap = 8.0;
-          final w = (constraints.maxWidth - gap * 2) / 3;
-          return Wrap(
-            spacing: gap,
-            runSpacing: gap,
-            children: [
-              for (final f in filters)
-                SizedBox(
-                    width: w, child: _buildFilterTile(f.$1, f.$2, f.$3)),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildFilterTile(String title, String value, VoidCallback onTap) {
+  // 每页数量
+  Widget _buildPageSizeRow() {
     final scheme = Theme.of(context).colorScheme;
-    final active = value.isNotEmpty && title != '排序方式';
-    return Material(
-      color: active ? scheme.primaryContainer : AppSurfaces.inset(context),
-      borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: active ? scheme.onPrimaryContainer : scheme.onSurface,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                value.isEmpty ? '全部' : value,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: active
-                      ? scheme.onPrimaryContainer.withValues(alpha: 0.8)
-                      : scheme.onSurfaceVariant,
-                ),
-              ),
-            ],
+    return Row(
+      children: [
+        Text('每页显示',
+            style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant)),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 64,
+          height: 36,
+          child: TextField(
+            controller: _pageSizeController,
+            keyboardType: TextInputType.number,
+            textAlign: TextAlign.center,
+            onSubmitted: (_) => _changePageSize(),
+            style: AppTheme.number(fontSize: 14),
+            decoration: InputDecoration(
+              fillColor: AppSurfaces.card(context),
+              contentPadding: EdgeInsets.zero,
+            ),
           ),
         ),
-      ),
-    );
-  }
-
-  // 卡片角标显示内容 + 每页数量
-  Widget _buildDisplayCard() {
-    final scheme = Theme.of(context).colorScheme;
-    const labels = ['评级', '连击', '同步', '得分', '星数', '定数'];
-    return AppCard(
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          SegmentedTabs(
-            height: 40,
-            items: [for (final l in labels) SegmentedTabItem(l)],
-            selectedIndex: _selectedButtonIndex,
-            onChanged: (i) => setState(() => _selectedButtonIndex = i),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Text('每页显示',
-                  style:
-                      TextStyle(fontSize: 13, color: scheme.onSurfaceVariant)),
-              const SizedBox(width: 8),
-              SizedBox(
-                width: 64,
-                height: 36,
-                child: TextField(
-                  controller: _pageSizeController,
-                  keyboardType: TextInputType.number,
-                  textAlign: TextAlign.center,
-                  onSubmitted: (_) => _changePageSize(),
-                  style: AppTheme.number(fontSize: 14),
-                  decoration: InputDecoration(
-                    filled: true,
-                    fillColor: AppSurfaces.inset(context),
-                    contentPadding: EdgeInsets.zero,
-                    border: OutlineInputBorder(
-                      borderRadius:
-                          BorderRadius.circular(AppDesignTokens.radiusSmall),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                ),
-              ),
-              const Spacer(),
-              Text('共 ${_stats!['total']} 张',
-                  style:
-                      TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
-            ],
-          ),
-        ],
-      ),
+        const Spacer(),
+        Text('共 ${_visibleSongs.length} 条',
+            style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+      ],
     );
   }
 
@@ -1434,55 +1623,28 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
   
   // 构建列表网格（2列）
   Widget _buildListGrid() {
-    // 按当前页里实际最大 ID 位数作为占位宽度：无 6 位则严格用 5 位，5 位 ID 与 chip 之间不留空
-    final int maxIdLength = _pagedSongs.isEmpty
-        ? 5
-        : _pagedSongs
-            .map((s) => (s['song_id'] ?? 0).toString().length)
-            .reduce((a, b) => a > b ? a : b);
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: NeverScrollableScrollPhysics(),
+    return AppCard(
       padding: EdgeInsets.zero,
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 8,
-        mainAxisSpacing: 8,
-        childAspectRatio: B50GameCardWidget.designAspectRatio,
+      child: Column(
+        children: [
+          for (var i = 0; i < _pagedSongs.length; i++)
+            _buildListRow(_pagedSongs[i], showDivider: i > 0),
+        ],
       ),
-      itemCount: _pagedSongs.length,
-      itemBuilder: (context, index) {
-        return _buildListCard(_pagedSongs[index], maxIdLength: maxIdLength);
-      },
     );
   }
 
-  // 构建列表卡片：委托至通用 B50GameCardWidget，与 Best50 页面保持同一卡片样式。
-  // 仍保留 GestureDetector 以便点击跳转到 SongInfoPage。
-  // [maxIdLength] 由 _buildListGrid 在整个分页里统一计算，保证同页所有卡 ID 严格对齐。
-  Widget _buildListCard(Map<String, dynamic> song, {required int maxIdLength}) {
+  Widget _buildListRow(dynamic song, {required bool showDivider}) {
+    final scheme = Theme.of(context).colorScheme;
+    final brightness = Theme.of(context).brightness;
     final int songId = int.tryParse(song['song_id']?.toString() ?? '0') ?? 0;
     final int levelIndex = song['level_index'] ?? 0;
-    final String type = song['type']?.toString() ?? '';
-    final double difficulty = double.tryParse(song['ds']?.toString() ?? '0') ?? 0;
-    final String title = song['title']?.toString() ?? '未知歌曲';
-    final double achievementRate =
+    final double difficulty =
+        double.tryParse(song['ds']?.toString() ?? '0') ?? 0;
+    final double achievement =
         double.tryParse(song['achievements']?.toString() ?? '0') ?? 0;
-    final int score = song['dxScore'] ?? 0;
-    final int rating = song['ra'] ?? 0;
     final String fc = song['fc']?.toString() ?? '';
     final String fs = song['fs']?.toString() ?? '';
-    final String rate = song['rate']?.toString() ?? '';
-
-    Color cardColor;
-    if (songId.toString().length == 6) {
-      cardColor = Color(0xFFFFB3D1);
-    } else {
-      cardColor = ColorUtil.getCardColor(levelIndex);
-    }
-
-    bool dxMode = type == 'DX';
-    bool isUtage = songId.toString().length == 6;
 
     // 取 DX 分达成率（同步缓存）与对应的星级显示
     double rateValue;
@@ -1492,45 +1654,143 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
       rateValue = _calculateDXScoreRate(song);
       _dxRateCache[song] = rateValue;
     }
-    final String stars = StringUtil.formatStars(rateValue);
-    final Color starsColor = ColorUtil.getStarsColor(stars);
+    final stars = StringUtil.formatStars(rateValue);
+    final rank = StringUtil.rateCodeFromAchievement(achievement)
+        .toUpperCase()
+        .replaceFirst('P', '+');
+    final syncColors = AppColors.syncBadge(brightness);
+    String label(String raw) => raw
+        .toUpperCase()
+        .replaceAll('APP', 'AP+')
+        .replaceAll('FCP', 'FC+')
+        .replaceAll('FSDP', 'FDX+')
+        .replaceAll('FSD', 'FDX')
+        .replaceAll('FSP', 'FS+');
 
-    // 取 maxScore（notes * 3），直接复用 service 已有的同步方法
-    final int maxScore = _service.calculateMaxScoreSync(song);
-
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => SongInfoPage(
-              songId: songId.toString(),
-              initialLevelIndex: levelIndex,
-              isDefaultLevelIndex: false,
-            ),
+    return InkWell(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => SongInfoPage(
+            songId: songId.toString(),
+            initialLevelIndex: levelIndex,
+            isDefaultLevelIndex: false,
           ),
-        );
-      },
-      child: B50GameCardWidget(
-        cardColor: cardColor,
-        songName: title,
-        achievementRate: achievementRate,
-        difficulty: difficulty,
-        dxMode: dxMode,
-        isUtage: isUtage,
-        score: score,
-        maxScore: maxScore,
-        rating: rating,
-        stars: stars,
-        fc: fc,
-        fs: fs,
-        rate: rate,
-        songId: songId,
-        starsColor: starsColor,
-        maxIdLength: maxIdLength,
-        // 字号按卡片**实际**宽度自适应（别拿屏幕宽度估：容器 padding / 网格间距
-        // 都会从宽度里扣掉，估出来的值和真实格子差好几个百分点）。
-        scale: B50GameCardWidget.autoScale,
+        ),
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          border: showDivider
+              ? Border(top: BorderSide(color: AppSurfaces.hairline(context)))
+              : null,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 48,
+              height: 48,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  ClipRRect(
+                    borderRadius:
+                        BorderRadius.circular(AppDesignTokens.radiusSmall),
+                    child: CoverUtil.buildCoverWidgetWithContext(
+                        context, songId.toString(), 48),
+                  ),
+                  Positioned(
+                    right: -3,
+                    bottom: -3,
+                    child: Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: songId.toString().length == 6
+                            ? AppColors.utageCard()
+                            : ColorUtil.getCardColor(levelIndex),
+                        border: Border.all(
+                            color: AppSurfaces.card(context), width: 2),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    song['title']?.toString() ?? '未知歌曲',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 2),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Row(
+                      children: [
+                        Text('${achievement.toStringAsFixed(4)}%',
+                            style: AppTheme.number(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: scheme.onSurface)),
+                        const SizedBox(width: 6),
+                        RankBadge(rank: rank, fontSize: 10),
+                        if (fc.isNotEmpty) ...[
+                          const SizedBox(width: 4),
+                          AppBadge(
+                            text: label(fc),
+                            background:
+                                AppColors.comboBadge(label(fc), brightness)
+                                    .background,
+                            foreground:
+                                AppColors.comboBadge(label(fc), brightness)
+                                    .foreground,
+                            fontSize: 10,
+                          ),
+                        ],
+                        if (fs.isNotEmpty) ...[
+                          const SizedBox(width: 4),
+                          AppBadge(
+                            text: label(fs),
+                            background: syncColors.background,
+                            foreground: syncColors.foreground,
+                            fontSize: 10,
+                          ),
+                        ],
+                        const SizedBox(width: 4),
+                        StarBadge(stars: stars, fontSize: 10),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text('${song['ra'] ?? 0}',
+                    style: AppTheme.number(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: scheme.onSurface)),
+                Text('定数 ${difficulty.toStringAsFixed(1)}',
+                    style: AppTheme.number(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: scheme.onSurfaceVariant)),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

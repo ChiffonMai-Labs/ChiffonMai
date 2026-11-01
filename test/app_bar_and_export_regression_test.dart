@@ -91,7 +91,7 @@ void main() {
             reason: '两套标题规格必须一致，否则标准 AppBar 与 PageTopBar 又不一样了');
         expect(theme.appBarTheme.titleTextStyle?.fontWeight, FontWeight.bold);
         expect(
-            theme.appBarTheme.titleTextStyle?.color, theme.colorScheme.primary);
+            theme.appBarTheme.titleTextStyle?.color, theme.colorScheme.onSurface);
       }
     });
 

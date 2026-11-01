@@ -8,16 +8,14 @@ import '../../entity/DivingFish/Song.dart';
 import '../../manager/DivingFish/MaimaiMusicDataManager.dart';
 import '../../service/Best50/Best50ConvertToImgService.dart';
 import '../../service/Best50/IdealBest50Service.dart';
-import '../../utils/AppTheme.dart';
-import '../../utils/ColorUtil.dart';
 import '../../utils/ExportQualitySelector.dart';
 import '../../utils/ImageEncodeUtil.dart';
 import '../../utils/StringUtil.dart';
-import '../../widgets/B50GameCardWidget.dart';
 import '../SongInfoPage.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
 import '../../widgets/AppUi.dart';
 import '../../utils/AppDesignTokens.dart';
+import '../../widgets/Best50Ui.dart';
 
 /// 理想 Best50：把全部游玩记录里非 SSS+ 的成绩升一档（100.4 → 100.5），
 /// 重算 RA 后重新取 B35 + B15，并列出相对原榜的新进榜歌曲。
@@ -29,6 +27,7 @@ class IdealBest50Page extends StatefulWidget {
 }
 
 class _IdealBest50PageState extends State<IdealBest50Page> {
+  int _segment = 0; // 0 = B35，1 = B15
   Map<String, dynamic>? _data;
   List<Map<String, dynamic>> _sdSongs = [];
   List<Map<String, dynamic>> _dxSongs = [];
@@ -250,6 +249,16 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
     return BackgroundPageScaffold(
       title: '理想 Best50',
       resizeToAvoidBottomInset: false,
+      actions: [
+        if (_data != null) ...[
+          Best50IconAction(
+            tooltip: '导出为图片',
+            icon: Icons.image_outlined,
+            onPressed: _exportToImage,
+          ),
+          const SizedBox(width: 4),
+        ],
+      ],
       contentPadding:
           EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
       child: _data == null ? _buildEmptyState() : _buildContent(),
@@ -284,30 +293,39 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
   }
 
   Widget _buildContent() {
+    final songs = _segment == 0 ? _sdSongs : _dxSongs;
+    int sumOf(List<Map<String, dynamic>> list) =>
+        list.fold<int>(0, (sum, m) => sum + ((m['ra'] ?? 0) as int));
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(AppDesignTokens.gutter, 8,
-          AppDesignTokens.gutter, AppDesignTokens.gutter),
+      padding: const EdgeInsets.fromLTRB(AppDesignTokens.gutter, 4,
+          AppDesignTokens.gutter, AppDesignTokens.gutter + 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _buildStatsSection(),
-          const SizedBox(height: 12.0),
+          const SizedBox(height: AppDesignTokens.cardGap),
           _buildNewEntriesSection(),
-          const SizedBox(height: 12.0),
-          _buildExportButton(),
-          const SizedBox(height: 12.0),
-          _buildSectionTitle('Best35 | 非当前版本'),
-          _buildGrid(_sdSongs),
-          const SizedBox(height: AppDesignTokens.sectionGap - 12),
-          _buildSectionTitle('Best15 | 当前版本'),
-          _buildGrid(_dxSongs),
+          const SizedBox(height: AppDesignTokens.cardGap),
+          SegmentedTabs(
+            inlineCaption: true,
+            items: [
+              SegmentedTabItem('B35', caption: '${sumOf(_sdSongs)}'),
+              SegmentedTabItem('B15', caption: '${sumOf(_dxSongs)}'),
+            ],
+            selectedIndex: _segment,
+            onChanged: (i) => setState(() => _segment = i),
+          ),
+          const SizedBox(height: 8),
+          Best50MetaLine(best50MetaText(_segment == 0 ? '非当前版本' : '当前版本',
+              songs.map((m) => (m['ra'] ?? 0) as int))),
+          const SizedBox(height: AppDesignTokens.cardGap),
+          _buildGrid(songs),
         ],
       ),
     );
   }
 
   Widget _buildStatsSection() {
-    final scheme = Theme.of(context).colorScheme;
     final originalRating = (_data!['originalRating'] ?? 0) as int;
     final idealRating = (_data!['rating'] ?? 0) as int;
     final delta = idealRating - originalRating;
@@ -321,53 +339,21 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
                     (double.tryParse(m['achievements'].toString()) ?? 0.0)) /
             all.length;
 
-    final brightness = Theme.of(context).brightness;
-    return AppCard(
-      radius: AppDesignTokens.radiusLarge,
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('理想 Rating',
-              style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: scheme.onSurfaceVariant)),
-          const SizedBox(height: 2),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(
-                '$idealRating',
-                style: AppTheme.number(
-                  fontSize: 44,
-                  fontWeight: FontWeight.w700,
-                  height: 1.1,
-                  letterSpacing: -1,
-                  color: scheme.onSurface,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                delta >= 0 ? '+$delta' : '$delta',
-                style: AppTheme.number(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: delta >= 0
-                      ? AppColors.successGreen(brightness)
-                      : AppColors.errorRed(brightness),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 2),
-          Text(
-            '规则：非 SSS+ 成绩升到上一档的下限',
-            style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
-          ),
-          const SizedBox(height: 14),
-          Row(
+    int sumOf(List<Map<String, dynamic>> list) =>
+        list.fold<int>(0, (sum, m) => sum + ((m['ra'] ?? 0) as int));
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Best50Hero(
+          total: idealRating,
+          label: '理想 Rating · 非 SSS+ 成绩升到上一档的下限',
+          delta: delta,
+          best35Sum: sumOf(_sdSongs),
+          best15Sum: sumOf(_dxSongs),
+        ),
+        const SizedBox(height: AppDesignTokens.cardGap),
+        AppCard(
+          child: Row(
             children: [
               Expanded(
                   child: StatTile(label: '原 Rating', value: '$originalRating')),
@@ -380,8 +366,8 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
                       value: '${avgAchievement.toStringAsFixed(2)}%')),
             ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -414,16 +400,7 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
     );
   }
 
-  Widget _buildExportButton() {
-    return Best50ActionButton(
-      icon: Icons.image_outlined,
-      label: '导出为图片',
-      primary: true,
-      onPressed: _exportToImage,
-    );
-  }
 
-  Widget _buildSectionTitle(String title) => Best50SectionHeader(title);
 
   Widget _buildGrid(List<Map<String, dynamic>> songs) {
     if (songs.isEmpty) {
@@ -436,111 +413,41 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
         ),
       );
     }
-    final int maxIdLength = songs
-        .map((m) => (m['song_id'] ?? 0).toString().length)
-        .fold<int>(5, (a, b) => a > b ? a : b);
-
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      padding: EdgeInsets.zero,
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 8,
-        mainAxisSpacing: 8,
-        childAspectRatio: B50GameCardWidget.designAspectRatio,
-      ),
-      itemCount: songs.length,
-      itemBuilder: (context, index) =>
-          _buildDataGameCard(songs[index], maxIdLength),
+    return Best50Grid(
+      key: ValueKey(_segment),
+      items: [for (final m in songs) _cardData(m)],
     );
   }
 
-  Widget _buildDataGameCard(Map<String, dynamic> m, int maxIdLength) {
+  Best50CardData _cardData(Map<String, dynamic> m) {
     final songId = (m['song_id'] ?? 0) as int;
     final levelIndex = (m['level_index'] ?? 0) as int;
-    final isUtage = songId.toString().length == 6;
-    final cardColor =
-        isUtage ? AppColors.utageCard() : ColorUtil.getCardColor(levelIndex);
-    final maxScore = _cardMaxScore(m);
     final maxDx = _maxDxScore(m);
     final score = (m['dxScore'] ?? 0) as int;
-    final scoreRate = maxDx > 0 ? score / maxDx : 0.0;
-    final stars = StringUtil.formatStars(scoreRate);
-    final starsColor = ColorUtil.getStarsColor(stars);
-
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => SongInfoPage(
-              songId: songId.toString(),
-              initialLevelIndex: levelIndex,
-              isDefaultLevelIndex: false,
-            ),
+    return Best50CardData(
+      songId: songId,
+      title: m['title'] ?? '未知歌曲',
+      levelIndex: levelIndex,
+      type: m['type'] ?? '',
+      rating: (m['ra'] ?? 0) as int,
+      ds: double.tryParse(m['ds'].toString()) ?? 0.0,
+      achievement: double.tryParse(m['achievements'].toString()) ?? 0.0,
+      fc: m['fc'] ?? '',
+      fs: m['fs'] ?? '',
+      stars: StringUtil.formatStars(maxDx > 0 ? score / maxDx : 0.0),
+      dxScore: score,
+      maxDxScore: _cardMaxScore(m),
+      onOpenSong: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => SongInfoPage(
+            songId: songId.toString(),
+            initialLevelIndex: levelIndex,
+            isDefaultLevelIndex: false,
           ),
-        );
-      },
-      child: _buildGameCard(
-        cardColor: cardColor,
-        songName: m['title'] ?? '未知歌曲',
-        achievementRate: double.tryParse(m['achievements'].toString()) ?? 0.0,
-        difficulty: double.tryParse(m['ds'].toString()) ?? 0.0,
-        dxMode: m['type'] == 'DX',
-        isUtage: isUtage,
-        score: score,
-        maxScore: maxScore,
-        rating: (m['ra'] ?? 0) as int,
-        stars: stars,
-        fc: m['fc'] ?? '',
-        fs: m['fs'] ?? '',
-        rate: m['rate'] ?? '',
-        songId: songId,
-        starsColor: starsColor,
-        maxIdLength: maxIdLength,
+        ),
       ),
     );
   }
 
-  Widget _buildGameCard({
-    required Color cardColor,
-    String songName = '未知歌曲',
-    double achievementRate = 0.0,
-    double difficulty = 0.0,
-    bool dxMode = false,
-    bool isUtage = false,
-    int score = 0,
-    int maxScore = 0,
-    int rating = 0,
-    String stars = '',
-    String fc = '',
-    String fs = '',
-    String rate = '',
-    int? songId,
-    Color starsColor = Colors.white,
-    int maxIdLength = 5,
-  }) {
-    return B50GameCardWidget(
-      cardColor: cardColor,
-      songName: songName,
-      achievementRate: achievementRate,
-      difficulty: difficulty,
-      dxMode: dxMode,
-      isUtage: isUtage,
-      score: score,
-      maxScore: maxScore,
-      rating: rating,
-      stars: stars,
-      fc: fc,
-      fs: fs,
-      rate: rate,
-      songId: songId ?? 0,
-      starsColor: starsColor,
-      maxIdLength: maxIdLength,
-      // 字号按卡片**实际**宽度自适应：别拿屏幕宽度估（容器 padding /
-      // 网格间距都会从可用宽里扣掉）。
-      scale: B50GameCardWidget.autoScale,
-    );
-  }
 }

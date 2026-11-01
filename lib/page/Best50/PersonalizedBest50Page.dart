@@ -7,7 +7,6 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:my_first_flutter_app/utils/StringUtil.dart';
-import 'package:my_first_flutter_app/utils/ColorUtil.dart';
 import '../../service/Best50/PersonalizedBest50Service.dart';
 import '../../manager/DivingFish/MaimaiMusicDataManager.dart';
 import '../SongInfoPage.dart';
@@ -20,10 +19,10 @@ import 'package:my_first_flutter_app/entity/DXRating/MaiTagsModel.dart';
 import 'package:my_first_flutter_app/utils/ExportQualitySelector.dart';
 import 'package:my_first_flutter_app/utils/ImageEncodeUtil.dart';
 import 'package:fluttertoast/fluttertoast.dart';
-import '../../widgets/B50GameCardWidget.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
 import '../../widgets/AppUi.dart';
 import '../../utils/AppDesignTokens.dart';
+import '../../widgets/Best50Ui.dart';
 
 class PersonalizedBest50Page extends StatefulWidget {
   const PersonalizedBest50Page({super.key});
@@ -652,8 +651,22 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
     }
 
     return BackgroundPageScaffold(
-      title: '个性化Best50',
+      title: '个性化 Best50',
       resizeToAvoidBottomInset: false,
+      actions: [
+        Best50IconAction(
+          tooltip: '导出为图片',
+          icon: Icons.image_outlined,
+          onPressed: () async {
+            try {
+              await _exportToImage();
+            } catch (e) {
+              debugPrint('Error in personalized export: $e');
+            }
+          },
+        ),
+        const SizedBox(width: 4),
+      ],
       contentPadding:
           EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
       child: SingleChildScrollView(
@@ -709,10 +722,6 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
             // Best N 专属：输入框 + 生成按钮
             if (_selectedType == 'best_n') _buildBestNInputRow(),
             if (_selectedType == 'best_n') SizedBox(height: 12.0),
-
-            // 导出按钮
-            _buildExportButton(),
-            SizedBox(height: 12.0),
 
             // 歌曲列表
             _buildSongList(),
@@ -1275,16 +1284,15 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
                                     _selectedTagName != null
                                 ? '标签50 - ${_selectedTagName!} 统计'
                                 : '${_options.firstWhere((option) => option['value'] == _selectedType)['label']!} 统计';
-    return AppCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          AppSectionHeader(title: title, padding: EdgeInsets.zero),
-          const SizedBox(height: 12),
-          Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Best50Hero(total: totalRa, label: title),
+        const SizedBox(height: AppDesignTokens.cardGap),
+        AppCard(
+          child: Row(
             children: [
               Expanded(child: StatTile(label: '总谱面数', value: '$totalSongs')),
-              Expanded(child: StatTile(label: '总RA值', value: '$totalRa')),
               Expanded(
                   child: StatTile(
                       label: '平均RA值', value: averageRa.toStringAsFixed(1))),
@@ -1294,8 +1302,8 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
                       value: '${averageAchievement.toStringAsFixed(2)}%')),
             ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -1357,20 +1365,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
   }
 
   // 构建导出按钮
-  Widget _buildExportButton() {
-    return Best50ActionButton(
-      icon: Icons.image_outlined,
-      label: '导出为图片',
-      primary: true,
-      onPressed: () async {
-        try {
-          await _exportToImage();
-        } catch (e) {
-          debugPrint('Error in personalized export: $e');
-        }
-      },
-    );
-  }
+
 
   // 构建歌曲列表
   Widget _buildSongList() {
@@ -1420,165 +1415,63 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
       );
     }
 
-    // 按当前列表里实际最大 ID 位数作为占位宽度：无 6 位则严格用 5 位，5 位 ID 与 chip 之间不留空
-    final int maxIdLength = _personalizedSongs.isEmpty
-        ? 5
-        : _personalizedSongs
-            .map((s) => s['song_id'].toString().length)
-            .reduce((a, b) => a > b ? a : b);
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: NeverScrollableScrollPhysics(),
-      padding: EdgeInsets.zero,
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 8,
-        mainAxisSpacing: 8,
-        childAspectRatio: B50GameCardWidget.designAspectRatio,
-      ),
-      itemCount: _personalizedSongs.length,
-      itemBuilder: (context, index) {
-        return _buildDataGameCard(_personalizedSongs[index],
-            maxIdLength: maxIdLength);
-      },
+    return Best50Grid(
+      items: [for (final s in _personalizedSongs) _cardData(s)],
     );
   }
 
   // 根据数据构建游戏卡片
-  Widget _buildDataGameCard(Map<String, dynamic> songData,
-      {required int maxIdLength}) {
-    // 解析数据
-    double achievementRate =
-        double.tryParse(songData['achievements'].toString()) ?? 0.0;
-    int score = songData['dxScore'] ?? 0;
-    String fc = songData['fc'] ?? '';
-    String fs = songData['fs'] ?? '';
-    double difficulty = songData['ds'] is double
-        ? songData['ds']
-        : (double.tryParse(songData['ds'].toString()) ?? 0.0);
-    String rate = songData['rate'] ?? '';
-    int levelIndex = songData['level_index'] ?? 0;
-    int rating = songData['ra'] ?? 0;
-    String type = songData['type'] ?? '';
-    String title = songData['title'] ?? '未知歌曲';
-    int songId = songData['song_id'] ?? 0;
-
-    // 计算星星等级与满分（沿用 _calculateScoreRate 的查表逻辑）
+  Best50CardData _cardData(Map<String, dynamic> songData) {
+    final int score = songData['dxScore'] ?? 0;
+    final int levelIndex = songData['level_index'] ?? 0;
+    final int songId = songData['song_id'] ?? 0;
+    // 沿用 _calculateScoreRate 的查表逻辑算满分。
     final songIndex = _maimaiMusicData == null
         ? -1
         : _maimaiMusicData!
             .indexWhere((item) => item['id'] == songId.toString());
-    dynamic matchedSong = songIndex >= 0 ? _maimaiMusicData![songIndex] : null;
-    double scoreRate = _calculateScoreRate(songId, levelIndex, score);
-    String stars = StringUtil.formatStars(scoreRate);
-    Color starsColor = ColorUtil.getStarsColor(stars);
-    // 卡片只显示当前难度的满分（notes * 3），不用 _calculateMaxDxScore（DX 双难度总和）
-    final int maxScore =
-        matchedSong == null ? 0 : _calculateMaxScore(matchedSong, levelIndex);
-
-    // 获取卡片颜色
-    Color cardColor;
-    // 对于6位数ID的歌曲，使用粉色
-    if (songId.toString().length == 6) {
-      cardColor = AppColors.utageCard(); // 进一步加深的粉色
-    } else {
-      cardColor = ColorUtil.getCardColor(levelIndex);
-    }
-
-    // 判断是否为DX模式或UT模式
-    bool dxMode = type == 'DX';
-    bool isUtage = songId.toString().length == 6; // 6位数ID为UTAGE
-
-    final card = _buildGameCard(
-      cardColor: cardColor,
-      songName: title,
-      achievementRate: achievementRate,
-      difficulty: difficulty,
-      dxMode: dxMode,
-      isUtage: isUtage,
-      score: score,
-      maxScore: maxScore,
-      rating: rating,
-      stars: stars,
-      fc: fc,
-      fs: fs,
-      rate: rate,
-      songId: songId,
-      starsColor: starsColor,
-      maxIdLength: maxIdLength,
-    );
-
+    final dynamic matchedSong =
+        songIndex >= 0 ? _maimaiMusicData![songIndex] : null;
     // PC50：卡片上挂一枚游玩次数角标 —— 这个模式的排序依据就是它，
     // 不显示的话列表看起来和 ALL50 只差一个顺序。
     final int? playCount = (songData['playCount'] as num?)?.toInt();
-
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => SongInfoPage(
-              songId: songId.toString(),
-              initialLevelIndex: levelIndex,
-              isDefaultLevelIndex: false, // 防止默认跳转到Master难度
-            ),
+    return Best50CardData(
+      songId: songId,
+      title: songData['title'] ?? '未知歌曲',
+      levelIndex: levelIndex,
+      type: songData['type'] ?? '',
+      rating: songData['ra'] ?? 0,
+      ds: songData['ds'] is double
+          ? songData['ds']
+          : (double.tryParse(songData['ds'].toString()) ?? 0.0),
+      achievement: double.tryParse(songData['achievements'].toString()) ?? 0.0,
+      fc: songData['fc'] ?? '',
+      fs: songData['fs'] ?? '',
+      stars: StringUtil.formatStars(
+          _calculateScoreRate(songId, levelIndex, score)),
+      dxScore: score,
+      // 只显示当前难度的满分（notes * 3），不用 DX 双难度总和
+      maxDxScore:
+          matchedSong == null ? 0 : _calculateMaxScore(matchedSong, levelIndex),
+      badge: _selectedType == 'pc_50' && playCount != null
+          ? 'PC $playCount'
+          : null,
+      onOpenSong: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => SongInfoPage(
+            songId: songId.toString(),
+            initialLevelIndex: levelIndex,
+            isDefaultLevelIndex: false, // 防止默认跳转到Master难度
           ),
-        );
-      },
-      child: _selectedType == 'pc_50' && playCount != null
-          ? B50GameCardWidget.withBadgeOverlay(
-              card: card,
-              text: 'PC $playCount',
-              scale: B50GameCardWidget.autoScale,
-            )
-          : card,
+        ),
+      ),
     );
   }
 
   // 构建游戏卡片（委托至通用 widget B50GameCardWidget，
   // 字号按卡片**实际**宽度自适应（`scale: autoScale`）。
-  Widget _buildGameCard({
-    required Color cardColor,
-    String songName = '未知歌曲',
-    double achievementRate = 0.0,
-    double difficulty = 0.0,
-    bool dxMode = false,
-    bool isUtage = false,
-    int score = 0,
-    int maxScore = 0,
-    int rating = 0,
-    String stars = '',
-    String fc = '',
-    String fs = '',
-    String rate = '',
-    int? songId,
-    Color starsColor = Colors.white,
-    int maxIdLength = 5,
-  }) {
-    final int id = songId ?? 0;
 
-    return B50GameCardWidget(
-      cardColor: cardColor,
-      songName: songName,
-      achievementRate: achievementRate,
-      difficulty: difficulty,
-      dxMode: dxMode,
-      isUtage: isUtage,
-      score: score,
-      maxScore: maxScore,
-      rating: rating,
-      stars: stars,
-      fc: fc,
-      fs: fs,
-      rate: rate,
-      songId: id,
-      starsColor: starsColor,
-      maxIdLength: maxIdLength,
-      // 字号按卡片**实际**宽度自适应（别拿屏幕宽度估：容器 padding / 网格间距
-      // 都会从宽度里扣掉，估出来的值和真实格子差好几个百分点）。
-      scale: B50GameCardWidget.autoScale,
-    );
-  }
 
   // 计算scoreRate
   double _calculateScoreRate(int songId, int levelIndex, int score) {

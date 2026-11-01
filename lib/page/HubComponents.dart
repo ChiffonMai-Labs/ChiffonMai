@@ -346,21 +346,30 @@ class HubActionTile extends StatelessWidget {
       minVerticalPadding: dense ? 4 : 8,
       visualDensity: dense ? VisualDensity.compact : VisualDensity.standard,
       leading: leading ??
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: activeTint.withValues(alpha: _isInactive ? 0.06 : 0.12),
-              borderRadius:
-                  BorderRadius.circular(AppDesignTokens.radiusSmall),
-            ),
-            alignment: Alignment.center,
-            child: Icon(icon,
-                color: _isInactive
-                    ? activeTint.withValues(alpha: 0.5)
-                    : activeTint,
-                size: 20),
-          ),
+          Builder(builder: (context) {
+            // 没指定颜色时按标题取功能色，与首页「常用」的图标块同色。
+            final tint = AppColors.featureTint(
+                title, Theme.of(context).brightness);
+            final useTint = iconColor == null && !awaitingConfirm;
+            final fg = useTint ? tint.foreground : activeTint;
+            final bg = useTint
+                ? tint.background
+                : activeTint.withValues(alpha: 0.12);
+            return Opacity(
+              opacity: _isInactive ? 0.5 : 1,
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: bg,
+                  borderRadius:
+                      BorderRadius.circular(AppDesignTokens.radiusSmall),
+                ),
+                alignment: Alignment.center,
+                child: Icon(icon, color: fg, size: 20),
+              ),
+            );
+          }),
       title: Text(
         title,
         maxLines: 2,
@@ -632,23 +641,15 @@ class HubPageScaffold extends StatelessWidget {
                           ),
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodyMedium
-                        ?.copyWith(color: scheme.onSurfaceVariant),
-                  ),
                 ],
               ),
             ),
             if (headerBottom != null) ...[
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               headerBottom!,
             ],
             if (hero != null) ...[
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
               hero!,
             ],
             const SizedBox(height: AppDesignTokens.sectionGap),

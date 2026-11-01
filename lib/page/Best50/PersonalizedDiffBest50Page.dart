@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:my_first_flutter_app/utils/StringUtil.dart';
-import 'package:my_first_flutter_app/utils/ColorUtil.dart';
 import '../../service/Best50/PersonalizedDiffBest50Service.dart';
 import '../../manager/DivingFish/MaimaiMusicDataManager.dart';
 import '../SongInfoPage.dart';
@@ -15,10 +14,9 @@ import 'package:my_first_flutter_app/manager/MaiTagsManager.dart';
 import 'package:my_first_flutter_app/entity/DXRating/MaiTagsModel.dart';
 import 'package:my_first_flutter_app/utils/ExportQualitySelector.dart';
 import 'package:my_first_flutter_app/utils/ImageEncodeUtil.dart';
-import '../../widgets/B50GameCardWidget.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
-import '../../widgets/AppUi.dart';
 import '../../utils/AppDesignTokens.dart';
+import '../../widgets/Best50Ui.dart';
 
 class PersonalizedDiffBest50Page extends StatefulWidget {
   const PersonalizedDiffBest50Page({super.key});
@@ -401,8 +399,24 @@ class _PersonalizedDiffBest50PageState
     fontSizeBase = screenWidth * 0.035;
 
     return BackgroundPageScaffold(
-      title: '个性化拟合Best50查询',
+      title: '个性化拟合 Best50',
       resizeToAvoidBottomInset: false,
+      actions: [
+        if (_selectedTagId != null && _diffSongs.isNotEmpty) ...[
+          Best50IconAction(
+            tooltip: '导出为图片',
+            icon: Icons.image_outlined,
+            onPressed: () async {
+              try {
+                await _exportToImage();
+              } catch (e) {
+                debugPrint('Error in personalized diff export: $e');
+              }
+            },
+          ),
+          const SizedBox(width: 4),
+        ],
+      ],
       contentPadding: EdgeInsets.only(
         bottom: MediaQuery.paddingOf(context).bottom,
       ),
@@ -443,11 +457,13 @@ class _PersonalizedDiffBest50PageState
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           _buildRatingSection(),
-                          SizedBox(height: 12.0),
-                          _buildExportButton(),
-                          SizedBox(height: 12.0),
-                          _buildSectionTitle('基于拟合难度的个性化Best50', context),
-                          _buildDataCardGrid(),
+                          const SizedBox(height: AppDesignTokens.cardGap),
+                          Best50Grid(
+                            items: [
+                              for (final s in _diffSongs)
+                                _cardData(Map<String, dynamic>.from(s))
+                            ],
+                          ),
                         ],
                       ),
                     ),
@@ -603,206 +619,81 @@ class _PersonalizedDiffBest50PageState
     }).length;
 
     final brightness = Theme.of(context).brightness;
-    final scheme = Theme.of(context).colorScheme;
-    return Best50SummaryCard(
-      label: '拟合总 Rating',
-      rating: diffRatingSum,
-      ratingAverage: diffRatingAverage,
-      showTier: false,
-      averages: [
-        Best50AverageRow('平均', averageAchievement, averageScoreRate),
-      ],
-      footer: [
-        Wrap(
-          spacing: 8,
-          runSpacing: 6,
-          children: [
-            if (_selectedTagName != null)
-              AppBadge(
-                  text: '标签：$_selectedTagName',
-                  numeric: false,
-                  background: scheme.secondaryContainer,
-                  foreground: scheme.onSecondaryContainer),
-            AppBadge(
-                text: '共${_diffSongs.length}张谱面',
-                numeric: false,
-                background: AppSurfaces.inset(context),
-                foreground: scheme.onSurfaceVariant),
-          ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Best50Hero(
+          total: diffRatingSum,
+          label:
+              '拟合总 Rating（平均 ${diffRatingAverage.toStringAsFixed(1)}）',
         ),
-        if (noFitDiffCount > 0)
-          Text(
-            '$noFitDiffCount首暂无拟合定数，按照官方定数计算',
-            style: TextStyle(
-                fontSize: 12, color: AppColors.warningOrange(brightness)),
-          ),
-        Text(
-          '在拟合定数下计算单曲Rating，取前50的谱面',
-          style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+        const SizedBox(height: 8),
+        Best50MetaLine(
+            '标签：${_selectedTagName ?? ''} · 共${_diffSongs.length}张谱面 · 在拟合定数下计算单曲Rating，取前50的谱面'),
+        if (noFitDiffCount > 0) ...[
+          const SizedBox(height: 4),
+          Best50MetaLine('$noFitDiffCount首暂无拟合定数，按照官方定数计算',
+              color: AppColors.warningOrange(brightness)),
+        ],
+        const SizedBox(height: AppDesignTokens.cardGap),
+        Best50AveragesCard(
+          rows: [
+            Best50AverageRow('平均', averageAchievement, averageScoreRate),
+          ],
         ),
       ],
     );
   }
 
   // 构建区域标题
-  Widget _buildSectionTitle(String title, BuildContext context) =>
-      Best50SectionHeader(title);
 
   // 构建数据卡片网格
-  Widget _buildDataCardGrid() {
-    // 按当前列表里实际最大 ID 位数作为占位宽度：无 6 位则严格用 5 位，5 位 ID 与 chip 之间不留空
-    final int maxIdLength = _diffSongs.isEmpty
-        ? 5
-        : _diffSongs
-            .map((s) => s['song_id'].toString().length)
-            .reduce((a, b) => a > b ? a : b);
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: NeverScrollableScrollPhysics(),
-      padding: EdgeInsets.zero,
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 8,
-        mainAxisSpacing: 8,
-        childAspectRatio: B50GameCardWidget.designAspectRatio,
+  Best50CardData _cardData(Map<String, dynamic> songData) {
+    final int score = songData['dxScore'] ?? 0;
+    final int levelIndex = songData['level_index'] ?? 0;
+    final int songId = songData['song_id'] ?? 0;
+    return Best50CardData(
+      songId: songId,
+      title: songData['title'] ?? '未知歌曲',
+      levelIndex: levelIndex,
+      type: songData['type'] ?? '',
+      rating: songData['diffRating'] ?? 0,
+      ds: double.tryParse(songData['fit_diff'].toString()) ?? 0.0,
+      isFitDiff: true,
+      achievement: double.tryParse(songData['achievements'].toString()) ?? 0.0,
+      fc: songData['fc'] ?? '',
+      fs: songData['fs'] ?? '',
+      stars: StringUtil.formatStars(
+          _calculateScoreRate(songId, levelIndex, score)),
+      dxScore: score,
+      maxDxScore: _calculateMaxScore(songId, levelIndex),
+      onOpenSong: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => SongInfoPage(
+            songId: songId.toString(),
+            initialLevelIndex: levelIndex,
+            isDefaultLevelIndex: false,
+          ),
+        ),
       ),
-      itemCount: _diffSongs.length,
-      itemBuilder: (context, index) {
-        return _buildDataGameCard(_diffSongs[index], maxIdLength: maxIdLength);
-      },
     );
   }
 
   // 根据数据构建游戏卡片
-  Widget _buildDataGameCard(Map<String, dynamic> songData,
-      {required int maxIdLength}) {
-    double achievementRate =
-        double.tryParse(songData['achievements'].toString()) ?? 0.0;
-    int score = songData['dxScore'] ?? 0;
-    String fc = songData['fc'] ?? '';
-    String fs = songData['fs'] ?? '';
-    double difficulty = double.tryParse(songData['fit_diff'].toString()) ?? 0.0;
-    String rate = songData['rate'] ?? '';
-    int levelIndex = songData['level_index'] ?? 0;
-    int rating = songData['diffRating'] ?? 0;
-    String type = songData['type'] ?? '';
-    String title = songData['title'] ?? '未知歌曲';
-    int songId = songData['song_id'] ?? 0;
 
-    // 计算星星等级
-    double scoreRate = _calculateScoreRate(songId, levelIndex, score);
-    String stars = StringUtil.formatStars(scoreRate);
-    Color starsColor = ColorUtil.getStarsColor(stars);
-
-    // 计算满分（notes * 3），通用卡片需要展示 分数/满分
-    int maxScore = _calculateMaxScore(songId, levelIndex);
-
-    // 获取卡片颜色
-    Color cardColor;
-    if (songId.toString().length == 6) {
-      cardColor = AppColors.utageCard();
-    } else {
-      cardColor = _getCardColor(levelIndex);
-    }
-
-    bool dxMode = type == 'DX';
-    bool isUtage = songId.toString().length == 6;
-
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => SongInfoPage(
-              songId: songId.toString(),
-              initialLevelIndex: levelIndex,
-              isDefaultLevelIndex: false,
-            ),
-          ),
-        );
-      },
-      child: _buildGameCard(
-        cardColor: cardColor,
-        songName: title,
-        achievementRate: achievementRate,
-        difficulty: difficulty,
-        dxMode: dxMode,
-        isUtage: isUtage,
-        score: score,
-        maxScore: maxScore,
-        rating: rating,
-        stars: stars,
-        fc: fc,
-        fs: fs,
-        rate: rate,
-        songId: songId,
-        starsColor: starsColor,
-        maxIdLength: maxIdLength,
-      ),
-    );
-  }
 
   // 构建游戏卡片（委托至通用 widget B50GameCardWidget，
   // 字号按卡片**实际**宽度自适应（`scale: autoScale`）。
   // 注：原 useOfficialDiff（黄星标记）已废弃，统一不在卡片中显示。
-  Widget _buildGameCard({
-    required Color cardColor,
-    String songName = '未知歌曲',
-    double achievementRate = 0.0,
-    double difficulty = 0.0,
-    bool dxMode = false,
-    bool isUtage = false,
-    int score = 0,
-    int maxScore = 0,
-    int rating = 0,
-    String stars = '',
-    String fc = '',
-    String fs = '',
-    String rate = '',
-    int? songId,
-    Color starsColor = Colors.white,
-    int maxIdLength = 5,
-  }) {
-    final int id = songId ?? 0;
 
-    return B50GameCardWidget(
-      cardColor: cardColor,
-      songName: songName,
-      achievementRate: achievementRate,
-      difficulty: difficulty,
-      dxMode: dxMode,
-      isUtage: isUtage,
-      score: score,
-      maxScore: maxScore,
-      rating: rating,
-      stars: stars,
-      fc: fc,
-      fs: fs,
-      rate: rate,
-      songId: id,
-      starsColor: starsColor,
-      maxIdLength: maxIdLength,
-      // 字号按卡片**实际**宽度自适应：别拿屏幕宽度估（容器 padding /
-      // 网格间距都会从可用宽里扣掉）。
-      scale: B50GameCardWidget.autoScale,
-    );
-  }
 
   // 构建小数文本
 
   // 构建双小数文本
 
   // 根据level_index获取卡片颜色
-  Color _getCardColor(int levelIndex) {
-    List<Color> colors = [
-      Colors.green,
-      Colors.yellow,
-      Colors.red,
-      Colors.purple.shade400,
-      Colors.purple.shade200,
-    ];
-    return colors[levelIndex.clamp(0, 4)];
-  }
+
 
   // 计算scoreRate
   double _calculateScoreRate(int songId, int levelIndex, int score) {
@@ -849,18 +740,5 @@ class _PersonalizedDiffBest50PageState
   }
 
   // 构建导出按钮
-  Widget _buildExportButton() {
-    return Best50ActionButton(
-      icon: Icons.image_outlined,
-      label: '导出为图片',
-      primary: true,
-      onPressed: () async {
-        try {
-          await _exportToImage();
-        } catch (e) {
-          debugPrint('Error in personalized diff export: $e');
-        }
-      },
-    );
-  }
+
 }

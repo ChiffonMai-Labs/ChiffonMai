@@ -313,11 +313,11 @@ Scaffold(
 `PageTopBar` 内部就是一层 `Material AppBar`，自带：
 
 - 标准 `AppBar.primary` 行为：状态栏高度按真机自适应，不再写死 48；
-- 思源黑体（`AppTheme.font`）20 / bold / `colorScheme.primary` / 居中；
+- 思源黑体（`AppTheme.font`）20 / bold / `colorScheme.onSurface` / 靠左；
 - `Semantics(header)` 与 `AnnotatedRegion<SystemUiOverlayStyle>`；
 - 标准返回按钮（`Navigator.maybePop`，路由不可 pop 时按钮**不消失**，与各页一直以来的行为一致）。
 
-**标题字体默认 20 / `colorScheme.primary` / 居中，不要单独传 `fontSize:` 覆盖** —— 详见 [lib/page/RankingList/RatingRankListPage.dart:2165-2168](lib/page/RankingList/RatingRankListPage.dart) 的注释（之前有人传 `fontSize: 24`，结果这一页标题比别人粗一圈，与"统一标题字体"的目标相悖，已被去掉）。
+**标题字体默认 20 / `colorScheme.onSurface` / 靠左，不要单独传 `fontSize:` 覆盖** —— 详见 [lib/page/RankingList/RatingRankListPage.dart:2165-2168](lib/page/RankingList/RatingRankListPage.dart) 的注释（之前有人传 `fontSize: 24`，结果这一页标题比别人粗一圈，与"统一标题字体"的目标相悖，已被去掉）。
 
 ### 故意手写的少数例外（不要迁移）
 
@@ -345,56 +345,72 @@ Get-ChildItem lib/page -Recurse -File -Include *.dart |
 
 ---
 
-## 12. UI 设计规范（2026-11 重构，B 方案）
+## 12. UI 设计规范（2026-11 重构）
 
-新页面和改版页面都按这一节来；旧页面在分批重构里逐步迁移。
+**基准是 claude.ai 画布「ChiffonMai UI 改版对比」的 After B**（https://claude.ai/artifact/DtoefBVEjpm8y9CwiruBpt）。约 90% 照设计稿，其余 10% 是硬性要求：**重构前的所有功能都必须保留**，尤其是收藏（星标）。设计稿没画的功能，要给它在同一套视觉里安排位置，不能删。设计稿里的示例数据和「[示意]」不能照搬成假数据：有真实数据就接真实数据，没有就显示空态。
+
+新页面和改版页面都按这一节来；设计稿没有涉及的页面也用同一套视觉。
 
 ### 12.1 令牌：只从 `AppDesignTokens` / `AppSurfaces` 取值
 
 | 圆角 | 用途 |
 |---|---|
-| `radiusSmall` 12 | 输入框、按钮、图标底块、小标签 |
-| `radiusMedium` 16 | 列表分组、次级卡片、底部操作按钮 |
-| `radiusCard` 20 | 主内容白卡片（`AppCard` 默认值） |
-| `radiusLarge` 24 | 强调卡片（Rating 总览、计算结果、歌曲详情头图） |
+| `radiusSmall` 12 | 输入框、图标底块、列表里的小曲绘 |
+| `radiusMedium` 16 | 分段切换、次级卡片、底部操作按钮、Best50 曲绘卡 |
+| `radiusCard` 22 | 主内容白卡片（`AppCard` 默认值） |
+| `radiusLarge` 24 | 反色结果卡（`EmphasisCard`） |
 
-- 表面层级：页面底（主题底色 / 用户背景图）→ `AppSurfaces.card`（白卡片）→ `AppSurfaces.inset`（卡内凹槽：输入框底、计数器底、物量格）。
-- 页边距 `gutter` 16，卡片间距 `cardGap` 12。**不要再写 8、10、11、14 这类零散圆角。**
-- 动效时长一律用 `AppDesignTokens.motion(context, …)` 包一层：系统开了「减少动态效果」时自动变成 0。
+- 表面层级：页面底（`colorScheme.surface`，浅灰绿，不是纯白）→ `AppSurfaces.card`（白卡片）→ `AppSurfaces.inset`（卡内凹槽）；`AppSurfaces.track` 是页面上的轨道（分段切换底、筛选胶囊）。
+- 默认 seed 色是 `0xFF006A6A`。`_canvasStyle`（`AppTheme.dart`）统一了三套主题的按钮、输入框、对话框、底部面板圆角，老页面靠它拿到同一套观感。
+- 背景覆层取页面底色而不是纯白（`ThemeAwareBackground`），否则白卡片没有层次。
+- 页边距 `gutter` 16，卡片间距 `cardGap` 12。动效时长一律用 `AppDesignTokens.motion(context, …)`。
 
 ### 12.2 字体
 
 - 中文正文：全局思源黑体（§11 的 `AppTheme.font` 规则不变）。
-- **数字为主角的地方**（Rating、达成率、定数、物量、评级缩写）：`AppTheme.number(...)`，Outfit + 等宽数字（数字变化时宽度不抖）。别拿它排中文。
+- **数字为主角的地方**（Rating、达成率、定数、物量、评级缩写）：`AppTheme.number(...)`，Outfit + 等宽数字。别拿它排中文。
+- 顶部栏标题 20 / bold / `onSurface` / **靠左**（§11 的 `PageTopBar` 默认值已改）。Hub 页大标题 30 / w800，不带说明文字。
 
 ### 12.3 颜色
 
-- 评级徽章 `AppColors.rankBadge`、连击 `comboBadge`、同步 `syncBadge`、判定色 `judgeCriticalPerfect / judgePerfect / judgeGreat / judgeGood / judgeMiss`、Rating 段位 `ratingTier`。
-- **页面里不要再写 `Colors.amber` / `Colors.pink` 这类原色**当判定或评级色；新颜色加到 `AppColors` 并区分明暗（§7）。
-- 难度色只用在歌曲详情头图、难度切换这种「大面积 + 白字」的地方；放到白卡片上的数值用 `onSurface`，否则 ADVANCED 橙、BASIC 绿在白底上对比度不够。
+- 评级徽章 `AppColors.rankBadge`、连击 `comboBadge`、同步 `syncBadge`、判定色 `judge*`、Rating 段位 `ratingTier`、评级分布 `rankDistribution`、功能入口色 `featureTint`（按标题取，同一功能各页同色）。
+- **星级色（黄 / 金 / 浅绿）不能当字色放在白卡片上**，看不见；用 `StarBadge`（星级色做底、深色字）。
+- 页面里不要写 `Colors.amber` 这类原色当判定或评级色；新颜色加到 `AppColors` 并区分明暗（§7）。
+- 难度色只用在歌曲详情头图、难度切换这种「大面积 + 白字」的地方和小圆点上。
 
-### 12.4 卡片与组件（`lib/widgets/AppUi.dart`）
+### 12.4 组件
 
-`AppCard`（白卡片，默认无描边；放在花哨的自定义背景图上要更强边界时传 `outlined: true`，描边色仍是 §7 的 `outlineVariant`）、`AppSectionHeader`、`AppBadge` / `RankBadge` / `ComboBadge`、`StatTile`、`SplitBar`、`SegmentedTabs`、`CountField`（− 数字 +，可打字）、`JudgeCountRow`、`EmphasisCard`（反色强调卡）、`BottomActionBar`（贴底操作栏，自动让出手势条）。
+- `lib/widgets/AppUi.dart`：`AppCard`、`AppSectionHeader`、`AppBadge` / `RankBadge` / `ComboBadge` / `StarBadge`、`RatingTierChip`、`StatTile`、`SplitBar`、`SegmentedTabs`（`inlineCaption` 数值横排）、`PillTabs`（音符类型）、`UnderlineTabs`（歌曲详情）、`CountField`、`JudgeCountRow`、`EmphasisCard`、`BottomActionBar`、`FeatureIconTile`（首页常用）、`CollapsibleCard`、`FilterPill`、`LinkPill`。
+- `lib/widgets/Best50Ui.dart`：`Best50Hero`、`Best50Grid` / `Best50CoverCard`（三列曲绘卡）、`showBest50SongSheet`（推分面板）、`Best50AveragesCard`、`Best50IconAction` 等。
 
-新组件也加在这个文件里，别在页面里各写一份。Hub 页继续用 `HubComponents.dart`（已统一成同一套外观）。
+新组件加在这两个文件里，别在页面里各写一份。Hub 页继续用 `HubComponents.dart`。
 
 ### 12.5 主导航：5 个标签
 
 首页 / 曲库 / 成绩 / **游玩** / 我的。「游玩」是 `PlayZoneHubPage`：顶部分段切换「出勤 | 休闲」，两边就是原来的 `AttendanceHubPage` / `PlayHubPage`。
 `FeatureRegistry` 的分类（`'出勤'`、`'休闲'`）和收藏键**没有改**，首页搜索结果路径也照旧。三种导航栏样式（经典 / 液态玻璃 / 伸缩胶囊）都保留。
 
-### 12.6 设置页的个性化功能必须继续生效
+### 12.6 收藏（星标）
+
+- 首页「常用」就是收藏列表：普通功能显示成图标网格；带进度 / 线路 / 统计的入口（同步、自动同步、缓存管理、新版本）放不进小图标，单独成组显示完整 `HubActionTile`。点「编辑」进入列表模式，可取消星标、上下移动、长按拖动。
+- 成绩 Hub 顶部是设计稿的概览卡片，下面的「全部功能」保留每个功能的星标。**以后改 Hub 页不能把带星标的入口去掉。**
+
+### 12.7 设置页的个性化功能必须继续生效
 
 自定义背景图、装饰图透明度、白色覆层、主题色、深色 / 纯黑模式、导航栏样式与动画开关——这些是 App 的特色，**新 UI 不能绕开它们**：颜色一律取 `ColorScheme` / `AppSurfaces`，背景交给 `ThemeAwareBackground` / `BackgroundPageScaffold`，不要在页面里铺死一个不透明底色把用户背景图盖掉。
 
-### 12.7 `SongInfoPage` 的拆分方式
+### 12.8 Best50 系列
+
+- 页面显示用 `Best50CoverCard`；**导出图片仍由 `B50GameCardWidget` 绘制**，两者互不影响。改页面卡片不会改变导出图。
+- 六个页面（Best50 / 拟合 / 个性化 / 个性化拟合 / 理想 / 自定义）都把数据换算成 `Best50CardData`，不要再各写一份卡片。
+
+### 12.9 `SongInfoPage` 的拆分方式
 
 `lib/page/SongInfoPage.dart` 只保留：字段、`initState` / `dispose` / `build`。其余方法按功能放在 `lib/page/song_info/` 下的 part 文件里，写成 `extension _Xxx on _SongInfoPageState`：
 
 | 文件 | 内容 |
 |---|---|
-| `SongInfoLayout.dart` | 页面布局：头图、成绩卡、关键数值、四个标签页、贴底操作栏 |
+| `SongInfoLayout.dart` | 页面布局：全出血头图、成绩卡、关键数值、四个标签页、贴底操作栏 |
 | `SongInfoLoaders.dart` | 数据加载、解析与数值计算 |
 | `SongInfoTables.dart` | 定数历史、成绩趋势、分布图、对照表、容错计算 |
 | `SongInfoCommunity.dart` | 谱面评分与评论区 |
@@ -406,4 +422,14 @@ Get-ChildItem lib/page -Recurse -File -Include *.dart |
 1. **扩展方法里不能直接调 `setState`**（protected，会报 `invalid_use_of_protected_member`），统一用 `_update(() { ... })`。
 2. 扩展方法里**不能不带类名访问 static 成员**，所以原来的 `static` 常量（`_tapWeight` 等）已经提升为库级私有常量；新增常量也放在库级。
 
-结构回归测试 `test/song_info_section_order_test.dart` 会把主文件和 `song_info/*.dart` 拼起来检查「成绩趋势是独立板块、排在玩家最佳成绩下方」。
+结构回归测试 `test/song_info_section_order_test.dart` 会把主文件和 `song_info/*.dart` 拼起来检查「成绩趋势是独立板块、排在成绩卡下方」。
+
+### 12.10 布局回归与预览
+
+`test/ui_canvas_layout_test.dart` 在 360 / 390 宽、大字号、浅色 / 深色下检查核心页面不溢出。设置环境变量可以把页面渲染成 PNG，和设计稿对照：
+
+```bash
+UI_PREVIEW_DIR=build/ui_preview flutter test test/ui_canvas_layout_test.dart
+```
+
+测试环境缺部分字重，个别文字会显示成方块，这不是页面问题。

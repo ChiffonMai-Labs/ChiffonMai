@@ -28,7 +28,7 @@ enum PageTopBarTitleAlign {
 ///
 /// 与「Rating 排行榜」页完全同源：同一个 `AppBar` + 同一份 `appBarTheme`，
 /// 底色取 `AppColors.cardBackground`（Rating 页是 Scaffold 底色透出透明 AppBar，
-/// 这里由 AppBar 自己画），标题默认 20 / bold / `colorScheme.primary` / 居中。
+/// 这里由 AppBar 自己画），标题默认 20 / bold / `colorScheme.onSurface` / 靠左。
 ///
 /// 字体固定走 [AppTheme.font]（思源黑体，`google_fonts` 运行时从网络获取），
 /// 与全 App 正文同一套 —— `AppBar` 会给标题另套一层 `DefaultTextStyle`，
@@ -56,13 +56,13 @@ class PageTopBar extends StatelessWidget implements PreferredSizeWidget {
   /// 标题字号；默认 20（与 `appBarTheme.titleTextStyle` 一致）。
   final double? fontSize;
 
-  /// 标题颜色；默认 `colorScheme.primary`。
+  /// 标题颜色；默认 `colorScheme.onSurface`。
   final Color? titleColor;
 
   /// 标题字重；默认 bold。
   final FontWeight? titleWeight;
 
-  /// 标题排布；默认居中。
+  /// 标题排布；默认靠左，跟在返回键后面。
   final PageTopBarTitleAlign titleAlign;
 
   /// bar 的底色。默认 `AppColors.cardBackground(brightness)`；
@@ -101,7 +101,7 @@ class PageTopBar extends StatelessWidget implements PreferredSizeWidget {
     this.fontSize,
     this.titleColor,
     this.titleWeight,
-    this.titleAlign = PageTopBarTitleAlign.center,
+    this.titleAlign = PageTopBarTitleAlign.start,
     this.barBackground,
     this.showDivider = false,
     this.toolbarHeight,
@@ -125,7 +125,7 @@ class PageTopBar extends StatelessWidget implements PreferredSizeWidget {
     final scheme = theme.colorScheme;
     final brightness = theme.brightness;
 
-    final resolvedColor = titleColor ?? scheme.primary;
+    final resolvedColor = titleColor ?? scheme.onSurface;
     final resolvedFontSize = fontSize ?? titleFontSize;
     final resolvedWeight = titleWeight ?? FontWeight.bold;
 
@@ -237,10 +237,10 @@ class PageTopBar extends StatelessWidget implements PreferredSizeWidget {
             )
           : resolvedTitleWidget,
       actions: actions.isEmpty ? null : actions,
-      // 图标色与 appBarTheme.iconTheme 一致（primary）；页面传进来的 actions
+      // 图标色与 appBarTheme.iconTheme 一致（onSurface）；页面传进来的 actions
       // 若自带 color 则以自带的为准
-      iconTheme: IconThemeData(color: scheme.primary),
-      actionsIconTheme: IconThemeData(color: scheme.primary),
+      iconTheme: IconThemeData(color: scheme.onSurface),
+      actionsIconTheme: IconThemeData(color: scheme.onSurface),
     );
 
     // 带 `bottom`（进度条/TabBar）时，AppBar 内部是 `Column + Flexible`，

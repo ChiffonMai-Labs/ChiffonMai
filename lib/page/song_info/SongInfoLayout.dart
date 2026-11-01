@@ -1,9 +1,10 @@
 part of '../SongInfoPage.dart';
 
-/// SongInfoPage · 2026-11 B 方案页面布局。
+/// SongInfoPage · 2026-11 页面布局。
 ///
 /// 结构（自上而下）：
-/// 1. [_buildSongHero]：难度色头图 —— 曲绘、标题、曲师、类型 / 编号 / DX·ST 切换、别名、难度切换；
+/// 1. [_buildSongHero]：全出血难度色头图 —— 返回 / 笔记 / 收藏 / 分享、曲绘、标题、曲师、
+///    类型 / 编号 / DX·ST 切换、别名、难度切换；
 /// 2. [_buildBestScoreCard]：玩家最佳成绩（达成率 + 评级 + 连击同步 + 四项数值）；
 /// 3. 成绩趋势（`_buildChartHistoryCard`，独立板块，见 song_info_section_order_test）；
 /// 4. [_buildKeyStatsRow]：官方定数 / 拟合定数 / 定数差值 / 平均达成；
@@ -179,16 +180,43 @@ extension _SongInfoLayout on _SongInfoPageState {
   // 1. 头图
   // -------------------------------------------------------------------------
 
-  Widget _buildSongHero(dynamic basicInfo, dynamic levels, Color accentColor) {
+  Widget _buildSongHero(dynamic basicInfo, dynamic levels, Color accentColor,
+      Map<String, dynamic>? userRecord) {
     final title = basicInfo['title'].toString();
     final artist = basicInfo['artist']?.toString() ?? '';
+
+    Widget circleButton({
+      required String tooltip,
+      required Widget icon,
+      required VoidCallback onPressed,
+    }) =>
+        IconButton(
+          tooltip: tooltip,
+          onPressed: onPressed,
+          style: IconButton.styleFrom(
+            backgroundColor: Colors.white.withValues(alpha: 0.16),
+            foregroundColor: Colors.white,
+            fixedSize: const Size(44, 44),
+          ),
+          icon: icon,
+        );
+
     return AnimatedContainer(
       duration: AppDesignTokens.motion(context, AppDesignTokens.slowMotion),
       curve: AppDesignTokens.emphasizedCurve,
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+      padding: EdgeInsets.fromLTRB(
+          16, MediaQuery.paddingOf(context).top + 4, 16, 44),
       decoration: BoxDecoration(
         color: _heroColor(accentColor),
-        borderRadius: BorderRadius.circular(AppDesignTokens.radiusLarge),
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          stops: const [0.3, 1],
+          colors: [
+            _heroColor(accentColor),
+            Color.lerp(_heroColor(accentColor), Colors.black, 0.32)!,
+          ],
+        ),
       ),
       child: DefaultTextStyle.merge(
         style: const TextStyle(color: Colors.white),
@@ -196,17 +224,60 @@ extension _SongInfoLayout on _SongInfoPageState {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                circleButton(
+                  tooltip:
+                      MaterialLocalizations.of(context).backButtonTooltip,
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: () => Navigator.of(context).maybePop(),
+                ),
+                const Spacer(),
+                circleButton(
+                  tooltip: _hasNote ? '查看笔记' : '添加笔记',
+                  icon: Icon(
+                      _hasNote ? Icons.note : Icons.note_add_outlined,
+                      size: 20),
+                  onPressed: () => _showNoteDialog(),
+                ),
+                const SizedBox(width: 8),
+                circleButton(
+                  tooltip: _isBookmarked ? '已收藏' : '收藏到收藏夹',
+                  icon: Icon(
+                      _isBookmarked ? Icons.favorite : Icons.favorite_border,
+                      size: 20),
+                  onPressed: () => _showBookmarkDialog(),
+                ),
+                const SizedBox(width: 8),
+                circleButton(
+                  tooltip: userRecord == null ? '导出歌曲信息' : '分享成绩',
+                  icon: const Icon(Icons.ios_share_rounded, size: 20),
+                  onPressed: () {
+                    if (userRecord == null) {
+                      _exportSongInfoToImage();
+                    } else {
+                      _shareScoreCard(
+                        userRecord: userRecord,
+                        basicInfo: basicInfo,
+                        levels: levels,
+                      );
+                    }
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 _buildHeroCover(basicInfo, accentColor),
-                const SizedBox(width: 14),
+                const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildHeroTitle(title),
                       if (artist.isNotEmpty) ...[
-                        const SizedBox(height: 2),
+                        const SizedBox(height: 4),
                         Text(
                           artist,
                           maxLines: 1,
@@ -217,16 +288,16 @@ extension _SongInfoLayout on _SongInfoPageState {
                           ),
                         ),
                       ],
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 6),
                       _buildHeroTypeRow(),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 6),
                       _buildAliasSection(title),
                     ],
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 18),
             _buildDifficultySelector(levels),
           ],
         ),
@@ -235,8 +306,8 @@ extension _SongInfoLayout on _SongInfoPageState {
   }
 
   Widget _buildHeroCover(dynamic basicInfo, Color accentColor) {
-    final size = (MediaQuery.sizeOf(context).width * 0.28)
-        .clamp(92.0, 128.0)
+    final size = (MediaQuery.sizeOf(context).width * 0.3)
+        .clamp(96.0, 128.0)
         .toDouble();
     return Semantics(
       button: true,
@@ -299,8 +370,8 @@ extension _SongInfoLayout on _SongInfoPageState {
         builder: (context, constraints) {
           final style = DefaultTextStyle.of(context).style.merge(
                 const TextStyle(
-                  fontSize: 22,
-                  height: 1.25,
+                  fontSize: 24,
+                  height: 1.2,
                   fontWeight: FontWeight.w800,
                   color: Colors.white,
                 ),
@@ -519,69 +590,59 @@ extension _SongInfoLayout on _SongInfoPageState {
   Widget _buildBestScoreCard(
       Map<String, dynamic>? userRecord, dynamic basicInfo, dynamic levels) {
     final scheme = Theme.of(context).colorScheme;
+    final muted = TextStyle(fontSize: 12, color: scheme.onSurfaceVariant);
     return AppCard(
-      padding: const EdgeInsets.fromLTRB(16, 8, 8, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 标题 + 收藏 / 笔记 / 分享
           Row(
             children: [
               Expanded(
                 child: Text(
-                  '玩家最佳成绩',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: scheme.onSurfaceVariant,
-                  ),
+                  '我的成绩 · ${_getDiffLabel(_currentDiffIndex)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: muted.copyWith(fontWeight: FontWeight.w700),
                 ),
               ),
-              IconButton(
-                tooltip: _isBookmarked ? '已收藏' : '收藏到收藏夹',
-                onPressed: () => _showBookmarkDialog(),
-                icon: Icon(
-                  _isBookmarked ? Icons.favorite : Icons.favorite_border,
-                  color: Colors.pink.shade400,
-                ),
-              ),
-              IconButton(
-                tooltip: _hasNote ? '查看笔记' : '添加笔记',
-                onPressed: () => _showNoteDialog(),
-                icon: Icon(
-                  _hasNote ? Icons.note : Icons.note_add_outlined,
-                  color: Colors.amber.shade700,
-                ),
-              ),
-              if (userRecord != null)
-                TextButton.icon(
-                  onPressed: () => _shareScoreCard(
-                    userRecord: userRecord,
-                    basicInfo: basicInfo,
-                    levels: levels,
-                  ),
-                  icon: const Icon(Icons.share_rounded, size: 16),
-                  label: const Text('分享'),
-                ),
+              if (_currentPlayCount != null)
+                Text('游玩 ${_currentPlayCount!} 次', style: muted),
             ],
           ),
+          const SizedBox(height: 10),
           if (userRecord == null)
-            Padding(
-              padding: const EdgeInsets.only(right: 8, top: 2),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    '无记录',
-                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '还没有 ${_getDiffLabel(_currentDiffIndex)} 的成绩',
+                        style: const TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 2),
+                      Text('打完同步一下就会显示在这里', style: muted),
+                    ],
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '这个难度还没有成绩，打完同步一下就会显示在这里',
-                    style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+                ),
+                const SizedBox(width: 12),
+                FilledButton(
+                  onPressed: _isLoading ? null : _addToNextPlayQueue,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppSurfaces.inset(context),
+                    foregroundColor: scheme.onSurface,
+                    minimumSize: const Size(0, 40),
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                    textStyle: const TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w600),
                   ),
-                ],
-              ),
+                  child: const Text('加入下次想玩'),
+                ),
+              ],
             )
           else
             _buildBestScoreBody(userRecord),
@@ -592,34 +653,31 @@ extension _SongInfoLayout on _SongInfoPageState {
 
   Widget _buildBestScoreBody(Map<String, dynamic> userRecord) {
     final scheme = Theme.of(context).colorScheme;
-    final brightness = scheme.brightness;
     final songIdInt = int.parse(widget.songId);
     final achievement = (userRecord['achievements'] as num).toDouble();
     final dxScore = userRecord['dxScore'];
     final maxDx = _calculateMaxDxScore(songIdInt, _currentDiffIndex);
-    final stars = _calculateStars(songIdInt, _currentDiffIndex, dxScore);
-    final starsColor = _getStarsColor(stars, brightness);
     final fc = (userRecord['fc'] ?? '').toString();
     final fs = (userRecord['fs'] ?? '').toString();
 
     return Padding(
-      padding: const EdgeInsets.only(right: 8),
+      padding: EdgeInsets.zero,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Flexible(
+              Expanded(
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
                   alignment: Alignment.centerLeft,
                   child: Text(
                     '${achievement.toStringAsFixed(4)}%',
                     style: AppTheme.number(
-                      fontSize: 34,
+                      fontSize: 36,
                       fontWeight: FontWeight.w700,
-                      height: 1.1,
+                      height: 1,
                       letterSpacing: -0.5,
                       color: scheme.onSurface,
                     ),
@@ -627,35 +685,34 @@ extension _SongInfoLayout on _SongInfoPageState {
                 ),
               ),
               const SizedBox(width: 10),
-              RankBadge(rank: _rankLabelFor(achievement), fontSize: 13),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text('Rating',
+                      style: TextStyle(
+                          fontSize: 11, color: scheme.onSurfaceVariant)),
+                  Text('${userRecord['ra']}',
+                      style: AppTheme.number(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: scheme.onSurface)),
+                ],
+              ),
             ],
           ),
           const SizedBox(height: 10),
-          // 连击,同步
-          Row(
+          // 评级，连击，同步
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
             children: [
-              fc.isNotEmpty ? _buildBadge(fc) : _buildPlaceholder(),
-              fs.isNotEmpty ? _buildBadge(fs) : _buildPlaceholder(),
+              RankBadge(rank: _rankLabelFor(achievement)),
+              if (fc.isNotEmpty) _buildBadge(fc),
+              if (fs.isNotEmpty) _buildBadge(fs),
             ],
           ),
           const SizedBox(height: 14),
-          // 四项数值：Rating / 游玩次数 / DX分数 / DX分数达成率
-          Row(
-            children: [
-              Expanded(
-                child: StatTile(label: 'Rating', value: '${userRecord['ra']}'),
-              ),
-              Expanded(
-                child: StatTile(
-                  label: '游玩次数',
-                  value: _currentPlayCount == null
-                      ? '-'
-                      : '${_currentPlayCount!}',
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
+          // DX分数 / DX分数达成率
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -680,7 +737,6 @@ extension _SongInfoLayout on _SongInfoPageState {
                           label: 'DX分数达成率',
                           value:
                               '${((dxScore as num).toDouble() / maxDx * 100).toStringAsFixed(2)}%',
-                          valueColor: starsColor,
                         ),
                         const SizedBox(height: 2),
                         Text(
@@ -689,7 +745,8 @@ extension _SongInfoLayout on _SongInfoPageState {
                                   songIdInt, _currentDiffIndex, dxScore.toInt())
                               : _calculateStarsBonus(
                                   songIdInt, _currentDiffIndex, dxScore.toInt()),
-                          style: TextStyle(fontSize: 12, color: starsColor),
+                          style: TextStyle(
+                              fontSize: 12, color: scheme.onSurfaceVariant),
                         ),
                       ],
                     ),
@@ -789,16 +846,11 @@ extension _SongInfoLayout on _SongInfoPageState {
   // 5. 标签页
   // -------------------------------------------------------------------------
 
-  Widget _buildDetailTabBar() {
-    return SegmentedTabs(
-      height: 44,
-      items: const [
-        SegmentedTabItem('谱面'),
-        SegmentedTabItem('数据'),
-        SegmentedTabItem('社区'),
-        SegmentedTabItem('工具'),
-      ],
+  Widget _buildDetailTabBar(Color accentColor) {
+    return UnderlineTabs(
+      labels: const ['谱面', '数据', '社区', '工具'],
       selectedIndex: _detailTab,
+      indicatorColor: _heroColor(accentColor),
       onChanged: (index) => _update(() => _detailTab = index),
     );
   }
@@ -1238,7 +1290,7 @@ extension _SongInfoLayout on _SongInfoPageState {
       return Padding(
         padding: const EdgeInsets.only(right: 8),
         child: SizedBox(
-          width: 56,
+          width: 52,
           height: 52,
           child: Material(
             color: AppSurfaces.inset(context),
