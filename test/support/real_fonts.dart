@@ -68,6 +68,8 @@ Future<void> loadRealFonts() async {
     'NotoSansSC_regular',
     'NotoSansSC_500',
     'NotoSansSC_600',
+    'NotoSansSC_800',
+    'NotoSansSC_900',
   ]) {
     await load(family, [variableFallback, ...cjkFallback]);
   }

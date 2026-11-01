@@ -11,6 +11,7 @@ import 'VersionViewPage.dart';
 import 'DifficultyDistributionPage.dart';
 import 'CoverRecognitionPage.dart';
 import 'ScoreOcrPage.dart';
+import '../widgets/AppUi.dart';
 
 class LibraryHubPage extends StatefulWidget {
   const LibraryHubPage({super.key});
@@ -168,24 +169,31 @@ class _LibraryHubPageState extends State<LibraryHubPage> {
           };
 
           final sections = FeatureRegistry.sections['曲库']!;
-          return HubPageScaffold(
-            title: '曲库',
-            subtitle: '搜索乐曲、浏览资料与图像识别',
-            icon: Icons.library_music_rounded,
-            children: [
-              for (final section in sections) ...[
-                HubSection(
-                  title: section.title,
-                  subtitle: section.subtitle,
-                  icon: section.icon,
-                  badgeCount: section.titles.length,
-                  children: [
-                    for (final title in section.titles) features[title]!
-                  ],
+          // 曲库标签页本身就是搜索页；没有搜索条件时下面是全部功能（含收藏星标）。
+          return SongSearchPage(
+            embedded: true,
+            idleContent: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const AppSectionHeader(
+                  title: '全部功能',
+                  subtitle: '点星标加入首页「常用」',
                 ),
-                if (section != sections.last) const SizedBox(height: 24),
+                const SizedBox(height: 4),
+                for (final section in sections) ...[
+                  HubSection(
+                    title: section.title,
+                    subtitle: section.subtitle,
+                    icon: section.icon,
+                    badgeCount: section.titles.length,
+                    children: [
+                      for (final title in section.titles) features[title]!
+                    ],
+                  ),
+                  if (section != sections.last) const SizedBox(height: 24),
+                ],
               ],
-            ],
+            ),
           );
         },
       );

@@ -26,6 +26,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:convert';
 import 'package:my_first_flutter_app/page/UserScoreSearchPage.dart';
 import 'package:my_first_flutter_app/page/SongInfoPage.dart';
+import 'package:my_first_flutter_app/page/LibraryHubPage.dart';
+import 'package:my_first_flutter_app/page/SongSearchPage.dart';
 
 const _boundary = ValueKey('preview-boundary');
 
@@ -208,6 +210,8 @@ void main() {
     'calc': () => const AchievementRateCalculator(),
     'best50': _best50Body,
     'scores': () => const UserScoreSearchPage(),
+    'library': () => const _Page(
+        child: MainNavigationInsets(bottom: 100, child: LibraryHubPage())),
     'song': () => const SongInfoPage(
         songId: '100', initialLevelIndex: 3, isDefaultLevelIndex: false),
     'hub': () => const _Page(child: ScoreHubPage()),
@@ -222,6 +226,21 @@ void main() {
     ('light360', AppTheme.lightTheme, 360, 1),
     ('light360big', AppTheme.lightTheme, 360, 1.3),
   ];
+
+  testWidgets('曲库搜索结果不溢出', (tester) async {
+    await tester.runAsync(loadRealFonts);
+    await _pump(tester, const SongSearchPage(), theme: AppTheme.lightTheme());
+    await tester.tap(find.text('14+'));
+    await tester.pump();
+    await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 200)));
+    await tester.pump(const Duration(seconds: 2));
+    expect(tester.takeException(), isNull);
+    expect(find.text('示例曲 Neon Drift'), findsOneWidget);
+    await _shot(tester, 'search_results');
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(minutes: 10));
+  });
 
   for (final scene in scenes.entries) {
     for (final v in variants) {

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../utils/AppDesignTokens.dart';
 import '../utils/SearchInteractionPreferences.dart';
 import 'SongSearchOverlay.dart';
-import 'TouchSearchButton.dart';
 
 /// 乐曲查询与成绩历史共用的搜索入口，统一输入框、搜索按钮和展开交互。
 class SongSearchEntry extends StatefulWidget {
@@ -76,8 +76,8 @@ class _SongSearchEntryState extends State<SongSearchEntry> {
           final fontSize =
               widget.fontSize ?? MediaQuery.sizeOf(context).width * .04;
           final border = OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: colors.outlineVariant));
+              borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
+              borderSide: BorderSide.none);
           return Opacity(
             opacity: _overlayOpen ? 0 : 1,
             child: Row(key: _fieldKey, children: [
@@ -97,21 +97,40 @@ class _SongSearchEntryState extends State<SongSearchEntry> {
                 decoration: InputDecoration(
                     hintText: widget.titleOnly
                         ? '只按歌名搜索'
-                        : '歌名/BPM/谱师/曲师/别名/歌曲ID/...',
+                        : '曲名、别名、ID、曲师、谱师、BPM',
                     hintStyle: TextStyle(
                         fontSize: widget.hintFontSize ?? fontSize * .875),
                     isDense: true,
                     contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 10),
-                    prefixIcon: const Icon(Icons.search),
+                        horizontal: 12, vertical: 15),
+                    prefixIcon: Icon(Icons.search_rounded,
+                        size: 20, color: colors.onSurfaceVariant),
+                    // 有内容时清空，没内容时是搜索键（和键盘上的搜索同一个动作）。
+                    suffixIcon: ValueListenableBuilder<TextEditingValue>(
+                      valueListenable: widget.controller,
+                      builder: (context, value, _) => value.text.isEmpty
+                          ? IconButton(
+                              tooltip: '搜索',
+                              onPressed: () =>
+                                  widget.onSubmitted(widget.controller.text),
+                              icon: Icon(Icons.arrow_forward_rounded,
+                                  size: 20, color: colors.onSurfaceVariant),
+                            )
+                          : IconButton(
+                              tooltip: '清空搜索',
+                              onPressed: () {
+                                widget.controller.clear();
+                                widget.onSubmitted('');
+                              },
+                              icon: Icon(Icons.close_rounded,
+                                  size: 18, color: colors.onSurfaceVariant),
+                            ),
+                    ),
                     filled: true,
-                    fillColor: colors.surfaceContainerLow,
+                    fillColor: AppSurfaces.card(context),
                     border: border,
                     enabledBorder: border),
               )),
-              const SizedBox(width: 8),
-              TouchSearchButton(
-                  onPressed: () => widget.onSubmitted(widget.controller.text)),
             ]),
           );
         },

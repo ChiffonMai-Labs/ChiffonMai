@@ -1169,17 +1169,22 @@ class FilterPill extends StatelessWidget {
   final String? value;
   final VoidCallback onTap;
 
+  /// 开关型胶囊（仅 DX、只搜歌名）：直接给选中状态，不显示箭头。
+  final bool? selected;
+
   const FilterPill({
     super.key,
     required this.label,
     required this.onTap,
     this.value,
+    this.selected,
   });
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final active = value != null && value!.isNotEmpty;
+    final hasValue = value != null && value!.isNotEmpty;
+    final active = selected ?? hasValue;
     final fg = active ? scheme.onSecondaryContainer : scheme.onSurfaceVariant;
     return Material(
       color: active ? scheme.secondaryContainer : AppSurfaces.track(context),
@@ -1195,15 +1200,17 @@ class FilterPill extends StatelessWidget {
               ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 160),
                 child: Text(
-                  active ? '$label：$value' : label,
+                  hasValue ? '$label：$value' : label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                       fontSize: 13, fontWeight: FontWeight.w600, color: fg),
                 ),
               ),
-              const SizedBox(width: 4),
-              Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: fg),
+              if (selected == null) ...[
+                const SizedBox(width: 4),
+                Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: fg),
+              ],
             ],
           ),
         ),

@@ -757,6 +757,27 @@ class AppColors {
           ? const Color(0xFF4FD8D7)
           : const Color(0xFF006A6A);
 
+  /// 歌曲列表里的等级小方块（BASIC … Re:MASTER），白卡片上文字也看得清。
+  static ({Color background, Color foreground}) difficultyBadge(
+      int index, Brightness brightness) {
+    const light = [
+      (background: Color(0xFFDDF1E3), foreground: Color(0xFF1B5E33)),
+      (background: Color(0xFFFCE9CF), foreground: Color(0xFF7A3F0B)),
+      (background: Color(0xFFFAD9E4), foreground: Color(0xFF8A1F48)),
+      (background: Color(0xFFE8DDF7), foreground: Color(0xFF4B2C80)),
+      (background: Color(0xFFF3E8FB), foreground: Color(0xFF7B3FA0)),
+    ];
+    const dark = [
+      (background: Color(0xFF1E3A28), foreground: Color(0xFFA8E2BA)),
+      (background: Color(0xFF43301E), foreground: Color(0xFFF2C9A2)),
+      (background: Color(0xFF44222F), foreground: Color(0xFFF5B5CB)),
+      (background: Color(0xFF332450), foreground: Color(0xFFCDB9F2)),
+      (background: Color(0xFF3F2A4F), foreground: Color(0xFFE3C7F5)),
+    ];
+    final list = brightness == Brightness.dark ? dark : light;
+    return list[index.clamp(0, list.length - 1)];
+  }
+
   /// 评级分布条的色块（SSS+ / SSS / SS+ / SS / 其余）。
   static Color rankDistribution(int index, Brightness brightness) {
     const light = [

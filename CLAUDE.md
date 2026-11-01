@@ -395,6 +395,10 @@ Get-ChildItem lib/page -Recurse -File -Include *.dart |
 - 首页「常用」就是收藏列表：普通功能显示成图标网格；带进度 / 线路 / 统计的入口（同步、自动同步、缓存管理、新版本）放不进小图标，单独成组显示完整 `HubActionTile`。点「编辑」进入列表模式，可取消星标、上下移动、长按拖动。
 - 成绩 Hub 顶部是设计稿的概览卡片，下面的「全部功能」保留每个功能的星标。**以后改 Hub 页不能把带星标的入口去掉。**
 
+### 12.6.1 曲库标签页就是搜索页
+
+`LibraryHubPage` 渲染 `SongSearchPage(embedded: true, idleContent: …)`：没有搜索条件时，搜索框和筛选下面显示「全部功能」（含星标）；有条件时换成结果。筛选由胶囊展开，原来的各筛选控件（`_buildXxxFilter`）和搜索逻辑都没动。
+
 ### 12.7 设置页的个性化功能必须继续生效
 
 自定义背景图、装饰图透明度、白色覆层、主题色、深色 / 纯黑模式、导航栏样式与动画开关——这些是 App 的特色，**新 UI 不能绕开它们**：颜色一律取 `ColorScheme` / `AppSurfaces`，背景交给 `ThemeAwareBackground` / `BackgroundPageScaffold`，不要在页面里铺死一个不透明底色把用户背景图盖掉。
