@@ -1,6 +1,5 @@
 import '../../widgets/GuessCoverImage.dart';
 import '../../widgets/GuessGameStatusPanel.dart';
-import '../../widgets/GuessBpmHistoryFields.dart';
 import 'dart:async';
 import 'dart:math';
 
@@ -21,6 +20,8 @@ import '../../utils/ExternalLaunchUtil.dart';
 import 'package:my_first_flutter_app/page/GuessChartGame/GuessChartLoadingView.dart';
 import 'package:my_first_flutter_app/widgets/TileRevealImage.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
+import '../../widgets/GuessUi.dart';
+import '../../utils/AppDesignTokens.dart';
 
 /// 曲绘拼图猜歌：曲绘被切成若干小块（可设置，默认 1000 块），
 /// 每隔一段时间随机揭示一批新的小块并累计显示进度，直到猜中 / 次数用完 / 超时。
@@ -487,10 +488,10 @@ class _GuessChartByTileRevealPageState
               width: 60,
               height: 60,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                 child: GuessCoverImage(songId: song.id, size: 60),
               ),
             ),
@@ -557,325 +558,17 @@ class _GuessChartByTileRevealPageState
 
   // 构建猜测历史项
   Widget _buildGuessHistoryItem(GuessSong guessSong, int index) {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(8),
-        boxShadow: [AppColors.defaultShadow(Theme.of(context).brightness)],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '猜测 #${index + 1}',
-            style: TextStyle(
-                fontSize: 14,
-                color: Theme.of(context).colorScheme.onSurfaceVariant),
-          ),
-          const SizedBox(height: 12),
-
-          // 第一行：曲绘，曲名
-          Row(
-            children: [
-              Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: GuessCoverImage(
-                      songId: guessSong.songId.toString(), size: 60),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildInfoItem('曲名', guessSong.title,
-                    guessSong.titleBgColor ?? Colors.grey),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-
-          // 第二行：类型，BPM，曲师
-          Row(
-            children: [
-              Expanded(
-                flex: 1,
-                child: _buildInfoItem(
-                    '类型',
-                    guessSong.type == 'SD' ? 'ST' : guessSong.type,
-                    guessSong.typeBgColor ?? Colors.grey),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                flex: 1,
-                child: _buildInfoItem('BPM', guessSong.bpm.toString(),
-                    guessSong.bpmBgColor ?? Colors.grey,
-                    arrow: guessSong.bpmArrow),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                flex: 2,
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: guessSong.artistBgColor ?? Colors.grey,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        '曲师',
-                        style: TextStyle(fontSize: 10, color: Colors.white),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        guessSong.artist,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-
-          GuessBpmHistoryFields(
-              songId: guessSong.songId.toString(),
-              targetSongId: _targetSong?.id),
-
-          // 第三行：Master定数，Master谱师
-          Row(
-            children: [
-              Expanded(
-                flex: 2,
-                child: _buildInfoItem('MASTER定数', guessSong.masterDs,
-                    guessSong.masterLevelBgColor ?? Colors.grey,
-                    arrow: guessSong.masterLevelArrow),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                flex: 3,
-                child: _buildInfoItem('MASTER谱师', guessSong.masterCharter,
-                    guessSong.masterCharterBgColor ?? Colors.grey),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-
-          // 第四行：ReMaster定数，ReMaster谱师
-          Row(
-            children: [
-              Expanded(
-                flex: 2,
-                child: _buildInfoItem(
-                    'Re:MASTER定数',
-                    guessSong.remasterDs.isNotEmpty
-                        ? guessSong.remasterDs
-                        : '-',
-                    guessSong.remasterLevelBgColor ?? Colors.grey,
-                    arrow: guessSong.remasterLevelArrow),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                flex: 3,
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: guessSong.remasterCharterBgColor ?? Colors.grey,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Re:MASTER谱师',
-                        style: TextStyle(fontSize: 10, color: Colors.white),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        guessSong.remasterCharter.isNotEmpty
-                            ? guessSong.remasterCharter
-                            : '-',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-
-          // 第五行：流派，版本
-          Row(
-            children: [
-              Expanded(
-                flex: 3,
-                child: _buildInfoItem('流派', guessSong.genre,
-                    guessSong.genreBgColor ?? Colors.grey),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                flex: 4,
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: guessSong.versionBgColor ?? Colors.grey,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        '版本',
-                        style: TextStyle(fontSize: 10, color: Colors.white),
-                      ),
-                      const SizedBox(height: 2),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              StringUtil.formatVersion2(guessSong.version),
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          if (guessSong.versionArrow != null)
-                            Padding(
-                              padding: const EdgeInsets.only(left: 4),
-                              child: Text(
-                                guessSong.versionArrow!,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: guessSong.versionArrow == '↑'
-                                      ? Colors.blue
-                                      : Colors.red,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          // 第六行：Master标签
-          if (guessSong.masterTags?.isNotEmpty ?? false)
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'MASTER标签',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children:
-                      List.generate(guessSong.masterTags?.length ?? 0, (i) {
-                    return Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: guessSong.tagBgColors?[i] ?? Colors.grey,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Text(
-                        guessSong.masterTags?[i] ?? '',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                        ),
-                      ),
-                    );
-                  }),
-                ),
-              ],
-            ),
-        ],
-      ),
+    return GuessHistoryCard(
+      key: ValueKey(guessSong.songId),
+      guessSong: guessSong,
+      index: index,
+      targetSongId: _targetSong?.id,
+      showBpmHistory: true,
     );
   }
 
   // 构建信息项
-  Widget _buildInfoItem(String label, String value, Color color,
-      {String? arrow}) {
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(fontSize: 10, color: Colors.white),
-          ),
-          const SizedBox(height: 2),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              if (arrow != null)
-                Padding(
-                  padding: const EdgeInsets.only(left: 4),
-                  child: Text(
-                    arrow,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: arrow == '↑' ? Colors.blue : Colors.red,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
+
 
   // 显示规则说明对话框
   void _showRulesDialog() {
@@ -1212,15 +905,29 @@ class _GuessChartByTileRevealPageState
     final brightness = Theme.of(context).brightness;
     // 获取屏幕尺寸
     final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
 
     // 自定义常量
 
     return BackgroundPageScaffold(
+      actions: [
+        IconButton(
+          tooltip: '规则',
+          icon: const Icon(Icons.info_outline_rounded, size: 20),
+          onPressed: _showRulesDialog,
+        ),
+        IconButton(
+          tooltip: '设置',
+          icon: const Icon(Icons.settings_outlined, size: 20),
+          onPressed: _showSettingsDialog,
+        ),
+        IconButton(
+          tooltip: '换一题',
+          icon: const Icon(Icons.refresh_rounded, size: 20),
+          onPressed: _startNewGame,
+        ),
+      ],
       title: '猜歌（曲绘拼图）',
       resizeToAvoidBottomInset: false,
-      contentPadding:
-          EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom + 10),
       child: GestureDetector(
         onTap: () {
           setState(() {
@@ -1310,68 +1017,6 @@ class _GuessChartByTileRevealPageState
                                     ),
                                   const SizedBox(height: 20),
 
-                                  // 搜索输入框和结果
-                                  Container(
-                                    child: Column(
-                                      children: [
-                                        Container(
-                                          decoration: BoxDecoration(
-                                            borderRadius:
-                                                BorderRadius.circular(8),
-                                            border: Border.all(
-                                                color: AppColors.readableTableBorder(
-                                                    context)),
-                                          ),
-                                          child: TextField(
-                                            controller: _searchController,
-                                            onChanged: _handleSearchInput,
-                                            enabled: !_isGameOver,
-                                            decoration: const InputDecoration(
-                                              hintText: '搜索歌名、别名、编号等',
-                                              border: OutlineInputBorder(
-                                                borderRadius:
-                                                    BorderRadius.all(Radius.circular(8)),
-                                                borderSide: BorderSide.none,
-                                              ),
-                                              contentPadding:
-                                                  EdgeInsets.all(12),
-                                            ),
-                                          ),
-                                        ),
-                                        // 搜索结果
-                                        if (_showSearchResults &&
-                                            _searchResults.isNotEmpty)
-                                          Container(
-                                            decoration: BoxDecoration(
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
-                                              border: Border.all(
-                                                  color: AppColors.readableTableBorder(
-                                                      context)),
-                                              color: Theme.of(context)
-                                                  .colorScheme
-                                                  .surface,
-                                              boxShadow: [
-                                                AppColors.defaultShadow(
-                                                    brightness)
-                                              ],
-                                            ),
-                                            constraints: BoxConstraints(
-                                                maxHeight: screenHeight * 0.3),
-                                            child: ListView.builder(
-                                              // 去掉 ListView 默认把状态栏安全区算进列表顶部的空白
-                                              padding: EdgeInsets.zero,
-                                              itemCount: _searchResults.length,
-                                              itemBuilder: (context, index) {
-                                                return _buildSearchResultItem(
-                                                    _searchResults[index]);
-                                              },
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-
                                   // 搜索中状态
                                   if (_isSearching)
                                     Container(
@@ -1381,93 +1026,6 @@ class _GuessChartByTileRevealPageState
                                         child: CircularProgressIndicator(),
                                       ),
                                     ),
-
-                                  // 按钮区域
-                                  Container(
-                                    margin: const EdgeInsets.only(top: 12),
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            // 规则按钮
-                                            IconButton(
-                                              icon: Icon(Icons.info_outline,
-                                                  color: Theme.of(context)
-                                                      .colorScheme
-                                                      .onSurface,
-                                                  size: 24),
-                                              onPressed: _showRulesDialog,
-                                            ),
-                                            const SizedBox(width: 8),
-                                            // 设置按钮
-                                            IconButton(
-                                              icon: Icon(Icons.settings,
-                                                  color: Theme.of(context)
-                                                      .colorScheme
-                                                      .onSurface,
-                                                  size: 24),
-                                              onPressed: _showSettingsDialog,
-                                            ),
-                                            const SizedBox(width: 8),
-                                            // 刷新按钮
-                                            IconButton(
-                                              icon: Icon(Icons.refresh,
-                                                  color: Theme.of(context)
-                                                      .colorScheme
-                                                      .onSurface,
-                                                  size: 24),
-                                              onPressed: _startNewGame,
-                                            ),
-                                            const SizedBox(width: 8),
-                                            // 排序按钮
-                                            IconButton(
-                                              icon: Icon(
-                                                _isAscending
-                                                    ? Icons.sort_by_alpha
-                                                    : Icons
-                                                        .sort_by_alpha_outlined,
-                                                color: Theme.of(context)
-                                                    .colorScheme
-                                                    .onSurface,
-                                                size: 24,
-                                              ),
-                                              onPressed: () {
-                                                setState(() {
-                                                  _isAscending = !_isAscending;
-                                                });
-                                              },
-                                            ),
-                                            const SizedBox(width: 6),
-                                            // 投降按钮
-                                            if (!_isGameOver)
-                                              TextButton(
-                                                onPressed: () async {
-                                                  // 投降时取消倒计时和渐显
-                                                  _countdownTimer?.cancel();
-                                                  _revealTimer?.cancel();
-                                                  setState(() {
-                                                    _isGameOver = true;
-                                                    _isWon = false;
-                                                  });
-                                                  await _recordGameResult(
-                                                      false);
-                                                },
-                                                child: const Text('投降'),
-                                              ),
-                                            // 开始新游戏按钮
-                                            if (_isGameOver)
-                                              ElevatedButton(
-                                                onPressed: _startNewGame,
-                                                child: const Text('新游戏'),
-                                              ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                  ),
 
                                   // 游戏结果显示（抽不到曲时没有答案卡片）
                                   if (_isGameOver && _targetSong != null)
@@ -1492,7 +1050,7 @@ class _GuessChartByTileRevealPageState
                                           color: AppColors.guessAnswerCardBg(
                                               brightness),
                                           borderRadius:
-                                              BorderRadius.circular(8),
+                                              BorderRadius.circular(AppDesignTokens.radiusSmall),
                                         ),
                                         child: Column(
                                           crossAxisAlignment:
@@ -1520,13 +1078,11 @@ class _GuessChartByTileRevealPageState
                                                     height: 60,
                                                     decoration: BoxDecoration(
                                                       borderRadius:
-                                                          BorderRadius.circular(
-                                                              4),
+                                                          BorderRadius.circular(AppDesignTokens.radiusSmall),
                                                     ),
                                                     child: ClipRRect(
                                                       borderRadius:
-                                                          BorderRadius.circular(
-                                                              4),
+                                                          BorderRadius.circular(AppDesignTokens.radiusSmall),
                                                       child: GuessCoverImage(
                                                           songId:
                                                               _targetSong!.id,
@@ -1637,13 +1193,11 @@ class _GuessChartByTileRevealPageState
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
                                         children: [
-                                          Text(
-                                            '猜测历史',
-                                            style: TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
+                                          GuessHistoryHeader(
+                            ascending: _isAscending,
+                            onToggleSort: () =>
+                                setState(() => _isAscending = !_isAscending),
+                          ),
                                           const SizedBox(height: 12),
                                           Column(
                                             children: (_isAscending
@@ -1682,6 +1236,29 @@ class _GuessChartByTileRevealPageState
                     ),
                   ),
                 ),
+                if (_isGameStarted)
+                  GuessInputBar(
+                    controller: _searchController,
+                    onChanged: _handleSearchInput,
+                    hintText: '搜索歌名、别名、编号等',
+                    isGameOver: _isGameOver,
+                    onSurrender: () async {
+                                                  // 投降时取消倒计时和渐显
+                                                  _countdownTimer?.cancel();
+                                                  _revealTimer?.cancel();
+                                                  setState(() {
+                                                    _isGameOver = true;
+                                                    _isWon = false;
+                                                  });
+                                                  await _recordGameResult(
+                                                      false);
+                                                },
+                    onNewGame: _startNewGame,
+                    showResults: _showSearchResults,
+                    resultCount: _searchResults.length,
+                    resultBuilder: (context, index) =>
+                        _buildSearchResultItem(_searchResults[index]),
+                  ),
               ],
             );
           },

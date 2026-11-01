@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../utils/AppTheme.dart';
 import 'AnimatedStatMetric.dart';
+import '../utils/AppDesignTokens.dart';
 
 /// 单人猜歌共用的本局状态与每日统计，统计项保持两行四列。
 class GuessGameStatusPanel extends StatefulWidget {
@@ -177,11 +178,10 @@ class _GuessGameStatusPanelState extends State<GuessGameStatusPanel> {
       ]),
     ];
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: scheme.surfaceContainerLow.withValues(alpha: .65),
-        border: Border.all(color: scheme.outlineVariant),
-        borderRadius: BorderRadius.circular(12),
+        color: AppSurfaces.card(context),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

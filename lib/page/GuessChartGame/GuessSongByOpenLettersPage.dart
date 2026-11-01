@@ -17,6 +17,7 @@ import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import '../SongInfoPage.dart';
 import 'GuessChartLoadingView.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
+import '../../utils/AppDesignTokens.dart';
 
 class GuessSongByOpenLettersPage extends StatefulWidget {
   const GuessSongByOpenLettersPage({super.key});
@@ -472,10 +473,10 @@ class _GuessSongByOpenLettersPageState
               width: 60,
               height: 60,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                 child: GuessCoverImage(songId: song.id, size: 60),
               ),
             ),
@@ -563,7 +564,7 @@ class _GuessSongByOpenLettersPageState
               color: isGuessed
                   ? AppColors.guessAnswerCardBg(Theme.of(context).brightness)
                   : Theme.of(context).colorScheme.surface,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
               boxShadow: [
                 AppColors.defaultShadow(Theme.of(context).brightness)
               ],
@@ -580,10 +581,10 @@ class _GuessSongByOpenLettersPageState
                         width: 60,
                         height: 60,
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(4),
+                          borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                         ),
                         child: ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
+                          borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                           child: GuessCoverImage(songId: song.id, size: 60),
                         ),
                       ),
@@ -633,7 +634,7 @@ class _GuessSongByOpenLettersPageState
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
           boxShadow: [AppColors.defaultShadow(Theme.of(context).brightness)],
         ),
         child: Column(
@@ -655,10 +656,10 @@ class _GuessSongByOpenLettersPageState
                   width: 60,
                   height: 60,
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                   ),
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                     child: GuessCoverImage(songId: song.id, size: 60),
                   ),
                 ),
@@ -1123,7 +1124,7 @@ class _GuessSongByOpenLettersPageState
                                           Container(
                                             decoration: BoxDecoration(
                                               borderRadius:
-                                                  BorderRadius.circular(8),
+                                                  BorderRadius.circular(AppDesignTokens.radiusSmall),
                                               border: Border.all(
                                                   color: AppColors.readableTableBorder(
                                                       context)),
@@ -1174,7 +1175,7 @@ class _GuessSongByOpenLettersPageState
                                           Container(
                                             decoration: BoxDecoration(
                                               borderRadius:
-                                                  BorderRadius.circular(8),
+                                                  BorderRadius.circular(AppDesignTokens.radiusSmall),
                                               border: Border.all(
                                                   color: AppColors.readableTableBorder(
                                                       context)),
@@ -1201,7 +1202,7 @@ class _GuessSongByOpenLettersPageState
                                             Container(
                                               decoration: BoxDecoration(
                                                 borderRadius:
-                                                    BorderRadius.circular(8),
+                                                    BorderRadius.circular(AppDesignTokens.radiusSmall),
                                                 border: Border.all(
                                                     color:
                                                         AppColors.readableTableBorder(
@@ -1341,7 +1342,7 @@ class _GuessSongByOpenLettersPageState
                                               .colorScheme
                                               .surfaceContainerHighest,
                                           borderRadius:
-                                              BorderRadius.circular(8),
+                                              BorderRadius.circular(AppDesignTokens.radiusSmall),
                                         ),
                                         child: Column(
                                           crossAxisAlignment:

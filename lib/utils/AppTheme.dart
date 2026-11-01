@@ -782,17 +782,21 @@ class AppColors {
 
   /// 猜歌 - 正确（绿色）背景色
   static Color guessCorrectBg(Brightness brightness) =>
-      brightness == Brightness.dark ? const Color(0xFF2E7D32) : Colors.green;
+      brightness == Brightness.dark
+          ? const Color(0xFF2E7D32)
+          : const Color(0xFF237A45);
 
-  /// 猜歌 - 接近（橙色）背景色
+  /// 猜歌 - 接近（琥珀色）背景色
   static Color guessCloseBg(Brightness brightness) =>
       brightness == Brightness.dark
-          ? const Color(0xFFA95100)
-          : const Color(0xFFB85C00);
+          ? const Color(0xFFC8921C)
+          : const Color(0xFFF0B429);
 
-  /// 猜歌 - 错误（灰色）背景色
+  /// 猜歌 - 不符（灰色）背景色
   static Color guessWrongBg(Brightness brightness) =>
-      brightness == Brightness.dark ? const Color(0xFF616161) : Colors.grey;
+      brightness == Brightness.dark
+          ? const Color(0xFF4A5453)
+          : const Color(0xFFDCE3E2);
 
   /// 猜歌 - 答案卡片背景色（游戏结束后显示正确答案的区域）
   static Color guessAnswerCardBg(Brightness brightness) =>

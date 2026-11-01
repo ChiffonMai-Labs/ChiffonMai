@@ -3,6 +3,7 @@ import '../manager/MaidataManager.dart';
 import '../utils/ChartBpmInfo.dart';
 import '../utils/ChartDifficulty.dart';
 import '../utils/AppTheme.dart';
+import 'GuessUi.dart';
 
 /// 猜测历史的谱面变速信息，以 MASTER 为准，没有 MASTER 时使用最高可用难度。
 class GuessBpmHistoryFields extends StatefulWidget {
@@ -101,41 +102,15 @@ class _GuessBpmHistoryFieldsState extends State<GuessBpmHistoryFields> {
           Widget field(String title, String value, Color color,
                   {String? arrow}) =>
               Expanded(
-                  child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                    color: color, borderRadius: BorderRadius.circular(6)),
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(title,
-                          style: const TextStyle(
-                              fontSize: 10, color: Colors.white)),
-                      const SizedBox(height: 2),
-                      Row(children: [
-                        Expanded(
-                            child: Text(value,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white))),
-                        if (arrow != null)
-                          Padding(
-                              padding: const EdgeInsets.only(left: 4),
-                              child: Text(arrow,
-                                  style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                      color: arrow == '↑'
-                                          ? Colors.blue
-                                          : Colors.red))),
-                      ]),
-                    ]),
-              ));
+                child: GuessCell(
+                  label: title,
+                  value: value,
+                  color: color,
+                  arrow: arrow,
+                ),
+              );
           return Padding(
-              padding: const EdgeInsets.only(top: 4, bottom: 8),
+              padding: EdgeInsets.zero,
               child: Row(children: [
                 field(
                     '是否变 BPM',
