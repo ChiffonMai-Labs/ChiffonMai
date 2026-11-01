@@ -1323,6 +1323,49 @@ extension _SongInfoLoaders on _SongInfoPageState {
   // 计算星星等级
 
   // 计算星星等级的最低DX分和超出部分
+  String _calculateStars(int songId, int levelIndex, int score) {
+    double scoreRate = _calculateScoreRate(songId, levelIndex, score);
+
+    // 确定星星等级
+    if (scoreRate >= 0.99) {
+      return '\u2726 6';
+    } else if (scoreRate >= 0.98) {
+      return '\u2726 5.5';
+    } else if (scoreRate >= 0.97) {
+      return '\u2726 5';
+    } else if (scoreRate >= 0.95) {
+      return '\u2726 4';
+    } else if (scoreRate >= 0.93) {
+      return '\u2726 3';
+    } else if (scoreRate >= 0.90) {
+      return '\u2726 2';
+    } else if (scoreRate >= 0.85) {
+      return '\u2726 1';
+    } else {
+      return '\u2726 0';
+    }
+  }
+
+  /// 星级文字色：黄 / 橙 / 绿三档。浅色模式下白卡片上用加深的同色相，否则看不清。
+  Color _getStarsColor(String stars, Brightness brightness) {
+    final dark = brightness == Brightness.dark;
+    switch (stars) {
+      case '\u2726 6':
+      case '\u2726 5.5':
+      case '\u2726 5':
+        return dark ? Colors.yellow : const Color(0xFFC29100);
+      case '\u2726 4':
+      case '\u2726 3':
+        return dark ? Colors.orange : const Color(0xFFDD7A00);
+      case '\u2726 2':
+      case '\u2726 1':
+        return dark ? Colors.green.shade300 : const Color(0xFF2E9E5B);
+      case '\u2726 0':
+      default:
+        return dark ? Colors.grey.shade400 : Colors.grey.shade700;
+    }
+  }
+
   String _calculateStarsBonus(int songId, int levelIndex, int score) {
     int maxScore = _calculateMaxDxScore(songId, levelIndex);
     double scoreRate = score / maxScore;

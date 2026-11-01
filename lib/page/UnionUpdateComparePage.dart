@@ -9,7 +9,7 @@ import '../utils/CommonWidgetUtil.dart';
 import '../utils/CoverUtil.dart';
 import '../utils/SongFilterUtil.dart';
 import '../utils/StringUtil.dart';
-import '../widgets/PageTopBar.dart';
+import '../widgets/AppHeader.dart';
 import 'SongInfoPage.dart';
 
 /// 「国服更新对照」页：把本地曲库按**国服（水鱼）更新前沿**摆开，
@@ -95,7 +95,7 @@ class _UnionUpdateComparePageState extends State<UnionUpdateComparePage> {
           CommonWidgetUtil.buildCommonChiffonBgWidget(context),
           Column(
             children: [
-              PageTopBar(
+              AppHeader(
                 title: '国服更新对照',
                 actions: [
                   IconButton(

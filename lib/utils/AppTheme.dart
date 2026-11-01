@@ -126,7 +126,7 @@ class AppTheme {
   ///
   /// `textTheme` / `primaryTextTheme` 覆盖掉正文，`appBarTheme.titleTextStyle`
   /// 单独补族名 —— 否则**标准 `AppBar`（`Scaffold.appBar`）的标题**会被它自己那层
-  /// `DefaultTextStyle` 顶回系统字体（`PageTopBar` 不依赖这里，它自己调 [font]）。
+  /// `DefaultTextStyle` 顶回系统字体（`AppHeader` 不依赖这里，它自己调 [font]）。
   ///
   /// 运行时调用（`build` 里），不要在主题构造期调用。
   static ThemeData withGlobalFonts(ThemeData base) {

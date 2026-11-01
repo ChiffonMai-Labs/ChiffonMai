@@ -57,7 +57,7 @@ import 'package:my_first_flutter_app/widgets/AppUi.dart';
 import 'package:my_first_flutter_app/utils/ScoreInputValidator.dart';
 import 'package:my_first_flutter_app/utils/SongFilterUtil.dart';
 import 'package:my_first_flutter_app/widgets/BackgroundPageScaffold.dart';
-import 'package:my_first_flutter_app/widgets/PageTopBar.dart';
+import 'package:my_first_flutter_app/widgets/AppHeader.dart';
 import 'package:my_first_flutter_app/widgets/NextPlayAddDialog.dart';
 import 'package:my_first_flutter_app/widgets/ChartHistorySection.dart';
 import 'package:my_first_flutter_app/widgets/CommunityAvatar.dart';
@@ -348,26 +348,37 @@ class _SongInfoPageState extends State<SongInfoPage> {
                                       CrossAxisAlignment.stretch,
                                   children: [
                                     // 玩家最佳成绩
-                                    _buildBestScoreCard(
-                                        userRecord, basicInfo, levels),
+                                    EntranceAnimation(
+                                      key: ValueKey(_currentDiffIndex),
+                                      duration:
+                                          const Duration(milliseconds: 350),
+                                      offset: const Offset(0, 10),
+                                      child: _buildBestScoreCard(
+                                          userRecord, basicInfo, levels),
+                                    ),
                                     if (_best50OpportunityText != null) ...[
                                       const SizedBox(height: 8),
                                       _buildBest50OpportunityBanner(),
                                     ],
                                     // 成绩趋势：**独立于「玩家最佳成绩」卡片之外的板块**。
-                                    // 没有历史时它整块高度为 0（见 _buildChartHistoryCard），
-                                    // 所以这个 12dp 间隔**只服务于"有曲线"的情形**。
                                     const SizedBox(height: 12),
                                     _buildChartHistoryCard(),
+                                    const SizedBox(height: 12),
                                     _buildKeyStatsRow(currentDiffData),
                                     const SizedBox(height: 12),
                                     _buildDetailTabBar(accentColor),
                                     const SizedBox(height: 12),
-                                    _buildDetailTabContent(
-                                      basicInfo: basicInfo,
-                                      currentChart: currentChart,
-                                      currentDiffData: currentDiffData,
-                                      accentColor: accentColor,
+                                    EntranceAnimation(
+                                      key: ValueKey(_detailTab),
+                                      duration:
+                                          const Duration(milliseconds: 350),
+                                      offset: const Offset(0, 10),
+                                      child: _buildDetailTabContent(
+                                        basicInfo: basicInfo,
+                                        currentChart: currentChart,
+                                        currentDiffData: currentDiffData,
+                                        accentColor: accentColor,
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -390,7 +401,7 @@ class _SongInfoPageState extends State<SongInfoPage> {
                       opacity: _showSongTitleInAppBar ? 1 : 0,
                       duration: AppDesignTokens.motion(
                           context, AppDesignTokens.fastMotion),
-                      child: PageTopBar(
+                      child: AppHeader(
                         title: title,
                         barBackground: surface,
                         actions: [

@@ -14,7 +14,7 @@ import '../../utils/ScoreInputValidator.dart';
 import '../../utils/UserProfileNotifier.dart';
 import '../../widgets/HistoryLineChart.dart';
 import '../../widgets/HistoryPointDelete.dart';
-import '../../widgets/PageTopBar.dart';
+import '../../widgets/AppHeader.dart';
 import '../../widgets/HistoryDateTimeDialog.dart';
 
 /// Rating 历史曲线。
@@ -291,7 +291,7 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
           CommonWidgetUtil.buildCommonChiffonBgWidget(context),
           Column(
             children: [
-              const PageTopBar(title: 'Rating 历史'),
+              const AppHeader(title: 'Rating 历史'),
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),

@@ -4,7 +4,7 @@
 //    默认打开方式抢过来 —— 这是本次要修的核心问题）；
 // 2. 设置页的自定义取色器必须真的能取色（以前 `flutter_colorpicker` 的取色区
 //    宽度写死 300，在手机上溢出，只有预设色可用）；
-// 3+4. 页面结构：AppBar 字体统一走 PageTopBar；成绩趋势是独立板块、位于
+// 3+4. 页面结构：AppBar 字体统一走 AppHeader；成绩趋势是独立板块、位于
 //    「玩家最佳成绩」**下方**。
 //
 // 纯结构/常量可断言的部分放这里；需要渲染的部分在
@@ -16,7 +16,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import 'package:my_first_flutter_app/utils/ExportSettings.dart';
-import 'package:my_first_flutter_app/widgets/PageTopBar.dart';
+import 'package:my_first_flutter_app/widgets/AppHeader.dart';
 
 String _read(String path) => File(path).readAsStringSync();
 
@@ -79,16 +79,16 @@ void main() {
     });
   });
 
-  group('3. AppBar 字体统一（规格与 Best50/PageTopBar 同口径）', () {
-    test('PageTopBar 与 appBarTheme 的两处字号不能漂移', () {
+  group('3. AppBar 字体统一（规格与 Best50/AppHeader 同口径）', () {
+    test('AppHeader 与 appBarTheme 的两处字号不能漂移', () {
       for (final theme in [
         AppTheme.lightTheme(),
         AppTheme.darkTheme(),
         AppTheme.pureBlackTheme(),
       ]) {
-        expect(PageTopBar.titleFontSize,
+        expect(AppHeader.titleFontSize,
             theme.appBarTheme.titleTextStyle?.fontSize,
-            reason: '两套标题规格必须一致，否则标准 AppBar 与 PageTopBar 又不一样了');
+            reason: '两套标题规格必须一致，否则标准 AppBar 与 AppHeader 又不一样了');
         expect(theme.appBarTheme.titleTextStyle?.fontWeight, FontWeight.bold);
         expect(
             theme.appBarTheme.titleTextStyle?.color, theme.colorScheme.onSurface);
@@ -112,7 +112,7 @@ void main() {
 
     test('歌曲详情页的标题也不再单独放大', () {
       final src = _read('lib/page/SongInfoPage.dart');
-      final idx = src.indexOf("PageTopBar(\n                title: '歌曲详情'");
+      final idx = src.indexOf("AppHeader(\n                title: '歌曲详情'");
       expect(idx, greaterThan(0), reason: '找不到歌曲详情页的标题栏');
       // 标题栏参数区里不该再有 fontSize: 24
       final region = src.substring(idx, idx + 220);
@@ -120,27 +120,27 @@ void main() {
           reason: '全 App 标题统一 20/bold/primary，这一页不该是 24');
     });
 
-    test('曾经用裸 AppBar 的三个排行榜页改走 PageTopBar', () {
+    test('曾经用裸 AppBar 的三个排行榜页改走 AppHeader', () {
       for (final path in [
         'lib/page/RankingList/RatingRankListPage.dart',
         'lib/page/RankingList/FittedRatingRankingListPage.dart',
         'lib/page/RankingList/AvgScoreRankingListPage.dart',
       ]) {
         final src = _read(path);
-        expect(src.contains("import '../../widgets/PageTopBar.dart';"), isTrue,
-            reason: '$path 没引 PageTopBar');
-        expect(src.contains('PageTopBar('), isTrue, reason: '$path 没用上');
+        expect(src.contains("import '../../widgets/AppHeader.dart';"), isTrue,
+            reason: '$path 没引 AppHeader');
+        expect(src.contains('AppHeader('), isTrue, reason: '$path 没用上');
         expect(_bareAppBar.hasMatch(_stripLineComments(src)), isFalse,
             reason: '$path 还留着裸 AppBar');
       }
     });
 
-    test('保留的 AWMC 公共界面使用 PageTopBar', () {
+    test('保留的 AWMC 公共界面使用 AppHeader', () {
       for (final path in [
         'lib/page/Awmc/AwmcUi.dart',
       ]) {
         final src = _read(path);
-        expect(src.contains('PageTopBar('), isTrue, reason: '$path 没用上');
+        expect(src.contains('AppHeader('), isTrue, reason: '$path 没用上');
         expect(_bareAppBar.hasMatch(_stripLineComments(src)), isFalse,
             reason: '$path 还留着裸 AppBar');
       }

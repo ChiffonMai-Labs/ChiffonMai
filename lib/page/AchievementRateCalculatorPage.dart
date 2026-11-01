@@ -260,106 +260,118 @@ class _AchievementRateCalculatorState extends State<AchievementRateCalculator> {
     final judges = isBreak ? _breakJudges : _normalJudges;
     final scheme = Theme.of(context).colorScheme;
     final media = MediaQuery.of(context);
-    final keyboardOpen = media.viewInsets.bottom > 0;
-    // 结果卡和音符类型固定在顶部、边填边看；屏幕太矮（横屏 + 键盘）放不下时
-    // 让它们一起滚动，避免溢出。
-    final pinHeader = media.size.height - media.viewInsets.bottom >= 520;
-    final header = <Widget>[
-      _buildResultCard(result),
-      const SizedBox(height: AppDesignTokens.cardGap),
-      PillTabs(
-        items: [
-          for (final t in _types) SegmentedTabItem(t, caption: '${_countOf(t)}'),
-        ],
-        selectedIndex: _tab,
-        onChanged: (i) {
-          FocusScope.of(context).unfocus();
-          setState(() => _tab = i);
-        },
-      ),
-    ];
+    final keyboardInset = media.viewInsets.bottom;
+    final keyboardOpen = keyboardInset > 0;
 
+    // ⚠️ 键盘弹出前后这棵树的结构不能变：曾经按可用高度把结果卡在「固定顶部」和
+    // 「跟列表一起滚」之间切换，切换时输入框被销毁 → 丢焦点 → 键盘立刻收回，
+    // 表现就是一点输入框键盘就闪退。键盘只影响结果卡的详略和下方留白。
     return BackgroundPageScaffold(
       title: '达成率计算器',
-      resizeToAvoidBottomInset: true,
+      resizeToAvoidBottomInset: false,
       actions: [
         TextButton(
           onPressed: _hasAny ? _clearAll : null,
           child: const Text('清空',
               style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
         ),
-        const SizedBox(width: 4),
       ],
       child: GestureDetector(
         onTap: () => FocusScope.of(context).unfocus(),
         behavior: HitTestBehavior.translucent,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (pinHeader)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                    AppDesignTokens.gutter, 4, AppDesignTokens.gutter, 0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: header,
+        child: LayoutBuilder(
+          builder: (context, constraints) => Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // 顶部最多占一半高度，再矮的屏幕（横屏 + 键盘）也不会溢出。
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight:
+                      ((constraints.maxHeight - keyboardInset) * 0.5)
+                          .clamp(120.0, double.infinity)
+                          .toDouble(),
                 ),
-              ),
-            Expanded(
-              child: ListView(
-                padding: EdgeInsets.fromLTRB(
-                    AppDesignTokens.gutter,
-                    pinHeader ? AppDesignTokens.cardGap : 4,
-                    AppDesignTokens.gutter,
-                    AppDesignTokens.gutter),
-                children: [
-                  if (!pinHeader) ...[
-                    ...header,
-                    const SizedBox(height: AppDesignTokens.cardGap),
-                  ],
-                  AppCard(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Column(
-                      children: [
-                        for (var i = 0; i < judges.length; i++)
-                          _buildJudgeRow(type, i, judges[i], result),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: Text(
-                      isBreak
-                          ? 'BREAK 共 ${_countOf('BREAK')} 个 · 每行下方是基础分 / 奖励分比例'
-                          : '$type 共 ${_countOf(type)} 个 · 红字是这一档判定丢掉的达成率',
-                      style: TextStyle(
-                          fontSize: 12, color: scheme.onSurfaceVariant),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (!keyboardOpen)
-              Padding(
-                padding: EdgeInsets.fromLTRB(
-                    AppDesignTokens.gutter,
-                    0,
-                    AppDesignTokens.gutter,
-                    media.padding.bottom + 12),
-                child: SizedBox(
-                  height: 52,
-                  child: FilledButton(
-                    onPressed: result == null
-                        ? null
-                        : () => _showSingleNoteLossDialog(result),
-                    child: const Text('查看单音符损失',
-                        style: TextStyle(
-                            fontSize: 15, fontWeight: FontWeight.w700)),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(
+                      AppDesignTokens.gutter, 4, AppDesignTokens.gutter, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildResultCard(result, compact: keyboardOpen),
+                      const SizedBox(height: AppDesignTokens.cardGap),
+                      PillTabs(
+                        items: [
+                          for (final t in _types)
+                            SegmentedTabItem(t, caption: '${_countOf(t)}'),
+                        ],
+                        selectedIndex: _tab,
+                        onChanged: (i) {
+                          FocusScope.of(context).unfocus();
+                          setState(() => _tab = i);
+                        },
+                      ),
+                    ],
                   ),
                 ),
               ),
-          ],
+              // 不用 ListView：懒加载会把滚出视口的输入框销毁，同样会收起键盘。
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(
+                      AppDesignTokens.gutter,
+                      AppDesignTokens.cardGap,
+                      AppDesignTokens.gutter,
+                      AppDesignTokens.gutter),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      AppCard(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Column(
+                          children: [
+                            for (var i = 0; i < judges.length; i++)
+                              _buildJudgeRow(type, i, judges[i], result),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: Text(
+                          isBreak
+                              ? 'BREAK 共 ${_countOf('BREAK')} 个 · 每行下方是基础分 / 奖励分比例'
+                              : '$type 共 ${_countOf(type)} 个 · 红字是这一档判定丢掉的达成率',
+                          style: TextStyle(
+                              fontSize: 12, color: scheme.onSurfaceVariant),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              if (keyboardOpen)
+                SizedBox(height: keyboardInset)
+              else
+                Padding(
+                  padding: EdgeInsets.fromLTRB(
+                      AppDesignTokens.gutter,
+                      0,
+                      AppDesignTokens.gutter,
+                      media.padding.bottom + 12),
+                  child: SizedBox(
+                    height: 52,
+                    child: FilledButton(
+                      onPressed: result == null
+                          ? null
+                          : () => _showSingleNoteLossDialog(result),
+                      child: const Text('查看单音符损失',
+                          style: TextStyle(
+                              fontSize: 15, fontWeight: FontWeight.w700)),
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -388,7 +400,7 @@ class _AchievementRateCalculatorState extends State<AchievementRateCalculator> {
     );
   }
 
-  Widget _buildResultCard(_AchievementResult? result) {
+  Widget _buildResultCard(_AchievementResult? result, {bool compact = false}) {
     final scheme = Theme.of(context).colorScheme;
     final brightness = Theme.of(context).brightness;
     final onCard = scheme.onInverseSurface;
@@ -408,9 +420,11 @@ class _AchievementRateCalculatorState extends State<AchievementRateCalculator> {
             Text('—',
                 style: AppTheme.number(
                     fontSize: 46, fontWeight: FontWeight.w700, color: onCard)),
-            const SizedBox(height: 6),
-            Text('在下方填写各档判定数量，结果会自动算出来',
-                style: TextStyle(fontSize: 12, color: muted)),
+            if (!compact) ...[
+              const SizedBox(height: 6),
+              Text('在下方填写各档判定数量，结果会自动算出来',
+                  style: TextStyle(fontSize: 12, color: muted)),
+            ],
           ],
         ),
       );
@@ -479,6 +493,8 @@ class _AchievementRateCalculatorState extends State<AchievementRateCalculator> {
               ],
             ),
           ),
+          // 键盘弹出时空间紧张，结果卡只留达成率和评级。
+          if (!compact) ...[
           const SizedBox(height: 8),
           Text('基础 ${result.base.toStringAsFixed(4)}% · 奖励 ${result.extra.toStringAsFixed(4)}%',
               style: TextStyle(fontSize: 12, color: muted)),
@@ -499,6 +515,7 @@ class _AchievementRateCalculatorState extends State<AchievementRateCalculator> {
                 : '距 ${next.$2}（${next.$1}%）还差 ${(next.$1 - total).toStringAsFixed(4)}%',
             style: TextStyle(fontSize: 12, color: onCard.withValues(alpha: 0.86)),
           ),
+          ],
         ],
       ),
     );

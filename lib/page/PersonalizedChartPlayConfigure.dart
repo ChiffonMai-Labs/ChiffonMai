@@ -13,7 +13,7 @@ import 'package:my_first_flutter_app/service/ChartPackageHistoryStore.dart';
 import 'package:path_provider/path_provider.dart';
 import 'ChartPlayPage.dart';
 import '../service/ChartPlaySettingsStore.dart';
-import '../widgets/PageTopBar.dart';
+import '../widgets/AppHeader.dart';
 
 // ─────────────────────────────────────────────────────────
 // 谱面包导入（.adx / .zip）
@@ -849,7 +849,7 @@ class _PersonalizedChartPlayConfigureState
           Column(
             children: [
               // 标题栏（与 DataBackupPage / SongMaidataPage 同款写法）
-              PageTopBar(
+              AppHeader(
                 title: '自定义谱面播放',
               ),
 

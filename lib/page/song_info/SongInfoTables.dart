@@ -31,12 +31,10 @@ extension _SongInfoTables on _SongInfoPageState {
       // 完全没有历史 → 整块高度 0，不占位、不留白
       emptyPadding: EdgeInsets.zero,
       // 只有基线且还没有变化 → 基本水平内边距
-      textPadding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+      textPadding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       // 有曲线 → 完整卡片内边距。
-      // ⚠️ top 保持小值：**卡片之间的间距由 build 里那个 `SizedBox(height: 10)` 提供**，
-      // 因为那个间隔在所有形态下都存在；只在这里加大 top 的话，
-      // "只有一行历史文字"的形态又会贴住上面的卡片。
-      chartPadding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
+      // 卡片之间的间距由 build 里的 SizedBox 提供，这里只管卡片内部。
+      chartPadding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
     );
   }
 

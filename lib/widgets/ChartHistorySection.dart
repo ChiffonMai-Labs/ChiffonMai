@@ -11,6 +11,7 @@ import '../utils/UserProfileNotifier.dart';
 import 'HistoryDateTimeDialog.dart';
 import 'HistoryLineChart.dart';
 import 'HistoryPointDelete.dart';
+import '../utils/AppDesignTokens.dart';
 
 /// 曲目详情页里的「这张谱面的成绩历史」区块（达成率曲线 + DX 曲线）。
 ///
@@ -343,8 +344,8 @@ class _ChartHistorySectionState extends State<ChartHistorySection> {
     return Container(
       padding: padding,
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
+        color: AppSurfaces.card(context),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
       ),
       child: child,
     );

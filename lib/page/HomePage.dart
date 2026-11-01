@@ -826,7 +826,12 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
               ],
               if (_dailyPick != null) ...[
                 const SizedBox(height: 20),
-                _buildDailyPickCard(context, _dailyPick!),
+                EntranceAnimation(
+                  duration: const Duration(milliseconds: 500),
+                  baseDelay: const Duration(milliseconds: 120),
+                  offset: const Offset(0, 12),
+                  child: _buildDailyPickCard(context, _dailyPick!),
+                ),
               ],
               const SizedBox(height: 20),
               // 顶层监听保证收藏区跨页面实时刷新。
@@ -1029,11 +1034,13 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                         fontWeight: FontWeight.w700,
                         color: scheme.primary)),
                 const SizedBox(height: 3),
-                Text(song.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        fontSize: 17, fontWeight: FontWeight.w700)),
+                MarqueeText(
+                  text: song.title,
+                  style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      color: scheme.onSurface),
+                ),
                 const SizedBox(height: 3),
                 Row(
                   children: [
@@ -1419,7 +1426,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                       fit: BoxFit.scaleDown,
                       alignment: Alignment.centerLeft,
                       child: TweenAnimationBuilder<double>(
-                        tween: Tween(end: total.toDouble()),
+                        tween: Tween(begin: 0, end: total.toDouble()),
                         duration: AppDesignTokens.motion(
                             context, const Duration(milliseconds: 1100)),
                         curve: Curves.easeOutCubic,
@@ -4017,16 +4024,24 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                   spacing: gap,
                   runSpacing: 8,
                   children: [
-                    for (final item in gridItems)
+                    for (var i = 0; i < gridItems.length; i++)
                       SizedBox(
+                        key: ValueKey(gridItems[i].title),
                         width: width,
-                        child: FeatureIconTile(
-                          key: ValueKey(item.title),
-                          title: item.title,
-                          icon: item.icon,
-                          onTap: _isSyncBlockedFeature(item.title) && anyBusy
-                              ? null
-                              : () => _handleFeatureTap(item),
+                        child: EntranceAnimation(
+                          index: i,
+                          stagger: const Duration(milliseconds: 60),
+                          baseDelay: const Duration(milliseconds: 200),
+                          duration: const Duration(milliseconds: 500),
+                          offset: const Offset(0, 12),
+                          child: FeatureIconTile(
+                            title: gridItems[i].title,
+                            icon: gridItems[i].icon,
+                            onTap: _isSyncBlockedFeature(gridItems[i].title) &&
+                                    anyBusy
+                                ? null
+                                : () => _handleFeatureTap(gridItems[i]),
+                          ),
                         ),
                       ),
                   ],

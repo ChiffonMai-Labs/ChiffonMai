@@ -7,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:my_first_flutter_app/entity/nearcade/NearCadeShop.dart';
 import 'package:my_first_flutter_app/service/NearCadeService.dart';
 import 'package:my_first_flutter_app/utils/CommonWidgetUtil.dart';
-import '../widgets/PageTopBar.dart';
+import '../widgets/AppHeader.dart';
 import '../utils/ArcadeMarkerCluster.dart';
 
 // 缓存 Key
@@ -500,7 +500,7 @@ class _GlobalArcadeMapPageState extends State<GlobalArcadeMapPage> {
           CommonWidgetUtil.buildCommonChiffonBgWidget(context),
           Column(
             children: [
-              PageTopBar(
+              AppHeader(
                 title: '全球音游街机地图',
                 actions: [
                   IconButton(

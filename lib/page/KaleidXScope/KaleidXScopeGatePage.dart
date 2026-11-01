@@ -710,7 +710,7 @@ class _KaleidXScopeGatePageState extends State<KaleidXScopeGatePage> {
       SizedBox(height: _paddingS),
       _buildTrackSection('Track 3', _trackIds('track3')),
       // 底部那个「打开来源」文字按钮已删除：数据来源链接只保留顶部那一条
-      // （`PageTopBar.bottom` 里的 [KaleidXScopeSourceNotice]）。
+      // （`AppHeader.bottom` 里的 [KaleidXScopeSourceNotice]）。
       SizedBox(height: _paddingS),
     ]);
   }

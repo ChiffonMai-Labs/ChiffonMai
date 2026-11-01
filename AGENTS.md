@@ -321,83 +321,45 @@ build/app/intermediates/merged_manifests/release/processReleaseManifest/AndroidM
 
 ---
 
-## 11. 顶部标题栏：必须用 `PageTopBar`
+## 11. 顶部区域：必须用 `AppHeader`
 
-**不要自己拼 `Container + Row + IconButton(arrow_back) + Expanded(Center(Text(title))) + SizedBox` 的顶部栏**——那是一份在 60+ 个页面里**手动复制**出来的"模板"（背景里的 `padding: EdgeInsets.fromLTRB(_, 48, _, _)` 把状态栏偏移**写死**），带来三个问题：
-
-1. **状态栏高度写死**——真机有刘海/打孔的设备上偏小或偏大，跟 `AppBar` 自带 `SafeArea` 的行为不一致；
-2. **标题字体不统一**——裸 `Text(... fontSize: screenWidth * 0.06)`，既不走 `AppTheme.font`（思源黑体），字号又跟视口绑定、跨设备忽大忽小；
-3. **每加一个页面就抄一份**——50+ 个文件里堆了十几份近似但有差别的版本，谁改谁漂移。
-
-**统一入口**：[lib/widgets/PageTopBar.dart](lib/widgets/PageTopBar.dart)
+**不要自己拼返回键 + 标题的顶部栏**，也不要用裸 `AppBar`。统一入口是 [lib/widgets/AppHeader.dart](lib/widgets/AppHeader.dart)（原来的 `PageTopBar` 已删除）：透明底，白色圆形返回键，靠左粗体标题，右侧圆形操作按钮。
 
 ```dart
-// 标准用法
-PageTopBar(title: '段位表'),
+// 标准用法（大多数页面通过 BackgroundPageScaffold 间接使用）
+AppHeader(title: '段位表'),
 
-// 需要右侧操作按钮
-PageTopBar(
+// 右侧操作按钮：IconButton 自动是白色圆形
+AppHeader(
   title: 'Rating 排行榜',
   actions: [IconButton(...)],
 ),
 
 // 返回不是直接 pop（例如要二次确认）
-PageTopBar(
+AppHeader(
   title: '多人猜歌',
   onBack: _showLeaveRoomConfirmDialog,
 ),
 ```
 
-放进 `Scaffold.body` 的 `Column` 首位即可，`Scaffold.backgroundColor` 用透明让背景组件透出来：
+放进 `Scaffold.body` 的 `Column` 首位即可，也可以当 `Scaffold.appBar`；`Scaffold.backgroundColor` 用透明让背景组件透出来。
 
-```dart
-Scaffold(
-  backgroundColor: Colors.transparent,
-  body: Stack(children: [
-    CommonWidgetUtil.buildCommonBgWidget(),
-    CommonWidgetUtil.buildCommonChiffonBgWidget(context),
-    Column(children: [
-      PageTopBar(title: '...'),     // ← 顶部栏
-      Expanded(child: ...),          // ← 主体
-    ]),
-  ]),
-)
-```
-
-`PageTopBar` 内部就是一层 `Material AppBar`，自带：
-
-- 标准 `AppBar.primary` 行为：状态栏高度按真机自适应，不再写死 48；
-- 思源黑体（`AppTheme.font`）20 / bold / `colorScheme.onSurface` / 靠左；
-- `Semantics(header)` 与 `AnnotatedRegion<SystemUiOverlayStyle>`；
-- 标准返回按钮（`Navigator.maybePop`，路由不可 pop 时按钮**不消失**，与各页一直以来的行为一致）。
-
-**标题字体默认 20 / `colorScheme.onSurface` / 靠左，不要单独传 `fontSize:` 覆盖** —— 详见 [lib/page/RankingList/RatingRankListPage.dart:2165-2168](lib/page/RankingList/RatingRankListPage.dart) 的注释（之前有人传 `fontSize: 24`，结果这一页标题比别人粗一圈，与"统一标题字体"的目标相悖，已被去掉）。
+- 状态栏高度按真机自适应，不要写死 48。
+- 标题固定 20 / bold / `onSurface` / 靠左，走 `AppTheme.font`，不提供字号参数；放不下时用 `MarqueeText` 横向滚动，不截断。
+- 自带 `Semantics(header)` 和状态栏样式。
+- 盖在滚动内容上时传 `barBackground`（歌曲详情滚过头图后的顶部栏）。
 
 ### 故意手写的少数例外（不要迁移）
 
 | 文件 | 原因 |
 |---|---|
-| [lib/page/CoverRecognitionPage.dart:812-835](lib/page/CoverRecognitionPage.dart) 与 [lib/page/ScoreOcrPage.dart:2861](lib/page/ScoreOcrPage.dart) 的裁剪工具栏 | **深色全屏图片裁剪 UI**（`Colors.black87` 底 + 白字），跟标准标题栏观感完全不同 |
-| [lib/page/FavoriteFolderPage.dart:497-504](lib/page/FavoriteFolderPage.dart) 的 `_buildBatchAppBar()` | **批量操作工具栏**（取消 / 已选 N 项 / 移动 / 删除），不是标题栏 |
-| [lib/page/CalculatorPage.dart:250](lib/page/CalculatorPage.dart) 的双行标题（"计算工具" + 副标题） | `PageTopBar` 只支持单行标题，可选：用 `bottom: PreferredSize(...)` 挂副标题，或保留现状 |
+| [lib/page/CoverRecognitionPage.dart](lib/page/CoverRecognitionPage.dart) 与 [lib/page/ScoreOcrPage.dart](lib/page/ScoreOcrPage.dart) 的裁剪工具栏 | **深色全屏图片裁剪 UI**，跟标准顶部区域观感完全不同 |
+| [lib/page/FavoriteFolderPage.dart](lib/page/FavoriteFolderPage.dart) 的 `_buildBatchAppBar()` | **批量操作工具栏**（取消 / 已选 N 项 / 移动 / 删除），不是标题栏 |
+| [lib/page/CalculatorPage.dart](lib/page/CalculatorPage.dart) 的双行标题（"计算工具" + 副标题） | `AppHeader` 只支持单行标题 |
 
-> `HomePage` / `AppShell` / `HubComponents.HubPageScaffold` 这些是首页 Dashboard / 主壳 / 复用枢纽布局，**本身就不是页面级标题栏**，跟本约定无关。
+> `HomePage` / `AppShell` / `HubComponents.HubPageScaffold` 是首页 / 主壳 / 枢纽布局，`SongInfoPage` 的头图自带返回键，都跟本约定无关。
 
-### 核查方式
-
-在 `lib/page/` 下找还残留的手写模板（`top=48`/`top=46` 是最显眼的指纹）：
-
-```powershell
-Get-ChildItem lib/page -Recurse -File -Include *.dart |
-  Select-String -Pattern "EdgeInsets\.fromLTRB\([^,]+,\s*4[0-9]" |
-  Select-Object -Unique Path
-```
-
-> ⚠️ **不要**写成 `Select-String -Path "lib\*.dart","lib\**\*.dart"`——PowerShell 的 `**` 不是"递归"（见 § 1 备注），会**静默漏掉** `lib/page/RankTable/...`、`lib/page/Multiplayer/...`、`lib/page/KaleidXScope/...` 这类两层以上目录。
-
-**期望结果**：命中只剩 [lib/page/FavoriteFolderPage.dart:498](lib/page/FavoriteFolderPage.dart)（批量工具栏，已在上面列为故意手写）。
-
-
+---
 
 ## 12. 角色说话风格：Chiffon
 
@@ -514,7 +476,7 @@ Get-ChildItem lib/page -Recurse -File -Include *.dart |
 
 **基准是 claude.ai 画布「ChiffonMai UI 改版对比」的 After B**（https://claude.ai/artifact/DtoefBVEjpm8y9CwiruBpt）。约 90% 照设计稿，其余 10% 是硬性要求：**重构前的所有功能都必须保留**，尤其是收藏（星标）。设计稿没画的功能，要给它在同一套视觉里安排位置，不能删。设计稿里的示例数据和「[示意]」不能照搬成假数据：有真实数据就接真实数据，没有就显示空态。
 
-新页面和改版页面都按这一节来；设计稿没有涉及的页面也用同一套视觉。
+新页面和改版页面都按这一节来；设计稿没有涉及的页面也用同一套视觉。设计稿的白卡片优先于 §17 的平面布局。
 
 ### 22.1 令牌：只从 `AppDesignTokens` / `AppSurfaces` 取值
 
@@ -534,7 +496,8 @@ Get-ChildItem lib/page -Recurse -File -Include *.dart |
 
 - 中文正文：全局思源黑体（§11 的 `AppTheme.font` 规则不变）。
 - **数字为主角的地方**（Rating、达成率、定数、物量、评级缩写）：`AppTheme.number(...)`，Outfit + 等宽数字。别拿它排中文。
-- 顶部栏标题 20 / bold / `onSurface` / **靠左**（§11 的 `PageTopBar` 默认值已改）。Hub 页大标题 30 / w800，不带说明文字。
+- 顶部标题规格见 §11。Hub 页大标题 30 / w800，不带说明文字。
+- 字体**不打包**，走 `google_fonts` 运行时下载：安装包要控制在 100MB 以内，思源黑体单个字重就约 10MB。
 
 ### 22.3 颜色
 
@@ -559,10 +522,7 @@ Get-ChildItem lib/page -Recurse -File -Include *.dart |
 
 - 首页「常用」就是收藏列表：普通功能显示成图标网格；带进度 / 线路 / 统计的入口（同步、自动同步、缓存管理、新版本）放不进小图标，单独成组显示完整 `HubActionTile`。点「编辑」进入列表模式，可取消星标、上下移动、长按拖动。
 - 成绩 Hub 顶部是设计稿的概览卡片，下面的「全部功能」保留每个功能的星标。**以后改 Hub 页不能把带星标的入口去掉。**
-
-### 22.6.1 曲库标签页就是搜索页
-
-`LibraryHubPage` 渲染 `SongSearchPage(embedded: true, idleContent: …)`：没有搜索条件时，搜索框和筛选下面显示「全部功能」（含星标）；有条件时换成结果。筛选由胶囊展开，原来的各筛选控件（`_buildXxxFilter`）和搜索逻辑都没动。
+- 曲库 Hub 只是功能列表；搜索和筛选在 `SongSearchPage` 里，进入功能后才出现。
 
 ### 22.7 设置页的个性化功能必须继续生效
 
@@ -593,12 +553,15 @@ Get-ChildItem lib/page -Recurse -File -Include *.dart |
 
 结构回归测试 `test/song_info_section_order_test.dart` 会把主文件和 `song_info/*.dart` 拼起来检查「成绩趋势是独立板块、排在成绩卡下方」。
 
-### 22.10 布局回归与预览
+### 22.10 文字不截断
 
-`test/ui_canvas_layout_test.dart` 在 360 / 390 宽、大字号、浅色 / 深色下检查核心页面不溢出。设置环境变量可以把页面渲染成 PNG，和设计稿对照：
+Rating、达成率、歌名、说明文字这类重要内容不要用省略号。放得下多行就换行；单行放不下时，短文本用 `FittedBox(fit: BoxFit.scaleDown)` 等比缩小（`StatTile` 已内置），歌名这类长文本用 `MarqueeText`（§8）。
 
-```bash
-UI_PREVIEW_DIR=build/ui_preview flutter test test/ui_canvas_layout_test.dart
-```
+### 22.11 动效
 
-测试环境缺部分字重，个别文字会显示成方块，这不是页面问题。
+入场用 `EntranceAnimation`（列表项按 `index` 错开，换 Key 重播），按压用 `PressScale`，参数照设计稿：Best50 卡片 14px + 缩放 0.96 / 420ms，成绩列表 8px / 300ms，搜索结果横向 10px / 320ms，首页 12px / 500ms，歌曲详情面板 10px / 350ms。两者都尊重系统「减少动态效果」。
+
+### 22.12 输入框所在的布局树不能随键盘变化
+
+键盘弹出时不要切换页面结构，也不要把输入框放进会回收子项的 `ListView.builder`：输入框一旦被销毁就会丢焦点，键盘立刻收回。达成率计算器踩过这个坑。键盘只能影响留白和局部详略（§18）。
+

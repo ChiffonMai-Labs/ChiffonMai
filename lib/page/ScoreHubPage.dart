@@ -391,22 +391,20 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
           const Text('Rating 历史',
               style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
-          SizedBox(
-            height: 56,
-            child: series.length < 2
-                ? null
-                : CustomPaint(
-                    painter:
-                        _SparklinePainter(series: series, color: scheme.primary),
-                  ),
-          ),
-          const SizedBox(height: 8),
+          if (series.length >= 2) ...[
+            SizedBox(
+              height: 56,
+              child: CustomPaint(
+                painter:
+                    _SparklinePainter(series: series, color: scheme.primary),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
           Text(
               series.isEmpty
                   ? '同步后开始记录'
                   : '最新 ${series.last} · 共 ${series.length} 次记录',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
               style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
         ],
       ),
@@ -426,6 +424,7 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
           const Text('成绩提升',
               style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
+          if (days.isNotEmpty) ...[
           SizedBox(
             height: 56,
             child: Row(
@@ -450,10 +449,9 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
               ],
             ),
           ),
-          const SizedBox(height: 8),
+            const SizedBox(height: 8),
+          ],
           Text(days.isEmpty ? '同步后开始记录' : '按日回顾',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
               style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
         ],
       ),

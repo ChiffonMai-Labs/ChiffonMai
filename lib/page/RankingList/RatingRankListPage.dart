@@ -7,7 +7,7 @@ import '../../service/AccountStore.dart';
 import '../../service/RankingList/RatingRankListService.dart';
 import '../../utils/AppTheme.dart';
 import '../../utils/ColorUtil.dart';
-import '../../widgets/PageTopBar.dart';
+import '../../widgets/AppHeader.dart';
 import '../../widgets/ThemeAwareBackground.dart';
 import '../../widgets/CommunityAvatar.dart';
 import '../../utils/CurrentDataSourceNotifier.dart';
@@ -497,7 +497,7 @@ class _RatingRankListPageState extends State<RatingRankListPage>
               // `Text` 不带 fontFamily，会被 AppBar 自己的 `DefaultTextStyle`
               // （`appBarTheme.titleTextStyle`）接管，标题就退化成系统 Roboto，
               // 于是出现「同一个 App 里排行榜页的标题字体和别人不一样」。
-              PageTopBar(
+              AppHeader(
                 title: 'Rating 排行榜',
                 actions: [
                   IconButton(
@@ -587,7 +587,7 @@ class _RatingRankListPageState extends State<RatingRankListPage>
                             controller: _scrollController,
                             // 必须显式清零：`Scaffold` 在没有 `appBar:` 时不会消耗顶部安全区，
                             // 于是 `ListView` 会把 `MediaQuery.padding.top`（状态栏 24dp）
-                            // 当成内边距垫在**列表最上面** —— 而状态栏已经被 `PageTopBar`
+                            // 当成内边距垫在**列表最上面** —— 而状态栏已经被 `AppHeader`
                             // 占掉了，结果就是「第一名那一行上方多出一块空白」（实测 24dp）。
                             padding: EdgeInsets.zero,
                             // 每行都排成原型行的高度：定位按钮才能用

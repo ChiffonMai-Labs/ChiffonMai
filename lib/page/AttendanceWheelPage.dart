@@ -2,7 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/CommonWidgetUtil.dart';
-import '../widgets/PageTopBar.dart';
+import '../widgets/AppHeader.dart';
 
 String attendanceRegionLabel(int index) => index.isEven ? '出勤' : '不出勤';
 
@@ -103,7 +103,7 @@ class _AttendanceWheelPageState extends State<AttendanceWheelPage>
           CommonWidgetUtil.buildCommonBgWidget(),
           CommonWidgetUtil.buildCommonChiffonBgWidget(context),
           Column(children: [
-            const PageTopBar(title: '出勤转盘'),
+            const AppHeader(title: '出勤转盘'),
             Expanded(
                 child: SingleChildScrollView(
                     padding: const EdgeInsets.all(20),

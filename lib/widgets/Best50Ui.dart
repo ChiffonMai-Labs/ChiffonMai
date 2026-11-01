@@ -155,52 +155,47 @@ class Best50Hero extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Flexible(
-                flex: 3,
+              Expanded(
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
                   alignment: Alignment.centerLeft,
-                  child: Semantics(
-                    label: '$label $total',
-                    excludeSemantics: true,
-                    child: Text(
-                      '$total',
-                      style: AppTheme.number(
-                        fontSize: 56,
-                        fontWeight: FontWeight.w700,
-                        height: 0.95,
-                        letterSpacing: -1.5,
-                        color: scheme.onSurface,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                flex: 2,
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
                     children: [
-                      if (d != null)
+                      Semantics(
+                        label: '$label $total',
+                        excludeSemantics: true,
+                        child: TweenAnimationBuilder<double>(
+                          tween: Tween(begin: 0, end: total.toDouble()),
+                          duration: AppDesignTokens.motion(
+                              context, const Duration(milliseconds: 900)),
+                          curve: Curves.easeOutCubic,
+                          builder: (context, value, _) => Text(
+                            '${value.round()}',
+                            style: AppTheme.number(
+                              fontSize: 56,
+                              fontWeight: FontWeight.w700,
+                              height: 0.95,
+                              letterSpacing: -1.5,
+                              color: scheme.onSurface,
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (d != null) ...[
+                        const SizedBox(width: 8),
                         Text(
                           d >= 0 ? '+$d' : '$d',
                           style: AppTheme.number(
-                            fontSize: 16,
+                            fontSize: 18,
                             fontWeight: FontWeight.w700,
                             color: d >= 0
                                 ? AppColors.successGreen(theme.brightness)
                                 : AppColors.errorRed(theme.brightness),
                           ),
                         ),
-                      Text(label,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              fontSize: 12, color: scheme.onSurfaceVariant)),
+                      ],
                     ],
                   ),
                 ),
@@ -211,6 +206,11 @@ class Best50Hero extends StatelessWidget {
               ],
             ],
           ),
+          const SizedBox(height: 4),
+          // 说明独占一行，多长都完整显示。
+          Text(label,
+              style: TextStyle(
+                  fontSize: 12, height: 1.4, color: scheme.onSurfaceVariant)),
           if (b35 != null && b15 != null) ...[
             const SizedBox(height: 10),
             SplitBar(
@@ -225,7 +225,7 @@ class Best50Hero extends StatelessWidget {
   }
 }
 
-/// 顶部栏右侧的圆形图标按钮（历史、导出……）。
+/// 顶部栏右侧的图标按钮（历史、导出……），圆形样式由 AppHeader 统一提供。
 class Best50IconAction extends StatelessWidget {
   final String tooltip;
   final IconData icon;
@@ -240,18 +240,10 @@ class Best50IconAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 4, right: 4),
-      child: IconButton(
-        tooltip: tooltip,
-        onPressed: onPressed,
-        style: IconButton.styleFrom(
-          backgroundColor: AppSurfaces.card(context),
-          foregroundColor: Theme.of(context).colorScheme.onSurface,
-          fixedSize: const Size(44, 44),
-        ),
-        icon: Icon(icon, size: 20),
-      ),
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: onPressed,
+      icon: Icon(icon, size: 20),
     );
   }
 }
@@ -604,6 +596,7 @@ class Best50Grid extends StatelessWidget {
           return Best50CoverCard(
             data: data,
             rank: index + 1,
+            entranceIndex: index,
             onTap: () => showBest50SongSheet(context, data),
           );
         },
@@ -621,19 +614,22 @@ class Best50CoverCard extends StatelessWidget {
   /// 自定义 Best50 用来标出不合法的条目。
   final Color? outlineColor;
 
+  /// 入场动画的错开序号。
+  final int entranceIndex;
+
   const Best50CoverCard({
     super.key,
     required this.data,
     required this.rank,
     required this.onTap,
     this.outlineColor,
+    this.entranceIndex = 0,
   });
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final fcLabel = _comboLabel(data.fc);
-    return Semantics(
+    final card = Semantics(
       button: true,
       label: '第 $rank 名，${data.title}，Rating ${data.rating}',
       excludeSemantics: true,
@@ -679,12 +675,24 @@ class Best50CoverCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                    if (data.badge != null || fcLabel != null)
-                      Positioned(
-                        left: 6,
-                        bottom: 6,
-                        child: _CoverPill(text: data.badge ?? fcLabel!),
+                    // PC50 角标、连击、同步排在曲绘左下角
+                    Positioned(
+                      left: 6,
+                      right: 6,
+                      bottom: 6,
+                      child: Wrap(
+                        spacing: 3,
+                        runSpacing: 3,
+                        children: [
+                          if (data.badge != null)
+                            _CoverPill(text: data.badge!),
+                          if (data.fc.isNotEmpty)
+                            ComboLabelBadge(raw: data.fc, fontSize: 10),
+                          if (data.fs.isNotEmpty)
+                            ComboLabelBadge(raw: data.fs, fontSize: 10),
+                        ],
                       ),
+                    ),
                   ],
                 ),
               ),
@@ -731,6 +739,11 @@ class Best50CoverCard extends StatelessWidget {
         ),
       ),
     );
+    return EntranceAnimation(
+      index: entranceIndex,
+      scaleFrom: 0.96,
+      child: PressScale(child: card),
+    );
   }
 }
 
@@ -759,34 +772,6 @@ class _CoverPill extends StatelessWidget {
   }
 }
 
-/// 接口里的 `fc` / `fs` 值 → 显示文字（`fcp` → `FC+`）。
-String? _comboLabel(String raw) {
-  switch (raw) {
-    case '':
-      return null;
-    case 'app':
-      return 'AP+';
-    case 'ap':
-      return 'AP';
-    case 'fcp':
-      return 'FC+';
-    case 'fc':
-      return 'FC';
-    case 'fsp':
-      return 'FS+';
-    case 'fs':
-      return 'FS';
-    case 'fsdp':
-      return 'FDX+';
-    case 'fsd':
-      return 'FDX';
-    case 'sync':
-      return 'SYNC';
-    default:
-      return raw.toUpperCase();
-  }
-}
-
 /// 点曲绘卡弹出：曲绘、难度、达成率、推分空间、连击同步星级、DX 分数、进详情。
 Future<void> showBest50SongSheet(BuildContext context, Best50CardData data) {
   return showModalBottomSheet<void>(
@@ -800,9 +785,6 @@ Future<void> showBest50SongSheet(BuildContext context, Best50CardData data) {
       final next = best50NextTier((ds: data.ds, achievement: data.achievement));
       final success = AppColors.comboBadge('FC', brightness);
       final rank = StringUtil.rateCodeFromAchievement(data.achievement);
-      final fcLabel = _comboLabel(data.fc);
-      final fsLabel = _comboLabel(data.fs);
-      final syncColors = AppColors.syncBadge(brightness);
 
       Widget tile({
         required String label,
@@ -821,12 +803,15 @@ Future<void> showBest50SongSheet(BuildContext context, Best50CardData data) {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                          fontSize: 11,
-                          color: foreground ?? scheme.onSurfaceVariant)),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(label,
+                        maxLines: 1,
+                        style: TextStyle(
+                            fontSize: 11,
+                            color: foreground ?? scheme.onSurfaceVariant)),
+                  ),
                   const SizedBox(height: 2),
                   FittedBox(
                     fit: BoxFit.scaleDown,
@@ -862,8 +847,6 @@ Future<void> showBest50SongSheet(BuildContext context, Best50CardData data) {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(data.title,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                                 fontSize: 17, fontWeight: FontWeight.w700)),
                         const SizedBox(height: 2),
@@ -880,8 +863,6 @@ Future<void> showBest50SongSheet(BuildContext context, Best50CardData data) {
                             Flexible(
                               child: Text(
                                 '${data.difficultyLabel} · ${data.type} · 定数 ${data.dsText}',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                     fontSize: 12,
                                     color: scheme.onSurfaceVariant),
@@ -921,13 +902,8 @@ Future<void> showBest50SongSheet(BuildContext context, Best50CardData data) {
                 children: [
                   if (rank.isNotEmpty)
                     RankBadge(rank: rank.toUpperCase().replaceFirst('P', '+')),
-                  if (fcLabel != null) ComboBadge(text: fcLabel),
-                  if (fsLabel != null)
-                    AppBadge(
-                      text: fsLabel,
-                      background: syncColors.background,
-                      foreground: syncColors.foreground,
-                    ),
+                  if (data.fc.isNotEmpty) ComboLabelBadge(raw: data.fc),
+                  if (data.fs.isNotEmpty) ComboLabelBadge(raw: data.fs),
                   if (data.stars.isNotEmpty) StarBadge(stars: data.stars),
                   if (data.maxDxScore > 0)
                     Text('DX ${data.dxScore} / ${data.maxDxScore}',

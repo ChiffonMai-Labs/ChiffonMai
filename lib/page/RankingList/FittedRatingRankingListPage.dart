@@ -7,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../constant/CacheKeyConstant.dart';
 import '../../service/RankingList/FittedRatingRankingListService.dart';
 import '../../utils/AppTheme.dart';
-import '../../widgets/PageTopBar.dart';
+import '../../widgets/AppHeader.dart';
 import '../../widgets/ThemeAwareBackground.dart';
 import '../../widgets/CommunityAvatar.dart';
 import '../../utils/CurrentDataSourceNotifier.dart';
@@ -412,9 +412,8 @@ class _FittedRatingRankingListPageState
               // 顶部栏统一走公共组件（标题 = 思源黑体 20 / bold / primary / 居中）。
               // 以前是 `Scaffold.appBar: AppBar` + 裸 `Text`，标题会被 AppBar
               // 重新套上的 DefaultTextStyle 顶成系统 Roboto。
-              PageTopBar(
+              AppHeader(
                 title: '拟合总Rating排行榜',
-                centerTitleInAvailableSpace: true,
                 actions: [
                   IconButton(
                     icon: _isLoading
@@ -499,7 +498,7 @@ class _FittedRatingRankingListPageState
                             controller: _scrollController,
                             // 必须显式清零：`Scaffold` 在没有 `appBar:` 时不会消耗顶部安全区，
                             // `ListView` 会把 `MediaQuery.padding.top`（状态栏 24dp）当成
-                            // 内边距垫在列表最上面，而状态栏已被 `PageTopBar` 占掉 ——
+                            // 内边距垫在列表最上面，而状态栏已被 `AppHeader` 占掉 ——
                             // 结果就是「第一名那行上方多出一块空白」（实测 24dp）。
                             padding: EdgeInsets.zero,
                             // 每行都排成原型行的高度：定位按钮才能用

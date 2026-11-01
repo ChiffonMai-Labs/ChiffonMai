@@ -24,7 +24,6 @@ import 'package:my_first_flutter_app/constant/VersionListConstant.dart';
 import 'package:my_first_flutter_app/constant/GenreListConstant.dart';
 import '../widgets/AppUi.dart';
 import '../utils/AppDesignTokens.dart';
-import '../widgets/MainNavigationInsets.dart';
 
 enum _ConstantFilterMode { anyChart, perDifficulty }
 
@@ -32,18 +31,7 @@ class SongSearchPage extends StatefulWidget {
   /// 非国服入口严格按曲库的 isExtra 标记限定搜索范围。
   final bool extraOnly;
 
-  /// 作为「曲库」标签页嵌在主壳里：大标题、不带返回栏，底部让出导航栏。
-  final bool embedded;
-
-  /// 没有任何搜索条件时显示在下方的内容（曲库标签页的全部功能列表）。
-  final Widget? idleContent;
-
-  const SongSearchPage({
-    super.key,
-    this.extraOnly = false,
-    this.embedded = false,
-    this.idleContent,
-  });
+  const SongSearchPage({super.key, this.extraOnly = false});
 
   @override
   State<SongSearchPage> createState() => _SongSearchPageState();
@@ -1242,6 +1230,10 @@ class _SongSearchPageState extends State<SongSearchPage> {
                       mode == _ConstantFilterMode.anyChart ? '任意难度' : '按难度组合',
                   onChanged: _setConstantFilterMode,
                 ),
+                if (_constantFilterMode == _ConstantFilterMode.anyChart) ...[
+                  const SizedBox(height: 10),
+                  _buildQuickLevels(),
+                ],
                 Align(
                     alignment: Alignment.centerRight,
                     child: TextButton.icon(
@@ -2110,70 +2102,28 @@ class _SongSearchPageState extends State<SongSearchPage> {
 
   @override
   Widget build(BuildContext context) {
-    final body = GestureDetector(
-      behavior: HitTestBehavior.translucent,
-      onTap: () => FocusScope.of(context).unfocus(),
-      child: _buildBody(),
-    );
-    if (widget.embedded) {
-      return Scaffold(
-        backgroundColor: Colors.transparent,
-        resizeToAvoidBottomInset: false,
-        body: SafeArea(bottom: false, child: body),
-      );
-    }
     return BackgroundPageScaffold(
       title: widget.extraOnly ? '非国服乐曲查询' : '歌曲搜索',
       resizeToAvoidBottomInset: false,
-      child: body,
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: _buildBody(),
+      ),
     );
   }
 
   Widget _buildBody() {
-    final scheme = Theme.of(context).colorScheme;
     final media = MediaQuery.of(context);
-    final bottomInset = widget.embedded
-        ? MainNavigationInsets.bottomOf(context)
-        : media.padding.bottom;
+    final bottomInset = media.padding.bottom;
     const gutter = AppDesignTokens.gutter;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: EdgeInsets.fromLTRB(
-              gutter, widget.embedded ? 16 : 4, gutter, 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (widget.embedded) ...[
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.baseline,
-                    textBaseline: TextBaseline.alphabetic,
-                    children: [
-                      Semantics(
-                        header: true,
-                        child: const Text('曲库',
-                            style: TextStyle(
-                                fontSize: 30, fontWeight: FontWeight.w800)),
-                      ),
-                      const SizedBox(width: 10),
-                      if (_songCount != null)
-                        Text('$_songCount 首',
-                            style: TextStyle(
-                                fontSize: 13, color: scheme.onSurfaceVariant)),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-              ],
-              _buildSearchEntry(15, 15),
-            ],
-          ),
+          padding: const EdgeInsets.fromLTRB(gutter, 4, gutter, 12),
+          child: _buildSearchEntry(15, 15),
         ),
-        _buildQuickLevelRow(),
-        const SizedBox(height: 8),
         _buildFilterPillRow(),
         const SizedBox(height: 12),
         Expanded(
@@ -2217,41 +2167,39 @@ class _SongSearchPageState extends State<SongSearchPage> {
   }
 
   // 等级快捷键（圆形胶囊，点一下筛这个等级，再点取消）
-  Widget _buildQuickLevelRow() {
+  Widget _buildQuickLevels() {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final selectedBg = theme.brightness == Brightness.dark
         ? scheme.inverseSurface
         : scheme.onSurface;
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: AppDesignTokens.gutter),
-      child: Row(
-        children: [
-          for (final level in _quickLevels) ...[
-            if (level != _quickLevels.first) const SizedBox(width: 6),
-            Builder(builder: (context) {
-              final selected = _isQuickLevelSelected(level);
-              return Semantics(
-                button: true,
-                selected: selected,
-                label: '等级 $level',
-                excludeSemantics: true,
-                child: Material(
-                  color: selected ? selectedBg : AppSurfaces.card(context),
-                  shape: StadiumBorder(
-                    side: selected
-                        ? BorderSide.none
-                        : BorderSide(color: AppSurfaces.hairline(context)),
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: InkWell(
-                    onTap: () => _toggleQuickLevel(level),
-                    child: Container(
-                      constraints:
-                          const BoxConstraints(minWidth: 48, minHeight: 36),
-                      alignment: Alignment.center,
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: [
+        for (final level in _quickLevels)
+          Builder(builder: (context) {
+            final selected = _isQuickLevelSelected(level);
+            return Semantics(
+              button: true,
+              selected: selected,
+              label: '等级 $level',
+              excludeSemantics: true,
+              child: Material(
+                color: selected ? selectedBg : AppSurfaces.inset(context),
+                shape: const StadiumBorder(),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  splashFactory: NoSplash.splashFactory,
+                  highlightColor: Colors.transparent,
+                  onTap: () => _toggleQuickLevel(level),
+                  child: Container(
+                    constraints:
+                        const BoxConstraints(minWidth: 48, minHeight: 36),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Center(
+                      widthFactor: 1,
+                      heightFactor: 1,
                       child: Text(level,
                           style: AppTheme.number(
                               fontSize: 15,
@@ -2262,11 +2210,10 @@ class _SongSearchPageState extends State<SongSearchPage> {
                     ),
                   ),
                 ),
-              );
-            }),
-          ],
-        ],
-      ),
+              ),
+            );
+          }),
+      ],
     );
   }
 
@@ -2367,9 +2314,10 @@ class _SongSearchPageState extends State<SongSearchPage> {
       ));
     }
     if (!_hasSearchCriteria) {
-      return widget.idleContent ??
-          message(Text('请输入搜索关键词',
-              style: TextStyle(fontSize: 14, color: scheme.onSurfaceVariant)));
+      return message(Text(
+          _songCount == null ? '请输入搜索关键词' : '曲库共 $_songCount 首，请输入搜索关键词',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 14, color: scheme.onSurfaceVariant)));
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2409,9 +2357,17 @@ class _SongSearchPageState extends State<SongSearchPage> {
           AppCard(
             padding: EdgeInsets.zero,
             child: Column(
+              key: ValueKey('$_searchGeneration-$_currentPage'),
               children: [
                 for (var i = 0; i < _currentPageResults.length; i++)
-                  _buildSongItem(_currentPageResults[i], showDivider: i > 0),
+                  EntranceAnimation(
+                    index: i,
+                    stagger: const Duration(milliseconds: 25),
+                    duration: const Duration(milliseconds: 320),
+                    offset: const Offset(-10, 0),
+                    child: _buildSongItem(_currentPageResults[i],
+                        showDivider: i > 0),
+                  ),
               ],
             ),
           ),
@@ -2511,37 +2467,30 @@ class _SongSearchPageState extends State<SongSearchPage> {
                       ),
                       const SizedBox(width: 6),
                       Expanded(
-                        child: Text(
-                          song.basicInfo.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              fontSize: 15, fontWeight: FontWeight.w600),
+                        child: MarqueeText(
+                          text: song.basicInfo.title,
+                          style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: scheme.onSurface),
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 3),
-                  Text(
-                    song.basicInfo.artist,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  MarqueeText(
+                    text: song.basicInfo.artist,
                     style:
                         TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
                   ),
                   Text(
                     '#${song.id} · ${StringUtil.formatVersionWithFlag(song.basicInfo.from, song.isExtra)} · ${song.basicInfo.genre}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                     style:
                         TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
                   ),
                   // 匹配信息
                   for (final info in matchInfo)
-                    Text('${info['type']}：${info['value']}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: highlight),
+                    Text('${info['type']}：${info['value']}', style: highlight),
                   for (final tagInfo in tagInfoList)
                     Text(tagInfo, style: highlight),
                 ],

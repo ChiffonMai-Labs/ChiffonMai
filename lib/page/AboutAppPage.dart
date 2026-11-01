@@ -7,7 +7,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../api/ApiUrls.dart';
 import '../utils/CommonWidgetUtil.dart';
 import '../utils/ExternalLaunchUtil.dart';
-import '../widgets/PageTopBar.dart';
+import '../widgets/AppHeader.dart';
 import '../widgets/AppLauncherIcon.dart';
 import 'LegalDocumentPage.dart';
 
@@ -180,10 +180,9 @@ class _AboutAppPageState extends State<AboutAppPage> {
           CommonWidgetUtil.buildCommonChiffonBgWidget(context),
           Column(
             children: [
-              const PageTopBar(
+              const AppHeader(
                 title: '关于',
                 barBackground: Colors.transparent,
-                titleAlign: PageTopBarTitleAlign.start,
               ),
               Expanded(
                 child: SingleChildScrollView(

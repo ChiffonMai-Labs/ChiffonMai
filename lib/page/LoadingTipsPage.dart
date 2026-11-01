@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../service/LoadingTipsStore.dart';
 import '../utils/CommonWidgetUtil.dart';
-import '../widgets/PageTopBar.dart';
+import '../widgets/AppHeader.dart';
 import '../widgets/AnimatedChoiceBar.dart';
 import '../widgets/EmptyState.dart';
 
@@ -91,7 +91,7 @@ class _LoadingTipsPageState extends State<LoadingTipsPage> {
               CommonWidgetUtil.buildCommonChiffonBgWidget(context),
               Column(
                 children: [
-                  PageTopBar(title: '加载语录管理', actions: [
+                  AppHeader(title: '加载语录管理', actions: [
                     IconButton(
                         onPressed: _busy ? null : _refresh,
                         icon: const Icon(Icons.refresh),

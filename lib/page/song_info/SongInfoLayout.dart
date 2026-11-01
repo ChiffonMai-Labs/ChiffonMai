@@ -46,7 +46,11 @@ extension _SongInfoLayout on _SongInfoPageState {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppDesignTokens.radiusLarge),
           ),
-          child: Padding(
+          child: EntranceAnimation(
+            duration: const Duration(milliseconds: 380),
+            offset: Offset.zero,
+            scaleFrom: 0.4,
+            child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -95,6 +99,7 @@ extension _SongInfoLayout on _SongInfoPageState {
                 ),
               ],
             ),
+          ),
           ),
         );
       },
@@ -242,9 +247,22 @@ extension _SongInfoLayout on _SongInfoPageState {
                 const SizedBox(width: 8),
                 circleButton(
                   tooltip: _isBookmarked ? '已收藏' : '收藏到收藏夹',
-                  icon: Icon(
-                      _isBookmarked ? Icons.favorite : Icons.favorite_border,
-                      size: 20),
+                  // 收藏状态变化时心跳一下
+                  icon: TweenAnimationBuilder<double>(
+                    key: ValueKey(_isBookmarked),
+                    tween: Tween(begin: 0, end: 1),
+                    duration: AppDesignTokens.motion(
+                        context, const Duration(milliseconds: 400)),
+                    builder: (context, t, child) => Transform.scale(
+                      scale: t < 0.4
+                          ? 1 + 0.35 * (t / 0.4)
+                          : 1 + 0.35 * ((1 - t) / 0.6),
+                      child: child,
+                    ),
+                    child: Icon(
+                        _isBookmarked ? Icons.favorite : Icons.favorite_border,
+                        size: 20),
+                  ),
                   onPressed: () => _showBookmarkDialog(),
                 ),
                 const SizedBox(width: 8),
@@ -501,7 +519,11 @@ extension _SongInfoLayout on _SongInfoPageState {
         for (var i = 0; i < count; i++) ...[
           if (i > 0) const SizedBox(width: 6),
           Expanded(
-            child: _buildDifficultyButton(i, levels[i].toString(), brightness),
+            child: PressScale(
+              scale: 0.94,
+              child:
+                  _buildDifficultyButton(i, levels[i].toString(), brightness),
+            ),
           ),
         ],
       ],
@@ -730,25 +752,24 @@ extension _SongInfoLayout on _SongInfoPageState {
                     behavior: HitTestBehavior.opaque,
                     onTap: () =>
                         _update(() => _showNextStarDiff = !_showNextStarDiff),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        StatTile(
-                          label: 'DX分数达成率',
-                          value:
-                              '${((dxScore as num).toDouble() / maxDx * 100).toStringAsFixed(2)}%',
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          _showNextStarDiff
-                              ? _calculateNextStarDiff(
-                                  songIdInt, _currentDiffIndex, dxScore.toInt())
-                              : _calculateStarsBonus(
-                                  songIdInt, _currentDiffIndex, dxScore.toInt()),
-                          style: TextStyle(
-                              fontSize: 12, color: scheme.onSurfaceVariant),
-                        ),
-                      ],
+                    child: StatTile(
+                      label: 'DX分数达成率',
+                      value:
+                          '${((dxScore as num).toDouble() / maxDx * 100).toStringAsFixed(2)}%',
+                      trailing: Text(
+                        _showNextStarDiff
+                            ? _calculateNextStarDiff(songIdInt,
+                                _currentDiffIndex, dxScore.toInt())
+                            : _calculateStarsBonus(songIdInt,
+                                _currentDiffIndex, dxScore.toInt()),
+                        style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: _getStarsColor(
+                                _calculateStars(songIdInt, _currentDiffIndex,
+                                    dxScore.toInt()),
+                                scheme.brightness)),
+                      ),
                     ),
                   ),
                 ),
@@ -1337,7 +1358,10 @@ extension _SongInfoLayout on _SongInfoPageState {
                     const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
               ),
               icon: const Icon(Icons.code_rounded, size: 18),
-              label: const Text('查看谱面代码'),
+              label: const FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text('查看谱面代码', maxLines: 1, softWrap: false),
+              ),
             ),
           ),
         ),

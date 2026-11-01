@@ -11,6 +11,7 @@ import 'package:my_first_flutter_app/constant/VersionListConstant.dart';
 import 'package:my_first_flutter_app/widgets/BackgroundPageScaffold.dart';
 import '../widgets/AppUi.dart';
 import '../utils/AppDesignTokens.dart';
+import '../widgets/MarqueeText.dart';
 
 class UserScoreSearchPage extends StatefulWidget {
   /// 进入页面时直接打开搜索框（成绩 Hub 的搜索入口）。
@@ -1626,9 +1627,18 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
     return AppCard(
       padding: EdgeInsets.zero,
       child: Column(
+        // 换页、筛选、排序后重播入场动画
+        key: ValueKey(
+            '$_currentPage-$_rankFilter-$_currentSortBy-$_searchQuery'),
         children: [
           for (var i = 0; i < _pagedSongs.length; i++)
-            _buildListRow(_pagedSongs[i], showDivider: i > 0),
+            EntranceAnimation(
+              index: i,
+              stagger: const Duration(milliseconds: 25),
+              duration: const Duration(milliseconds: 300),
+              offset: const Offset(0, 8),
+              child: _buildListRow(_pagedSongs[i], showDivider: i > 0),
+            ),
         ],
       ),
     );
@@ -1636,7 +1646,6 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
 
   Widget _buildListRow(dynamic song, {required bool showDivider}) {
     final scheme = Theme.of(context).colorScheme;
-    final brightness = Theme.of(context).brightness;
     final int songId = int.tryParse(song['song_id']?.toString() ?? '0') ?? 0;
     final int levelIndex = song['level_index'] ?? 0;
     final double difficulty =
@@ -1658,15 +1667,6 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
     final rank = StringUtil.rateCodeFromAchievement(achievement)
         .toUpperCase()
         .replaceFirst('P', '+');
-    final syncColors = AppColors.syncBadge(brightness);
-    String label(String raw) => raw
-        .toUpperCase()
-        .replaceAll('APP', 'AP+')
-        .replaceAll('FCP', 'FC+')
-        .replaceAll('FSDP', 'FDX+')
-        .replaceAll('FSD', 'FDX')
-        .replaceAll('FSP', 'FS+');
-
     return InkWell(
       onTap: () => Navigator.push(
         context,
@@ -1723,12 +1723,12 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    song['title']?.toString() ?? '未知歌曲',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        fontSize: 14, fontWeight: FontWeight.w600),
+                  MarqueeText(
+                    text: song['title']?.toString() ?? '未知歌曲',
+                    style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: scheme.onSurface),
                   ),
                   const SizedBox(height: 2),
                   FittedBox(
@@ -1745,25 +1745,11 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
                         RankBadge(rank: rank, fontSize: 10),
                         if (fc.isNotEmpty) ...[
                           const SizedBox(width: 4),
-                          AppBadge(
-                            text: label(fc),
-                            background:
-                                AppColors.comboBadge(label(fc), brightness)
-                                    .background,
-                            foreground:
-                                AppColors.comboBadge(label(fc), brightness)
-                                    .foreground,
-                            fontSize: 10,
-                          ),
+                          ComboLabelBadge(raw: fc, fontSize: 10),
                         ],
                         if (fs.isNotEmpty) ...[
                           const SizedBox(width: 4),
-                          AppBadge(
-                            text: label(fs),
-                            background: syncColors.background,
-                            foreground: syncColors.foreground,
-                            fontSize: 10,
-                          ),
+                          ComboLabelBadge(raw: fs, fontSize: 10),
                         ],
                         const SizedBox(width: 4),
                         StarBadge(stars: stars, fontSize: 10),

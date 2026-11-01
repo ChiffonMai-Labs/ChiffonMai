@@ -1135,6 +1135,7 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
     final scoreRate = maxDx > 0 ? entry.dxScore / maxDx : 0.0;
     return Best50CoverCard(
       rank: index + 1,
+      entranceIndex: index,
       // 点卡片是编辑这一格，不走详情面板。
       onTap: () => _showEditSheet(index),
       // 非法条目：红色描边便于定位（统计区 / 导出图另有红字告警）

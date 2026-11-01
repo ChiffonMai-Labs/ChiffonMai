@@ -434,75 +434,7 @@ extension _SongInfoWidgets on _SongInfoPageState {
   // 构建占位符
 
   // 构建徽章
-  Widget _buildBadge(String text) {
-    Color bgColor;
-    Color textColor;
-
-    switch (text) {
-      case 'app':
-        bgColor = AppColors.achievementBackground('AP+');
-        textColor = AppColors.achievementForeground('AP+');
-        text = 'AP+';
-        break;
-      case 'ap':
-        bgColor = AppColors.achievementBackground('AP');
-        textColor = AppColors.achievementForeground('AP');
-        break;
-      case 'fcp':
-        bgColor = AppColors.achievementBackground('FC+');
-        textColor = AppColors.achievementForeground('FC+');
-        text = 'FC+';
-        break;
-      case 'fc':
-        bgColor = AppColors.achievementBackground('FC');
-        textColor = AppColors.achievementForeground('FC');
-        break;
-      case 'fs':
-        bgColor = AppColors.achievementBackground('FS');
-        textColor = AppColors.achievementForeground('FS');
-        text = 'FS';
-        break;
-      case 'fsp':
-        bgColor = AppColors.achievementBackground('FS+');
-        textColor = AppColors.achievementForeground('FS+');
-        text = 'FS+';
-        break;
-      case 'sync':
-        bgColor = AppColors.achievementBackground('SYNC');
-        textColor = AppColors.achievementForeground('SYNC');
-        break;
-      case 'fsd':
-        bgColor = AppColors.achievementBackground('FDX');
-        textColor = AppColors.achievementForeground('FDX');
-        text = 'FDX';
-        break;
-      case 'fsdp':
-        bgColor = AppColors.achievementBackground('FDX+');
-        textColor = AppColors.achievementForeground('FDX+');
-        text = 'FDX+';
-        break;
-      default:
-        bgColor = AppColors.achievementBackground('');
-        textColor = AppColors.achievementForeground('');
-    }
-
-    return Container(
-      margin: const EdgeInsets.only(right: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(6),
-        color: bgColor,
-      ),
-      child: Text(
-        text.toUpperCase(),
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-          color: textColor,
-        ),
-      ),
-    );
-  }
+  Widget _buildBadge(String text) => ComboLabelBadge(raw: text);
 
   // 构建别名区域
   Widget _buildAliasSection(String songTitle) {

@@ -22,7 +22,7 @@ import '../service/Portable/PortablePlayerController.dart';
 import '../service/Portable/PortableSongLibrary.dart';
 import '../utils/CommonWidgetUtil.dart';
 import '../utils/PortablePlayerScope.dart';
-import '../widgets/PageTopBar.dart';
+import '../widgets/AppHeader.dart';
 import 'Portable/PortableNowPlayingPage.dart';
 
 class SongPlayPage extends StatefulWidget {
@@ -133,7 +133,7 @@ class _SongPlayPageState extends State<SongPlayPage> {
           CommonWidgetUtil.buildCommonChiffonBgWidget(context),
           Column(
             children: [
-              const PageTopBar(title: '播放音乐'),
+              const AppHeader(title: '播放音乐'),
               Expanded(
                 child: Center(
                   child: Column(

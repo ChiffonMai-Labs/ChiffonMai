@@ -3,7 +3,7 @@ import 'package:fluttertoast/fluttertoast.dart';
 
 import '../../service/AWMC/AwmcApiService.dart';
 import '../../service/AWMC/AwmcStore.dart';
-import '../../widgets/PageTopBar.dart';
+import '../../widgets/AppHeader.dart';
 import '../../widgets/QrQuickFillButtons.dart';
 
 /// AWMC 控制台的公共 UI 组件（结果展示 / 凭据输入 / 写入二次确认）。
@@ -757,7 +757,7 @@ class _AwmcRawDataPage extends StatelessWidget {
           // 顶部栏统一走公共组件：标题 = 思源黑体 20 / bold / primary / 居中。
           // 直接用 `appBar: AppBar(title: Text(...))` 时，标题那层裸 `Text`
           // 会被 AppBar 自己的 `DefaultTextStyle` 接管，字体退回系统 Roboto。
-          const PageTopBar(title: '完整数据'),
+          const AppHeader(title: '完整数据'),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),

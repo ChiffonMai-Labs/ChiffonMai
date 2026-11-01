@@ -41,7 +41,7 @@ import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import 'package:my_first_flutter_app/widgets/CommunityAvatar.dart';
 import 'package:my_first_flutter_app/widgets/DataSourceTag.dart';
 
-/// 状态栏高度（dp）——真实页面里 ListView 上方那块由 `PageTopBar` 占掉。
+/// 状态栏高度（dp）——真实页面里 ListView 上方那块由 `AppHeader` 占掉。
 const double kProbeStatusBar = 24;
 
 const int kCount = 6;

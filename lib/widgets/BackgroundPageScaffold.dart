@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'ThemeAwareBackground.dart';
-import 'PageTopBar.dart';
+import 'AppHeader.dart';
 
 /// 直接铺在主题背景上的页面壳。
 ///
@@ -14,7 +14,6 @@ class BackgroundPageScaffold extends StatelessWidget {
   final List<Widget> actions;
   final VoidCallback? onBack;
   final bool showBack;
-  final PageTopBarTitleAlign titleAlign;
   final bool resizeToAvoidBottomInset;
   final bool showDecorativeImage;
   final EdgeInsetsGeometry contentPadding;
@@ -25,7 +24,6 @@ class BackgroundPageScaffold extends StatelessWidget {
   /// 来源说明等随标题栏显示的附加区域。
   final PreferredSizeWidget? bottom;
   final bool animateTitle;
-  final bool centerTitleInAvailableSpace;
 
   const BackgroundPageScaffold({
     super.key,
@@ -34,14 +32,12 @@ class BackgroundPageScaffold extends StatelessWidget {
     this.actions = const <Widget>[],
     this.onBack,
     this.showBack = true,
-    this.titleAlign = PageTopBarTitleAlign.start,
     this.resizeToAvoidBottomInset = false,
     this.showDecorativeImage = true,
     this.contentPadding = EdgeInsets.zero,
     this.headerOverride,
     this.bottom,
     this.animateTitle = false,
-    this.centerTitleInAvailableSpace = false,
   });
 
   @override
@@ -59,16 +55,13 @@ class BackgroundPageScaffold extends StatelessWidget {
           Column(
             children: [
               headerOverride ??
-                  PageTopBar(
+                  AppHeader(
                     title: title,
                     actions: actions,
                     onBack: onBack,
                     showBack: showBack,
-                    titleAlign: titleAlign,
-                    barBackground: Colors.transparent,
                     bottom: bottom,
                     animateTitle: animateTitle,
-                    centerTitleInAvailableSpace: centerTitleInAvailableSpace,
                   ),
               Expanded(
                 child: Padding(

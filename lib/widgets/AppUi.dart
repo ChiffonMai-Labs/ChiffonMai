@@ -219,6 +219,9 @@ class StatTile extends StatelessWidget {
   final bool card;
   final double valueSize;
 
+  /// 紧跟在数值右边的内容（DX 分数达成率右边的星级）。
+  final Widget? trailing;
+
   const StatTile({
     super.key,
     required this.label,
@@ -226,32 +229,47 @@ class StatTile extends StatelessWidget {
     this.valueColor,
     this.card = false,
     this.valueSize = 17,
+    this.trailing,
   });
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    // 放不下时等比缩小，重要数据和说明都不用省略号截断。
+    Widget fit(Widget child) => FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: child,
+        );
+    final valueText = Text(
+      value,
+      maxLines: 1,
+      style: AppTheme.number(
+        fontSize: valueSize,
+        fontWeight: FontWeight.w700,
+        color: valueColor ?? scheme.onSurface,
+      ),
+    );
     final body = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
+        fit(Text(
           label,
           maxLines: 1,
-          overflow: TextOverflow.ellipsis,
           style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
-        ),
+        )),
         const SizedBox(height: 2),
-        Text(
-          value,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: AppTheme.number(
-            fontSize: valueSize,
-            fontWeight: FontWeight.w700,
-            color: valueColor ?? scheme.onSurface,
-          ),
-        ),
+        fit(trailing == null
+            ? valueText
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  valueText,
+                  const SizedBox(width: 8),
+                  trailing!,
+                ],
+              )),
       ],
     );
     if (!card) return body;
@@ -286,7 +304,7 @@ class SplitBar extends StatelessWidget {
     final target = fraction.isFinite ? fraction.clamp(0.0, 1.0).toDouble() : 0.0;
     return ExcludeSemantics(
       child: TweenAnimationBuilder<double>(
-        tween: Tween<double>(end: target),
+        tween: Tween<double>(begin: 0, end: target),
         duration: AppDesignTokens.motion(context, AppDesignTokens.slowMotion),
         curve: AppDesignTokens.emphasizedCurve,
         builder: (context, value, _) {
@@ -700,15 +718,24 @@ class _StepButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 44,
-      height: 44,
-      child: IconButton(
-        tooltip: tooltip,
-        onPressed: onPressed,
-        padding: EdgeInsets.zero,
-        iconSize: 20,
-        icon: Icon(icon),
+    return PressScale(
+      scale: 0.9,
+      child: SizedBox(
+        width: 44,
+        height: 44,
+        child: IconButton(
+          tooltip: tooltip,
+          onPressed: onPressed,
+          padding: EdgeInsets.zero,
+          iconSize: 20,
+          // 这里的底色由外层凹槽提供，不继承顶部栏等处的圆形按钮样式
+          style: IconButton.styleFrom(
+            backgroundColor: Colors.transparent,
+            foregroundColor: Theme.of(context).colorScheme.onSurface,
+            minimumSize: const Size(44, 44),
+          ),
+          icon: Icon(icon),
+        ),
       ),
     );
   }
@@ -969,15 +996,18 @@ class FeatureIconTile extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  width: 60,
-                  height: 60,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: tint.background,
-                    borderRadius: BorderRadius.circular(20),
+                PressScale(
+                  scale: 0.9,
+                  child: Container(
+                    width: 60,
+                    height: 60,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: tint.background,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Icon(icon, size: 26, color: tint.foreground),
                   ),
-                  child: Icon(icon, size: 26, color: tint.foreground),
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -1191,21 +1221,21 @@ class FilterPill extends StatelessWidget {
       borderRadius: BorderRadius.circular(10),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
+        splashFactory: NoSplash.splashFactory,
+        highlightColor: Colors.transparent,
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(12, 7, 10, 7),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 160),
-                child: Text(
-                  hasValue ? '$label：$value' : label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                      fontSize: 13, fontWeight: FontWeight.w600, color: fg),
-                ),
+              // 胶囊排在横向滚动里，已选条件再长也完整显示。
+              Text(
+                hasValue ? '$label：$value' : label,
+                maxLines: 1,
+                softWrap: false,
+                style: TextStyle(
+                    fontSize: 13, fontWeight: FontWeight.w600, color: fg),
               ),
               if (selected == null) ...[
                 const SizedBox(width: 4),
@@ -1243,6 +1273,194 @@ class LinkPill extends StatelessWidget {
                     const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// 接口里的 `fc` / `fs` 值 → 显示文字（`fcp` → `FC+`）。空值返回 null。
+String? comboLabelOf(String raw) {
+  switch (raw.toLowerCase()) {
+    case '':
+      return null;
+    case 'app':
+    case 'ap+':
+      return 'AP+';
+    case 'ap':
+      return 'AP';
+    case 'fcp':
+    case 'fc+':
+      return 'FC+';
+    case 'fc':
+      return 'FC';
+    case 'fsp':
+    case 'fs+':
+      return 'FS+';
+    case 'fs':
+      return 'FS';
+    case 'fsdp':
+    case 'fdx+':
+      return 'FDX+';
+    case 'fsd':
+    case 'fdx':
+      return 'FDX';
+    case 'sync':
+      return 'SYNC';
+    default:
+      return raw.toUpperCase();
+  }
+}
+
+/// 连击 / 同步徽章：FC 绿、AP 橙、FS 蓝、FDX 橙，颜色见
+/// [AppColors.achievementBackground]。尺寸与 [RankBadge] 相同。
+class ComboLabelBadge extends StatelessWidget {
+  /// 接口原值（`fcp`、`fsd`……）或显示文字都可以。
+  final String raw;
+  final double fontSize;
+
+  const ComboLabelBadge({super.key, required this.raw, this.fontSize = 12});
+
+  @override
+  Widget build(BuildContext context) {
+    final label = comboLabelOf(raw);
+    if (label == null) return const SizedBox.shrink();
+    return AppBadge(
+      text: label,
+      background: AppColors.achievementBackground(label),
+      foreground: AppColors.achievementForeground(label),
+      fontSize: fontSize,
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 动效
+// ---------------------------------------------------------------------------
+
+/// 入场动画：淡入 + 位移 + 可选缩放，列表项按 [index] 错开。
+///
+/// 只在首次挂载时播放；想重播就换外层的 Key。系统开了「减少动态效果」时不播放。
+/// 错开用 [Interval] 实现，不用定时器。
+class EntranceAnimation extends StatefulWidget {
+  final Widget child;
+  final int index;
+  final Duration stagger;
+  final Duration baseDelay;
+  final int maxStaggerIndex;
+  final Duration duration;
+  final Offset offset;
+  final double scaleFrom;
+
+  const EntranceAnimation({
+    super.key,
+    required this.child,
+    this.index = 0,
+    this.stagger = const Duration(milliseconds: 28),
+    this.baseDelay = Duration.zero,
+    this.maxStaggerIndex = 14,
+    this.duration = const Duration(milliseconds: 420),
+    this.offset = const Offset(0, 14),
+    this.scaleFrom = 1,
+  });
+
+  @override
+  State<EntranceAnimation> createState() => _EntranceAnimationState();
+}
+
+class _EntranceAnimationState extends State<EntranceAnimation>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _progress;
+  bool _started = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final steps = widget.index.clamp(0, widget.maxStaggerIndex).toInt();
+    final delay = widget.baseDelay + widget.stagger * steps;
+    final total = delay + widget.duration;
+    _controller = AnimationController(vsync: this, duration: total);
+    _progress = CurvedAnimation(
+      parent: _controller,
+      curve: Interval(
+        delay.inMicroseconds / total.inMicroseconds,
+        1,
+        curve: AppDesignTokens.emphasizedCurve,
+      ),
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_started) return;
+    _started = true;
+    if (MediaQuery.maybeDisableAnimationsOf(context) == true) {
+      _controller.value = 1;
+    } else {
+      _controller.forward();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _progress,
+      child: widget.child,
+      builder: (context, child) {
+        final t = _progress.value;
+        return Opacity(
+          opacity: t.clamp(0.0, 1.0),
+          child: Transform.translate(
+            offset: widget.offset * (1 - t),
+            child: Transform.scale(
+              scale: widget.scaleFrom + (1 - widget.scaleFrom) * t,
+              child: child,
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// 按下时轻微缩小。点击事件仍由 [child] 自己处理。
+class PressScale extends StatefulWidget {
+  final Widget child;
+  final double scale;
+
+  const PressScale({super.key, required this.child, this.scale = 0.95});
+
+  @override
+  State<PressScale> createState() => _PressScaleState();
+}
+
+class _PressScaleState extends State<PressScale> {
+  bool _pressed = false;
+
+  void _set(bool pressed) {
+    if (_pressed != pressed) setState(() => _pressed = pressed);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (_) => _set(true),
+      onPointerUp: (_) => _set(false),
+      onPointerCancel: (_) => _set(false),
+      child: AnimatedScale(
+        scale: _pressed ? widget.scale : 1,
+        duration: AppDesignTokens.motion(
+            context, const Duration(milliseconds: 150)),
+        curve: Curves.easeOut,
+        child: widget.child,
       ),
     );
   }

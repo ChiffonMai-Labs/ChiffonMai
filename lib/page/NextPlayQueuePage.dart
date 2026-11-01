@@ -1,7 +1,7 @@
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import '../service/NextPlayQueueStore.dart';
-import '../widgets/PageTopBar.dart';
+import '../widgets/AppHeader.dart';
 import '../utils/CommonWidgetUtil.dart';
 import '../utils/CoverUtil.dart';
 import '../utils/AppTheme.dart';
@@ -44,7 +44,7 @@ class _NextPlayQueuePageState extends State<NextPlayQueuePage> {
           CommonWidgetUtil.buildCommonBgWidget(),
           CommonWidgetUtil.buildCommonChiffonBgWidget(context),
           Column(children: [
-            PageTopBar(title: '下次想玩', actions: [
+            AppHeader(title: '下次想玩', actions: [
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: Center(child: Text('${entries.length} 首')),

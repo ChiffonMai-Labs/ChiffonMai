@@ -2,6 +2,20 @@
 
 给接手本仓库的 AI 工具/协作者看的约定。**这些约定大多是踩过坑之后定下来的，改之前先看原因。**
 
+## Codex 本项目协作速查
+
+本文件适用于 ChiffonMai 仓库及其 worktree。整理项目约定时，默认只更新本项目文档；没有用户明确要求，不修改 Codex 全局智能体文档或全局配置。
+
+- 默认中文沟通，温和、礼貌、直接，先汇报结果；注释遵守 § 13。
+- 优先复用已有组件和工具，避免无关重构、额外依赖和过度工程；完成需求后及时停止。
+- Git 仅追踪 Flutter 客户端相关内容；服务端源码及配置、数据、测试、部署资料一律保留在本地并忽略，详见 § 21。
+- 普通页面布局先看 § 7、§ 11、§ 14、§ 17；输入框与切换控件再看 § 18、§ 19。
+- 长文本复用 `MarqueeText`（§ 8），进度指示复用 `SmoothLinearProgressIndicator`（§ 15）；不要重复实现已有机制。
+- 异步回调保留 `mounted` / 离页防护；旧请求不得覆盖新选项。设置先加载再建控制器，防抖只推迟写盘，不推迟内存更新。
+- 导入导出先看 § 2–4；播放器与 Android 改动先看 § 5、§ 6、§ 10、§ 16，不随意恢复模板配置或解除依赖锁定。
+- 验证严格按 § 9 控制范围；不要因文中列出回归测试就默认运行，也不要用静态检查结果代替真机结论。
+- PowerShell 递归搜索优先用 `rg`，或 `Get-ChildItem -Recurse` 后接 `Select-String`；不要把 `**` 当递归通配符。
+
 ---
 
 ## 1. 术语（重要）
@@ -165,6 +179,31 @@ android:launchMode="singleTask"   <!-- 全局单实例，后续启动走 onNewIn
 
 `on_file` 通道的投递规则：**只有 Dart 已注册监听（`dartImportReady`）时才实时投递并清空 pending**，否则保留 pending 等 Dart 来取。消费 intent 后要清掉 action/data/extra，否则 Activity 重建时系统会重放 `getIntent()` 导致重复弹导入框。
 
+### 6.3 返回手势：必须关掉「预测性返回」（两处，缺一不可）
+
+真机反馈：**用返回手势返回上一级时 App 有概率卡死** —— 页面从四个角向内缩，缩完返回上一级，有时正常、有时整个 App 点不动。
+
+那个「向内缩」是 Flutter 的预测性返回转场（`PredictiveBackSharedElementPageTransition`：缩到 0.90 + 32px 圆角 + 右下位移）。本版本 Flutter 把 Android 的**默认**转场换成了 `PredictiveBackPageTransitionsBuilder`（`page_transitions_theme.dart` 的 `_defaultBuilders`），它给每条路由装一个 `_PredictiveBackGestureDetector`：
+
+- 手势一开始框架就替系统「认领」（`WidgetsBinding.handleStartBackGesture` 返回 true），页面由框架按手指进度缩放；
+- 框架**必须**等到平台发 commit / cancel 才退出该状态，而它与路由 pop 是异步竞态（pop 时路由连同 detector 一起释放，binding 的观察者列表却要到下一次手势开始才清空）；
+- 竞态输了就停在缩了一半的位置，事件被 Navigator 的 `AbsorbPointer` 吞掉 → 「卡死」。
+- **按键返回不中招**：`backEvent.isButtonEvent == true` 时框架不认领 —— 所以只有手势路径出问题，与反馈一致。
+
+两处配置**都要在**，少一个都还会认领手势：
+
+```xml
+<!-- android/app/src/main/AndroidManifest.xml -->
+android:enableOnBackInvokedCallback="false"
+```
+
+```dart
+// lib/utils/AppTheme.dart：三套主题都钉在 FadeForwardsPageTransitionsBuilder
+pageTransitionsTheme: _backGestureSafeTransitions(),
+```
+
+`FadeForwardsPageTransitionsBuilder` 正是框架在「没有手势」时的回落分支，所以普通 push / 返回按钮 / 手势提交后的观感**完全不变**。回归测试：`test/page_transitions_test.dart`。
+
 ---
 
 ## 7. 颜色与主题
@@ -222,10 +261,19 @@ android:launchMode="singleTask"   <!-- 全局单实例，后续启动走 onNewIn
 
 **当前开发环境没有连接安卓设备，任何改动都无法真机验证。**
 
-### 默认：只跑 analyze，不要构建 APK
+### 测试与任务范围（长期规则）
 
-用户已明确要求：**改完只需要跑 `flutter analyze`，不需要 `flutter build apk`**。
-打包耗时几分钟且用户自己会构建，每次改动都构建纯属浪费。
+1. 默认不主动编写测试代码。
+2. 前端样式、布局、颜色、动画等纯视觉修改，禁止新增测试文件或测试用例。
+3. 纯 UI 修改不运行单元测试、E2E 测试或完整测试套件，除非用户明确要求。
+4. 小型 Bug 修复优先进行最小范围的验证，不要过度测试。
+5. 复杂功能或高风险逻辑变更可以按实际需要编写针对性测试。
+6. 禁止无关重构、额外依赖和过度工程化。
+7. 完成需求后及时停止，不要为了追求全面性而扩展任务范围。
+
+本文提及的已有回归测试仅作参考，不构成每次修改都必须新增或运行测试的要求；测试安排遵循上述规则。下文的静态分析与 Android 构建约定继续有效。
+
+### 默认：你直接改代码就好，不用主动flutter analyze。如果有报错我会告诉你，然后只分析本轮编辑的文件即可。
 
 ```powershell
 flutter analyze --no-pub          # 必须零 error
@@ -239,7 +287,7 @@ flutter analyze --no-pub          # 必须零 error
 
 所以：
 
-- 只改 Dart → 跑 analyze 即可，**不要构建**
+- 只改 Dart → 按照要求决定是否跑 `flutter analyze`，**不要构建**
 - 改了 `android/**/*.kt` 或 `AndroidManifest.xml` → **必须 `flutter build apk --release`**，
   否则等于没验证（而且要如实告诉用户这一点）
 
@@ -254,6 +302,12 @@ build/app/intermediates/merged_manifests/release/processReleaseManifest/AndroidM
 **如实区分「已验证（编译/静态检查）」和「未验证（真机行为）」，不要把 analyze 通过说成"功能正常"。**
 如果某次没构建，就直接说"未验证 Kotlin/打包"，不要含糊过去。
 
+### 用户要求效果图或针对性检查时
+
+- 优先运行或渲染实际 Flutter 页面，不用另写的设计稿代替运行结果。使用演示数据或离线渲染时，必须说明不是安卓真机截图。
+- 涉及文本尺寸和滚动对齐时，加载真实字体，并使用页面实际样式、系统字体缩放和父级布局；不要仅凭组件代码推断结果。
+- 仅验证用户关心的范围。临时截图与渲染脚本放在已忽略的 `.dart_tool/` 或 `build/` 目录，避免把一次性预览混入正式源码或长期测试。
+
 ---
 
 ## 10. 其它
@@ -267,91 +321,164 @@ build/app/intermediates/merged_manifests/release/processReleaseManifest/AndroidM
 
 ---
 
-## 11. 顶部标题栏：必须用 `PageTopBar`
+## 11. 顶部区域：必须用 `AppHeader`
 
-**不要自己拼 `Container + Row + IconButton(arrow_back) + Expanded(Center(Text(title))) + SizedBox` 的顶部栏**——那是一份在 60+ 个页面里**手动复制**出来的"模板"（背景里的 `padding: EdgeInsets.fromLTRB(_, 48, _, _)` 把状态栏偏移**写死**），带来三个问题：
-
-1. **状态栏高度写死**——真机有刘海/打孔的设备上偏小或偏大，跟 `AppBar` 自带 `SafeArea` 的行为不一致；
-2. **标题字体不统一**——裸 `Text(... fontSize: screenWidth * 0.06)`，既不走 `AppTheme.font`（思源黑体），字号又跟视口绑定、跨设备忽大忽小；
-3. **每加一个页面就抄一份**——50+ 个文件里堆了十几份近似但有差别的版本，谁改谁漂移。
-
-**统一入口**：[lib/widgets/PageTopBar.dart](lib/widgets/PageTopBar.dart)
+**不要自己拼返回键 + 标题的顶部栏**，也不要用裸 `AppBar`。统一入口是 [lib/widgets/AppHeader.dart](lib/widgets/AppHeader.dart)（原来的 `PageTopBar` 已删除）：透明底，白色圆形返回键，靠左粗体标题，右侧圆形操作按钮。
 
 ```dart
-// 标准用法
-PageTopBar(title: '段位表'),
+// 标准用法（大多数页面通过 BackgroundPageScaffold 间接使用）
+AppHeader(title: '段位表'),
 
-// 需要右侧操作按钮
-PageTopBar(
+// 右侧操作按钮：IconButton 自动是白色圆形
+AppHeader(
   title: 'Rating 排行榜',
   actions: [IconButton(...)],
 ),
 
 // 返回不是直接 pop（例如要二次确认）
-PageTopBar(
+AppHeader(
   title: '多人猜歌',
   onBack: _showLeaveRoomConfirmDialog,
 ),
 ```
 
-放进 `Scaffold.body` 的 `Column` 首位即可，`Scaffold.backgroundColor` 用透明让背景组件透出来：
+放进 `Scaffold.body` 的 `Column` 首位即可，也可以当 `Scaffold.appBar`；`Scaffold.backgroundColor` 用透明让背景组件透出来。
 
-```dart
-Scaffold(
-  backgroundColor: Colors.transparent,
-  body: Stack(children: [
-    CommonWidgetUtil.buildCommonBgWidget(),
-    CommonWidgetUtil.buildCommonChiffonBgWidget(context),
-    Column(children: [
-      PageTopBar(title: '...'),     // ← 顶部栏
-      Expanded(child: ...),          // ← 主体
-    ]),
-  ]),
-)
-```
-
-`PageTopBar` 内部就是一层 `Material AppBar`，自带：
-
-- 标准 `AppBar.primary` 行为：状态栏高度按真机自适应，不再写死 48；
-- 思源黑体（`AppTheme.font`）20 / bold / `colorScheme.onSurface` / 靠左；
-- `Semantics(header)` 与 `AnnotatedRegion<SystemUiOverlayStyle>`；
-- 标准返回按钮（`Navigator.maybePop`，路由不可 pop 时按钮**不消失**，与各页一直以来的行为一致）。
-
-**标题字体默认 20 / `colorScheme.onSurface` / 靠左，不要单独传 `fontSize:` 覆盖** —— 详见 [lib/page/RankingList/RatingRankListPage.dart:2165-2168](lib/page/RankingList/RatingRankListPage.dart) 的注释（之前有人传 `fontSize: 24`，结果这一页标题比别人粗一圈，与"统一标题字体"的目标相悖，已被去掉）。
+- 状态栏高度按真机自适应，不要写死 48。
+- 标题固定 20 / bold / `onSurface` / 靠左，走 `AppTheme.font`，不提供字号参数；放不下时用 `MarqueeText` 横向滚动，不截断。
+- 自带 `Semantics(header)` 和状态栏样式。
+- 盖在滚动内容上时传 `barBackground`（歌曲详情滚过头图后的顶部栏）。
 
 ### 故意手写的少数例外（不要迁移）
 
 | 文件 | 原因 |
 |---|---|
-| [lib/page/CoverRecognitionPage.dart:812-835](lib/page/CoverRecognitionPage.dart) 与 [lib/page/ScoreOcrPage.dart:2861](lib/page/ScoreOcrPage.dart) 的裁剪工具栏 | **深色全屏图片裁剪 UI**（`Colors.black87` 底 + 白字），跟标准标题栏观感完全不同 |
-| [lib/page/FavoriteFolderPage.dart:497-504](lib/page/FavoriteFolderPage.dart) 的 `_buildBatchAppBar()` | **批量操作工具栏**（取消 / 已选 N 项 / 移动 / 删除），不是标题栏 |
-| [lib/page/CalculatorPage.dart:250](lib/page/CalculatorPage.dart) 的双行标题（"计算工具" + 副标题） | `PageTopBar` 只支持单行标题，可选：用 `bottom: PreferredSize(...)` 挂副标题，或保留现状 |
+| [lib/page/CoverRecognitionPage.dart](lib/page/CoverRecognitionPage.dart) 与 [lib/page/ScoreOcrPage.dart](lib/page/ScoreOcrPage.dart) 的裁剪工具栏 | **深色全屏图片裁剪 UI**，跟标准顶部区域观感完全不同 |
+| [lib/page/FavoriteFolderPage.dart](lib/page/FavoriteFolderPage.dart) 的 `_buildBatchAppBar()` | **批量操作工具栏**（取消 / 已选 N 项 / 移动 / 删除），不是标题栏 |
+| [lib/page/CalculatorPage.dart](lib/page/CalculatorPage.dart) 的双行标题（"计算工具" + 副标题） | `AppHeader` 只支持单行标题 |
 
-> `HomePage` / `AppShell` / `HubComponents.HubPageScaffold` 这些是首页 Dashboard / 主壳 / 复用枢纽布局，**本身就不是页面级标题栏**，跟本约定无关。
-
-### 核查方式
-
-在 `lib/page/` 下找还残留的手写模板（`top=48`/`top=46` 是最显眼的指纹）：
-
-```powershell
-Get-ChildItem lib/page -Recurse -File -Include *.dart |
-  Select-String -Pattern "EdgeInsets\.fromLTRB\([^,]+,\s*4[0-9]" |
-  Select-Object -Unique Path
-```
-
-> ⚠️ **不要**写成 `Select-String -Path "lib\*.dart","lib\**\*.dart"`——PowerShell 的 `**` 不是"递归"（见 § 1 备注），会**静默漏掉** `lib/page/RankTable/...`、`lib/page/Multiplayer/...`、`lib/page/KaleidXScope/...` 这类两层以上目录。
-
-**期望结果**：命中只剩 [lib/page/FavoriteFolderPage.dart:498](lib/page/FavoriteFolderPage.dart)（批量工具栏，已在上面列为故意手写）。
+> `HomePage` / `AppShell` / `HubComponents.HubPageScaffold` 是首页 / 主壳 / 枢纽布局，`SongInfoPage` 的头图自带返回键，都跟本约定无关。
 
 ---
 
-## 12. UI 设计规范（2026-11 重构）
+## 12. 角色说话风格：Chiffon
+
+### 核心人设
+- 出身糕点世家的大小姐，教养良好，举止优雅。
+- 声音与气质：温和、柔软、有教养，带一点天然。
+- 对可爱、小巧的事物没有抵抗力，对年幼者容易流露照顾欲。
+- 核心公式：优雅 + 温柔 + 天然 + 温和说教。
+- 优雅不等于傲慢，不要写成高高在上的“本小姐”腔。
+
+### 语气规则
+- 默认使用礼貌、得体的表达，可适度使用敬语。
+- 语气柔软、从容，不急促、不尖锐、不粗鲁。
+- 常用缓和词：呀、呢、哦、吧、好吗、可以吗、差不多……
+- 提醒或批评时，用“温柔告诫”，而不是严厉训斥。
+- 坚持立场时仍保持礼貌，但态度要明确。
+- 对他人保持关怀感，像有教养的大小姐在自然照顾人。
+- 可以偶尔流露天然、不谙世事的一面，但不要显得愚蠢。
+
+### 标志性句式
+- 温柔告诫：「淘气可不行哦？」
+- 温和制止：「我们差不多该停下了吧？」
+- 关怀询问：「没事吧？需要我帮忙吗？」
+- 天然回应：「哎呀，是这样吗？」
+- 对可爱事物：「真是小巧又可爱呢。」
+- 鼓励与教学：「没关系哦，慢慢来就好。我来教你吧。」
+
+### 对话示例
+用户：我点你的立绘了。  
+戚风：哎呀，淘气可不行哦？
+
+用户：我们再玩一会儿吧。  
+戚风：我们差不多该停下了吧？明天也要好好准备呀。
+
+用户：这个我不太会。  
+戚风：没关系哦。我来教你吧，慢慢来就好。
+
+用户：这个点心好小。  
+戚风：真是小巧又可爱呢。
+
+### 禁止事项
+- 不要使用粗俗、攻击性、网络喷子式表达。
+- 不要用过于强硬、命令式的口气。
+- 不要过度卖萌或幼儿化。
+- 不要变成冷漠、机械的客服腔。
+- 不要丢掉大小姐的教养和优雅。
+- 不要写成傲慢、刻薄、居高临下的语气。
+
+### 执行优先级
+1. 保持礼貌优雅。
+2. 体现温柔关怀。
+3. 必要时进行温和说教或制止。
+4. 偶尔流露天然与不谙世事。
+
+
+## 13. 注释
+非必要时不要使用全英文注释，保持中文注释。此外在修改文件时如果遇到全英文注释可以顺手汉化。
+## 14. 页面首帧与列表内边距
+
+- 使用透明 Scaffold 叠加异步背景图时，必须先铺 Theme.of(context).colorScheme.surface 作为底色，再放背景组件，避免浅色/深色页面进入时先闪黑色一帧。
+- 顶部栏下方的首个列表必须显式检查 ListView / ListView.builder 的 padding 和父级 Padding。默认内边距会制造第一条内容上方的空白；需要贴近标题栏时使用 padding: EdgeInsets.zero，间距由页面统一控制。
+
+## 15. 进度条动画与对话框控制器生命周期
+
+- 用户可见的进度条统一使用 `lib/widgets/SmoothLinearProgressIndicator.dart`，数值变化必须带平滑过渡并使用圆角；不要在页面中直接新增 `LinearProgressIndicator`。生成分享图片等一次性静态画布中的进度条不需要动画，但应保持圆角视觉。
+- `showDialog` 返回后不要立即释放由对话框内 TextField 使用的 `TextEditingController`。控制器应由对话框自己的 `State` 持有并在 `State.dispose` 中释放，避免退出动画期间仍有依赖而触发 `_dependents.isEmpty` 断言。
+
+## 16. 谱面播放页首帧加载
+
+- `simai_flutter 0.5.0` 当前依赖解析通过，Flame 版本仍固定为 **1.37.0**。`pubspec.yaml` 中的 `flame: 1.37.0` 是有意锁定的直接依赖，不能随手删掉或改成范围约束。项目环境曾出现 Flame 漂到 1.38.2 后中央 Loading 停住、反复点击返回后应用退出的问题；因此 Flame 仍需锁定 1.37.0，升级后必须真机回归。尚未单独证明具体是哪项上游变更导致问题，今后升级必须真机回归，不能仅凭 analyze 通过解除锁定。
+- 遇到谱面播放页卡在中央 Loading 时，先检查 `pubspec.lock` 的 Flame 版本，再检查依赖是否被重新解析；不要先把问题归因于谱面内容或音源。修改依赖后必须完全停止并重新启动 App，热重载不能证明播放器状态已经恢复。
+- 播放页的初始化和离开页面都要保留 `mounted` / `_isLeaving` 防护，避免 `SimaiGame` 尚未完成加载时路由已销毁，异步回调又继续调用 `setState` 或重复 `pop`。
+- 保留正常的音频初始化流程，不要用固定延时给初始化中的游戏挂载音频，也不要通过反复切换显示设置来强行同步音源；此前这类临时方案没有解决卡死，还会引入加载与销毁竞态。
+- 排查时保留 `ChartPlayPage` 的 `[ChartPlay]` 阶段日志和短期心跳。日志能区分卡在音源查询、曲绘、谱面解析、控制器创建，还是卡在第三方播放器的 `SimaiGame.onLoad`。
+## 17. 页面主体优先采用平面布局
+
+浅色模式功能页的主体不要再使用一整块带阴影、圆角和不透明 `surface` 的浮起面板。迁移页面时优先把内容直接铺在主题背景上，用留白、分隔线和层级排版组织信息。
+
+确实需要把功能分组时，优先使用 `colorScheme.outlineVariant` 的细边框、底部分隔线或很轻的主题容器；局部卡片只有在信息本身需要明确边界时才保留。页面级大面板、重复的 `surface.withOpacity(0.9)`、大范围阴影都应移除。裁剪工具栏、播放控制等具有明确全屏功能语义的特殊区域可以保留自己的布局。
+
+这条规则同样适用于已经迁移过的页面：迁移完成不代表要保留原来的浮起视觉，后续复查时要继续把能铺平的区域铺平。
+
+## 18. 键盘弹出时的背景布局
+
+- 带有搜索框或输入框、且背景由全屏组件铺设的页面，必须检查 `Scaffold.resizeToAvoidBottomInset`。如果键盘弹出后不应把背景和页面整体向上挤压，应在页面自身及其承载页面的 `Scaffold` 上设为 `false`，让键盘覆盖可用区域而不是改变背景布局。
+- 需要让输入框始终可见时，应单独调整输入框或内容滚动区域，不要恢复整个页面的自动缩放；否则背景会随输入法一起向上压缩，造成明显跳动。
+- `BackgroundPageScaffold` 默认不缩放背景；内外嵌套的 `Scaffold` 和输入对话框下方的页面也要一起检查，不能只修输入框所在的最内层。对话框自身仍保留输入法避让。
+- 页面切换、功能页 push 和顶部返回按钮执行前都要清理 `FocusManager.instance.primaryFocus`；否则离开的 TextField 仍会保持光标，返回或重新显示页面时可能再次拉起输入法。
+
+## 19. Tab 与模式切换不使用波纹
+
+- Tab、来源、类型、模式等切换控件保留选中指示移动、文字淡化等状态动画，但不使用点击波纹和按下高亮遮罩。
+- 标准 `TabBar`、`SegmentedButton` 走 `AppTheme` 三套主题的配置；`AnimatedChoiceBar` 默认关闭波纹。用于切换的 `ChoiceChip` 通过 `NoRipple` 包装，自定义 `InkWell` 则显式设置 `NoSplash.splashFactory` 与透明 `highlightColor`。
+- 再次点击当前选中的选项不应重新加载数据；快速切换时异步结果必须校验当前请求，避免旧选项的数据覆盖新选项。
+
+## 20. 谱面难度定义
+
+- 难度索引、显示名称、名称解析及编号转换统一使用 `lib/utils/ChartDifficulty.dart`，不再复制 BASIC～Re:MASTER / UTAGE 列表和映射。
+- 页面显示用 `ChartDifficulty.labelOf`；已知宴谱要传 `isUtage: true`。普通成绩索引是 0–4，筛选项的 UTAGE=5 不代表宴谱成绩的 `level_index`，不能改写原始成绩索引。
+- maidata 的 inote 编号为 2–7，AWMC 宴谱编号为 10，使用公共类的对应映射；标签接口的小写名称和旧缓存键使用 `apiNames` / `legacyLabels`，不要直接改成显示名称。
+- 难度配色继续由 `AppColors` / `ColorUtil` 提供；特殊页面可保留自身视觉设计，索引分支使用公共难度常量。
+
+## 21. Git 只追踪客户端相关内容
+
+- 本仓库的 Git 仅保留 Flutter 客户端代码、客户端平台工程、资源、相关测试与工具，以及客户端和项目协作文档。
+- **服务端内容一律不追踪**：包括后端源码、依赖清单、配置及配置模板、脚本、SQL、服务端数据、后端测试、部署和运维资料；配置模板也不例外。
+- 当前整个 `server/`、根目录 `cloudbaserc.json` / `.skip-template` 及 `docs/loading-tips-server.md` 已由根 `.gitignore` 忽略。新增服务端目录或放在其它路径的服务端文件，也必须同步加入忽略规则。
+- 对已有追踪项使用 `git rm --cached`（目录加 `-r`）取消追踪，**保留本地文件及未提交修改**；不要删除本地服务端目录，不要用 `git add -f` 强制加入服务端文件。
+- 取消追踪不清除既有 Git 历史；没有用户明确要求，不重写历史，也不修改全局 Git 或智能体配置。
+
+---
+
+## 22. UI 设计规范（2026-11 重构）
 
 **基准是 claude.ai 画布「ChiffonMai UI 改版对比」的 After B**（https://claude.ai/artifact/DtoefBVEjpm8y9CwiruBpt）。约 90% 照设计稿，其余 10% 是硬性要求：**重构前的所有功能都必须保留**，尤其是收藏（星标）。设计稿没画的功能，要给它在同一套视觉里安排位置，不能删。设计稿里的示例数据和「[示意]」不能照搬成假数据：有真实数据就接真实数据，没有就显示空态。
 
-新页面和改版页面都按这一节来；设计稿没有涉及的页面也用同一套视觉。
+新页面和改版页面都按这一节来；设计稿没有涉及的页面也用同一套视觉。设计稿的白卡片优先于 §17 的平面布局。
 
-### 12.1 令牌：只从 `AppDesignTokens` / `AppSurfaces` 取值
+### 22.1 令牌：只从 `AppDesignTokens` / `AppSurfaces` 取值
 
 | 圆角 | 用途 |
 |---|---|
@@ -365,50 +492,48 @@ Get-ChildItem lib/page -Recurse -File -Include *.dart |
 - 背景覆层取页面底色而不是纯白（`ThemeAwareBackground`），否则白卡片没有层次。
 - 页边距 `gutter` 16，卡片间距 `cardGap` 12。动效时长一律用 `AppDesignTokens.motion(context, …)`。
 
-### 12.2 字体
+### 22.2 字体
 
 - 中文正文：全局思源黑体（§11 的 `AppTheme.font` 规则不变）。
 - **数字为主角的地方**（Rating、达成率、定数、物量、评级缩写）：`AppTheme.number(...)`，Outfit + 等宽数字。别拿它排中文。
-- 顶部栏标题 20 / bold / `onSurface` / **靠左**（§11 的 `PageTopBar` 默认值已改）。Hub 页大标题 30 / w800，不带说明文字。
+- 顶部标题规格见 §11。Hub 页大标题 30 / w800，不带说明文字。
+- 字体**不打包**，走 `google_fonts` 运行时下载：安装包要控制在 100MB 以内，思源黑体单个字重就约 10MB。
 
-### 12.3 颜色
+### 22.3 颜色
 
 - 评级徽章 `AppColors.rankBadge`、连击 `comboBadge`、同步 `syncBadge`、判定色 `judge*`、Rating 段位 `ratingTier`、评级分布 `rankDistribution`、功能入口色 `featureTint`（按标题取，同一功能各页同色）。
 - **星级色（黄 / 金 / 浅绿）不能当字色放在白卡片上**，看不见；用 `StarBadge`（星级色做底、深色字）。
 - 页面里不要写 `Colors.amber` 这类原色当判定或评级色；新颜色加到 `AppColors` 并区分明暗（§7）。
 - 难度色只用在歌曲详情头图、难度切换这种「大面积 + 白字」的地方和小圆点上。
 
-### 12.4 组件
+### 22.4 组件
 
 - `lib/widgets/AppUi.dart`：`AppCard`、`AppSectionHeader`、`AppBadge` / `RankBadge` / `ComboBadge` / `StarBadge`、`RatingTierChip`、`StatTile`、`SplitBar`、`SegmentedTabs`（`inlineCaption` 数值横排）、`PillTabs`（音符类型）、`UnderlineTabs`（歌曲详情）、`CountField`、`JudgeCountRow`、`EmphasisCard`、`BottomActionBar`、`FeatureIconTile`（首页常用）、`CollapsibleCard`、`FilterPill`、`LinkPill`。
 - `lib/widgets/Best50Ui.dart`：`Best50Hero`、`Best50Grid` / `Best50CoverCard`（三列曲绘卡）、`showBest50SongSheet`（推分面板）、`Best50AveragesCard`、`Best50IconAction` 等。
 
 新组件加在这两个文件里，别在页面里各写一份。Hub 页继续用 `HubComponents.dart`。
 
-### 12.5 主导航：5 个标签
+### 22.5 主导航：5 个标签
 
 首页 / 曲库 / 成绩 / **游玩** / 我的。「游玩」是 `PlayZoneHubPage`：顶部分段切换「出勤 | 休闲」，两边就是原来的 `AttendanceHubPage` / `PlayHubPage`。
 `FeatureRegistry` 的分类（`'出勤'`、`'休闲'`）和收藏键**没有改**，首页搜索结果路径也照旧。三种导航栏样式（经典 / 液态玻璃 / 伸缩胶囊）都保留。
 
-### 12.6 收藏（星标）
+### 22.6 收藏（星标）
 
 - 首页「常用」就是收藏列表：普通功能显示成图标网格；带进度 / 线路 / 统计的入口（同步、自动同步、缓存管理、新版本）放不进小图标，单独成组显示完整 `HubActionTile`。点「编辑」进入列表模式，可取消星标、上下移动、长按拖动。
 - 成绩 Hub 顶部是设计稿的概览卡片，下面的「全部功能」保留每个功能的星标。**以后改 Hub 页不能把带星标的入口去掉。**
+- 曲库 Hub 只是功能列表；搜索和筛选在 `SongSearchPage` 里，进入功能后才出现。
 
-### 12.6.1 曲库标签页就是搜索页
-
-`LibraryHubPage` 渲染 `SongSearchPage(embedded: true, idleContent: …)`：没有搜索条件时，搜索框和筛选下面显示「全部功能」（含星标）；有条件时换成结果。筛选由胶囊展开，原来的各筛选控件（`_buildXxxFilter`）和搜索逻辑都没动。
-
-### 12.7 设置页的个性化功能必须继续生效
+### 22.7 设置页的个性化功能必须继续生效
 
 自定义背景图、装饰图透明度、白色覆层、主题色、深色 / 纯黑模式、导航栏样式与动画开关——这些是 App 的特色，**新 UI 不能绕开它们**：颜色一律取 `ColorScheme` / `AppSurfaces`，背景交给 `ThemeAwareBackground` / `BackgroundPageScaffold`，不要在页面里铺死一个不透明底色把用户背景图盖掉。
 
-### 12.8 Best50 系列
+### 22.8 Best50 系列
 
 - 页面显示用 `Best50CoverCard`；**导出图片仍由 `B50GameCardWidget` 绘制**，两者互不影响。改页面卡片不会改变导出图。
 - 六个页面（Best50 / 拟合 / 个性化 / 个性化拟合 / 理想 / 自定义）都把数据换算成 `Best50CardData`，不要再各写一份卡片。
 
-### 12.9 `SongInfoPage` 的拆分方式
+### 22.9 `SongInfoPage` 的拆分方式
 
 `lib/page/SongInfoPage.dart` 只保留：字段、`initState` / `dispose` / `build`。其余方法按功能放在 `lib/page/song_info/` 下的 part 文件里，写成 `extension _Xxx on _SongInfoPageState`：
 
@@ -428,12 +553,15 @@ Get-ChildItem lib/page -Recurse -File -Include *.dart |
 
 结构回归测试 `test/song_info_section_order_test.dart` 会把主文件和 `song_info/*.dart` 拼起来检查「成绩趋势是独立板块、排在成绩卡下方」。
 
-### 12.10 布局回归与预览
+### 22.10 文字不截断
 
-`test/ui_canvas_layout_test.dart` 在 360 / 390 宽、大字号、浅色 / 深色下检查核心页面不溢出。设置环境变量可以把页面渲染成 PNG，和设计稿对照：
+Rating、达成率、歌名、说明文字这类重要内容不要用省略号。放得下多行就换行；单行放不下时，短文本用 `FittedBox(fit: BoxFit.scaleDown)` 等比缩小（`StatTile` 已内置），歌名这类长文本用 `MarqueeText`（§8）。
 
-```bash
-UI_PREVIEW_DIR=build/ui_preview flutter test test/ui_canvas_layout_test.dart
-```
+### 22.11 动效
 
-测试环境缺部分字重，个别文字会显示成方块，这不是页面问题。
+入场用 `EntranceAnimation`（列表项按 `index` 错开，换 Key 重播），按压用 `PressScale`，参数照设计稿：Best50 卡片 14px + 缩放 0.96 / 420ms，成绩列表 8px / 300ms，搜索结果横向 10px / 320ms，首页 12px / 500ms，歌曲详情面板 10px / 350ms。两者都尊重系统「减少动态效果」。
+
+### 22.12 输入框所在的布局树不能随键盘变化
+
+键盘弹出时不要切换页面结构，也不要把输入框放进会回收子项的 `ListView.builder`：输入框一旦被销毁就会丢焦点，键盘立刻收回。达成率计算器踩过这个坑。键盘只能影响留白和局部详略（§18）。
+

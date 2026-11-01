@@ -14,7 +14,7 @@ import '../utils/ExportSettings.dart';
 import '../utils/ThemeManager.dart';
 import '../utils/SearchInteractionPreferences.dart';
 import '../widgets/AnimatedChoiceBar.dart';
-import '../widgets/PageTopBar.dart';
+import '../widgets/AppHeader.dart';
 import '../widgets/AppColorPickerDialog.dart';
 import '../widgets/ThemePreferenceControls.dart';
 import 'OnboardingPage.dart';
@@ -339,7 +339,7 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   // 顶部栏统一走公共组件（标题样式对齐 Rating 排行榜页的 AppBar）
-  Widget _buildTitleBar(double sw, Color c) => const PageTopBar(title: '系统设置');
+  Widget _buildTitleBar(double sw, Color c) => const AppHeader(title: '系统设置');
 
   Widget _buildSectionTitle(String title, Color c) => Padding(
         padding: const EdgeInsets.symmetric(horizontal: 4),
