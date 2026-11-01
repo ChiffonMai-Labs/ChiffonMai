@@ -21,6 +21,7 @@ import '../../widgets/BackgroundPageScaffold.dart';
 import '../../widgets/LxnsAssetImage.dart';
 import '../../widgets/TrophyTitleBadge.dart';
 import '../../entity/DivingFish/Song.dart';
+import '../../utils/AppDesignTokens.dart';
 
 class CollectionInfoPage extends StatefulWidget {
   final int collectionId;
@@ -1055,7 +1056,7 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
             minimumSize: Size.zero,
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
             ),
           ),
         ),
@@ -1073,7 +1074,6 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
       _ => const SizedBox.shrink(),
     };
     final height = widget.collectionType == 'plates' ? 150.0 : 200.0;
-    final colorScheme = Theme.of(context).colorScheme;
 
     return Column(
       children: [
@@ -1081,9 +1081,8 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
           width: double.infinity,
           height: height,
           decoration: BoxDecoration(
-            color: colorScheme.surfaceContainerLowest,
-            border: Border.all(color: colorScheme.outlineVariant),
-            borderRadius: BorderRadius.circular(14),
+            color: AppSurfaces.card(context),
+            borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
           ),
           clipBehavior: Clip.antiAlias,
           child: image,
@@ -1237,7 +1236,7 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
               color: collection.color == 'Rainbow'
                   ? null
                   : _getColorFromType(collection.color!),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
               border: Border.all(color: colorScheme.outlineVariant),
             ),
             child: Text(

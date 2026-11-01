@@ -15,6 +15,7 @@ import '../utils/OcrImageCropUtil.dart';
 import '../widgets/CoverActionButton.dart';
 import '../widgets/BackgroundPageScaffold.dart';
 import 'SongInfoPage.dart';
+import '../utils/AppDesignTokens.dart';
 
 /// 曲绘识别页面
 /// 支持拍照/相册选取 → 手动裁剪 → 识别 → 显示Top10匹配结果
@@ -324,7 +325,7 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
                 AppConstants.defaultShadow(Theme.of(context).brightness)
               ]),
           child: ClipRRect(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
               child: Image.file(
                 File(_photoPath!),
                 fit: BoxFit.cover,
@@ -362,7 +363,7 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
           padding: EdgeInsets.all(sw * 0.03),
           decoration: BoxDecoration(
             color: AppColors.errorRed(brightness).withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
             border: Border.all(
                 color: AppColors.errorRed(brightness).withValues(alpha: 0.3)),
           ),
@@ -529,7 +530,7 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
           width: size,
           height: size,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
             border: Border.all(color: borderColor, width: isMatch ? 3 : 1.5),
             boxShadow: isMatch
                 ? [
@@ -582,7 +583,7 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
     return Container(
       decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
           border: Border.all(color: Theme.of(context).colorScheme.surface)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Padding(

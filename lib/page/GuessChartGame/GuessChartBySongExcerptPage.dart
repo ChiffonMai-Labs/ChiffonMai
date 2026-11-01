@@ -1132,7 +1132,7 @@ class _GuessChartBySongExcerptPageState
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.2),
@@ -1361,7 +1361,7 @@ class _GuessChartBySongExcerptPageState
                                               Text(
                                                 _isWon ? '恭喜你猜对了！' : '本局答案',
                                                 style: TextStyle(
-                                                  fontSize: screenWidth * 0.04,
+                                                  fontSize: 16,
                                                   fontWeight: FontWeight.bold,
                                                   color: _isWon
                                                       ? AppColors.successGreen(
@@ -1407,9 +1407,7 @@ class _GuessChartBySongExcerptPageState
                                                                   : _targetSong!
                                                                       .type,
                                                               style: TextStyle(
-                                                                fontSize:
-                                                                    screenWidth *
-                                                                        0.035,
+                                                                fontSize: 14,
                                                                 fontWeight:
                                                                     FontWeight
                                                                         .bold,
@@ -1431,9 +1429,7 @@ class _GuessChartBySongExcerptPageState
                                                                     .title,
                                                                 style:
                                                                     TextStyle(
-                                                                  fontSize:
-                                                                      screenWidth *
-                                                                          0.035,
+                                                                  fontSize: 14,
                                                                   fontWeight:
                                                                       FontWeight
                                                                           .bold,
@@ -1449,9 +1445,7 @@ class _GuessChartBySongExcerptPageState
                                                         Text(
                                                           '${_targetSong!.basicInfo.artist} | ${_targetSong!.basicInfo.genre}',
                                                           style: TextStyle(
-                                                            fontSize:
-                                                                screenWidth *
-                                                                    0.03,
+                                                            fontSize: 12,
                                                             color: Theme.of(
                                                                     context)
                                                                 .colorScheme
@@ -1464,9 +1458,7 @@ class _GuessChartBySongExcerptPageState
                                                         Text(
                                                           '${_targetSong!.ds.length > 3 ? _targetSong!.ds[3].toString() : '-'} | ${_targetSong!.ds.length > 4 ? _targetSong!.ds[4].toString() : '-'} | ${StringUtil.formatVersion2WithFlag(_targetSong!.basicInfo.from, _targetSong!.isExtra)}',
                                                           style: TextStyle(
-                                                            fontSize:
-                                                                screenWidth *
-                                                                    0.03,
+                                                            fontSize: 12,
                                                             color: Theme.of(
                                                                     context)
                                                                 .colorScheme

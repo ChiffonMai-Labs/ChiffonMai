@@ -923,7 +923,7 @@ class _GuessChartByAliaPageState extends State<GuessChartByAliaPage> {
                                               Text(
                                                 _isWon ? '恭喜你猜对了！' : '本局答案',
                                                 style: TextStyle(
-                                                  fontSize: screenWidth * 0.04,
+                                                  fontSize: 16,
                                                   fontWeight: FontWeight.bold,
                                                   color: _isWon
                                                       ? AppColors.successGreen(
@@ -973,9 +973,7 @@ class _GuessChartByAliaPageState extends State<GuessChartByAliaPage> {
                                                                         .type,
                                                                 style:
                                                                     TextStyle(
-                                                                  fontSize:
-                                                                      screenWidth *
-                                                                          0.035,
+                                                                  fontSize: 14,
                                                                   fontWeight:
                                                                       FontWeight
                                                                           .bold,
@@ -997,9 +995,7 @@ class _GuessChartByAliaPageState extends State<GuessChartByAliaPage> {
                                                                       .title,
                                                                   style:
                                                                       TextStyle(
-                                                                    fontSize:
-                                                                        screenWidth *
-                                                                            0.035,
+                                                                    fontSize: 14,
                                                                     fontWeight:
                                                                         FontWeight
                                                                             .bold,
@@ -1015,9 +1011,7 @@ class _GuessChartByAliaPageState extends State<GuessChartByAliaPage> {
                                                           Text(
                                                             '${_targetSong!.basicInfo.artist} | ${_targetSong!.basicInfo.genre}',
                                                             style: TextStyle(
-                                                              fontSize:
-                                                                  screenWidth *
-                                                                      0.03,
+                                                              fontSize: 12,
                                                               color: Theme.of(
                                                                       context)
                                                                   .colorScheme
@@ -1031,9 +1025,7 @@ class _GuessChartByAliaPageState extends State<GuessChartByAliaPage> {
                                                           Text(
                                                             '${_targetSong!.ds.length > 3 ? _targetSong!.ds[3].toString() : '-'} | ${_targetSong!.ds.length > 4 ? _targetSong!.ds[4].toString() : '-'} | ${StringUtil.formatVersion2WithFlag(_targetSong!.basicInfo.from, _targetSong!.isExtra)}',
                                                             style: TextStyle(
-                                                              fontSize:
-                                                                  screenWidth *
-                                                                      0.03,
+                                                              fontSize: 12,
                                                               color: Theme.of(
                                                                       context)
                                                                   .colorScheme

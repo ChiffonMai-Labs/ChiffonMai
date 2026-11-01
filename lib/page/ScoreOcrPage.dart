@@ -36,6 +36,7 @@ import '../utils/StringUtil.dart';
 import '../utils/SecureCredentialStore.dart';
 import '../widgets/BackgroundPageScaffold.dart';
 import '../widgets/RefreshDataDialog.dart' show launchUrlFallback;
+import '../utils/AppDesignTokens.dart';
 
 /// 结算画面识别页（拍摄机台结算画面 → 裁剪 → 识别 → 显示结构化成绩）
 ///
@@ -1655,7 +1656,7 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
               ],
             ),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
               child: Image.file(
                 File(_photoPath!),
                 fit: BoxFit.contain,
@@ -1676,7 +1677,7 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
         decoration: BoxDecoration(
           color: AppColors.errorRed(Theme.of(context).brightness)
               .withValues(alpha: 0.15),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
           border: Border.all(
             color: AppColors.errorRed(Theme.of(context).brightness)
                 .withValues(alpha: 0.5),
@@ -1707,7 +1708,7 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: warn.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
         border: Border.all(color: warn.withValues(alpha: 0.5)),
       ),
       child: Row(
@@ -1844,9 +1845,8 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
       margin: const EdgeInsets.only(bottom: 12),
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: scheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: scheme.outlineVariant),
+        color: AppSurfaces.card(context),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1882,7 +1882,7 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
                 // 曲绘：只在能定位到歌曲时才有（否则宁可不显示）
                 if (song != null) ...[
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                     child: CoverUtil.buildCoverWidget(song.id, 96),
                   ),
                   const SizedBox(width: 12),
@@ -1974,7 +1974,7 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
             padding: const EdgeInsets.symmetric(vertical: 12),
             decoration: BoxDecoration(
               color: scheme.surfaceContainerHighest.withValues(alpha: 0.5),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
             ),
             child: Row(
               children: [
@@ -2534,7 +2534,7 @@ class _LxnsKeyPromptDialogState extends State<_LxnsKeyPromptDialog> {
                     fontSize: 13,
                     color: AppColors.greyHint(brightness, shade: 400)),
                 border:
-                    OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall)),
                 contentPadding: const EdgeInsets.all(12),
               ),
             ),

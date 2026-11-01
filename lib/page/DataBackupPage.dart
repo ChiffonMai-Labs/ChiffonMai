@@ -5,6 +5,7 @@ import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import 'package:my_first_flutter_app/utils/ExportPathUtil.dart';
 import '../widgets/BackgroundPageScaffold.dart';
 import '../widgets/ExportSuccessDialog.dart';
+import '../utils/AppDesignTokens.dart';
 
 class DataBackupPage extends StatefulWidget {
   const DataBackupPage({super.key});
@@ -40,7 +41,8 @@ class _DataBackupPageState extends State<DataBackupPage> {
         bottom: MediaQuery.paddingOf(context).bottom,
       ),
       child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+        padding: const EdgeInsets.fromLTRB(AppDesignTokens.gutter, 8,
+            AppDesignTokens.gutter, AppDesignTokens.gutter),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -48,11 +50,11 @@ class _DataBackupPageState extends State<DataBackupPage> {
             Container(
               padding: EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.tableBorder(brightness)),
+                color: AppSurfaces.inset(context),
+                borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
               ),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Icon(Icons.info_outline,
                       color: AppColors.linkBlue(brightness), size: 24),
@@ -72,7 +74,7 @@ class _DataBackupPageState extends State<DataBackupPage> {
                 ],
               ),
             ),
-            SizedBox(height: 24),
+            SizedBox(height: AppDesignTokens.cardGap),
 
             // 导出区域
             _buildSectionCard(
@@ -82,7 +84,7 @@ class _DataBackupPageState extends State<DataBackupPage> {
               buttonText: _isExporting ? '导出中...' : '导出备份文件',
               isLoading: _isExporting,
               onPressed: _busy ? null : _handleExport,
-              color: AppColors.successGreen(brightness),
+              emphasis: true,
             ),
 
             // 上次导出路径
@@ -91,8 +93,9 @@ class _DataBackupPageState extends State<DataBackupPage> {
               Container(
                 padding: EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(8),
+                  color: AppSurfaces.inset(context),
+                  borderRadius:
+                      BorderRadius.circular(AppDesignTokens.radiusSmall),
                 ),
                 child: Row(
                   children: [
@@ -106,8 +109,6 @@ class _DataBackupPageState extends State<DataBackupPage> {
                           fontSize: 12,
                           color: Theme.of(context).colorScheme.onSurface,
                         ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
@@ -115,9 +116,7 @@ class _DataBackupPageState extends State<DataBackupPage> {
               ),
             ],
 
-            SizedBox(height: 24),
-            Divider(),
-            SizedBox(height: 24),
+            SizedBox(height: AppDesignTokens.cardGap),
 
             // 导入区域
             _buildSectionCard(
@@ -129,7 +128,6 @@ class _DataBackupPageState extends State<DataBackupPage> {
                   : (_isImporting ? '导入中...' : '选择备份文件'),
               isLoading: _isImporting || _isRestoring,
               onPressed: _busy ? null : _handleImport,
-              color: AppColors.warningOrange(brightness),
               warningText: '⚠ 导入会先清空当前所有本地数据，再写入备份内容；\n'
                   '　 备份里没有的项目（含各类缓存）会被一并抹掉。\n'
                   '　 恢复过程中请不要退出页面。',
@@ -147,22 +145,34 @@ class _DataBackupPageState extends State<DataBackupPage> {
     required String buttonText,
     required bool isLoading,
     required VoidCallback? onPressed,
-    required Color color,
+    bool emphasis = false,
     String? warningText,
   }) {
+    final scheme = Theme.of(context).colorScheme;
+    // 导入会清空数据，不做成主按钮；危险提示由下方红字承担。
+    final buttonBg = emphasis ? scheme.primary : scheme.primaryContainer;
+    final buttonFg = emphasis ? scheme.onPrimary : scheme.onPrimaryContainer;
     return Container(
-      padding: EdgeInsets.all(20),
+      padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
-        border: Border.all(
-            color: AppColors.tableBorder(Theme.of(context).brightness)),
-        borderRadius: BorderRadius.circular(12),
+        color: AppSurfaces.card(context),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, size: 32, color: color),
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: scheme.primaryContainer,
+                  borderRadius:
+                      BorderRadius.circular(AppDesignTokens.radiusSmall),
+                ),
+                child: Icon(icon, size: 24, color: scheme.onPrimaryContainer),
+              ),
               SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -199,21 +209,22 @@ class _DataBackupPageState extends State<DataBackupPage> {
                       width: 16,
                       height: 16,
                       child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white),
+                          strokeWidth: 2, color: buttonFg),
                     )
                   : Icon(
                       icon == Icons.file_upload
                           ? Icons.file_upload
                           : Icons.file_download,
-                      color: Colors.white,
+                      color: buttonFg,
                     ),
               label: Text(buttonText),
               style: ElevatedButton.styleFrom(
-                backgroundColor: color,
-                foregroundColor: Colors.white,
+                backgroundColor: buttonBg,
+                foregroundColor: buttonFg,
                 padding: EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius:
+                      BorderRadius.circular(AppDesignTokens.radiusMedium),
                 ),
               ),
             ),
@@ -323,7 +334,7 @@ class _DataBackupPageState extends State<DataBackupPage> {
                 padding: EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   color: Theme.of(ctx).colorScheme.surface,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

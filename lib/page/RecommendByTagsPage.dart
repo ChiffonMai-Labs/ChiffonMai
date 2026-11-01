@@ -13,6 +13,7 @@ import 'package:my_first_flutter_app/utils/StringUtil.dart';
 import 'package:flutter/services.dart';
 import '../constant/LoadingTipsConstant.dart';
 import '../widgets/BackgroundPageScaffold.dart';
+import '../utils/AppDesignTokens.dart';
 
 class RecommendByTags extends StatefulWidget {
   const RecommendByTags({super.key});
@@ -246,11 +247,11 @@ class _RecommendByTagsState extends State<RecommendByTags> {
       filled: true,
       fillColor: scheme.surface,
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
         borderSide: BorderSide(color: scheme.outlineVariant),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
         borderSide: BorderSide(color: scheme.outlineVariant),
       ),
     );
@@ -258,16 +259,15 @@ class _RecommendByTagsState extends State<RecommendByTags> {
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 12, 12, 6),
       decoration: BoxDecoration(
-        color: scheme.surfaceContainerHighest.withValues(alpha: 0.72),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: scheme.outlineVariant),
+        color: AppSurfaces.inset(context),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // 将收起控制放在表单区标题上，收起后仍保留当前条件摘要。
           InkWell(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
             onTap: () => setState(() {
               _rangeSettingsExpanded = !_rangeSettingsExpanded;
               if (!_rangeSettingsExpanded &&
@@ -529,7 +529,7 @@ class _RecommendByTagsState extends State<RecommendByTags> {
                                               _currentLoadingTip,
                                               textAlign: TextAlign.center,
                                               style: TextStyle(
-                                                  fontSize: screenWidth * 0.035,
+                                                  fontSize: 14,
                                                   color:
                                                       scheme.onSurfaceVariant),
                                             ),
@@ -647,7 +647,7 @@ class _RecommendByTagsState extends State<RecommendByTags> {
           color: brightness == Brightness.dark
               ? bgColor
               : bgColor.withValues(alpha: 0.5),
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
           border: Border.all(
             color: borderColor,
             width: 1.5,

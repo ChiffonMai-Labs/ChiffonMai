@@ -77,7 +77,7 @@ class _FeatureCategoryPageState extends State<FeatureCategoryPage> {
             '未找到匹配的功能',
             style: TextStyle(
               color: AppColors.greyHint(brightness),
-              fontSize: screenWidth * 0.04,
+              fontSize: 16,
             ),
           ),
         );

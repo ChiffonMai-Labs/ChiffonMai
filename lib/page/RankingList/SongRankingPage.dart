@@ -13,6 +13,7 @@ import 'package:my_first_flutter_app/service/SongInfoService.dart';
 import 'package:my_first_flutter_app/widgets/BackgroundPageScaffold.dart';
 import 'package:my_first_flutter_app/widgets/CommunityAvatar.dart';
 import 'package:my_first_flutter_app/utils/RankingRowExtent.dart';
+import '../../utils/AppDesignTokens.dart';
 
 enum _DxScoreDisplayMode {
   starsBonus('星+'),
@@ -501,7 +502,7 @@ class _SongRankingPageState extends State<SongRankingPage> {
                       color: index == widget.difficultyIndex
                           ? _getDifficultyBackgroundColor(index)
                           : Colors.transparent,
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                     ),
                     child: Row(
                       children: [
@@ -966,7 +967,7 @@ class _SongRankingPageState extends State<SongRankingPage> {
                 height: 100,
                 margin: EdgeInsets.all(10),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                   child: CoverUtil.buildCoverWidgetWithContext(
                       context, widget.songId, 100),
                 ),

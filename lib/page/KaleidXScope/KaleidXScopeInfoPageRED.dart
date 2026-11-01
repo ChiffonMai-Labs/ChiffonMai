@@ -14,6 +14,7 @@ import 'package:my_first_flutter_app/page/SongInfoPage.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import 'package:my_first_flutter_app/widgets/KaleidXScopeSourceNotice.dart';
 import 'package:my_first_flutter_app/widgets/BackgroundPageScaffold.dart';
+import '../../utils/AppDesignTokens.dart';
 
 class KaleidXScopeInfoPageRED extends StatefulWidget {
   const KaleidXScopeInfoPageRED({super.key});
@@ -208,9 +209,8 @@ class _KaleidXScopeInfoPageREDState extends State<KaleidXScopeInfoPageRED> {
     final brightness = Theme.of(context).brightness;
     return Container(
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(_borderRadiusSmall),
-        border: Border.all(color: AppColors.tableBorder(brightness), width: 1),
+        color: AppSurfaces.card(context),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
       ),
       padding: EdgeInsets.all(_paddingM),
       child: Column(
@@ -313,10 +313,8 @@ class _KaleidXScopeInfoPageREDState extends State<KaleidXScopeInfoPageRED> {
             padding: EdgeInsets.only(bottom: _paddingL),
             child: Container(
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                borderRadius: BorderRadius.circular(_borderRadiusSmall),
-                border: Border.all(
-                    color: AppColors.tableBorder(brightness), width: 1),
+                color: AppSurfaces.card(context),
+                borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
               ),
               padding: EdgeInsets.all(_paddingM),
               child: Column(
@@ -415,10 +413,8 @@ class _KaleidXScopeInfoPageREDState extends State<KaleidXScopeInfoPageRED> {
       child: Container(
         constraints: BoxConstraints(minHeight: _songCardHeight),
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(_borderRadiusSmall),
-          border:
-              Border.all(color: AppColors.tableBorder(brightness), width: 1),
+          color: AppSurfaces.card(context),
+          borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
         ),
         padding: EdgeInsets.all(_paddingXS),
         child: Row(
@@ -478,10 +474,8 @@ class _KaleidXScopeInfoPageREDState extends State<KaleidXScopeInfoPageRED> {
         if (_songs.isNotEmpty) ...[
           Container(
             decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                border: Border.all(
-                    color: AppColors.tableBorder(brightness), width: 1),
-                borderRadius: BorderRadius.circular(_borderRadiusSmall)),
+                color: AppSurfaces.card(context),
+                borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium)),
             padding: EdgeInsets.symmetric(
                 horizontal: _paddingS, vertical: _paddingXS * 0.5),
             child: Center(
@@ -509,7 +503,7 @@ class _KaleidXScopeInfoPageREDState extends State<KaleidXScopeInfoPageRED> {
                       padding: EdgeInsets.symmetric(
                           horizontal: _paddingM, vertical: _paddingXS),
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8))),
+                          borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall))),
                   child: Text(_isMarkMode ? '标记模式' : '仅查看',
                       style: TextStyle(fontSize: _textSizeS)),
                 ),
@@ -653,10 +647,8 @@ class _KaleidXScopeInfoPageREDState extends State<KaleidXScopeInfoPageRED> {
       children: [
         Container(
           decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface,
-              border: Border.all(
-                  color: AppColors.tableBorder(brightness), width: 1),
-              borderRadius: BorderRadius.circular(_borderRadiusSmall)),
+              color: AppSurfaces.card(context),
+              borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium)),
           padding: EdgeInsets.symmetric(
               horizontal: _paddingS, vertical: _paddingXS * 0.5),
           child: Center(

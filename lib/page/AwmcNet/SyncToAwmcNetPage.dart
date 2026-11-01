@@ -12,6 +12,7 @@ import '../../widgets/QuickSyncOption.dart';
 
 import '../../widgets/SyncStatsFooter.dart';
 import '../../widgets/PostSyncRefreshOptions.dart';
+import '../../utils/AppDesignTokens.dart';
 import '../../widgets/RefreshDataDialog.dart'
     show RefreshDataRequest, RefreshDataSource;
 
@@ -208,7 +209,7 @@ class _SyncToAwmcNetPageState extends State<SyncToAwmcNetPage> {
                       fontSize: 13,
                       color: AppColors.greyHint(brightness, shade: 400)),
                   border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8)),
+                      borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall)),
                   contentPadding: const EdgeInsets.all(12),
                 ),
               ),
@@ -303,7 +304,7 @@ class _SyncToAwmcNetPageState extends State<SyncToAwmcNetPage> {
                     decoration: InputDecoration(
                       hintText: '在此粘贴成绩导入 Token…',
                       border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8)),
+                          borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall)),
                       contentPadding: const EdgeInsets.symmetric(
                           horizontal: 12, vertical: 10),
                       isDense: true,
@@ -367,7 +368,7 @@ class _SyncToAwmcNetPageState extends State<SyncToAwmcNetPage> {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: warn.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
         border: Border.all(color: warn.withValues(alpha: 0.25)),
       ),
       child: Row(

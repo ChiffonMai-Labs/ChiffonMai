@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import 'package:my_first_flutter_app/utils/CommonWidgetUtil.dart';
+import '../utils/AppDesignTokens.dart';
 
 // ============================================================================
 // 共享：达成率-评级-倍率对照表（与 SongInfoPage 行 100-119 /
@@ -228,7 +229,6 @@ class CalculatorPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
     final brightness = Theme.of(context).brightness;
     final colorScheme = Theme.of(context).colorScheme;
     final primaryText = AppColors.primaryText(brightness);
@@ -266,7 +266,7 @@ class CalculatorPage extends StatelessWidget {
                               Text(
                                 '计算工具',
                                 style: TextStyle(
-                                  fontSize: screenWidth * 0.055,
+                                  fontSize: 21,
                                   fontWeight: FontWeight.bold,
                                   color: primaryText,
                                 ),
@@ -274,7 +274,7 @@ class CalculatorPage extends StatelessWidget {
                               Text(
                                 '当前为 [$songType] $songTitle [$difficultyLabel] 的数据',
                                 style: TextStyle(
-                                  fontSize: screenWidth * 0.03,
+                                  fontSize: 12,
                                   color: AppColors.secondaryText(brightness),
                                   fontWeight: FontWeight.normal,
                                 ),
@@ -470,7 +470,7 @@ class _RatingLineTabState extends State<_RatingLineTab> {
                         isDense: true,
                       ),
                       style: TextStyle(
-                          color: primaryText, fontSize: screenWidth * 0.04),
+                          color: primaryText, fontSize: 16),
                     ),
                   ),
                   // mode 2：误差输入
@@ -493,7 +493,7 @@ class _RatingLineTabState extends State<_RatingLineTab> {
                         ),
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                            color: primaryText, fontSize: screenWidth * 0.04),
+                            color: primaryText, fontSize: 16),
                       ),
                     ),
                   ],
@@ -724,7 +724,7 @@ class _RatingLineTabState extends State<_RatingLineTab> {
         text,
         textAlign: TextAlign.center,
         style: TextStyle(
-          fontSize: screenWidth * 0.03,
+          fontSize: 12,
           fontWeight: bold ? FontWeight.bold : FontWeight.normal,
           color: AppColors.primaryText(brightness),
         ),
@@ -838,7 +838,7 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
                           children: [
                             Text(_noteLabels[i],
                                 style: TextStyle(
-                                  fontSize: screenWidth * 0.03,
+                                  fontSize: 12,
                                   color: AppColors.secondaryText(brightness),
                                 )),
                             const SizedBox(height: 4),
@@ -854,7 +854,7 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
                                 isDense: true,
                                 contentPadding: EdgeInsets.symmetric(vertical: 8),
                               ),
-                              style: TextStyle(fontSize: screenWidth * 0.035),
+                              style: TextStyle(fontSize: 14),
                             ),
                           ],
                         ),
@@ -881,7 +881,7 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
                   ),
                   Text('分数模式',
                       style: TextStyle(
-                        fontSize: screenWidth * 0.032,
+                        fontSize: 12,
                         color: AppColors.secondaryText(brightness),
                       )),
                   const SizedBox(width: 8),
@@ -1185,7 +1185,7 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
           text,
           textAlign: TextAlign.center,
           style: TextStyle(
-            fontSize: screenWidth * 0.028,
+            fontSize: 11,
             color: color != null
                 ? Colors.black87
                 : AppColors.primaryText(brightness),
@@ -1211,7 +1211,7 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
           text,
           textAlign: TextAlign.center,
           style: TextStyle(
-            fontSize: screenWidth * 0.028,
+            fontSize: 11,
             color: color != null
                 ? Colors.black87
                 : AppColors.primaryText(brightness),
@@ -1241,7 +1241,7 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
               'BREAK',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
-                fontSize: screenWidth * 0.03,
+                fontSize: 12,
                 color: AppColors.primaryText(brightness),
               ),
             ),
@@ -1326,7 +1326,7 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
               _cellText(noteIndex: 4, baseCoefficient: 0.00, extraCoefficient: 0.00, totalWeight: totalWeight),
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: screenWidth * 0.028,
+                fontSize: 11,
                 color: Colors.black87,
               ),
             ),
@@ -1368,7 +1368,7 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
-          fontSize: screenWidth * 0.028,
+          fontSize: 11,
           fontWeight: isHeader ? FontWeight.bold : FontWeight.normal,
           color: darkText ? Colors.black87 : AppColors.primaryText(brightness),
         ),
@@ -1405,7 +1405,7 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
                 '目标达成率',
                 textAlign: TextAlign.end,
                 style: TextStyle(
-                  fontSize: screenWidth * 0.035,
+                  fontSize: 14,
                   fontWeight: FontWeight.bold,
                   color: AppColors.linkBlue(brightness),
                 ),
@@ -1428,7 +1428,7 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
                       border: OutlineInputBorder(),
                       isDense: true,
                     ),
-                    style: TextStyle(fontSize: screenWidth * 0.035),
+                    style: TextStyle(fontSize: 14),
                     onChanged: (v) {
                       final parsed = double.tryParse(v);
                       if (parsed != null && parsed > 101.0) {
@@ -1460,7 +1460,7 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
           child: Text(
             '达成 ${target.toStringAsFixed(4)}% 容错为 ${tapGreatEquivalentForTarget.toStringAsFixed(3)} 个 TAP GREAT',
             style: TextStyle(
-              fontSize: screenWidth * 0.028,
+              fontSize: 11,
               color: AppColors.secondaryText(brightness),
             ),
           ),
@@ -1486,7 +1486,7 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
       child: Text(
         isUserData ? '用户数据' : '自定义',
         style: TextStyle(
-          fontSize: screenWidth * 0.026,
+          fontSize: 11,
           color: fgColor,
           fontWeight: FontWeight.w500,
         ),
@@ -1530,7 +1530,7 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
             child: Text(
               'BREAK ${sub['label']}相当于 ${equivalent.toStringAsFixed(3)} 个 TAP GREAT',
               style: TextStyle(
-                fontSize: screenWidth * 0.028,
+                fontSize: 11,
                 color: AppColors.secondaryText(brightness),
               ),
             ),
@@ -1698,7 +1698,7 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
         inputFormatters: [FilteringTextInputFormatter.digitsOnly],
         textAlign: TextAlign.center,
         style: TextStyle(
-          fontSize: screenWidth * 0.025,
+          fontSize: 11,
           color: isDark ? Colors.black87 : null,
         ),
       ),
@@ -1776,7 +1776,7 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
               vertical: screenWidth * 0.025,
               horizontal: screenWidth * 0.08),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
           ),
         ),
         child: _calculatingReverse
@@ -1794,7 +1794,7 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
                 ],
               )
             : Text('计算绝赞详情',
-                style: TextStyle(fontSize: screenWidth * 0.035)),
+                style: TextStyle(fontSize: 14)),
       ),
     );
   }
@@ -1806,12 +1806,12 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
       padding: EdgeInsets.all(screenWidth * 0.03),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
         border: Border.all(color: AppColors.linkBlue(brightness)),
       ),
       child: Text(
         _reverseResultText!,
-        style: TextStyle(fontSize: screenWidth * 0.03, height: 1.5),
+        style: TextStyle(fontSize: 12, height: 1.5),
       ),
     );
   }
@@ -2018,7 +2018,7 @@ Widget _buildCard({
   return Container(
     width: double.infinity,
     decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
       border: Border.all(color: AppColors.tableBorder(brightness), width: 2),
     ),
     padding: const EdgeInsets.all(12),
@@ -2030,7 +2030,7 @@ Widget _buildSectionTitle(String text, double screenWidth, Brightness brightness
   return Text(
     text,
     style: TextStyle(
-      fontSize: screenWidth * 0.035,
+      fontSize: 14,
       fontWeight: FontWeight.bold,
       color: AppColors.linkBlue(brightness),
     ),

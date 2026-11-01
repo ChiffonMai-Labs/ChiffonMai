@@ -10,6 +10,7 @@ import '../utils/CoverUtil.dart';
 import '../utils/CurrentDataSourceNotifier.dart';
 import 'package:my_first_flutter_app/utils/ApiClient.dart';
 import '../widgets/BackgroundPageScaffold.dart';
+import '../utils/AppDesignTokens.dart';
 
 /// 评分记录数据模型
 class RatingRecordItem {
@@ -475,7 +476,7 @@ class _RecentRatingsPageState extends State<RecentRatingsPage> {
         padding: EdgeInsets.all(10),
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.6),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
           border: Border.all(color: AppColors.buttonBorder(brightness), width: 0.5),
         ),
         child: Row(

@@ -8,6 +8,7 @@ import '../utils/CoverUtil.dart';
 import '../utils/StringUtil.dart';
 import '../widgets/BackgroundPageScaffold.dart';
 import 'SongInfoPage.dart';
+import '../utils/AppDesignTokens.dart';
 
 /// 吃分推荐：按「仅这一张谱达标后 B50 涨多少」挑谱。算法由 AWMC 提供。
 ///
@@ -480,7 +481,7 @@ class _CandidateCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               ClipRRect(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                 child: CoverUtil.buildCoverWidget(c.songId.toString(), 64),
               ),
               const SizedBox(width: 10),

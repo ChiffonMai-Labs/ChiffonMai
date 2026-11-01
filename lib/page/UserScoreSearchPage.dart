@@ -1562,7 +1562,7 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
                 color: Color(borderColor.value),
                 width: 2,
               ),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
               color: Color(borderColor.value).withOpacity(0.3),
             ),
             child: Stack(

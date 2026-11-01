@@ -7,6 +7,7 @@ import 'package:video_player/video_player.dart';
 import '../constant/LoadingTipsConstant.dart';
 import '../service/SongMediaCache.dart';
 import '../widgets/SmoothLinearProgressIndicator.dart';
+import '../utils/AppDesignTokens.dart';
 
 /// 歌曲 PV 播放页。
 ///
@@ -299,7 +300,7 @@ class _SongPvPageState extends State<SongPvPage> {
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: Colors.black.withValues(alpha: .68),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),

@@ -9,6 +9,8 @@ import '../../utils/ColorUtil.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
 import '../../widgets/NoRipple.dart';
 import '../../widgets/GuessAudioRateSlider.dart';
+import '../../utils/AppDesignTokens.dart';
+import '../../widgets/AppUi.dart';
 
 /// 猜歌设置统一入口，继续使用各模式原有的设置存储。
 class GuessGameSettingsPage extends StatefulWidget {
@@ -110,8 +112,12 @@ class _GuessGameSettingsPageState extends State<GuessGameSettingsPage> {
   }
 
   Widget _section(String title, IconData icon, List<Widget> children) =>
-      NoRipple(
-          child: ExpansionTile(
+      Padding(
+          padding: const EdgeInsets.only(bottom: AppDesignTokens.cardGap),
+          child: AppCard(
+              padding: EdgeInsets.zero,
+              child: NoRipple(
+                  child: ExpansionTile(
         initiallyExpanded: true,
         // 收起后保留控件状态，避免再次展开时重建输入与筛选区域。
         maintainState: true,
@@ -124,14 +130,10 @@ class _GuessGameSettingsPageState extends State<GuessGameSettingsPage> {
               ),
         leading: Icon(icon),
         title: Text(title),
-        shape: Border(
-            bottom: BorderSide(
-                color: Theme.of(context).colorScheme.outlineVariant)),
-        collapsedShape: Border(
-            bottom: BorderSide(
-                color: Theme.of(context).colorScheme.outlineVariant)),
+        shape: const Border(),
+        collapsedShape: const Border(),
         children: children,
-      ));
+      ))));
 
   @override
   Widget build(BuildContext context) {
@@ -145,8 +147,11 @@ class _GuessGameSettingsPageState extends State<GuessGameSettingsPage> {
                   ? const CircularProgressIndicator()
                   : TextButton(onPressed: _load, child: Text(_error!)))
           : ListView(
-              padding: EdgeInsets.only(
-                  bottom: MediaQuery.paddingOf(context).bottom + 16),
+              padding: EdgeInsets.fromLTRB(
+                  AppDesignTokens.gutter,
+                  8,
+                  AppDesignTokens.gutter,
+                  MediaQuery.paddingOf(context).bottom + 16),
               children: [
                   Padding(
                       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),

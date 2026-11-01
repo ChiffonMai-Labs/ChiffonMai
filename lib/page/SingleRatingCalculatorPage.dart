@@ -315,7 +315,7 @@ class _SingleRatingCalculatorState extends State<SingleRatingCalculator> {
                         const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
                       color: onCard.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                     ),
                     child: Text('相当于 $e',
                         style: TextStyle(fontSize: 12, color: onCard)),

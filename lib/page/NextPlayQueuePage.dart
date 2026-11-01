@@ -6,6 +6,7 @@ import '../utils/CommonWidgetUtil.dart';
 import '../utils/CoverUtil.dart';
 import '../utils/AppTheme.dart';
 import 'SongInfoPage.dart';
+import '../utils/AppDesignTokens.dart';
 
 class NextPlayQueuePage extends StatefulWidget {
   const NextPlayQueuePage({super.key});
@@ -64,9 +65,9 @@ class _NextPlayQueuePageState extends State<NextPlayQueuePage> {
                           key: ValueKey(entry.occurrenceId),
                           margin: const EdgeInsets.only(bottom: 8),
                           shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10)),
+                              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall)),
                           child: InkWell(
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                             onTap: () => Navigator.of(context).push(
                               MaterialPageRoute(
                                 builder: (_) =>
@@ -77,7 +78,7 @@ class _NextPlayQueuePageState extends State<NextPlayQueuePage> {
                               padding: const EdgeInsets.all(10),
                               child: Row(children: [
                                 ClipRRect(
-                                    borderRadius: BorderRadius.circular(8),
+                                    borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                                     child: CoverUtil.buildCoverWidget(
                                         entry.songId, 62)),
                                 const SizedBox(width: 12),

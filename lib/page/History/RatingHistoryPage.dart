@@ -16,6 +16,7 @@ import '../../widgets/HistoryLineChart.dart';
 import '../../widgets/HistoryPointDelete.dart';
 import '../../widgets/AppHeader.dart';
 import '../../widgets/HistoryDateTimeDialog.dart';
+import '../../utils/AppDesignTokens.dart';
 
 /// Rating 历史曲线。
 ///
@@ -334,8 +335,8 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+        color: AppSurfaces.card(context),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -453,8 +454,8 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+        color: AppSurfaces.card(context),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
       ),
       child: Row(
         children: [
@@ -496,8 +497,8 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
     return Container(
       padding: const EdgeInsets.fromLTRB(8, 16, 16, 8),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+        color: AppSurfaces.card(context),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
       ),
       child: HistoryLineChart(
         spots: spots,
@@ -536,8 +537,8 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+        color: AppSurfaces.card(context),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -619,8 +620,8 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+        color: AppSurfaces.card(context),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
       ),
       child: Column(
         children: [

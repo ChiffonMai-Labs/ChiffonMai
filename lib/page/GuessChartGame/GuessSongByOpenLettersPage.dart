@@ -563,11 +563,8 @@ class _GuessSongByOpenLettersPageState
             decoration: BoxDecoration(
               color: isGuessed
                   ? AppColors.guessAnswerCardBg(Theme.of(context).brightness)
-                  : Theme.of(context).colorScheme.surface,
-              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-              boxShadow: [
-                AppColors.defaultShadow(Theme.of(context).brightness)
-              ],
+                  : AppSurfaces.card(context),
+              borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -625,7 +622,6 @@ class _GuessSongByOpenLettersPageState
 
   // 构建猜测历史项
   Widget _buildGuessHistoryItem(Song song, int originalIndex) {
-    final screenWidth = MediaQuery.of(context).size.width;
 
     return GestureDetector(
       onTap: () => _navigateToSongInfo(song.id),
@@ -633,9 +629,8 @@ class _GuessSongByOpenLettersPageState
         margin: const EdgeInsets.symmetric(vertical: 8),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-          boxShadow: [AppColors.defaultShadow(Theme.of(context).brightness)],
+          color: AppSurfaces.card(context),
+          borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -643,7 +638,7 @@ class _GuessSongByOpenLettersPageState
             Text(
               '猜测 #${originalIndex + 1}',
               style: TextStyle(
-                fontSize: screenWidth * 0.035,
+                fontSize: 14,
                 fontWeight: FontWeight.bold,
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
@@ -674,7 +669,7 @@ class _GuessSongByOpenLettersPageState
                           Text(
                             song.type == 'SD' ? 'ST' : song.type,
                             style: TextStyle(
-                              fontSize: screenWidth * 0.035,
+                              fontSize: 14,
                               fontWeight: FontWeight.bold,
                               color: song.type == 'SD'
                                   ? Colors.blue
@@ -686,7 +681,7 @@ class _GuessSongByOpenLettersPageState
                             child: Text(
                               song.basicInfo.title,
                               style: TextStyle(
-                                fontSize: screenWidth * 0.035,
+                                fontSize: 14,
                                 fontWeight: FontWeight.bold,
                               ),
                               overflow: TextOverflow.ellipsis,
@@ -698,7 +693,7 @@ class _GuessSongByOpenLettersPageState
                       Text(
                         '${song.basicInfo.artist} | ${song.basicInfo.genre}',
                         style: TextStyle(
-                          fontSize: screenWidth * 0.03,
+                          fontSize: 12,
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                         overflow: TextOverflow.ellipsis,
@@ -707,7 +702,7 @@ class _GuessSongByOpenLettersPageState
                       Text(
                         '${song.ds.length > 3 ? song.ds[3].toString() : '-'} | ${song.ds.length > 4 ? song.ds[4].toString() : '-'} | ${StringUtil.formatVersion2WithFlag(song.basicInfo.from, song.isExtra)}',
                         style: TextStyle(
-                          fontSize: screenWidth * 0.03,
+                          fontSize: 12,
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                         overflow: TextOverflow.ellipsis,
@@ -1123,11 +1118,9 @@ class _GuessSongByOpenLettersPageState
                                         children: [
                                           Container(
                                             decoration: BoxDecoration(
+                                              color: AppSurfaces.card(context),
                                               borderRadius:
-                                                  BorderRadius.circular(AppDesignTokens.radiusSmall),
-                                              border: Border.all(
-                                                  color: AppColors.readableTableBorder(
-                                                      context)),
+                                                  BorderRadius.circular(AppDesignTokens.radiusMedium),
                                             ),
                                             child: Row(
                                               children: [
@@ -1174,11 +1167,9 @@ class _GuessSongByOpenLettersPageState
                                         children: [
                                           Container(
                                             decoration: BoxDecoration(
+                                              color: AppSurfaces.card(context),
                                               borderRadius:
-                                                  BorderRadius.circular(AppDesignTokens.radiusSmall),
-                                              border: Border.all(
-                                                  color: AppColors.readableTableBorder(
-                                                      context)),
+                                                  BorderRadius.circular(AppDesignTokens.radiusMedium),
                                             ),
                                             child: TextField(
                                               controller: _answerController,
@@ -1203,13 +1194,7 @@ class _GuessSongByOpenLettersPageState
                                               decoration: BoxDecoration(
                                                 borderRadius:
                                                     BorderRadius.circular(AppDesignTokens.radiusSmall),
-                                                border: Border.all(
-                                                    color:
-                                                        AppColors.readableTableBorder(
-                                                            context)),
-                                                color: Theme.of(context)
-                                                    .colorScheme
-                                                    .surface,
+                                                color: AppSurfaces.card(context),
                                                 boxShadow: [
                                                   AppColors.defaultShadow(
                                                       brightness)
@@ -1351,7 +1336,7 @@ class _GuessSongByOpenLettersPageState
                                             Text(
                                               '猜测历史',
                                               style: TextStyle(
-                                                fontSize: screenWidth * 0.04,
+                                                fontSize: 16,
                                                 fontWeight: FontWeight.bold,
                                               ),
                                             ),

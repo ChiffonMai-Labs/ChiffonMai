@@ -7,6 +7,7 @@ import '../../service/AWMC/AwmcPlayCountStore.dart';
 import '../../service/AWMC/AwmcStore.dart';
 import '../../utils/AppTheme.dart';
 import '../../widgets/QrQuickFillButtons.dart';
+import '../../utils/AppDesignTokens.dart';
 
 /// 独立读取机台游玩次数的结果。
 class AwmcPlayCountSyncOutcome {
@@ -112,7 +113,7 @@ class AwmcPlayCountSyncFlow {
                   decoration: InputDecoration(
                     hintText: '舞萌DX | 中二节奏登入二维码（SGWCMAID...）',
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                     ),
                     contentPadding: const EdgeInsets.all(12),
                   ),

@@ -22,6 +22,7 @@ import 'package:my_first_flutter_app/utils/ExportQualitySelector.dart';
 import 'package:my_first_flutter_app/utils/ImageEncodeUtil.dart';
 import 'package:my_first_flutter_app/widgets/BackgroundPageScaffold.dart';
 import '../utils/LuoXueToDivingFishUtil.dart';
+import '../utils/AppDesignTokens.dart';
 
 // 根据 formatVersion2 的顺序定义首字顺序
 const List<String> _firstCharOrder = [
@@ -305,7 +306,7 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
 
   // 获取难度颜色
   Color _getDifficultyColor(int difficulty) {
-    if (difficulty == -1) return Colors.black;
+    if (difficulty == -1) return Theme.of(context).colorScheme.primary;
     switch (difficulty) {
       case ChartDifficulty.basic:
         return Colors.green;
@@ -337,7 +338,7 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
     _paddingS = 4.0 * _scaleFactor;
     _paddingM = 12.0 * _scaleFactor;
     _paddingL = 10.0 * _scaleFactor;
-    _borderRadiusSmall = 8.0 * _scaleFactor;
+    _borderRadiusSmall = AppDesignTokens.radiusSmall;
     _textSizeXS = 9.0 * _scaleFactor;
     _textSizeS = 11.0 * _scaleFactor;
     _textSizeM = 12.0 * _scaleFactor;
@@ -446,7 +447,7 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
         SizedBox(height: _paddingXS),
         ElevatedButton(
           style: ElevatedButton.styleFrom(
-            backgroundColor: Theme.of(context).colorScheme.surface,
+            backgroundColor: AppSurfaces.card(context),
             foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
             minimumSize: Size(double.infinity, 40 * _scaleFactor),
             shape: RoundedRectangleBorder(
@@ -480,7 +481,7 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: _selectedTitleType == type
                     ? AppColors.linkBlue(Theme.of(context).brightness)
-                    : Theme.of(context).colorScheme.surface,
+                    : AppSurfaces.card(context),
                 foregroundColor: _selectedTitleType == type
                     ? Colors.white
                     : Theme.of(context).colorScheme.onSurfaceVariant,
@@ -526,7 +527,7 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: _selectedDifficulty == diff
                     ? _getDifficultyColor(diff)
-                    : Theme.of(context).colorScheme.surface,
+                    : AppSurfaces.card(context),
                 foregroundColor: _selectedDifficulty == diff
                     ? Colors.white
                     : Theme.of(context).colorScheme.onSurfaceVariant,
@@ -605,7 +606,7 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _selectedFirstChar == char
                           ? AppColors.linkBlue(Theme.of(context).brightness)
-                          : Theme.of(context).colorScheme.surface,
+                          : AppSurfaces.card(context),
                       alignment: Alignment.center,
                       padding: EdgeInsets.all(4),
                       minimumSize: Size(50, 50),
@@ -700,15 +701,9 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
       child: Container(
         decoration: BoxDecoration(
           color: isCompleted
-              ? Colors.lightGreen[100]!
-              : Theme.of(context).colorScheme.surface,
+              ? Theme.of(context).colorScheme.primaryContainer
+              : AppSurfaces.card(context),
           borderRadius: BorderRadius.circular(_borderRadiusSmall),
-          border: Border.all(
-            color: isCompleted
-                ? Colors.green
-                : Theme.of(context).colorScheme.outlineVariant,
-            width: 1,
-          ),
         ),
         padding: EdgeInsets.all(_paddingXS),
         child: Row(
@@ -736,7 +731,9 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
                     style: TextStyle(
                       fontSize: _textSizeS,
                       fontWeight: FontWeight.w500,
-                      color: isCompleted ? Colors.black87 : null,
+                      color: isCompleted
+                                    ? Theme.of(context).colorScheme.onPrimaryContainer
+                                    : null,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -747,7 +744,7 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
                     style: TextStyle(
                       fontSize: _textSizeXS,
                       color: isCompleted
-                          ? Colors.black54
+                          ? Theme.of(context).colorScheme.onPrimaryContainer
                           : Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
@@ -1012,11 +1009,8 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
         Container(
           width: double.infinity,
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            border: Border.all(
-                color: AppColors.readableTableBorder(context),
-                width: 1),
-            borderRadius: BorderRadius.circular(_borderRadiusSmall),
+            color: AppSurfaces.card(context),
+            borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
           ),
           padding:
               EdgeInsets.symmetric(vertical: _paddingXS, horizontal: _paddingM),
@@ -1122,10 +1116,8 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
         Container(
           width: double.infinity,
           decoration: BoxDecoration(
-            border: Border.all(
-                color: AppColors.readableTableBorder(context),
-                width: 1.0),
-            borderRadius: BorderRadius.circular(_borderRadiusSmall),
+            color: AppSurfaces.card(context),
+            borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
           ),
           padding: EdgeInsets.all(_paddingM),
           child: Column(
@@ -1270,7 +1262,7 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
               // 筛选模式切换按钮
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.surface,
+                  backgroundColor: AppSurfaces.card(context),
                   foregroundColor: Theme.of(context).colorScheme.onSurface,
                   minimumSize: Size(100 * _scaleFactor, 36 * _scaleFactor),
                   shape: RoundedRectangleBorder(
@@ -1299,7 +1291,7 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
               // 分割线显示模式切换按钮
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.surface,
+                  backgroundColor: AppSurfaces.card(context),
                   foregroundColor: Theme.of(context).colorScheme.onSurface,
                   minimumSize: Size(100 * _scaleFactor, 36 * _scaleFactor),
                   shape: RoundedRectangleBorder(
@@ -1320,7 +1312,7 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
               // 显示模式切换按钮
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.surface,
+                  backgroundColor: AppSurfaces.card(context),
                   foregroundColor: Theme.of(context).colorScheme.onSurface,
                   minimumSize: Size(100 * _scaleFactor, 36 * _scaleFactor),
                   shape: RoundedRectangleBorder(
@@ -1418,11 +1410,8 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
         Container(
           width: double.infinity,
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            border: Border.all(
-                color: AppColors.readableTableBorder(context),
-                width: 1),
-            borderRadius: BorderRadius.circular(_borderRadiusSmall),
+            color: AppSurfaces.card(context),
+            borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
           ),
           padding:
               EdgeInsets.symmetric(vertical: _paddingXS, horizontal: _paddingM),

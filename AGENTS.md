@@ -515,6 +515,8 @@ AppHeader(
 
 新组件加在这两个文件里，别在页面里各写一份。Hub 页继续用 `HubComponents.dart`。
 
+- `AnimatedChoiceBar`（老页面的等宽切换）与 `SegmentedTabs` 同一观感：凹槽底 + 白色滑块。选项放不下时缩小字号，不截断。
+
 ### 22.5 主导航：5 个标签
 
 首页 / 曲库 / 成绩 / **游玩** / 我的。「游玩」是 `PlayZoneHubPage`：顶部分段切换「出勤 | 休闲」，两边就是原来的 `AttendanceHubPage` / `PlayHubPage`。

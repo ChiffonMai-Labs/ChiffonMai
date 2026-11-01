@@ -7,6 +7,7 @@ import '../../utils/CollectionsImageUtil.dart';
 import '../../utils/AppTheme.dart';
 import 'CollectionInfoPage.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
+import '../../utils/AppDesignTokens.dart';
 
 class CollectionSearchPage extends StatefulWidget {
   const CollectionSearchPage({Key? key}) : super(key: key);
@@ -430,7 +431,7 @@ class _CollectionSearchPageState extends State<CollectionSearchPage>
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           alignment: Alignment.centerLeft,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
           ),
         ),
         child: Row(
@@ -444,7 +445,7 @@ class _CollectionSearchPageState extends State<CollectionSearchPage>
                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                 decoration: BoxDecoration(
                   color: colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                 ),
                 child: Text(
                   '$selectedCount',
@@ -549,7 +550,7 @@ class _CollectionSearchPageState extends State<CollectionSearchPage>
                     onPressed: _performSearch,
                   ),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8.0),
+                    borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                   ),
                 ),
                 onChanged: (value) {

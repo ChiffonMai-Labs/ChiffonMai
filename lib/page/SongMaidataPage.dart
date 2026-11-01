@@ -18,6 +18,7 @@ import '../manager/MaidataManager.dart';
 import '../widgets/BackgroundPageScaffold.dart';
 import 'ChartPlayPage.dart';
 import 'package:my_first_flutter_app/utils/ApiClient.dart';
+import '../utils/AppDesignTokens.dart';
 
 class SongMaidataPage extends StatefulWidget {
   final String songId;
@@ -515,7 +516,7 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
                         ),
                         textStyle: const TextStyle(fontSize: 16),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                         ),
                       ),
                       child: Text(difficultyName),
@@ -675,7 +676,7 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
       ),
       child: Text(
         '$label: $value',
@@ -744,7 +745,7 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                     child: CoverUtil.buildCoverWidgetWithContext(
                         context, widget.songId.toString(), 80),
                   ),
@@ -818,7 +819,7 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
                                   ),
                                   textStyle: const TextStyle(fontSize: 12),
                                   shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
+                                    borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                                   ),
                                 ),
                                 child: const Text('ALL'),
@@ -851,7 +852,7 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
                                     ),
                                     textStyle: const TextStyle(fontSize: 12),
                                     shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
+                                      borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                                     ),
                                   ),
                                   child: Text(difficultyName),

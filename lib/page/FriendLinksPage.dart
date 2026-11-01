@@ -8,6 +8,7 @@ import '../service/FriendLinksService.dart';
 import '../utils/AppTheme.dart';
 import '../widgets/BackgroundPageScaffold.dart';
 import '../widgets/SmoothLinearProgressIndicator.dart';
+import '../utils/AppDesignTokens.dart';
 
 /// 友情链接页面：以卡片形式展示推广同行的项目，点击通过外部浏览器打开。
 class FriendLinksPage extends StatefulWidget {
@@ -161,7 +162,7 @@ class _FriendLinksPageState extends State<FriendLinksPage> {
                             '点击卡片即可在浏览器中打开。',
                             style: TextStyle(
                               color: textSecondaryColor,
-                              fontSize: screenWidth * 0.032,
+                              fontSize: 12,
                               height: 1.4,
                             ),
                           ),
@@ -229,12 +230,9 @@ class _FriendLinkCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
+        color: AppSurfaces.card(context),
         // 用透明外框划分链接条目，点击效果仍由内部 Material 承载。
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outlineVariant,
-          width: 1,
-        ),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
       ),
       child: Material(
         color: Colors.transparent,
@@ -254,7 +252,7 @@ class _FriendLinkCard extends StatelessWidget {
                   height: screenWidth * 0.13,
                   decoration: BoxDecoration(
                     color: link.iconBg.withValues(alpha: 0.18),
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                   ),
                   alignment: Alignment.center,
                   child: Icon(
@@ -277,7 +275,7 @@ class _FriendLinkCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: textPrimaryColor,
-                          fontSize: screenWidth * 0.04,
+                          fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -289,7 +287,7 @@ class _FriendLinkCard extends StatelessWidget {
                         builder: (context, constraints) {
                           final descStyle = TextStyle(
                             color: textSecondaryColor,
-                            fontSize: screenWidth * 0.03,
+                            fontSize: 12,
                           );
                           final textPainter = TextPainter(
                             text: TextSpan(

@@ -12,6 +12,7 @@ import 'package:my_first_flutter_app/utils/CoverUtil.dart';
 import 'package:my_first_flutter_app/utils/StringUtil.dart';
 import 'package:my_first_flutter_app/widgets/BackgroundPageScaffold.dart';
 import 'package:my_first_flutter_app/widgets/KaleidXScopeSourceNotice.dart';
+import '../../utils/AppDesignTokens.dart';
 
 /// 新增门页。布局与青门至红门的攻略页保持一致，数据由门接口提供。
 class KaleidXScopeGatePage extends StatefulWidget {
@@ -192,9 +193,8 @@ class _KaleidXScopeGatePageState extends State<KaleidXScopeGatePage> {
     final bodyStyle = TextStyle(fontSize: _textSizeS, color: muted);
     return Container(
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(_borderRadiusSmall),
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+        color: AppSurfaces.card(context),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
       ),
       padding: EdgeInsets.all(_paddingM),
       child: Column(
@@ -269,10 +269,8 @@ class _KaleidXScopeGatePageState extends State<KaleidXScopeGatePage> {
             padding: EdgeInsets.only(bottom: _paddingL),
             child: Container(
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                borderRadius: BorderRadius.circular(_borderRadiusSmall),
-                border: Border.all(
-                    color: Theme.of(context).colorScheme.outlineVariant),
+                color: AppSurfaces.card(context),
+                borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
               ),
               padding: EdgeInsets.all(_paddingM),
               child: Column(
@@ -568,10 +566,8 @@ class _KaleidXScopeGatePageState extends State<KaleidXScopeGatePage> {
       child: Container(
         constraints: BoxConstraints(minHeight: _songCardHeight),
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(_borderRadiusSmall),
-          border:
-              Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+          color: AppSurfaces.card(context),
+          borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
         ),
         padding: EdgeInsets.all(_paddingXS),
         child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
@@ -635,10 +631,8 @@ class _KaleidXScopeGatePageState extends State<KaleidXScopeGatePage> {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Container(
         decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            border:
-                Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-            borderRadius: BorderRadius.circular(_borderRadiusSmall)),
+            color: AppSurfaces.card(context),
+            borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium)),
         padding: EdgeInsets.symmetric(
             horizontal: _paddingS, vertical: _paddingXS * .5),
         child: Center(
@@ -677,10 +671,8 @@ class _KaleidXScopeGatePageState extends State<KaleidXScopeGatePage> {
       if (allIds.isNotEmpty) ...[
         Container(
           decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface,
-              border: Border.all(
-                  color: Theme.of(context).colorScheme.outlineVariant),
-              borderRadius: BorderRadius.circular(_borderRadiusSmall)),
+              color: AppSurfaces.card(context),
+              borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium)),
           padding: EdgeInsets.symmetric(
               horizontal: _paddingS, vertical: _paddingXS * .5),
           child: Center(

@@ -14,6 +14,7 @@ import 'package:my_first_flutter_app/manager/DivingFish/MaimaiMusicDataManager.d
 import 'package:my_first_flutter_app/entity/DivingFish/Song.dart';
 import 'package:my_first_flutter_app/entity/KaleidXScope/KaleidXScopeGate.dart';
 import 'package:my_first_flutter_app/page/SongInfoPage.dart';
+import '../../utils/AppDesignTokens.dart';
 
 class KaleidXScopeInfoPageBLUE extends StatefulWidget {
   const KaleidXScopeInfoPageBLUE({
@@ -219,10 +220,8 @@ class _KaleidXScopeInfoPageBLUEState extends State<KaleidXScopeInfoPageBLUE> {
         // 解锁方法说明区域
         Container(
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            borderRadius: BorderRadius.circular(_borderRadiusSmall),
-            border:
-                Border.all(color: AppColors.tableBorder(brightness), width: 1),
+            color: AppSurfaces.card(context),
+            borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
           ),
           padding: EdgeInsets.all(_paddingM),
           child: Column(
@@ -366,10 +365,8 @@ class _KaleidXScopeInfoPageBLUEState extends State<KaleidXScopeInfoPageBLUE> {
       return Container(
         height: _songCardHeight,
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(_borderRadiusSmall),
-          border:
-              Border.all(color: AppColors.tableBorder(brightness), width: 1),
+          color: AppSurfaces.card(context),
+          borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
         ),
         child: Center(child: CircularProgressIndicator()),
       );
@@ -390,10 +387,8 @@ class _KaleidXScopeInfoPageBLUEState extends State<KaleidXScopeInfoPageBLUE> {
         child: Container(
           constraints: BoxConstraints(minHeight: _songCardHeight),
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            borderRadius: BorderRadius.circular(_borderRadiusSmall),
-            border:
-                Border.all(color: AppColors.tableBorder(brightness), width: 1),
+            color: AppSurfaces.card(context),
+            borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
           ),
           padding: EdgeInsets.all(_paddingXS),
           child: Row(
@@ -454,10 +449,8 @@ class _KaleidXScopeInfoPageBLUEState extends State<KaleidXScopeInfoPageBLUE> {
 
     return Container(
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(_borderRadiusSmall),
-          border:
-              Border.all(color: AppColors.tableBorder(brightness), width: 1),
+          color: AppSurfaces.card(context),
+          borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
         ),
         padding: EdgeInsets.all(_paddingM),
         child: Column(
@@ -580,10 +573,8 @@ class _KaleidXScopeInfoPageBLUEState extends State<KaleidXScopeInfoPageBLUE> {
         // 曲目池标题区域
         Container(
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            border:
-                Border.all(color: AppColors.tableBorder(brightness), width: 1),
-            borderRadius: BorderRadius.circular(_borderRadiusSmall),
+            color: AppSurfaces.card(context),
+            borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
           ),
           padding: EdgeInsets.symmetric(
               horizontal: _paddingS, vertical: _paddingXS * 0.5),
@@ -625,7 +616,7 @@ class _KaleidXScopeInfoPageBLUEState extends State<KaleidXScopeInfoPageBLUE> {
                         vertical: _paddingXS,
                       ),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                       ),
                     ),
                     child: Text(
@@ -824,10 +815,8 @@ class _KaleidXScopeInfoPageBLUEState extends State<KaleidXScopeInfoPageBLUE> {
       children: [
         Container(
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            border:
-                Border.all(color: AppColors.tableBorder(brightness), width: 1),
-            borderRadius: BorderRadius.circular(_borderRadiusSmall),
+            color: AppSurfaces.card(context),
+            borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
           ),
           padding: EdgeInsets.symmetric(
               horizontal: _paddingS, vertical: _paddingXS * 0.5),

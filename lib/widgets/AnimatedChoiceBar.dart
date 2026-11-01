@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../utils/AppDesignTokens.dart';
+
 /// 等宽选项切换：背景滑动，文字颜色淡入淡出，状态仍由页面持有。
 class AnimatedChoiceBar<T> extends StatelessWidget {
   final List<T> values;
@@ -19,7 +21,13 @@ class AnimatedChoiceBar<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    // 与 SegmentedTabs 同一观感：凹槽底 + 白色滑块，深色下滑块改用容器色。
+    final dark = theme.brightness == Brightness.dark;
+    final thumbColor =
+        dark ? scheme.secondaryContainer : AppSurfaces.card(context);
+    final thumbText = dark ? scheme.onSecondaryContainer : scheme.onSurface;
     final duration = MediaQuery.disableAnimationsOf(context)
         ? Duration.zero
         : const Duration(milliseconds: 240);
@@ -32,9 +40,9 @@ class AnimatedChoiceBar<T> extends StatelessWidget {
           width: width,
           child: DecoratedBox(
               decoration: BoxDecoration(
-                  color: scheme.surfaceContainerLow,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: scheme.outlineVariant)),
+                  color: AppSurfaces.track(context),
+                  borderRadius:
+                      BorderRadius.circular(AppDesignTokens.radiusMedium)),
               child: Stack(children: [
                 AnimatedPositioned(
                     duration: duration,
@@ -45,8 +53,9 @@ class AnimatedChoiceBar<T> extends StatelessWidget {
                     width: width / values.length - 6,
                     child: DecoratedBox(
                         decoration: BoxDecoration(
-                            color: scheme.primaryContainer,
-                            borderRadius: BorderRadius.circular(11)))),
+                            color: thumbColor,
+                            borderRadius: BorderRadius.circular(
+                                AppDesignTokens.radiusSmall)))),
                 Row(children: [
                   for (final option in values)
                     Expanded(
@@ -82,18 +91,18 @@ class AnimatedChoiceBar<T> extends StatelessWidget {
                                                     fontSize:
                                                         compact ? 11 : null,
                                                     color: option == value
-                                                        ? scheme
-                                                            .onPrimaryContainer
+                                                        ? thumbText
                                                         : scheme
                                                             .onSurfaceVariant,
                                                     fontWeight: option == value
                                                         ? FontWeight.bold
                                                         : FontWeight.w500),
-                                            child: Text(label(option),
-                                                textAlign: TextAlign.center,
-                                                maxLines: 1,
-                                                overflow:
-                                                    TextOverflow.ellipsis)))))))
+                                            // 放不下时缩小，不截断选项名。
+                                            child: FittedBox(
+                                                fit: BoxFit.scaleDown,
+                                                child: Text(label(option),
+                                                    textAlign: TextAlign.center,
+                                                    maxLines: 1))))))))
                 ]),
               ])));
     });

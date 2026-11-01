@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:my_first_flutter_app/utils/StringUtil.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import 'package:my_first_flutter_app/utils/ThemeManager.dart';
+import 'AppDesignTokens.dart';
 
 /**
  * 通用Widget工具类
@@ -168,8 +169,8 @@ class CommonWidgetUtil {
     return Container(
       height: 200,
       decoration: BoxDecoration(
-        border: Border.all(color: AppColors.readableTableBorder(context)),
-        borderRadius: BorderRadius.circular(8),
+        color: AppSurfaces.inset(context),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
       ),
       child: ListView.builder(
         padding: EdgeInsets.zero,

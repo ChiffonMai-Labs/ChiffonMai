@@ -4,6 +4,7 @@ import '../utils/AppTheme.dart';
 import '../utils/ExternalLaunchUtil.dart';
 import '../utils/ExportPathUtil.dart';
 import '../widgets/BackgroundPageScaffold.dart';
+import '../utils/AppDesignTokens.dart';
 
 /// 支持开发者页面：展示赞赏码与爱发电链接。
 class SupportDeveloperPage extends StatefulWidget {
@@ -118,7 +119,7 @@ class _SupportDeveloperPageState extends State<SupportDeveloperPage> {
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: textSecondaryColor,
-                fontSize: screenWidth * 0.035,
+                fontSize: 14,
                 height: 1.6,
               ),
             ),
@@ -127,17 +128,15 @@ class _SupportDeveloperPageState extends State<SupportDeveloperPage> {
               '微信赞赏码',
               style: TextStyle(
                 color: textPrimaryColor,
-                fontSize: screenWidth * 0.045,
+                fontSize: 18,
                 fontWeight: FontWeight.bold,
               ),
             ),
             SizedBox(height: screenWidth * 0.03),
             Container(
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: Theme.of(context).colorScheme.outlineVariant,
-                ),
+                color: AppSurfaces.card(context),
+                borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
               ),
               clipBehavior: Clip.antiAlias,
               child: Image.asset(
@@ -157,7 +156,7 @@ class _SupportDeveloperPageState extends State<SupportDeveloperPage> {
               '或通过爱发电支持我',
               style: TextStyle(
                 color: textPrimaryColor,
-                fontSize: screenWidth * 0.045,
+                fontSize: 18,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -179,7 +178,7 @@ class _SupportDeveloperPageState extends State<SupportDeveloperPage> {
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: textSecondaryColor,
-                fontSize: screenWidth * 0.032,
+                fontSize: 12,
               ),
             ),
           ],

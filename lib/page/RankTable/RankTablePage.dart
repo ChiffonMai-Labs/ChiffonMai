@@ -7,6 +7,7 @@ import 'package:my_first_flutter_app/page/RankTable/RankTableDetailPage.dart';
 import 'package:my_first_flutter_app/widgets/BackgroundPageScaffold.dart';
 import '../../service/RankTable/RankCompletionStore.dart';
 import '../../widgets/RankCompletionButton.dart';
+import '../../utils/AppDesignTokens.dart';
 
 class RankListPage extends StatefulWidget {
   const RankListPage({super.key});
@@ -51,7 +52,7 @@ class _RankListPageState extends State<RankListPage> {
     _paddingXS = 4.0 * _scaleFactor;
     _paddingS = 4.0 * _scaleFactor;
     _paddingM = 12.0 * _scaleFactor;
-    _borderRadiusSmall = 8.0 * _scaleFactor;
+    _borderRadiusSmall = AppDesignTokens.radiusSmall;
     _textSizeM = 12.0 * _scaleFactor;
 
     return BackgroundPageScaffold(
@@ -102,20 +103,15 @@ class _RankListPageState extends State<RankListPage> {
                           AppColors.warningOrange(brightness)
                               .withValues(alpha: .25),
                         RankCompletion.unplayed =>
-                          Theme.of(context).colorScheme.surfaceContainerLow,
+                          AppSurfaces.card(context),
                       },
                       foregroundColor: Theme.of(context).colorScheme.onSurface,
                       padding: EdgeInsetsDirectional.fromSTEB(
                           16 * _scaleFactor, 8, 20 * _scaleFactor, 8),
                       minimumSize: Size(double.infinity, 56 * _scaleFactor),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(_borderRadiusSmall),
-                        side: BorderSide(
-                          color: isNormalRank
-                              ? AppColors.medalColor('bronze')
-                              : Colors.purple,
-                          width: 1,
-                        ),
+                        borderRadius:
+                            BorderRadius.circular(AppDesignTokens.radiusMedium),
                       ),
                     ),
                     onPressed: () {

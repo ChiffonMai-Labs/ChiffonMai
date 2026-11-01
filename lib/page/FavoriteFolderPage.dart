@@ -18,6 +18,8 @@ import 'package:my_first_flutter_app/manager/DivingFish/UserPlayDataManager.dart
 import 'package:my_first_flutter_app/entity/DivingFish/UserPlayDataEntity.dart';
 import 'package:my_first_flutter_app/entity/DXRating/MaiTagsModel.dart';
 import 'SongInfoPage.dart';
+import '../utils/AppDesignTokens.dart';
+import '../widgets/MarqueeText.dart';
 
 /// 收藏夹管理页面：查看所有收藏夹、创建/重命名/删除收藏夹，浏览收藏夹内的谱面
 class FavoriteFolderPage extends StatefulWidget {
@@ -263,15 +265,14 @@ class _FavoriteFolderPageState extends State<FavoriteFolderPage> {
     final chartCount = folder.charts.length;
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: AppDesignTokens.cardGap),
       elevation: 0,
-      color: Colors.transparent,
+      color: AppSurfaces.card(context),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
       ),
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
         onTap: () => _viewFolder(folder),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -281,11 +282,13 @@ class _FavoriteFolderPageState extends State<FavoriteFolderPage> {
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  color: Colors.pink.shade50,
-                  borderRadius: BorderRadius.circular(12),
+                  color: Theme.of(context).colorScheme.primaryContainer,
+                  borderRadius:
+                      BorderRadius.circular(AppDesignTokens.radiusSmall),
                 ),
-                child:
-                    Icon(Icons.favorite, color: Colors.pink.shade400, size: 28),
+                child: Icon(Icons.star_rounded,
+                    color: Theme.of(context).colorScheme.onPrimaryContainer,
+                    size: 28),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -298,8 +301,6 @@ class _FavoriteFolderPageState extends State<FavoriteFolderPage> {
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -327,9 +328,9 @@ class _FavoriteFolderPageState extends State<FavoriteFolderPage> {
                 },
                 itemBuilder: (ctx) => [
                   const PopupMenuItem(value: 'rename', child: Text('重命名')),
-                  const PopupMenuItem(
+                  PopupMenuItem(
                     value: 'delete',
-                    child: Text('删除', style: TextStyle(color: Colors.red)),
+                    child: Text('删除', style: TextStyle(color: Theme.of(context).colorScheme.error)),
                   ),
                 ],
               ),
@@ -679,9 +680,8 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
                                           value:
                                               tagEntry.value / _charts.length,
                                           minHeight: 18,
-                                          backgroundColor: Theme.of(context)
-                                              .colorScheme
-                                              .surface,
+                                          backgroundColor:
+                                              AppSurfaces.track(context),
                                           valueColor:
                                               AlwaysStoppedAnimation<Color>(
                                                   barColor),
@@ -853,12 +853,12 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
     final brightness = Theme.of(context).brightness;
     final isUtage = songId.length == 6;
     if (isUtage) {
-      return const Text(
+      return Text(
         'UT',
         style: TextStyle(
           fontSize: 15,
           fontWeight: FontWeight.w600,
-          color: Colors.red,
+          color: AppColors.errorRed(brightness),
         ),
       );
     } else if (type == 'DX') {
@@ -884,38 +884,20 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
 
   Widget _buildDifficultyTag(
       String difficultyLabel, int levelIndex, String songId) {
-    Color bgColor;
-    Color textColor;
-
+    final scheme = Theme.of(context).colorScheme;
+    final Color bgColor;
+    final Color textColor;
     if (songId.length == 6) {
-      bgColor = Colors.red.shade100;
-      textColor = Colors.red;
+      bgColor = scheme.errorContainer;
+      textColor = scheme.onErrorContainer;
+    } else if (levelIndex >= 0 && levelIndex <= ChartDifficulty.reMaster) {
+      final badge =
+          AppColors.difficultyBadge(levelIndex, Theme.of(context).brightness);
+      bgColor = badge.background;
+      textColor = badge.foreground;
     } else {
-      switch (levelIndex) {
-        case ChartDifficulty.basic: // BASIC
-          bgColor = Colors.green.shade100;
-          textColor = Colors.green.shade700;
-          break;
-        case ChartDifficulty.advanced: // ADVANCED
-          bgColor = Colors.orange.shade100;
-          textColor = Colors.orange.shade700;
-          break;
-        case ChartDifficulty.expert: // EXPERT
-          bgColor = Colors.red.shade100;
-          textColor = Colors.red;
-          break;
-        case ChartDifficulty.master: // MASTER
-          bgColor = Colors.purple.shade100;
-          textColor = Colors.purple.shade700;
-          break;
-        case ChartDifficulty.reMaster: // Re:MASTER
-          bgColor = Colors.purple.shade100;
-          textColor = Colors.purple.shade300;
-          break;
-        default:
-          bgColor = Theme.of(context).colorScheme.surface;
-          textColor = Theme.of(context).colorScheme.onSurfaceVariant;
-      }
+      bgColor = AppSurfaces.inset(context);
+      textColor = scheme.onSurfaceVariant;
     }
 
     return Container(
@@ -958,23 +940,20 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
     final isSelected = _selectedKeys.contains(chart.uniqueKey);
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: const EdgeInsets.only(bottom: 10),
       elevation: 0,
       color: isSelected
-          ? Theme.of(context)
-              .colorScheme
-              .primaryContainer
-              .withValues(alpha: .35)
-          : Colors.transparent,
+          ? Theme.of(context).colorScheme.primaryContainer
+          : AppSurfaces.card(context),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
         side: isSelected
             ? BorderSide(
                 color: Theme.of(context).colorScheme.primary, width: 1.5)
-            : BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+            : BorderSide.none,
       ),
       child: InkWell(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
         onTap: () {
           if (_isBatchMode) {
             setState(() {
@@ -1013,7 +992,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
               if (_isBatchMode) ...[
                 Checkbox(
                   value: isSelected,
-                  activeColor: Colors.blue,
+                  activeColor: Theme.of(context).colorScheme.primary,
                   onChanged: (value) {
                     setState(() {
                       if (value == true) {
@@ -1029,7 +1008,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
               ],
               // 左侧：曲绘
               ClipRRect(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                 child: CoverUtil.buildCoverWidget(chart.songId, 60),
               ),
               const SizedBox(width: 12),
@@ -1044,14 +1023,12 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
                         _buildTypeTag(songType, chart.songId),
                         const SizedBox(width: 6),
                         Expanded(
-                          child: Text(
-                            chart.songTitle,
+                          child: MarqueeText(
+                            text: chart.songTitle,
                             style: const TextStyle(
                               fontWeight: FontWeight.w600,
                               fontSize: 15,
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
@@ -1066,10 +1043,8 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
                       _buildChartInfoLine(chart, version, genre),
                       style: TextStyle(
                         fontSize: 12,
-                        color: AppColors.greyHint(Theme.of(context).brightness),
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
@@ -1079,7 +1054,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
               if (!_isBatchMode)
                 IconButton(
                   icon: Icon(Icons.remove_circle_outline,
-                      color: Colors.red.shade300),
+                      color: Theme.of(context).colorScheme.error),
                   tooltip: '从收藏夹移除',
                   onPressed: () => _removeChart(chart),
                 ),
@@ -1093,11 +1068,14 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
   /// 构建卡片第三行：定数 | [达成率] | 版本 | 流派
   String _buildChartInfoLine(
       FavoriteChart chart, String version, String genre) {
-    final ds = chart.ds.toStringAsFixed(1);
-    if (chart.achievement != null) {
-      return '$ds | ${chart.achievement!.toStringAsFixed(1)}% | $version | $genre';
-    }
-    return '$ds | $version | $genre';
+    // 曲库没有这首歌时版本和流派为空，不留空的分隔符。
+    return [
+      chart.ds.toStringAsFixed(1),
+      if (chart.achievement != null)
+        '${chart.achievement!.toStringAsFixed(1)}%',
+      version,
+      genre,
+    ].where((part) => part.isNotEmpty).join(' | ');
   }
 
   /// 批量操作工具栏
@@ -1129,8 +1107,9 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
         ),
         TextButton.icon(
           onPressed: _selectedKeys.isEmpty ? null : _batchRemoveCharts,
-          icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
-          label: const Text('删除', style: TextStyle(color: Colors.red)),
+          icon: Icon(Icons.delete_outline,
+              size: 18, color: Theme.of(context).colorScheme.error),
+          label: Text('删除', style: TextStyle(color: Theme.of(context).colorScheme.error)),
         ),
       ],
     );

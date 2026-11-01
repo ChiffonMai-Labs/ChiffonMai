@@ -519,13 +519,13 @@ class _BookmarkFolderSelectorDialogState
                 color: brightness == Brightness.dark
                     ? const Color(0xFF2A2010)
                     : Colors.amber.shade50,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
               ),
               child: Row(
                 children: [
                   // 左侧：曲绘
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                     child: CoverUtil.buildCoverWidget(widget.chart.songId, 60),
                   ),
                   const SizedBox(width: 12),

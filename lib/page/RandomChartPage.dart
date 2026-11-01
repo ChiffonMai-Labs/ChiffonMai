@@ -11,6 +11,7 @@ import 'package:my_first_flutter_app/page/SongInfoPage.dart';
 import 'package:my_first_flutter_app/utils/StringUtil.dart';
 import '../widgets/BackgroundPageScaffold.dart';
 import '../widgets/RandomChartRollingResults.dart';
+import '../utils/AppDesignTokens.dart';
 
 class RandomChartPage extends StatefulWidget {
   const RandomChartPage({super.key});
@@ -427,7 +428,7 @@ class _RandomChartPageState extends State<RandomChartPage> {
             padding: const EdgeInsets.all(12),
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                   child: CoverUtil.buildCoverWidgetWithContext(
                       context, song.id, 72)),
               const SizedBox(width: 12),
@@ -504,8 +505,8 @@ class _RandomChartPageState extends State<RandomChartPage> {
     final spacingLarge = screenWidth * 0.06; // 大间距
     final gridItemSpacing = screenWidth * 0.03; // 网格项间距
 
-    final filterTextStyle = DefaultTextStyle.of(context)
-        .style
+    // 这里的 context 在 Scaffold 之上，取不到页面的默认文字样式，要走主题。
+    final filterTextStyle = theme.textTheme.bodyMedium!
         .copyWith(fontSize: textSizeSmall, color: scheme.onSurface);
     final filterText = TextPainter(
       text: TextSpan(text: '全部类型', style: filterTextStyle),
@@ -536,8 +537,8 @@ class _RandomChartPageState extends State<RandomChartPage> {
               padding:
                   EdgeInsets.fromLTRB(cardPadding, 8, cardPadding, cardPadding),
               decoration: BoxDecoration(
-                color: scheme.surfaceContainerLow,
-                borderRadius: BorderRadius.circular(borderRadius),
+                color: AppSurfaces.card(context),
+                borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -570,7 +571,7 @@ class _RandomChartPageState extends State<RandomChartPage> {
                               inputDecorationTheme:
                                   theme.inputDecorationTheme.copyWith(
                                 filled: true,
-                                fillColor: scheme.surface,
+                                fillColor: AppSurfaces.inset(context),
                               ),
                             ),
                             child: NumberStepper(
@@ -609,13 +610,9 @@ class _RandomChartPageState extends State<RandomChartPage> {
                                     horizontal: spacingSmall,
                                     vertical: spacingSmall),
                                 decoration: BoxDecoration(
-                                  color: scheme.surface,
-                                  border: Border.all(
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .outlineVariant),
-                                  borderRadius:
-                                      BorderRadius.circular(borderRadius),
+                                  color: AppSurfaces.inset(context),
+                                  borderRadius: BorderRadius.circular(
+                                      AppDesignTokens.radiusSmall),
                                 ),
                                 child: Row(
                                   children: [
@@ -662,13 +659,9 @@ class _RandomChartPageState extends State<RandomChartPage> {
                                     horizontal: spacingSmall,
                                     vertical: spacingSmall),
                                 decoration: BoxDecoration(
-                                  color: scheme.surface,
-                                  border: Border.all(
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .outlineVariant),
-                                  borderRadius:
-                                      BorderRadius.circular(borderRadius),
+                                  color: AppSurfaces.inset(context),
+                                  borderRadius: BorderRadius.circular(
+                                      AppDesignTokens.radiusSmall),
                                 ),
                                 child: Row(
                                   children: [
@@ -717,12 +710,11 @@ class _RandomChartPageState extends State<RandomChartPage> {
                                           height: filterFieldHeight),
                                       isDense: true,
                                       filled: true,
-                                      fillColor: scheme.surface,
+                                      fillColor: AppSurfaces.inset(context),
                                       hintStyle: TextStyle(
                                           color: scheme.onSurfaceVariant),
                                       border: OutlineInputBorder(
-                                        borderSide: BorderSide(
-                                            color: scheme.outlineVariant),
+                                        borderSide: BorderSide.none,
                                         borderRadius:
                                             BorderRadius.circular(borderRadius),
                                       ),
@@ -747,12 +739,11 @@ class _RandomChartPageState extends State<RandomChartPage> {
                                           height: filterFieldHeight),
                                       isDense: true,
                                       filled: true,
-                                      fillColor: scheme.surface,
+                                      fillColor: AppSurfaces.inset(context),
                                       hintStyle: TextStyle(
                                           color: scheme.onSurfaceVariant),
                                       border: OutlineInputBorder(
-                                        borderSide: BorderSide(
-                                            color: scheme.outlineVariant),
+                                        borderSide: BorderSide.none,
                                         borderRadius:
                                             BorderRadius.circular(borderRadius),
                                       ),

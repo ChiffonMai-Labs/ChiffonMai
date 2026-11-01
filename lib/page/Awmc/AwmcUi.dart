@@ -5,6 +5,7 @@ import '../../service/AWMC/AwmcApiService.dart';
 import '../../service/AWMC/AwmcStore.dart';
 import '../../widgets/AppHeader.dart';
 import '../../widgets/QrQuickFillButtons.dart';
+import '../../utils/AppDesignTokens.dart';
 
 /// AWMC 控制台的公共 UI 组件（结果展示 / 凭据输入 / 写入二次确认）。
 ///
@@ -493,7 +494,7 @@ class AwmcUi {
         color: high
             ? scheme.errorContainer
             : scheme.surfaceContainerHighest.withValues(alpha: .8),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
         border: Border.all(color: scheme.outlineVariant),
       ),
       child: Text(
@@ -513,7 +514,7 @@ class AwmcUi {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
         color: scheme.errorContainer,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
       ),
       child: Text(
         text,

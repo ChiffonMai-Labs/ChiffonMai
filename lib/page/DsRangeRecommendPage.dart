@@ -8,6 +8,8 @@ import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import 'package:my_first_flutter_app/utils/CoverUtil.dart';
 import 'package:my_first_flutter_app/utils/StringUtil.dart';
 import '../widgets/BackgroundPageScaffold.dart';
+import '../utils/AppDesignTokens.dart';
+import '../widgets/AppUi.dart';
 
 class DsRangeRecommendPage extends StatefulWidget {
   const DsRangeRecommendPage({super.key});
@@ -99,26 +101,6 @@ class _DsRangeRecommendPageState extends State<DsRangeRecommendPage> {
     final parsed = double.tryParse(value);
     if (parsed != null && parsed <= 15.0) {
       _maxDs = parsed;
-    }
-  }
-
-  Color _getBackgroundColor(int diffIndex, int difficultyCount) {
-    if (difficultyCount <= 2) {
-      return const Color(0xFFE9D8FF);
-    }
-    switch (diffIndex) {
-      case ChartDifficulty.basic:
-        return const Color(0xFFE8F5E8);
-      case ChartDifficulty.advanced:
-        return const Color(0xFFFFF8E1);
-      case ChartDifficulty.expert:
-        return const Color(0xFFFCE4EC);
-      case ChartDifficulty.master:
-        return const Color(0xFFE9D8FF);
-      case ChartDifficulty.reMaster:
-        return const Color(0xFFF3E5F5);
-      default:
-        return const Color(0xFFE9D8FF);
     }
   }
 
@@ -240,7 +222,7 @@ class _DsRangeRecommendPageState extends State<DsRangeRecommendPage> {
                       contentPadding: const EdgeInsets.symmetric(
                           horizontal: 12, vertical: 8),
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                       ),
                       isDense: true,
                       hintText: '最低',
@@ -277,7 +259,7 @@ class _DsRangeRecommendPageState extends State<DsRangeRecommendPage> {
                       contentPadding: const EdgeInsets.symmetric(
                           horizontal: 12, vertical: 8),
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                       ),
                       isDense: true,
                       hintText: '最高',
@@ -296,25 +278,7 @@ class _DsRangeRecommendPageState extends State<DsRangeRecommendPage> {
             ],
           ),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _buildSortButton(
-                  '平均达成率推荐',
-                  'avg',
-                  brightness,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildSortButton(
-                  '定数差值推荐',
-                  'diff',
-                  brightness,
-                ),
-              ),
-            ],
-          ),
+          _buildSortTabs(),
           if (_results.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 8),
@@ -332,34 +296,21 @@ class _DsRangeRecommendPageState extends State<DsRangeRecommendPage> {
     );
   }
 
-  Widget _buildSortButton(String label, String mode, Brightness brightness) {
-    final isSelected = _sortMode == mode;
-    return ElevatedButton(
-      onPressed: () {
-        if (_sortMode != mode) {
-          setState(() {
-            _sortMode = mode;
-          });
-          _loadRecommendations();
-        }
+  Widget _buildSortTabs() {
+    const modes = ['avg', 'diff'];
+    return SegmentedTabs(
+      height: 44,
+      items: const [
+        SegmentedTabItem('平均达成率推荐'),
+        SegmentedTabItem('定数差值推荐'),
+      ],
+      selectedIndex: modes.indexOf(_sortMode),
+      onChanged: (index) {
+        setState(() {
+          _sortMode = modes[index];
+        });
+        _loadRecommendations();
       },
-      style: ElevatedButton.styleFrom(
-        backgroundColor: isSelected
-            ? Theme.of(context).colorScheme.primary
-            : Theme.of(context).colorScheme.surface,
-        foregroundColor: isSelected
-            ? Theme.of(context).colorScheme.onPrimary
-            : Theme.of(context).colorScheme.onSurface,
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
-      ),
-      child: Text(
-        label,
-        textAlign: TextAlign.center,
-        style: const TextStyle(fontSize: 13),
-      ),
     );
   }
 
@@ -416,12 +367,6 @@ class _DsRangeRecommendPageState extends State<DsRangeRecommendPage> {
 
   Widget _buildResultCard(
       DsRangeRecommendItem item, Brightness brightness, double screenWidth) {
-    final bgColor = brightness == Brightness.dark
-        ? Colors.black
-        : _getBackgroundColor(item.levelIndex, item.difficultyCount);
-    final borderColor = brightness == Brightness.dark
-        ? _getBackgroundColor(item.levelIndex, item.difficultyCount)
-        : bgColor;
     final typeColor = _getTypeColor(item.type, brightness);
     final typeLabel = StringUtil.formatSongType(item.type);
 
@@ -440,21 +385,15 @@ class _DsRangeRecommendPageState extends State<DsRangeRecommendPage> {
       child: Container(
         margin: EdgeInsets.only(bottom: screenWidth * 0.03),
         decoration: BoxDecoration(
-          color: brightness == Brightness.dark
-              ? bgColor
-              : bgColor.withValues(alpha: 0.5),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: borderColor,
-            width: 1.5,
-          ),
+          color: AppSurfaces.card(context),
+          borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
         ),
         child: Row(
           children: [
             ClipRRect(
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(9),
-                bottomLeft: Radius.circular(9),
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(AppDesignTokens.radiusMedium),
+                bottomLeft: Radius.circular(AppDesignTokens.radiusMedium),
               ),
               child: SizedBox(
                 width: 80,

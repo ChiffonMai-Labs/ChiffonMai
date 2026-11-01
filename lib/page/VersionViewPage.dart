@@ -12,6 +12,7 @@ import 'package:my_first_flutter_app/utils/StringUtil.dart';
 import 'package:my_first_flutter_app/utils/NavigationPreferences.dart';
 import '../widgets/AnimatedChoiceBar.dart';
 import '../widgets/BackgroundPageScaffold.dart';
+import '../utils/AppDesignTokens.dart';
 
 /// 一个版本在日服与国服中的显示信息。
 ///
@@ -442,9 +443,8 @@ class _VersionViewState extends State<VersionView> {
               Container(
                 padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
                 decoration: BoxDecoration(
-                  color: scheme.surfaceContainerLow,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: scheme.outlineVariant),
+                  color: AppSurfaces.card(context),
+                  borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
                 ),
                 child: Row(
                   children: [
@@ -523,9 +523,8 @@ class _VersionViewState extends State<VersionView> {
           onTap: imagePath.isEmpty ? null : () => _showPreview(version),
           child: Ink(
             decoration: BoxDecoration(
-              color: scheme.surfaceContainerLow,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: scheme.outlineVariant),
+              color: AppSurfaces.card(context),
+              borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
             ),
             padding: const EdgeInsets.fromLTRB(10, 10, 10, 12),
             child: Column(

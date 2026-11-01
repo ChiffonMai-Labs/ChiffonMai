@@ -4,6 +4,7 @@ import 'package:my_first_flutter_app/service/chongxi/MaimaiServerStatusService.d
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import 'package:my_first_flutter_app/utils/ExternalLaunchUtil.dart';
 import '../widgets/BackgroundPageScaffold.dart';
+import '../utils/AppDesignTokens.dart';
 
 /// 舞萌服务器状态页面。
 ///
@@ -161,8 +162,8 @@ class _MaimaiServerStatusPageState extends State<MaimaiServerStatusPage> {
         Container(
           height: 168,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: scheme.outlineVariant),
+            color: AppSurfaces.card(context),
+            borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
           ),
           child: Center(
             child: Column(
@@ -189,8 +190,8 @@ class _MaimaiServerStatusPageState extends State<MaimaiServerStatusPage> {
             height: 72,
             margin: const EdgeInsets.only(bottom: 8),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: scheme.outlineVariant),
+              color: AppSurfaces.card(context),
+              borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
             ),
             child: Center(
               child: SizedBox(

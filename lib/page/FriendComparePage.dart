@@ -13,6 +13,7 @@ import 'package:my_first_flutter_app/utils/ExternalLaunchUtil.dart';
 import 'SongInfoPage.dart';
 import '../widgets/BackgroundPageScaffold.dart';
 import '../widgets/AnimatedChoiceLabel.dart';
+import '../utils/AppDesignTokens.dart';
 
 class FriendComparePage extends StatefulWidget {
   const FriendComparePage({super.key});
@@ -151,7 +152,7 @@ class _FriendComparePageState extends State<FriendComparePage> {
                                   hintText: '输入好友的 QQ 号',
                                   prefixIcon: Icon(Icons.person_search),
                                   border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(10),
+                                    borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                                   ),
                                   contentPadding: EdgeInsets.symmetric(
                                     horizontal: 16,
@@ -187,7 +188,7 @@ class _FriendComparePageState extends State<FriendComparePage> {
                                   vertical: 14,
                                 ),
                                 shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
+                                  borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                                 ),
                               ),
                             ),
@@ -201,7 +202,7 @@ class _FriendComparePageState extends State<FriendComparePage> {
                             decoration: BoxDecoration(
                               color: AppColors.errorRed(brightness)
                                   .withValues(alpha: 0.08),
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                               border: Border.all(
                                   color: AppColors.errorRed(brightness)
                                       .withValues(alpha: 0.3)),
@@ -510,8 +511,8 @@ class _FriendComparePageState extends State<FriendComparePage> {
         margin: EdgeInsets.only(bottom: 8),
         padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          border: Border.all(color: AppColors.tableBorder(brightness)),
-          borderRadius: BorderRadius.circular(10),
+          color: AppSurfaces.card(context),
+          borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
         ),
         child: Row(
           children: [
@@ -558,7 +559,7 @@ class _FriendComparePageState extends State<FriendComparePage> {
       padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: color.withAlpha(25),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
       ),
       child: Text(text,
           style: TextStyle(
@@ -758,8 +759,8 @@ class _FriendComparePageState extends State<FriendComparePage> {
       child: Container(
         margin: EdgeInsets.only(bottom: 8),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppColors.tableBorder(brightness)),
+          color: AppSurfaces.card(context),
+          borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),

@@ -118,7 +118,8 @@ class _DifficultyDistributionPageState
                   scrollDirection: Axis.horizontal,
                   child: Row(
                     children: [
-                      _buildLevelChip('全部', -1, Colors.grey),
+                      _buildLevelChip(
+                          '全部', -1, Theme.of(context).colorScheme.primary),
                       for (int i = 0; i < _levelNames.length; i++)
                         _buildLevelChip(_levelNames[i], i, _levelColors[i]),
                     ],
@@ -353,7 +354,7 @@ class _DifficultyDistributionPageState
         _selectedLevelIndex < _levelColors.length) {
       return _levelColors[_selectedLevelIndex];
     }
-    return Colors.blue;
+    return Theme.of(context).colorScheme.primary;
   }
 
   void _showBucketDetail(DistributionBucket bucket) {

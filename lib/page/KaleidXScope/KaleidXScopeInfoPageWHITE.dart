@@ -17,6 +17,7 @@ import 'package:my_first_flutter_app/page/Collection/CollectionInfoPage.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import 'package:my_first_flutter_app/widgets/KaleidXScopeSourceNotice.dart';
 import 'package:my_first_flutter_app/widgets/BackgroundPageScaffold.dart';
+import '../../utils/AppDesignTokens.dart';
 
 class KaleidXScopeInfoPageWHITE extends StatefulWidget {
   const KaleidXScopeInfoPageWHITE({
@@ -200,10 +201,8 @@ class _KaleidXScopeInfoPageWHITEState extends State<KaleidXScopeInfoPageWHITE> {
         // 解锁方法说明区域
         Container(
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            borderRadius: BorderRadius.circular(_borderRadiusSmall),
-            border:
-                Border.all(color: AppColors.tableBorder(brightness), width: 1),
+            color: AppSurfaces.card(context),
+            borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
           ),
           padding: EdgeInsets.all(_paddingM),
           child: Column(
@@ -381,10 +380,8 @@ class _KaleidXScopeInfoPageWHITEState extends State<KaleidXScopeInfoPageWHITE> {
       return Container(
         height: _songCardHeight,
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(_borderRadiusSmall),
-          border:
-              Border.all(color: AppColors.tableBorder(brightness), width: 1),
+          color: AppSurfaces.card(context),
+          borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
         ),
         child: Center(child: CircularProgressIndicator()),
       );
@@ -405,10 +402,8 @@ class _KaleidXScopeInfoPageWHITEState extends State<KaleidXScopeInfoPageWHITE> {
         child: Container(
           constraints: BoxConstraints(minHeight: _songCardHeight),
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            borderRadius: BorderRadius.circular(_borderRadiusSmall),
-            border:
-                Border.all(color: AppColors.tableBorder(brightness), width: 1),
+            color: AppSurfaces.card(context),
+            borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
           ),
           padding: EdgeInsets.all(_paddingXS),
           child: Row(
@@ -469,10 +464,8 @@ class _KaleidXScopeInfoPageWHITEState extends State<KaleidXScopeInfoPageWHITE> {
 
     return Container(
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(_borderRadiusSmall),
-          border:
-              Border.all(color: AppColors.tableBorder(brightness), width: 1),
+          color: AppSurfaces.card(context),
+          borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
         ),
         padding: EdgeInsets.all(_paddingM),
         child: Column(
@@ -594,10 +587,8 @@ class _KaleidXScopeInfoPageWHITEState extends State<KaleidXScopeInfoPageWHITE> {
         // 曲目池标题区域
         Container(
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            border:
-                Border.all(color: AppColors.tableBorder(brightness), width: 1),
-            borderRadius: BorderRadius.circular(_borderRadiusSmall),
+            color: AppSurfaces.card(context),
+            borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
           ),
           padding: EdgeInsets.symmetric(
               horizontal: _paddingS, vertical: _paddingXS * 0.5),
@@ -747,10 +738,8 @@ class _KaleidXScopeInfoPageWHITEState extends State<KaleidXScopeInfoPageWHITE> {
       children: [
         Container(
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            border:
-                Border.all(color: AppColors.tableBorder(brightness), width: 1),
-            borderRadius: BorderRadius.circular(_borderRadiusSmall),
+            color: AppSurfaces.card(context),
+            borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
           ),
           padding: EdgeInsets.symmetric(
               horizontal: _paddingS, vertical: _paddingXS * 0.5),

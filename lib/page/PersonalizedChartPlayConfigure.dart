@@ -14,6 +14,7 @@ import 'package:path_provider/path_provider.dart';
 import 'ChartPlayPage.dart';
 import '../service/ChartPlaySettingsStore.dart';
 import '../widgets/AppHeader.dart';
+import '../utils/AppDesignTokens.dart';
 
 // ─────────────────────────────────────────────────────────
 // 谱面包导入（.adx / .zip）
@@ -605,8 +606,8 @@ class _PersonalizedChartPlayConfigureState
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: scheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(12),
+        color: AppSurfaces.inset(context),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -635,7 +636,7 @@ class _PersonalizedChartPlayConfigureState
             return InkWell(
               onTap: busy ? null : () => _reparseFromHistory(entry),
               onLongPress: busy ? null : () => _confirmRemoveHistory(entry),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
               child: Padding(
                 padding:
                     const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
@@ -791,7 +792,7 @@ class _PersonalizedChartPlayConfigureState
                             horizontal: 24, vertical: 12),
                         textStyle: const TextStyle(fontSize: 16),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                         ),
                       ),
                       child: Text(difficultyName),
@@ -863,7 +864,7 @@ class _PersonalizedChartPlayConfigureState
                         '上传自定义谱面',
                         style: TextStyle(
                             color: Theme.of(context).colorScheme.onSurface,
-                            fontSize: 24,
+                            fontSize: 20,
                             fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 24),
@@ -873,14 +874,9 @@ class _PersonalizedChartPlayConfigureState
                         width: double.infinity,
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .surfaceContainerHighest,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: AppColors.linkBlue(brightness)
-                                .withValues(alpha: 0.35),
-                          ),
+                          color: AppSurfaces.card(context),
+                          borderRadius:
+                              BorderRadius.circular(AppDesignTokens.radiusCard),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -930,7 +926,7 @@ class _PersonalizedChartPlayConfigureState
                                   padding:
                                       const EdgeInsets.symmetric(vertical: 12),
                                   shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8)),
+                                      borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall)),
                                 ),
                               ),
                             ),
@@ -988,10 +984,9 @@ class _PersonalizedChartPlayConfigureState
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .surfaceContainerHighest,
-                            borderRadius: BorderRadius.circular(12),
+                            color: AppSurfaces.card(context),
+                            borderRadius:
+                                BorderRadius.circular(AppDesignTokens.radiusCard),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1030,15 +1025,13 @@ class _PersonalizedChartPlayConfigureState
                             child: ElevatedButton(
                               onPressed: _clearSelection,
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: Theme.of(context)
-                                    .colorScheme
-                                    .surfaceContainerHighest,
+                                backgroundColor: AppSurfaces.inset(context),
                                 foregroundColor:
                                     Theme.of(context).colorScheme.onSurface,
                                 padding:
                                     const EdgeInsets.symmetric(vertical: 16),
                                 shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8)),
+                                    borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall)),
                               ),
                               child: const Text('清除选择'),
                             ),
@@ -1054,7 +1047,7 @@ class _PersonalizedChartPlayConfigureState
                                 padding:
                                     const EdgeInsets.symmetric(vertical: 16),
                                 shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8)),
+                                    borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall)),
                               ),
                               child: const Text('开始播放'),
                             ),
@@ -1066,10 +1059,9 @@ class _PersonalizedChartPlayConfigureState
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .surfaceContainerHighest,
-                          borderRadius: BorderRadius.circular(12),
+                          color: AppSurfaces.card(context),
+                          borderRadius:
+                              BorderRadius.circular(AppDesignTokens.radiusCard),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1140,12 +1132,11 @@ class _PersonalizedChartPlayConfigureState
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-            color: selectedFile != null
-                ? AppColors.successGreen(fsBrightness)
-                : AppColors.tableBorder(fsBrightness)),
+        color: AppSurfaces.card(context),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
+        border: selectedFile != null
+            ? Border.all(color: AppColors.successGreen(fsBrightness))
+            : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1201,7 +1192,7 @@ class _PersonalizedChartPlayConfigureState
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
+                  borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall)),
             ),
             child: Text(selectedFile != null ? '重新选择' : '选择文件'),
           ),

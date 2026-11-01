@@ -6,6 +6,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../service/OnboardingStateStore.dart';
 import '../widgets/BackgroundPageScaffold.dart';
 import 'LegalDocumentPage.dart';
+import '../utils/AppDesignTokens.dart';
 
 /// ChiffonMai 的首次使用与功能更新引导。
 class OnboardingPage extends StatefulWidget {
@@ -288,7 +289,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                     decoration: BoxDecoration(
                       color:
                           i == _page ? scheme.primary : scheme.outlineVariant,
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                     ),
                   ),
               ],

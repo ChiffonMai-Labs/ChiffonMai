@@ -703,7 +703,7 @@ class _B50PageState extends State<B50Page> {
                           decoration: BoxDecoration(
                             border: Border.all(
                                 color: AppColors.tableBorder(dialogBrightness)),
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                           ),
                           child: Row(
                             children: [

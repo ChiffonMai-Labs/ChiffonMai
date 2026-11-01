@@ -232,7 +232,7 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: tint.background,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
             ),
             child: Icon(icon, size: 18, color: tint.foreground),
           ),

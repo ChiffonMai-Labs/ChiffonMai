@@ -11,6 +11,7 @@ import '../utils/SongFilterUtil.dart';
 import '../utils/StringUtil.dart';
 import '../widgets/AppHeader.dart';
 import 'SongInfoPage.dart';
+import '../utils/AppDesignTokens.dart';
 
 /// 「国服更新对照」页：把本地曲库按**国服（水鱼）更新前沿**摆开，
 /// 让用户一眼看到「日服已上、国服还没上」的歌 = 下次更新最可能补上的曲目。
@@ -182,8 +183,8 @@ class _UnionUpdateComparePageState extends State<UnionUpdateComparePage> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: scheme.outlineVariant),
+        color: AppSurfaces.card(context),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -227,7 +228,7 @@ class _UnionUpdateComparePageState extends State<UnionUpdateComparePage> {
             padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
             decoration: BoxDecoration(
               color: scheme.surfaceContainerHighest.withValues(alpha: 0.5),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
             ),
             child: Row(
               children: [
@@ -361,7 +362,7 @@ class _UnionUpdateComparePageState extends State<UnionUpdateComparePage> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
       child: InkWell(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
         onTap: () => Navigator.push(
           context,
           MaterialPageRoute<void>(
@@ -371,7 +372,7 @@ class _UnionUpdateComparePageState extends State<UnionUpdateComparePage> {
         child: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
             border: Border.all(
               color: isUpcoming
                   ? scheme.outlineVariant

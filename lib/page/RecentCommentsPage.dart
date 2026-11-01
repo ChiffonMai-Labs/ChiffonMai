@@ -11,6 +11,7 @@ import '../utils/CoverUtil.dart';
 import 'package:my_first_flutter_app/utils/ApiClient.dart';
 import '../widgets/BackgroundPageScaffold.dart';
 import '../widgets/CommunityAvatar.dart';
+import '../utils/AppDesignTokens.dart';
 
 /// 最近评论页面：展示最近50条评论，每页10条，Redis+MySQL二级缓存
 class RecentCommentsPage extends StatefulWidget {
@@ -364,7 +365,7 @@ class _RecentCommentsPageState extends State<RecentCommentsPage> {
         padding: EdgeInsets.all(10),
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.6),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
           border: Border.all(color: AppColors.buttonBorder(brightness), width: 0.5),
         ),
         child: Row(

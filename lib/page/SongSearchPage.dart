@@ -412,7 +412,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                       Text(
                         '难度筛选',
                         style: TextStyle(
-                          fontSize: screenWidth * 0.035,
+                          fontSize: 14,
                           fontWeight: FontWeight.bold,
                           color: Theme.of(context).colorScheme.onSurface,
                         ),
@@ -424,7 +424,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                             child: Text(
                               selectedText,
                               style: TextStyle(
-                                fontSize: screenWidth * 0.03,
+                                fontSize: 12,
                                 color: Theme.of(context)
                                     .colorScheme
                                     .onSurfaceVariant,
@@ -469,7 +469,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                   label: Text(
                     difficulty,
                     style: TextStyle(
-                      fontSize: screenWidth * 0.03,
+                      fontSize: 12,
                       color: selected
                           ? foreground
                           : Theme.of(context).colorScheme.onSurface,
@@ -1101,7 +1101,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                             brightness: Theme.of(context).brightness)
                         : ColorUtil.getCardColor(index);
                     final border = OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                       borderSide: BorderSide(color: scheme.outlineVariant),
                     );
                     return TextField(
@@ -1185,7 +1185,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                       Text(
                         '定数筛选',
                         style: TextStyle(
-                          fontSize: screenWidth * 0.035,
+                          fontSize: 14,
                           fontWeight: FontWeight.bold,
                           color: Theme.of(context).colorScheme.onSurface,
                         ),
@@ -1197,7 +1197,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                             child: MarqueeText(
                               text: selectedLevelText,
                               style: TextStyle(
-                                fontSize: screenWidth * 0.03,
+                                fontSize: 12,
                                 color: Theme.of(context)
                                     .colorScheme
                                     .onSurfaceVariant,
@@ -1323,7 +1323,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                       Text(
                         '物量筛选',
                         style: TextStyle(
-                          fontSize: screenWidth * 0.035,
+                          fontSize: 14,
                           fontWeight: FontWeight.bold,
                           color: Theme.of(context).colorScheme.onSurface,
                         ),
@@ -1335,7 +1335,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                             child: Text(
                               selectedNotesText,
                               style: TextStyle(
-                                fontSize: screenWidth * 0.03,
+                                fontSize: 12,
                                 color: Theme.of(context)
                                     .colorScheme
                                     .onSurfaceVariant,
@@ -1435,7 +1435,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                       Text(
                         'BPM筛选',
                         style: TextStyle(
-                          fontSize: screenWidth * 0.035,
+                          fontSize: 14,
                           fontWeight: FontWeight.bold,
                           color: Theme.of(context).colorScheme.onSurface,
                         ),
@@ -1447,7 +1447,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                             child: Text(
                               selectedBpmText,
                               style: TextStyle(
-                                fontSize: screenWidth * 0.03,
+                                fontSize: 12,
                                 color: Theme.of(context)
                                     .colorScheme
                                     .onSurfaceVariant,
@@ -1544,7 +1544,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                       Text(
                         '版本筛选',
                         style: TextStyle(
-                          fontSize: screenWidth * 0.035,
+                          fontSize: 14,
                           fontWeight: FontWeight.bold,
                           color: Theme.of(context).colorScheme.onSurface,
                         ),
@@ -1556,7 +1556,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                             child: Text(
                               selectedVersionsText,
                               style: TextStyle(
-                                fontSize: screenWidth * 0.03,
+                                fontSize: 12,
                                 color: Theme.of(context)
                                     .colorScheme
                                     .onSurfaceVariant,
@@ -1589,7 +1589,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                   label: Text(
                     StringUtil.formatVersion2WithFlag(
                         version, widget.extraOnly),
-                    style: TextStyle(fontSize: screenWidth * 0.03),
+                    style: TextStyle(fontSize: 12),
                   ),
                   selected: _selectedVersions.contains(version),
                   onSelected: (selected) {
@@ -1637,7 +1637,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                       Text(
                         '流派筛选',
                         style: TextStyle(
-                          fontSize: screenWidth * 0.035,
+                          fontSize: 14,
                           fontWeight: FontWeight.bold,
                           color: Theme.of(context).colorScheme.onSurface,
                         ),
@@ -1649,7 +1649,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                             child: Text(
                               selectedGenresText,
                               style: TextStyle(
-                                fontSize: screenWidth * 0.03,
+                                fontSize: 12,
                                 color: Theme.of(context)
                                     .colorScheme
                                     .onSurfaceVariant,
@@ -1681,7 +1681,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                 return FilterChip(
                   label: Text(
                     genre,
-                    style: TextStyle(fontSize: screenWidth * 0.03),
+                    style: TextStyle(fontSize: 12),
                   ),
                   selected: _selectedGenres.contains(genre),
                   onSelected: (selected) {
@@ -1731,7 +1731,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                       Text(
                         '标签筛选',
                         style: TextStyle(
-                          fontSize: screenWidth * 0.035,
+                          fontSize: 14,
                           fontWeight: FontWeight.bold,
                           color: Theme.of(context).colorScheme.onSurface,
                         ),
@@ -1743,7 +1743,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                             child: Text(
                               selectedTagsText,
                               style: TextStyle(
-                                fontSize: screenWidth * 0.03,
+                                fontSize: 12,
                                 color: Theme.of(context)
                                     .colorScheme
                                     .onSurfaceVariant,
@@ -1784,7 +1784,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                           child: Text(
                             '暂无标签数据',
                             style: TextStyle(
-                              fontSize: screenWidth * 0.03,
+                              fontSize: 12,
                               color: Theme.of(context)
                                   .colorScheme
                                   .onSurfaceVariant,
@@ -1819,7 +1819,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                                 child: Text(
                                   group.localizedName.zhHans,
                                   style: TextStyle(
-                                    fontSize: screenWidth * 0.032,
+                                    fontSize: 12,
                                     fontWeight: FontWeight.bold,
                                     color:
                                         Theme.of(context).colorScheme.onSurface,
@@ -1837,7 +1837,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                                     label: Text(
                                       tagName,
                                       style: TextStyle(
-                                          fontSize: screenWidth * 0.028),
+                                          fontSize: 11),
                                     ),
                                     selected: _selectedTagIds.contains(tagId),
                                     onSelected: (selected) {
@@ -1941,7 +1941,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
             Text(
               label,
               style: TextStyle(
-                fontSize: screenWidth * 0.035,
+                fontSize: 14,
                 fontWeight: FontWeight.bold,
                 color: Theme.of(context).colorScheme.onSurface,
               ),
@@ -1955,7 +1955,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                     child: Text(
                       displayValue ?? placeholder,
                       style: TextStyle(
-                        fontSize: screenWidth * 0.03,
+                        fontSize: 12,
                         color: displayValue != null
                             ? AppColors.linkBlue(Theme.of(context).brightness)
                             : Theme.of(context).colorScheme.onSurfaceVariant,
@@ -2025,7 +2025,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                           hintText: searchHint,
                           prefixIcon: const Icon(Icons.search),
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                           ),
                           contentPadding: const EdgeInsets.symmetric(
                               vertical: 10, horizontal: 12),

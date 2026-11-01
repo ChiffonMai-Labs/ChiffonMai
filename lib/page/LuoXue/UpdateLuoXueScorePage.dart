@@ -13,6 +13,7 @@ import '../../widgets/QrQuickFillButtons.dart';
 import '../../widgets/ConfettiEffect.dart';
 import '../../widgets/MaimaiHubLoginGate.dart';
 import '../../widgets/SmoothLinearProgressIndicator.dart';
+import '../../utils/AppDesignTokens.dart';
 
 /// 同步成绩到落雪（对话框形式，与"同步成绩到水鱼"一致）
 ///
@@ -316,7 +317,7 @@ class _UpdateLuoXueScorePageState extends State<UpdateLuoXueScorePage> {
                         fontSize: 13,
                         color: AppColors.greyHint(brightness, shade: 400)),
                     border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8)),
+                        borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall)),
                     contentPadding: const EdgeInsets.all(12),
                   ),
                 ),
@@ -333,7 +334,7 @@ class _UpdateLuoXueScorePageState extends State<UpdateLuoXueScorePage> {
                     decoration: BoxDecoration(
                       color: AppColors.linkBlue(brightness)
                           .withValues(alpha: 0.06),
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                       border: Border.all(
                           color: AppColors.linkBlue(brightness)
                               .withValues(alpha: 0.15)),
@@ -439,7 +440,7 @@ class _UpdateLuoXueScorePageState extends State<UpdateLuoXueScorePage> {
                                 decoration: InputDecoration(
                                   hintText: '在此粘贴落雪个人 API 密钥...',
                                   border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8)),
+                                      borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall)),
                                   contentPadding: const EdgeInsets.symmetric(
                                       horizontal: 12, vertical: 10),
                                   isDense: true,
@@ -478,7 +479,7 @@ class _UpdateLuoXueScorePageState extends State<UpdateLuoXueScorePage> {
                     decoration: BoxDecoration(
                       color: AppColors.warningOrange(brightness)
                           .withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                       border: Border.all(
                           color: AppColors.warningOrange(brightness)
                               .withValues(alpha: 0.25)),

@@ -7,6 +7,7 @@ import 'package:my_first_flutter_app/utils/CoverUtil.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import '../SongInfoPage.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
+import '../../utils/AppDesignTokens.dart';
 
 class SpecialRankingListPage extends StatefulWidget {
   const SpecialRankingListPage({super.key});
@@ -535,18 +536,15 @@ class _SpecialRankingListPageState extends State<SpecialRankingListPage> {
                     Expanded(
                       child: InkWell(
                         onTap: _showRankingTypeDialog,
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius:
+                            BorderRadius.circular(AppDesignTokens.radiusMedium),
                         child: Container(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 14, vertical: 10),
                           decoration: BoxDecoration(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .surfaceContainerHighest
-                                .withValues(alpha: 0.7),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                                color: AppColors.tableBorder(brightness)),
+                            color: AppSurfaces.card(context),
+                            borderRadius: BorderRadius.circular(
+                                AppDesignTokens.radiusMedium),
                           ),
                           child: Row(
                             children: [
@@ -562,7 +560,6 @@ class _SpecialRankingListPageState extends State<SpecialRankingListPage> {
                                     fontWeight: FontWeight.w600,
                                     color: AppColors.primaryText(brightness),
                                   ),
-                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                               Icon(Icons.arrow_drop_down,
@@ -580,15 +577,8 @@ class _SpecialRankingListPageState extends State<SpecialRankingListPage> {
                       onPressed: () => _loadRanking(forceRefresh: true),
                       tooltip: '刷新',
                       style: IconButton.styleFrom(
-                        backgroundColor: Theme.of(context)
-                            .colorScheme
-                            .surfaceContainerHighest
-                            .withValues(alpha: 0.7),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          side: BorderSide(
-                              color: AppColors.tableBorder(brightness)),
-                        ),
+                        backgroundColor: AppSurfaces.card(context),
+                        shape: const CircleBorder(),
                       ),
                     ),
                   ],

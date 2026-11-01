@@ -9,6 +9,7 @@ import 'package:my_first_flutter_app/service/NearCadeService.dart';
 import 'package:my_first_flutter_app/utils/CommonWidgetUtil.dart';
 import '../widgets/AppHeader.dart';
 import '../utils/ArcadeMarkerCluster.dart';
+import '../utils/AppDesignTokens.dart';
 
 // 缓存 Key
 const _cacheKey = 'nearcade_shops_cache';
@@ -552,7 +553,7 @@ class _GlobalArcadeMapPageState extends State<GlobalArcadeMapPage> {
                   child: Container(
                     margin: EdgeInsets.fromLTRB(4, 4, 4, 10 + safeBottom),
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                       border: Border.all(
                           color: Theme.of(context)
                               .colorScheme
@@ -644,7 +645,7 @@ class _GlobalArcadeMapPageState extends State<GlobalArcadeMapPage> {
                     margin: EdgeInsets.only(right: 4),
                     decoration: BoxDecoration(
                       color: Colors.red.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                     ),
                     child: Text('$filteredCount',
                         style: TextStyle(fontSize: 11, color: Colors.red)),
@@ -754,7 +755,7 @@ class _GlobalArcadeMapPageState extends State<GlobalArcadeMapPage> {
               padding: EdgeInsets.all(8),
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.surface.withOpacity(0.95),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                 boxShadow: [
                   BoxShadow(
                       color: Colors.black26,
