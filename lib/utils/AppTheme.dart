@@ -53,6 +53,10 @@ class AppTheme {
     Color? color,
     double? height,
     double? letterSpacing,
+    FontStyle? fontStyle,
+    TextDecoration? decoration,
+    TextDecorationStyle? decorationStyle,
+    Color? decorationColor,
   }) {
     // 测试/探针旁路：测试环境没有网络、也没有 `NotoSansSC_*` 这些族，
     // 真去联网会失败，而 google_fonts 的失败挂在内部 future 上、外部接不住
@@ -67,14 +71,46 @@ class AppTheme {
         color: color,
         height: height,
         letterSpacing: letterSpacing,
+        fontStyle: fontStyle,
+        decoration: decoration,
+        decorationStyle: decorationStyle,
+        decorationColor: decorationColor,
       );
     }
-    return GoogleFonts.notoSansSc(
+    return _outfit(
       fontSize: fontSize,
       fontWeight: fontWeight,
       color: color,
       height: height,
       letterSpacing: letterSpacing,
+    ).copyWith(
+      fontStyle: fontStyle,
+      decoration: decoration,
+      decorationStyle: decorationStyle,
+      decorationColor: decorationColor,
+    );
+  }
+
+  /// 全 App 主字体 Outfit。它没有中文，中文按相同字重回落到思源黑体（不走系统字体）。
+  static TextStyle _outfit({
+    double? fontSize,
+    FontWeight? fontWeight,
+    Color? color,
+    double? height,
+    double? letterSpacing,
+    List<FontFeature>? fontFeatures,
+  }) {
+    return GoogleFonts.outfit(
+      fontSize: fontSize,
+      fontWeight: fontWeight,
+      color: color,
+      height: height,
+      letterSpacing: letterSpacing,
+      fontFeatures: fontFeatures,
+    ).copyWith(
+      fontFamilyFallback: [
+        GoogleFonts.notoSansSc(fontWeight: fontWeight).fontFamily!,
+      ],
     );
   }
 
@@ -107,18 +143,13 @@ class AppTheme {
         fontFeatures: features,
       );
     }
-    // Outfit 没有中文，谱师名这类混排内容回落到全局思源黑体，不用系统字体。
-    return GoogleFonts.outfit(
+    return _outfit(
       fontSize: fontSize,
       fontWeight: fontWeight ?? FontWeight.w600,
       color: color,
       height: height,
       letterSpacing: letterSpacing,
       fontFeatures: features,
-    ).copyWith(
-      fontFamilyFallback: [
-        font(fontWeight: fontWeight ?? FontWeight.w600).fontFamily!,
-      ],
     );
   }
 
@@ -126,6 +157,33 @@ class AppTheme {
   /// 真机（debug/release）永远是 false。
   @visibleForTesting
   static bool debugLocalFontFamily = false;
+
+  /// 主题文字：Outfit，每一档的中文回落都用同字重的思源黑体。
+  static TextTheme _outfitTextTheme(TextTheme base) {
+    final outfit = GoogleFonts.outfitTextTheme(base);
+    final noto = GoogleFonts.notoSansScTextTheme(base);
+    TextStyle? merge(TextStyle? style, TextStyle? cjk) =>
+        style?.copyWith(fontFamilyFallback: [
+          if (cjk?.fontFamily != null) cjk!.fontFamily!,
+        ]);
+    return outfit.copyWith(
+      displayLarge: merge(outfit.displayLarge, noto.displayLarge),
+      displayMedium: merge(outfit.displayMedium, noto.displayMedium),
+      displaySmall: merge(outfit.displaySmall, noto.displaySmall),
+      headlineLarge: merge(outfit.headlineLarge, noto.headlineLarge),
+      headlineMedium: merge(outfit.headlineMedium, noto.headlineMedium),
+      headlineSmall: merge(outfit.headlineSmall, noto.headlineSmall),
+      titleLarge: merge(outfit.titleLarge, noto.titleLarge),
+      titleMedium: merge(outfit.titleMedium, noto.titleMedium),
+      titleSmall: merge(outfit.titleSmall, noto.titleSmall),
+      bodyLarge: merge(outfit.bodyLarge, noto.bodyLarge),
+      bodyMedium: merge(outfit.bodyMedium, noto.bodyMedium),
+      bodySmall: merge(outfit.bodySmall, noto.bodySmall),
+      labelLarge: merge(outfit.labelLarge, noto.labelLarge),
+      labelMedium: merge(outfit.labelMedium, noto.labelMedium),
+      labelSmall: merge(outfit.labelSmall, noto.labelSmall),
+    );
+  }
 
   /// 把全局网络字体注入主题（与 [font] 同一个来源）。
   ///
@@ -137,8 +195,8 @@ class AppTheme {
   static ThemeData withGlobalFonts(ThemeData base) {
     final baseTitle = base.appBarTheme.titleTextStyle;
     return base.copyWith(
-      textTheme: GoogleFonts.notoSansScTextTheme(base.textTheme),
-      primaryTextTheme: GoogleFonts.notoSansScTextTheme(base.primaryTextTheme),
+      textTheme: _outfitTextTheme(base.textTheme),
+      primaryTextTheme: _outfitTextTheme(base.primaryTextTheme),
       appBarTheme: baseTitle == null
           ? base.appBarTheme
           : base.appBarTheme.copyWith(

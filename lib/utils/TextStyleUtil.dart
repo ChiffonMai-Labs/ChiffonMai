@@ -1,6 +1,5 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'AppTheme.dart';
 
 class TextStyleUtil {
@@ -35,27 +34,27 @@ class TextStyleUtil {
 
   // ========== 默认样式 ==========
 
-  // 默认文本样式 - 常规字重（与思源黑体一致）
-  static TextStyle get defaultStyle => GoogleFonts.notoSansSc(
+  // 默认文本样式 - 常规字重
+  static TextStyle get defaultStyle => AppTheme.font(
         fontWeight: regular,
       );
 
   // ========== 标题样式 ==========
 
   // 标题样式 - 大（粗体）
-  static TextStyle get headlineLarge => GoogleFonts.notoSansSc(
+  static TextStyle get headlineLarge => AppTheme.font(
         fontSize: 32,
         fontWeight: bold,
       );
 
   // 标题样式 - 中（粗体）
-  static TextStyle get headlineMedium => GoogleFonts.notoSansSc(
+  static TextStyle get headlineMedium => AppTheme.font(
         fontSize: 24,
         fontWeight: bold,
       );
 
   // 标题样式 - 小（粗体）
-  static TextStyle get headlineSmall => GoogleFonts.notoSansSc(
+  static TextStyle get headlineSmall => AppTheme.font(
         fontSize: 20,
         fontWeight: bold,
       );
@@ -63,19 +62,19 @@ class TextStyleUtil {
   // ========== 正文样式 ==========
 
   // 正文样式 - 大（常规）
-  static TextStyle get bodyLarge => GoogleFonts.notoSansSc(
+  static TextStyle get bodyLarge => AppTheme.font(
         fontSize: 18,
         fontWeight: regular,
       );
 
   // 正文样式 - 中（默认，常规）
-  static TextStyle get bodyMedium => GoogleFonts.notoSansSc(
+  static TextStyle get bodyMedium => AppTheme.font(
         fontSize: 16,
         fontWeight: regular,
       );
 
   // 正文样式 - 小（常规）
-  static TextStyle get bodySmall => GoogleFonts.notoSansSc(
+  static TextStyle get bodySmall => AppTheme.font(
         fontSize: 14,
         fontWeight: regular,
       );
@@ -87,7 +86,7 @@ class TextStyleUtil {
   static TextStyle get hintStyle => hintStyleForTheme(Brightness.light);
 
   /// 主题感知的提示文字样式
-  static TextStyle hintStyleForTheme(Brightness brightness) => GoogleFonts.notoSansSc(
+  static TextStyle hintStyleForTheme(Brightness brightness) => AppTheme.font(
         fontSize: 14,
         fontWeight: regular,
         color: AppColors.greyHint(brightness),
@@ -96,7 +95,7 @@ class TextStyleUtil {
   // ========== 按钮文字样式 ==========
 
   // 按钮文字样式（半粗体）
-  static TextStyle get buttonStyle => GoogleFonts.notoSansSc(
+  static TextStyle get buttonStyle => AppTheme.font(
         fontSize: 16,
         fontWeight: semiBold,
       );
@@ -104,47 +103,47 @@ class TextStyleUtil {
   // ========== 按字重分类的样式 ==========
 
   // 极细体样式
-  static TextStyle get thinStyle => GoogleFonts.notoSansSc(
+  static TextStyle get thinStyle => AppTheme.font(
         fontWeight: thin,
       );
 
   // 超细体样式
-  static TextStyle get extraLightStyle => GoogleFonts.notoSansSc(
+  static TextStyle get extraLightStyle => AppTheme.font(
         fontWeight: extraLight,
       );
 
   // 细体样式
-  static TextStyle get lightStyle => GoogleFonts.notoSansSc(
+  static TextStyle get lightStyle => AppTheme.font(
         fontWeight: light,
       );
 
   // 常规体样式
-  static TextStyle get regularStyle => GoogleFonts.notoSansSc(
+  static TextStyle get regularStyle => AppTheme.font(
         fontWeight: regular,
       );
 
   // 中等体样式
-  static TextStyle get mediumStyle => GoogleFonts.notoSansSc(
+  static TextStyle get mediumStyle => AppTheme.font(
         fontWeight: medium,
       );
 
   // 半粗体样式
-  static TextStyle get semiBoldStyle => GoogleFonts.notoSansSc(
+  static TextStyle get semiBoldStyle => AppTheme.font(
         fontWeight: semiBold,
       );
 
   // 粗体样式
-  static TextStyle get boldStyle => GoogleFonts.notoSansSc(
+  static TextStyle get boldStyle => AppTheme.font(
         fontWeight: bold,
       );
 
   // 特粗体样式
-  static TextStyle get extraBoldStyle => GoogleFonts.notoSansSc(
+  static TextStyle get extraBoldStyle => AppTheme.font(
         fontWeight: extraBold,
       );
 
   // 极粗体样式
-  static TextStyle get blackStyle => GoogleFonts.notoSansSc(
+  static TextStyle get blackStyle => AppTheme.font(
         fontWeight: black,
       );
 
@@ -160,7 +159,7 @@ class TextStyleUtil {
     double? height,
     TextDecoration? decoration,
   }) =>
-      GoogleFonts.notoSansSc(
+      AppTheme.font(
         fontSize: fontSize,
         fontWeight: fontWeight,
         color: color,
@@ -184,7 +183,7 @@ class TextStyleUtil {
     TextDecorationStyle? decorationStyle,
     Color? decorationColor,
   }) {
-    return GoogleFonts.notoSansSc(
+    return AppTheme.font(
       fontSize: fontSize,
       fontWeight: fontWeight,
       color: color,
@@ -201,22 +200,22 @@ class TextStyleUtil {
 
   // 仅设置字体大小
   static TextStyle font(double fontSize) {
-    return GoogleFonts.notoSansSc(fontSize: fontSize);
+    return AppTheme.font(fontSize: fontSize);
   }
 
   // 字体大小 + 颜色
   static TextStyle fontColor(double fontSize, Color color) {
-    return GoogleFonts.notoSansSc(fontSize: fontSize, color: color);
+    return AppTheme.font(fontSize: fontSize, color: color);
   }
 
   // 字体大小 + 字重
   static TextStyle fontWithWeight(double fontSize, FontWeight fontWeight) {
-    return GoogleFonts.notoSansSc(fontSize: fontSize, fontWeight: fontWeight);
+    return AppTheme.font(fontSize: fontSize, fontWeight: fontWeight);
   }
 
   // 字体大小 + 字重 + 颜色
   static TextStyle fontWColor(double fontSize, FontWeight fontWeight, Color color) {
-    return GoogleFonts.notoSansSc(
+    return AppTheme.font(
       fontSize: fontSize,
       fontWeight: fontWeight,
       color: color,
@@ -226,98 +225,98 @@ class TextStyleUtil {
   // ========== 按字号分类的样式（常规字重）==========
 
   // 小号文字 (12px)
-  static TextStyle get small => GoogleFonts.notoSansSc(fontSize: 12);
+  static TextStyle get small => AppTheme.font(fontSize: 12);
 
   // 小号文字 + 颜色
   static TextStyle smallColor(Color color) {
-    return GoogleFonts.notoSansSc(fontSize: 12, color: color);
+    return AppTheme.font(fontSize: 12, color: color);
   }
 
   // 中号文字 (14px)
-  static TextStyle get textMedium => GoogleFonts.notoSansSc(fontSize: 14);
+  static TextStyle get textMedium => AppTheme.font(fontSize: 14);
 
   // 中号文字 + 颜色
   static TextStyle textMediumColor(Color color) {
-    return GoogleFonts.notoSansSc(fontSize: 14, color: color);
+    return AppTheme.font(fontSize: 14, color: color);
   }
 
   // 大号文字 (16px)
-  static TextStyle get large => GoogleFonts.notoSansSc(fontSize: 16);
+  static TextStyle get large => AppTheme.font(fontSize: 16);
 
   // 大号文字 + 颜色
   static TextStyle largeColor(Color color) {
-    return GoogleFonts.notoSansSc(fontSize: 16, color: color);
+    return AppTheme.font(fontSize: 16, color: color);
   }
 
   // 超大号文字 (18px)
-  static TextStyle get extraLarge => GoogleFonts.notoSansSc(fontSize: 18);
+  static TextStyle get extraLarge => AppTheme.font(fontSize: 18);
 
   // 超大号文字 + 颜色
   static TextStyle extraLargeColor(Color color) {
-    return GoogleFonts.notoSansSc(fontSize: 18, color: color);
+    return AppTheme.font(fontSize: 18, color: color);
   }
 
   // ========== 按字号分类的样式（带字重）==========
 
   // 小号细体 (12px, w300)
-  static TextStyle get smallLight => GoogleFonts.notoSansSc(fontSize: 12, fontWeight: light);
+  static TextStyle get smallLight => AppTheme.font(fontSize: 12, fontWeight: light);
 
   // 小号常规 (12px, w400)
-  static TextStyle get smallRegular => GoogleFonts.notoSansSc(fontSize: 12, fontWeight: regular);
+  static TextStyle get smallRegular => AppTheme.font(fontSize: 12, fontWeight: regular);
 
   // 小号中等 (12px, w500)
-  static TextStyle get smallMedium => GoogleFonts.notoSansSc(fontSize: 12, fontWeight: medium);
+  static TextStyle get smallMedium => AppTheme.font(fontSize: 12, fontWeight: medium);
 
   // 小号半粗 (12px, w600)
-  static TextStyle get smallSemiBold => GoogleFonts.notoSansSc(fontSize: 12, fontWeight: semiBold);
+  static TextStyle get smallSemiBold => AppTheme.font(fontSize: 12, fontWeight: semiBold);
 
   // 小号粗体 (12px, w700)
-  static TextStyle get smallBold => GoogleFonts.notoSansSc(fontSize: 12, fontWeight: bold);
+  static TextStyle get smallBold => AppTheme.font(fontSize: 12, fontWeight: bold);
 
   // 中号细体 (14px, w300)
-  static TextStyle get mediumLight => GoogleFonts.notoSansSc(fontSize: 14, fontWeight: light);
+  static TextStyle get mediumLight => AppTheme.font(fontSize: 14, fontWeight: light);
 
   // 中号常规 (14px, w400)
-  static TextStyle get mediumRegular => GoogleFonts.notoSansSc(fontSize: 14, fontWeight: regular);
+  static TextStyle get mediumRegular => AppTheme.font(fontSize: 14, fontWeight: regular);
 
   // 中号中等 (14px, w500)
-  static TextStyle get mediumMedium => GoogleFonts.notoSansSc(fontSize: 14, fontWeight: medium);
+  static TextStyle get mediumMedium => AppTheme.font(fontSize: 14, fontWeight: medium);
 
   // 中号半粗 (14px, w600)
-  static TextStyle get mediumSemiBold => GoogleFonts.notoSansSc(fontSize: 14, fontWeight: semiBold);
+  static TextStyle get mediumSemiBold => AppTheme.font(fontSize: 14, fontWeight: semiBold);
 
   // 中号粗体 (14px, w700)
-  static TextStyle get mediumBold => GoogleFonts.notoSansSc(fontSize: 14, fontWeight: bold);
+  static TextStyle get mediumBold => AppTheme.font(fontSize: 14, fontWeight: bold);
 
   // 大号细体 (16px, w300)
-  static TextStyle get largeLight => GoogleFonts.notoSansSc(fontSize: 16, fontWeight: light);
+  static TextStyle get largeLight => AppTheme.font(fontSize: 16, fontWeight: light);
 
   // 大号常规 (16px, w400)
-  static TextStyle get largeRegular => GoogleFonts.notoSansSc(fontSize: 16, fontWeight: regular);
+  static TextStyle get largeRegular => AppTheme.font(fontSize: 16, fontWeight: regular);
 
   // 大号中等 (16px, w500)
-  static TextStyle get largeMedium => GoogleFonts.notoSansSc(fontSize: 16, fontWeight: medium);
+  static TextStyle get largeMedium => AppTheme.font(fontSize: 16, fontWeight: medium);
 
   // 大号半粗 (16px, w600)
-  static TextStyle get largeSemiBold => GoogleFonts.notoSansSc(fontSize: 16, fontWeight: semiBold);
+  static TextStyle get largeSemiBold => AppTheme.font(fontSize: 16, fontWeight: semiBold);
 
   // 大号粗体 (16px, w700)
-  static TextStyle get largeBold => GoogleFonts.notoSansSc(fontSize: 16, fontWeight: bold);
+  static TextStyle get largeBold => AppTheme.font(fontSize: 16, fontWeight: bold);
 
   // 超大号细体 (18px, w300)
-  static TextStyle get extraLargeLight => GoogleFonts.notoSansSc(fontSize: 18, fontWeight: light);
+  static TextStyle get extraLargeLight => AppTheme.font(fontSize: 18, fontWeight: light);
 
   // 超大号常规 (18px, w400)
-  static TextStyle get extraLargeRegular => GoogleFonts.notoSansSc(fontSize: 18, fontWeight: regular);
+  static TextStyle get extraLargeRegular => AppTheme.font(fontSize: 18, fontWeight: regular);
 
   // 超大号中等 (18px, w500)
-  static TextStyle get extraLargeMedium => GoogleFonts.notoSansSc(fontSize: 18, fontWeight: medium);
+  static TextStyle get extraLargeMedium => AppTheme.font(fontSize: 18, fontWeight: medium);
 
   // 超大号半粗 (18px, w600)
-  static TextStyle get extraLargeSemiBold => GoogleFonts.notoSansSc(fontSize: 18, fontWeight: semiBold);
+  static TextStyle get extraLargeSemiBold => AppTheme.font(fontSize: 18, fontWeight: semiBold);
 
   // 超大号粗体 (18px, w700)
-  static TextStyle get extraLargeBold => GoogleFonts.notoSansSc(fontSize: 18, fontWeight: bold);
+  static TextStyle get extraLargeBold => AppTheme.font(fontSize: 18, fontWeight: bold);
 
   // ========== 预设颜色样式 ==========
 
@@ -329,11 +328,11 @@ class TextStyleUtil {
 
   /// 主题感知的灰色提示文字 (12px)
   static TextStyle greyHintForTheme(Brightness brightness) =>
-      GoogleFonts.notoSansSc(fontSize: 12, color: AppColors.greyHint(brightness));
+      AppTheme.font(fontSize: 12, color: AppColors.greyHint(brightness));
 
   /// 主题感知的灰色提示文字 (14px)
   static TextStyle greyHint14ForTheme(Brightness brightness) =>
-      GoogleFonts.notoSansSc(fontSize: 14, color: AppColors.greyHint(brightness));
+      AppTheme.font(fontSize: 14, color: AppColors.greyHint(brightness));
 
   // 白色文字 (12px) — 已弃用，请使用 onPrimaryTextSmall
   static TextStyle get whiteSmall => whiteSmallForTheme(Brightness.light);
@@ -349,19 +348,19 @@ class TextStyleUtil {
 
   /// 主题感知的浅色文字 (12px) — 适用于深色背景
   static TextStyle whiteSmallForTheme(Brightness brightness) =>
-      GoogleFonts.notoSansSc(fontSize: 12, color: brightness == Brightness.dark ? const Color(0xFFE0E0E0) : Colors.white);
+      AppTheme.font(fontSize: 12, color: brightness == Brightness.dark ? const Color(0xFFE0E0E0) : Colors.white);
 
   /// 主题感知的浅色文字 (14px) — 适用于深色背景
   static TextStyle whiteMediumForTheme(Brightness brightness) =>
-      GoogleFonts.notoSansSc(fontSize: 14, color: brightness == Brightness.dark ? const Color(0xFFE0E0E0) : Colors.white);
+      AppTheme.font(fontSize: 14, color: brightness == Brightness.dark ? const Color(0xFFE0E0E0) : Colors.white);
 
   /// 主题感知的浅色文字 (16px) — 适用于深色背景
   static TextStyle whiteLargeForTheme(Brightness brightness) =>
-      GoogleFonts.notoSansSc(fontSize: 16, color: brightness == Brightness.dark ? const Color(0xFFE0E0E0) : Colors.white);
+      AppTheme.font(fontSize: 16, color: brightness == Brightness.dark ? const Color(0xFFE0E0E0) : Colors.white);
 
   /// 主题感知的主色粗体文字
   static TextStyle primaryTextBold(Brightness brightness) =>
-      GoogleFonts.notoSansSc(fontSize: 16, fontWeight: bold, color: AppColors.primaryText(brightness));
+      AppTheme.font(fontSize: 16, fontWeight: bold, color: AppColors.primaryText(brightness));
 
   // ========== 数字样式 ==========
 
@@ -372,7 +371,7 @@ class TextStyleUtil {
     FontWeight fontWeight = bold,
     Color? color,
   }) {
-    return GoogleFonts.notoSansSc(
+    return AppTheme.font(
       fontSize: fontSize,
       fontWeight: fontWeight,
       color: color,
@@ -392,7 +391,7 @@ class TextStyleUtil {
     TextStyle effectiveStyle = style ?? const TextStyle();
     return TextSpan(
       text: text,
-      style: GoogleFonts.notoSansSc(
+      style: AppTheme.font(
         fontSize: effectiveStyle.fontSize,
         fontWeight: effectiveStyle.fontWeight,
         color: effectiveStyle.color,
@@ -412,7 +411,7 @@ class TextStyleUtil {
   static TextSpan span(String text, TextStyle style) {
     return TextSpan(
       text: text,
-      style: GoogleFonts.notoSansSc(
+      style: AppTheme.font(
         fontSize: style.fontSize,
         fontWeight: style.fontWeight,
         color: style.color,
@@ -428,7 +427,7 @@ class TextStyleUtil {
   static TextSpan spanWithWeight(String text, double fontSize, FontWeight fontWeight, [Color? color]) {
     return TextSpan(
       text: text,
-      style: GoogleFonts.notoSansSc(
+      style: AppTheme.font(
         fontSize: fontSize,
         fontWeight: fontWeight,
         color: color,
