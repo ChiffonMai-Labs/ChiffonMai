@@ -6,6 +6,8 @@ import '../entity/Multiplayer/RoomEntity.dart';
 import '../entity/Multiplayer/GameType.dart';
 import 'MarqueeText.dart';
 import 'CommunityAvatar.dart';
+import '../utils/AppDesignTokens.dart';
+import '../utils/AppTheme.dart';
 
 /// 房间身份与规则独立于对局内容，等待和游玩时都能快速找到房间码。
 class MultiplayerRoomHeader extends StatelessWidget {
@@ -19,11 +21,22 @@ class MultiplayerRoomHeader extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     if (compact)
       return Row(children: [
-        const Icon(Icons.meeting_room_outlined, size: 20),
-        const SizedBox(width: 8),
         Expanded(
-            child: Text('房间 ${room.roomCode} · ${room.status.displayName}',
-                style: Theme.of(context).textTheme.titleSmall)),
+            child: Text.rich(
+          TextSpan(children: [
+            const TextSpan(text: '房间 '),
+            TextSpan(
+                text: room.roomCode,
+                style: AppTheme.number(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: scheme.onSurface)),
+            TextSpan(
+                text:
+                    ' · ${room.players.length} 人 · ${room.status.displayName}'),
+          ]),
+          style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+        )),
         IconButton(
             tooltip: '复制房间码',
             icon: const Icon(Icons.copy_rounded, size: 18),
@@ -37,9 +50,8 @@ class MultiplayerRoomHeader extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: scheme.primaryContainer.withValues(alpha: .4),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: scheme.outlineVariant),
+        color: AppSurfaces.card(context),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
@@ -136,6 +148,20 @@ class MultiplayerRoomPlayers extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final ready = room.players.where((p) => p.isReady).length;
+    // 对局中只留一排玩家胶囊，把空间让给题目。
+    if (playing) {
+      return SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        clipBehavior: Clip.none,
+        child: Row(children: [
+          for (final player in room.players)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: _chip(context, player),
+            ),
+        ]),
+      );
+    }
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
         const Icon(Icons.people_outline_rounded, size: 20),
@@ -154,21 +180,7 @@ class MultiplayerRoomPlayers extends StatelessWidget {
                 ?.copyWith(color: scheme.onSurfaceVariant)),
       ]),
       const SizedBox(height: 12),
-      if (playing)
-        SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (final player in room.players)
-                  Padding(
-                      padding: const EdgeInsets.only(right: 10),
-                      child:
-                          SizedBox(width: 184, child: _seat(context, player)))
-              ],
-            ))
-      else
-        LayoutBuilder(builder: (context, constraints) {
+      LayoutBuilder(builder: (context, constraints) {
           final columns = constraints.maxWidth < 310 ||
                   MediaQuery.textScalerOf(context).scale(14) > 21
               ? 1
@@ -183,6 +195,53 @@ class MultiplayerRoomPlayers extends StatelessWidget {
           ]);
         }),
     ]);
+  }
+
+  /// 对局中的玩家胶囊：自己反色，离线和投降也写在分数那一行。
+  Widget _chip(BuildContext context, PlayerEntity player) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final mine = player.playerId == currentPlayerId;
+    final fg = mine ? scheme.onInverseSurface : scheme.onSurface;
+    final status = !player.isOnline
+        ? '暂时离线'
+        : player.isSurrendered
+            ? '已投降'
+            : '${scoreOf(player)} 分';
+    return Container(
+      height: 48,
+      padding: const EdgeInsets.fromLTRB(6, 0, 14, 0),
+      decoration: BoxDecoration(
+        color: mine
+            ? (theme.brightness == Brightness.dark
+                ? scheme.inverseSurface
+                : scheme.onSurface)
+            : AppSurfaces.card(context),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusPill),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        CommunityAvatar(avatarId: player.avatarId, size: 36),
+        const SizedBox(width: 8),
+        Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              if (player.isHost) ...[
+                Icon(Icons.workspace_premium_outlined, size: 12, color: fg),
+                const SizedBox(width: 2),
+              ],
+              Text(displayName(player),
+                  style: TextStyle(
+                      fontSize: 12, fontWeight: FontWeight.w600, color: fg)),
+            ]),
+            Text(status,
+                style: AppTheme.number(
+                    fontSize: 14, fontWeight: FontWeight.w700, color: fg)),
+          ],
+        ),
+      ]),
+    );
   }
 
   Widget _seat(BuildContext context, PlayerEntity? player) {
@@ -200,12 +259,8 @@ class MultiplayerRoomPlayers extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: mine
-            ? scheme.primaryContainer.withValues(alpha: .35)
-            : scheme.surfaceContainerLow.withValues(alpha: .65),
-        borderRadius: BorderRadius.circular(14),
-        border:
-            Border.all(color: mine ? scheme.primary : scheme.outlineVariant),
+        color: mine ? scheme.primaryContainer : AppSurfaces.card(context),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
       ),
       child: Row(children: [
         if (player != null)
@@ -288,8 +343,14 @@ class MultiplayerRoomReadyBar extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
       decoration: BoxDecoration(
-          color: scheme.surface,
-          border: Border(top: BorderSide(color: scheme.outlineVariant))),
+          color: AppSurfaces.card(context),
+          boxShadow: [
+            BoxShadow(
+              color: scheme.shadow.withValues(alpha: 0.08),
+              blurRadius: 20,
+              offset: const Offset(0, -6),
+            ),
+          ]),
       child: SafeArea(
           top: false,
           child: Column(mainAxisSize: MainAxisSize.min, children: [

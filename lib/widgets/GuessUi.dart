@@ -121,12 +121,16 @@ class GuessHistoryCard extends StatelessWidget {
   /// 这个玩法是否比对 BPM 变化（部分玩法没有）。
   final bool showBpmHistory;
 
+  /// 多人房间里是谁猜的。
+  final String? playerName;
+
   const GuessHistoryCard({
     super.key,
     required this.guessSong,
     required this.index,
     this.targetSongId,
     this.showBpmHistory = true,
+    this.playerName,
   });
 
   @override
@@ -155,6 +159,15 @@ class GuessHistoryCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (playerName != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(2, 0, 2, 6),
+                child: MarqueeText(
+                  text: playerName!,
+                  style: TextStyle(
+                      fontSize: 11, color: scheme.onSurfaceVariant),
+                ),
+              ),
             Row(
               children: [
                 ClipRRect(
@@ -280,33 +293,67 @@ class _GuessTag extends StatelessWidget {
 class GuessHistoryHeader extends StatelessWidget {
   final bool ascending;
   final VoidCallback onToggleSort;
+  final int? count;
 
   const GuessHistoryHeader({
     super.key,
     required this.ascending,
     required this.onToggleSort,
+    this.count,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 0, 0, 4),
-      child: Row(
-        children: [
-          const Expanded(
-            child: Text('猜测历史',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-          ),
-          TextButton.icon(
-            onPressed: onToggleSort,
-            icon: Icon(
-              ascending
-                  ? Icons.arrow_downward_rounded
-                  : Icons.arrow_upward_rounded,
-              size: 16,
+    final brightness = Theme.of(context).brightness;
+    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    Widget legend(Color color, String text) => Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 10,
+              height: 10,
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(3),
+              ),
             ),
-            label: Text(ascending ? '从早到晚' : '从晚到早',
-                style: const TextStyle(fontSize: 13)),
+            const SizedBox(width: 4),
+            Text(text, style: TextStyle(fontSize: 11, color: muted)),
+          ],
+        );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 0, 0, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(count == null ? '猜测历史' : '猜测历史 ($count)',
+                    style: const TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.w700)),
+              ),
+              TextButton.icon(
+                onPressed: onToggleSort,
+                icon: Icon(
+                  ascending
+                      ? Icons.arrow_downward_rounded
+                      : Icons.arrow_upward_rounded,
+                  size: 16,
+                ),
+                label: Text(ascending ? '从早到晚' : '从晚到早',
+                    style: const TextStyle(fontSize: 13)),
+              ),
+            ],
+          ),
+          Wrap(
+            spacing: 10,
+            runSpacing: 4,
+            children: [
+              legend(AppColors.guessCorrectBg(brightness), '一致'),
+              legend(AppColors.guessCloseBg(brightness), '接近（箭头指向答案）'),
+              legend(AppColors.guessWrongBg(brightness), '不符'),
+            ],
           ),
         ],
       ),
@@ -329,6 +376,12 @@ class GuessInputBar extends StatelessWidget {
   final int resultCount;
   final IndexedWidgetBuilder resultBuilder;
 
+  /// 还不能作答时（等服务端确认、时间到）禁用输入框。
+  final bool enabled;
+
+  /// 有内容时显示清空键。
+  final VoidCallback? onClear;
+
   const GuessInputBar({
     super.key,
     required this.controller,
@@ -341,6 +394,8 @@ class GuessInputBar extends StatelessWidget {
     this.searching = false,
     required this.resultCount,
     required this.resultBuilder,
+    this.enabled = true,
+    this.onClear,
   });
 
   @override
@@ -421,9 +476,19 @@ class GuessInputBar extends StatelessWidget {
                         child: TextField(
                           controller: controller,
                           onChanged: onChanged,
+                          enabled: enabled,
                           decoration: InputDecoration(
                             hintText: hintText,
                             isDense: true,
+                            suffixIcon:
+                                onClear == null || controller.text.isEmpty
+                                    ? null
+                                    : IconButton(
+                                        tooltip: '清空',
+                                        onPressed: onClear,
+                                        icon: const Icon(Icons.close_rounded,
+                                            size: 18),
+                                      ),
                             prefixIcon: Icon(Icons.search_rounded,
                                 size: 18, color: scheme.onSurfaceVariant),
                             contentPadding:

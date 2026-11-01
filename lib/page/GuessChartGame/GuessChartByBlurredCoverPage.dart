@@ -486,7 +486,7 @@ class _GuessChartByBlurredCoverPageState
   Widget _buildGuessHistoryItem(
       GuessSong guessSong, int index, Song? guessedSong) {
     return GuessHistoryCard(
-      key: ValueKey(guessSong.songId),
+      key: ValueKey('${guessSong.songId}-$index'),
       guessSong: guessSong,
       index: index,
       targetSongId: _targetSong?.id,

@@ -951,7 +951,7 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
   // 构建猜测历史项
   Widget _buildGuessHistoryItem(GuessSong guessSong, int index) {
     return GuessHistoryCard(
-      key: ValueKey(guessSong.songId),
+      key: ValueKey('${guessSong.songId}-$index'),
       guessSong: guessSong,
       index: index,
       targetSongId: _targetSong?.id,

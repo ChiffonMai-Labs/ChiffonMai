@@ -1,5 +1,4 @@
 import '../../service/GuessChartGame/GuessAudioService.dart';
-import '../../widgets/GuessBpmHistoryFields.dart';
 import '../../widgets/GuessOriginalAudioCard.dart';
 import 'dart:async';
 import 'dart:math';
@@ -30,6 +29,9 @@ import 'package:my_first_flutter_app/utils/GameSeedUtil.dart';
 import 'package:my_first_flutter_app/utils/LuoXueSongUtil.dart';
 import 'package:my_first_flutter_app/widgets/TileRevealImage.dart';
 import '../../widgets/MultiplayerRoomOverview.dart';
+import '../../widgets/GuessUi.dart';
+import '../../widgets/AppUi.dart';
+import '../../utils/AppDesignTokens.dart';
 
 class GameRoomPage extends StatefulWidget {
   final RoomEntity room;
@@ -226,7 +228,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
         color: isDraw
             ? scheme.surfaceContainerHighest
             : AppColors.successSurface(brightness),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
         border: Border.all(
           color: isDraw
               ? scheme.outlineVariant
@@ -281,7 +283,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: AppColors.successSurface(Theme.of(context).brightness),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
       ),
       child: Text(
         '🎉 ${_getGuessPlayerDisplayName(latestGuess.playerId, latestGuess.playerNickname)} 答对了! +${latestGuess.score}分',
@@ -804,7 +806,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
                       decoration: BoxDecoration(
                         color: AppColors.warningOrange(brightness)
                             .withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                         border: Border.all(
                           color: AppColors.warningOrange(brightness)
                               .withValues(alpha: 0.5),
@@ -1074,7 +1076,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: AppColors.guessAnswerCardBg(brightness),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
               ),
               child: _buildAnswerDisplay(),
             ),
@@ -1130,7 +1132,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: AppColors.guessAnswerCardBg(brightness),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
               ),
               child: _buildAnswerDisplay(),
             ),
@@ -1195,28 +1197,6 @@ class _GameRoomPageState extends State<GameRoomPage> {
 
     return Column(
       children: [
-        // 回合进度：模式名已由顶栏展示，这里只显示「第几回合/共几回合」。
-        if (_gameState != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 5),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                '第 ${_gameState!.currentRound} / ${_gameState!.totalRounds} 回合',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  letterSpacing: 0.5,
-                ),
-              ),
-            ),
-          ),
-        const SizedBox(height: 8),
-
         // 模式专属提示（曲绘截取/模糊曲绘/音频播放器）
         _buildModeSpecificHint(),
 
@@ -1232,75 +1212,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
             child: Text(_actionPending ? '正在等待服务端确认…' : '时间到，正在等待回合结算…'),
           ),
 
-        const SizedBox(height: 16),
-        _buildSearchField(),
-
-        const SizedBox(height: 16),
-
-        // 搜索结果
-        if (_showSearchResults && _searchResults.isNotEmpty)
-          _buildSearchResults(),
-
-        // 按钮区域
-        Container(
-          margin: const EdgeInsets.only(top: 12),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // 规则按钮
-                  IconButton(
-                    tooltip: '规则说明',
-                    icon: Icon(Icons.info_outline,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        size: 24),
-                    onPressed: _showRulesDialog,
-                  ),
-                  const SizedBox(width: 4),
-                  // 排序按钮
-                  IconButton(
-                    tooltip: _isAscending ? '当前：正序，点按切换为倒序' : '当前：倒序，点按切换为正序',
-                    icon: Icon(
-                      _isAscending
-                          ? Icons.sort_by_alpha
-                          : Icons.sort_by_alpha_outlined,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      size: 24,
-                    ),
-                    onPressed: () {
-                      setState(() {
-                        _isAscending = !_isAscending;
-                      });
-                    },
-                  ),
-                  const SizedBox(width: 8),
-                  // 投降按钮
-                  OutlinedButton(
-                    onPressed: _canAct ? _handleSurrender : null,
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Theme.of(context).colorScheme.error,
-                      side: BorderSide(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .error
-                            .withValues(alpha: 0.5),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 8),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: const Text('投降'),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
 
         // 猜测历史（从游戏状态获取，实时更新）
         if (_gameState != null && _gameState!.guesses.isNotEmpty)
@@ -1358,117 +1270,137 @@ class _GameRoomPageState extends State<GameRoomPage> {
   /// 两者都是「一眼要知道」的读数，用同一种徽章形态并排显示；进入危险区间
   /// （时间 ≤10 秒 / 次数 ≤3）时整块变底色，比只改文字颜色更容易被注意到。
   Widget _buildStatusBadges(Brightness brightness) {
-    final int? guessesLeft = _gameState == null || _gameState!.maxGuesses <= 0
+    if (_gameState == null) return const SizedBox.shrink();
+    final scheme = Theme.of(context).colorScheme;
+    final maxGuesses = _gameState!.maxGuesses;
+    final int? guessesLeft = maxGuesses <= 0
         ? null
-        : max(0, _gameState!.maxGuesses - _gameState!.currentGuesses);
-
-    final List<Widget> badges = [];
-
-    if (_gameState != null) {
-      final bool unlimited = _gameState!.timeLimit <= 0;
-      final bool urgent = !unlimited && _remainingTime <= 10;
-      badges.add(_buildStatusBadge(
-        icon: Icons.timer_outlined,
-        label: '剩余时间',
-        value: unlimited ? '不限时' : '$_remainingTime 秒',
-        accent: urgent
-            ? AppColors.errorRed(brightness)
-            : Theme.of(context).colorScheme.primary,
-        background: urgent
-            ? AppColors.errorRed(brightness).withValues(alpha: 0.12)
-            : Theme.of(context).colorScheme.surfaceContainerHighest,
-      ));
-    }
-
-    if (_gameState != null) {
-      final bool low = guessesLeft != null && guessesLeft <= 3;
-      badges.add(_buildStatusBadge(
-        icon: Icons.search_outlined,
-        label: '剩余次数',
-        value: guessesLeft == null ? '不限' : '$guessesLeft 次',
-        accent: low
-            ? AppColors.warningOrange(brightness)
-            : Theme.of(context).colorScheme.primary,
-        background: low
-            ? AppColors.warningOrange(brightness).withValues(alpha: 0.12)
-            : Theme.of(context).colorScheme.surfaceContainerHighest,
-      ));
-    }
-
-    if (badges.isEmpty) return const SizedBox.shrink();
+        : max(0, maxGuesses - _gameState!.currentGuesses);
+    final limit = _gameState!.timeLimit;
+    final unlimited = limit <= 0;
+    final urgent = !unlimited && _remainingTime <= 15;
+    final ringColor =
+        urgent ? AppColors.errorRed(brightness) : scheme.primary;
+    final timeLabel = unlimited
+        ? '不限时'
+        : (_remainingTime <= 0
+            ? '时间到'
+            : (urgent ? '快没时间了！' : '还很充裕'));
+    final muted = TextStyle(fontSize: 11, color: scheme.onSurfaceVariant);
+    final low = guessesLeft != null && guessesLeft <= 3;
 
     return Padding(
-      padding: const EdgeInsets.only(top: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          for (int i = 0; i < badges.length; i++) ...[
-            if (i > 0) const SizedBox(width: 10),
-            Flexible(child: badges[i]),
+      padding: const EdgeInsets.only(top: 12),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: AppCard(
+                radius: 18,
+                padding: const EdgeInsets.all(10),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 48,
+                      height: 48,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          SizedBox.expand(
+                            child: TweenAnimationBuilder<double>(
+                              tween: Tween(
+                                  end: unlimited
+                                      ? 1
+                                      : (_remainingTime / limit)
+                                          .clamp(0.0, 1.0)),
+                              duration: AppDesignTokens.motion(
+                                  context, const Duration(seconds: 1)),
+                              builder: (context, value, _) =>
+                                  CircularProgressIndicator(
+                                value: value,
+                                strokeWidth: 5,
+                                strokeCap: StrokeCap.round,
+                                color: ringColor,
+                                backgroundColor: AppSurfaces.track(context),
+                              ),
+                            ),
+                          ),
+                          Text(unlimited ? '∞' : '$_remainingTime',
+                              style: AppTheme.number(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  color: scheme.onSurface)),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('剩余时间', style: muted),
+                          Text(timeLabel,
+                              style: const TextStyle(
+                                  fontSize: 13, fontWeight: FontWeight.w600)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: AppCard(
+                radius: 18,
+                padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('剩余次数', style: muted),
+                    const SizedBox(height: 6),
+                    // 次数不多时用圆点一眼数清，太多就显示数字
+                    if (guessesLeft != null && maxGuesses <= 10)
+                      Wrap(
+                        spacing: 4,
+                        runSpacing: 4,
+                        children: [
+                          for (var i = 0; i < maxGuesses; i++)
+                            AnimatedContainer(
+                              duration: AppDesignTokens.motion(
+                                  context, AppDesignTokens.mediumMotion),
+                              width: 10,
+                              height: 10,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: i < guessesLeft
+                                    ? (low
+                                        ? AppColors.warningOrange(brightness)
+                                        : scheme.primary)
+                                    : AppSurfaces.track(context),
+                              ),
+                            ),
+                        ],
+                      )
+                    else
+                      Text(guessesLeft == null ? '不限' : '$guessesLeft 次',
+                          style: AppTheme.number(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: scheme.onSurface)),
+                  ],
+                ),
+              ),
+            ),
           ],
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildStatusBadge({
-    required IconData icon,
-    required String label,
-    required String value,
-    required Color accent,
-    required Color background,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: accent),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(width: 6),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
-              color: accent,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSearchResults() {
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      constraints: const BoxConstraints(maxHeight: 300),
-      child: ListView.builder(
-        // ListView 默认会把 MediaQuery 的 viewPadding 当成第一项前的 padding
-        // （等于状态栏高度），导致搜索结果顶部多出约半张卡片高的空白
-        padding: EdgeInsets.zero,
-        shrinkWrap: true,
-        itemCount: _searchResults.length,
-        itemBuilder: (context, index) {
-          return _buildSearchResultItem(_searchResults[index]);
-        },
-      ),
-    );
-  }
 
   Widget _buildSearchResultItem(Song song) {
     final aliases = _songAliasManager.aliases[song.title] ?? [];
@@ -1492,10 +1424,10 @@ class _GameRoomPageState extends State<GameRoomPage> {
               width: 60,
               height: 60,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                 child:
                     CoverUtil.buildCoverWidgetWithContext(context, song.id, 60),
               ),
@@ -1595,15 +1527,11 @@ class _GameRoomPageState extends State<GameRoomPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          '猜测历史 (${guesses.length})',
-          style: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.bold,
-            color: Theme.of(context).colorScheme.onSurface,
-          ),
+        GuessHistoryHeader(
+          ascending: _isAscending,
+          count: guesses.length,
+          onToggleSort: () => setState(() => _isAscending = !_isAscending),
         ),
-        const SizedBox(height: 8),
         ...guesses.map((guess) {
           String key =
               '${guess.playerId}_${guess.songId}_${guess.guessedAt.millisecondsSinceEpoch}';
@@ -1617,320 +1545,46 @@ class _GameRoomPageState extends State<GameRoomPage> {
   Widget _buildGuessHistoryItemFromRecord(GuessRecord guess, int guessNumber) {
     final detailsKey =
         '${guess.songId}:${_targetSong?.id}:${Theme.of(context).brightness.name}';
+    final itemKey = ValueKey(
+        '${guess.playerId}_${guess.songId}_${guess.guessedAt.millisecondsSinceEpoch}');
     return FutureBuilder<GuessSong?>(
+      key: itemKey,
       future: _guessDetails.putIfAbsent(
           detailsKey, () => _buildGuessSongForRecord(guess)),
       builder: (context, snapshot) {
-        GuessSong? guessSong = snapshot.data;
-
-        return Container(
-          margin: const EdgeInsets.symmetric(vertical: 6),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            borderRadius: BorderRadius.circular(10),
-            border:
-                Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 提交者信息行：把序号做成小圆点，一眼能数出是第几次猜测
-              Row(
-                children: [
-                  Container(
-                    width: 22,
-                    height: 22,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .primary
-                          .withValues(alpha: 0.12),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Text(
-                      '$guessNumber',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    ),
+        final guessSong = snapshot.data;
+        if (guessSong != null) {
+          return GuessHistoryCard(
+            guessSong: guessSong,
+            index: guessNumber - 1,
+            targetSongId: _targetSong?.id,
+            playerName: guess.playerNickname,
+          );
+        }
+        // 比对结果还没算出来（或曲库里没有这首）时只显示曲名。
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: AppCard(
+            radius: 18,
+            padding: const EdgeInsets.all(10),
+            child: Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+                  child: CoverUtil.buildCoverWidgetWithContext(
+                      context, guess.songId, 44),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: GuessCell(
+                    label: guess.playerNickname,
+                    value: guess.songName,
+                    color: AppColors.guessWrongBg(
+                        Theme.of(context).brightness),
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      guess.playerNickname,
-                      style: const TextStyle(
-                          fontSize: 13, fontWeight: FontWeight.w600),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-
-              // 第一行：曲绘，曲名
-              Row(
-                children: [
-                  // 方形曲绘
-                  Container(
-                    width: 60,
-                    height: 60,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: CoverUtil.buildCoverWidgetWithContext(
-                          context, guess.songId, 60),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildInfoItem(
-                        '曲名',
-                        guessSong?.title ?? guess.songName,
-                        guessSong?.titleBgColor ?? Colors.grey),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-
-              // 第二行：类型，BPM，曲师
-              if (guessSong != null)
-                Row(
-                  children: [
-                    Expanded(
-                      flex: 1,
-                      child: _buildInfoItem(
-                          '类型',
-                          guessSong.type == 'SD' ? 'ST' : guessSong.type,
-                          guessSong.typeBgColor ?? Colors.grey),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      flex: 1,
-                      child: _buildInfoItem('BPM', guessSong.bpm.toString(),
-                          guessSong.bpmBgColor ?? Colors.grey,
-                          arrow: guessSong.bpmArrow),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      flex: 2,
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: guessSong.artistBgColor ?? Colors.grey,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              '曲师',
-                              style:
-                                  TextStyle(fontSize: 10, color: Colors.white),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              guessSong.artist,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
                 ),
-              const SizedBox(height: 8),
-
-              GuessBpmHistoryFields(songId: guess.songId, targetSongId: _currentRoom?.gameType == GameType.letters && guess.isCorrect ? guess.songId : _targetSong?.id),
-
-              // 第三行：Master定数，Master谱师
-              if (guessSong != null)
-                Row(
-                  children: [
-                    Expanded(
-                      flex: 2,
-                      child: _buildInfoItem('MASTER定数', guessSong.masterDs,
-                          guessSong.masterLevelBgColor ?? Colors.grey,
-                          arrow: guessSong.masterLevelArrow),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      flex: 3,
-                      child: _buildInfoItem('MASTER谱师', guessSong.masterCharter,
-                          guessSong.masterCharterBgColor ?? Colors.grey),
-                    ),
-                  ],
-                ),
-              const SizedBox(height: 8),
-
-              // 第四行：ReMaster定数，ReMaster谱师
-              if (guessSong != null)
-                Row(
-                  children: [
-                    Expanded(
-                      flex: 2,
-                      child: _buildInfoItem(
-                          'Re:MASTER定数',
-                          guessSong.remasterDs.isNotEmpty
-                              ? guessSong.remasterDs
-                              : '-',
-                          guessSong.remasterLevelBgColor ?? Colors.grey,
-                          arrow: guessSong.remasterLevelArrow),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      flex: 3,
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color:
-                              guessSong.remasterCharterBgColor ?? Colors.grey,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Re:MASTER谱师',
-                              style:
-                                  TextStyle(fontSize: 10, color: Colors.white),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              guessSong.remasterCharter.isNotEmpty
-                                  ? guessSong.remasterCharter
-                                  : '-',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              const SizedBox(height: 8),
-
-              // 第五行：流派，版本
-              if (guessSong != null)
-                Row(
-                  children: [
-                    Expanded(
-                      flex: 3,
-                      child: _buildInfoItem('流派', guessSong.genre,
-                          guessSong.genreBgColor ?? Colors.grey),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      flex: 4,
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: guessSong.versionBgColor ?? Colors.grey,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              '版本',
-                              style:
-                                  TextStyle(fontSize: 10, color: Colors.white),
-                            ),
-                            const SizedBox(height: 2),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    StringUtil.formatVersion2(
-                                        guessSong.version),
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                                if (guessSong.versionArrow != null)
-                                  Padding(
-                                    padding: const EdgeInsets.only(left: 4),
-                                    child: Text(
-                                      guessSong.versionArrow!,
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                        color: guessSong.versionArrow == '↑'
-                                            ? Colors.blue
-                                            : Colors.red,
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-
-              const SizedBox(height: 8),
-
-              // 第六行：Master标签
-              if (guessSong?.masterTags?.isNotEmpty ?? false)
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'MASTER标签',
-                      style:
-                          TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: List.generate(
-                          guessSong!.masterTags?.length ?? 0, (i) {
-                        return Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: guessSong.tagBgColors?[i] ?? Colors.grey,
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Text(
-                            guessSong.masterTags?[i] ?? '',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                            ),
-                          ),
-                        );
-                      }),
-                    ),
-                  ],
-                ),
-            ],
+              ],
+            ),
           ),
         );
       },
@@ -1973,55 +1627,6 @@ class _GameRoomPageState extends State<GameRoomPage> {
     }
   }
 
-  // 构建信息项
-  Widget _buildInfoItem(String label, String value, Color color,
-      {String? arrow}) {
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(fontSize: 10, color: Colors.white),
-          ),
-          const SizedBox(height: 2),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              if (arrow != null)
-                Padding(
-                  padding: const EdgeInsets.only(left: 4),
-                  child: Text(
-                    arrow,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: arrow == '↑' ? Colors.blue : Colors.red,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
 
   // 构建答案显示区域
   Widget _buildAnswerDisplay() {
@@ -2058,10 +1663,10 @@ class _GameRoomPageState extends State<GameRoomPage> {
               width: 60,
               height: 60,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                 child: CoverUtil.buildCoverWidgetWithContext(
                     context, _targetSong!.id, 60),
               ),
@@ -2228,7 +1833,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
               color: index < 3
                   ? AppColors.podiumSurface(brightness)
                   : scheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
               border: isMe
                   ? Border.all(color: scheme.primary, width: 1.5)
                   : Border.all(color: scheme.outlineVariant),
@@ -2271,7 +1876,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
                         const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
                       color: AppColors.successSurface(brightness),
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                     ),
                     child: Text(
                       '+$gain',
@@ -2615,7 +2220,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
                                 horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
                               color: Colors.white.withValues(alpha: 0.25),
-                              borderRadius: BorderRadius.circular(6),
+                              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                             ),
                             child: Text(
                               letter,
@@ -2753,7 +2358,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
               ),
             ),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
               child: showCover
                   ? (_croppedCoverProvider == null
                       ? CoverUtil.buildCoverWidgetWithContext(
@@ -2813,7 +2418,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
             ),
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
             child: CoverUtil.buildCoverWidgetWithContext(
                 context, targetSongId, 200),
           ),
@@ -2851,7 +2456,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
               ),
             ),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
               child: TileRevealImage(
                 songId: targetSongId,
                 size: 200,
@@ -3031,7 +2636,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
                     color: GuessChartByChartPeekPage
                             .difficultyColors[_peekResolvedInote] ??
                         Colors.grey,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                   ),
                   child: Text(
                     GuessChartByChartPeekPage
@@ -3844,6 +3449,10 @@ class _GameRoomPageState extends State<GameRoomPage> {
     final room = _currentRoom ?? widget.room;
     final waiting = room.status == RoomStatus.waiting && _gameState == null;
     final scheme = Theme.of(context).colorScheme;
+    final state = _gameState;
+    // 对局进行中：标题显示玩法和轮次，输入框贴底。
+    final inRound = state != null && !state.isGameOver && !state.isRoundOver;
+    final showInputBar = inRound && !_hasSurrendered;
     return PopScope(
       canPop: _canPopAfterLeave,
       onPopInvokedWithResult: (didPop, result) {
@@ -3852,8 +3461,17 @@ class _GameRoomPageState extends State<GameRoomPage> {
       child: AbsorbPointer(
         absorbing: _isLeaving,
         child: BackgroundPageScaffold(
-          title: '多人房间',
+          title: state == null
+              ? '多人房间'
+              : '${room.gameType.name} · 第 ${state.currentRound}/${state.totalRounds} 轮',
           onBack: _showLeaveRoomConfirmDialog,
+          actions: [
+            IconButton(
+              tooltip: '规则说明',
+              icon: const Icon(Icons.help_outline_rounded, size: 20),
+              onPressed: _showRulesDialog,
+            ),
+          ],
           resizeToAvoidBottomInset: false,
           child: Column(children: [
             if (_isLeaving)
@@ -3880,17 +3498,21 @@ class _GameRoomPageState extends State<GameRoomPage> {
               final gameArea = _buildGameArea(Theme.of(context).brightness);
               return SingleChildScrollView(
                 padding: EdgeInsets.fromLTRB(
-                    20,
-                    8,
-                    20,
+                    AppDesignTokens.gutter,
+                    4,
+                    AppDesignTokens.gutter,
                     24 +
-                        MediaQuery.viewInsetsOf(context).bottom +
-                        (waiting ? 0 : MediaQuery.paddingOf(context).bottom)),
+                        (showInputBar
+                            ? 0
+                            : MediaQuery.viewInsetsOf(context).bottom +
+                                (waiting
+                                    ? 0
+                                    : MediaQuery.paddingOf(context).bottom))),
                 child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       MultiplayerRoomHeader(room: room, compact: !waiting),
-                      const SizedBox(height: 24),
+                      SizedBox(height: waiting ? 16 : 4),
                       if (wide)
                         Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -3901,12 +3523,28 @@ class _GameRoomPageState extends State<GameRoomPage> {
                             ])
                       else ...[
                         _buildPlayerList(),
-                        const SizedBox(height: 24),
+                        SizedBox(height: waiting ? 16 : 12),
                         gameArea,
                       ],
                     ]),
               );
             })),
+            if (showInputBar)
+              GuessInputBar(
+                controller: _searchController,
+                onChanged: _handleSearchInput,
+                hintText: '搜索歌曲、ID、BPM、谱师等',
+                isGameOver: false,
+                enabled: _canAct,
+                onSurrender: _canAct ? _handleSurrender : null,
+                onNewGame: () {},
+                onClear: () => setState(_clearSearchInput),
+                showResults: _showSearchResults,
+                searching: _isSearching,
+                resultCount: _searchResults.length,
+                resultBuilder: (context, index) =>
+                    _buildSearchResultItem(_searchResults[index]),
+              ),
             if (waiting)
               MultiplayerRoomReadyBar(
                   room: room,
