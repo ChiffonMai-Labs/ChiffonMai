@@ -680,7 +680,10 @@ extension _SongInfoLoaders on _SongInfoPageState {
         TextSpan(children: [
           TextSpan(
               text: text,
-              style: TextStyle(fontSize: 13, color: scheme.onSurface)),
+              style: AppTheme.number(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: scheme.onSurface)),
           if (arrow.isNotEmpty)
             TextSpan(
                 text: ' $arrow',

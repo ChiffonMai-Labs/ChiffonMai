@@ -288,6 +288,9 @@ class StatTile extends StatelessWidget {
             ? valueText
             : Row(
                 mainAxisSize: MainAxisSize.min,
+                // 字号不同的两段文字底部平齐
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
                 children: [
                   valueText,
                   const SizedBox(width: 8),

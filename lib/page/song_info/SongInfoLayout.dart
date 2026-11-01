@@ -806,7 +806,7 @@ extension _SongInfoLayout on _SongInfoPageState {
                       value: starsText,
                       child: Text(
                         starsText,
-                        style: TextStyle(
+                        style: AppTheme.number(
                             fontSize: 13,
                             fontWeight: FontWeight.w700,
                             color: _getStarsColor(

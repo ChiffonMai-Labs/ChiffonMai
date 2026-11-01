@@ -453,8 +453,9 @@ extension _SongInfoWidgets on _SongInfoPageState {
         ),
         child: Text(
           '别名: 无',
-          style: TextStyle(
+          style: AppTheme.number(
             fontSize: 13,
+            fontWeight: FontWeight.w500,
             color: Colors.white.withValues(alpha: 0.85),
           ),
         ),
@@ -537,8 +538,9 @@ extension _SongInfoWidgets on _SongInfoPageState {
           children: [
             Text(
               '查看别名 (${aliases.length})',
-              style: TextStyle(
+              style: AppTheme.number(
                 fontSize: 14,
+                fontWeight: FontWeight.w500,
                 color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
