@@ -78,6 +78,45 @@ class AppTheme {
     );
   }
 
+  /// 数字 / 拉丁展示字体：**Outfit**（几何无衬线，等宽数字）。
+  ///
+  /// 只用于 Rating、达成率、定数、物量这类**数字为主角**的位置；
+  /// 中文正文继续走 [font]（思源黑体）。和 [font] 一样走 google_fonts、
+  /// 字重必须随调用一起传入，并且**只能在 `build` 里调用**。
+  ///
+  /// 默认开启 `tabularFigures`：数字逐帧变化（计数动画、实时计算）时
+  /// 宽度不抖。
+  static TextStyle number({
+    double? fontSize,
+    FontWeight? fontWeight,
+    Color? color,
+    double? height,
+    double? letterSpacing,
+  }) {
+    const features = [FontFeature.tabularFigures()];
+    if (debugLocalFontFamily) {
+      // 测试环境没有 Outfit：退回本地思源黑体，字重映射与 [font] 一致。
+      final weight = (fontWeight ?? FontWeight.w600).value;
+      return TextStyle(
+        fontFamily: weight == 400 ? 'NotoSansSC_regular' : 'NotoSansSC_$weight',
+        fontSize: fontSize,
+        fontWeight: fontWeight ?? FontWeight.w600,
+        color: color,
+        height: height,
+        letterSpacing: letterSpacing,
+        fontFeatures: features,
+      );
+    }
+    return GoogleFonts.outfit(
+      fontSize: fontSize,
+      fontWeight: fontWeight ?? FontWeight.w600,
+      color: color,
+      height: height,
+      letterSpacing: letterSpacing,
+      fontFeatures: features,
+    );
+  }
+
   /// 测试/探针专用：让 [font] 返回本地已注册的 `NotoSansSC_*` 族，不联网。
   /// 真机（debug/release）永远是 false。
   @visibleForTesting
@@ -963,5 +1002,211 @@ class AppColors {
       default:
         return const Color(0xFF664499);
     }
+  }
+
+  // ===================================================================
+  // 2026-11 UI 重构新增：评级 / 判定 / 连击 / Rating 段位 的统一配色
+  // 新页面一律从这里取色，不要再在页面里写 Colors.amber / Colors.pink。
+  // ===================================================================
+
+  /// 判定色（色条、圆点用）。浅色深色通用：只作为小面积标识，不承载文字。
+  /// 相邻判定在**明度**上也拉开了，不只靠色相区分（色弱友好）。
+  static const Color judgeCriticalPerfect = Color(0xFFE8B400);
+  static const Color judgePerfect = Color(0xFFF0CF5A);
+  static const Color judgeGreat = Color(0xFFD9467A);
+  static const Color judgeGood = Color(0xFF2F8F55);
+  static const Color judgeMiss = Color(0xFF8A9493);
+
+  /// 评级徽章（SSS+ / SS / S+ ...）的底色与字色，浅色深色各一套，
+  /// 两边文字对比度都 ≥ 4.5:1。
+  static ({Color background, Color foreground}) rankBadge(
+      String? rank, Brightness brightness) {
+    final dark = brightness == Brightness.dark;
+    final r = (rank ?? '').toUpperCase().trim();
+    if (r == 'SSS+') {
+      return (
+        background: const Color(0xFFF5C542),
+        foreground: const Color(0xFF2B2100)
+      );
+    }
+    if (r == 'SSS') {
+      return (
+        background: const Color(0xFFF7DE8C),
+        foreground: const Color(0xFF2B2100)
+      );
+    }
+    if (r.startsWith('SS')) {
+      return dark
+          ? (
+              background: const Color(0xFF3A4652),
+              foreground: const Color(0xFFE3EAF2)
+            )
+          : (
+              background: const Color(0xFFDCE3EA),
+              foreground: const Color(0xFF1F2A36)
+            );
+    }
+    if (r.startsWith('S')) {
+      return dark
+          ? (
+              background: const Color(0xFF5A3A24),
+              foreground: const Color(0xFFFFDCC6)
+            )
+          : (
+              background: const Color(0xFFF6D2BA),
+              foreground: const Color(0xFF4A1F00)
+            );
+    }
+    if (r.startsWith('A')) {
+      return dark
+          ? (
+              background: const Color(0xFF5A2A2A),
+              foreground: const Color(0xFFFFD9D9)
+            )
+          : (
+              background: const Color(0xFFF4D6D6),
+              foreground: const Color(0xFF6B1A1A)
+            );
+    }
+    return dark
+        ? (
+            background: const Color(0xFF3A4241),
+            foreground: const Color(0xFFDCE3E2)
+          )
+        : (
+            background: const Color(0xFFE1E7E6),
+            foreground: const Color(0xFF3F4948)
+          );
+  }
+
+  /// 连击徽章（FC / FC+ / AP / AP+）。AP 系用金色，FC 系用绿色。
+  static ({Color background, Color foreground}) comboBadge(
+      String? combo, Brightness brightness) {
+    final dark = brightness == Brightness.dark;
+    final c = (combo ?? '').toLowerCase();
+    if (c.startsWith('ap')) {
+      return dark
+          ? (
+              background: const Color(0xFF4A3D10),
+              foreground: const Color(0xFFF7DE8C)
+            )
+          : (
+              background: const Color(0xFFF7DE8C),
+              foreground: const Color(0xFF3D2E00)
+            );
+    }
+    return dark
+        ? (
+            background: const Color(0xFF1E3A28),
+            foreground: const Color(0xFFA8E2BA)
+          )
+        : (
+            background: const Color(0xFFDDF1E3),
+            foreground: const Color(0xFF1B5E33)
+          );
+  }
+
+  /// 同步徽章（FS / FS+ / FDX / FDX+ / SYNC）。
+  static ({Color background, Color foreground}) syncBadge(
+      Brightness brightness) {
+    return brightness == Brightness.dark
+        ? (
+            background: const Color(0xFF1F3047),
+            foreground: const Color(0xFFB8D3F7)
+          )
+        : (
+            background: const Color(0xFFDCE8FA),
+            foreground: const Color(0xFF1F4F8F)
+          );
+  }
+
+  /// Rating 段位（对应游戏里 Rating 框的颜色），用于首页总 Rating 旁的小标识。
+  ///
+  /// [colors] 至少两个色值，用于渐变；[foreground] 是压在渐变上的文字色。
+  static ({String label, List<Color> colors, Color foreground}) ratingTier(
+      int rating) {
+    const dark = Color(0xFF1F1A10);
+    const light = Color(0xFFFFFFFF);
+    if (rating >= 15000) {
+      return (
+        label: '彩',
+        colors: const [
+          Color(0xFFFF5A5A),
+          Color(0xFFFFB23F),
+          Color(0xFF5BD48A),
+          Color(0xFF45B6F0),
+          Color(0xFF8C6CF0),
+        ],
+        foreground: light
+      );
+    }
+    if (rating >= 14500) {
+      return (
+        label: '白金',
+        colors: const [Color(0xFFEDE8D8), Color(0xFFC9C2A8)],
+        foreground: dark
+      );
+    }
+    if (rating >= 14000) {
+      return (
+        label: '金',
+        colors: const [Color(0xFFF5C542), Color(0xFFD9A21B)],
+        foreground: dark
+      );
+    }
+    if (rating >= 13000) {
+      return (
+        label: '银',
+        colors: const [Color(0xFFDDE3E8), Color(0xFFA9B3BC)],
+        foreground: dark
+      );
+    }
+    if (rating >= 12000) {
+      return (
+        label: '铜',
+        colors: const [Color(0xFFD9A27A), Color(0xFFA86B43)],
+        foreground: dark
+      );
+    }
+    if (rating >= 10000) {
+      return (
+        label: '紫',
+        colors: const [Color(0xFF9C76E0), Color(0xFF6A45A8)],
+        foreground: light
+      );
+    }
+    if (rating >= 7000) {
+      return (
+        label: '红',
+        colors: const [Color(0xFFE06060), Color(0xFFB03030)],
+        foreground: light
+      );
+    }
+    if (rating >= 4000) {
+      return (
+        label: '黄',
+        colors: const [Color(0xFFF5D45A), Color(0xFFE0B020)],
+        foreground: dark
+      );
+    }
+    if (rating >= 2000) {
+      return (
+        label: '绿',
+        colors: const [Color(0xFF5FBF7E), Color(0xFF2F8F55)],
+        foreground: light
+      );
+    }
+    if (rating >= 1000) {
+      return (
+        label: '蓝',
+        colors: const [Color(0xFF5E9BE0), Color(0xFF2F6FB8)],
+        foreground: light
+      );
+    }
+    return (
+      label: '白',
+      colors: const [Color(0xFFF2F2F2), Color(0xFFD0D0D0)],
+      foreground: dark
+    );
   }
 }

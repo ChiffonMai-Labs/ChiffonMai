@@ -11,8 +11,7 @@ import '../widgets/ThemeAwareBackground.dart';
 import 'HomePage.dart';
 import 'ScoreHubPage.dart';
 import 'LibraryHubPage.dart';
-import 'PlayHubPage.dart';
-import 'AttendanceHubPage.dart';
+import 'PlayZoneHubPage.dart';
 import 'SystemHubPage.dart';
 import 'Portable/PortablePlayerPage.dart';
 
@@ -44,6 +43,8 @@ class _AppShellState extends State<AppShell> {
   final GlobalKey<HomePageState> _homePageKey = GlobalKey<HomePageState>();
   final GlobalKey<SystemHubPageState> _systemPageKey =
       GlobalKey<SystemHubPageState>();
+  final GlobalKey<PlayZoneHubPageState> _playZoneKey =
+      GlobalKey<PlayZoneHubPageState>();
   bool _firstFrameNotified = false;
   double _horizontalDragDistance = 0;
   Timer? _navSelectionDebounce;
@@ -51,7 +52,9 @@ class _AppShellState extends State<AppShell> {
 
   static const Duration _navDebounceDuration = Duration(milliseconds: 120);
 
-  // ===== 6 个主分类标签（首页 + FeatureRegistry 的 5 大功能分类） =====
+  // ===== 5 个主分类标签（2026-11：出勤 + 休闲 合并为「游玩」） =====
+  // 下标顺序即页面顺序：首页 0 / 曲库 1 / 成绩 2 / 游玩 3 / 我的 4。
+  static const int _playZoneIndex = 3;
   static const List<_NavTab> _tabs = [
     _NavTab(
       label: '首页',
@@ -69,12 +72,7 @@ class _AppShellState extends State<AppShell> {
       activeIcon: Icons.analytics_rounded,
     ),
     _NavTab(
-      label: '出勤',
-      icon: Icons.explore_outlined,
-      activeIcon: Icons.explore_rounded,
-    ),
-    _NavTab(
-      label: '休闲',
+      label: '游玩',
       icon: Icons.sports_esports_outlined,
       activeIcon: Icons.sports_esports_rounded,
     ),
@@ -88,10 +86,10 @@ class _AppShellState extends State<AppShell> {
   // ===== 底部导航尺寸 =====
   // 药丸 indicator 与图标槽共用 pillH/iconTop，图标天生在药丸内垂直居中，
   // 不再依赖 Column 在整栏里的居中位置（那样药丸和图标会有几像素错位）。
-  static const double barH = 66; // 导航栏总高
-  static const double pillW = 48; // 药丸宽
-  static const double pillH = 28; // 药丸高（也是图标槽高）
-  static const double iconTop = 11; // 药丸/图标槽的顶部偏移
+  static const double barH = 68; // 导航栏总高
+  static const double pillW = 56; // 药丸宽
+  static const double pillH = 30; // 药丸高（也是图标槽高）
+  static const double iconTop = 10; // 药丸/图标槽的顶部偏移
   static const double labelGap = 2; // 图标与文字间距
   static const double navigationBottomGap = 14;
   static const double contentBottomGap = 8;
@@ -104,15 +102,17 @@ class _AppShellState extends State<AppShell> {
     _pages = [
       HomePage(
         key: _homePageKey,
-        onEntertainmentTap: () => _selectIndex(4),
+        onEntertainmentTap: () {
+          _selectIndex(_playZoneIndex);
+          _playZoneKey.currentState?.showSection(1);
+        },
         onSystemFeatureTap: (item) async {
           await _systemPageKey.currentState?.openFeature(item);
         },
       ),
       const LibraryHubPage(),
       const ScoreHubPage(),
-      const AttendanceHubPage(),
-      const PlayHubPage(),
+      PlayZoneHubPage(key: _playZoneKey),
       SystemHubPage(
         key: _systemPageKey,
         onAccountManageTap: () =>
@@ -278,11 +278,21 @@ class _AppShellState extends State<AppShell> {
         destinations: destinations,
       );
     }
-    return Material(
-      color: scheme.surfaceContainerHigh.withValues(alpha: 0.96),
-      elevation: 8,
-      shadowColor: scheme.shadow.withValues(alpha: 0.26),
-      borderRadius: BorderRadius.circular(28),
+    // 「经典悬浮」样式（B 方案）：白色浮条 + 柔和投影 + 常驻文字标签。
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(26),
+        boxShadow: [
+          BoxShadow(
+            color: scheme.shadow.withValues(alpha: 0.12),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Material(
+      color: AppSurfaces.card(context).withValues(alpha: 0.97),
+      borderRadius: BorderRadius.circular(26),
       clipBehavior: Clip.antiAlias,
       child: SizedBox(
         height: barH,
@@ -301,7 +311,7 @@ class _AppShellState extends State<AppShell> {
                   height: pillH,
                   child: DecoratedBox(
                     decoration: BoxDecoration(
-                      color: scheme.primary.withValues(alpha: 0.14),
+                      color: scheme.secondaryContainer,
                       borderRadius: BorderRadius.circular(pillH / 2),
                     ),
                   ),
@@ -338,9 +348,9 @@ class _AppShellState extends State<AppShell> {
                                             ? _tabs[i].activeIcon
                                             : _tabs[i].icon,
                                         key: ValueKey(i == _index),
-                                        size: 24,
+                                        size: 22,
                                         color: i == _index
-                                            ? scheme.primary
+                                            ? scheme.onSecondaryContainer
                                             : scheme.onSurfaceVariant,
                                       ),
                                     ),
@@ -355,13 +365,13 @@ class _AppShellState extends State<AppShell> {
                                     softWrap: false,
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
-                                      fontSize: 10.5,
+                                      fontSize: 11,
                                       fontWeight: i == _index
                                           ? FontWeight.w700
                                           : FontWeight.w500,
                                       letterSpacing: 0,
                                       color: i == _index
-                                          ? scheme.primary
+                                          ? scheme.onSurface
                                           : scheme.onSurfaceVariant,
                                     ),
                                   ),
@@ -377,6 +387,7 @@ class _AppShellState extends State<AppShell> {
             );
           },
         ),
+      ),
       ),
     );
   }

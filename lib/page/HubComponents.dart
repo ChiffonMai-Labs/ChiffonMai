@@ -4,6 +4,7 @@ import '../widgets/FavoriteStarButton.dart';
 import '../widgets/MainNavigationInsets.dart';
 import '../widgets/SmoothLinearProgressIndicator.dart';
 import '../utils/AppDesignTokens.dart';
+import '../utils/AppTheme.dart';
 import '../utils/NavigationPreferences.dart';
 import '../widgets/MarqueeText.dart';
 
@@ -96,60 +97,46 @@ class HubSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // ===== Section 标题栏 =====
+        // ===== Section 标题栏（B 方案：去掉图标徽章，标题 + 数量 + 说明） =====
         Padding(
-          padding: const EdgeInsets.fromLTRB(4, 4, 4, 12),
+          padding: const EdgeInsets.fromLTRB(6, 2, 4, 10),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // 左侧图标徽章（圆角方形 + 主题色半透）
-              Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  color: scheme.primary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                alignment: Alignment.center,
-                child: Icon(icon, size: 18, color: scheme.primary),
-              ),
-              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Row(
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
                       children: [
                         Flexible(
-                          child: Text(
-                            title,
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 0.2,
-                                ),
-                            overflow: TextOverflow.ellipsis,
+                          child: Semantics(
+                            header: true,
+                            child: Text(
+                              title,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 15,
+                                    letterSpacing: 0.2,
+                                  ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                         ),
                         if (badgeCount != null) ...[
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 7, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: scheme.primary.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              '$badgeCount',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: scheme.primary,
-                              ),
+                          const SizedBox(width: 6),
+                          Text(
+                            '$badgeCount',
+                            style: AppTheme.number(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: scheme.onSurfaceVariant,
                             ),
                           ),
                         ],
@@ -177,11 +164,12 @@ class HubSection extends StatelessWidget {
           ),
         ),
         // ===== 内容卡片 =====
-        DecoratedBox(
-          decoration: BoxDecoration(
-            color: scheme.surfaceContainerLow,
-            borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
-            border: Border.all(color: scheme.outlineVariant),
+        // 白卡片、无描边（B 方案）。用 Material 承载底色，子项的水波纹裁在圆角内。
+        Material(
+          color: AppSurfaces.card(context),
+          clipBehavior: Clip.antiAlias,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
           ),
           child: Padding(
             padding: contentPadding,
@@ -337,20 +325,10 @@ class HubActionTile extends StatelessWidget {
                     ),
                   )
             : _showStar
-                ? Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      FavoriteStarButton(
-                        isFavorited: isFavorited!,
-                        onTap: onToggleFavorite!,
-                      ),
-                      const SizedBox(width: 2),
-                      Icon(
-                        Icons.chevron_right,
-                        color: scheme.onSurfaceVariant.withValues(alpha: 0.55),
-                        size: 20,
-                      ),
-                    ],
+                // B 方案：有星标时不再叠一个箭头，整行本身就是可点的
+                ? FavoriteStarButton(
+                    isFavorited: isFavorited!,
+                    onTap: onToggleFavorite!,
                   )
                 : Icon(
                     Icons.chevron_right,
@@ -373,7 +351,8 @@ class HubActionTile extends StatelessWidget {
             height: 40,
             decoration: BoxDecoration(
               color: activeTint.withValues(alpha: _isInactive ? 0.06 : 0.12),
-              borderRadius: BorderRadius.circular(11),
+              borderRadius:
+                  BorderRadius.circular(AppDesignTokens.radiusSmall),
             ),
             alignment: Alignment.center,
             child: Icon(icon,
@@ -604,9 +583,14 @@ class _MarqueeSubtitle extends StatelessWidget {
 class HubPageScaffold extends StatelessWidget {
   final String title;
   final String subtitle;
+
+  /// 旧版页头左侧的图标。B 方案的页头只保留大标题，参数保留以兼容调用方。
   final IconData icon;
   final List<Widget> children;
   final Widget? hero;
+
+  /// 紧贴在标题下方的附加区域（例如「游玩」页的出勤 / 休闲切换）。
+  final Widget? headerBottom;
 
   const HubPageScaffold({
     super.key,
@@ -615,6 +599,7 @@ class HubPageScaffold extends StatelessWidget {
     required this.icon,
     required this.children,
     this.hero,
+    this.headerBottom,
   });
 
   @override
@@ -630,47 +615,38 @@ class HubPageScaffold extends StatelessWidget {
             EdgeInsets.only(bottom: MainNavigationInsets.bottomOf(context)),
           ),
           children: [
-            // ===== 顶部标题栏 =====
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Container(
-                  width: 52,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    color: scheme.primary.withValues(alpha: 0.18),
-                    borderRadius: BorderRadius.circular(16),
+            // ===== 顶部标题栏（B 方案：大标题 + 一行说明） =====
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Semantics(
+                    header: true,
+                    child: Text(
+                      title,
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                            fontSize: 30,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.2,
+                          ),
+                    ),
                   ),
-                  alignment: Alignment.center,
-                  child: Icon(icon, color: scheme.onPrimaryContainer, size: 26),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        title,
-                        style:
-                            Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 0.2,
-                                ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        subtitle,
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodyMedium
-                            ?.copyWith(color: scheme.onSurfaceVariant),
-                      ),
-                    ],
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodyMedium
+                        ?.copyWith(color: scheme.onSurfaceVariant),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
+            if (headerBottom != null) ...[
+              const SizedBox(height: 16),
+              headerBottom!,
+            ],
             if (hero != null) ...[
               const SizedBox(height: 20),
               hero!,

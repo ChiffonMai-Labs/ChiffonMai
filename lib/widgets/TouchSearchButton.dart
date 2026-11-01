@@ -47,7 +47,7 @@ class _TouchSearchButtonState extends State<TouchSearchButton> {
           decoration: BoxDecoration(
             color: scheme.primary,
             borderRadius: BorderRadius.circular(
-              _hovered || _pointers.isNotEmpty ? 12 : 24,
+              _hovered || _pointers.isNotEmpty ? 12 : 16,
             ),
           ),
           child: IconButton(

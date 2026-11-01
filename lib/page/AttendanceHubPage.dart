@@ -15,7 +15,19 @@ import 'NextPlayQueuePage.dart';
 import 'GlobalArcadeMapPage.dart';
 
 class AttendanceHubPage extends StatefulWidget {
-  const AttendanceHubPage({super.key});
+  /// 页头标题 / 说明。嵌在「游玩」页里时由外层传入（见 PlayZoneHubPage）。
+  final String title;
+  final String subtitle;
+
+  /// 页头下方的附加区域（「游玩」页的出勤 / 休闲切换）。
+  final Widget? headerBottom;
+
+  const AttendanceHubPage({
+    super.key,
+    this.title = '出勤',
+    this.subtitle = '选曲、安排练习与查找机厅',
+    this.headerBottom,
+  });
   @override
   State<AttendanceHubPage> createState() => _AttendanceHubPageState();
 }
@@ -151,8 +163,9 @@ class _AttendanceHubPageState extends State<AttendanceHubPage> {
 
           final sections = FeatureRegistry.sections['出勤']!;
           return HubPageScaffold(
-            title: '出勤',
-            subtitle: '选曲、安排练习与查找机厅',
+            title: widget.title,
+            subtitle: widget.subtitle,
+            headerBottom: widget.headerBottom,
             icon: Icons.explore_rounded,
             children: [
               for (final section in sections) ...[

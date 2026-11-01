@@ -20,7 +20,31 @@ import 'package:my_first_flutter_app/service/History/ChartHistoryStore.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import 'package:my_first_flutter_app/widgets/ChartHistorySection.dart';
 
-String _src() => File('lib/page/SongInfoPage.dart').readAsStringSync();
+/// SongInfoPage 在 2026-11 拆成了主文件 + `lib/page/song_info/*.dart` 若干 part 文件，
+/// 结构断言要把它们拼在一起看。
+String _src() {
+  final files = <File>[
+    File('lib/page/SongInfoPage.dart'),
+    ...Directory('lib/page/song_info')
+        .listSync()
+        .whereType<File>()
+        .where((f) => f.path.endsWith('.dart'))
+        .toList()
+      ..sort((a, b) => a.path.compareTo(b.path)),
+  ];
+  return files.map((f) => f.readAsStringSync()).join('\n');
+}
+
+/// 只看主文件（build 方法所在处），用于判断板块在页面上的先后顺序。
+String _mainSrc() => File('lib/page/SongInfoPage.dart').readAsStringSync();
+
+/// 取出某个方法从签名到下一个同级方法之前的源码（粗略按 `\n  Widget ` 分段）。
+String _methodBody(String src, String signature) {
+  final start = src.indexOf(signature);
+  expect(start, greaterThanOrEqualTo(0), reason: '找不到 $signature');
+  final next = src.indexOf('\n  Widget ', start + signature.length);
+  return src.substring(start, next < 0 ? src.length : next);
+}
 
 ChartHistoryEvent ev(DateTime t, double ach, int dx) => ChartHistoryEvent(
       tMs: t.millisecondsSinceEpoch,
@@ -48,29 +72,30 @@ void main() {
 
   test('成绩趋势不再是「玩家最佳成绩」卡片内的子节点', () {
     final src = _src();
-    final cardStart = src.indexOf("'玩家最佳成绩'");
-    expect(cardStart, greaterThan(0));
-
-    // 卡片标题之后、按钮行之前，不该再出现 ChartHistorySection 的构造
-    final gridStart = src.indexOf('// 按钮行（跳转到B站', cardStart);
-    expect(gridStart, greaterThan(cardStart), reason: '找不到按钮行锚点');
-    final insideCard = src.substring(cardStart, gridStart);
-    expect(insideCard.contains('ChartHistorySection('), isFalse,
-        reason: '成绩趋势还在「玩家最佳成绩」卡片里面');
+    // 2026-11 起成绩卡由 _buildBestScoreCard + _buildBestScoreBody 两个方法组成
+    for (final sig in const [
+      'Widget _buildBestScoreCard(',
+      'Widget _buildBestScoreBody(',
+    ]) {
+      final body = _methodBody(src, sig);
+      expect(body.contains("'玩家最佳成绩'") || sig.contains('Body'), isTrue);
+      expect(body.contains('ChartHistorySection('), isFalse,
+          reason: '成绩趋势还在「玩家最佳成绩」卡片里面（$sig）');
+      expect(body.contains('_buildChartHistoryCard('), isFalse,
+          reason: '成绩趋势还在「玩家最佳成绩」卡片里面（$sig）');
+    }
   });
 
   test('成绩趋势卡片排在「玩家最佳成绩」下方', () {
-    final src = _src();
-    final cardTitle = src.indexOf("'玩家最佳成绩'");
-    expect(cardTitle, greaterThan(0));
-    // ⚠️ 要找的是**调用点**（build 里的 `_buildChartHistoryCard(),`），
-    // 不是方法定义 `Widget _buildChartHistoryCard() {` —— 定义在类的前部，
-    // 位置天然早于 build，用它比较会得到"排在前面"的错误结论。
-    final callIdx = src.indexOf('_buildChartHistoryCard(),');
-    final defIdx = src.indexOf('Widget _buildChartHistoryCard()');
-    expect(defIdx, greaterThan(0), reason: '方法定义不见了');
+    final main = _mainSrc();
+    // ⚠️ 要找的是 build 里的**调用点**，不是方法定义。
+    final cardCall = main.indexOf('_buildBestScoreCard(');
+    final callIdx = main.indexOf('_buildChartHistoryCard(),');
+    expect(cardCall, greaterThan(0), reason: 'build 里没有调用成绩卡');
     expect(callIdx, greaterThan(0), reason: '方法没有被调用');
-    expect(callIdx, greaterThan(cardTitle), reason: '独立板块必须出现在「玩家最佳成绩」之后');
+    expect(_src().indexOf('Widget _buildChartHistoryCard()'), greaterThan(0),
+        reason: '方法定义不见了');
+    expect(callIdx, greaterThan(cardCall), reason: '独立板块必须出现在「玩家最佳成绩」之后');
   });
 
   test('独立板块复用 ChartHistorySection，并给足卡片内边距', () {
@@ -90,11 +115,12 @@ void main() {
 
   test('两张卡片之间有显式间隔（用户反馈原来贴在一起）', () {
     final src = _src();
-    final call = src.indexOf('_buildChartHistoryCard(),');
+    final main = _mainSrc();
+    final call = main.indexOf('_buildChartHistoryCard(),');
     expect(call, greaterThan(0));
     // 调用点**前面**必须紧挨着一个 SizedBox —— 卡片之间原本没有任何间距 widget
     // （旧代码里那个 12dp 在「玩家最佳成绩」卡片内部、垫在标题行下面）。
-    final before = src.substring(call - 120, call);
+    final before = main.substring(call - 120, call);
     expect(before.contains('SizedBox(height:'), isTrue,
         reason: '「成绩趋势」和上方成绩卡之间必须有显式间隔');
     // 而且这个间隔在函数体内不该被复制一份，避免双重留白
@@ -108,56 +134,23 @@ void main() {
         reason: '曲线为空时整块高度 0，函数体外层不许垫固定高度');
   });
 
-  test('「玩家最佳成绩」四行的行间距一致（各一个 8dp）', () {
-    final src = _src();
-    final cardStart = src.indexOf("'玩家最佳成绩'");
-    final end = src.indexOf('// 成绩趋势：**独立于', cardStart);
-    expect(cardStart, greaterThan(0));
-    expect(end, greaterThan(cardStart), reason: '找不到卡片结束锚点');
-    final card = src.substring(cardStart, end);
-
-    // 按出现顺序定位四个值行（用值那一行的锚点，别用标签 —— 标签在
-    // `Text('DX分数达成率: ')` 里和下面的值分开成两个 span）
+  test('「玩家最佳成绩」四项数值齐全且顺序不变', () {
+    // 2026-11 起四行文字改成两行两列的数值块（StatTile），
+    // 间距由布局统一控制；这里钉住「四项都在、顺序不变」。
+    final body = _methodBody(_src(), 'Widget _buildBestScoreBody(');
     final rows = <String, int>{
-      'Rating': card.indexOf("'Rating: "),
-      '游玩次数': card.indexOf('游玩次数: '),
-      'DX分数': card.indexOf("'DX分数: "),
-      'DX分数达成率': card.indexOf("'DX分数达成率: "),
+      'Rating': body.indexOf("label: 'Rating'"),
+      '游玩次数': body.indexOf("label: '游玩次数'"),
+      'DX分数': body.indexOf("label: 'DX分数（MAX"),
+      'DX分数达成率': body.indexOf("label: 'DX分数达成率'"),
     };
     for (final e in rows.entries) {
-      expect(e.value, greaterThan(0), reason: '找不到「${e.key}」这一行');
+      expect(e.value, greaterThan(0), reason: '找不到「${e.key}」这一项');
     }
     final ordered = rows.entries.toList()
       ..sort((a, b) => a.value.compareTo(b.value));
     expect(ordered.map((e) => e.key).toList(),
-        ['Rating', '游玩次数', 'DX分数', 'DX分数达成率'],
-        reason: '四行的顺序变了，这个测试的假设要跟着改');
-
-    // 每一行**正上方**都必须有一个 8dp 间隔。
-    // 原来「DX分数」那一行前面什么都没有，所以它和上一行贴得特别近。
-    for (final e in ordered) {
-      final head = card.substring(0, e.value);
-      final lastGap = head.lastIndexOf('SizedBox(height: 8)');
-      expect(lastGap, greaterThan(0), reason: '「${e.key}」上方没有 8dp 间隔');
-    }
-
-    // 更严格：每行之上、到上一行之间，恰好只有一个 8dp 间隔
-    // （多一个就是双重留白，0 个就是贴在一起）
-    //
-    // ⚠️ `card` 是子串，`rows` 里的偏移是**相对 card** 的；
-    //    别再混进 `cardStart`（那是相对全文的），否则 substring 会越界。
-    final orderedPoints = <String, int>{
-      for (final e in ordered) e.key: e.value,
-    };
-    final keys = ['Rating', '游玩次数', 'DX分数', 'DX分数达成率'];
-    for (var i = 1; i < keys.length; i++) {
-      final seg =
-          card.substring(orderedPoints[keys[i - 1]]!, orderedPoints[keys[i]]!);
-      final gaps = RegExp(r'SizedBox\(height: 8\)').allMatches(seg).length;
-      expect(gaps, 1,
-          reason: '「${keys[i]}」上方到「${keys[i - 1]}」之间'
-              '应当恰好 1 个 8dp 间隔，实得 $gaps 个');
-    }
+        ['Rating', '游玩次数', 'DX分数', 'DX分数达成率']);
   });
 
   group('ChartHistorySection 的三种形态与内边距', () {

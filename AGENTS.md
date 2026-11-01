@@ -507,3 +507,68 @@ Get-ChildItem lib/page -Recurse -File -Include *.dart |
 - 当前整个 `server/`、根目录 `cloudbaserc.json` / `.skip-template` 及 `docs/loading-tips-server.md` 已由根 `.gitignore` 忽略。新增服务端目录或放在其它路径的服务端文件，也必须同步加入忽略规则。
 - 对已有追踪项使用 `git rm --cached`（目录加 `-r`）取消追踪，**保留本地文件及未提交修改**；不要删除本地服务端目录，不要用 `git add -f` 强制加入服务端文件。
 - 取消追踪不清除既有 Git 历史；没有用户明确要求，不重写历史，也不修改全局 Git 或智能体配置。
+
+---
+
+## 22. UI 设计规范（2026-11 重构，B 方案）
+
+新页面和改版页面都按这一节来；旧页面在分批重构里逐步迁移。
+
+### 22.1 令牌：只从 `AppDesignTokens` / `AppSurfaces` 取值
+
+| 圆角 | 用途 |
+|---|---|
+| `radiusSmall` 12 | 输入框、按钮、图标底块、小标签 |
+| `radiusMedium` 16 | 列表分组、次级卡片、底部操作按钮 |
+| `radiusCard` 20 | 主内容白卡片（`AppCard` 默认值） |
+| `radiusLarge` 24 | 强调卡片（Rating 总览、计算结果、歌曲详情头图） |
+
+- 表面层级：页面底（主题底色 / 用户背景图）→ `AppSurfaces.card`（白卡片）→ `AppSurfaces.inset`（卡内凹槽：输入框底、计数器底、物量格）。
+- 页边距 `gutter` 16，卡片间距 `cardGap` 12。**不要再写 8、10、11、14 这类零散圆角。**
+- 动效时长一律用 `AppDesignTokens.motion(context, …)` 包一层：系统开了「减少动态效果」时自动变成 0。
+
+### 22.2 字体
+
+- 中文正文：全局思源黑体（`AppTheme.font` 规则不变）。
+- **数字为主角的地方**（Rating、达成率、定数、物量、评级缩写）：`AppTheme.number(...)`，Outfit + 等宽数字（数字变化时宽度不抖）。别拿它排中文。
+
+### 22.3 颜色
+
+- 评级徽章 `AppColors.rankBadge`、连击 `comboBadge`、同步 `syncBadge`、判定色 `judgeCriticalPerfect / judgePerfect / judgeGreat / judgeGood / judgeMiss`、Rating 段位 `ratingTier`。
+- **页面里不要再写 `Colors.amber` / `Colors.pink` 这类原色**当判定或评级色；新颜色加到 `AppColors` 并区分明暗（§7）。
+- 难度色只用在歌曲详情头图、难度切换这种「大面积 + 白字」的地方；放到白卡片上的数值用 `onSurface`，否则 ADVANCED 橙、BASIC 绿在白底上对比度不够。
+
+### 22.4 卡片与组件（`lib/widgets/AppUi.dart`）
+
+`AppCard`（白卡片，默认无描边；放在花哨的自定义背景图上要更强边界时传 `outlined: true`，描边色仍是 §7 的 `outlineVariant`）、`AppSectionHeader`、`AppBadge` / `RankBadge` / `ComboBadge`、`StatTile`、`SplitBar`、`SegmentedTabs`、`CountField`（− 数字 +，可打字）、`JudgeCountRow`、`EmphasisCard`（反色强调卡）、`BottomActionBar`（贴底操作栏，自动让出手势条）。
+
+新组件也加在这个文件里，别在页面里各写一份。Hub 页继续用 `HubComponents.dart`（已统一成同一套外观）。
+
+### 22.5 主导航：5 个标签
+
+首页 / 曲库 / 成绩 / **游玩** / 我的。「游玩」是 `PlayZoneHubPage`：顶部分段切换「出勤 | 休闲」，两边就是原来的 `AttendanceHubPage` / `PlayHubPage`。
+`FeatureRegistry` 的分类（`'出勤'`、`'休闲'`）和收藏键**没有改**，首页搜索结果路径也照旧。三种导航栏样式（经典 / 液态玻璃 / 伸缩胶囊）都保留。
+
+### 22.6 设置页的个性化功能必须继续生效
+
+自定义背景图、装饰图透明度、白色覆层、主题色、深色 / 纯黑模式、导航栏样式与动画开关——这些是 App 的特色，**新 UI 不能绕开它们**：颜色一律取 `ColorScheme` / `AppSurfaces`，背景交给 `ThemeAwareBackground` / `BackgroundPageScaffold`，不要在页面里铺死一个不透明底色把用户背景图盖掉。
+
+### 22.7 `SongInfoPage` 的拆分方式
+
+`lib/page/SongInfoPage.dart` 只保留：字段、`initState` / `dispose` / `build`。其余方法按功能放在 `lib/page/song_info/` 下的 part 文件里，写成 `extension _Xxx on _SongInfoPageState`：
+
+| 文件 | 内容 |
+|---|---|
+| `SongInfoLayout.dart` | 页面布局：头图、成绩卡、关键数值、四个标签页、贴底操作栏 |
+| `SongInfoLoaders.dart` | 数据加载、解析与数值计算 |
+| `SongInfoTables.dart` | 定数历史、成绩趋势、分布图、对照表、容错计算 |
+| `SongInfoCommunity.dart` | 谱面评分与评论区 |
+| `SongInfoActions.dart` | 分享 / 导出 / 跳转 / 收藏 / 笔记 / 上传 BV |
+| `SongInfoWidgets.dart` | 统计项、物量格、徽章、别名等小部件 |
+
+两条规则：
+
+1. **扩展方法里不能直接调 `setState`**（protected，会报 `invalid_use_of_protected_member`），统一用 `_update(() { ... })`。
+2. 扩展方法里**不能不带类名访问 static 成员**，所以原来的 `static` 常量（`_tapWeight` 等）已经提升为库级私有常量；新增常量也放在库级。
+
+结构回归测试 `test/song_info_section_order_test.dart` 会把主文件和 `song_info/*.dart` 拼起来检查「成绩趋势是独立板块、排在玩家最佳成绩下方」。

@@ -24,6 +24,8 @@ import '../widgets/AccountRegistrationGuideDialog.dart';
 import '../service/CacheManagementService.dart';
 import '../widgets/SmoothLinearProgressIndicator.dart';
 import '../utils/AppTheme.dart';
+import '../utils/AppDesignTokens.dart';
+import '../widgets/AppUi.dart';
 import '../utils/AppConstants.dart';
 import '../utils/SecureCredentialStore.dart';
 import '../utils/ExternalLaunchUtil.dart';
@@ -801,7 +803,12 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                 IconButton(
                   tooltip: '主题与导航设置',
                   onPressed: _showThemeDialog,
-                  icon: const Icon(Icons.brightness_6_outlined),
+                  style: IconButton.styleFrom(
+                    backgroundColor: AppSurfaces.card(context),
+                    foregroundColor: scheme.onSurface,
+                    fixedSize: const Size(44, 44),
+                  ),
+                  icon: const Icon(Icons.brightness_6_outlined, size: 20),
                 ),
               ],
             ),
@@ -1087,89 +1094,147 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
     );
   }
 
+  /// 首页 Rating 总览（2026-11 B 方案）。
+  ///
+  /// 白卡片 + 大号等宽数字 + Rating 段位小标识 + B35/B15 占比条。
+  /// 交互与旧版一致：点上半部分（标签 + 总 Rating）打开「刷新数据（高级）」，
+  /// 点右下角数据源胶囊切换 水鱼 / 落雪 / AWMC NET 账号（使用缓存，不联网）。
   Widget _buildDashboardSummary(BuildContext context, Brightness brightness) {
     final scheme = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            scheme.primary,
-            Color.alphaBlend(
-                scheme.secondary.withValues(alpha: .38), scheme.primary)
-          ],
-        ),
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        // 上半部分（PLAYER OVERVIEW 标题 + TOTAL RATING）点击 → 「刷新数据（高级）」
-        Material(
-          type: MaterialType.transparency,
-          child: InkWell(
-            onTap: anyBusy ? null : _openAdvancedRefreshData,
-            splashFactory: NoSplash.splashFactory,
-            highlightColor: Colors.transparent,
-            hoverColor: Colors.transparent,
-            borderRadius: BorderRadius.circular(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    final total = _best50TotalRA;
+    final tier = AppColors.ratingTier(total);
+    final fraction = total > 0 ? _best35TotalRA / total : 0.7;
+    final secondary = scheme.primary.withValues(alpha: 0.32);
+
+    return AppCard(
+      radius: AppDesignTokens.radiusLarge,
+      padding: const EdgeInsets.fromLTRB(20, 16, 16, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 上半部分 → 「刷新数据（高级）」
+          Material(
+            type: MaterialType.transparency,
+            child: InkWell(
+              onTap: anyBusy ? null : _openAdvancedRefreshData,
+              splashFactory: NoSplash.splashFactory,
+              highlightColor: Colors.transparent,
+              hoverColor: Colors.transparent,
+              borderRadius: BorderRadius.circular(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        'Rating',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                      if (total > 0) ...[
+                        const SizedBox(width: 8),
+                        _buildRatingTierChip(tier),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Semantics(
+                    label: '总 Rating ${_displayBest50RA()}',
+                    excludeSemantics: true,
+                    child: Text(
+                      _displayBest50RA(),
+                      style: AppTheme.number(
+                        fontSize: 56,
+                        fontWeight: FontWeight.w700,
+                        height: 1.05,
+                        letterSpacing: -1.5,
+                        color: scheme.onSurface,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SplitBar(
+            fraction: fraction,
+            primary: scheme.primary,
+            secondary: secondary,
+          ),
+          const SizedBox(height: 10),
+          ValueListenableBuilder<RefreshDataSource>(
+            valueListenable: CurrentDataSourceNotifier.instance,
+            builder: (context, source, _) => Row(
               children: [
-                Row(children: [
-                  Expanded(
-                      child: Text('PLAYER OVERVIEW',
-                          style: TextStyle(
-                              color: scheme.onPrimary.withValues(alpha: .72),
-                              letterSpacing: 1.5,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800))),
-                  Icon(Icons.music_note,
-                      color: scheme.onPrimary.withValues(alpha: .3), size: 28),
-                ]),
-                const SizedBox(height: 8),
-                Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                  Text(_displayBest50RA(),
-                      style: TextStyle(
-                          color: scheme.onPrimary,
-                          fontSize: 36,
-                          height: 1,
-                          fontWeight: FontWeight.w900)),
-                  const SizedBox(width: 10),
-                  Padding(
-                      padding: const EdgeInsets.only(bottom: 3),
-                      child: Text('TOTAL RATING',
-                          style: TextStyle(
-                              color: scheme.onPrimary.withValues(alpha: .76),
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700))),
-                ]),
+                _summaryMetric(context, 'B35', _displayBest35RA(),
+                    dot: scheme.primary),
+                const SizedBox(width: 16),
+                _summaryMetric(context, 'B15', _displayBest15RA(),
+                    dot: secondary),
+                const Spacer(),
+                // 点「数据源」即可切换 水鱼 / 落雪 / AWMC NET 账号（使用缓存，不联网）。
+                // 用**短名**：`AWMC NET` 在窄屏上放不下，与排行榜 Tab 的叫法一致。
+                Semantics(
+                  button: true,
+                  label: '切换数据源，当前 ${source.shortDisplayName}',
+                  excludeSemantics: true,
+                  child: Material(
+                    color: AppSurfaces.inset(context),
+                    shape: const StadiumBorder(),
+                    clipBehavior: Clip.antiAlias,
+                    child: InkWell(
+                      onTap: _showAccountSwitchSheet,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 7, 10, 7),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              source.shortDisplayName,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: scheme.onSurface,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Icon(Icons.swap_horiz_rounded,
+                                size: 16, color: scheme.onSurfaceVariant),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  /// Rating 段位小标识（彩 / 白金 / 金 …），颜色对应游戏里的 Rating 框。
+  Widget _buildRatingTierChip(
+      ({String label, List<Color> colors, Color foreground}) tier) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(colors: tier.colors),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        tier.label,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          color: tier.foreground,
         ),
-        const SizedBox(height: 20),
-        ValueListenableBuilder<RefreshDataSource>(
-          valueListenable: CurrentDataSourceNotifier.instance,
-          builder: (context, source, _) => Row(children: [
-            _summaryMetric(context, 'Best35', _displayBest35RA()),
-            _summaryMetric(context, 'Best15', _displayBest15RA()),
-            // 点「数据源」即可切换 水鱼 / 落雪 / AWMC NET 账号（使用缓存，不联网）
-            //
-            // 用**短名**：这一行是三个 Expanded 平分宽度，每格只剩 ~90dp
-            // （还要让出右边 14dp 的切换图标），`AWMC NET` 放不下会被
-            // `TextOverflow.ellipsis` 截成「AWMC N..」。`AWMC` 与排行榜 Tab
-            // 的叫法一致；账号面板 / 导出图那类宽裕的地方仍用全名。
-            _summaryMetric(
-              context,
-              '数据源',
-              source.shortDisplayName,
-              onTap: _showAccountSwitchSheet,
-              trailingIcon: Icons.swap_horiz_rounded,
-            ),
-          ]),
-        ),
-      ]),
+      ),
     );
   }
 
@@ -1177,35 +1242,30 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
   // 供 Best50 / 拟合等图片导出时由 ExportUserInfoWidget 读取。
 
   Widget _summaryMetric(BuildContext context, String label, String value,
-      {VoidCallback? onTap, IconData? trailingIcon}) {
-    final onPrimary = Theme.of(context).colorScheme.onPrimary;
-    final content =
-        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(label,
-          style:
-              TextStyle(color: onPrimary.withValues(alpha: .68), fontSize: 12)),
-      const SizedBox(height: 3),
-      Row(children: [
-        Flexible(
-          child: Text(value,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                  color: onPrimary, fontWeight: FontWeight.w700, fontSize: 15)),
+      {required Color dot}) {
+    final scheme = Theme.of(context).colorScheme;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
         ),
-        if (trailingIcon != null) ...[
-          const SizedBox(width: 2),
-          Icon(trailingIcon, size: 14, color: onPrimary.withValues(alpha: .8)),
-        ],
-      ]),
-    ]);
-    return Expanded(
-      child: onTap == null
-          ? content
-          : InkWell(
-              onTap: onTap,
-              borderRadius: BorderRadius.circular(8),
-              child: content,
-            ),
+        const SizedBox(width: 6),
+        Text(label,
+            style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+        const SizedBox(width: 4),
+        Text(
+          value,
+          style: AppTheme.number(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: scheme.onSurface,
+          ),
+        ),
+      ],
     );
   }
 

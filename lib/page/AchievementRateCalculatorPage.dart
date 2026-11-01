@@ -1,7 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import '../widgets/BackgroundPageScaffold.dart';
 
+import '../utils/AppDesignTokens.dart';
+import '../utils/AppTheme.dart';
+import '../widgets/AppUi.dart';
+import '../widgets/BackgroundPageScaffold.dart';
+import '../widgets/SmoothLinearProgressIndicator.dart';
+
+/// 达成率计算器。
+///
+/// 2026-11 重构：从「填表 → 点按钮 → 弹窗出结果」改成**边填边算**。
+/// 计算规则与旧版逐字一致（权重 TAP 1 / HOLD 2 / SLIDE 3 / TOUCH 1 / BREAK 5，
+/// 基础分、奖励分各自四舍五入到 4 位小数后相加），见 [_compute]。
+/// 旧版结果弹窗里的「单个音符判定损失」保留为 [_showSingleNoteLossDialog]。
 class AchievementRateCalculator extends StatefulWidget {
   const AchievementRateCalculator({super.key});
 
@@ -10,669 +20,448 @@ class AchievementRateCalculator extends StatefulWidget {
       _AchievementRateCalculatorState();
 }
 
+class _AchievementResult {
+  final double base;
+  final double extra;
+  final double total;
+  final int totalWeight;
+  final int breakNum;
+
+  const _AchievementResult({
+    required this.base,
+    required this.extra,
+    required this.total,
+    required this.totalWeight,
+    required this.breakNum,
+  });
+}
+
+class _JudgeDef {
+  final String label;
+  final Color color;
+
+  /// 基础分损失比例（相对该音符满分）。
+  final double baseLoss;
+
+  /// 奖励分损失比例（仅 BREAK）。
+  final double bonusLoss;
+
+  /// BREAK 行的说明，例如「基础 100% · 奖励 75%」。
+  final String? note;
+
+  const _JudgeDef(this.label, this.color, this.baseLoss,
+      {this.bonusLoss = 0, this.note});
+}
+
 class _AchievementRateCalculatorState extends State<AchievementRateCalculator> {
-  // 普通音符的计数器
-  int _tapCp = 0, _tapP = 0, _tapG = 0, _tapGo = 0, _tapM = 0;
-  int _holdCp = 0, _holdP = 0, _holdG = 0, _holdGo = 0, _holdM = 0;
-  int _slideCp = 0, _slideP = 0, _slideG = 0, _slideGo = 0, _slideM = 0;
-  int _touchCp = 0, _touchP = 0, _touchG = 0, _touchGo = 0, _touchM = 0;
+  static const List<String> _types = ['TAP', 'HOLD', 'SLIDE', 'TOUCH', 'BREAK'];
 
-  // Break音符的计数器
-  int _breakP = 0, _break50 = 0, _break100 = 0;
-  int _break80 = 0, _break60 = 0, _break50g = 0;
-  int _breakGo = 0, _breakM = 0;
+  // 定义各种note的权重（与旧版一致）
+  static const Map<String, int> _weights = {
+    'TAP': 1,
+    'HOLD': 2,
+    'SLIDE': 3,
+    'TOUCH': 1,
+    'BREAK': 5,
+  };
 
-  // TextEditingControllers for all input fields
-  late TextEditingController _tapCpController;
-  late TextEditingController _tapPController;
-  late TextEditingController _tapGController;
-  late TextEditingController _tapGoController;
-  late TextEditingController _tapMController;
+  static const List<_JudgeDef> _normalJudges = [
+    _JudgeDef('CRITICAL PERFECT', AppColors.judgeCriticalPerfect, 0),
+    _JudgeDef('PERFECT', AppColors.judgePerfect, 0),
+    _JudgeDef('GREAT', AppColors.judgeGreat, 0.2),
+    _JudgeDef('GOOD', AppColors.judgeGood, 0.5),
+    _JudgeDef('MISS', AppColors.judgeMiss, 1),
+  ];
 
-  late TextEditingController _holdCpController;
-  late TextEditingController _holdPController;
-  late TextEditingController _holdGController;
-  late TextEditingController _holdGoController;
-  late TextEditingController _holdMController;
+  // 顺序与旧版字段一致：
+  // _breakP, _break50, _break100, _break80, _break60, _break50g, _breakGo, _breakM
+  static const List<_JudgeDef> _breakJudges = [
+    _JudgeDef('CRITICAL PERFECT', AppColors.judgeCriticalPerfect, 0,
+        note: '基础 100% · 奖励 100%'),
+    _JudgeDef('PERFECT · 50落', AppColors.judgePerfect, 0,
+        bonusLoss: 0.25, note: '基础 100% · 奖励 75%'),
+    _JudgeDef('PERFECT · 100落', AppColors.judgePerfect, 0,
+        bonusLoss: 0.5, note: '基础 100% · 奖励 50%'),
+    _JudgeDef('GREAT · 80%', AppColors.judgeGreat, 0.2,
+        bonusLoss: 0.6, note: '基础 80% · 奖励 40%'),
+    _JudgeDef('GREAT · 60%', AppColors.judgeGreat, 0.4,
+        bonusLoss: 0.6, note: '基础 60% · 奖励 40%'),
+    _JudgeDef('GREAT · 50%', AppColors.judgeGreat, 0.5,
+        bonusLoss: 0.6, note: '基础 50% · 奖励 40%'),
+    _JudgeDef('GOOD', AppColors.judgeGood, 0.6,
+        bonusLoss: 0.7, note: '基础 40% · 奖励 30%'),
+    _JudgeDef('MISS', AppColors.judgeMiss, 1,
+        bonusLoss: 1, note: '基础 0% · 奖励 0%'),
+  ];
 
-  late TextEditingController _slideCpController;
-  late TextEditingController _slidePController;
-  late TextEditingController _slideGController;
-  late TextEditingController _slideGoController;
-  late TextEditingController _slideMController;
+  /// 评级下限（达成率 → 评级），从高到低。
+  static const List<(double, String)> _rankTiers = [
+    (100.5, 'SSS+'),
+    (100.0, 'SSS'),
+    (99.5, 'SS+'),
+    (99.0, 'SS'),
+    (98.0, 'S+'),
+    (97.0, 'S'),
+    (94.0, 'AAA'),
+    (90.0, 'AA'),
+    (80.0, 'A'),
+    (75.0, 'BBB'),
+    (70.0, 'BB'),
+    (60.0, 'B'),
+    (50.0, 'C'),
+    (0.0, 'D'),
+  ];
 
-  late TextEditingController _touchCpController;
-  late TextEditingController _touchPController;
-  late TextEditingController _touchGController;
-  late TextEditingController _touchGoController;
-  late TextEditingController _touchMController;
+  final Map<String, List<int>> _counts = {
+    'TAP': List<int>.filled(5, 0),
+    'HOLD': List<int>.filled(5, 0),
+    'SLIDE': List<int>.filled(5, 0),
+    'TOUCH': List<int>.filled(5, 0),
+    'BREAK': List<int>.filled(8, 0),
+  };
 
-  late TextEditingController _breakPController;
-  late TextEditingController _break50Controller;
-  late TextEditingController _break100Controller;
-  late TextEditingController _break80Controller;
-  late TextEditingController _break60Controller;
-  late TextEditingController _break50gController;
-  late TextEditingController _breakGoController;
-  late TextEditingController _breakMController;
+  int _tab = 0;
 
-  // 定义各种note的权重
-  static const int tapWeight = 1;
-  static const int holdWeight = 2;
-  static const int slideWeight = 3;
-  static const int touchWeight = 1;
-  static const int breakWeight = 5;
+  int _countOf(String type) => _counts[type]!.fold(0, (sum, n) => sum + n);
 
-  // 计算达成率的方法
-  void _calculateAchievementRate() {
-    try {
-      // 计算音符总数
-      int tapNum = _tapCp + _tapP + _tapG + _tapGo + _tapM;
-      int holdNum = _holdCp + _holdP + _holdG + _holdGo + _holdM;
-      int slideNum = _slideCp + _slideP + _slideG + _slideGo + _slideM;
-      int touchNum = _touchCp + _touchP + _touchG + _touchGo + _touchM;
-      int breakNum = _breakP +
-          _break50 +
-          _break100 +
-          _break80 +
-          _break60 +
-          _break50g +
-          _breakGo +
-          _breakM;
+  bool get _hasAny => _types.any((t) => _countOf(t) > 0);
 
-      // 计算音符权重的总数
-      int totalTapWeight = tapNum * tapWeight;
-      int totalHoldWeight = holdNum * holdWeight;
-      int totalSlideWeight = slideNum * slideWeight;
-      int totalTouchWeight = touchNum * touchWeight;
-      int totalBreakWeight = breakNum * breakWeight;
+  static double _round4(double value) =>
+      double.parse(value.toStringAsFixed(4));
 
-      int totalWeight = totalTapWeight +
-          totalHoldWeight +
-          totalSlideWeight +
-          totalTouchWeight +
-          totalBreakWeight;
+  /// 与旧版 `_calculateAchievementRate` 相同的算法；没有音符时返回 null。
+  _AchievementResult? _compute() {
+    final breakNum = _countOf('BREAK');
+    final totalWeight = _countOf('TAP') * _weights['TAP']! +
+        _countOf('HOLD') * _weights['HOLD']! +
+        _countOf('SLIDE') * _weights['SLIDE']! +
+        _countOf('TOUCH') * _weights['TOUCH']! +
+        breakNum * _weights['BREAK']!;
+    if (totalWeight == 0) return null;
 
-      if (totalWeight == 0) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('请至少输入一个音符')));
-        return;
+    double normalBase(String type) {
+      final c = _counts[type]!;
+      return _weights[type]! * (c[0] + c[1] + c[2] * 0.80 + c[3] * 0.50);
+    }
+
+    final b = _counts['BREAK']!;
+    final baseBreakWeight = _weights['BREAK']! *
+        (b[0] +
+            (b[1] + b[2]) +
+            b[3] * 0.80 +
+            b[4] * 0.60 +
+            b[5] * 0.50 +
+            b[6] * 0.40);
+    final baseWeight = normalBase('TAP') +
+        normalBase('HOLD') +
+        normalBase('SLIDE') +
+        normalBase('TOUCH') +
+        baseBreakWeight;
+
+    // 基础部分 满分100 结果四舍五入保留四位小数
+    final base = _round4(baseWeight / totalWeight * 100);
+
+    // 额外评价部分 全由break决定 满分1 结果四舍五入保留四位小数
+    final extraBreakWeight = b[0] +
+        b[2] * 0.50 +
+        b[1] * 0.75 +
+        (b[3] + b[4] + b[5]) * 0.40 +
+        b[6] * 0.30;
+    final extra = breakNum == 0 ? 0.0 : _round4(extraBreakWeight / breakNum);
+
+    return _AchievementResult(
+      base: base,
+      extra: extra,
+      total: _round4(base + extra),
+      totalWeight: totalWeight,
+      breakNum: breakNum,
+    );
+  }
+
+  /// 某一行判定当前造成的达成率损失（百分点）。
+  double _rowLoss(String type, int index, _AchievementResult? result) {
+    if (result == null) return 0;
+    final count = _counts[type]![index];
+    if (count == 0) return 0;
+    if (type == 'BREAK') {
+      final def = _breakJudges[index];
+      final baseLoss =
+          count * def.baseLoss * _weights['BREAK']! / result.totalWeight * 100;
+      final bonusLoss =
+          result.breakNum == 0 ? 0.0 : count * def.bonusLoss / result.breakNum;
+      return baseLoss + bonusLoss;
+    }
+    final def = _normalJudges[index];
+    return count * def.baseLoss * _weights[type]! / result.totalWeight * 100;
+  }
+
+  void _setCount(String type, int index, int value) {
+    if (_counts[type]![index] == value) return;
+    setState(() => _counts[type]![index] = value);
+  }
+
+  void _clearAll() {
+    FocusScope.of(context).unfocus();
+    setState(() {
+      for (final list in _counts.values) {
+        list.fillRange(0, list.length, 0);
       }
-      // 计算基础评价部分 满分100
-      double baseTapWeight =
-          tapWeight * (_tapCp + _tapP + _tapG * 0.80 + _tapGo * 0.50);
-      double baseHoldWeight =
-          holdWeight * (_holdCp + _holdP + _holdG * 0.80 + _holdGo * 0.50);
-      double baseSlideWeight =
-          slideWeight * (_slideCp + _slideP + _slideG * 0.80 + _slideGo * 0.50);
-      double baseTouchWeight =
-          touchWeight * (_touchCp + _touchP + _touchG * 0.80 + _touchGo * 0.50);
-      double baseBreakWeight = breakWeight *
-          (_breakP +
-              (_break50 + _break100) +
-              _break80 * 0.80 +
-              _break60 * 0.60 +
-              _break50g * 0.50 +
-              _breakGo * 0.40);
-      double baseWeight = baseTapWeight +
-          baseHoldWeight +
-          baseSlideWeight +
-          baseTouchWeight +
-          baseBreakWeight;
+    });
+  }
 
-      // 基础部分 满分100 结果四舍五入保留四位小数
-      double baseScore = (baseWeight / totalWeight) * 100;
-      baseScore = double.parse(baseScore.toStringAsFixed(4));
-
-      // 计算额外评价部分 全由break决定 满分1 结果四舍五入保留四位小数
-      double extraBreakWeight = _breakP +
-          _break100 * 0.50 +
-          _break50 * 0.75 +
-          (_break80 + _break60 + _break50g) * 0.40 +
-          _breakGo * 0.30;
-      double extraScore = breakNum == 0 ? 0 : extraBreakWeight / breakNum;
-      extraScore = double.parse(extraScore.toStringAsFixed(4));
-
-      // 最终达成率
-      double totalScore = baseScore + extraScore;
-      totalScore = double.parse(totalScore.toStringAsFixed(4));
-
-      // 计算单个普通note的判定损失
-      double singleTapGreatLoss = double.parse(
-          (0.20 * 100.00 * tapWeight / totalWeight).toStringAsFixed(4));
-      double singleTapGoodLoss = double.parse(
-          (0.50 * 100.00 * tapWeight / totalWeight).toStringAsFixed(4));
-      double singleTapMissLoss = double.parse(
-          (1.00 * 100.00 * tapWeight / totalWeight).toStringAsFixed(4));
-      double singleHoldGreatLoss = double.parse(
-          (0.20 * 100.00 * holdWeight / totalWeight).toStringAsFixed(4));
-      double singleHoldGoodLoss = double.parse(
-          (0.50 * 100.00 * holdWeight / totalWeight).toStringAsFixed(4));
-      double singleHoldMissLoss = double.parse(
-          (1.00 * 100.00 * holdWeight / totalWeight).toStringAsFixed(4));
-      double singleSlideGreatLoss = double.parse(
-          (0.20 * 100.00 * slideWeight / totalWeight).toStringAsFixed(4));
-      double singleSlideGoodLoss = double.parse(
-          (0.50 * 100.00 * slideWeight / totalWeight).toStringAsFixed(4));
-      double singleSlideMissLoss = double.parse(
-          (1.00 * 100.00 * slideWeight / totalWeight).toStringAsFixed(4));
-      double singleTouchGreatLoss = double.parse(
-          (0.20 * 100.00 * touchWeight / totalWeight).toStringAsFixed(4));
-      double singleTouchGoodLoss = double.parse(
-          (0.50 * 100.00 * touchWeight / totalWeight).toStringAsFixed(4));
-      double singleTouchMissLoss = double.parse(
-          (1.00 * 100.00 * touchWeight / totalWeight).toStringAsFixed(4));
-
-      // 显示结果
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('计算结果'),
-          content: Column(
+  void _showSingleNoteLossDialog(_AchievementResult result) {
+    String loss(double ratio, int weight) =>
+        _round4(ratio * 100.00 * weight / result.totalWeight).toString();
+    final rows = <Widget>[];
+    for (final type in const ['TAP', 'HOLD', 'SLIDE', 'TOUCH']) {
+      final w = _weights[type]!;
+      rows.addAll([
+        Padding(
+          padding: const EdgeInsets.only(top: 8, bottom: 2),
+          child: Text('单个$type的判定损失:',
+              style: const TextStyle(fontWeight: FontWeight.w700)),
+        ),
+        Text('GREAT: ${loss(0.20, w)}%'),
+        Text('GOOD: ${loss(0.50, w)}%'),
+        Text('MISS: ${loss(1.00, w)}%'),
+      ]);
+    }
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('单个音符的判定损失'),
+        content: SingleChildScrollView(
+          child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('基础达成率: $baseScore%'),
-              Text('奖励达成率: $extraScore%'),
-              Text('总达成率: $totalScore%'),
-              Text('单个TAP的判定损失:'),
-              Text('GREAT: $singleTapGreatLoss%'),
-              Text('GOOD: $singleTapGoodLoss%'),
-              Text('MISS: $singleTapMissLoss%'),
-              Text('单个HOLD的判定损失:'),
-              Text('GREAT: $singleHoldGreatLoss%'),
-              Text('GOOD: $singleHoldGoodLoss%'),
-              Text('MISS: $singleHoldMissLoss%'),
-              Text('单个SLIDE的判定损失:'),
-              Text('GREAT: $singleSlideGreatLoss%'),
-              Text('GOOD: $singleSlideGoodLoss%'),
-              Text('MISS: $singleSlideMissLoss%'),
-              Text('单个TOUCH的判定损失:'),
-              Text('GREAT: $singleTouchGreatLoss%'),
-              Text('GOOD: $singleTouchGoodLoss%'),
-              Text('MISS: $singleTouchMissLoss%'),
+              Text('基础达成率: ${result.base}%'),
+              Text('奖励达成率: ${result.extra}%'),
+              Text('总达成率: ${result.total}%'),
+              ...rows,
             ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('确定'),
-            ),
-          ],
         ),
-      );
-    } catch (e) {
-      // 处理除数为0的异常
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('错误'),
-          content: const Text('计算失败：除数不能为0，请确保至少有一个音符输入'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('确定'),
-            ),
-          ],
-        ),
-      );
-    }
-  }
-
-  @override
-  void initState() {
-    super.initState();
-
-    // Initialize all controllers with current values
-    _tapCpController = TextEditingController(text: _tapCp.toString());
-    _tapPController = TextEditingController(text: _tapP.toString());
-    _tapGController = TextEditingController(text: _tapG.toString());
-    _tapGoController = TextEditingController(text: _tapGo.toString());
-    _tapMController = TextEditingController(text: _tapM.toString());
-
-    _holdCpController = TextEditingController(text: _holdCp.toString());
-    _holdPController = TextEditingController(text: _holdP.toString());
-    _holdGController = TextEditingController(text: _holdG.toString());
-    _holdGoController = TextEditingController(text: _holdGo.toString());
-    _holdMController = TextEditingController(text: _holdM.toString());
-
-    _slideCpController = TextEditingController(text: _slideCp.toString());
-    _slidePController = TextEditingController(text: _slideP.toString());
-    _slideGController = TextEditingController(text: _slideG.toString());
-    _slideGoController = TextEditingController(text: _slideGo.toString());
-    _slideMController = TextEditingController(text: _slideM.toString());
-
-    _touchCpController = TextEditingController(text: _touchCp.toString());
-    _touchPController = TextEditingController(text: _touchP.toString());
-    _touchGController = TextEditingController(text: _touchG.toString());
-    _touchGoController = TextEditingController(text: _touchGo.toString());
-    _touchMController = TextEditingController(text: _touchM.toString());
-
-    _breakPController = TextEditingController(text: _breakP.toString());
-    _break50Controller = TextEditingController(text: _break50.toString());
-    _break100Controller = TextEditingController(text: _break100.toString());
-    _break80Controller = TextEditingController(text: _break80.toString());
-    _break60Controller = TextEditingController(text: _break60.toString());
-    _break50gController = TextEditingController(text: _break50g.toString());
-    _breakGoController = TextEditingController(text: _breakGo.toString());
-    _breakMController = TextEditingController(text: _breakM.toString());
-  }
-
-  @override
-  void dispose() {
-    // Dispose all controllers to prevent memory leaks
-    _tapCpController.dispose();
-    _tapPController.dispose();
-    _tapGController.dispose();
-    _tapGoController.dispose();
-    _tapMController.dispose();
-
-    _holdCpController.dispose();
-    _holdPController.dispose();
-    _holdGController.dispose();
-    _holdGoController.dispose();
-    _holdMController.dispose();
-
-    _slideCpController.dispose();
-    _slidePController.dispose();
-    _slideGController.dispose();
-    _slideGoController.dispose();
-    _slideMController.dispose();
-
-    _touchCpController.dispose();
-    _touchPController.dispose();
-    _touchGController.dispose();
-    _touchGoController.dispose();
-    _touchMController.dispose();
-
-    _breakPController.dispose();
-    _break50Controller.dispose();
-    _break100Controller.dispose();
-    _break80Controller.dispose();
-    _break60Controller.dispose();
-    _break50gController.dispose();
-    _breakGoController.dispose();
-    _breakMController.dispose();
-
-    super.dispose();
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('确定'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    // 获取屏幕尺寸
-    final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
-
-    // 计算总计
-    int totalCp = _tapCp + _holdCp + _slideCp + _touchCp;
-    int totalP = _tapP + _holdP + _slideP + _touchP;
-    int totalG = _tapG + _holdG + _slideG + _touchG;
-    int totalGo = _tapGo + _holdGo + _slideGo + _touchGo;
-    int totalM = _tapM + _holdM + _slideM + _touchM;
+    final result = _compute();
+    final type = _types[_tab];
+    final isBreak = type == 'BREAK';
+    final judges = isBreak ? _breakJudges : _normalJudges;
+    final scheme = Theme.of(context).colorScheme;
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
 
     return BackgroundPageScaffold(
       title: '达成率计算器',
-      resizeToAvoidBottomInset: false,
-      contentPadding:
-          EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
-      child: Column(
-        children: [
-          // 可滚动内容区域
-          Expanded(
-            child: SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(screenWidth * 0.04, 8,
-                  screenWidth * 0.04, screenWidth * 0.04),
+      resizeToAvoidBottomInset: true,
+      actions: [
+        IconButton(
+          tooltip: '清空',
+          onPressed: _hasAny ? _clearAll : null,
+          icon: const Icon(Icons.restart_alt_rounded),
+        ),
+      ],
+      child: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: ListView(
+          padding: EdgeInsets.fromLTRB(AppDesignTokens.gutter, 4,
+              AppDesignTokens.gutter, 24 + bottomInset),
+          children: [
+            _buildResultCard(result),
+            const SizedBox(height: AppDesignTokens.cardGap),
+            SegmentedTabs(
+              items: [
+                for (final t in _types)
+                  SegmentedTabItem(t, caption: '${_countOf(t)}'),
+              ],
+              selectedIndex: _tab,
+              onChanged: (i) {
+                FocusScope.of(context).unfocus();
+                setState(() => _tab = i);
+              },
+            ),
+            const SizedBox(height: AppDesignTokens.cardGap),
+            AppCard(
+              padding: const EdgeInsets.symmetric(vertical: 4),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // 普通音符表格
-                  _buildSectionTitle('普通音符'),
-                  _buildNormalNoteTable(
-                      totalCp, totalP, totalG, totalGo, totalM),
-                  SizedBox(height: screenHeight * 0.03), // 间距为屏幕高度的3%
-
-                  // BREAK音符区域
-                  _buildSectionTitle('BREAK 音符'),
-                  _buildBreakNoteSection(),
-                  SizedBox(height: screenHeight * 0.03), // 间距为屏幕高度的3%
+                  for (var i = 0; i < judges.length; i++)
+                    _buildJudgeRow(type, i, judges[i], result),
                 ],
               ),
             ),
-          ),
-
-          // 计算按钮
-          Container(
-            margin: EdgeInsets.fromLTRB(screenWidth * 0.03, screenWidth * 0.03,
-                screenWidth * 0.03, screenWidth * 0.03),
-            child: FilledButton(
-              onPressed: _calculateAchievementRate,
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                textStyle: Theme.of(context)
-                    .textTheme
-                    .titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w600),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8.0),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    isBreak
+                        ? 'BREAK 共 ${_countOf('BREAK')} 个 · 每行下方是基础分 / 奖励分比例'
+                        : '$type 共 ${_countOf(type)} 个 · 红字是这一档判定丢掉的达成率',
+                    style:
+                        TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+                  ),
                 ),
-                elevation: 0,
-                minimumSize: Size(double.infinity, 0),
+                TextButton(
+                  onPressed: result == null
+                      ? null
+                      : () => _showSingleNoteLossDialog(result),
+                  child: const Text('单音符损失'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildJudgeRow(
+      String type, int index, _JudgeDef def, _AchievementResult? result) {
+    final scheme = Theme.of(context).colorScheme;
+    final loss = _rowLoss(type, index, result);
+    final lossText = loss > 0.00005 ? '−${loss.toStringAsFixed(4)}%' : null;
+    final String? detail;
+    if (def.note != null) {
+      detail = lossText == null ? def.note : '${def.note}  $lossText';
+    } else {
+      detail = lossText ?? '无损失';
+    }
+    return JudgeCountRow(
+      key: ValueKey('$type-$index'),
+      label: def.label,
+      color: def.color,
+      detail: detail,
+      detailColor: lossText != null ? scheme.error : null,
+      value: _counts[type]![index],
+      showDivider: index > 0,
+      onChanged: (v) => _setCount(type, index, v),
+    );
+  }
+
+  Widget _buildResultCard(_AchievementResult? result) {
+    final scheme = Theme.of(context).colorScheme;
+    final brightness = Theme.of(context).brightness;
+    final onCard = scheme.onInverseSurface;
+    final muted = onCard.withValues(alpha: 0.72);
+    final normalNum = _countOf('TAP') +
+        _countOf('HOLD') +
+        _countOf('SLIDE') +
+        _countOf('TOUCH');
+
+    if (result == null) {
+      return EmphasisCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('实时达成率', style: TextStyle(fontSize: 12, color: muted)),
+            const SizedBox(height: 8),
+            Text('—',
+                style: AppTheme.number(
+                    fontSize: 46, fontWeight: FontWeight.w700, color: onCard)),
+            const SizedBox(height: 6),
+            Text('在下方填写各档判定数量，结果会自动算出来',
+                style: TextStyle(fontSize: 12, color: muted)),
+          ],
+        ),
+      );
+    }
+
+    final total = result.total;
+    final tierIndex = _rankTiers.indexWhere((t) => total >= t.$1);
+    final tier = _rankTiers[tierIndex < 0 ? _rankTiers.length - 1 : tierIndex];
+    final next = tierIndex > 0 ? _rankTiers[tierIndex - 1] : null;
+    final band = next == null
+        ? 1.0
+        : ((total - tier.$1) / (next.$1 - tier.$1)).clamp(0.0, 1.0).toDouble();
+    final rankColors = AppColors.rankBadge(tier.$2, brightness);
+    final fixed = total.toStringAsFixed(4);
+    final dot = fixed.indexOf('.');
+
+    return EmphasisCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text('实时达成率',
+                    style: TextStyle(fontSize: 12, color: muted)),
               ),
-              child: const Text('计算达成率'),
+              Text('$normalNum + ${result.breakNum} BREAK',
+                  style: TextStyle(fontSize: 12, color: muted)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Semantics(
+            label: '总达成率 $fixed%，评级 ${tier.$2}',
+            excludeSemantics: true,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text.rich(
+                      TextSpan(children: [
+                        TextSpan(
+                          text: fixed.substring(0, dot),
+                          style: AppTheme.number(
+                              fontSize: 46,
+                              fontWeight: FontWeight.w700,
+                              color: onCard,
+                              height: 1),
+                        ),
+                        TextSpan(
+                          text: '${fixed.substring(dot)}%',
+                          style: AppTheme.number(
+                              fontSize: 26,
+                              fontWeight: FontWeight.w700,
+                              color: onCard,
+                              height: 1),
+                        ),
+                      ]),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                RankBadge(rank: tier.$2, fontSize: 16),
+              ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  // 构建区域标题
-  Widget _buildSectionTitle(String title) {
-    return Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: Text(
-          title,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: Theme.of(context).colorScheme.primary,
+          const SizedBox(height: 8),
+          Text('基础 ${result.base.toStringAsFixed(4)}% · 奖励 ${result.extra.toStringAsFixed(4)}%',
+              style: TextStyle(fontSize: 12, color: muted)),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(3),
+            child: SmoothLinearProgressIndicator(
+              value: band,
+              minHeight: 6,
+              backgroundColor: onCard.withValues(alpha: 0.16),
+              color: rankColors.background,
+            ),
           ),
-          textAlign: TextAlign.start,
-        ));
-  }
-
-  // 判定纵向排列，避免手机上同时塞入六个狭窄的输入列。
-  Widget _buildNormalNoteTable(
-      int totalCp, int totalP, int totalG, int totalGo, int totalM) {
-    final scheme = Theme.of(context).colorScheme;
-    return Table(
-      border: TableBorder.all(color: scheme.outlineVariant),
-      columnWidths: const {0: FixedColumnWidth(88)},
-      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-      children: [
-        TableRow(
-            decoration: BoxDecoration(color: scheme.surfaceContainerHighest),
-            children: [
-              for (final title in ['判定', 'TAP', 'HOLD', 'SLIDE', 'TOUCH'])
-                _buildTableCell(title),
-            ]),
-        TableRow(children: [
-          _buildTableCell('CRITICAL\nPERFECT',
-              color: Colors.amber.withValues(alpha: .14), fontSize: 11),
-          _buildNumberInputCell(_tapCp,
-              (value) => setState(() => _tapCp = value), _tapCpController),
-          _buildNumberInputCell(_holdCp,
-              (value) => setState(() => _holdCp = value), _holdCpController),
-          _buildNumberInputCell(_slideCp,
-              (value) => setState(() => _slideCp = value), _slideCpController),
-          _buildNumberInputCell(_touchCp,
-              (value) => setState(() => _touchCp = value), _touchCpController),
-        ]),
-        TableRow(children: [
-          _buildTableCell('PERFECT',
-              color: Colors.amber.withValues(alpha: .14), fontSize: 11),
-          _buildNumberInputCell(
-              _tapP, (value) => setState(() => _tapP = value), _tapPController),
-          _buildNumberInputCell(_holdP,
-              (value) => setState(() => _holdP = value), _holdPController),
-          _buildNumberInputCell(_slideP,
-              (value) => setState(() => _slideP = value), _slidePController),
-          _buildNumberInputCell(_touchP,
-              (value) => setState(() => _touchP = value), _touchPController),
-        ]),
-        TableRow(children: [
-          _buildTableCell('GREAT',
-              color: Colors.pink.withValues(alpha: .14), fontSize: 11),
-          _buildNumberInputCell(
-              _tapG, (value) => setState(() => _tapG = value), _tapGController),
-          _buildNumberInputCell(_holdG,
-              (value) => setState(() => _holdG = value), _holdGController),
-          _buildNumberInputCell(_slideG,
-              (value) => setState(() => _slideG = value), _slideGController),
-          _buildNumberInputCell(_touchG,
-              (value) => setState(() => _touchG = value), _touchGController),
-        ]),
-        TableRow(children: [
-          _buildTableCell('GOOD',
-              color: Colors.green.withValues(alpha: .14), fontSize: 11),
-          _buildNumberInputCell(_tapGo,
-              (value) => setState(() => _tapGo = value), _tapGoController),
-          _buildNumberInputCell(_holdGo,
-              (value) => setState(() => _holdGo = value), _holdGoController),
-          _buildNumberInputCell(_slideGo,
-              (value) => setState(() => _slideGo = value), _slideGoController),
-          _buildNumberInputCell(_touchGo,
-              (value) => setState(() => _touchGo = value), _touchGoController),
-        ]),
-        TableRow(children: [
-          _buildTableCell('MISS',
-              color: Colors.blueGrey.withValues(alpha: .14), fontSize: 11),
-          _buildNumberInputCell(
-              _tapM, (value) => setState(() => _tapM = value), _tapMController),
-          _buildNumberInputCell(_holdM,
-              (value) => setState(() => _holdM = value), _holdMController),
-          _buildNumberInputCell(_slideM,
-              (value) => setState(() => _slideM = value), _slideMController),
-          _buildNumberInputCell(_touchM,
-              (value) => setState(() => _touchM = value), _touchMController),
-        ]),
-        TableRow(
-            decoration: BoxDecoration(color: scheme.surfaceContainerLow),
-            children: [
-              _buildTableCell('总计'),
-              _buildTableCell(
-                  (_tapCp + _tapP + _tapG + _tapGo + _tapM).toString()),
-              _buildTableCell(
-                  (_holdCp + _holdP + _holdG + _holdGo + _holdM).toString()),
-              _buildTableCell(
-                  (_slideCp + _slideP + _slideG + _slideGo + _slideM)
-                      .toString()),
-              _buildTableCell(
-                  (_touchCp + _touchP + _touchG + _touchGo + _touchM)
-                      .toString()),
-            ]),
-      ],
-    );
-  }
-
-  Widget _buildBreakNoteSection() {
-    final scheme = Theme.of(context).colorScheme;
-    final total = _breakP +
-        _break50 +
-        _break100 +
-        _break80 +
-        _break60 +
-        _break50g +
-        _breakGo +
-        _breakM;
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Text('分别填写各档判定数量，基础分与奖励分分开展示。',
-          style: Theme.of(context)
-              .textTheme
-              .bodySmall
-              ?.copyWith(color: scheme.onSurfaceVariant)),
-      const SizedBox(height: 12),
-      Table(
-        border: TableBorder.all(color: scheme.outlineVariant),
-        columnWidths: const {
-          0: FlexColumnWidth(1.5),
-          1: FlexColumnWidth(1),
-          2: FlexColumnWidth(1),
-          3: FlexColumnWidth(1.15)
-        },
-        defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-        children: [
-          TableRow(
-              decoration: BoxDecoration(color: scheme.surfaceContainerHighest),
-              children: [
-                for (final title in ['判定', '基础分', '奖励分', '数量'])
-                  _buildTableCell(title),
-              ]),
-          TableRow(children: [
-            _buildTableCell('CRITICAL\nPERFECT',
-                color: Colors.amber.withValues(alpha: .14), fontSize: 11),
-            _buildTableCell('100%'),
-            _buildTableCell('100%'),
-            _buildNumberInputCell(_breakP,
-                (value) => setState(() => _breakP = value), _breakPController),
-          ]),
-          TableRow(children: [
-            _buildTableCell('PERFECT\n50落',
-                color: Colors.amber.withValues(alpha: .14), fontSize: 11),
-            _buildTableCell('100%'),
-            _buildTableCell('75%'),
-            _buildNumberInputCell(
-                _break50,
-                (value) => setState(() => _break50 = value),
-                _break50Controller),
-          ]),
-          TableRow(children: [
-            _buildTableCell('PERFECT\n100落',
-                color: Colors.amber.withValues(alpha: .14), fontSize: 11),
-            _buildTableCell('100%'),
-            _buildTableCell('50%'),
-            _buildNumberInputCell(
-                _break100,
-                (value) => setState(() => _break100 = value),
-                _break100Controller),
-          ]),
-          TableRow(children: [
-            _buildTableCell('GREAT\n80%',
-                color: Colors.pink.withValues(alpha: .14), fontSize: 11),
-            _buildTableCell('80%'),
-            _buildTableCell('40%'),
-            _buildNumberInputCell(
-                _break80,
-                (value) => setState(() => _break80 = value),
-                _break80Controller),
-          ]),
-          TableRow(children: [
-            _buildTableCell('GREAT\n60%',
-                color: Colors.pink.withValues(alpha: .14), fontSize: 11),
-            _buildTableCell('60%'),
-            _buildTableCell('40%'),
-            _buildNumberInputCell(
-                _break60,
-                (value) => setState(() => _break60 = value),
-                _break60Controller),
-          ]),
-          TableRow(children: [
-            _buildTableCell('GREAT\n50%',
-                color: Colors.pink.withValues(alpha: .14), fontSize: 11),
-            _buildTableCell('50%'),
-            _buildTableCell('40%'),
-            _buildNumberInputCell(
-                _break50g,
-                (value) => setState(() => _break50g = value),
-                _break50gController),
-          ]),
-          TableRow(children: [
-            _buildTableCell('GOOD',
-                color: Colors.green.withValues(alpha: .14), fontSize: 11),
-            _buildTableCell('40%'),
-            _buildTableCell('30%'),
-            _buildNumberInputCell(
-                _breakGo,
-                (value) => setState(() => _breakGo = value),
-                _breakGoController),
-          ]),
-          TableRow(children: [
-            _buildTableCell('MISS',
-                color: Colors.blueGrey.withValues(alpha: .14), fontSize: 11),
-            _buildTableCell('0%'),
-            _buildTableCell('0%'),
-            _buildNumberInputCell(_breakM,
-                (value) => setState(() => _breakM = value), _breakMController),
-          ]),
+          const SizedBox(height: 6),
+          Text(
+            next == null
+                ? '已经是最高评级 SSS+'
+                : '距 ${next.$2}（${next.$1}%）还差 ${(next.$1 - total).toStringAsFixed(4)}%',
+            style: TextStyle(fontSize: 12, color: onCard.withValues(alpha: 0.86)),
+          ),
         ],
-      ),
-      const SizedBox(height: 12),
-      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        const Text('BREAK 总数'),
-        Text('$total',
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-      ]),
-    ]);
-  }
-
-  // 构建表格单元格
-  Widget _buildTableCell(String text, {Color? color, double fontSize = 12.0}) {
-    return Container(
-      height: 52.0,
-      color: color,
-      alignment: Alignment.center,
-      padding: EdgeInsets.zero,
-      child: Text(
-        text,
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          fontWeight: FontWeight.bold,
-          fontSize: fontSize, // 字体大小为屏幕宽度的2.5%
-          color: Theme.of(context).colorScheme.onSurface,
-        ),
-      ),
-    );
-  }
-
-  // 构建数字输入单元格
-  Widget _buildNumberInputCell(
-      int value, Function(int) onChanged, TextEditingController controller,
-      {Color? color}) {
-    final cellHeight = 52.0;
-    final style = Theme.of(context)
-        .textTheme
-        .bodyMedium!
-        .copyWith(fontSize: 14, height: 1.2);
-    final painter = TextPainter(
-        text: TextSpan(text: '0', style: style),
-        textScaler: MediaQuery.textScalerOf(context),
-        textDirection: Directionality.of(context))
-      ..layout();
-    final verticalPadding =
-        ((cellHeight - painter.height) / 2).clamp(0.0, cellHeight / 2);
-    painter.dispose();
-    return Container(
-      height: cellHeight,
-      decoration: BoxDecoration(color: color),
-      padding: EdgeInsets.zero,
-      margin: EdgeInsets.zero,
-      child: TextField(
-        controller: controller,
-        decoration: InputDecoration(
-          filled: false, // 禁用主题默认填充，让 Container 背景色透出
-          border: InputBorder.none,
-          hintText: value == 0 ? '' : value.toString(),
-          contentPadding: EdgeInsets.symmetric(vertical: verticalPadding),
-          isCollapsed: true,
-          isDense: true,
-          constraints: BoxConstraints.tightFor(height: cellHeight),
-        ),
-        keyboardType: TextInputType.number,
-        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-        textAlign: TextAlign.center,
-        textAlignVertical: TextAlignVertical.center,
-        style: style,
-        onTap: () {
-          if (value == 0) {
-            controller.clear();
-          } else {
-            // 将光标移动到文本末尾
-            controller.selection = TextSelection.fromPosition(
-              TextPosition(offset: controller.text.length),
-            );
-          }
-        },
-        onChanged: (val) {
-          final parsedValue = int.tryParse(val) ?? 0;
-          onChanged(parsedValue);
-        },
-        onEditingComplete: () {
-          // 只在失去焦点时补0
-          if (controller.text.isEmpty) {
-            controller.text = '0';
-            onChanged(0);
-          }
-        },
       ),
     );
   }

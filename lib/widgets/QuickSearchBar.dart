@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 
+import '../utils/AppDesignTokens.dart';
+
 /// 功能搜索栏，可在首页或功能分类页复用。
 class QuickSearchBar extends StatefulWidget {
   /// 搜索文本变化回调
@@ -76,16 +78,17 @@ class _QuickSearchBarState extends State<QuickSearchBar> {
         enableInteractiveSelection: widget.onTap == null,
         showCursor: widget.onTap == null ? null : false,
         style: TextStyle(
-          fontSize: 14,
+          fontSize: 15,
           color: scheme.onSurface,
         ),
         decoration: InputDecoration(
           hintText: '搜点什么...',
-          hintStyle: TextStyle(color: hintColor, fontSize: 14),
-          prefixIcon: Icon(Icons.search, color: iconColor, size: 20),
+          hintStyle: TextStyle(color: hintColor, fontSize: 15),
+          prefixIcon: Icon(Icons.search_rounded, color: hintColor, size: 20),
           suffixIcon: _controller.text.isNotEmpty
               ? IconButton(
-                  icon: Icon(Icons.clear, color: iconColor, size: 18),
+                  tooltip: '清空',
+                  icon: Icon(Icons.close_rounded, color: hintColor, size: 18),
                   onPressed: () {
                     _debounceTimer?.cancel();
                     _controller.clear();
@@ -94,22 +97,23 @@ class _QuickSearchBarState extends State<QuickSearchBar> {
                   },
                 )
               : null,
+          // B 方案：白底、无描边、16 圆角；聚焦时才出现主题色描边。
           filled: true,
-          fillColor: scheme.surfaceContainerLow,
+          fillColor: AppSurfaces.card(context),
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: BorderSide(color: scheme.outlineVariant),
+            borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
+            borderSide: BorderSide.none,
           ),
           enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: BorderSide(color: scheme.outlineVariant),
+            borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
+            borderSide: BorderSide.none,
           ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
             borderSide: BorderSide(color: iconColor, width: 1.5),
           ),
           contentPadding:
-              const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+              const EdgeInsets.symmetric(vertical: 13, horizontal: 12),
         ),
       ),
     );
