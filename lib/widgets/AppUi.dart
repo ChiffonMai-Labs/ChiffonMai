@@ -1461,6 +1461,7 @@ class _EntranceAnimationState extends State<EntranceAnimation>
 class RollingNumber extends StatelessWidget {
   final num value;
   final int fractionDigits;
+  final String prefix;
   final String suffix;
   final TextStyle style;
 
@@ -1469,6 +1470,7 @@ class RollingNumber extends StatelessWidget {
     required this.value,
     required this.style,
     this.fractionDigits = 0,
+    this.prefix = '',
     this.suffix = '',
   });
 
@@ -1479,7 +1481,7 @@ class RollingNumber extends StatelessWidget {
       duration: AppDesignTokens.motion(context, AppDesignTokens.slowMotion),
       curve: AppDesignTokens.emphasizedCurve,
       builder: (context, v, _) => Text(
-        '${v.toStringAsFixed(fractionDigits)}$suffix',
+        '$prefix${v.toStringAsFixed(fractionDigits)}$suffix',
         maxLines: 1,
         style: style,
       ),

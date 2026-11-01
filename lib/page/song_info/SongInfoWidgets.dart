@@ -63,11 +63,12 @@ extension _SongInfoWidgets on _SongInfoPageState {
         onTap: _showBvUploadDialog,
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               'B站播放',
               style: TextStyle(
-                fontSize: 11.5,
+                fontSize: 11,
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
@@ -116,14 +117,16 @@ extension _SongInfoWidgets on _SongInfoPageState {
 
     return Expanded(
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('可游玩地区',
               style: TextStyle(
-                  fontSize: 11.5,
+                  fontSize: 11,
                   color: Theme.of(context).colorScheme.onSurfaceVariant)),
           const SizedBox(height: 4),
           FittedBox(
             fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -213,21 +216,22 @@ extension _SongInfoWidgets on _SongInfoPageState {
 
     return Expanded(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6),
+        padding: const EdgeInsets.only(right: 12),
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: () => _showStatDialog(label, value),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 label,
                 style: TextStyle(
-                  fontSize: 11.5,
+                  fontSize: 11,
                   color: scheme.onSurfaceVariant,
                 ),
               ),
               const SizedBox(height: 4),
-              // 放得下居中显示，放不下横向滚动
+              // 放不下时横向滚动
               LayoutBuilder(
                 builder: (context, constraints) {
                   final painter = TextPainter(
@@ -294,14 +298,18 @@ extension _SongInfoWidgets on _SongInfoPageState {
               ),
             ),
           ),
-          Text(
-            count,
-            style: AppTheme.number(
+          Builder(builder: (context) {
+            final style = AppTheme.number(
               fontSize: 16,
               fontWeight: FontWeight.w700,
               color: textColor,
-            ),
-          ),
+            );
+            final number = int.tryParse(count);
+            // 没有解析结果时是「-」，不滚动
+            return number == null
+                ? Text(count, style: style)
+                : RollingNumber(value: number, style: style);
+          }),
         ],
       ),
     );

@@ -7,8 +7,9 @@ part of '../SongInfoPage.dart';
 ///    类型 / 编号 / DX·ST 切换、别名、难度切换；
 /// 2. [_buildBestScoreCard]：玩家最佳成绩（达成率 + 评级 + 连击同步 + 四项数值）；
 /// 3. [_buildKeyStatsRow]：定数 / 拟合（含差值）/ 平均达成 / 时长；
-/// 4. [_buildDetailTabBar] + [_buildDetailTabContent]：谱面 / 数据 / 社区 / 工具；
-/// 5. [_buildSongActionBar]：贴底操作栏（原两列十个按钮，常用三个 + 更多 + 主按钮）。
+/// 4. [_buildChartInfo]：物量分布与绝赞、基础信息、定数历史、谱面标签；
+/// 5. [_buildDetailTabBar] + [_buildDetailTabContent]：成绩历史 / 数据 / 社区 / 工具；
+/// 6. [_buildSongActionBar]：贴底操作栏（原两列十个按钮，常用三个 + 更多 + 主按钮）。
 ///
 /// 各板块的**数据与交互逻辑沿用原实现**（统计项、物量、分布图、对照表、
 /// 评分、评论、容错计算都直接调用原方法），这里只负责排版和外观。
@@ -307,7 +308,7 @@ extension _SongInfoLayout on _SongInfoPageState {
                         ),
                       ],
                       const SizedBox(height: 6),
-                      _buildHeroTypeRow(basicInfo),
+                      _buildHeroTypeRow(),
                       const SizedBox(height: 6),
                       _buildAliasSection(title),
                     ],
@@ -428,32 +429,7 @@ extension _SongInfoLayout on _SongInfoPageState {
   }
 
   /// 类型标签（DX / ST / 宴）+ 曲目编号 + 另一种谱面的切换入口。
-  /// 头图上的半透明小标签（版本、BPM），点开可复制。
-  Widget _heroPill(String label, String value, String text) {
-    return GestureDetector(
-      onTap: () => _showStatDialog(label, value),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.2),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Text(
-          text,
-          style: AppTheme.number(
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-            color: Colors.white,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeroTypeRow(dynamic basicInfo) {
-    final version = StringUtil.formatVersion2WithFlag(
-        basicInfo['from'], _usesExtraVersionName);
-    final bpm = _displayBpm(basicInfo);
+  Widget _buildHeroTypeRow() {
     final isUtage = widget.songId.length == 6;
     final type = _songData!['type'];
     final label = isUtage
@@ -482,8 +458,6 @@ extension _SongInfoLayout on _SongInfoPageState {
             ),
           ),
         ),
-        _heroPill('版本', version, version),
-        _heroPill('BPM', bpm, 'BPM $bpm'),
         Text(
           '#${widget.songId}',
           style: AppTheme.number(
@@ -721,6 +695,17 @@ extension _SongInfoLayout on _SongInfoPageState {
                     ),
             ),
           ),
+          AnimatedSize(
+            duration: motion,
+            curve: AppDesignTokens.emphasizedCurve,
+            alignment: Alignment.topCenter,
+            child: _best50OpportunityText == null
+                ? const SizedBox(width: double.infinity)
+                : Padding(
+                    padding: const EdgeInsets.only(top: 14),
+                    child: _buildBest50OpportunityBanner(),
+                  ),
+          ),
         ],
       ),
     );
@@ -859,31 +844,63 @@ extension _SongInfoLayout on _SongInfoPageState {
     );
   }
 
+  /// 上分潜力：成绩卡底部的凹槽，左边说明、右边能加多少分。
   Widget _buildBest50OpportunityBanner() {
     final scheme = Theme.of(context).colorScheme;
+    final brightness = scheme.brightness;
+    final text = _best50OpportunityText!;
+    final gain = _best50OpportunityGain;
+    final positive = gain != null && gain > 0;
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
       decoration: BoxDecoration(
-        color: scheme.primaryContainer,
-        borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
+        color: AppSurfaces.inset(context),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
       ),
       child: Row(
         children: [
-          Icon(Icons.trending_up_rounded,
-              size: 18, color: scheme.onPrimaryContainer),
-          const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              _best50OpportunityText!,
-              style: TextStyle(
-                color: scheme.onPrimaryContainer,
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-                height: 1.3,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '上分潜力',
+                  style: AppTheme.number(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                FadeSwitcher(
+                  value: text,
+                  child: Text(
+                    text,
+                    style: AppTheme.number(
+                      fontSize: 13,
+                      height: 1.3,
+                      fontWeight: FontWeight.w600,
+                      color: scheme.onSurface,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
+          if (gain != null) ...[
+            const SizedBox(width: 12),
+            RollingNumber(
+              value: gain,
+              prefix: '+',
+              style: AppTheme.number(
+                fontSize: 24,
+                fontWeight: FontWeight.w700,
+                color: positive
+                    ? AppColors.successGreen(brightness)
+                    : scheme.onSurfaceVariant,
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -908,25 +925,43 @@ extension _SongInfoLayout on _SongInfoPageState {
     }
     final diff = fit == null ? null : fit - ds;
 
-    Widget tile(String label, String value, {Color? color}) => Expanded(
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    // 有数值的格子切难度时数字滚动，没有数值时显示「-」。
+    Widget tile(String label, String value,
+            {Color? color, double? number, int digits = 1, String suffix = ''}) =>
+        Expanded(
           child: StatTile(
             label: label,
             value: value,
             valueColor: color,
             card: true,
             valueSize: 16,
+            valueWidget: number == null
+                ? null
+                : RollingNumber(
+                    value: number,
+                    fractionDigits: digits,
+                    suffix: suffix,
+                    style: AppTheme.number(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: color ?? onSurface,
+                    ),
+                  ),
           ),
         );
 
     return Row(
       children: [
-        tile('定数', ds.toStringAsFixed(1)),
+        tile('定数', ds.toStringAsFixed(1), number: ds),
         const SizedBox(width: 8),
         tile(
           diff == null
               ? '拟合'
               : '拟合 ${diff >= 0 ? "+" : ""}${diff.toStringAsFixed(2)}',
           fit == null ? '-' : fit.toStringAsFixed(2),
+          number: fit,
+          digits: 2,
           color: diff == null
               ? null
               : (diff < 0
@@ -934,7 +969,8 @@ extension _SongInfoLayout on _SongInfoPageState {
                   : AppColors.errorRed(brightness)),
         ),
         const SizedBox(width: 8),
-        tile('平均达成', avg == null ? '-' : '${avg.toStringAsFixed(2)}%'),
+        tile('平均达成', avg == null ? '-' : '${avg.toStringAsFixed(2)}%',
+            number: avg, digits: 2, suffix: '%'),
         const SizedBox(width: 8),
         tile('时长', _formatReferenceDuration()),
       ],
@@ -947,7 +983,7 @@ extension _SongInfoLayout on _SongInfoPageState {
 
   Widget _buildDetailTabBar(Color accentColor) {
     return UnderlineTabs(
-      labels: const ['谱面', '数据', '社区', '工具'],
+      labels: const ['成绩历史', '数据', '社区', '工具'],
       selectedIndex: _detailTab,
       indicatorColor: _heroColor(accentColor),
       onChanged: (index) => _update(() => _detailTab = index),
@@ -955,8 +991,6 @@ extension _SongInfoLayout on _SongInfoPageState {
   }
 
   Widget _buildDetailTabContent({
-    required dynamic basicInfo,
-    required dynamic currentChart,
     required Widget chartHistory,
     required dynamic currentDiffData,
     required Color accentColor,
@@ -964,11 +998,7 @@ extension _SongInfoLayout on _SongInfoPageState {
     final List<Widget> children;
     switch (_detailTab) {
       case 1:
-        children = [
-          chartHistory,
-          const SizedBox(height: 12),
-          ..._buildDataTab(currentDiffData),
-        ];
+        children = _buildDataTab(currentDiffData);
         break;
       case 2:
         children = [
@@ -983,7 +1013,7 @@ extension _SongInfoLayout on _SongInfoPageState {
         children = _buildToolsTab();
         break;
       default:
-        children = _buildChartTab(basicInfo, currentChart, accentColor);
+        children = [chartHistory];
     }
     return AnimatedSwitcher(
       duration: AppDesignTokens.motion(context, AppDesignTokens.mediumMotion),
@@ -1014,8 +1044,8 @@ extension _SongInfoLayout on _SongInfoPageState {
     );
   }
 
-  /// 标签页「谱面」：物量分布、绝赞、谱师 → 基础信息 → 定数历史 → 谱面标签。
-  List<Widget> _buildChartTab(
+  /// 谱面信息：物量分布与绝赞 → 基础信息 → 定数历史 → 谱面标签。
+  List<Widget> _buildChartInfo(
       dynamic basicInfo, dynamic currentChart, Color accentColor) {
     final scheme = Theme.of(context).colorScheme;
     final noteCounts = _getNoteCounts(currentChart);
@@ -1029,7 +1059,10 @@ extension _SongInfoLayout on _SongInfoPageState {
       ('TOUCH', 3),
     ];
     const breakLabels = ['真绝赞TAP', '真绝赞HOLD', '保护套绝赞', '绝赞星星'];
-    final String charter = currentChart['charter']?.toString() ?? '';
+    final motion = AppDesignTokens.motion(context, AppDesignTokens.slowMotion);
+    final ordered = [for (final n in noteOrder) noteCounts[n.$2]];
+    final lastNonZero = ordered.lastIndexWhere((c) => c > 0);
+    final gapCount = ordered.where((c) => c > 0).length - 1;
 
     return [
       AppCard(
@@ -1039,8 +1072,9 @@ extension _SongInfoLayout on _SongInfoPageState {
             AppSectionHeader(
               title: '物量分布',
               padding: const EdgeInsets.only(bottom: 10),
-              trailing: Text(
-                '共 $totalNotes',
+              trailing: RollingNumber(
+                value: totalNotes,
+                prefix: '共 ',
                 style: AppTheme.number(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
@@ -1048,26 +1082,35 @@ extension _SongInfoLayout on _SongInfoPageState {
                 ),
               ),
             ),
-            // 比例条（优先使用Maidata解析的物量统计）
-            ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: SizedBox(
-                height: 12,
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    for (var i = 0; i < noteOrder.length; i++)
-                      if (noteCounts[noteOrder[i].$2] > 0)
-                        Expanded(
-                          flex: noteCounts[noteOrder[i].$2],
-                          child: Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 1),
+            // 比例条（优先使用Maidata解析的物量统计），切难度时色块宽度过渡
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final usable = constraints.maxWidth -
+                    (gapCount < 0 ? 0 : gapCount) * 2;
+                return ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: SizedBox(
+                    height: 12,
+                    child: Row(
+                      children: [
+                        for (var i = 0; i < ordered.length; i++)
+                          AnimatedContainer(
+                            duration: motion,
+                            curve: AppDesignTokens.emphasizedCurve,
+                            width: totalNotes == 0
+                                ? 0
+                                : usable * ordered[i] / totalNotes,
+                            margin: EdgeInsets.only(
+                                right: ordered[i] > 0 && i != lastNonZero
+                                    ? 2
+                                    : 0),
                             color: AppColors.noteDistribution[i],
                           ),
-                        ),
-                  ],
-                ),
-              ),
+                      ],
+                    ),
+                  ),
+                );
+              },
             ),
             const SizedBox(height: 10),
             Row(
@@ -1100,11 +1143,13 @@ extension _SongInfoLayout on _SongInfoPageState {
                             ),
                           ],
                         ),
-                        Text('${noteCounts[noteOrder[i].$2]}',
-                            style: AppTheme.number(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                                color: scheme.onSurface)),
+                        RollingNumber(
+                          value: ordered[i],
+                          style: AppTheme.number(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: scheme.onSurface),
+                        ),
                       ],
                     ),
                   ),
@@ -1123,38 +1168,48 @@ extension _SongInfoLayout on _SongInfoPageState {
                 ],
               ],
             ),
-            const SizedBox(height: 12),
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => _showStatDialog('谱师', charter),
-              child: MarqueeText(
-                text: '谱师 · $charter',
-                style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
-              ),
-            ),
           ],
         ),
       ),
       const SizedBox(height: 12),
-      // 设计稿之外的基础信息
       AppCard(
-        padding: const EdgeInsets.fromLTRB(8, 14, 8, 14),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            const AppSectionHeader(
+              title: '基础信息',
+              padding: EdgeInsets.only(bottom: 12),
+            ),
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildStatItem('类别', basicInfo['genre']),
+                _buildStatItem(
+                    '版本',
+                    StringUtil.formatVersion2WithFlag(
+                        basicInfo['from'], _usesExtraVersionName)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildStatItem('BPM', _displayBpm(basicInfo)),
                 _buildStatItem('首次上线',
                     _formatReleaseDate(basicInfo['release_date'] ?? '')),
               ],
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                _buildStatItem(
+                    '谱师', currentChart['charter']?.toString() ?? '-'),
                 _buildBiliPlayCountStat(),
-                _buildPlayableRegionStat(context),
               ],
             ),
+            const SizedBox(height: 12),
+            Row(children: [_buildPlayableRegionStat(context)]),
           ],
         ),
       ),

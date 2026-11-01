@@ -243,6 +243,9 @@ class _SongInfoPageState extends State<SongInfoPage> {
   int? _theoreticalRating;
   String? _best50OpportunityText;
 
+  /// 上分潜力能加多少分；null 表示没有可加的分（只显示说明）。
+  int? _best50OpportunityGain;
+
   /// 详情区当前标签：0 谱面 / 1 数据 / 2 社区 / 3 工具（2026-11 新布局）。
   int _detailTab = 0;
 
@@ -298,8 +301,9 @@ class _SongInfoPageState extends State<SongInfoPage> {
 
     // 布局（各块的实现见 song_info/SongInfoLayout.dart）：
     //   全出血的难度色头图（返回 / 笔记 / 收藏 / 分享、曲绘、标题、别名、难度切换）
-    //   → 压在头图上的圆角内容区：玩家最佳成绩 → 关键数值
-    //   → 谱面 / 数据 / 社区 / 工具 四个标签页
+    //   → 压在头图上的圆角内容区：玩家最佳成绩（含上分潜力）→ 关键数值
+    //   → 物量 → 基础信息 → 定数历史 → 谱面标签
+    //   → 成绩历史 / 数据 / 社区 / 工具 四个标签页
     //   → 贴底操作栏
     final surface = Theme.of(context).colorScheme.surface;
     final title = _songData!['basic_info']?['title']?.toString() ?? '歌曲详情';
@@ -353,19 +357,16 @@ class _SongInfoPageState extends State<SongInfoPage> {
                                     // 卡片本身不重新入场。
                                     _buildBestScoreCard(
                                         userRecord, basicInfo, levels),
-                                    if (_best50OpportunityText != null) ...[
-                                      const SizedBox(height: 8),
-                                      _buildBest50OpportunityBanner(),
-                                    ],
                                     const SizedBox(height: 12),
                                     _buildKeyStatsRow(currentDiffData),
+                                    const SizedBox(height: 12),
+                                    // 物量、基础信息、定数历史、谱面标签
+                                    ..._buildChartInfo(
+                                        basicInfo, currentChart, accentColor),
                                     const SizedBox(height: 4),
                                     _buildDetailTabBar(accentColor),
                                     const SizedBox(height: 12),
                                     _buildDetailTabContent(
-                                      basicInfo: basicInfo,
-                                      currentChart: currentChart,
-                                      // 成绩历史放在「数据」标签页最上面
                                       chartHistory: _buildChartHistoryCard(),
                                       currentDiffData: currentDiffData,
                                       accentColor: accentColor,

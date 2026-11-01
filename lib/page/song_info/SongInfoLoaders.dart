@@ -166,7 +166,14 @@ extension _SongInfoLoaders on _SongInfoPageState {
   /// 判断当前谱面在理论上能否挤进对应的 Best35 / Best15。
   /// 使用推荐页同一套 Rating 权重和最低达成率算法，避免两个页面给出不同结论。
   Future<void> _loadBest50Opportunity() async {
-    if (mounted) _update(() => _best50OpportunityText = null);
+    void publish(String? text, [int? gain]) {
+      if (!mounted) return;
+      _update(() {
+        _best50OpportunityText = text;
+        _best50OpportunityGain = gain;
+      });
+    }
+
     final song = _songData;
     // 宴会场歌曲（UTAGE）不属于普通 Best35/15，不能套用普通谱面的
     // Rating 门槛计算。六位数 ID 是项目现有的主判定，genre 作为曲库字段兜底。
@@ -174,17 +181,24 @@ extension _SongInfoLoaders on _SongInfoPageState {
         song?['basic_info']?['genre']?.toString() == '宴会场' ||
         song?['genre']?.toString() == '宴会场';
     if (isUtage) {
-      if (mounted) {
-        _update(() => _best50OpportunityText = '宴会场歌曲不参与Best50');
-      }
+      publish('宴会场歌曲不参与Best50');
       return;
     }
     final user = _userData;
-    if (song == null || user == null || user['records'] is! List) return;
+    if (song == null || user == null || user['records'] is! List) {
+      publish(null);
+      return;
+    }
     final dsList = song['ds'];
-    if (dsList is! List || _currentDiffIndex >= dsList.length) return;
+    if (dsList is! List || _currentDiffIndex >= dsList.length) {
+      publish(null);
+      return;
+    }
     final ds = double.tryParse(dsList[_currentDiffIndex].toString());
-    if (ds == null) return;
+    if (ds == null) {
+      publish(null);
+      return;
+    }
 
     final allSongs = await MaimaiMusicDataManager().getCachedSongs() ?? [];
     Song? sourceSong;
@@ -194,11 +208,12 @@ extension _SongInfoLoaders on _SongInfoPageState {
         break;
       }
     }
-    if (sourceSong == null) return;
+    if (sourceSong == null) {
+      publish(null);
+      return;
+    }
     if (sourceSong.basicInfo.genre == '宴会场') {
-      if (mounted) {
-        _update(() => _best50OpportunityText = '宴会场歌曲不参与Best50');
-      }
+      publish('宴会场歌曲不参与Best50');
       return;
     }
     final isNew = sourceSong.basicInfo.isNew;
@@ -234,9 +249,7 @@ extension _SongInfoLoaders on _SongInfoPageState {
     final alreadyInBest = current != null && currentRa >= cutoff;
     final maxRa = _calculateSingleRating(ds, 100.5);
     if (alreadyInBest && maxRa <= currentRa) {
-      if (mounted) {
-        _update(() => _best50OpportunityText = '该谱面已在${bestLabel}区间内且无提升空间');
-      }
+      publish('该谱面已在${bestLabel}区间内且无提升空间');
       return;
     }
     final targetAchievement = _findMinimumAchievementForRating(
@@ -245,21 +258,16 @@ extension _SongInfoLoaders on _SongInfoPageState {
       currentAchievement,
     );
     if (targetAchievement == null) {
-      if (mounted) {
-        _update(() => _best50OpportunityText =
-            alreadyInBest ? '该谱面已在${bestLabel}区间内且无提升空间' : '该谱面无法进入$bestLabel');
-      }
+      publish(alreadyInBest ? '该谱面已在${bestLabel}区间内且无提升空间' : '该谱面无法进入$bestLabel');
       return;
     }
     final targetRa = _calculateSingleRating(ds, targetAchievement);
     // 区间外谱面替换的是末位成绩，区间内谱面提升的是自己的成绩。
     final increase = targetRa - (alreadyInBest ? currentRa : cutoff);
-    if (mounted) {
-      _update(() {
-        _best50OpportunityText =
-            '推到${targetAchievement.toStringAsFixed(4)}%可${alreadyInBest ? '提升' : '进入'}$bestLabel\n加${increase < 0 ? 0 : increase}分';
-      });
-    }
+    publish(
+      '推到 ${targetAchievement.toStringAsFixed(4)}% 可${alreadyInBest ? '提升' : '进入'} $bestLabel',
+      increase < 0 ? 0 : increase,
+    );
   }
 
   /// 按下方「达成率 - Rating」表中的全部倍率区间，寻找达到目标 Rating 的最小达成率。
