@@ -510,6 +510,7 @@ AppHeader(
 ### 22.4 组件
 
 - `lib/widgets/AppUi.dart`：`AppCard`、`AppSectionHeader`、`AppBadge` / `RankBadge` / `ComboBadge` / `StarBadge`、`RatingTierChip`、`StatTile`、`SplitBar`、`SegmentedTabs`（`inlineCaption` 数值横排）、`PillTabs`（音符类型）、`UnderlineTabs`（歌曲详情）、`CountField`、`JudgeCountRow`、`EmphasisCard`、`BottomActionBar`、`FeatureIconTile`（首页常用）、`CollapsibleCard`、`FilterPill`、`LinkPill`。
+- `lib/widgets/GuessUi.dart`：`GuessCell`（比对色块，翻转进场）、`GuessHistoryCard`、`GuessHistoryHeader`（含图例）、`GuessInputBar`（贴底输入栏），单人猜歌和多人房间共用。
 - `lib/widgets/Best50Ui.dart`：`Best50Hero`、`Best50Grid` / `Best50CoverCard`（三列曲绘卡）、`showBest50SongSheet`（推分面板）、`Best50AveragesCard`、`Best50IconAction` 等。
 
 新组件加在这两个文件里，别在页面里各写一份。Hub 页继续用 `HubComponents.dart`。

@@ -417,7 +417,9 @@ class _ThemeAwareBgWidget extends StatelessWidget {
         final isPureBlack = isDark && ThemeManager().pureBlackEnabled;
         final opacity = ThemeManager().lightOverlayOpacity;
         final overlayAlpha = (opacity * 255).round().clamp(0, 255);
-        final lightOverlay = Color.fromARGB(overlayAlpha, 255, 255, 255);
+        // 覆层取页面底色而不是纯白，与 ThemeAwareBackground 一致。
+        final lightOverlay =
+            Theme.of(context).colorScheme.surface.withAlpha(overlayAlpha);
         final darkOverlay = Color.fromARGB(overlayAlpha, 15, 15, 28);
 
         // 解析背景图层：自定义路径 -> Image.file，否则 -> Image.asset

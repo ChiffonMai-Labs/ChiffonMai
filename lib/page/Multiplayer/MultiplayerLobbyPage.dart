@@ -7,6 +7,8 @@ import 'package:my_first_flutter_app/page/Multiplayer/RoomJoinPage.dart';
 import 'package:my_first_flutter_app/page/Multiplayer/GameRoomPage.dart';
 import 'package:my_first_flutter_app/entity/Multiplayer/RoomEntity.dart';
 import 'package:my_first_flutter_app/widgets/BackgroundPageScaffold.dart';
+import '../../widgets/AppUi.dart';
+import '../../utils/AppDesignTokens.dart';
 
 class MultiplayerLobbyPage extends StatefulWidget {
   const MultiplayerLobbyPage({super.key, this.manager});
@@ -180,84 +182,85 @@ class _MultiplayerLobbyPageState extends State<MultiplayerLobbyPage> {
     );
   }
 
+  Widget _buildLobbyEntry({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+    bool emphasis = false,
+  }) {
+    final scheme = Theme.of(context).colorScheme;
+    final fg = emphasis ? scheme.onPrimary : scheme.onSurface;
+    return AppCard(
+      color: emphasis ? scheme.primary : null,
+      padding: const EdgeInsets.all(18),
+      onTap: onTap,
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: emphasis
+                  ? scheme.onPrimary.withValues(alpha: 0.16)
+                  : scheme.primaryContainer,
+              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+            ),
+            child: Icon(icon,
+                size: 26,
+                color: emphasis ? scheme.onPrimary : scheme.onPrimaryContainer),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: TextStyle(
+                        fontSize: 17, fontWeight: FontWeight.w700, color: fg)),
+                const SizedBox(height: 2),
+                Text(subtitle,
+                    style: TextStyle(
+                        fontSize: 12, color: fg.withValues(alpha: 0.75))),
+              ],
+            ),
+          ),
+          Icon(Icons.chevron_right_rounded, color: fg.withValues(alpha: 0.7)),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final scaleFactor = screenWidth / 375.0;
     final paddingM = 12.0 * scaleFactor;
-    final paddingL = 10.0 * scaleFactor;
-    final borderRadiusSmall = 8.0 * scaleFactor;
 
     return BackgroundPageScaffold(
       title: '多人游戏',
       contentPadding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom + 10),
       child: SingleChildScrollView(
-                    padding: EdgeInsets.fromLTRB(paddingM, 8, paddingM, paddingM),
+                    padding: EdgeInsets.fromLTRB(AppDesignTokens.gutter, 4, AppDesignTokens.gutter, paddingM),
                     child: Column(
                       children: [
                         // 还在房间里（切后台/被杀重开后被服务端接回座位）→ 给一个返回入口
                         if (_manager.currentRoom != null)
                           _buildReturnRoomBanner(_manager.currentRoom!),
 
-                        SizedBox(
-                          width: double.infinity,
-                          height: 150 * scaleFactor,
-                          child: ElevatedButton(
-                            onPressed: _handleCreateRoom,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Theme.of(context).colorScheme.primary,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(borderRadiusSmall),
-                              ),
-                            ),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.add_box, size: 48 * scaleFactor, color: Theme.of(context).colorScheme.onPrimary),
-                                SizedBox(height: paddingM),
-                                Text(
-                                  '创建房间',
-                                  style: TextStyle(
-                                    color: Theme.of(context).colorScheme.onPrimary,
-                                    fontSize: 18 * scaleFactor,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                        _buildLobbyEntry(
+                          icon: Icons.add_rounded,
+                          title: '创建房间',
+                          subtitle: '选择玩法和规则，邀请好友一起猜歌',
+                          emphasis: true,
+                          onTap: _handleCreateRoom,
                         ),
-                        
-                        SizedBox(height: paddingL),
-                        
-                        SizedBox(
-                          width: double.infinity,
-                          height: 150 * scaleFactor,
-                          child: ElevatedButton(
-                            onPressed: _handleJoinRoom,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Theme.of(context).colorScheme.surface,
-                              side: BorderSide(color: Theme.of(context).colorScheme.primary, width: 2),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(borderRadiusSmall),
-                              ),
-                            ),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.group_add, size: 48 * scaleFactor, color: Theme.of(context).colorScheme.primary),
-                                SizedBox(height: paddingM),
-                                Text(
-                                  '加入房间',
-                                  style: TextStyle(
-                                    color: Theme.of(context).colorScheme.primary,
-                                    fontSize: 18 * scaleFactor,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                        const SizedBox(height: AppDesignTokens.cardGap),
+                        _buildLobbyEntry(
+                          icon: Icons.group_add_outlined,
+                          title: '加入房间',
+                          subtitle: '输入好友分享的房间码',
+                          onTap: _handleJoinRoom,
                         ),
                       ],
                     ),

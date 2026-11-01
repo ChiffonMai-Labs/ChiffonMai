@@ -10,6 +10,7 @@ import '../utils/AppTheme.dart';
 import '../utils/UserProfileNotifier.dart';
 import 'CommunityAvatar.dart';
 import 'LxnsAssetImage.dart';
+import '../utils/AppDesignTokens.dart';
 
 /// 系统页展示与选择的是完整社区装扮，同步状态涵盖全部四项。
 class CommunityAppearanceBanner extends StatefulWidget {
@@ -132,7 +133,7 @@ class _CommunityAppearanceBannerState extends State<CommunityAppearanceBanner> {
             child: Container(
                 clipBehavior: Clip.antiAlias,
                 decoration: BoxDecoration(
-                    border: Border.all(color: scheme.outlineVariant),
+                    color: AppSurfaces.card(context),
                     borderRadius: BorderRadius.circular(16)),
                 child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,

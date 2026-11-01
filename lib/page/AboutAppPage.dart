@@ -10,6 +10,7 @@ import '../utils/ExternalLaunchUtil.dart';
 import '../widgets/AppHeader.dart';
 import '../widgets/AppLauncherIcon.dart';
 import 'LegalDocumentPage.dart';
+import '../utils/AppDesignTokens.dart';
 
 /// 关于页：品牌介绍、维护者与致谢分组直接布局在主题背景上。
 class AboutAppPage extends StatefulWidget {
@@ -362,8 +363,8 @@ class _AboutAppPageState extends State<AboutAppPage> {
   Widget _buildDeveloperSection() {
     final scheme = Theme.of(context).colorScheme;
     return Material(
-      color: scheme.secondaryContainer.withValues(alpha: .65),
-      borderRadius: BorderRadius.circular(26),
+      color: AppSurfaces.card(context),
+      borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

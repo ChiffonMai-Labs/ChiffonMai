@@ -18,6 +18,8 @@ import '../widgets/AppHeader.dart';
 import '../widgets/AppColorPickerDialog.dart';
 import '../widgets/ThemePreferenceControls.dart';
 import 'OnboardingPage.dart';
+import '../utils/AppDesignTokens.dart';
+import '../widgets/AppUi.dart';
 
 /// 设置页（独立页面，从首页主题弹窗"更多设置"进入）
 ///
@@ -54,7 +56,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   /// 预设色板（覆盖常见色调；保留原默认灰青作为第一位）
   static const List<Color> _presetColors = [
-    Color(0xFF546161), // 默认灰青
+    Color(0xFF006A6A), // 默认青绿
     Color(0xFF1976D2), // 蓝
     Color(0xFF388E3C), // 绿
     Color(0xFF7B1FA2), // 紫
@@ -258,8 +260,8 @@ class _SettingsPageState extends State<SettingsPage> {
                           ),
                         );
                     return ListView(
-                      padding: EdgeInsets.fromLTRB(
-                          sw * 0.04, 8, sw * 0.04, 16 + safeBottom),
+                      padding: EdgeInsets.fromLTRB(AppDesignTokens.gutter, 4,
+                          AppDesignTokens.gutter, 16 + safeBottom),
                       children: [
                         _buildPreviewCard(),
                         const SizedBox(height: 16),
@@ -289,9 +291,17 @@ class _SettingsPageState extends State<SettingsPage> {
                         const SizedBox(height: 24),
                         _buildSectionTitle('外观与导航', c),
                         const SizedBox(height: 8),
-                        const ThemePreferenceControls(),
-                        const Divider(height: 24),
-                        _buildSearchInteractionSettings(),
+                        AppCard(
+                          padding: const EdgeInsets.fromLTRB(4, 12, 4, 12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              const ThemePreferenceControls(),
+                              const Divider(height: 24),
+                              _buildSearchInteractionSettings(),
+                            ],
+                          ),
+                        ),
                         const SizedBox(height: 24),
                         _buildSectionTitle('功能引导', c),
                         const SizedBox(height: 8),
@@ -366,8 +376,8 @@ class _SettingsPageState extends State<SettingsPage> {
     return Container(
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: scheme.outlineVariant),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
+        color: AppSurfaces.card(context),
       ),
       padding: const EdgeInsets.all(12),
       child: Column(
@@ -381,7 +391,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     )),
           ),
           ClipRRect(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
             child: AspectRatio(
               aspectRatio: 2.4,
               child: Stack(
@@ -456,8 +466,7 @@ class _SettingsPageState extends State<SettingsPage> {
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
       decoration: BoxDecoration(
         color: color,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
       ),
       alignment: Alignment.center,
       child: Text(
@@ -516,7 +525,8 @@ class _SettingsPageState extends State<SettingsPage> {
     final brightness = Theme.of(context).brightness;
     return Container(
       decoration: BoxDecoration(
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+        color: AppSurfaces.card(context),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
       ),
       padding: const EdgeInsets.all(12),
       child: Column(
@@ -550,7 +560,7 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           const SizedBox(height: 12),
           ClipRRect(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
             child: SizedBox(
               height: sw * 0.5,
               width: double.infinity,
@@ -575,7 +585,7 @@ class _SettingsPageState extends State<SettingsPage> {
                           horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
                         color: Colors.black54,
-                        borderRadius: BorderRadius.circular(6),
+                        borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                       ),
                       child: Text(
                         bgPath == null ? '当前：内置背景' : '当前：自定义图片',
@@ -604,7 +614,8 @@ class _SettingsPageState extends State<SettingsPage> {
     final opacity = ThemeManager().chiffonOpacity;
     return Container(
       decoration: BoxDecoration(
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+        color: AppSurfaces.card(context),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
       ),
       padding: const EdgeInsets.all(12),
       child: Column(
@@ -612,7 +623,7 @@ class _SettingsPageState extends State<SettingsPage> {
         children: [
           // 预览：当前透明度下 chiffon 装饰图的效果
           ClipRRect(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
             child: SizedBox(
               height: sw * 0.4,
               width: double.infinity,
@@ -711,7 +722,8 @@ class _SettingsPageState extends State<SettingsPage> {
     final scheme = Theme.of(context).colorScheme;
     return Container(
       decoration: BoxDecoration(
-        border: Border.all(color: scheme.outlineVariant),
+        color: AppSurfaces.card(context),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
       ),
       padding: const EdgeInsets.all(12),
       child: Column(
@@ -730,7 +742,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: scheme.primary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                 ),
                 child: Text(
                   ExportSettings.favoriteExtensionWithDot,
@@ -764,7 +776,8 @@ class _SettingsPageState extends State<SettingsPage> {
     final scheme = Theme.of(context).colorScheme;
     return Container(
       decoration: BoxDecoration(
-        border: Border.all(color: scheme.outlineVariant),
+        color: AppSurfaces.card(context),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
       ),
       child: ListTile(
         leading: Icon(Icons.timer_outlined, size: 20, color: c),

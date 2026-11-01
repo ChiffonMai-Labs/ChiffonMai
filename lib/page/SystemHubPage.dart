@@ -51,7 +51,6 @@ import '../constant/AppLinks.dart';
 import '../utils/FavoriteFeaturesNotifier.dart';
 import '../utils/LoginStateNotifier.dart';
 import '../utils/UserProfileNotifier.dart';
-import '../utils/AppTheme.dart';
 import '../utils/ExternalLaunchUtil.dart';
 import '../utils/ExportPathUtil.dart';
 import '../service/CommunityAvatarStore.dart';
@@ -61,6 +60,7 @@ import '../service/CacheManagementService.dart';
 import '../widgets/AccountRegistrationGuideDialog.dart';
 import '../widgets/ConfettiEffect.dart';
 import '../entity/FeatureModels.dart';
+import '../utils/AppDesignTokens.dart';
 
 class SystemHubPage extends StatefulWidget {
   final VoidCallback onAccountManageTap;
@@ -1012,10 +1012,9 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
                   width: double.infinity,
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surfaceContainerLow,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                        color: Theme.of(context).colorScheme.outlineVariant),
+                    color: AppSurfaces.card(context),
+                    borderRadius:
+                        BorderRadius.circular(AppDesignTokens.radiusCard),
                   ),
                   child: const MyPlayerExperience(),
                 ),
