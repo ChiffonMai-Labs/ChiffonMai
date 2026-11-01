@@ -686,9 +686,9 @@ extension _SongInfoLayout on _SongInfoPageState {
                         Text(
                           _showNextStarDiff
                               ? _calculateNextStarDiff(
-                                  songIdInt, _currentDiffIndex, dxScore)
+                                  songIdInt, _currentDiffIndex, dxScore.toInt())
                               : _calculateStarsBonus(
-                                  songIdInt, _currentDiffIndex, dxScore),
+                                  songIdInt, _currentDiffIndex, dxScore.toInt()),
                           style: TextStyle(fontSize: 12, color: starsColor),
                         ),
                       ],
@@ -744,10 +744,10 @@ extension _SongInfoLayout on _SongInfoPageState {
     double? avg;
     if (currentDiffData != null) {
       fit = currentDiffData is DiffData
-          ? currentDiffData.fitDiff
+          ? currentDiffData.fitDiff.toDouble()
           : (currentDiffData['fit_diff'] as num).toDouble();
       avg = currentDiffData is DiffData
-          ? currentDiffData.avg
+          ? currentDiffData.avg.toDouble()
           : (currentDiffData['avg'] as num).toDouble();
     }
     final diff = fit == null ? null : fit - ds;
