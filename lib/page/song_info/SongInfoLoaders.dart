@@ -1321,28 +1321,6 @@ extension _SongInfoLoaders on _SongInfoPageState {
   }
 
   // 计算星星等级
-  String _calculateStars(int songId, int levelIndex, int score) {
-    double scoreRate = _calculateScoreRate(songId, levelIndex, score);
-
-    // 确定星星等级
-    if (scoreRate >= 0.99) {
-      return '\u2726 6';
-    } else if (scoreRate >= 0.98) {
-      return '\u2726 5.5';
-    } else if (scoreRate >= 0.97) {
-      return '\u2726 5';
-    } else if (scoreRate >= 0.95) {
-      return '\u2726 4';
-    } else if (scoreRate >= 0.93) {
-      return '\u2726 3';
-    } else if (scoreRate >= 0.90) {
-      return '\u2726 2';
-    } else if (scoreRate >= 0.85) {
-      return '\u2726 1';
-    } else {
-      return '\u2726 0';
-    }
-  }
 
   // 计算星星等级的最低DX分和超出部分
   String _calculateStarsBonus(int songId, int levelIndex, int score) {
