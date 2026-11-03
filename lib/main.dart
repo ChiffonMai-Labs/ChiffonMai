@@ -27,6 +27,8 @@ import 'package:my_first_flutter_app/widgets/PortablePlayerBadge.dart';
 import 'package:my_first_flutter_app/utils/NavigationPreferences.dart';
 import 'service/AccountSwitchService.dart';
 import 'service/LogExportService.dart';
+import 'utils/WindowDiagnostics.dart';
+import 'widgets/AppToast.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -94,6 +96,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   Size? _lastWindowPhysicalSize;
   double? _lastWindowPixelRatio;
   bool _windowMetricsReportScheduled = false;
+  Timer? _windowRepaintTimer;
 
   /// 收藏夹「一键导入」通道，与 MainActivity.kt 中的 IMPORT_CHANNEL 对应
   static const MethodChannel _openFileChannel =
@@ -124,6 +127,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    _windowRepaintTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -144,19 +148,36 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     // 只关注实际窗口尺寸/像素比；键盘动画仅改变 inset，不逐帧刷诊断日志。
     if (view.physicalSize == _lastWindowPhysicalSize &&
         view.devicePixelRatio == _lastWindowPixelRatio) return;
+    final isResize = _lastWindowPhysicalSize != null;
     _lastWindowPhysicalSize = view.physicalSize;
     _lastWindowPixelRatio = view.devicePixelRatio;
     if (_windowMetricsReportScheduled) return;
     _windowMetricsReportScheduled = true;
-    debugPrint('[Window] 窗口变化 physical=${view.physicalSize} '
-        'dpr=${view.devicePixelRatio} padding=${view.padding} '
-        'insets=${view.viewInsets} framesEnabled=${WidgetsBinding.instance.framesEnabled}');
+    debugPrint('[Window] 窗口变化 ${WindowDiagnostics.view(view)} '
+        'framesEnabled=${WidgetsBinding.instance.framesEnabled}');
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _windowMetricsReportScheduled = false;
       if (!mounted) return;
       final renderObject = _navigatorKey.currentContext?.findRenderObject();
       debugPrint('[Window] 窗口变化后帧已完成，Navigator='
-          '${renderObject is RenderBox && renderObject.hasSize ? renderObject.size : "尚未布局"}');
+          '${renderObject is RenderBox && renderObject.hasSize ? WindowDiagnostics.size(renderObject.size) : "尚未布局"} '
+          '${WindowDiagnostics.renderTree()}');
+      if (isResize) _scheduleWindowRepaint();
+    });
+  }
+
+  /// 小窗 / 分屏切换后补画（issue #4）。系统的窗口动画要过一会儿才结束，
+  /// 所以这一帧和稍后各补一次；连续变化时只保留最后一次的延迟补画。
+  void _scheduleWindowRepaint() {
+    WindowDiagnostics.forceRepaint();
+    _windowRepaintTimer?.cancel();
+    _windowRepaintTimer = Timer(const Duration(milliseconds: 400), () {
+      if (!mounted) return;
+      WindowDiagnostics.forceRepaint();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        debugPrint('[Window] 补画后 ${WindowDiagnostics.renderTree()}');
+      });
     });
   }
 
@@ -381,6 +402,13 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                             );
                           },
                         ),
+                      ),
+                      // 轻提示同样挂在 Navigator 之上，对话框打开时也看得到。
+                      const Positioned(
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        child: AppToastHost(),
                       ),
                     ],
                   ),

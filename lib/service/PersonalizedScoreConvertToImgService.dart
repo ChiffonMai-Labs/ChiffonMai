@@ -4,7 +4,6 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
-import '../widgets/SmoothLinearProgressIndicator.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
@@ -17,6 +16,7 @@ import 'package:my_first_flutter_app/utils/StringUtil.dart';
 import 'package:my_first_flutter_app/utils/ImageEncodeUtil.dart';
 import 'package:my_first_flutter_app/utils/ExportUserInfoWidget.dart';
 import 'package:my_first_flutter_app/widgets/MetaRowWidget.dart';
+import '../widgets/ExportStatsUi.dart';
 
 class PersonalizedScoreConvertToImg {
   static GlobalKey _globalKey = GlobalKey();
@@ -416,9 +416,6 @@ class PersonalizedScoreConvertToImg {
         return parseDs(b).compareTo(parseDs(a));
       });
 
-    double sectionTitleFontSize = containerWidth * 0.03;
-    double statFontSize = containerWidth * 0.022;
-    double statValueFontSize = containerWidth * 0.028;
     double coverSize = containerWidth * 0.083;
     double sectionNameFontSize = containerWidth * 0.022;
 
@@ -440,101 +437,24 @@ class PersonalizedScoreConvertToImg {
             SizedBox(height: 16.0),
 
             // 统计区域
-            Container(
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.black, width: 2.0),
-                borderRadius: BorderRadius.circular(8.0),
-                color: Colors.white,
-              ),
-              padding: EdgeInsets.all(14.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${mode == 'level' ? 'Lv.${selectedLevel ?? ''}' : mode == 'charter' ? '谱师:${selectedCharter ?? ''}' : mode == 'version' ? '版本:${StringUtil.formatVersion2(selectedVersion ?? '')}' : mode == 'genre' ? '流派:${selectedGenre ?? ''}' : '曲师:${selectedArtist ?? ''}'} ${selectedTitleType ?? ''}(${getDifficultyName(selectedDifficulty ?? -1)})统计',
-                    style: TextStyle(
-                      fontSize: sectionTitleFontSize,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
-                    ),
+            ExportCompletionPanel(
+              title:
+                  '${mode == 'level' ? 'Lv.${selectedLevel ?? ''}' : mode == 'charter' ? '谱师:${selectedCharter ?? ''}' : mode == 'version' ? '版本:${StringUtil.formatVersion2(selectedVersion ?? '')}' : mode == 'genre' ? '流派:${selectedGenre ?? ''}' : '曲师:${selectedArtist ?? ''}'} ${selectedTitleType ?? ''}(${getDifficultyName(selectedDifficulty ?? -1)})统计',
+              total: totalCount,
+              completed: completedCount,
+              completionRate: completionRate.toDouble(),
+              averageAchievement: averageAchievement,
+              difficultyStats: [
+                for (final stat in (difficultyStats))
+                  ExportDifficultyStat(
+                    name: stat['name'] as String,
+                    color: ColorUtil.getCoverBorderColor(
+                        difficultyNames.indexOf(stat['name'] as String)),
+                    completed: stat['completed'] as int,
+                    total: stat['total'] as int,
+                    rate: stat['rate'] as double,
                   ),
-                  SizedBox(height: 10.0),
-                  Row(
-                    children: [
-                      _buildStatColumn('总歌曲数', '$totalCount', statFontSize,
-                          statValueFontSize),
-                      _buildStatColumn('已完成', '$completedCount', statFontSize,
-                          statValueFontSize),
-                      _buildStatColumn('未完成', '${totalCount - completedCount}',
-                          statFontSize, statValueFontSize),
-                      _buildStatColumn(
-                          '完成率',
-                          '${completionRate.toStringAsFixed(1)}%',
-                          statFontSize,
-                          statValueFontSize),
-                      _buildStatColumn(
-                          '平均达成率',
-                          '${averageAchievement.toStringAsFixed(2)}%',
-                          statFontSize,
-                          statValueFontSize),
-                    ],
-                  ),
-                  // 各难度完成进度条
-                  if (difficultyStats.isNotEmpty) ...[
-                    SizedBox(height: 12.0),
-                    Divider(color: Colors.grey[300], thickness: 1.0),
-                    SizedBox(height: 8.0),
-                    ...difficultyStats.map((stat) {
-                      final diffIndex =
-                          difficultyNames.indexOf(stat['name'] as String);
-                      final barColor = ColorUtil.getCoverBorderColor(diffIndex);
-                      return Padding(
-                        padding: EdgeInsets.only(bottom: 6.0),
-                        child: Row(
-                          children: [
-                            SizedBox(
-                              width: containerWidth * 0.12,
-                              child: Text(
-                                stat['name'] as String,
-                                style: TextStyle(
-                                  fontSize: statFontSize,
-                                  fontWeight: FontWeight.bold,
-                                  color: barColor,
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(4.0),
-                                child: SmoothLinearProgressIndicator(
-                                  value: stat['rate'] as double,
-                                  backgroundColor: Colors.grey[200],
-                                  valueColor:
-                                      AlwaysStoppedAnimation<Color>(barColor),
-                                  minHeight: 14.0,
-                                  animate: false,
-                                ),
-                              ),
-                            ),
-                            SizedBox(width: 8.0),
-                            SizedBox(
-                              width: containerWidth * 0.1,
-                              child: Text(
-                                '${stat['completed']}/${stat['total']}',
-                                style: TextStyle(
-                                  fontSize: statFontSize,
-                                  color: Colors.black,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }),
-                  ],
-                ],
-              ),
+              ],
             ),
             SizedBox(height: 16.0),
 
@@ -675,32 +595,6 @@ class PersonalizedScoreConvertToImg {
           ],
         );
       },
-    );
-  }
-
-  static Widget _buildStatColumn(
-      String label, String value, double labelFontSize, double valueFontSize) {
-    return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: labelFontSize,
-              color: Colors.black,
-            ),
-          ),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: valueFontSize,
-              fontWeight: FontWeight.bold,
-              color: Colors.black,
-            ),
-          ),
-        ],
-      ),
     );
   }
 

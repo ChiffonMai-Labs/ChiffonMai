@@ -18,6 +18,9 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
   /// 右侧操作区。里面的 `IconButton` 默认是白色圆形，页面可以自己覆盖样式。
   final List<Widget> actions;
 
+  /// 操作区右侧再留多少空白。顶部栏左右边距是 12、正文是 16，传 4 就和正文右边缘平齐。
+  final double actionsEndInset;
+
   /// 返回回调；默认 `Navigator.maybePop`。
   final VoidCallback? onBack;
 
@@ -37,6 +40,7 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
     super.key,
     required this.title,
     this.actions = const <Widget>[],
+    this.actionsEndInset = 0,
     this.onBack,
     this.showBack = true,
     this.barBackground,
@@ -144,6 +148,8 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
                                   padding: const EdgeInsets.only(left: 8),
                                   child: action,
                                 ),
+                              if (actionsEndInset > 0)
+                                SizedBox(width: actionsEndInset),
                             ],
                           ),
                         ),

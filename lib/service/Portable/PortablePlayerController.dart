@@ -34,7 +34,7 @@ import 'PortableAudioCache.dart';
 import 'CachedSongAudioSource.dart';
 import '../SongMediaCache.dart';
 
-/// 播给 UI 看的一次性提示（SnackBar / Toast 用）。
+/// 播给 UI 看的一次性提示（轻提示用）。
 class PortablePlayerEvent {
   final String message;
   final bool isError;

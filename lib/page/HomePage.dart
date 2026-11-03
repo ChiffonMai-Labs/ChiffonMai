@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import '../widgets/MainNavigationInsets.dart';
 import '../utils/SearchInteractionPreferences.dart';
 import 'package:flutter/services.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 import 'package:my_first_flutter_app/page/RankingList/AvgScoreRankingListPage.dart';
 import 'package:my_first_flutter_app/page/RankingList/FittedRatingRankingListPage.dart';
 import 'package:my_first_flutter_app/page/RankingList/RatingRankListPage.dart';
@@ -128,12 +127,12 @@ import '../widgets/SyncFlowMixin.dart';
 import '../widgets/QuickSearchBar.dart';
 import '../widgets/FeatureSearchOverlay.dart';
 import '../widgets/MarqueeText.dart';
-import 'SongInfoPage.dart';
-import '../service/DailyRecommendService.dart';
-import '../entity/DivingFish/Song.dart';
-import '../utils/CoverUtil.dart';
-import '../utils/ColorUtil.dart';
-import '../utils/ChartDifficulty.dart';
+import '../service/CommunityAvatarStore.dart';
+import '../widgets/CommunityAvatar.dart';
+import '../widgets/AppDialogs.dart';
+import '../widgets/AppToast.dart';
+import '../widgets/HomeStatusWidgets.dart';
+import '../service/HomeWidgetService.dart';
 
 // ds值与歌曲对应关系数据类已随 _calculateRatingLimits 一起抽离到
 // lib/widgets/RefreshDataDialog.dart，不再需要此处的定义。
@@ -195,7 +194,7 @@ class _AwmcNetTokenSectionState extends State<_AwmcNetTokenSection> {
   Future<void> _save() async {
     final token = _controller.text.trim();
     if (token.isEmpty) {
-      Fluttertoast.showToast(msg: '请先输入 AWMC NET Token');
+      AppToast.show('请先输入 AWMC NET Token');
       return;
     }
     setState(() => _saving = true);
@@ -207,9 +206,9 @@ class _AwmcNetTokenSectionState extends State<_AwmcNetTokenSection> {
         _hasToken = true;
         _controller.clear();
       });
-      Fluttertoast.showToast(msg: message);
+      AppToast.show(message);
     } catch (_) {
-      if (mounted) Fluttertoast.showToast(msg: '个人 key 保存失败，请重试');
+      if (mounted) AppToast.show('个人 key 保存失败，请重试');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -223,9 +222,9 @@ class _AwmcNetTokenSectionState extends State<_AwmcNetTokenSection> {
           .clearPersonalCredential(SyncPlatform.awmc);
       if (!mounted) return;
       setState(() => _hasToken = false);
-      Fluttertoast.showToast(msg: message);
+      AppToast.show(message);
     } catch (_) {
-      if (mounted) Fluttertoast.showToast(msg: '无法关闭对应自动同步，个人 key 未清除，请重试');
+      if (mounted) AppToast.show('无法关闭对应自动同步，个人 key 未清除，请重试');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -326,11 +325,9 @@ class _AwmcNetTokenSectionState extends State<_AwmcNetTokenSection> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                ElevatedButton(
+                FilledButton(
                   onPressed: _saving ? null : _save,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.linkBlue(brightness),
-                    foregroundColor: Colors.white,
+                  style: FilledButton.styleFrom(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 12, vertical: 10),
                   ),
@@ -339,7 +336,7 @@ class _AwmcNetTokenSectionState extends State<_AwmcNetTokenSection> {
                           width: 16,
                           height: 16,
                           child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white),
+                              strokeWidth: 2),
                         )
                       : const Text('保存', style: TextStyle(fontSize: 13)),
                 ),
@@ -495,12 +492,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
   bool _sortingFavorites = false;
 
   /// 「搜索」按钮在非弹层模式下展开的内联搜索框。
-  bool _inlineSearchOpen = false;
 
-  /// 今日推荐的第一首（首页卡片），没有数据时不显示卡片。
-  Song? _dailyPick;
-  bool _autoSyncEnabled = false;
-  DateTime? _autoSyncLastRun;
 
   // 用户数据（昵称 / Rating）：实际数据来自 UserProfileNotifier，字段保留便于本地访问
   String _userNickname = "";
@@ -539,14 +531,25 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
     SyncRouteNotifier.instance.addListener(_onSyncRouteChanged);
     CacheManagementService.instance.addListener(_onSyncRouteChanged);
     SyncRouteNotifier.instance.ensureLoaded();
-    AutoSyncService.changes.addListener(_loadAutoSyncSummary);
-    unawaited(_loadAutoSyncSummary());
-    unawaited(_loadDailyPick());
+    CommunityAvatarStore.instance.addListener(_pushDesktopProfile);
+    unawaited(CommunityAvatarStore.instance.activate());
 
     // 在第一帧渲染完成后触发字体加载
     WidgetsBinding.instance.addPostFrameCallback((_) {
       widget.onFirstFrameRendered?.call();
+      // 桌面小组件上点的功能，从这里打开
+      unawaited(HomeWidgetService.listen((action) {
+        if (mounted) _openFeatureByTitle(action);
+      }));
     });
+  }
+
+  /// 桌面小组件上的头像和昵称。
+  void _pushDesktopProfile() {
+    unawaited(HomeWidgetService.pushProfile(
+      nickname: _userNickname.isEmpty ? kUnsetNicknameLabel : _userNickname,
+      avatarId: CommunityAvatarStore.instance.value.avatarId,
+    ));
   }
 
   // 从本地存储加载用户数据
@@ -559,6 +562,12 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
       _best35TotalRA = prefs.getInt('best35TotalRA') ?? 0;
       _best15TotalRA = prefs.getInt('best15TotalRA') ?? 0;
     });
+    unawaited(HomeWidgetService.pushRating(
+      total: _best50TotalRA,
+      b35: _best35TotalRA,
+      b15: _best15TotalRA,
+    ));
+    _pushDesktopProfile();
   }
 
   // 更新初始化进度
@@ -618,7 +627,6 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
         _isBackgroundInitializing = false;
         if (result.success) {
           _isInitializationCompleted = true;
-          unawaited(_loadDailyPick());
           _initializationProgress = '数据初始化完成！总耗时 ${result.durationStr}';
         } else {
           _initializationProgress =
@@ -673,12 +681,12 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
 
   @override
   void dispose() {
+    CommunityAvatarStore.instance.removeListener(_pushDesktopProfile);
     UserProfileNotifier.instance.removeListener(_onUserProfileChanged);
     SearchInteractionPreferences.instance
         .removeListener(_onSearchInteractionChanged);
     SyncRouteNotifier.instance.removeListener(_onSyncRouteChanged);
     CacheManagementService.instance.removeListener(_onSyncRouteChanged);
-    AutoSyncService.changes.removeListener(_loadAutoSyncSummary);
     _loginStateNotifier.dispose();
     super.dispose();
   }
@@ -704,6 +712,12 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
       _best35TotalRA = p.best35TotalRA;
       _best15TotalRA = p.best15TotalRA;
     });
+    unawaited(HomeWidgetService.pushRating(
+      total: _best50TotalRA,
+      b35: _best35TotalRA,
+      b15: _best15TotalRA,
+    ));
+    _pushDesktopProfile();
   }
 
   Future<void> _checkDivingFishLoginStatus() async {
@@ -730,7 +744,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
     showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => const AlertDialog(
+      builder: (ctx) => const AppAlertDialog(
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -755,7 +769,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
     Navigator.of(context, rootNavigator: true).pop();
     LoginStateNotifier.setLoggedIn(false);
     _loginStateNotifier.value = false;
-    Fluttertoast.showToast(msg: '已登出水鱼账号');
+    AppToast.show('已登出水鱼账号');
   }
 
   List<ButtonCategory> get _buttonCategories =>
@@ -802,37 +816,56 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
           ),
           children: [
             _buildHomeHeader(context),
-            if (_inlineSearchOpen ||
-                (_hubSearchQuery.isNotEmpty &&
-                    !SearchInteractionPreferences.instance.usesOverlay)) ...[
-              const SizedBox(height: 12),
-              QuickSearchBar(
+            const SizedBox(height: 20),
+            // 输入时收起概览和状态小组件，让搜索框升到结果上方、不被键盘挡住。
+            // 这里只换这一格的内容：搜索框在列表里的位置不变，否则输入框会被
+            // 重建，焦点一丢键盘就收回去了（§22.12）。
+            AnimatedSize(
+              duration:
+                  AppDesignTokens.motion(context, AppDesignTokens.mediumMotion),
+              curve: AppDesignTokens.emphasizedCurve,
+              alignment: Alignment.topCenter,
+              child: _hubSearchQuery.trim().isNotEmpty
+                  ? const SizedBox(width: double.infinity)
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildDashboardSummary(context, brightness),
+                        if (_refreshText.isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          _buildRefreshProgress(context),
+                        ],
+                        const SizedBox(height: 20),
+                        EntranceAnimation(
+                          duration: const Duration(milliseconds: 500),
+                          baseDelay: const Duration(milliseconds: 120),
+                          offset: const Offset(0, 12),
+                          child: _buildStatusWidgets(),
+                        ),
+                      ],
+                    ),
+            ),
+            const SizedBox(height: 12),
+            // 选了浮层搜索时，输入框只是入口，点开后从这里展开浮层。
+            Opacity(
+              key: _featureSearchFieldKey,
+              opacity: _featureSearchOpen ? 0 : 1,
+              child: QuickSearchBar(
                 padding: EdgeInsets.zero,
                 query: _hubSearchQuery,
+                onTap: SearchInteractionPreferences.instance.usesOverlay
+                    ? _openHomeFeatureSearch
+                    : null,
                 onChanged: (query) {
                   if (mounted) setState(() => _hubSearchQuery = query.trim());
                 },
               ),
-            ],
-            const SizedBox(height: 20),
-            if (_hubSearchQuery.trim().isNotEmpty)
+            ),
+            if (_hubSearchQuery.trim().isNotEmpty) ...[
+              const SizedBox(height: 16),
               _buildHomeFeatureSearchResults(
-                  context, _hubSearchQuery, _handleFeatureTap)
-            else ...[
-              _buildDashboardSummary(context, brightness),
-              if (_refreshText.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                _buildRefreshProgress(context),
-              ],
-              if (_dailyPick != null) ...[
-                const SizedBox(height: 20),
-                EntranceAnimation(
-                  duration: const Duration(milliseconds: 500),
-                  baseDelay: const Duration(milliseconds: 120),
-                  offset: const Offset(0, 12),
-                  child: _buildDailyPickCard(context, _dailyPick!),
-                ),
-              ],
+                  context, _hubSearchQuery, _handleFeatureTap),
+            ] else ...[
               const SizedBox(height: 20),
               // 顶层监听保证收藏区跨页面实时刷新。
               _buildFavoriteFeaturesSection(context, favoriteTitles),
@@ -840,8 +873,6 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                 const SizedBox(height: 16),
                 _buildInitializationStatus(context),
               ],
-              const SizedBox(height: 16),
-              _buildSyncStatusLine(context),
             ],
           ],
         ),
@@ -853,7 +884,6 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
   Widget _buildHomeHeader(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final tier = AppColors.ratingTier(_best50TotalRA);
-    final name = _userNickname.trim();
     return Row(
       children: [
         Container(
@@ -861,25 +891,24 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
           height: 48,
           padding: const EdgeInsets.all(2.5),
           decoration: BoxDecoration(
-            shape: BoxShape.circle,
+            borderRadius: BorderRadius.circular(8),
             gradient: _best50TotalRA > 0
                 ? SweepGradient(colors: [...tier.colors, tier.colors.first])
                 : null,
             color: _best50TotalRA > 0 ? null : scheme.outlineVariant,
           ),
           child: Container(
-            alignment: Alignment.center,
+            padding: const EdgeInsets.all(2),
             decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: scheme.secondaryContainer,
-              border: Border.all(color: scheme.surface, width: 2),
+              borderRadius: BorderRadius.circular(7),
+              color: scheme.surface,
             ),
-            child: Text(
-              name.isEmpty ? '?' : String.fromCharCode(name.runes.first),
-              style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w700,
-                color: scheme.onSecondaryContainer,
+            // 社区头像：与「我的」页、排行榜里的是同一个
+            child: ValueListenableBuilder<AvatarSyncState>(
+              valueListenable: CommunityAvatarStore.instance,
+              builder: (context, appearance, _) => CommunityAvatar(
+                avatarId: appearance.avatarId,
+                size: 39,
               ),
             ),
           ),
@@ -894,27 +923,6 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
               const SizedBox(height: 3),
               _buildDataSourceChip(context),
             ],
-          ),
-        ),
-        const SizedBox(width: 8),
-        Opacity(
-          key: _featureSearchFieldKey,
-          opacity: _featureSearchOpen ? 0 : 1,
-          child: _headerIconButton(
-            context,
-            tooltip: '搜索功能',
-            icon: Icons.search_rounded,
-            onPressed: () {
-              if (SearchInteractionPreferences.instance.usesOverlay) {
-                _openHomeFeatureSearch();
-              } else {
-                FocusManager.instance.primaryFocus?.unfocus();
-                setState(() {
-                  _inlineSearchOpen = !_inlineSearchOpen;
-                  if (!_inlineSearchOpen) _hubSearchQuery = '';
-                });
-              }
-            },
           ),
         ),
         const SizedBox(width: 8),
@@ -985,182 +993,33 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
     );
   }
 
-  Future<void> _loadDailyPick() async {
-    try {
-      final songs = await DailyRecommendService().getDailyRecommendations();
-      if (!mounted) return;
-      setState(() => _dailyPick = songs.isEmpty ? null : songs.first);
-    } catch (e) {
-      // 拿不到推荐只是不显示卡片；「每日推荐」页本身不受影响。
-      debugPrint('首页今日推荐加载失败: $e');
-    }
-  }
-
-  Widget _buildDailyPickCard(BuildContext context, Song song) {
-    final scheme = Theme.of(context).colorScheme;
-    final index = song.ds.isEmpty ? 0 : song.ds.length - 1;
-    final level = song.level.length > index ? song.level[index] : '';
-    final difficulty = song.id.length >= 6
-        ? ''
-        : (ChartDifficulty.labels.length > index
-            ? ChartDifficulty.labels[index]
-            : '');
-    return AppCard(
-      padding: const EdgeInsets.all(14),
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => SongInfoPage(
-            songId: song.id,
-            initialLevelIndex: index,
-            isDefaultLevelIndex: false,
-          ),
-        ),
-      ),
-      child: Row(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(14),
-            child: CoverUtil.buildCoverWidgetWithContext(context, song.id, 72),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('今日推荐',
-                    style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: scheme.primary)),
-                const SizedBox(height: 3),
-                MarqueeText(
-                  text: song.title,
-                  style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w700,
-                      color: scheme.onSurface),
-                ),
-                const SizedBox(height: 3),
-                Row(
-                  children: [
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: ColorUtil.getCardColor(index),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Flexible(
-                      child: Text(difficulty,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              fontSize: 12, color: scheme.onSurfaceVariant)),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(level,
-                        style: AppTheme.number(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: scheme.onSurfaceVariant)),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          Icon(Icons.chevron_right_rounded,
-              size: 22, color: scheme.onSurfaceVariant),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _loadAutoSyncSummary() async {
-    var enabled = false;
-    DateTime? last;
-    for (final platform in SyncPlatform.values) {
-      try {
-        final task = await AutoSyncService.instance.status(platform);
-        if (!task.enabled) continue;
-        enabled = true;
-        final run = task.lastRunAt;
-        if (run != null && (last == null || run.isAfter(last))) last = run;
-      } catch (_) {
-        // 单个平台读失败不影响其它平台的摘要。
+  void _openFeatureByTitle(String title) {
+    for (final item in _searchableCategories.expand((c) => c.items)) {
+      if (item.title == title) {
+        _handleFeatureTap(item);
+        return;
       }
     }
-    if (!mounted) return;
-    setState(() {
-      _autoSyncEnabled = enabled;
-      _autoSyncLastRun = last;
-    });
   }
 
-  String _formatAutoSyncTime(DateTime time) {
-    final local = time.toLocal();
-    String two(int v) => v.toString().padLeft(2, '0');
-    final now = DateTime.now();
-    final sameDay = local.year == now.year &&
-        local.month == now.month &&
-        local.day == now.day;
-    final clock = '${two(local.hour)}:${two(local.minute)}';
-    return sameDay ? '今天 $clock' : '${local.month}月${local.day}日 $clock';
-  }
-
-  /// 底部状态行：左边是自动同步摘要（点它进设置），右边刷新数据。
-  Widget _buildSyncStatusLine(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final brightness = Theme.of(context).brightness;
-    final last = _autoSyncLastRun;
-    final text = !_autoSyncEnabled
-        ? '自动同步未开启'
-        : (last == null
-            ? '自动同步已开启'
-            : '自动同步已开启 · 上次同步 ${_formatAutoSyncTime(last)}');
-    ButtonItem? autoSyncItem;
-    for (final item in _searchableCategories.expand((c) => c.items)) {
-      if (item.title == '自动同步') autoSyncItem = item;
-    }
-    return Row(
-      children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: _autoSyncEnabled
-                ? AppColors.successGreen(brightness)
-                : scheme.outline,
+  Widget _buildStatusWidgets() {
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: HomeAutoSyncWidget(
+              onTap: () => _openFeatureByTitle('自动同步'),
+            ),
           ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: autoSyncItem == null
-                ? null
-                : () => _handleFeatureTap(autoSyncItem!),
-            child: Text(text,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style:
-                    TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+          const SizedBox(width: AppDesignTokens.cardGap),
+          Expanded(
+            child: HomeServerStatusWidget(
+              onTap: () => _openFeatureByTitle('服务器状态'),
+            ),
           ),
-        ),
-        TextButton(
-          onPressed: anyBusy ? null : _openRefreshData,
-          style: TextButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            minimumSize: const Size(0, 32),
-            tapTargetSize: MaterialTapTargetSize.padded,
-          ),
-          child: const Text('刷新数据',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -1707,7 +1566,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
 
             return PopScope(
               canPop: !isSyncing && !isBinding,
-              child: AlertDialog(
+              child: AppAlertDialog(
                 title: Row(
                   children: [
                     Icon(
@@ -1746,9 +1605,8 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                                 color:
                                     AppColors.greyHint(brightness, shade: 400)),
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                             ),
-                            contentPadding: const EdgeInsets.all(12),
                           ),
                         ),
                         const SizedBox(height: 8),
@@ -1797,7 +1655,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                             labelText: '水鱼用户名',
                             hintText: '输入 Diving-Fish 用户名',
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                             ),
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 12,
@@ -1813,7 +1671,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                             labelText: '水鱼密码',
                             hintText: '输入 Diving-Fish 密码',
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                             ),
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 12,
@@ -1845,10 +1703,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                             decoration: BoxDecoration(
                               color: AppColors.warningOrange(brightness)
                                   .withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                  color: AppColors.warningOrange(brightness)
-                                      .withValues(alpha: 0.25)),
+                              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                             ),
                             child: Row(
                               children: [
@@ -2070,8 +1925,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                                   },
                                 );
 
-                                Fluttertoast.showToast(
-                                    msg: '全部完成！$count 条成绩已同步，本地数据已刷新');
+                                AppToast.show('全部完成！$count 条成绩已同步，本地数据已刷新');
                                 final fc =
                                     DivingFishProbeManager().currentFriendCode;
                                 Navigator.of(dialogContext).pop(fc);
@@ -2097,7 +1951,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                       onPressed: () async {
                         final qrCode = qrController.text.trim();
                         if (qrCode.isEmpty) {
-                          Fluttertoast.showToast(msg: '请先粘贴舞萌|中二登入二维码字符串');
+                          AppToast.show('请先粘贴舞萌|中二登入二维码字符串');
                           return;
                         }
 
@@ -2269,7 +2123,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
       builder: (BuildContext dialogContext) {
         return StatefulBuilder(
           builder: (ctx, setState) {
-            return AlertDialog(
+            return AppAlertDialog(
               title: Row(
                 children: [
                   Icon(
@@ -2302,7 +2156,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                           labelText: '用户名',
                           hintText: 'Diving-Fish 用户名',
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                           ),
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 12,
@@ -2318,7 +2172,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                           labelText: '密码',
                           hintText: 'Diving-Fish 密码',
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                           ),
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 12,
@@ -2458,7 +2312,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
   void _showThemeDialog() {
     showDialog<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppAlertDialog(
         title: const Text('主题设置'),
         content: const SingleChildScrollView(child: ThemePreferenceControls()),
         actions: [
@@ -2546,7 +2400,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
       }
       if (mounted) {
         ConfettiEffect.show(context);
-        Fluttertoast.showToast(msg: '数据刷新成功!');
+        AppToast.show('数据刷新成功!');
       }
     } catch (e) {
       if (mounted) await presentRefreshError(context, e, qq: request.qq);
@@ -2575,7 +2429,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
             final errorMsg = snapshot.hasError ? '${snapshot.error}' : null;
             final profile = snapshot.data;
 
-            return AlertDialog(
+            return AppAlertDialog(
               title: const Row(
                 children: [
                   Icon(Icons.manage_accounts, size: 22),
@@ -2742,20 +2596,17 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
             const SizedBox(height: 8),
             status,
             const SizedBox(height: 8),
-            ElevatedButton(
+            FilledButton(
               onPressed: () async {
                 if (qq.isEmpty) {
-                  Fluttertoast.showToast(msg: '未找到 QQ 号，请先刷新数据或登录水鱼');
+                  AppToast.show('未找到 QQ 号，请先刷新数据或登录水鱼');
                   return;
                 }
                 final ok = await DivingFishOAuthManager().openBindingLink(qq);
                 if (!dialogContext.mounted) return;
-                Fluttertoast.showToast(
-                    msg: ok ? '已打开授权链接，请在浏览器中完成授权后返回查看' : '发起授权失败，请稍后重试');
+                AppToast.show(ok ? '已打开授权链接，请在浏览器中完成授权后返回查看' : '发起授权失败，请稍后重试');
               },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.linkBlue(brightness),
-                foregroundColor: Colors.white,
+              style: FilledButton.styleFrom(
               ),
               child: Text(
                 authorized == true ? '重新授权' : '打开授权链接',
@@ -2898,13 +2749,13 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    ElevatedButton(
+                    FilledButton(
                       onPressed: saving
                           ? null
                           : () async {
                               final t = tokenCtrl.text.trim();
                               if (t.isEmpty) {
-                                Fluttertoast.showToast(msg: '请先输入 API 密钥');
+                                AppToast.show('请先输入 API 密钥');
                                 return;
                               }
                               setState(() => saving = true);
@@ -2919,18 +2770,15 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                                 hasToken = true;
                                 tokenCtrl.clear();
                                 setState(() {});
-                                Fluttertoast.showToast(msg: message);
+                                AppToast.show(message);
                               } catch (_) {
                                 if (ctx.mounted)
-                                  Fluttertoast.showToast(
-                                      msg: '个人 key 保存失败，请重试');
+                                  AppToast.show('个人 key 保存失败，请重试');
                               } finally {
                                 if (ctx.mounted) setState(() => saving = false);
                               }
                             },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.linkBlue(brightness),
-                        foregroundColor: Colors.white,
+                      style: FilledButton.styleFrom(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 12, vertical: 10),
                       ),
@@ -2939,7 +2787,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                               width: 16,
                               height: 16,
                               child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: Colors.white))
+                                  strokeWidth: 2))
                           : const Text('保存', style: TextStyle(fontSize: 13)),
                     ),
                   ],
@@ -2961,11 +2809,10 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                                 .setLxnsImportToken(null);
                             if (!ctx.mounted) return;
                             hasToken = false;
-                            Fluttertoast.showToast(msg: message);
+                            AppToast.show(message);
                           } catch (_) {
                             if (ctx.mounted)
-                              Fluttertoast.showToast(
-                                  msg: '无法关闭对应自动同步，个人 key 未清除，请重试');
+                              AppToast.show('无法关闭对应自动同步，个人 key 未清除，请重试');
                           } finally {
                             if (ctx.mounted) setState(() => saving = false);
                           }
@@ -3024,10 +2871,6 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
     final plate = p.tryGet<String>('plate') ?? '无';
     final additionalRating = p.tryGet<int>('additional_rating') ?? 0;
 
-    String displayToken = importToken.length > 20
-        ? '${importToken.substring(0, 16)}...'
-        : importToken;
-
     // 需要跨 setState 保持状态，声明在 StatefulBuilder 外部
     bool isRefreshing = false;
 
@@ -3044,30 +2887,39 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 4),
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              // 按钮比文字高，居中才在同一行上
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 SizedBox(
                   width: 90,
                   child: Text('ImportToken',
+                      maxLines: 1,
+                      softWrap: false,
                       style: TextStyle(
                           color: AppColors.greyHint(brightness), fontSize: 13)),
                 ),
                 Expanded(
-                  child:
-                      Text(displayToken, style: const TextStyle(fontSize: 13)),
+                  child: Text(
+                    importToken,
+                    maxLines: 1,
+                    softWrap: false,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 13),
+                  ),
                 ),
                 if (isRefreshing)
                   const SizedBox(
-                    width: 24,
-                    height: 24,
+                    width: 18,
+                    height: 18,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 else ...[
                   IconButton(
                     icon: const Icon(Icons.refresh, size: 18),
                     padding: EdgeInsets.zero,
+                    visualDensity: VisualDensity.compact,
                     constraints:
-                        const BoxConstraints(minWidth: 28, minHeight: 28),
+                        const BoxConstraints(minWidth: 28, minHeight: 24),
                     tooltip: '刷新 ImportToken',
                     onPressed: () async {
                       setState(() => isRefreshing = true);
@@ -3075,10 +2927,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                       if (!ctx.mounted) return;
                       if (newToken != null) {
                         importToken = newToken.token;
-                        displayToken = importToken.length > 20
-                            ? '${importToken.substring(0, 16)}...'
-                            : importToken;
-                        Fluttertoast.showToast(msg: newToken.message);
+                        AppToast.show(newToken.message);
                       } else {
                         await showErrorMessageDialog(
                           context,
@@ -3092,12 +2941,13 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                   IconButton(
                     icon: const Icon(Icons.copy, size: 18),
                     padding: EdgeInsets.zero,
+                    visualDensity: VisualDensity.compact,
                     constraints:
-                        const BoxConstraints(minWidth: 28, minHeight: 28),
+                        const BoxConstraints(minWidth: 28, minHeight: 24),
                     tooltip: '复制 ImportToken',
                     onPressed: () {
                       Clipboard.setData(ClipboardData(text: importToken));
-                      Fluttertoast.showToast(msg: 'ImportToken 已复制到剪贴板');
+                      AppToast.show('ImportToken 已复制到剪贴板');
                     },
                   ),
                 ],
@@ -3316,7 +3166,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
     if (item.title == '刷新 maidata') {
       final confirmed = await showDialog<bool>(
         context: context,
-        builder: (ctx) => AlertDialog(
+        builder: (ctx) => AppAlertDialog(
           title: const Text('确认刷新'),
           content: const Text(
               '将清除所有maidata缓存并从服务器重新拉取全部maidata数据，耗时可能较长。\n\n确定要刷新吗？'),
@@ -3338,7 +3188,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
           showDialog(
             context: context,
             barrierDismissible: false,
-            builder: (ctx) => const AlertDialog(
+            builder: (ctx) => const AppAlertDialog(
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -3368,7 +3218,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
           // 关闭加载对话框
           if (mounted) Navigator.of(context).pop();
           if (mounted) {
-            Fluttertoast.showToast(msg: 'Maidata刷新成功');
+            AppToast.show('Maidata刷新成功');
             ConfettiEffect.show(context);
           }
         } catch (e) {
@@ -3642,7 +3492,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
     if (item.title == '登出水鱼账号') {
       final ok = await showDialog<bool>(
         context: context,
-        builder: (ctx) => AlertDialog(
+        builder: (ctx) => AppAlertDialog(
           title: const Text('确认登出'),
           content: const Text('登出后将清除缓存的登录信息和 ImportToken，确定要登出吗？'),
           actions: [
@@ -3714,7 +3564,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
         context: context,
         barrierDismissible: false,
         builder: (BuildContext context) {
-          return AlertDialog(
+          return AppAlertDialog(
             title: Text('检查更新'),
             content: Column(
               mainAxisSize: MainAxisSize.min,
@@ -3739,7 +3589,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
           showDialog(
             context: context,
             builder: (BuildContext context) {
-              return AlertDialog(
+              return AppAlertDialog(
                 title: Text('检查更新失败'),
                 content: Text('请检查网络连接后重试'),
                 actions: [
@@ -3748,11 +3598,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                       Clipboard.setData(const ClipboardData(
                           text: LZYCheckUpdateManager.defaultDownloadUrl));
                       Navigator.of(context).pop();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content: Text('下载链接已复制到剪贴板'),
-                            duration: Duration(seconds: 2)),
-                      );
+                      AppToast.show('下载链接已复制到剪贴板', duration: Duration(seconds: 2));
                     },
                     child: Text('复制下载链接'),
                   ),

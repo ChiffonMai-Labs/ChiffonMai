@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'HubComponents.dart';
 import '../utils/FavoriteFeaturesNotifier.dart';
 import '../utils/FeatureRegistry.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 import '../service/CoverRecognitionService.dart';
 import 'SongSearchPage.dart';
 import 'UnionUpdateComparePage.dart';
@@ -11,6 +10,7 @@ import 'VersionViewPage.dart';
 import 'DifficultyDistributionPage.dart';
 import 'CoverRecognitionPage.dart';
 import 'ScoreOcrPage.dart';
+import '../widgets/AppToast.dart';
 
 class LibraryHubPage extends StatefulWidget {
   const LibraryHubPage({super.key});
@@ -80,7 +80,7 @@ class _LibraryHubPageState extends State<LibraryHubPage> {
           setState(() {
             _coverIndexBuilding = false;
           });
-          Fluttertoast.showToast(msg: '曲绘索引构建失败: $e');
+          AppToast.show('曲绘索引构建失败: $e');
         }
         return;
       }

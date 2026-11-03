@@ -61,6 +61,14 @@ class PersonalizedScoreService {
   }
 
   // 根据等级类型获取歌曲及其完成状态
+  int _yieldTick = 0;
+
+  /// `await` 已完成的 Future 只走微任务，帧插不进来：长循环期间整个页面都是冻住的。
+  /// 每隔一批真正让出一次事件循环，动画和手势才能继续。
+  Future<void> _yieldToUi() async {
+    if (++_yieldTick % 48 == 0) await Future<void>.delayed(Duration.zero);
+  }
+
   Future<List<Map<String, dynamic>>> getSongsByLevel(
     String levelKey, // 如 "1", "1+", "15"
     String titleType, // '極', '将', '神'
@@ -77,6 +85,7 @@ class PersonalizedScoreService {
     final result = <Map<String, dynamic>>[];
     
     for (final song in songs) {
+      await _yieldToUi();
       // 排除id为6位数的谱面和从maidata追加的歌曲（cids全为0）
       if (song.id.length == 6 && int.tryParse(song.id) != null) {
         continue;
@@ -329,6 +338,7 @@ class PersonalizedScoreService {
     final result = <Map<String, dynamic>>[];
     
     for (final song in songs) {
+      await _yieldToUi();
       // 排除id为6位数的谱面和从maidata追加的歌曲（cids全为0）
       if (song.id.length == 6 && int.tryParse(song.id) != null) {
         continue;
@@ -522,6 +532,7 @@ class PersonalizedScoreService {
     final result = <Map<String, dynamic>>[];
 
     for (final song in songs) {
+      await _yieldToUi();
       if (song.id.length == 6 && int.tryParse(song.id) != null) {
         continue;
       }
@@ -583,6 +594,7 @@ class PersonalizedScoreService {
     final result = <Map<String, dynamic>>[];
 
     for (final song in songs) {
+      await _yieldToUi();
       if (song.id.length == 6 && int.tryParse(song.id) != null) {
         continue;
       }
@@ -644,6 +656,7 @@ class PersonalizedScoreService {
     final result = <Map<String, dynamic>>[];
 
     for (final song in songs) {
+      await _yieldToUi();
       if (song.id.length == 6 && int.tryParse(song.id) != null) {
         continue;
       }

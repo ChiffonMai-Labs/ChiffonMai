@@ -5,6 +5,7 @@ import '../utils/AppDesignTokens.dart';
 import '../utils/AppTheme.dart';
 import '../widgets/AppUi.dart';
 import '../widgets/BackgroundPageScaffold.dart';
+import '../widgets/AppDialogs.dart';
 
 /// 达成率反推：已知各档判定数量与总达成率，反推 BREAK 的 50落 / 100落 与
 /// GREAT 的 80% / 60% / 50% 细分。
@@ -17,6 +18,58 @@ class AchievementFullReverseCalculator extends StatefulWidget {
   @override
   State<AchievementFullReverseCalculator> createState() =>
       _AchievementFullReverseCalculatorState();
+}
+
+class _AchievementFullReverseCalculatorState
+    extends State<AchievementFullReverseCalculator> {
+  final GlobalKey<_AchievementReversePanelState> _panelKey = GlobalKey();
+
+  @override
+  Widget build(BuildContext context) {
+    return BackgroundPageScaffold(
+      title: '达成率反推',
+      resizeToAvoidBottomInset: true,
+      actions: [
+        IconButton(
+          tooltip: '重置',
+          onPressed: () => _panelKey.currentState?.reset(),
+          icon: const Icon(Icons.restart_alt_rounded),
+        ),
+      ],
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: ListView(
+          padding: EdgeInsets.fromLTRB(AppDesignTokens.gutter, 4,
+              AppDesignTokens.gutter, 24 + MediaQuery.paddingOf(context).bottom),
+          children: [AchievementReversePanel(key: _panelKey)],
+        ),
+      ),
+    );
+  }
+}
+
+/// 反推的输入与结果，没有自己的滚动和页面外壳：
+/// 独立页面和计算工具页（从歌曲详情进入）共用，放进外层的滚动列里即可。
+class AchievementReversePanel extends StatefulWidget {
+  /// 区块标题；给了就显示标题和重置键（独立页面的重置键在顶部栏）。
+  final String? title;
+
+  /// 五种音符的总数，默认全部算作 CRITICAL PERFECT。
+  final List<int>? initialCounts;
+
+  final String? initialRate;
+
+  const AchievementReversePanel({
+    super.key,
+    this.title,
+    this.initialCounts,
+    this.initialRate,
+  });
+
+  @override
+  State<AchievementReversePanel> createState() =>
+      _AchievementReversePanelState();
 }
 
 class _ReverseResult {
@@ -47,8 +100,7 @@ class _ReverseResult {
   });
 }
 
-class _AchievementFullReverseCalculatorState
-    extends State<AchievementFullReverseCalculator> {
+class _AchievementReversePanelState extends State<AchievementReversePanel> {
   static const List<String> _types = ['TAP', 'HOLD', 'SLIDE', 'TOUCH', 'BREAK'];
 
   // 定义权重常量（与旧版一致）
@@ -72,17 +124,31 @@ class _AchievementFullReverseCalculatorState
   };
 
   final TextEditingController _rateController = TextEditingController();
-  final ScrollController _scrollController = ScrollController();
+  final GlobalKey _resultKey = GlobalKey();
 
   int _tab = 0;
   bool _calculating = false;
   _ReverseResult? _result;
 
   @override
+  void initState() {
+    super.initState();
+    _fillInitial();
+  }
+
+  @override
   void dispose() {
     _rateController.dispose();
-    _scrollController.dispose();
     super.dispose();
+  }
+
+  void _fillInitial() {
+    for (final (i, type) in _types.indexed) {
+      final list = _counts[type]!;
+      list.fillRange(0, list.length, 0);
+      list[0] = widget.initialCounts?[i] ?? 0;
+    }
+    _rateController.text = widget.initialRate ?? '';
   }
 
   int _sum(String type) => _counts[type]!.fold(0, (s, n) => s + n);
@@ -95,13 +161,11 @@ class _AchievementFullReverseCalculatorState
     });
   }
 
-  void _resetAll() {
+  void reset() {
+    if (_calculating) return;
     FocusScope.of(context).unfocus();
     setState(() {
-      for (final list in _counts.values) {
-        list.fillRange(0, list.length, 0);
-      }
-      _rateController.clear();
+      _fillInitial();
       _result = null;
       _calculating = false;
     });
@@ -110,7 +174,7 @@ class _AchievementFullReverseCalculatorState
   void _showErrorDialog(String message) {
     showDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => AppAlertDialog(
         title: const Text('输入错误'),
         content: Text(message),
         actions: [
@@ -153,9 +217,11 @@ class _AchievementFullReverseCalculatorState
       _result = result;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_scrollController.hasClients) return;
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
+      final resultContext = _resultKey.currentContext;
+      if (!mounted || resultContext == null) return;
+      Scrollable.ensureVisible(
+        resultContext,
+        alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
         duration: AppDesignTokens.motion(context, AppDesignTokens.mediumMotion),
         curve: AppDesignTokens.emphasizedCurve,
       );
@@ -270,26 +336,18 @@ class _AchievementFullReverseCalculatorState
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final type = _types[_tab];
-    final bottomInset = MediaQuery.paddingOf(context).bottom;
 
-    return BackgroundPageScaffold(
-      title: '达成率反推',
-      resizeToAvoidBottomInset: true,
-      actions: [
-        IconButton(
-          tooltip: '重置',
-          onPressed: _calculating ? null : _resetAll,
-          icon: const Icon(Icons.restart_alt_rounded),
-        ),
-      ],
-      child: GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        onTap: () => FocusScope.of(context).unfocus(),
-        child: ListView(
-          controller: _scrollController,
-          padding: EdgeInsets.fromLTRB(AppDesignTokens.gutter, 4,
-              AppDesignTokens.gutter, 24 + bottomInset),
+    return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (widget.title != null)
+              AppSectionHeader(
+                title: widget.title!,
+                trailing: TextButton(
+                  onPressed: reset,
+                  child: const Text('重置'),
+                ),
+              ),
             AppCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -387,7 +445,7 @@ class _AchievementFullReverseCalculatorState
                     borderRadius:
                         BorderRadius.circular(AppDesignTokens.radiusMedium),
                   ),
-                  textStyle: const TextStyle(
+                  textStyle: AppTheme.font(
                       fontSize: 15, fontWeight: FontWeight.w700),
                 ),
                 child: _calculating
@@ -409,11 +467,9 @@ class _AchievementFullReverseCalculatorState
             ),
             if (_result != null) ...[
               const SizedBox(height: 16),
-              _buildResult(_result!),
+              KeyedSubtree(key: _resultKey, child: _buildResult(_result!)),
             ],
           ],
-        ),
-      ),
     );
   }
 

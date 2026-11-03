@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../api/ApiUrls.dart';
 import '../utils/AppTheme.dart';
 import '../utils/ExternalLaunchUtil.dart';
+import '../widgets/AppToast.dart';
 
 /// 水鱼账号在 App 里的「身份标识」状态。
 ///
@@ -338,11 +339,6 @@ class DivingFishAccountSection extends StatelessWidget {
     // 打不开浏览器就把链接放剪贴板，别让用户卡在这一步
     await Clipboard.setData(const ClipboardData(text: url));
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('无法打开浏览器，链接已复制到剪贴板，请手动粘贴打开'),
-        duration: Duration(seconds: 3),
-      ),
-    );
+    AppToast.show('无法打开浏览器，链接已复制到剪贴板，请手动粘贴打开', duration: Duration(seconds: 3));
   }
 }

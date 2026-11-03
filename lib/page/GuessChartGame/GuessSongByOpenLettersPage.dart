@@ -18,6 +18,10 @@ import '../SongInfoPage.dart';
 import 'GuessChartLoadingView.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
 import '../../utils/AppDesignTokens.dart';
+import '../../widgets/AppDialogs.dart';
+import '../../widgets/AppToast.dart';
+import '../../widgets/GuessUi.dart';
+import '../../widgets/GuessSettingsUi.dart';
 
 class GuessSongByOpenLettersPage extends StatefulWidget {
   const GuessSongByOpenLettersPage({super.key});
@@ -294,12 +298,7 @@ class _GuessSongByOpenLettersPageState
 
     String letter = _openLetterController.text.trim();
     if (letter.isEmpty || letter.length > 1) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('请输入一个字符！'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+      AppToast.show('请输入一个字符！', duration: Duration(seconds: 2));
       return;
     }
 
@@ -320,12 +319,7 @@ class _GuessSongByOpenLettersPageState
     if (_isGameOver || _targetSongs.isEmpty) return;
 
     if (answer.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('请输入歌曲名称！'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+      AppToast.show('请输入歌曲名称！', duration: Duration(seconds: 2));
       return;
     }
 
@@ -357,12 +351,7 @@ class _GuessSongByOpenLettersPageState
         }
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('猜对了！'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+      AppToast.show('猜对了！', duration: Duration(seconds: 2));
     } else {
       // 找到猜错的歌曲
       Song? guessedSong = null;
@@ -740,7 +729,7 @@ class _GuessSongByOpenLettersPageState
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
+        return AppAlertDialog(
           title: const Text('规则说明'),
           content: SingleChildScrollView(
             child: Column(
@@ -773,7 +762,7 @@ class _GuessSongByOpenLettersPageState
     );
   }
 
-  /// 后台校验「当前筛选条件是否还能抽到曲」，抽不到就用 SnackBar 提醒。
+  /// 后台校验「当前筛选条件是否还能抽到曲」，抽不到就用轻提示提醒。
   ///
   /// 放在保存**之后**异步执行：设置已经落盘、用户也已看到「已保存」，
   /// 这里慢一点不会让人干等。校验意义在于尽早发现「条件过严导致开局空转」，
@@ -803,12 +792,7 @@ class _GuessSongByOpenLettersPageState
         nonEnglishCharThreshold: nonEnglishCharThreshold,
       );
       if (testSongs.isNotEmpty || !mounted) return;
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text('当前筛选条件抽不到曲目，请放宽筛选条件'),
-          duration: Duration(seconds: 4),
-        ),
-      );
+      AppToast.show('当前筛选条件抽不到曲目，请放宽筛选条件', duration: Duration(seconds: 4));
     } catch (e) {
       debugPrint('校验筛选条件失败: $e');
     }
@@ -858,12 +842,12 @@ class _GuessSongByOpenLettersPageState
     await showDialog(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('设置'),
-          contentPadding: EdgeInsets.all(8.0), // 减小对话框内边距
+        return AppAlertDialog(
+          title: const Text('游戏设置'),
+          subtitle: '保存后下局生效',
+          contentPadding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
           content: StatefulBuilder(
             builder: (BuildContext context, StateSetter setState) {
-              final brightness = Theme.of(context).brightness;
               return SingleChildScrollView(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -905,97 +889,35 @@ class _GuessSongByOpenLettersPageState
                         });
                       },
                     ),
-                    // 歌曲数量设置
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '每次抽取歌曲数',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Theme.of(context).colorScheme.onSurface,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Column(
-                            children: [
-                              Slider(
-                                value: tempSongCount.toDouble(),
-                                min: 1,
-                                max: 10,
-                                divisions: 9,
-                                label: '$tempSongCount 首',
-                                onChanged: (value) {
-                                  setState(() {
-                                    tempSongCount = value.toInt();
-                                  });
-                                },
-                              ),
-                              Text('$tempSongCount 首'),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    // 非英文字符占比阈值设置
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '非英文字符过滤百分比',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Theme.of(context).colorScheme.onSurface,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Column(
-                            children: [
-                              Slider(
-                                value: tempNonEnglishCharThreshold.toDouble(),
-                                min: 0,
-                                max: 100,
-                                divisions: 100,
-                                label: '$tempNonEnglishCharThreshold%',
-                                onChanged: (value) {
-                                  setState(() {
-                                    tempNonEnglishCharThreshold = value.toInt();
-                                  });
-                                },
-                              ),
-                              Text('$tempNonEnglishCharThreshold%'),
-                              const SizedBox(height: 8),
-                              Text(
-                                '过滤日语+除空格以外的非英文字符在歌名中的占比大于等于此值的歌曲',
-                                style: TextStyle(
-                                    fontSize: 14,
-                                    color: AppColors.greyHint(brightness)),
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    // 重置按钮
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      child: Center(
-                        child: ElevatedButton(
-                          onPressed: () {
-                            setState(applySettingsDefaults);
-                          },
-                          child: Text('重置所有设置'),
+                    GuessSettingSection(
+                      title: '本模式设置',
+                      icon: Icons.abc_rounded,
+                      children: [
+                        GuessSliderTile(
+                          label: '每次抽取歌曲数',
+                          valueText: '$tempSongCount 首',
+                          value: tempSongCount.toDouble(),
+                          min: 1,
+                          max: 10,
+                          divisions: 9,
+                          onChanged: (value) =>
+                              setState(() => tempSongCount = value.toInt()),
                         ),
-                      ),
+                        GuessSliderTile(
+                          label: '非英文字符过滤百分比',
+                          valueText: '$tempNonEnglishCharThreshold%',
+                          value: tempNonEnglishCharThreshold.toDouble(),
+                          min: 0,
+                          max: 100,
+                          divisions: 100,
+                          onChanged: (value) =>
+                              setState(() => tempNonEnglishCharThreshold = value.toInt()),
+                          hint: '过滤日语+除空格以外的非英文字符在歌名中的占比大于等于此值的歌曲',
+                        ),
+                      ],
+                    ),
+                    GuessSettingsResetButton(
+                      onPressed: () => setState(applySettingsDefaults),
                     ),
                   ],
                 ),
@@ -1013,7 +935,6 @@ class _GuessSongByOpenLettersPageState
               onPressed: () async {
                 // 提示设置已保存，将在下局生效
                 final navigator = Navigator.of(context);
-                final messenger = ScaffoldMessenger.of(context);
 
                 // 先落盘并立刻反馈：saveSettings 只要 2ms，而抽曲校验要遍历
                 // 整份曲库（冷启动含读盘解析），是秒级操作。原先「先校验、
@@ -1032,9 +953,7 @@ class _GuessSongByOpenLettersPageState
 
                 if (!navigator.mounted) return;
                 navigator.pop();
-                messenger.showSnackBar(
-                  const SnackBar(content: Text('设置已保存，将在下局游戏生效')),
-                );
+                AppToast.show('设置已保存，将在下局游戏生效');
 
                 _warnIfNoSongMatches(
                   songCount: tempSongCount,
@@ -1175,15 +1094,17 @@ class _GuessSongByOpenLettersPageState
                                               controller: _answerController,
                                               onChanged: _handleSearchInput,
                                               enabled: !_isGameOver,
-                                              decoration: const InputDecoration(
+                                              decoration: InputDecoration(
                                                 hintText: '搜索歌名、别名、编号等',
-                                                border: OutlineInputBorder(
+                                                prefixIcon: GuessSearchIcon(
+                                                    searching: _isSearching),
+                                                border: const OutlineInputBorder(
                                                   borderRadius:
                                                       BorderRadius.all(Radius.circular(8)),
                                                   borderSide: BorderSide.none,
                                                 ),
                                                 contentPadding:
-                                                    EdgeInsets.all(12),
+                                                    const EdgeInsets.all(12),
                                               ),
                                             ),
                                           ),
@@ -1220,16 +1141,6 @@ class _GuessSongByOpenLettersPageState
                                         ],
                                       ),
                                     ),
-
-                                    // 搜索中状态
-                                    if (_isSearching)
-                                      Container(
-                                        margin: const EdgeInsets.only(top: 8),
-                                        padding: const EdgeInsets.all(16),
-                                        child: const Center(
-                                          child: CircularProgressIndicator(),
-                                        ),
-                                      ),
 
                                     // 按钮区域
                                     Container(

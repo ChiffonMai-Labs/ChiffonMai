@@ -325,6 +325,14 @@ class PaiziProgressService {
     _recordsCache = null;
   }
 
+  int _yieldTick = 0;
+
+  /// `await` 已完成的 Future 只走微任务，帧插不进来：长循环期间整个页面都是冻住的。
+  /// 每隔一批真正让出一次事件循环，动画和手势才能继续。
+  Future<void> _yieldToUi() async {
+    if (++_yieldTick % 48 == 0) await Future<void>.delayed(Duration.zero);
+  }
+
   // 获取指定称号和难度的所有歌曲及其完成状态
   Future<List<Map<String, dynamic>>> getSongsWithCompletionStatus(
     String firstChar,
@@ -347,6 +355,7 @@ class PaiziProgressService {
         if (req.difficulties != null && req.songs != null) {
           for (final diff in req.difficulties!) {
             for (final requiredSong in req.songs!) {
+              await _yieldToUi();
               final Song? song = songMap[requiredSong];
 
               if (song != null) {
@@ -380,6 +389,7 @@ class PaiziProgressService {
 
         if (req.songs != null) {
           for (final requiredSong in req.songs!) {
+            await _yieldToUi();
             final Song? song = songMap[requiredSong];
 
             if (song != null) {

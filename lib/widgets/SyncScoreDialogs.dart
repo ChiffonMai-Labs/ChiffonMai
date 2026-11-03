@@ -1,7 +1,6 @@
 import 'RankingPrivacyOptions.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../constant/CacheKeyConstant.dart';
@@ -20,6 +19,9 @@ import 'PostSyncRefreshOptions.dart';
 import 'SmoothLinearProgressIndicator.dart';
 import 'ConfettiEffect.dart';
 import 'RefreshDataDialog.dart' show RefreshDataRequest, RefreshDataSource;
+import '../widgets/AppDialogs.dart';
+import '../widgets/AppToast.dart';
+import '../utils/AppDesignTokens.dart';
 
 export 'MultiScoreSyncDialog.dart'
     show MultiScoreSyncInput, showMultiScoreSyncInputDialog;
@@ -139,7 +141,7 @@ Future<DivingFishSyncInput?> showDivingFishSyncInputDialog(BuildContext context,
     builder: (dialogContext) {
       dialogRoute ??= ModalRoute.of(dialogContext);
       return StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
+        builder: (context, setState) => AppAlertDialog(
           title: const Row(
             children: [
               Icon(Icons.qr_code_scanner, size: 22),
@@ -177,8 +179,7 @@ Future<DivingFishSyncInput?> showDivingFishSyncInputDialog(BuildContext context,
                           fontSize: 13,
                           color: AppColors.greyHint(brightness, shade: 400)),
                       border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8)),
-                      contentPadding: const EdgeInsets.all(12),
+                          borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall)),
                     ),
                   ),
                 ],
@@ -198,11 +199,11 @@ Future<DivingFishSyncInput?> showDivingFishSyncInputDialog(BuildContext context,
                   onPressed: () async {
                     final qrCode = qrController.text.trim();
                     if (!quickUpdate && qrCode.isEmpty) {
-                      Fluttertoast.showToast(msg: '请先粘贴舞萌|中二登入二维码字符串');
+                      AppToast.show('请先粘贴舞萌|中二登入二维码字符串');
                       return;
                     }
                     if (!quickUpdate && !qrCode.startsWith('SGWCMAID')) {
-                      Fluttertoast.showToast(msg: '无效的二维码，请使用舞萌|中二公众号生成的登入二维码');
+                      AppToast.show('无效的二维码，请使用舞萌|中二公众号生成的登入二维码');
                       return;
                     }
                     final prefs2 = await SharedPreferences.getInstance();
@@ -292,7 +293,7 @@ Future<LuoXueSyncInput?> showLuoXueSyncInputDialog(BuildContext context,
     builder: (dialogContext) {
       dialogRoute ??= ModalRoute.of(dialogContext);
       return StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
+        builder: (context, setState) => AppAlertDialog(
           title: const Row(
             children: [
               Icon(Icons.cloud_sync_outlined, size: 22),
@@ -334,8 +335,7 @@ Future<LuoXueSyncInput?> showLuoXueSyncInputDialog(BuildContext context,
                           fontSize: 13,
                           color: AppColors.greyHint(brightness, shade: 400)),
                       border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8)),
-                      contentPadding: const EdgeInsets.all(12),
+                          borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall)),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -486,7 +486,7 @@ Future<void> _openLuoXueProfilePage() async {
   } catch (e) {
     debugPrint('打开落雪个人主页失败: $e');
   }
-  Fluttertoast.showToast(msg: '打不开浏览器，请手动访问 $_luoXueProfileUrl');
+  AppToast.show('打不开浏览器，请手动访问 $_luoXueProfileUrl');
 }
 
 /// 执行「同步成绩到落雪」：抓取机台成绩 → 导出到落雪。
@@ -697,7 +697,7 @@ class SyncScoreDialogs {
 
             return PopScope(
               canPop: !isSyncing && !isBinding,
-              child: AlertDialog(
+              child: AppAlertDialog(
                 title: Row(
                   children: [
                     Icon(
@@ -735,9 +735,8 @@ class SyncScoreDialogs {
                                 color:
                                     AppColors.greyHint(brightness, shade: 400)),
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                             ),
-                            contentPadding: const EdgeInsets.all(12),
                           ),
                         ),
                         const SizedBox(height: 8),
@@ -767,7 +766,7 @@ class SyncScoreDialogs {
                           onPressed: () async {
                             final qrCode = qrController.text.trim();
                             if (qrCode.isEmpty) {
-                              Fluttertoast.showToast(msg: '请先粘贴舞萌|中二登入二维码字符串');
+                              AppToast.show('请先粘贴舞萌|中二登入二维码字符串');
                               return;
                             }
                             final request =
@@ -888,7 +887,7 @@ class SyncScoreDialogs {
                           decoration: InputDecoration(
                             labelText: '水鱼用户名',
                             border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8)),
+                                borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall)),
                           ),
                         ),
                         const SizedBox(height: 10),
@@ -898,7 +897,7 @@ class SyncScoreDialogs {
                           decoration: InputDecoration(
                             labelText: '水鱼密码',
                             border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8)),
+                                borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall)),
                           ),
                         ),
                         if (bindingError != null) ...[
@@ -1096,8 +1095,7 @@ class SyncScoreDialogs {
                                 final fc =
                                     DivingFishProbeManager().currentFriendCode;
                                 if (refreshError != null) {
-                                  Fluttertoast.showToast(
-                                      msg: '同步成功，但刷新数据失败：$refreshError');
+                                  AppToast.show('同步成功，但刷新数据失败：$refreshError');
                                 }
                                 Navigator.of(dialogContext).pop(fc);
                               } else {
@@ -1150,7 +1148,7 @@ class SyncScoreDialogs {
         dialogRoute ??= ModalRoute.of(dialogContext);
         return StatefulBuilder(
           builder: (ctx, setState) {
-            return AlertDialog(
+            return AppAlertDialog(
               title: Row(
                 children: [
                   Icon(
@@ -1183,7 +1181,7 @@ class SyncScoreDialogs {
                           labelText: '用户名',
                           hintText: 'Diving-Fish 用户名',
                           border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8)),
+                              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall)),
                           contentPadding: const EdgeInsets.symmetric(
                               horizontal: 12, vertical: 10),
                         ),
@@ -1196,7 +1194,7 @@ class SyncScoreDialogs {
                           labelText: '密码',
                           hintText: 'Diving-Fish 密码',
                           border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8)),
+                              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall)),
                           contentPadding: const EdgeInsets.symmetric(
                               horizontal: 12, vertical: 10),
                         ),

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../utils/WindowDiagnostics.dart';
+
 /// 保留所有主页面的状态，只对当前页和上一页进行淡入滑动过渡。
 class MainNavigationViewport extends StatefulWidget {
   final List<Widget> pages;
@@ -37,8 +39,8 @@ class _MainNavigationViewportState extends State<MainNavigationViewport>
       _controller.stop();
       _controller.value = 1;
       _fromIndex = widget.index;
-      debugPrint(
-          '[Window] 主页面尺寸 $_windowSize -> $size，当前页 ${widget.index}，过渡已收尾');
+      debugPrint('[Window] 主页面尺寸 ${WindowDiagnostics.size(_windowSize!)} -> '
+          '${WindowDiagnostics.size(size)}，当前页 ${widget.index}，过渡已收尾');
     }
     _windowSize = size;
   }

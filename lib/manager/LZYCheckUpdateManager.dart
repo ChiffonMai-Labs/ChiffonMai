@@ -10,6 +10,9 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:my_first_flutter_app/utils/UpdateNotifier.dart';
 import 'package:my_first_flutter_app/utils/ExternalLaunchUtil.dart';
+import '../utils/AppDesignTokens.dart';
+import '../widgets/AppDialogs.dart';
+import '../widgets/AppToast.dart';
 
 void _updateLog(String message) {
   if (kDebugMode) debugPrint(message);
@@ -193,10 +196,7 @@ class LZYCheckUpdateManager {
       onPressed: () {
         copyDownloadUrl(url);
         Navigator.pop(c);
-        ScaffoldMessenger.of(c).showSnackBar(
-          const SnackBar(
-              content: Text('下载链接已复制到剪贴板'), duration: Duration(seconds: 2)),
-        );
+        AppToast.show('下载链接已复制到剪贴板', duration: Duration(seconds: 2));
       },
       child: const Text('复制下载链接'),
     );
@@ -247,7 +247,7 @@ class LZYCheckUpdateManager {
       showDialog(
         context: context,
         barrierDismissible: true,
-        builder: (c) => AlertDialog(
+        builder: (c) => AppAlertDialog(
           title: Text("检查更新失败"),
           content: Text(info["message"] ?? "无法连接到服务器，请检查网络后重试"),
           actions: [
@@ -271,7 +271,7 @@ class LZYCheckUpdateManager {
       showDialog(
         context: context,
         barrierDismissible: true,
-        builder: (c) => AlertDialog(
+        builder: (c) => AppAlertDialog(
           title: Text("检查更新"),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -314,21 +314,21 @@ class LZYCheckUpdateManager {
       showDialog(
         context: context,
         barrierDismissible: !forceUpdate,
-        builder: (c) => AlertDialog(
-          title: Text("发现新版本 ${info["latestVersion"]}"),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                constraints: BoxConstraints(maxHeight: 200),
-                child: SingleChildScrollView(
-                  child: Text("更新内容：\n${info["updateLog"]}"),
-                ),
-              ),
-              SizedBox(height: 10),
-              Text("当前版本：${info["currentVersion"]}"),
-            ],
+        builder: (c) => AppAlertDialog(
+          title: const Text("发现新版本"),
+          subtitle: "${info["currentVersion"]} → ${info["latestVersion"]}",
+          actionColumns: 2,
+          // 更新内容占据按钮以外的全部高度，内容短时对话框也跟着变矮。
+          content: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppSurfaces.inset(c),
+              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+            ),
+            child: SingleChildScrollView(
+              child: Text("${info["updateLog"]}"),
+            ),
           ),
           actions: [
             if (!forceUpdate)

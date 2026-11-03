@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="home_widget_rating_label">Rating</string>
+    <string name="home_widget_status_label">舞萌状态与同步</string>
+    <string name="home_widget_medium_label">ChiffonMai 概览</string>
+    <string name="home_widget_large_label">ChiffonMai 详情</string>
+    <string name="home_widget_rating_desc">显示你的 Rating</string>
+    <string name="home_widget_status_desc">显示舞萌状态和自动同步</string>
+    <string name="home_widget_medium_desc">Rating、舞萌状态和自动同步</string>
+    <string name="home_widget_large_desc">加上各数据源的同步结果和快捷入口</string>
+</resources>

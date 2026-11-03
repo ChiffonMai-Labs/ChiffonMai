@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../utils/AppTheme.dart';
+import '../widgets/AppDialogs.dart';
 
 /// 历史记录点的删除件：行尾按钮 + 确认弹窗。
 ///
@@ -61,7 +62,7 @@ Future<bool> confirmDeleteHistoryPoint(
   final scheme = Theme.of(context).colorScheme;
   final confirmed = await showDialog<bool>(
     context: context,
-    builder: (dialogContext) => AlertDialog(
+    builder: (dialogContext) => AppAlertDialog(
       title: const Text('删除这个记录点？'),
       content: Text(
         '$pointLabel\n\n'

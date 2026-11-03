@@ -194,9 +194,29 @@ class AppTheme {
   /// 运行时调用（`build` 里），不要在主题构造期调用。
   static ThemeData withGlobalFonts(ThemeData base) {
     final baseTitle = base.appBarTheme.titleTextStyle;
+    TextStyle? withFont(TextStyle? style) => style == null
+        ? null
+        : font(
+            fontSize: style.fontSize,
+            fontWeight: style.fontWeight,
+            color: style.color,
+            height: style.height,
+            letterSpacing: style.letterSpacing,
+          );
+    final navigationLabel = base.navigationBarTheme.labelTextStyle;
     return base.copyWith(
       textTheme: _outfitTextTheme(base.textTheme),
       primaryTextTheme: _outfitTextTheme(base.primaryTextTheme),
+      listTileTheme: base.listTileTheme.copyWith(
+        titleTextStyle: withFont(base.listTileTheme.titleTextStyle),
+        subtitleTextStyle: withFont(base.listTileTheme.subtitleTextStyle),
+      ),
+      navigationBarTheme: navigationLabel == null
+          ? base.navigationBarTheme
+          : base.navigationBarTheme.copyWith(
+              labelTextStyle: WidgetStateProperty.resolveWith(
+                  (states) => withFont(navigationLabel.resolve(states))),
+            ),
       appBarTheme: baseTitle == null
           ? base.appBarTheme
           : base.appBarTheme.copyWith(
@@ -332,7 +352,19 @@ class AppTheme {
       cardTheme: base.cardTheme.copyWith(color: card, shape: radius(22)),
       dialogTheme: base.dialogTheme.copyWith(
         backgroundColor: card,
-        shape: radius(28),
+        surfaceTintColor: Colors.transparent,
+        shape: radius(24),
+        titleTextStyle: base.textTheme.titleMedium?.copyWith(
+          fontSize: 17,
+          fontWeight: FontWeight.w800,
+          color: scheme.onSurface,
+        ),
+        contentTextStyle: base.textTheme.bodyMedium?.copyWith(
+          fontSize: 14,
+          height: 1.5,
+          color: scheme.onSurfaceVariant,
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
       ),
       bottomSheetTheme: BottomSheetThemeData(
         backgroundColor: card,
@@ -875,6 +907,75 @@ class AppColors {
     Color(0xFF8C6CF0),
   ];
 
+  /// 绝赞分布条的色块，顺序：真绝赞 TAP / 真绝赞 HOLD / 保护套绝赞 / 绝赞星星。
+  static const List<Color> breakDistribution = [
+    Color(0xFFD9467A),
+    Color(0xFFEF8FB0),
+    Color(0xFF4A8FE0),
+    Color(0xFFE3B02F),
+  ];
+
+  /// 连击分布条的色块（AP+ / AP / FC+ / FC / 无）。
+  static Color comboDistribution(int index, Brightness brightness) {
+    const light = [
+      Color(0xFFE8B400),
+      Color(0xFFF0CF5A),
+      Color(0xFF2E9E5B),
+      Color(0xFF8FD3A5),
+      Color(0xFFCBD3D2),
+    ];
+    const dark = [
+      Color(0xFFE8B400),
+      Color(0xFFB99A3A),
+      Color(0xFF3FA76A),
+      Color(0xFF2F6B48),
+      Color(0xFF4A5453),
+    ];
+    return (brightness == Brightness.dark ? dark : light)[index];
+  }
+
+  /// 同步分布条的色块（FDX+ / FDX / FS+ / FS / SYNC / 无）。
+  static Color syncDistribution(int index, Brightness brightness) {
+    const light = [
+      Color(0xFFE8B400),
+      Color(0xFFF0CF5A),
+      Color(0xFF3F7FD9),
+      Color(0xFF93BAEF),
+      Color(0xFFB39DDB),
+      Color(0xFFCBD3D2),
+    ];
+    const dark = [
+      Color(0xFFE8B400),
+      Color(0xFFB99A3A),
+      Color(0xFF4F8DE6),
+      Color(0xFF2F5C9C),
+      Color(0xFF7E68B5),
+      Color(0xFF4A5453),
+    ];
+    return (brightness == Brightness.dark ? dark : light)[index];
+  }
+
+  /// 星数分布条的色块（✦5 / ✦4 / ✦3 / ✦2 / ✦1 / ✦0）。只当色块用，不能当字色。
+  static Color starDistribution(int index, Brightness brightness) {
+    const light = [
+      Color(0xFFE8B400),
+      Color(0xFFF2994A),
+      Color(0xFFF7BE8A),
+      Color(0xFF66BB6A),
+      Color(0xFFA5D6A7),
+      Color(0xFFCBD3D2),
+    ];
+    const dark = [
+      Color(0xFFE8B400),
+      Color(0xFFE08A3C),
+      Color(0xFF9C6A3C),
+      Color(0xFF5FA463),
+      Color(0xFF3F7043),
+      Color(0xFF4A5453),
+    ];
+    return (brightness == Brightness.dark ? dark : light)[index];
+  }
+
   /// 评级分布条的色块（SSS+ / SSS / SS+ / SS / 其余）。
   static Color rankDistribution(int index, Brightness brightness) {
     const light = [
@@ -1257,6 +1358,24 @@ class AppColors {
 
   /// 判定色（色条、圆点用）。浅色深色通用：只作为小面积标识，不承载文字。
   /// 相邻判定在**明度**上也拉开了，不只靠色相区分（色弱友好）。
+  /// KALEIDXSCOPE 各门的强调色，未知的门返回 null（用主题色）。
+  static Color? kaleidGateAccent(String color, Brightness brightness) {
+    final dark = brightness == Brightness.dark;
+    return switch (color) {
+      'blue' => dark ? const Color(0xFF60A5FA) : const Color(0xFF2563EB),
+      'white' => dark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+      'purple' => dark ? const Color(0xFFC084FC) : const Color(0xFF9333EA),
+      'black' => dark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+      'yellow' => dark ? const Color(0xFFFACC15) : const Color(0xFFCA8A04),
+      'red' => dark ? const Color(0xFFF87171) : const Color(0xFFDC2626),
+      'prism' => dark ? const Color(0xFF22D3EE) : const Color(0xFF0891B2),
+      'error' => dark ? const Color(0xFFA78BFA) : const Color(0xFF8B5CF6),
+      'hope' => dark ? const Color(0xFFFBBF24) : const Color(0xFFD97706),
+      'final' => dark ? const Color(0xFFA78BFA) : const Color(0xFF7C3AED),
+      _ => null,
+    };
+  }
+
   static const Color judgeCriticalPerfect = Color(0xFFE8B400);
   static const Color judgePerfect = Color(0xFFF0CF5A);
   static const Color judgeGreat = Color(0xFFD9467A);

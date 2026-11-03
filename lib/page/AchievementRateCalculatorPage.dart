@@ -5,6 +5,7 @@ import '../utils/AppTheme.dart';
 import '../widgets/AppUi.dart';
 import '../widgets/BackgroundPageScaffold.dart';
 import '../widgets/SmoothLinearProgressIndicator.dart';
+import '../widgets/AppDialogs.dart';
 
 /// 达成率计算器。
 ///
@@ -211,44 +212,80 @@ class _AchievementRateCalculatorState extends State<AchievementRateCalculator> {
 
   void _showSingleNoteLossDialog(_AchievementResult result) {
     String loss(double ratio, int weight) =>
-        _round4(ratio * 100.00 * weight / result.totalWeight).toString();
-    final rows = <Widget>[];
-    for (final type in const ['TAP', 'HOLD', 'SLIDE', 'TOUCH']) {
-      final w = _weights[type]!;
-      rows.addAll([
-        Padding(
-          padding: const EdgeInsets.only(top: 8, bottom: 2),
-          child: Text('单个$type的判定损失:',
-              style: const TextStyle(fontWeight: FontWeight.w700)),
-        ),
-        Text('GREAT: ${loss(0.20, w)}%'),
-        Text('GOOD: ${loss(0.50, w)}%'),
-        Text('MISS: ${loss(1.00, w)}%'),
-      ]);
-    }
+        '${_round4(ratio * 100.00 * weight / result.totalWeight)}%';
     showDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('单个音符的判定损失'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('基础达成率: ${result.base}%'),
-              Text('奖励达成率: ${result.extra}%'),
-              Text('总达成率: ${result.total}%'),
-              ...rows,
-            ],
+      builder: (context) {
+        final scheme = Theme.of(context).colorScheme;
+        final cellStyle = AppTheme.number(
+            fontSize: 13, fontWeight: FontWeight.w600, color: scheme.onSurface);
+        Widget judgePill(String label, Color color) => Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 3),
+              child: Container(
+                height: 26,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius:
+                      BorderRadius.circular(AppDesignTokens.radiusPill),
+                ),
+                child: Text(label,
+                    style: AppTheme.number(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white)),
+              ),
+            );
+        Widget valueCell(String value) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 11),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(value, style: cellStyle, maxLines: 1),
+              ),
+            );
+        return AppAlertDialog(
+          title: const Text('单个音符的判定损失'),
+          content: SingleChildScrollView(
+            child: Table(
+              columnWidths: const {0: FixedColumnWidth(58)},
+              defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+              children: [
+                TableRow(children: [
+                  const SizedBox.shrink(),
+                  judgePill('GREAT', AppColors.judgeGreat),
+                  judgePill('GOOD', AppColors.judgeGood),
+                  judgePill('MISS', AppColors.judgeMiss),
+                ]),
+                for (final type in const ['TAP', 'HOLD', 'SLIDE', 'TOUCH'])
+                  TableRow(
+                    decoration: BoxDecoration(
+                      border: type == 'TAP'
+                          ? null
+                          : Border(
+                              top: BorderSide(color: scheme.outlineVariant)),
+                    ),
+                    children: [
+                      Text(type,
+                          style: AppTheme.number(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                              color: scheme.onSurfaceVariant)),
+                      valueCell(loss(0.20, _weights[type]!)),
+                      valueCell(loss(0.50, _weights[type]!)),
+                      valueCell(loss(1.00, _weights[type]!)),
+                    ],
+                  ),
+              ],
+            ),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('确定'),
-          ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('确定'),
+            ),
+          ],
+        );
+      },
     );
   }
 

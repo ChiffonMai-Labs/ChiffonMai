@@ -122,7 +122,7 @@ extension _SongInfoCommunity on _SongInfoPageState {
 
   Future<void> _submitChartRating() async {
     if (_commentDataSource == null || _commentOriginalId == null) {
-      Fluttertoast.showToast(msg: '请先在首页刷新数据以获取用户身份');
+      AppToast.show('请先在首页刷新数据以获取用户身份');
       return;
     }
 
@@ -149,20 +149,20 @@ extension _SongInfoCommunity on _SongInfoPageState {
       );
 
       if (result['success'] == true) {
-        Fluttertoast.showToast(msg: '评分提交成功');
+        AppToast.show('评分提交成功');
         _loadChartRating();
       } else {
-        Fluttertoast.showToast(msg: result['message'] ?? '评分提交失败');
+        AppToast.show(result['message'] ?? '评分提交失败');
       }
     } catch (e) {
       debugPrint('提交谱面评分失败: $e');
-      Fluttertoast.showToast(msg: '评分提交失败');
+      AppToast.show('评分提交失败');
     }
   }
 
   Future<void> _deleteChartRating() async {
     if (_commentDataSource == null || _commentOriginalId == null) {
-      Fluttertoast.showToast(msg: '请先在首页刷新数据以获取用户身份');
+      AppToast.show('请先在首页刷新数据以获取用户身份');
       return;
     }
 
@@ -170,7 +170,7 @@ extension _SongInfoCommunity on _SongInfoPageState {
       context: context,
       builder: (ctx) {
         final brightness = Theme.of(ctx).brightness;
-        return AlertDialog(
+        return AppAlertDialog(
           title: const Text('确认删除'),
           content: const Text('确定要删除您的评分吗？'),
           actions: [
@@ -187,14 +187,14 @@ extension _SongInfoCommunity on _SongInfoPageState {
                     levelIndex: _currentDiffIndex,
                   );
                   if (result['success'] == true) {
-                    Fluttertoast.showToast(msg: '评分删除成功');
+                    AppToast.show('评分删除成功');
                     _loadChartRating();
                   } else {
-                    Fluttertoast.showToast(msg: result['message'] ?? '评分删除失败');
+                    AppToast.show(result['message'] ?? '评分删除失败');
                   }
                 } catch (e) {
                   debugPrint('删除谱面评分失败: $e');
-                  Fluttertoast.showToast(msg: '评分删除失败');
+                  AppToast.show('评分删除失败');
                 }
               },
               child: Text('删除',
@@ -670,9 +670,7 @@ extension _SongInfoCommunity on _SongInfoPageState {
   void _showRatingDistributionDialog(Color accentColor) {
     final dist = _chartRatingDistribution;
     if (dist == null || _chartTotalVotes == 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('暂无评分数据'), duration: Duration(seconds: 1)),
-      );
+      AppToast.show('暂无评分数据', duration: Duration(seconds: 1));
       return;
     }
 
@@ -699,9 +697,9 @@ extension _SongInfoCommunity on _SongInfoPageState {
     showDialog(
       context: context,
       builder: (BuildContext dialogContext) {
-        return AlertDialog(
+        return AppAlertDialog(
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
           ),
           title: Row(
             children: [
@@ -722,7 +720,7 @@ extension _SongInfoCommunity on _SongInfoPageState {
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                   decoration: BoxDecoration(
                     color: accentColor.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                   ),
                   child: Row(
                     children: [
@@ -797,7 +795,7 @@ extension _SongInfoCommunity on _SongInfoPageState {
                                   color: barColor.withOpacity(0.85),
                                   backgroundColor:
                                       Theme.of(context).colorScheme.surface,
-                                  borderRadius: BorderRadius.circular(4),
+                                  borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                                 ),
                               ),
                               const SizedBox(width: 8),
@@ -937,13 +935,13 @@ extension _SongInfoCommunity on _SongInfoPageState {
             _commentNickname = identity.nickname;
           });
         } else {
-          Fluttertoast.showToast(msg: '请先在首页刷新数据以获取用户身份');
+          AppToast.show('请先在首页刷新数据以获取用户身份');
           return;
         }
       }
 
       if (_commentDataSource == null || _commentOriginalId == null) {
-        Fluttertoast.showToast(msg: '请先设置身份信息');
+        AppToast.show('请先设置身份信息');
         return;
       }
 
@@ -960,14 +958,14 @@ extension _SongInfoCommunity on _SongInfoPageState {
       if (result['success'] == true) {
         _commentInputController.clear();
         _update(() => _commentError = null);
-        Fluttertoast.showToast(msg: '评论发布成功');
+        AppToast.show('评论发布成功');
         // 重新加载评论
         _loadComments();
       } else {
-        Fluttertoast.showToast(msg: result['message'] ?? '评论发布失败');
+        AppToast.show(result['message'] ?? '评论发布失败');
       }
     } catch (e) {
-      if (mounted) Fluttertoast.showToast(msg: '评论发布失败：$e');
+      if (mounted) AppToast.show('评论发布失败：$e');
     } finally {
       // 只关闭本次发送框，避免其它路由被弹出；返回键也不能绕过发送锁。
       if (navigator.mounted && sendingDialog?.isActive == true) {
@@ -987,7 +985,7 @@ extension _SongInfoCommunity on _SongInfoPageState {
       barrierDismissible: false,
       builder: (context) => const PopScope(
         canPop: false,
-        child: AlertDialog(
+        child: AppAlertDialog(
           constraints: BoxConstraints(maxWidth: 260),
           content: Row(
             mainAxisSize: MainAxisSize.min,
@@ -1009,7 +1007,7 @@ extension _SongInfoCommunity on _SongInfoPageState {
   // 删除评论
   Future<void> _deleteComment(int commentId) async {
     if (_commentDataSource == null || _commentOriginalId == null) {
-      Fluttertoast.showToast(msg: '无法删除：身份信息缺失');
+      AppToast.show('无法删除：身份信息缺失');
       return;
     }
 
@@ -1017,7 +1015,7 @@ extension _SongInfoCommunity on _SongInfoPageState {
       context: context,
       builder: (ctx) {
         final brightness = Theme.of(ctx).brightness;
-        return AlertDialog(
+        return AppAlertDialog(
           title: const Text('确认删除'),
           content: const Text('确定要删除这条评论吗？'),
           actions: [
@@ -1046,10 +1044,10 @@ extension _SongInfoCommunity on _SongInfoPageState {
     );
 
     if (result['success'] == true) {
-      Fluttertoast.showToast(msg: '评论删除成功');
+      AppToast.show('评论删除成功');
       _loadComments();
     } else {
-      Fluttertoast.showToast(msg: result['message'] ?? '评论删除失败');
+      AppToast.show(result['message'] ?? '评论删除失败');
     }
   }
 
@@ -1167,7 +1165,7 @@ extension _SongInfoCommunity on _SongInfoPageState {
                         });
                         SongInfoService.clearAllCommentsCache();
                         _loadComments(serverRefresh: true);
-                        Fluttertoast.showToast(msg: '已刷新评论');
+                        AppToast.show('已刷新评论');
                         Future.delayed(const Duration(seconds: 3), () {
                           if (mounted) {
                             _update(() {

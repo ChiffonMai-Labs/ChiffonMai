@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../service/AnnouncementService.dart';
 import 'SmoothLinearProgressIndicator.dart';
+import '../widgets/AppDialogs.dart';
 
 Future<void> showAnnouncementDialog(BuildContext context, Announcement value,
     {AnnouncementService? service}) async {
@@ -59,7 +60,7 @@ class _AnnouncementDialogState extends State<_AnnouncementDialog> {
     final published = value.publishedAt?.toUtc().add(const Duration(hours: 8));
     return PopScope(
       canPop: !_saving,
-      child: AlertDialog(
+      child: AppAlertDialog(
         title: Row(children: [
           Icon(Icons.campaign_outlined, color: scheme.primary),
           const SizedBox(width: 10),

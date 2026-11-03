@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import 'AppHeader.dart';
+import '../widgets/AppDialogs.dart';
+import '../widgets/AppToast.dart';
 
 /// 二维码「快速填入」三件套：读取剪贴板 / 从相册识别 / 扫描二维码。
 ///
@@ -56,18 +57,18 @@ class QrQuickFillButtons extends StatelessWidget {
     final text = data?.text ?? '';
     if (text.trim().startsWith('SGWCMAID')) {
       _fill(text);
-      Fluttertoast.showToast(msg: '已识别到有效二维码字符串，已自动填入');
+      AppToast.show('已识别到有效二维码字符串，已自动填入');
       return;
     }
     if (text.trim().isEmpty) {
-      Fluttertoast.showToast(msg: '剪贴板为空');
+      AppToast.show('剪贴板为空');
       return;
     }
     // 不是标准二维码串：让用户自己确认，避免把乱七八糟的内容填进去
     if (!context.mounted) return;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppAlertDialog(
         title: const Text('提示'),
         content: const Text('剪贴板内容不是有效的登入二维码，仍要填入吗？'),
         actions: [
@@ -101,22 +102,22 @@ class QrQuickFillButtons extends StatelessWidget {
       try {
         final barcodes = await scanner.analyzeImage(pickedFile.path);
         if (barcodes == null || barcodes.barcodes.isEmpty) {
-          Fluttertoast.showToast(msg: '未在图片中检测到二维码');
+          AppToast.show('未在图片中检测到二维码');
           return;
         }
         final qrText = barcodes.barcodes.first.rawValue ?? '';
         if (qrText.isEmpty) {
-          Fluttertoast.showToast(msg: '未能从图片中识别到二维码内容');
+          AppToast.show('未能从图片中识别到二维码内容');
           return;
         }
         _fill(qrText);
-        Fluttertoast.showToast(msg: '已识别到二维码，已自动填入');
+        AppToast.show('已识别到二维码，已自动填入');
       } finally {
         scanner.dispose();
       }
     } catch (e) {
       debugPrint('[QrQuickFill] 相册识别失败: $e');
-      Fluttertoast.showToast(msg: '识别失败: $e');
+      AppToast.show('识别失败: $e');
     }
   }
 
@@ -127,10 +128,10 @@ class QrQuickFillButtons extends StatelessWidget {
       );
       if (result == null || result.trim().isEmpty) return;
       _fill(result);
-      Fluttertoast.showToast(msg: '已识别到二维码，已自动填入');
+      AppToast.show('已识别到二维码，已自动填入');
     } catch (e) {
       debugPrint('[QrQuickFill] 扫码失败: $e');
-      Fluttertoast.showToast(msg: '扫描失败: $e');
+      AppToast.show('扫描失败: $e');
     }
   }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../widgets/AppToast.dart';
 
 /// 统一处理外部链接跳转。
 ///
@@ -60,8 +61,6 @@ class ExternalLaunchUtil {
   }) async {
     await Clipboard.setData(ClipboardData(text: value));
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    AppToast.show(message);
   }
 }

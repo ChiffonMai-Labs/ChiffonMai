@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:marquee/marquee.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 import '../service/FriendLinksService.dart';
 import '../utils/AppTheme.dart';
 import '../widgets/BackgroundPageScaffold.dart';
+import '../widgets/FriendLinkUi.dart';
 import '../widgets/SmoothLinearProgressIndicator.dart';
 import '../utils/AppDesignTokens.dart';
+import '../widgets/AppToast.dart';
 
 /// 友情链接页面：以卡片形式展示推广同行的项目，点击通过外部浏览器打开。
 class FriendLinksPage extends StatefulWidget {
@@ -19,46 +19,7 @@ class FriendLinksPage extends StatefulWidget {
 }
 
 class _FriendLinksPageState extends State<FriendLinksPage> {
-  /// 友链数据。
-  ///
-  /// 字段说明：
-  /// - [name]      友链项目名称
-  /// - [desc]      一句话简介
-  /// - [url]       跳转链接（点击卡片打开外部浏览器）
-  /// - [iconType]  图标类型（从预定义范围内选择，避免依赖外部图片）
-  /// - [iconBg]    图标主题色（背景底色 + 图标前景色）
-  static const List<_FriendLink> _fallbackFriendLinks = [
-    _FriendLink(
-      name: '中二查歌',
-      desc: '这是ChiffonChu，一站式中二工具()',
-      url: 'https://github.com/k4641321/chusearchsong_flutter',
-      iconType: FriendLinkIconType.github,
-      iconBg: Color(0xFF7E57C2),
-    ),
-    _FriendLink(
-      name: '你画我猜',
-      desc: '来自AWMC社区出品的网页小游戏，持续迭代中！',
-      url: 'https://v.wmc.pub/draw-guess',
-      iconType: FriendLinkIconType.game,
-      iconBg: Color(0xFF26A69A),
-    ),
-    _FriendLink(
-      name: 'BeatRail',
-      desc: '融合铁路元素的创新音游',
-      url: 'https://beatrail-suguang.rth1.xyz/',
-      iconType: FriendLinkIconType.web,
-      iconBg: Color(0xFF5C6BC0),
-    ),
-    _FriendLink(
-      name: 'MaiScan Rev',
-      desc: '一个通过封面快速查询的离线本地maimai曲库',
-      url: 'https://github.com/PojavAnge/MaiScan-Rev',
-      iconType: FriendLinkIconType.github,
-      iconBg: Color(0xFFEF6C00),
-    ),
-  ];
-
-  List<_FriendLink> _friendLinks = _fallbackFriendLinks;
+  List<FriendLinkRecord> _friendLinks = FriendLinksService.fallback;
   bool _isLoading = true;
   String? _loadError;
 
@@ -77,7 +38,7 @@ class _FriendLinksPageState extends State<FriendLinksPage> {
       final records = await const FriendLinksService().fetch();
       if (!mounted) return;
       setState(() {
-        _friendLinks = records.map(_fromRecord).toList();
+        _friendLinks = records;
         _isLoading = false;
       });
     } catch (e) {
@@ -90,26 +51,10 @@ class _FriendLinksPageState extends State<FriendLinksPage> {
     }
   }
 
-  static _FriendLink _fromRecord(FriendLinkRecord record) {
-    final iconType = FriendLinkIconType.values.firstWhere(
-      (value) => value.name == record.iconType,
-      orElse: () => FriendLinkIconType.web,
-    );
-    final colorText = record.iconColor.replaceFirst('#', '');
-    final parsedColor = int.tryParse(colorText, radix: 16);
-    return _FriendLink(
-      name: record.name,
-      desc: record.description,
-      url: record.url,
-      iconType: iconType,
-      iconBg: Color(parsedColor == null ? 0xFF5C6BC0 : 0xFF000000 | parsedColor),
-    );
-  }
-
   Future<void> _open(String url) async {
     final uri = Uri.tryParse(url);
     if (uri == null) {
-      Fluttertoast.showToast(msg: '链接无效');
+      AppToast.show('链接无效');
       return;
     }
     try {
@@ -127,12 +72,7 @@ class _FriendLinksPageState extends State<FriendLinksPage> {
   void _copyFallback(String url) {
     Clipboard.setData(ClipboardData(text: url));
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('无法打开浏览器，链接已复制到剪贴板'),
-          duration: Duration(seconds: 3),
-        ),
-      );
+      AppToast.show('无法打开浏览器，链接已复制到剪贴板', duration: Duration(seconds: 3));
     }
   }
 
@@ -215,7 +155,7 @@ class _FriendLinksPageState extends State<FriendLinksPage> {
 
 /// 友链卡片：图标区 + 名称 + 简介 + 跳转按钮
 class _FriendLinkCard extends StatelessWidget {
-  final _FriendLink link;
+  final FriendLinkRecord link;
   final Future<void> Function(String url) onOpen;
 
   const _FriendLinkCard({required this.link, required this.onOpen});
@@ -246,19 +186,23 @@ class _FriendLinkCard extends StatelessWidget {
             ),
             child: Row(
               children: [
-                // 左侧：图标
-                Container(
-                  width: screenWidth * 0.13,
-                  height: screenWidth * 0.13,
-                  decoration: BoxDecoration(
-                    color: link.iconBg.withValues(alpha: 0.18),
-                    borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-                  ),
-                  alignment: Alignment.center,
-                  child: Icon(
-                    _iconForType(link.iconType),
-                    color: link.iconBg,
-                    size: screenWidth * 0.07,
+                // 左侧：配图，和轮播用同一张
+                ClipRRect(
+                  borderRadius:
+                      BorderRadius.circular(AppDesignTokens.radiusSmall),
+                  child: SizedBox.square(
+                    dimension: screenWidth * 0.13,
+                    child: link.imageUrl.isEmpty
+                        ? ColoredBox(
+                            color: friendLinkColor(link.iconColor),
+                            child: Icon(
+                              friendLinkIcon(
+                                  friendLinkIconType(link.iconType)),
+                              color: Colors.white,
+                              size: screenWidth * 0.07,
+                            ),
+                          )
+                        : FriendLinkCover(link: link),
                   ),
                 ),
                 SizedBox(width: screenWidth * 0.035),
@@ -291,7 +235,7 @@ class _FriendLinkCard extends StatelessWidget {
                           );
                           final textPainter = TextPainter(
                             text: TextSpan(
-                              text: link.desc,
+                              text: link.description,
                               style: descStyle,
                             ),
                             maxLines: 1,
@@ -304,7 +248,7 @@ class _FriendLinkCard extends StatelessWidget {
                           final safeWidth = constraints.maxWidth;
                           if (textWidth <= safeWidth) {
                             return Text(
-                              link.desc,
+                              link.description,
                               style: descStyle,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -313,7 +257,7 @@ class _FriendLinkCard extends StatelessWidget {
                           return SizedBox(
                             height: screenWidth * 0.04,
                             child: Marquee(
-                              text: link.desc,
+                              text: link.description,
                               style: descStyle,
                               velocity: 30.0,
                               blankSpace: 30.0,
@@ -339,69 +283,4 @@ class _FriendLinkCard extends StatelessWidget {
       ),
     );
   }
-}
-
-/// 友链可用的图标类型枚举
-///
-/// 限定友链图标的可选范围，避免依赖外部图片资源。
-/// 新增友链时从此枚举中选择一个最贴合的类型。
-enum FriendLinkIconType {
-  /// GitHub 开源项目（仓库 / 工具 / CLI）
-  github,
-  /// 网页应用 / Web 服务
-  web,
-  /// App / 移动端应用
-  app,
-  /// 游戏 / 互动娱乐
-  game,
-  /// 音乐相关
-  music,
-  /// 工具 / 计算 / 实用程序
-  tool,
-  /// 文档 / Wiki / 百科
-  docs,
-  /// 视频 / 直播 / 流媒体
-  video,
-  /// 社区 / 论坛 / 群组
-  community,
-}
-
-/// 图标类型 → Material IconData 映射
-IconData _iconForType(FriendLinkIconType type) {
-  switch (type) {
-    case FriendLinkIconType.github:
-      return FontAwesomeIcons.github;
-    case FriendLinkIconType.web:
-      return Icons.language;
-    case FriendLinkIconType.app:
-      return Icons.phone_android;
-    case FriendLinkIconType.game:
-      return Icons.sports_esports;
-    case FriendLinkIconType.music:
-      return Icons.music_note;
-    case FriendLinkIconType.tool:
-      return Icons.build;
-    case FriendLinkIconType.docs:
-      return Icons.menu_book;
-    case FriendLinkIconType.video:
-      return Icons.play_circle_outline;
-    case FriendLinkIconType.community:
-      return Icons.forum;
-  }
-}
-
-class _FriendLink {
-  final String name;
-  final String desc;
-  final String url;
-  final FriendLinkIconType iconType;
-  final Color iconBg;
-
-  const _FriendLink({
-    required this.name,
-    required this.desc,
-    required this.url,
-    required this.iconType,
-    required this.iconBg,
-  });
 }

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 
 import '../../api/ApiUrls.dart';
 import '../../constant/CacheKeyConstant.dart';
@@ -13,6 +12,8 @@ import '../../widgets/QuickSyncOption.dart';
 import '../../widgets/SyncStatsFooter.dart';
 import '../../widgets/PostSyncRefreshOptions.dart';
 import '../../utils/AppDesignTokens.dart';
+import '../../widgets/AppDialogs.dart';
+import '../../widgets/AppToast.dart';
 import '../../widgets/RefreshDataDialog.dart'
     show RefreshDataRequest, RefreshDataSource;
 
@@ -103,7 +104,7 @@ class _SyncToAwmcNetPageState extends State<SyncToAwmcNetPage> {
   Future<void> _saveToken() async {
     final token = _tokenController.text.trim();
     if (token.isEmpty) {
-      Fluttertoast.showToast(msg: '请输入 AWMC NET 成绩导入 Token');
+      AppToast.show('请输入 AWMC NET 成绩导入 Token');
       return;
     }
     await SecureCredentialStore.write(
@@ -114,7 +115,7 @@ class _SyncToAwmcNetPageState extends State<SyncToAwmcNetPage> {
       _credentialRevision++;
       _tokenController.clear();
     });
-    Fluttertoast.showToast(msg: '导入 Token 已保存');
+    AppToast.show('导入 Token 已保存');
   }
 
   Future<void> _clearToken() async {
@@ -134,12 +135,12 @@ class _SyncToAwmcNetPageState extends State<SyncToAwmcNetPage> {
   Future<void> _submit() async {
     final qr = _qrController.text.trim();
     if (!_quickUpdate && qr.isEmpty) {
-      Fluttertoast.showToast(msg: '请先粘贴或扫描机台登入二维码（SGWCMAID 开头）');
+      AppToast.show('请先粘贴或扫描机台登入二维码（SGWCMAID 开头）');
       return;
     }
     final token = _savedToken ?? _tokenController.text.trim();
     if (token.isEmpty) {
-      Fluttertoast.showToast(msg: '请先设置 AWMC NET 成绩导入 Token');
+      AppToast.show('请先设置 AWMC NET 成绩导入 Token');
       return;
     }
     // 用户是直接在输入框里填的（没点保存）：顺手存下来，下次不用再填
@@ -166,7 +167,7 @@ class _SyncToAwmcNetPageState extends State<SyncToAwmcNetPage> {
     final brightness = Theme.of(context).brightness;
     final scheme = Theme.of(context).colorScheme;
 
-    return AlertDialog(
+    return AppAlertDialog(
       title: Row(
         children: [
           Icon(Icons.cloud_upload_outlined, color: scheme.onSurface, size: 22),
@@ -210,7 +211,6 @@ class _SyncToAwmcNetPageState extends State<SyncToAwmcNetPage> {
                       color: AppColors.greyHint(brightness, shade: 400)),
                   border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall)),
-                  contentPadding: const EdgeInsets.all(12),
                 ),
               ),
               const SizedBox(height: 16),
@@ -400,6 +400,6 @@ class _SyncToAwmcNetPageState extends State<SyncToAwmcNetPage> {
       debugPrint('打开 AWMC NET 设置页失败: $e');
     }
     if (!mounted) return;
-    Fluttertoast.showToast(msg: '打不开浏览器，请手动访问 ${ApiUrls.AwmcNetSettingsUrl}');
+    AppToast.show('打不开浏览器，请手动访问 ${ApiUrls.AwmcNetSettingsUrl}');
   }
 }

@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 import '../../manager/DivingFishProbeManager.dart';
 import '../../utils/AppTheme.dart';
 import '../../constant/CacheKeyConstant.dart';
@@ -14,6 +13,8 @@ import '../../widgets/ConfettiEffect.dart';
 import '../../widgets/MaimaiHubLoginGate.dart';
 import '../../widgets/SmoothLinearProgressIndicator.dart';
 import '../../utils/AppDesignTokens.dart';
+import '../../widgets/AppDialogs.dart';
+import '../../widgets/AppToast.dart';
 
 /// 同步成绩到落雪（对话框形式，与"同步成绩到水鱼"一致）
 ///
@@ -85,7 +86,7 @@ class _UpdateLuoXueScorePageState extends State<UpdateLuoXueScorePage> {
   Future<void> _saveLxnsToken() async {
     final token = _tokenController.text.trim();
     if (token.isEmpty) {
-      Fluttertoast.showToast(msg: '请输入落雪个人 API 密钥');
+      AppToast.show('请输入落雪个人 API 密钥');
       return;
     }
     // 先保存到本地缓存（无需登录 maimai Score Hub）
@@ -99,9 +100,9 @@ class _UpdateLuoXueScorePageState extends State<UpdateLuoXueScorePage> {
         _tokenController.clear();
       });
       if (ok) {
-        Fluttertoast.showToast(msg: '落雪 API 密钥已保存');
+        AppToast.show('落雪 API 密钥已保存');
       } else {
-        Fluttertoast.showToast(msg: '已本地保存，同步时将自动绑定到云端');
+        AppToast.show('已本地保存，同步时将自动绑定到云端');
       }
     }
   }
@@ -119,7 +120,7 @@ class _UpdateLuoXueScorePageState extends State<UpdateLuoXueScorePage> {
     if (!mounted) return;
     final qrCode = _qrController.text.trim();
     if (qrCode.isEmpty) {
-      Fluttertoast.showToast(msg: '请先粘贴舞萌|中二登入二维码字符串');
+      AppToast.show('请先粘贴舞萌|中二登入二维码字符串');
       return;
     }
 
@@ -128,7 +129,7 @@ class _UpdateLuoXueScorePageState extends State<UpdateLuoXueScorePage> {
     if (!_hasLxnsToken) {
       final inputToken = _tokenController.text.trim();
       if (inputToken.isEmpty) {
-        Fluttertoast.showToast(msg: '请先设置落雪个人 API 密钥');
+        AppToast.show('请先设置落雪个人 API 密钥');
         return;
       }
       lxnsToken = inputToken;
@@ -284,7 +285,7 @@ class _UpdateLuoXueScorePageState extends State<UpdateLuoXueScorePage> {
 
     return PopScope(
       canPop: !_isSyncing,
-      child: AlertDialog(
+      child: AppAlertDialog(
         title: Row(
           children: [
             Icon(Icons.qr_code_scanner,
@@ -318,7 +319,6 @@ class _UpdateLuoXueScorePageState extends State<UpdateLuoXueScorePage> {
                         color: AppColors.greyHint(brightness, shade: 400)),
                     border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall)),
-                    contentPadding: const EdgeInsets.all(12),
                   ),
                 ),
               ],
@@ -335,9 +335,6 @@ class _UpdateLuoXueScorePageState extends State<UpdateLuoXueScorePage> {
                       color: AppColors.linkBlue(brightness)
                           .withValues(alpha: 0.06),
                       borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-                      border: Border.all(
-                          color: AppColors.linkBlue(brightness)
-                              .withValues(alpha: 0.15)),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -397,14 +394,7 @@ class _UpdateLuoXueScorePageState extends State<UpdateLuoXueScorePage> {
                             .withValues(alpha: 0.08)
                         : AppColors.warningOrange(brightness)
                             .withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: _hasLxnsToken
-                          ? AppColors.successGreen(brightness)
-                              .withValues(alpha: 0.2)
-                          : AppColors.warningOrange(brightness)
-                              .withValues(alpha: 0.2),
-                    ),
+                    borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -480,9 +470,6 @@ class _UpdateLuoXueScorePageState extends State<UpdateLuoXueScorePage> {
                       color: AppColors.warningOrange(brightness)
                           .withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-                      border: Border.all(
-                          color: AppColors.warningOrange(brightness)
-                              .withValues(alpha: 0.25)),
                     ),
                     child: Row(
                       children: [

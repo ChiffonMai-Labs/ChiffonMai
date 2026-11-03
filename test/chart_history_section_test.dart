@@ -15,6 +15,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:my_first_flutter_app/service/History/ChartHistoryCore.dart';
 import 'package:my_first_flutter_app/service/History/ChartHistoryStore.dart';
 import 'package:my_first_flutter_app/widgets/ChartHistorySection.dart';
+import 'package:my_first_flutter_app/widgets/AppDialogs.dart';
 
 ChartHistoryEvent ev(DateTime t, double ach, int dx) => ChartHistoryEvent(
       tMs: t.millisecondsSinceEpoch,
@@ -499,7 +500,7 @@ void main() {
     // 外层弹窗自己有 2 个输入框，秒数那个必须按弹窗限定来找
     await tester.enterText(
       find.descendant(
-        of: find.widgetWithText(AlertDialog, '选择时间'),
+        of: find.widgetWithText(AppAlertDialog, '选择时间'),
         matching: find.byType(TextField),
       ),
       '07',

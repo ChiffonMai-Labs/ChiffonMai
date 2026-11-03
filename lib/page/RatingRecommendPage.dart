@@ -1,14 +1,12 @@
-import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:my_first_flutter_app/page/SongInfoPage.dart';
 import 'package:my_first_flutter_app/service/RatingRecommendService.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
-import 'package:my_first_flutter_app/utils/CoverUtil.dart';
-import 'package:my_first_flutter_app/utils/StringUtil.dart';
 import '../widgets/BackgroundPageScaffold.dart';
 import '../utils/AppDesignTokens.dart';
 import '../widgets/AppUi.dart';
+import '../widgets/RecommendUi.dart';
 
 class RatingRecommendPage extends StatefulWidget {
   const RatingRecommendPage({super.key});
@@ -81,48 +79,6 @@ class _RatingRecommendPageState extends State<RatingRecommendPage> {
     }
   }
 
-  Color _getTypeColor(String type, Brightness brightness) {
-    return type == 'DX'
-        ? AppColors.warningOrange(brightness)
-        : AppColors.linkBlue(brightness);
-  }
-
-  Color _getDifficultyBgColor(int levelIndex, Brightness brightness) {
-    final isDark = brightness == Brightness.dark;
-    switch (levelIndex) {
-      case ChartDifficulty.basic:
-        return isDark ? const Color(0xFF1B3D1B) : Colors.green.shade100;
-      case ChartDifficulty.advanced:
-        return isDark ? const Color(0xFF3D2E00) : Colors.orange.shade100;
-      case ChartDifficulty.expert:
-        return isDark ? const Color(0xFF4A2020) : Colors.red.shade100;
-      case ChartDifficulty.master:
-        return isDark ? const Color(0xFF2A1A3D) : Colors.purple.shade100;
-      case ChartDifficulty.reMaster:
-        return isDark ? const Color(0xFF352545) : Colors.purple.shade50;
-      default:
-        return isDark ? const Color(0xFF2A2A2A) : Colors.grey.shade100;
-    }
-  }
-
-  Color _getDifficultyTextColor(int levelIndex, Brightness brightness) {
-    final isDark = brightness == Brightness.dark;
-    switch (levelIndex) {
-      case ChartDifficulty.basic:
-        return isDark ? const Color(0xFF66BB6A) : Colors.green.shade700;
-      case ChartDifficulty.advanced:
-        return isDark ? const Color(0xFFFFB74D) : Colors.orange.shade700;
-      case ChartDifficulty.expert:
-        return isDark ? const Color(0xFFEF5350) : Colors.red;
-      case ChartDifficulty.master:
-        return isDark ? const Color(0xFFCE93D8) : Colors.purple.shade700;
-      case ChartDifficulty.reMaster:
-        return isDark ? const Color(0xFFE1BEE7) : Colors.purple.shade400;
-      default:
-        return isDark ? Colors.grey.shade400 : Colors.grey.shade700;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final brightness = Theme.of(context).brightness;
@@ -162,72 +118,48 @@ class _RatingRecommendPageState extends State<RatingRecommendPage> {
   }
 
   Widget _buildControlPanel(Brightness brightness, double screenWidth) {
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: screenWidth * 0.04,
-        vertical: 12,
-      ),
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: AppColors.tableBorder(brightness)),
-        ),
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Text(
-                '目标Rating:',
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurface,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: SizedBox(
-                  height: 40,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+          AppDesignTokens.gutter, 4, AppDesignTokens.gutter, 10),
+      child: AppCard(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(
                   child: TextField(
                     controller: _ratingController,
                     keyboardType: TextInputType.number,
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     onChanged: _onRatingChanged,
-                    decoration: InputDecoration(
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-                      ),
-                      isDense: true,
-                    ),
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onSurface,
-                    ),
+                    decoration:
+                        recommendInputDecoration(context, label: '目标 Rating'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                FilledButton(
+                  onPressed: _loadRecommendations,
+                  child: const Text('推荐'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            _buildSortTabs(),
+            if (_results.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  '定数范围 ${RatingRecommendService().calculateDsRange(_rating)['min']!.toStringAsFixed(1)} ~ ${RatingRecommendService().calculateDsRange(_rating)['max']!.toStringAsFixed(1)} · 共 ${_results.length} 条结果',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontSize: 12,
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
-              ElevatedButton(
-                onPressed: _loadRecommendations,
-                child: const Text('推荐'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _buildSortTabs(),
-          if (_results.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(
-                '定数范围: ${RatingRecommendService().calculateDsRange(_rating)['min']!.toStringAsFixed(1)} ~ ${RatingRecommendService().calculateDsRange(_rating)['max']!.toStringAsFixed(1)}'
-                '  |  共 ${_results.length} 条结果',
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  fontSize: 12,
-                ),
-              ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -290,21 +222,52 @@ class _RatingRecommendPageState extends State<RatingRecommendPage> {
 
   Widget _buildResultsList(Brightness brightness,
       List<RatingRecommendItem> results, double screenWidth) {
-    return SingleChildScrollView(
+    return ListView.builder(
       controller: _scrollController,
-      padding: EdgeInsets.all(screenWidth * 0.03),
-      child: Column(
-        children: results.map((item) => _buildResultCard(item, brightness, screenWidth)).toList(),
-      ),
+      padding: const EdgeInsets.fromLTRB(
+          AppDesignTokens.gutter, 0, AppDesignTokens.gutter, 8),
+      itemCount: results.length,
+      itemBuilder: (context, index) {
+        final card = Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: _buildResultCard(results[index], brightness, screenWidth),
+        );
+        // 只给首屏做入场，滚回来时不重播
+        return index < 8
+            ? EntranceAnimation(
+                index: index,
+                duration: const Duration(milliseconds: 300),
+                offset: const Offset(0, 8),
+                child: card,
+              )
+            : card;
+      },
     );
   }
 
   Widget _buildResultCard(
       RatingRecommendItem item, Brightness brightness, double screenWidth) {
-    final typeColor = _getTypeColor(item.type, brightness);
-    final typeLabel = StringUtil.formatSongType(item.type);
-
-    return GestureDetector(
+    final isAvg = _sortMode == 'avg';
+    return RecommendResultCard(
+      songId: item.songId,
+      title: item.songTitle,
+      type: item.type,
+      levelIndex: item.levelIndex,
+      level: item.level,
+      ds: item.ds,
+      metricValue: isAvg
+          ? '${item.avg.toStringAsFixed(2)}%'
+          : '${item.diffDifference >= 0 ? "+" : ""}${item.diffDifference.toStringAsFixed(2)}',
+      metricLabel: isAvg ? '平均达成' : '定数差值',
+      metricColor: isAvg
+          ? null
+          : (item.diffDifference < 0
+              ? AppColors.successGreen(brightness)
+              : AppColors.errorRed(brightness)),
+      details: [
+        if (item.userAchievement != null)
+          '个人最佳 ${item.userAchievement!.toStringAsFixed(4)}%',
+      ],
       onTap: () {
         Navigator.push(
           context,
@@ -316,170 +279,29 @@ class _RatingRecommendPageState extends State<RatingRecommendPage> {
           ),
         );
       },
-      child: Container(
-        margin: EdgeInsets.only(bottom: screenWidth * 0.03),
-        decoration: BoxDecoration(
-          color: AppSurfaces.card(context),
-          borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
-        ),
-        child: Row(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(AppDesignTokens.radiusMedium),
-                bottomLeft: Radius.circular(AppDesignTokens.radiusMedium),
-              ),
-              child: SizedBox(
-                width: 80,
-                height: 80,
-                child: CoverUtil.buildCoverWidget(item.songId, 80),
-              ),
-            ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          typeLabel,
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: typeColor,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: _getDifficultyBgColor(
-                                item.levelIndex, brightness),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            item.level,
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: _getDifficultyTextColor(
-                                  item.levelIndex, brightness),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      item.songTitle,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurface,
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Text(
-                          '定数 ${item.ds.toStringAsFixed(1)}',
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                            fontSize: 12,
-                          ),
-                        ),
-                        const Spacer(),
-                        Text(
-                          _sortMode == 'avg'
-                              ? '平均达成 ${item.avg.toStringAsFixed(2)}%'
-                              : '定数差值 ${item.diffDifference >= 0 ? "+" : ""}${item.diffDifference.toStringAsFixed(2)}',
-                          style: TextStyle(
-                            color: _sortMode == 'diff'
-                                ? (item.diffDifference < 0
-                                    ? AppColors.successGreen(brightness)
-                                    : AppColors.errorRed(brightness))
-                                : Theme.of(context).colorScheme.onSurfaceVariant,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (item.userAchievement != null) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        '个人最佳成绩 ${item.userAchievement!.toStringAsFixed(4)}%',
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
+  }
+
+  void _goToPage(int page) {
+    setState(() => _currentPage = page);
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
   }
 
   Widget _buildPagination(
       Brightness brightness, int totalPages, double screenWidth) {
-    return Container(
-      padding: EdgeInsets.symmetric(
-        vertical: 12,
-        horizontal: screenWidth * 0.04,
-      ),
-      decoration: BoxDecoration(
-        border: Border(
-          top: BorderSide(color: AppColors.tableBorder(brightness)),
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          ElevatedButton(
-            onPressed: _currentPage > 1
-                ? () {
-                    setState(() {
-                      _currentPage--;
-                    });
-                    _scrollController.animateTo(
-                      0,
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeInOut,
-                    );
-                  }
-                : null,
-            child: const Text('上一页'),
-          ),
-          SizedBox(width: screenWidth * 0.04),
-          Text(' $_currentPage / $totalPages '),
-          SizedBox(width: screenWidth * 0.04),
-          ElevatedButton(
-            onPressed: _currentPage < totalPages
-                ? () {
-                    setState(() {
-                      _currentPage++;
-                    });
-                    _scrollController.animateTo(
-                      0,
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeInOut,
-                    );
-                  }
-                : null,
-            child: const Text('下一页'),
-          ),
-        ],
-      ),
+    return PagerBar(
+      page: _currentPage,
+      totalPages: totalPages,
+      onPrevious: _currentPage > 1 ? () => _goToPage(_currentPage - 1) : null,
+      onNext: _currentPage < totalPages
+          ? () => _goToPage(_currentPage + 1)
+          : null,
     );
   }
 }

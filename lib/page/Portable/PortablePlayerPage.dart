@@ -31,6 +31,11 @@ import '../../widgets/BackgroundPageScaffold.dart';
 import '../../widgets/PortablePlaybackModeButton.dart';
 import '../../widgets/PortablePlayerBadge.dart';
 import 'PortableNowPlayingPage.dart';
+import '../../utils/AppTheme.dart';
+import '../../widgets/AppUi.dart';
+import '../../widgets/MarqueeText.dart';
+import '../../widgets/AppDialogs.dart';
+import '../../widgets/AppToast.dart';
 
 class PortablePlayerPage extends StatefulWidget {
   const PortablePlayerPage({super.key});
@@ -47,6 +52,10 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
   List<PortableSong> _all = const <PortableSong>[];
   List<PortableSong> _filtered = const <PortableSong>[];
   bool _loading = true;
+
+  /// 列表刚加载好时为 true：只有这一小段时间里出现的行才播入场，
+  /// 之后滚动回收重建的行直接显示，不然每滑一下都会重播。
+  bool _playListEntrance = false;
   String? _error;
 
   /// 搜索防抖定时器 —— 与乐曲查询页一致（1000ms）。
@@ -132,6 +141,7 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
         _all = songs;
         _filtered = _applyFilter(songs);
         _loading = false;
+        _playListEntrance = true;
         if (songs.isEmpty) {
           _error = '曲库还没准备好。请先回首页「刷新数据」，或检查网络后重试。';
         }
@@ -216,13 +226,7 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
 
   void _showHint(String message) {
     if (!mounted) return;
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    messenger?.showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: const Duration(seconds: 3),
-      ),
-    );
+    AppToast.show(message, duration: const Duration(seconds: 3));
   }
 
   Future<void> _downloadSong(PortableSong song) async {
@@ -337,7 +341,7 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
   double _rowExtentOf(BuildContext context) {
     final scaler = MediaQuery.textScalerOf(context);
     final textHeight = scaler.scale(14.5) * 1.35 + 2 + scaler.scale(12) * 1.35;
-    return math.max(48.0, textHeight) + 17;
+    return math.max(48.0, textHeight) + 24;
   }
 
   // ── UI ──────────────────────────────────────────────────────────────────
@@ -383,21 +387,20 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
           ),
           child: Column(
             children: [
-              _buildSearchBar(scheme),
-              Divider(
-                height: 1,
-                color: scheme.outlineVariant.withValues(alpha: 0.6),
+              EntranceAnimation(
+                offset: const Offset(0, 10),
+                duration: const Duration(milliseconds: 350),
+                child: _buildSearchBar(scheme),
               ),
               Expanded(child: _buildBody(scheme)),
               // 「正在播放」钉在**最下面**：单手够得着进度条，
               // 而且不再压着列表（原来贴顶要吃掉约 110px 的滚动高度）
-              if (_player.hasSong) ...[
-                Divider(
-                  height: 1,
-                  color: scheme.outlineVariant.withValues(alpha: 0.6),
+              if (_player.hasSong)
+                EntranceAnimation(
+                  baseDelay: const Duration(milliseconds: 80),
+                  offset: const Offset(0, 16),
+                  child: _buildCurrentBar(scheme),
                 ),
-                _buildCurrentBar(scheme),
-              ],
             ],
           ),
         ),
@@ -409,7 +412,7 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
     showDialog<void>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setDialogState) => AlertDialog(
+        builder: (dialogContext, setDialogState) => AppAlertDialog(
           title: const Text('随身听设置'),
           content: AppSwitchListTile(
             contentPadding: EdgeInsets.zero,
@@ -434,7 +437,8 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
 
   Widget _buildSearchBar(ColorScheme scheme) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+      padding: const EdgeInsets.fromLTRB(
+          AppDesignTokens.gutter, 4, AppDesignTokens.gutter, 10),
       child: TextField(
         controller: _searchController,
         onChanged: _onSearchChanged,
@@ -453,13 +457,15 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
                     _applySearchNow();
                   },
                 ),
+          filled: true,
+          fillColor: AppSurfaces.card(context),
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(20),
-            borderSide: BorderSide(color: scheme.outlineVariant),
+            borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
+            borderSide: BorderSide.none,
           ),
           enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(20),
-            borderSide: BorderSide(color: scheme.outlineVariant),
+            borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
+            borderSide: BorderSide.none,
           ),
         ),
       ),
@@ -494,11 +500,20 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
           52.0,
           scaler.scale(13) * 1.5 + scaler.scale(11) * 1.5 + 20 + 6,
         );
-        return InkWell(
-          onTap: _openNowPlaying,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
-            child: Row(
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(
+              AppDesignTokens.gutter, 4, AppDesignTokens.gutter, 0),
+          child: Material(
+            color: scheme.primaryContainer,
+            elevation: 3,
+            shadowColor: scheme.shadow.withValues(alpha: 0.3),
+            clipBehavior: Clip.antiAlias,
+            borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
+            child: InkWell(
+              onTap: _openNowPlaying,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 10, 6, 10),
+                child: Row(
               children: [
                 // 封面撑满右侧三行的高度；右边那一列被钉成同一个高度，
                 // 用 `spaceBetween` 把三行铺开 —— 字号缩放时也对得上。
@@ -508,7 +523,7 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
                   child: PortableCover(
                     song: song,
                     size: coverSide,
-                    radius: 8,
+                    radius: AppDesignTokens.radiusSmall,
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -516,17 +531,15 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
                   child: SizedBox(
                     height: coverSide,
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          song.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        MarqueeText(
+                          text: song.title,
                           style: TextStyle(
                             fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: scheme.onSurface,
+                            fontWeight: FontWeight.w700,
+                            color: scheme.onPrimaryContainer,
                           ),
                         ),
                         Text(
@@ -576,12 +589,10 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
                               const SizedBox(width: 4),
                               Text(
                                 '${_fmtClock(shown)} / ${_fmtClock(duration)}',
-                                style: TextStyle(
+                                style: AppTheme.number(
                                   fontSize: 10,
-                                  color: scheme.onSurfaceVariant,
-                                  fontFeatures: const [
-                                    FontFeature.tabularFigures(),
-                                  ],
+                                  fontWeight: FontWeight.w500,
+                                  color: scheme.onPrimaryContainer,
                                 ),
                               ),
                             ],
@@ -602,6 +613,8 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
                   iconButtonKey: Key('portablePlaybackModeButton'),
                 ),
               ],
+                ),
+              ),
             ),
           ),
         );
@@ -635,24 +648,33 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
       );
     }
 
+    if (_playListEntrance) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        // 错开的最后一行也播完之后再关
+        Future<void>.delayed(const Duration(milliseconds: 800), () {
+          _playListEntrance = false;
+        });
+      });
+    }
     return Column(
       children: [
         Expanded(
           child: ListView.builder(
             controller: _listController,
             itemExtent: _rowExtentOf(context),
-            padding: const EdgeInsets.symmetric(vertical: 4),
+            padding: const EdgeInsets.only(top: 4),
             itemCount: _filtered.length,
-            itemBuilder: (context, index) => Column(children: [
-              Expanded(child: _buildRow(_filtered[index], scheme)),
-              if (index < _filtered.length - 1)
-                Divider(
-                    height: 1,
-                    indent: 68,
-                    color: scheme.outlineVariant.withValues(alpha: 0.4))
-              else
-                const SizedBox(height: 1),
-            ]),
+            itemBuilder: (context, index) => Padding(
+              padding: const EdgeInsets.fromLTRB(
+                  AppDesignTokens.gutter, 0, AppDesignTokens.gutter, 8),
+              child: EntranceAnimation(
+                index: index,
+                enabled: _playListEntrance,
+                offset: const Offset(0, 12),
+                duration: const Duration(milliseconds: 360),
+                child: _buildRow(_filtered[index], scheme),
+              ),
+            ),
           ),
         ),
         _buildFooter(scheme),
@@ -705,27 +727,29 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
     final isCurrent = current != null && current.lxnsId == song.lxnsId;
     final isPending = _pendingLxnsId == song.lxnsId;
 
-    return InkWell(
+    return Material(
+      color: isCurrent ? scheme.primaryContainer : AppSurfaces.card(context),
+      clipBehavior: Clip.antiAlias,
+      borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
+      child: InkWell(
       onTap: () => _onTapSong(song),
-      child: Container(
-        color: isCurrent ? scheme.primary.withValues(alpha: 0.08) : null,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 8, 12, 8),
         child: Row(
           children: [
-            PortableCover(song: song, size: 44, radius: 6),
+            PortableCover(
+                song: song, size: 44, radius: AppDesignTokens.radiusSmall),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Row(
                     children: [
-                      Flexible(
-                        child: Text(
-                          song.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                      Expanded(
+                        child: MarqueeText(
+                          text: song.title,
                           style: TextStyle(
                             fontSize: 14.5,
                             height: 1.35,
@@ -743,10 +767,8 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
                     ],
                   ),
                   const SizedBox(height: 2),
-                  Text(
-                    song.artist.isEmpty ? '未知艺术家' : song.artist,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  MarqueeText(
+                    text: song.artist.isEmpty ? '未知艺术家' : song.artist,
                     style: TextStyle(
                       fontSize: 12,
                       height: 1.35,
@@ -756,9 +778,10 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
                 ],
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 4),
             IconButton(
               tooltip: '下载歌曲',
+              visualDensity: VisualDensity.compact,
               icon: _downloadingLxnsId == song.lxnsId
                   ? _downloadProgressIndicator(scheme)
                   : const Icon(Icons.download_outlined, size: 21),
@@ -767,6 +790,7 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
             ),
             IconButton(
               tooltip: '加入下次想玩',
+              visualDensity: VisualDensity.compact,
               icon: const Icon(Icons.playlist_add, size: 21),
               onPressed: () async {
                 final added = await showNextPlayAddDialog(context,
@@ -784,8 +808,7 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
                           .toList(),
                     ));
                 if (mounted && added) {
-                  ScaffoldMessenger.of(context)
-                      .showSnackBar(const SnackBar(content: Text('已加入下次想玩')));
+                  AppToast.show('已加入下次想玩');
                 }
               },
             ),
@@ -809,6 +832,7 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
               ),
           ],
         ),
+      ),
       ),
     );
   }
@@ -848,20 +872,12 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
   }
 
   Widget _badge(String text, ColorScheme scheme) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: scheme.outlineVariant),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 9.5,
-          fontWeight: FontWeight.w700,
-          color: scheme.onSurfaceVariant,
-        ),
-      ),
+    final colors = AppColors.difficultyBadge(1, Theme.of(context).brightness);
+    return AppBadge(
+      text: text,
+      background: colors.background,
+      foreground: colors.foreground,
+      fontSize: 10,
     );
   }
 

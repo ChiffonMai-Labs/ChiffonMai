@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../entity/DivingFish/Song.dart';
 import '../utils/CoverUtil.dart';
+import '../utils/AppDesignTokens.dart';
 
 /// 在结果区的每张卡片中轮播候选曲绘；结果由页面在用户按停后统一提交。
 class RandomChartRollingResults extends StatefulWidget {
@@ -127,12 +128,12 @@ class _RandomChartRollingResultsState extends State<RandomChartRollingResults>
             child: Card(
               margin: EdgeInsets.zero,
               elevation: 0,
-              color: Colors.transparent,
+              color: AppSurfaces.card(context),
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(color: scheme.outlineVariant)),
+                  borderRadius:
+                      BorderRadius.circular(AppDesignTokens.radiusMedium)),
               child: Padding(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(10),
                 child: ValueListenableBuilder<int>(
                   valueListenable: _phase,
                   builder: (context, phase, _) {
@@ -147,9 +148,10 @@ class _RandomChartRollingResultsState extends State<RandomChartRollingResults>
                             color: scheme.primary));
                     return Row(children: [
                       ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(
+                              AppDesignTokens.radiusSmall),
                           child: SizedBox.square(
-                              dimension: 72,
+                              dimension: 64,
                               child: provider == null
                                   ? fallback()
                                   : Image(

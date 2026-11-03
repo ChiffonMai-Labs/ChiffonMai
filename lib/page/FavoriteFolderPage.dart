@@ -20,6 +20,8 @@ import 'package:my_first_flutter_app/entity/DXRating/MaiTagsModel.dart';
 import 'SongInfoPage.dart';
 import '../utils/AppDesignTokens.dart';
 import '../widgets/MarqueeText.dart';
+import '../widgets/AppDialogs.dart';
+import '../widgets/AppToast.dart';
 
 /// 收藏夹管理页面：查看所有收藏夹、创建/重命名/删除收藏夹，浏览收藏夹内的谱面
 class FavoriteFolderPage extends StatefulWidget {
@@ -103,7 +105,7 @@ class _FavoriteFolderPageState extends State<FavoriteFolderPage> {
   Future<void> _deleteFolder(FavoriteFolder folder) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppAlertDialog(
         title: const Text('删除收藏夹'),
         content: Text(
           '确定要删除收藏夹「${folder.name}」吗？\n收藏夹内的谱面不会被删除，但将不再分组。',
@@ -115,7 +117,7 @@ class _FavoriteFolderPageState extends State<FavoriteFolderPage> {
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
             child: const Text('删除'),
           ),
         ],
@@ -125,9 +127,7 @@ class _FavoriteFolderPageState extends State<FavoriteFolderPage> {
       await _service.deleteFolder(folder.id);
       await _loadData();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('已删除收藏夹「${folder.name}」')),
-        );
+        AppToast.show('已删除收藏夹「${folder.name}」');
       }
     }
   }
@@ -445,7 +445,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
   Future<void> _removeChart(FavoriteChart chart) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppAlertDialog(
         title: const Text('移除谱面'),
         content: Text(
           '确定从「${widget.folderName}」中移除「${chart.songTitle}」吗？',
@@ -457,7 +457,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
             child: const Text('移除'),
           ),
         ],
@@ -467,9 +467,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
       await _service.removeChartFromFolder(widget.folderId, chart.uniqueKey);
       await _loadData();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('已移除')),
-        );
+        AppToast.show('已移除');
       }
     }
   }
@@ -569,9 +567,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
   /// 显示标签统计对话框（基于 MaiTagsManager 的标签系统）
   void _showTagStatistics() {
     if (_tagStats.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('暂无标签数据')),
-      );
+      AppToast.show('暂无标签数据');
       return;
     }
 
@@ -584,7 +580,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppAlertDialog(
         scrollable: true,
         title: Row(
           children: [
@@ -609,7 +605,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
                     children: _tagStats.entries.map((groupEntry) {
                       final groupName = groupEntry.key;
                       final tagCounts = groupEntry.value;
-                      final groupColor = groupColors[groupName] ?? Colors.grey;
+                      final groupColor = groupColors[groupName] ?? Theme.of(context).colorScheme.onSurfaceVariant;
                       final total = tagCounts.values.fold(0, (a, b) => a + b);
 
                       // 对组内标签按数量降序排序
@@ -627,9 +623,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
                                   horizontal: 8, vertical: 4),
                               decoration: BoxDecoration(
                                 color: groupColor.withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(
-                                    color: groupColor.withOpacity(0.3)),
+                                borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
@@ -668,14 +662,12 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
                                       child: Text(
                                         tagEntry.key,
                                         style: const TextStyle(fontSize: 13),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
                                     const SizedBox(width: 4),
                                     Expanded(
                                       child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(4),
+                                        borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                                         child: SmoothLinearProgressIndicator(
                                           value:
                                               tagEntry.value / _charts.length,
@@ -1120,7 +1112,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
     final count = _selectedKeys.length;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppAlertDialog(
         title: const Text('批量移除谱面'),
         content: Text('确定要从「${widget.folderName}」中移除 $count 个谱面吗？'),
         actions: [
@@ -1130,7 +1122,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
             child: const Text('移除'),
           ),
         ],
@@ -1140,9 +1132,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
       await _service.removeChartsFromFolder(
           widget.folderId, _selectedKeys.toList());
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('已移除 $count 个谱面')),
-        );
+        AppToast.show('已移除 $count 个谱面');
       }
       _selectedKeys.clear();
       _isBatchMode = false;
@@ -1157,16 +1147,14 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
         allFolders.where((f) => f.id != widget.folderId).toList();
     if (otherFolders.isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('没有其他收藏夹可移动')),
-        );
+        AppToast.show('没有其他收藏夹可移动');
       }
       return;
     }
 
     final targetId = await showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppAlertDialog(
         title: const Text('移动到...'),
         content: SizedBox(
           width: double.maxFinite,
@@ -1193,9 +1181,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
       final count = await _service.moveChartsBetweenFolders(
           widget.folderId, targetId, _selectedKeys.toList());
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('已移动 $count 个谱面')),
-        );
+        AppToast.show('已移动 $count 个谱面');
       }
       _selectedKeys.clear();
       _isBatchMode = false;
@@ -1209,9 +1195,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
   /// `Download/ChiffonMai/收藏夹/` 下，文件管理器可以直接找到。
   Future<void> _exportFolder() async {
     if (_charts.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('这个收藏夹还是空的，没有可导出的谱面')),
-      );
+      AppToast.show('这个收藏夹还是空的，没有可导出的谱面');
       return;
     }
 
@@ -1240,9 +1224,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
     } catch (e) {
       debugPrint('导出收藏夹失败: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('导出失败: $e')),
-        );
+        AppToast.show('导出失败: $e');
       }
     }
   }
@@ -1255,11 +1237,11 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
       builder: (ctx) {
         bool copied = false;
         return StatefulBuilder(
-          builder: (ctx, setLocalState) => AlertDialog(
+          builder: (ctx, setLocalState) => AppAlertDialog(
             title: Row(
               children: [
                 Icon(Icons.check_circle,
-                    color: Colors.green.shade600, size: 22),
+                    color: AppColors.successGreen(Theme.of(context).brightness), size: 22),
                 const SizedBox(width: 8),
                 const Text('导出成功'),
               ],
@@ -1294,37 +1276,15 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                Container(
-                  width: double.maxFinite,
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Theme.of(ctx).colorScheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(
-                      color: Theme.of(ctx).dividerColor,
-                      width: 1,
-                    ),
-                  ),
-                  child: SelectableText(
-                    filePath,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontFamily: 'monospace',
-                      height: 1.4,
-                    ),
-                  ),
-                ),
+                AppDialogCodeBlock(filePath),
                 if (_fallbackPath != null) ...[
                   const SizedBox(height: 10),
                   Container(
                     width: double.maxFinite,
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: Colors.orange.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(
-                        color: Colors.orange.withValues(alpha: 0.4),
-                      ),
+                      color: AppColors.warningOrange(Theme.of(context).brightness).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                     ),
                     child: const Text(
                       '公开目录不可写，文件已保存到应用私有目录，'
@@ -1341,19 +1301,17 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
                   await Clipboard.setData(ClipboardData(text: filePath));
                   if (!ctx.mounted) return;
                   setLocalState(() => copied = true);
-                  ScaffoldMessenger.of(ctx).showSnackBar(
-                    const SnackBar(content: Text('路径已复制到剪贴板')),
-                  );
+                  AppToast.show('路径已复制到剪贴板');
                 },
                 icon: Icon(
                   copied ? Icons.check : Icons.copy,
                   size: 16,
-                  color: copied ? Colors.green.shade600 : null,
+                  color: copied ? AppColors.successGreen(Theme.of(context).brightness) : null,
                 ),
                 label: Text(
                   copied ? '已复制' : '复制路径',
                   style:
-                      copied ? TextStyle(color: Colors.green.shade600) : null,
+                      copied ? TextStyle(color: AppColors.successGreen(Theme.of(context).brightness)) : null,
                 ),
               ),
               TextButton(
@@ -1431,7 +1389,7 @@ class _FolderNameDialogState extends State<_FolderNameDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    return AppAlertDialog(
       title: Text(widget.title),
       content: TextField(
         controller: _nameController,
@@ -1440,7 +1398,6 @@ class _FolderNameDialogState extends State<_FolderNameDialog> {
         decoration: InputDecoration(
           hintText: widget.hintText,
           errorText: _nameError,
-          border: const OutlineInputBorder(),
           errorBorder: OutlineInputBorder(
             borderSide: BorderSide(color: Theme.of(context).colorScheme.error),
           ),

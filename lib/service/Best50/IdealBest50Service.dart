@@ -5,6 +5,7 @@ import '../../manager/DivingFish/UserPlayDataManager.dart';
 import '../../utils/StringUtil.dart';
 import 'DiffBest50Service.dart';
 import '../../utils/SongFilterUtil.dart';
+import '../../utils/Best50Tie.dart';
 
 /// 理想 Best50：对全部游玩记录做「非 SSS+ 升一档」（升到上一档的下限），
 /// 重算 RA 后重新取 B35 + B15，并给出相对原榜的新进榜歌曲。
@@ -121,6 +122,8 @@ class IdealBest50Service {
     return {
       'sd': idealSd,
       'dx': idealDx,
+      'sdRemaining': tiedBeyondCut(idealOld, 35, 'ra'),
+      'dxRemaining': tiedBeyondCut(idealNew, 15, 'ra'),
       'rating': idealRating,
       'originalRating': originalRating,
       'newEntries': newEntries,

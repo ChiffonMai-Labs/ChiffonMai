@@ -11,6 +11,7 @@ import '../../utils/CurrentDataSourceNotifier.dart';
 import '../../utils/QuotaRetryHint.dart';
 import '../../service/AccountSwitchService.dart';
 import 'MaimaiMusicDataManager.dart';
+import 'UserBest50Manager.dart';
 
 class UserPlayDataManager {
   // 单例模式
@@ -181,6 +182,7 @@ class UserPlayDataManager {
         reason: 'refresh',
         previousUserData: previousData,
         maxScores: maxScores);
+    UserBest50Manager.dataRevision.value++;
   }
 
   // 获取最后更新时间

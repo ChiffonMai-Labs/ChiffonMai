@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 
 import '../service/AccountStore.dart';
 import '../service/AccountSwitchService.dart';
 import '../utils/CurrentDataSourceNotifier.dart';
 import 'FishIcon.dart';
 import 'MarqueeText.dart';
+import '../widgets/AppDialogs.dart';
+import '../widgets/AppToast.dart';
 
 /// 弹出「切换账号」底部面板。
 ///
@@ -58,7 +59,7 @@ class _AccountSwitchSheetState extends State<_AccountSwitchSheet> {
     if (_busy) return;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogCtx) => AlertDialog(
+      builder: (dialogCtx) => AppAlertDialog(
         title: Text('清除${source.displayName}账号数据'),
         content: Text('将删除 ${source.displayName} 账号的本地缓存'
             '（成绩、Best50、玩家信息、推荐结果等），不影响登录状态。\n\n'
@@ -91,7 +92,7 @@ class _AccountSwitchSheetState extends State<_AccountSwitchSheet> {
           _clearing = null;
         });
       }
-      Fluttertoast.showToast(msg: '清除失败：$e');
+      AppToast.show('清除失败：$e');
       return;
     }
     final loaded = await AccountStore.loadAll();
@@ -103,7 +104,7 @@ class _AccountSwitchSheetState extends State<_AccountSwitchSheet> {
         ..clear()
         ..addAll(loaded);
     });
-    Fluttertoast.showToast(msg: '已清除${source.displayName}账号数据');
+    AppToast.show('已清除${source.displayName}账号数据');
   }
 
   Future<void> _onTapAccount(RefreshDataSource source) async {
@@ -128,21 +129,21 @@ class _AccountSwitchSheetState extends State<_AccountSwitchSheet> {
     switch (outcome) {
       case SwitchOutcome.switched:
         Navigator.of(context).pop();
-        Fluttertoast.showToast(msg: '已切换到${source.displayName}账号');
+        AppToast.show('已切换到${source.displayName}账号');
         break;
       case SwitchOutcome.sameSource:
         Navigator.of(context).pop();
         break;
       case SwitchOutcome.failed:
-        Fluttertoast.showToast(msg: '账号切换失败，已尝试恢复原账号');
+        AppToast.show('账号切换失败，已尝试恢复原账号');
         break;
       case SwitchOutcome.busy:
-        Fluttertoast.showToast(msg: '正在切换，请稍候');
+        AppToast.show('正在切换，请稍候');
         break;
       case SwitchOutcome.noCache:
         final confirmed = await showDialog<bool>(
           context: context,
-          builder: (dialogCtx) => AlertDialog(
+          builder: (dialogCtx) => AppAlertDialog(
             title: const Text('该账号暂无缓存'),
             content: Text('${source.displayName}账号还没有缓存过数据，去刷新数据？'),
             actions: [

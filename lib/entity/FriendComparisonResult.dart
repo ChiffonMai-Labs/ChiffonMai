@@ -19,6 +19,7 @@ class ChartComparisonItem {
   final int myDxScore;
   final int friendDxScore;
 
+
   ChartComparisonItem({
     required this.songId,
     required this.songTitle,

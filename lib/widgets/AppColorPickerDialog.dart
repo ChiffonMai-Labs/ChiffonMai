@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../widgets/AppDialogs.dart';
 
 /// 主题色与纸屑调和色共用同一套调色板，确认后才提交颜色。
 Future<Color?> showAppColorPicker(
@@ -89,7 +90,7 @@ class _HexColorInputDialogState extends State<_HexColorInputDialog> {
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
+  Widget build(BuildContext context) => AppAlertDialog(
         title: const Text('输入十六进制颜色'),
         content: TextField(
           controller: _controller,
@@ -136,7 +137,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return AlertDialog(
+    return AppAlertDialog(
       backgroundColor: scheme.surface,
       title: Text(widget.title),
       contentPadding: const EdgeInsets.fromLTRB(20, 12, 20, 8),

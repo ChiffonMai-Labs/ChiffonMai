@@ -5,6 +5,7 @@ import '../../manager/DivingFish/UserPlayDataManager.dart';
 import '../../manager/DivingFish/DiffMusicDataManager.dart';
 import '../../manager/DivingFish/MaimaiMusicDataManager.dart';
 import '../../manager/MaiTagsManager.dart';
+import '../../utils/Best50Tie.dart';
 
 class PersonalizedDiffBest50Service {
   // 单例模式
@@ -191,8 +192,17 @@ class PersonalizedDiffBest50Service {
         });
       }
 
+      // 同一标签按官方定数的 Best50 总和，用来算差值（与拟合 Best50 较 Best50 同一口径）
+      final officialRatings = [
+        for (final item in diffBest50) (item['ra'] as num).toInt(),
+      ]..sort((a, b) => b.compareTo(a));
+      final officialSum =
+          officialRatings.take(50).fold<int>(0, (sum, ra) => sum + ra);
+
       // 按DiffRating降序排序
       diffBest50.sort((a, b) => b['diffRating'].compareTo(a['diffRating']));
+
+      final remaining = tiedBeyondCut(diffBest50, 50, 'diffRating');
 
       // 取前50条
       if (diffBest50.length > 50) {
@@ -205,6 +215,8 @@ class PersonalizedDiffBest50Service {
       return {
         'diffRatingSum': diffRatingSum,
         'diffBest50': diffBest50,
+        'remaining': remaining,
+        'best50Diff': diffRatingSum - officialSum,
         'total': diffBest50.length,
         'tag_id': tagId,
       };

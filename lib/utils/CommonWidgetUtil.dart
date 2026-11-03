@@ -5,6 +5,7 @@ import 'package:my_first_flutter_app/utils/StringUtil.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import 'package:my_first_flutter_app/utils/ThemeManager.dart';
 import 'AppDesignTokens.dart';
+import '../widgets/GuessSettingsUi.dart';
 
 /**
  * 通用Widget工具类
@@ -75,155 +76,77 @@ class CommonWidgetUtil {
     String dxRangeTitle = 'MASTER定数范围',
     // 定数范围下方的补充说明（可选），用于点明判定口径。
     String? dxRangeHint,
+    // 页面里铺成白卡片；对话框本身就是卡片，直接平铺。
+    bool card = false,
   }) {
-    return SingleChildScrollView(
-      padding: EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildSectionTitle('选择版本（支持复选，默认全部，不选表示所有）'),
-          _buildMultiSelectList(
-            context,
-            allVersions,
-            selectedVersions,
-            onVersionsChanged,
-            (version) => StringUtil.formatVersion2(version),
-          ),
-          SizedBox(height: 20),
-          _buildSectionTitle(dxRangeTitle),
-          _buildMasterDxRangeInput(
-            context,
-            masterMinDx,
-            masterMaxDx,
-            onMasterDxRangeChanged,
-          ),
-          if (dxRangeHint != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Text(
-                dxRangeHint,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: AppColors.greyHint(
-                      Theme.of(context).brightness),
-                ),
-              ),
-            ),
-          SizedBox(height: 20),
-          _buildSectionTitle('选择流派（支持复选，默认全部，不选表示所有）'),
-          _buildMultiSelectList(
-            context,
-            allGenres.where((genre) => genre != '宴会場').toList(),
-            selectedGenres.where((genre) => genre != '宴会場').toList(),
-            onGenresChanged,
-            null,
-          ),
-          SizedBox(height: 20),
-          _buildSectionTitle('最大猜测次数（拉到最右侧为无限制）'),
-          _buildSlider(
-            value: maxGuesses == 0 ? 20.0 : maxGuesses.toDouble(),
-            min: 1,
-            max: 20,
-            // divisions 必须是 (max-min) 的约数：原来写 20，步长 = 19/20 = 0.95，
-            // 拖动会取到 10 两次（9.5→10、10.45→10）且拿不到整数序列。
-            // 19 段 → 步长正好 1，取值 1..20 一一对应。
-            divisions: 19,
-            label: maxGuesses == 0 || maxGuesses == 20 ? '无限制' : '$maxGuesses',
-            onChanged: (value) {
-              onMaxGuessesChanged(value.toInt() == 20 ? 0 : value.toInt());
-            },
-          ),
-          SizedBox(height: 20),
-          _buildSectionTitle('时间限制（拉到最右侧为无限制）'),
-          _buildSlider(
-            value: timeLimit == 0 ? 180.0 : timeLimit.toDouble(),
-            min: 30,
-            max: 180,
-            divisions: 15,
-            label: timeLimit == 0 || timeLimit == 180 ? '无限制' : '$timeLimit秒',
-            onChanged: (value) {
-              int selectedValue = value.toInt();
-              int roundedValue = (selectedValue / 10).round() * 10;
-              roundedValue = roundedValue.clamp(30, 180);
-              onTimeLimitChanged(roundedValue == 180 ? 0 : roundedValue);
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ========== 以下为猜歌设置的辅助组件 ==========
-
-  static Widget _buildSectionTitle(String title) {
-    return _ThemeAwareSectionTitle(title: title);
-  }
-
-  static Widget _buildMultiSelectList(
-    BuildContext context,
-    List<String> items,
-    List<String> selectedItems,
-    Function(List<String>) onChanged,
-    String Function(String)? formatter,
-  ) {
-    return Container(
-      height: 200,
-      decoration: BoxDecoration(
-        color: AppSurfaces.inset(context),
-        borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-      ),
-      child: ListView.builder(
-        padding: EdgeInsets.zero,
-        itemCount: items.length,
-        itemBuilder: (context, index) {
-          String item = items[index];
-          bool isSelected = selectedItems.contains(item);
-          String displayText = formatter != null ? formatter(item) : item;
-          return CheckboxListTile(
-            title: Text(displayText),
-            value: isSelected,
-            onChanged: (value) {
-              List<String> newSelected = List.from(selectedItems);
-              if (value!) {
-                if (!newSelected.contains(item)) {
-                  newSelected.add(item);
-                }
-              } else {
-                newSelected.remove(item);
-              }
-              onChanged(newSelected);
-            },
-          );
-        },
-      ),
-    );
-  }
-
-  static Widget _buildMasterDxRangeInput(
-    BuildContext context,
-    double minValue,
-    double maxValue,
-    Function(double, double) onChanged,
-  ) {
-    return _MasterDxRangeInput(
-      minValue: minValue,
-      maxValue: maxValue,
-      onChanged: onChanged,
-    );
-  }
-
-  static Widget _buildSlider({
-    required double value,
-    required double min,
-    required double max,
-    required int divisions,
-    required String label,
-    required Function(double) onChanged,
-  }) {
+    final maxGuessesText =
+        maxGuesses == 0 || maxGuesses == 20 ? '无限制' : '$maxGuesses 次';
+    final timeLimitText =
+        timeLimit == 0 || timeLimit == 180 ? '无限制' : '$timeLimit 秒';
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Slider(value: value, min: min, max: max, divisions: divisions, label: label, onChanged: onChanged),
-        Text(label),
+        GuessSettingSection(
+          card: card,
+          title: '题库范围',
+          icon: Icons.library_music_rounded,
+          children: [
+            GuessMultiSelectTile(
+              label: '版本',
+              items: allVersions,
+              selected: selectedVersions,
+              formatter: StringUtil.formatVersion2,
+              onChanged: onVersionsChanged,
+            ),
+            GuessMultiSelectTile(
+              label: '流派',
+              items: allGenres.where((genre) => genre != '宴会場').toList(),
+              selected:
+                  selectedGenres.where((genre) => genre != '宴会場').toList(),
+              onChanged: onGenresChanged,
+            ),
+            _MasterDxRangeInput(
+              title: dxRangeTitle,
+              hint: dxRangeHint,
+              minValue: masterMinDx,
+              maxValue: masterMaxDx,
+              onChanged: onMasterDxRangeChanged,
+            ),
+          ],
+        ),
+        SizedBox(height: card ? AppDesignTokens.cardGap : 4),
+        GuessSettingSection(
+          card: card,
+          title: '对局规则',
+          icon: Icons.flag_rounded,
+          children: [
+            GuessSliderTile(
+              label: '最大猜测次数',
+              valueText: maxGuessesText,
+              value: maxGuesses == 0 ? 20.0 : maxGuesses.toDouble(),
+              min: 1,
+              max: 20,
+              // divisions 必须是 (max-min) 的约数：19 段步长正好 1，取值 1..20。
+              divisions: 19,
+              onChanged: (value) {
+                onMaxGuessesChanged(value.toInt() == 20 ? 0 : value.toInt());
+              },
+            ),
+            GuessSliderTile(
+              label: '时间限制',
+              valueText: timeLimitText,
+              value: timeLimit == 0 ? 180.0 : timeLimit.toDouble(),
+              min: 30,
+              max: 180,
+              divisions: 15,
+              onChanged: (value) {
+                int roundedValue = (value.toInt() / 10).round() * 10;
+                roundedValue = roundedValue.clamp(30, 180);
+                onTimeLimitChanged(roundedValue == 180 ? 0 : roundedValue);
+              },
+            ),
+          ],
+        ),
       ],
     );
   }
@@ -247,11 +170,15 @@ class CommonWidgetUtil {
 /// 并且 controller 文本只在「外部值变化」时才同步，不会打断用户输入。
 class _MasterDxRangeInput extends StatefulWidget {
   const _MasterDxRangeInput({
+    required this.title,
+    required this.hint,
     required this.minValue,
     required this.maxValue,
     required this.onChanged,
   });
 
+  final String title;
+  final String? hint;
   final double minValue;
   final double maxValue;
   final Function(double, double) onChanged;
@@ -330,67 +257,86 @@ class _MasterDxRangeInputState extends State<_MasterDxRangeInput> {
     widget.onChanged(newMin, newMax);
   }
 
+  Widget _field({
+    required TextEditingController controller,
+    required FocusNode focusNode,
+    required bool isMin,
+    required ColorScheme scheme,
+  }) {
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+      borderSide: BorderSide.none,
+    );
+    return TextField(
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      controller: controller,
+      focusNode: focusNode,
+      textAlign: TextAlign.center,
+      onSubmitted: (_) => _commit(isMin: isMin),
+      onTapOutside: (_) => _commit(isMin: isMin),
+      style: AppTheme.number(
+        fontSize: 18,
+        fontWeight: FontWeight.w700,
+        color: scheme.onSurface,
+      ),
+      decoration: InputDecoration(
+        isDense: true,
+        filled: true,
+        fillColor: AppSurfaces.inset(context),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 11),
+        border: border,
+        enabledBorder: border,
+        focusedBorder: border.copyWith(
+          borderSide: BorderSide(color: scheme.primary, width: 2),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final brightness = Theme.of(context).brightness;
+    final scheme = Theme.of(context).colorScheme;
+    final hintStyle =
+        TextStyle(fontSize: 12, height: 1.4, color: scheme.onSurfaceVariant);
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        Text(widget.title,
+            style: TextStyle(fontSize: 13.5, color: scheme.onSurface)),
+        const SizedBox(height: 8),
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('最小:'),
-                  TextField(
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    controller: _minController,
-                    focusNode: _minFocus,
-                    onSubmitted: (_) => _commit(isMin: true),
-                    onTapOutside: (_) => _commit(isMin: true),
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                      contentPadding:
-                          EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    ),
-                  ),
-                ],
+              child: _field(
+                controller: _minController,
+                focusNode: _minFocus,
+                isMin: true,
+                scheme: scheme,
               ),
             ),
-            const SizedBox(width: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: Text('至',
+                  style: TextStyle(
+                      fontSize: 13, color: scheme.onSurfaceVariant)),
+            ),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('最大:'),
-                  TextField(
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    controller: _maxController,
-                    focusNode: _maxFocus,
-                    onSubmitted: (_) => _commit(isMin: false),
-                    onTapOutside: (_) => _commit(isMin: false),
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                      contentPadding:
-                          EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    ),
-                  ),
-                ],
+              child: _field(
+                controller: _maxController,
+                focusNode: _maxFocus,
+                isMin: false,
+                scheme: scheme,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 8),
-        Text('范围：1.0 - 15.0',
-            style:
-                TextStyle(fontSize: 12, color: AppColors.greyHint(brightness))),
-        const SizedBox(height: 4),
-        Text('输入后点其它位置或按回车即可生效',
-            style:
-                TextStyle(fontSize: 12, color: AppColors.greyHint(brightness))),
+        const SizedBox(height: 6),
+        Text('可填 1.0 至 15.0，点其它位置或按回车生效', style: hintStyle),
+        if (widget.hint != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(widget.hint!, style: hintStyle),
+          ),
       ],
     );
   }
@@ -570,31 +516,6 @@ class _ThemeAwareBackButtonWidgetState extends State<_ThemeAwareBackButtonWidget
           color: Colors.transparent,
           child: Icon(Icons.arrow_back, color: iconColor, size: 24),
         ),
-      ),
-    );
-  }
-}
-
-/// 主题感知的章节标题
-class _ThemeAwareSectionTitle extends StatefulWidget {
-  final String title;
-  const _ThemeAwareSectionTitle({required this.title});
-
-  @override
-  State<_ThemeAwareSectionTitle> createState() => _ThemeAwareSectionTitleState();
-}
-
-class _ThemeAwareSectionTitleState extends State<_ThemeAwareSectionTitle> {
-  @override
-  Widget build(BuildContext context) {
-    final brightness = Theme.of(context).brightness;
-    final textColor = AppColors.primaryText(brightness);
-    return Text(
-      widget.title,
-      style: TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.bold,
-        color: textColor,
       ),
     );
   }

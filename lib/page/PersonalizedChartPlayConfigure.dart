@@ -15,6 +15,8 @@ import 'ChartPlayPage.dart';
 import '../service/ChartPlaySettingsStore.dart';
 import '../widgets/AppHeader.dart';
 import '../utils/AppDesignTokens.dart';
+import '../widgets/AppDialogs.dart';
+import '../widgets/AppToast.dart';
 
 // ─────────────────────────────────────────────────────────
 // 谱面包导入（.adx / .zip）
@@ -303,22 +305,16 @@ class _PersonalizedChartPlayConfigureState
             _maidataContent = content;
             _inoteList = _parseInoteList(content);
           });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('已加载maidata，解析到 ${_inoteList.length} 个难度')),
-          );
+          AppToast.show('已加载maidata，解析到 ${_inoteList.length} 个难度');
         } catch (e) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('读取失败: 文件编码不受支持，请使用UTF-8或Shift-JIS编码')),
-          );
+          AppToast.show('读取失败: 文件编码不受支持，请使用UTF-8或Shift-JIS编码');
           debugPrint('maidata read error: $e');
         }
       }
     } catch (e) {
       debugPrint('文件选择失败: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('无法打开文件选择器: $e')),
-        );
+        AppToast.show('无法打开文件选择器: $e');
       }
     }
   }
@@ -333,24 +329,18 @@ class _PersonalizedChartPlayConfigureState
         try {
           final appPath = await _copyToAppDir(sourceFile, 'bg');
           setState(() => _bgImagePath = appPath);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('已选择曲绘')),
-          );
+          AppToast.show('已选择曲绘');
         } catch (e) {
           debugPrint('bg image copy error: $e');
           // fallback：直接使用原始路径
           setState(() => _bgImagePath = sourceFile.path);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('已选择曲绘（使用原始路径）')),
-          );
+          AppToast.show('已选择曲绘（使用原始路径）');
         }
       }
     } catch (e) {
       debugPrint('图片选择失败: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('无法打开图片选择器: $e')),
-        );
+        AppToast.show('无法打开图片选择器: $e');
       }
     }
   }
@@ -365,24 +355,18 @@ class _PersonalizedChartPlayConfigureState
         try {
           final appPath = await _copyToAppDir(sourceFile, 'audio');
           setState(() => _audioFilePath = appPath);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('已选择音源')),
-          );
+          AppToast.show('已选择音源');
         } catch (e) {
           debugPrint('audio file copy error: $e');
           // fallback：直接使用原始路径
           setState(() => _audioFilePath = sourceFile.path);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('已选择音源（使用原始路径）')),
-          );
+          AppToast.show('已选择音源（使用原始路径）');
         }
       }
     } catch (e) {
       debugPrint('音频选择失败: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('无法打开音频选择器: $e')),
-        );
+        AppToast.show('无法打开音频选择器: $e');
       }
     }
   }
@@ -399,9 +383,7 @@ class _PersonalizedChartPlayConfigureState
         if (!mounted) return;
         setState(() =>
             _history.removeWhere((e) => e.archivedPath == entry.archivedPath));
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('「${entry.displayName}」的文件已不存在，已从列表移除')),
-        );
+        AppToast.show('「${entry.displayName}」的文件已不存在，已从列表移除');
         return;
       }
       final bytes = await file.readAsBytes();
@@ -411,9 +393,7 @@ class _PersonalizedChartPlayConfigureState
     } catch (e) {
       debugPrint('从历史重新解析失败: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('重新解析失败：$e')),
-        );
+        AppToast.show('重新解析失败：$e');
       }
     } finally {
       if (mounted) setState(() => _historyBusyPath = null);
@@ -424,7 +404,7 @@ class _PersonalizedChartPlayConfigureState
   Future<void> _confirmRemoveHistory(ChartPackageHistoryEntry entry) async {
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppAlertDialog(
         title: const Text('删除这条记录'),
         content: Text('将从「最近解析」中移除「${entry.displayName}」，并删除它的存档文件。'),
         actions: [
@@ -474,9 +454,7 @@ class _PersonalizedChartPlayConfigureState
       if (bytes == null) {
         final path = picked.path;
         if (path == null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('读不到这个文件的内容，请换一个来源重试')),
-          );
+          AppToast.show('读不到这个文件的内容，请换一个来源重试');
           return;
         }
         bytes = await File(path).readAsBytes();
@@ -489,9 +467,7 @@ class _PersonalizedChartPlayConfigureState
     } catch (e) {
       debugPrint('谱面包导入失败: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('导入失败：$e')),
-        );
+        AppToast.show('导入失败：$e');
       }
     }
   }
@@ -507,9 +483,7 @@ class _PersonalizedChartPlayConfigureState
       final extracted = _extractChartPackage(bytes);
       if (extracted == null) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('这个压缩包里没找到 maidata.txt，不是有效的谱面包')),
-          );
+          AppToast.show('这个压缩包里没找到 maidata.txt，不是有效的谱面包');
         }
         return;
       }
@@ -519,11 +493,7 @@ class _PersonalizedChartPlayConfigureState
         maidataContent = _decodeMaidataBytes(extracted.maidataBytes);
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content:
-                    Text('maidata.txt 编码不受支持，请使用 UTF-8 或 Shift-JIS 编码的谱面包')),
-          );
+          AppToast.show('maidata.txt 编码不受支持，请使用 UTF-8 或 Shift-JIS 编码的谱面包');
         }
         debugPrint('maidata decode error: $e');
         return;
@@ -584,13 +554,9 @@ class _PersonalizedChartPlayConfigureState
         if (audioPath == null) '音源',
       ];
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(missing.isEmpty
+      AppToast.show(missing.isEmpty
               ? '已从 $fileName 导入三件套，解析到 ${_inoteList.length} 个难度'
-              : '已导入 maidata（${_inoteList.length} 个难度）；包内没有${missing.join('和')}，可手动补选'),
-        ),
-      );
+              : '已导入 maidata（${_inoteList.length} 个难度）；包内没有${missing.join('和')}，可手动补选');
     } finally {
       // 页面已销毁时 _isImporting 随 State 一起消失，不必再赋值
       if (mounted) setState(() => _isImporting = false);
@@ -698,15 +664,11 @@ class _PersonalizedChartPlayConfigureState
 
   void _startPlayback() {
     if (_maidataContent == null || _maidataContent!.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请先选择maidata文件')),
-      );
+      AppToast.show('请先选择maidata文件');
       return;
     }
     if (_inoteList.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('未找到有效难度')),
-      );
+      AppToast.show('未找到有效难度');
       return;
     }
 
@@ -719,7 +681,7 @@ class _PersonalizedChartPlayConfigureState
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
+        return AppAlertDialog(
           title: const Text('选择难度'),
           content: SingleChildScrollView(
             child: Column(
@@ -790,7 +752,7 @@ class _PersonalizedChartPlayConfigureState
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(
                             horizontal: 24, vertical: 12),
-                        textStyle: const TextStyle(fontSize: 16),
+                        textStyle: AppTheme.font(fontSize: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                         ),
@@ -824,9 +786,7 @@ class _PersonalizedChartPlayConfigureState
         debugPrint('cleanup work dir error: $e');
       }
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('已清除选择')),
-    );
+    AppToast.show('已清除选择');
   }
 
   @override

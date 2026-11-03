@@ -217,11 +217,11 @@ class _MaimaiServerStatusPageState extends State<MaimaiServerStatusPage> {
         : status.statusText;
 
     return Card(
+      margin: EdgeInsets.zero,
       elevation: 0,
-      color: Colors.transparent,
+      color: AppSurfaces.card(context),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
       ),
       child: Padding(
         padding: const EdgeInsets.all(18),
@@ -306,10 +306,9 @@ class _MaimaiServerStatusPageState extends State<MaimaiServerStatusPage> {
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       elevation: 0,
-      color: Colors.transparent,
+      color: AppSurfaces.card(context),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
       ),
       child: ListTile(
         leading: CircleAvatar(

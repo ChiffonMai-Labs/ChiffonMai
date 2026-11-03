@@ -83,8 +83,8 @@ void main() {
     await tester.enterText(find.byType(TextField).first, '12.0');
     await tester.pumpAndSettle();
 
-    // 勾选一个版本 → 触发外层 setState → 整块设置区重建
-    await tester.tap(find.byType(CheckboxListTile).first);
+    // 拖一下滑条 → 触发外层 setState → 整块设置区重建
+    await tester.tap(find.byType(Slider).first);
     await tester.pumpAndSettle();
 
     final text = tester

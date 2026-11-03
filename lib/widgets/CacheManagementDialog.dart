@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../service/CacheManagementService.dart';
 import 'SmoothLinearProgressIndicator.dart';
+import '../widgets/AppDialogs.dart';
 
 Future<bool?> showCacheManagementDialog(BuildContext context) {
   return showDialog<bool>(
@@ -71,7 +72,7 @@ class _CacheManagementDialogState extends State<_CacheManagementDialog> {
   @override
   Widget build(BuildContext context) {
     final usage = _usage;
-    return AlertDialog(
+    return AppAlertDialog(
       title: const Text('缓存管理'),
       content: SizedBox(
         width: 420,

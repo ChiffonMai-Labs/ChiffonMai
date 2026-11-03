@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:my_first_flutter_app/service/AnnouncementService.dart';
 import 'package:my_first_flutter_app/utils/ApiClient.dart';
 import 'package:my_first_flutter_app/widgets/AnnouncementDialog.dart';
+import 'package:my_first_flutter_app/widgets/AppDialogs.dart';
 
 Map<String, dynamic> notice({String id = 'notice-1', int revision = 1}) => {
       'id': id,
@@ -193,7 +194,7 @@ void main() {
     await open(tester);
     await tester.tap(find.byType(CheckboxListTile));
     await tester.pumpAndSettle();
-    Navigator.of(tester.element(find.byType(AlertDialog))).pop();
+    Navigator.of(tester.element(find.byType(AppAlertDialog))).pop();
     await tester.pumpAndSettle();
     expect(await service.shouldShow(Announcement.fromJson(notice())), isTrue);
   });

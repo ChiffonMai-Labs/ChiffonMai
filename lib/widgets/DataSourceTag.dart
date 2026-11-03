@@ -162,6 +162,12 @@ class DataSourceTag extends StatelessWidget {
         TextStyle(fontSize: fontSize, fontWeight: FontWeight.bold),
       );
 
+  /// 固定行高的支柱：排行榜用 `prototypeItem` 把每行排成同一高度，而中文和拉丁字母
+  /// 走不同字体、度量不同（水鱼 / AWMC），不固定的话个别行会比原型高出约 1px 而溢出。
+  static StrutStyle strutFor(BuildContext context, double fontSize) =>
+      StrutStyle.fromTextStyle(textStyleFor(context, fontSize),
+          forceStrutHeight: true);
+
   /// 标签渲染出来的**总高**（一行文字 + 上下内边距）。
   ///
   /// [text] 要传**真正会显示的那串字**（水鱼 / 落雪 / AWMC / 未知）：字体缺字时
@@ -174,6 +180,7 @@ class DataSourceTag extends StatelessWidget {
     final defaultStyle = DefaultTextStyle.of(context);
     final painter = TextPainter(
       text: TextSpan(text: text, style: textStyleFor(context, fontSize)),
+      strutStyle: strutFor(context, fontSize),
       textDirection: Directionality.of(context),
       textScaler: MediaQuery.textScalerOf(context),
       // 与 `Text` 的兜底一致（顺带说明：`Text` 并**不**继承 DefaultTextStyle 的
@@ -201,6 +208,7 @@ class DataSourceTag extends StatelessWidget {
       ),
       child: Text(
         style.label,
+        strutStyle: strutFor(context, fontSize),
         style: textStyleFor(context, fontSize).copyWith(color: style.foreground),
       ),
     );

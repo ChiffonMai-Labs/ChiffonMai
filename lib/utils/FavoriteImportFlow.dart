@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../service/FavoriteTransferService.dart';
 import 'ExportSettings.dart';
+import '../widgets/AppDialogs.dart';
+import '../widgets/AppToast.dart';
 
 /// 导入方式
 enum FavoriteImportMode { merge, replace }
@@ -21,7 +23,6 @@ Future<bool> runFavoriteImportFlow(
   BuildContext context, {
   String? presetPath,
 }) async {
-  final messenger = ScaffoldMessenger.of(context);
   final service = FavoriteTransferService();
 
   // ---- 1. 取得文件并解析 ----
@@ -56,12 +57,7 @@ Future<bool> runFavoriteImportFlow(
       bundle,
       replaceAll: mode == FavoriteImportMode.replace,
     );
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text('导入完成：${stats.describe()}'),
-        duration: const Duration(seconds: 4),
-      ),
-    );
+    AppToast.show('导入完成：${stats.describe()}', duration: const Duration(seconds: 4));
     return true;
   } catch (e) {
     if (context.mounted) {
@@ -82,7 +78,7 @@ Future<FavoriteImportMode?> _showConfirmDialog(
       return StatefulBuilder(
         builder: (ctx, setLocal) {
           final scheme = Theme.of(ctx).colorScheme;
-          return AlertDialog(
+          return AppAlertDialog(
             title: const Text('导入收藏夹'),
             content: SingleChildScrollView(
               child: Column(
@@ -104,8 +100,6 @@ Future<FavoriteImportMode?> _showConfirmDialog(
                               fontSize: 13,
                               color: scheme.onSurfaceVariant,
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ),
@@ -144,7 +138,7 @@ Future<FavoriteImportMode?> _showConfirmDialog(
                       '先清空当前所有收藏夹，再导入文件内容',
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.red.shade400,
+                        color: Theme.of(context).colorScheme.error,
                       ),
                     ),
                   ),
@@ -175,7 +169,7 @@ Future<void> _showMessageDialog(
 }) {
   return showDialog<void>(
     context: context,
-    builder: (ctx) => AlertDialog(
+    builder: (ctx) => AppAlertDialog(
       title: Text(title),
       content: SingleChildScrollView(child: Text(message)),
       actions: [

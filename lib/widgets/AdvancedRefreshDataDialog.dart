@@ -2,7 +2,6 @@ import 'RankingPrivacyOptions.dart';
 import '../widgets/AnimatedChoiceBar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../constant/CacheKeyConstant.dart';
@@ -20,6 +19,8 @@ import '../utils/ExternalLaunchUtil.dart';
 import 'RefreshDataDialog.dart'
     show CurrentDataSourceNotifier, RefreshDataRequest, RefreshDataSource;
 import 'DivingFishAccountSection.dart';
+import '../widgets/AppDialogs.dart';
+import '../widgets/AppToast.dart';
 
 /// 高级模式"刷新数据"对话框的入口。
 ///
@@ -207,10 +208,10 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
     });
 
     if (qq == null || qq.isEmpty) {
-      Fluttertoast.showToast(msg: '还是没读到 QQ 号。请确认已在水鱼官网保存，或重新登录一次水鱼账号');
+      AppToast.show('还是没读到 QQ 号。请确认已在水鱼官网保存，或重新登录一次水鱼账号');
       return;
     }
-    Fluttertoast.showToast(msg: '已读到绑定 QQ：$qq');
+    AppToast.show('已读到绑定 QQ：$qq');
     await _checkAuthorization();
   }
 
@@ -218,7 +219,7 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
   Future<void> _startAuthorization() async {
     final qq = _bindQQ;
     if (qq.isEmpty) {
-      Fluttertoast.showToast(msg: '未找到 QQ 号');
+      AppToast.show('未找到 QQ 号');
       return;
     }
     setState(() => _recheckingAuth = true);
@@ -228,16 +229,14 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
       _recheckingAuth = false;
       if (ok) _consentPending = true;
     });
-    Fluttertoast.showToast(
-      msg: ok ? '已打开授权页，完成授权后回到这里点「我已授权，重新检测」' : '发起授权失败，请稍后重试',
-    );
+    AppToast.show(ok ? '已打开授权页，完成授权后回到这里点「我已授权，重新检测」' : '发起授权失败，请稍后重试');
   }
 
   /// 「我已授权，重新检测」：显式重查一次授权状态。
   Future<void> _recheckAuthorization() async {
     final qq = _bindQQ;
     if (qq.isEmpty) {
-      Fluttertoast.showToast(msg: '未找到 QQ 号');
+      AppToast.show('未找到 QQ 号');
       return;
     }
     setState(() => _recheckingAuth = true);
@@ -249,11 +248,11 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
       if (result == true) _consentPending = false;
     });
     if (result == true) {
-      Fluttertoast.showToast(msg: '授权成功，现在可以刷新数据了');
+      AppToast.show('授权成功，现在可以刷新数据了');
     } else if (result == false) {
-      Fluttertoast.showToast(msg: '还没检测到授权，请确认在浏览器里点了「同意」');
+      AppToast.show('还没检测到授权，请确认在浏览器里点了「同意」');
     } else {
-      Fluttertoast.showToast(msg: '检测失败，请检查网络后重试');
+      AppToast.show('检测失败，请检查网络后重试');
     }
   }
 
@@ -343,10 +342,10 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
           bindQq: _bindQQ,
         )) {
           case DivingFishQqState.notLoggedIn:
-            Fluttertoast.showToast(msg: '请先在「系统 → 登录水鱼」登录水鱼账号');
+            AppToast.show('请先在「系统 → 登录水鱼」登录水鱼账号');
             return null;
           case DivingFishQqState.noBindQq:
-            Fluttertoast.showToast(msg: '你的水鱼账号还没绑定 QQ 号，请先到水鱼官网「编辑个人资料」里填上');
+            AppToast.show('你的水鱼账号还没绑定 QQ 号，请先到水鱼官网「编辑个人资料」里填上');
             return null;
           case DivingFishQqState.bound:
             break;
@@ -356,18 +355,18 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
       if (_currentDataSource == RefreshDataSource.luoxue &&
           _authCodeController.text.trim().isEmpty &&
           !_hasSavedLuoXueToken) {
-        Fluttertoast.showToast(msg: '请先填写落雪授权码');
+        AppToast.show('请先填写落雪授权码');
         return null;
       }
       // AWMC NET 无需登录，但必须有 QQ 号才查得到
       if (_currentDataSource == RefreshDataSource.awmc) {
         final qq = _awmcQqController.text.trim();
         if (qq.isEmpty) {
-          Fluttertoast.showToast(msg: '请输入 AWMC NET 的 QQ 号');
+          AppToast.show('请输入 AWMC NET 的 QQ 号');
           return null;
         }
         if (!RegExp(r'^\d{5,12}$').hasMatch(qq)) {
-          Fluttertoast.showToast(msg: 'QQ 号格式不对（应为 5–12 位数字）');
+          AppToast.show('QQ 号格式不对（应为 5–12 位数字）');
           return null;
         }
       }
@@ -375,12 +374,7 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
       final isOnline = await ConnectivityService().hasConnection();
       if (!isOnline) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('当前无网络连接，无法刷新数据。请联网后重试。'),
-              duration: Duration(seconds: 3),
-            ),
-          );
+          AppToast.show('当前无网络连接，无法刷新数据。请联网后重试。', duration: Duration(seconds: 3));
         }
         return null;
       }
@@ -424,7 +418,7 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
     if (widget.embedded) {
       return _buildPanelContent(context);
     }
-    return AlertDialog(
+    return AppAlertDialog(
       title: const Text('刷新数据（高级）'),
       content: SizedBox(
         width: 520,
@@ -578,12 +572,7 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
   void _launchUrlFallback(String url) {
     Clipboard.setData(ClipboardData(text: url));
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('无法打开浏览器，链接已复制到剪贴板，请手动粘贴到浏览器打开'),
-        duration: Duration(seconds: 3),
-      ),
-    );
+    AppToast.show('无法打开浏览器，链接已复制到剪贴板，请手动粘贴到浏览器打开', duration: Duration(seconds: 3));
   }
 
   Widget _buildRankingOptions(Brightness brightness) {

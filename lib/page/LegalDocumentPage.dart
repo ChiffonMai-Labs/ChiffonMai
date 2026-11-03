@@ -4,6 +4,7 @@ import 'package:markdown_widget/markdown_widget.dart';
 
 import '../utils/ExternalLaunchUtil.dart';
 import '../widgets/BackgroundPageScaffold.dart';
+import '../widgets/AppToast.dart';
 
 enum AppLegalDocument {
   userAgreement('用户协议', 'user_agreement.md'),
@@ -55,8 +56,7 @@ class _LegalDocumentPageState extends State<LegalDocumentPage> {
       if (await ExternalLaunchUtil.open(uri)) return;
     } catch (_) {}
     if (mounted) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('无法打开链接，请稍后重试')));
+      AppToast.show('无法打开链接，请稍后重试');
     }
   }
 

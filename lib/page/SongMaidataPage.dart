@@ -19,6 +19,10 @@ import '../widgets/BackgroundPageScaffold.dart';
 import 'ChartPlayPage.dart';
 import 'package:my_first_flutter_app/utils/ApiClient.dart';
 import '../utils/AppDesignTokens.dart';
+import '../widgets/AppUi.dart';
+import '../widgets/MarqueeText.dart';
+import '../widgets/AppDialogs.dart';
+import '../widgets/AppToast.dart';
 
 class SongMaidataPage extends StatefulWidget {
   final String songId;
@@ -124,9 +128,7 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
 
     Clipboard.setData(ClipboardData(text: _maidataContent));
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('已复制到剪贴板')),
-    );
+    AppToast.show('已复制到剪贴板');
   }
 
   /// 谱面导出：先让用户选目标格式
@@ -135,24 +137,11 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
 
     final choice = await showModalBottomSheet<String>(
       context: context,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
+      showDragHandle: true,
       builder: (ctx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const SizedBox(height: 10),
-            Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Theme.of(ctx).dividerColor,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 12),
             ListTile(
               leading: const Icon(Icons.folder_zip_outlined),
               title: const Text('导出压缩包 (.zip)'),
@@ -281,7 +270,7 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => const AlertDialog(
+        builder: (context) => const AppAlertDialog(
           content: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -309,13 +298,7 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
         Navigator.of(context).pop();
       }
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('导出失败: $e'),
-            duration: const Duration(seconds: 3),
-            backgroundColor: AppColors.errorRed(Theme.of(context).brightness),
-          ),
-        );
+        AppToast.show('导出失败: $e', tone: AppToastTone.error, duration: const Duration(seconds: 3));
       }
       debugPrint('[DEBUG][SongMaidataPage] 导出失败: $e');
     } finally {
@@ -455,7 +438,7 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
+        return AppAlertDialog(
           title: const Text('选择难度'),
           content: SingleChildScrollView(
             child: Column(
@@ -514,7 +497,7 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
                           horizontal: 24,
                           vertical: 12,
                         ),
-                        textStyle: const TextStyle(fontSize: 16),
+                        textStyle: AppTheme.font(fontSize: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                         ),
@@ -611,262 +594,126 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
     return _maidataContent.substring(startIndex, endIndex);
   }
 
-  Widget _buildTypeTag(String type, String songId) {
-    final brightness = Theme.of(context).brightness;
-    bool isUtage = songId.length == 6;
-
-    if (isUtage) {
-      return Text(
-        ChartDifficulty.utageLabel,
-        style: TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
-          color: Colors.red,
-        ),
-      );
-    } else if (type == 'DX') {
-      return Text(
-        'DX',
-        style: TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
-          color: AppColors.warningOrange(brightness),
-        ),
-      );
-    } else {
-      return Text(
-        'ST',
-        style: TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
-          color: AppColors.linkBlue(brightness),
-        ),
-      );
-    }
-  }
-
   Widget _buildDsDisplay() {
+    final scheme = Theme.of(context).colorScheme;
     return FutureBuilder<List<String>>(
       future: _service.getSongDsList(),
       builder: (context, snapshot) {
-        if (snapshot.hasData) {
-          List<String> dsList = snapshot.data!;
-          return Text(
-            dsList.join(' / '),
-            style: TextStyle(
-              fontSize: 14,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          );
-        } else {
-          return Text(
-            '获取定数中...',
-            style: TextStyle(
-              fontSize: 14,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          );
-        }
+        return Text(
+          snapshot.hasData ? snapshot.data!.join(' / ') : '获取定数中...',
+          style: AppTheme.number(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: scheme.onSurfaceVariant,
+          ),
+        );
       },
     );
   }
 
-  Widget _buildInfoTag(String label, String value) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+  /// 难度切换胶囊：选中时填充该难度的颜色。
+  Widget _buildInotePill(String inote, String label, Color color) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: FilterPill(
+        label: label,
+        selected: _selectedInote == inote,
+        selectedColor: color,
+        selectedForeground:
+            ThemeData.estimateBrightnessForColor(color) == Brightness.dark
+                ? Colors.white
+                : Colors.black87,
+        onTap: () => _scrollToInote(inote),
       ),
-      child: Text(
-        '$label: $value',
-        style: TextStyle(
-          fontSize: 12,
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
-        ),
+    );
+  }
+
+  Widget _buildHeaderCard() {
+    final scheme = Theme.of(context).colorScheme;
+    return AppCard(
+      radius: AppDesignTokens.radiusMedium,
+      padding: const EdgeInsets.all(10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              ClipRRect(
+                borderRadius:
+                    BorderRadius.circular(AppDesignTokens.radiusSmall),
+                child: CoverUtil.buildCoverWidgetWithContext(
+                    context, widget.songId.toString(), 68),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        SongTypeBadge(
+                            songId: widget.songId, type: widget.songType),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: MarqueeText(
+                            text: widget.songTitle,
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: scheme.onSurface,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '歌曲ID ${widget.songId}',
+                      style: TextStyle(
+                          fontSize: 12, color: scheme.onSurfaceVariant),
+                    ),
+                    const SizedBox(height: 4),
+                    _buildDsDisplay(),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (_inoteList.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _buildInotePill('ALL', 'ALL', scheme.primary),
+                  for (final inote in _inoteList)
+                    _buildInotePill(inote, _getInoteDifficulty(inote),
+                        _getInoteColor(inote)),
+                ],
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final themeColor = Theme.of(context).colorScheme.primary;
+    final scheme = Theme.of(context).colorScheme;
     final brightness = Theme.of(context).brightness;
+    final hasCode = !_isLoading && _maidataContent.isNotEmpty;
 
     return BackgroundPageScaffold(
       title: '谱面代码',
-      actions: (_isLoading || _maidataContent.isEmpty)
-          ? const <Widget>[]
-          : [
-              IconButton(
-                icon: const Icon(Icons.copy, size: 20),
-                onPressed: _copyToClipboard,
-                tooltip: '复制',
-                visualDensity: VisualDensity.compact,
-                padding: const EdgeInsets.all(4),
-                constraints: const BoxConstraints(),
-              ),
-              IconButton(
-                icon: Icon(
-                  _isExporting ? Icons.hourglass_empty : Icons.download,
-                  size: 20,
-                ),
-                onPressed: _isExporting ? null : _showExportOptions,
-                tooltip: '导出',
-                visualDensity: VisualDensity.compact,
-                padding: const EdgeInsets.all(4),
-                constraints: const BoxConstraints(),
-              ),
-              IconButton(
-                icon: const Icon(Icons.play_circle_outline, size: 20),
-                onPressed: _navigateToChartPlay,
-                tooltip: '渲染',
-                visualDensity: VisualDensity.compact,
-                padding: const EdgeInsets.all(4),
-                constraints: const BoxConstraints(),
-              ),
-            ],
-      contentPadding:
-          EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
+      contentPadding: hasCode
+          ? EdgeInsets.zero
+          : EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
       child: Column(children: [
-        Container(
-          margin: const EdgeInsets.fromLTRB(4, 0, 4, 8),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(
-                color: Theme.of(context).colorScheme.outlineVariant,
-              ),
-            ),
-          ),
-          child: Column(
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-                    child: CoverUtil.buildCoverWidgetWithContext(
-                        context, widget.songId.toString(), 80),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            _buildTypeTag(widget.songType, widget.songId),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                widget.songTitle,
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: themeColor,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        _buildInfoTag('歌曲ID', widget.songId),
-                        const SizedBox(height: 8),
-                        _buildDsDisplay(),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              if (_inoteList.isNotEmpty) const SizedBox(height: 12),
-              if (_inoteList.isNotEmpty)
-                Row(
-                  children: [
-                    Text(
-                      'INOTE: ',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    Expanded(
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: [
-                            // ALL选项
-                            Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 4),
-                              child: ElevatedButton(
-                                onPressed: () => _scrollToInote('ALL'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: _selectedInote == 'ALL'
-                                      ? Theme.of(context).colorScheme.onSurface
-                                      : Theme.of(context)
-                                          .colorScheme
-                                          .surfaceContainerHighest,
-                                  foregroundColor: _selectedInote == 'ALL'
-                                      ? Theme.of(context).colorScheme.surface
-                                      : Theme.of(context).colorScheme.onSurface,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 6,
-                                  ),
-                                  textStyle: const TextStyle(fontSize: 12),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-                                  ),
-                                ),
-                                child: const Text('ALL'),
-                              ),
-                            ),
-                            // 其他难度选项
-                            ..._inoteList.map((inote) {
-                              String difficultyName =
-                                  _getInoteDifficulty(inote);
-                              Color inoteColor = _getInoteColor(inote);
-                              return Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 4),
-                                child: ElevatedButton(
-                                  onPressed: () => _scrollToInote(inote),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: _selectedInote == inote
-                                        ? inoteColor
-                                        : Theme.of(context)
-                                            .colorScheme
-                                            .surfaceContainerHighest,
-                                    foregroundColor: _selectedInote == inote
-                                        ? Colors.white
-                                        : Theme.of(context)
-                                            .colorScheme
-                                            .onSurface,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 6,
-                                    ),
-                                    textStyle: const TextStyle(fontSize: 12),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-                                    ),
-                                  ),
-                                  child: Text(difficultyName),
-                                ),
-                              );
-                            }).toList(),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-            ],
-          ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+              AppDesignTokens.gutter, 4, AppDesignTokens.gutter, 10),
+          child: _buildHeaderCard(),
         ),
         Expanded(
             child: _isLoading
@@ -890,12 +737,12 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
                                 _errorMessage!,
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
-                                  fontSize: 16,
+                                  fontSize: 15,
                                   color: AppColors.errorRed(brightness),
                                 ),
                               ),
                               const SizedBox(height: 16),
-                              ElevatedButton(
+                              FilledButton(
                                 onPressed: _fetchMaidata,
                                 child: const Text('重试'),
                               ),
@@ -907,26 +754,65 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
                         ? const Center(
                             child: Text('暂无谱面代码数据'),
                           )
-                        : SingleChildScrollView(
-                            controller: _scrollController,
-                            padding: const EdgeInsets.all(16),
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(
-                                minWidth: double.infinity,
-                              ),
-                              child: SelectableText(
-                                _getFilteredMaidata(),
-                                style: TextStyle(
-                                  fontFamily: 'Courier New',
-                                  fontSize: 12,
-                                  color:
-                                      Theme.of(context).colorScheme.onSurface,
-                                  height: 1.4,
+                        : Padding(
+                            padding: const EdgeInsets.fromLTRB(
+                                AppDesignTokens.gutter,
+                                0,
+                                AppDesignTokens.gutter,
+                                12),
+                            child: AppCard(
+                              radius: AppDesignTokens.radiusMedium,
+                              padding: EdgeInsets.zero,
+                              child: SizedBox.expand(
+                                child: SingleChildScrollView(
+                                  controller: _scrollController,
+                                  padding: const EdgeInsets.all(14),
+                                  child: SelectableText(
+                                    _getFilteredMaidata(),
+                                    style: TextStyle(
+                                      fontFamily: 'Courier New',
+                                      fontSize: 12,
+                                      color: scheme.onSurface,
+                                      height: 1.4,
+                                    ),
+                                    textAlign: TextAlign.left,
+                                  ),
                                 ),
-                                textAlign: TextAlign.left,
                               ),
                             ),
                           )),
+        // 操作放到底部，带文字，比顶部三个小图标好认
+        if (hasCode)
+          BottomActionBar(
+            children: [
+              Expanded(
+                child: FilledButton.tonalIcon(
+                  onPressed: _copyToClipboard,
+                  icon: const Icon(Icons.copy, size: 18),
+                  label: const Text('复制'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: FilledButton.tonalIcon(
+                  onPressed: _isExporting ? null : _showExportOptions,
+                  icon: Icon(
+                    _isExporting ? Icons.hourglass_empty : Icons.download,
+                    size: 18,
+                  ),
+                  label: Text(_isExporting ? '导出中' : '导出'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: _navigateToChartPlay,
+                  icon: const Icon(Icons.play_circle_outline, size: 18),
+                  label: const Text('渲染'),
+                ),
+              ),
+            ],
+          ),
       ]),
     );
   }

@@ -12,6 +12,9 @@ import '../utils/StringUtil.dart';
 import '../widgets/AppHeader.dart';
 import 'SongInfoPage.dart';
 import '../utils/AppDesignTokens.dart';
+import '../widgets/AppDialogs.dart';
+import '../widgets/AppUi.dart';
+import '../widgets/BackgroundPageScaffold.dart';
 
 /// 「国服更新对照」页：把本地曲库按**国服（水鱼）更新前沿**摆开，
 /// 让用户一眼看到「日服已上、国服还没上」的歌 = 下次更新最可能补上的曲目。
@@ -87,36 +90,22 @@ class _UnionUpdateComparePageState extends State<UnionUpdateComparePage> {
   @override
   Widget build(BuildContext context) {
     final brightness = Theme.of(context).brightness;
-    return Scaffold(
-      resizeToAvoidBottomInset: false,
-      backgroundColor: Colors.transparent,
-      body: Stack(
-        children: [
-          CommonWidgetUtil.buildCommonBgWidget(),
-          CommonWidgetUtil.buildCommonChiffonBgWidget(context),
-          Column(
-            children: [
-              AppHeader(
-                title: '国服更新对照',
-                actions: [
-                  IconButton(
-                    tooltip: '口径说明',
-                    icon: const Icon(Icons.info_outline),
-                    onPressed: _showNotes,
-                  ),
-                ],
-              ),
-              Expanded(
-                child: _loading
-                    ? const Center(child: CircularProgressIndicator())
-                    : !(_compare?.hasData ?? false)
-                        ? _buildEmpty(brightness)
-                        : _buildBody(brightness),
-              ),
-            ],
-          ),
-        ],
-      ),
+    return BackgroundPageScaffold(
+      title: '国服更新对照',
+      actions: [
+        IconButton(
+          tooltip: '口径说明',
+          icon: const Icon(Icons.info_outline),
+          onPressed: _showNotes,
+        ),
+      ],
+      contentPadding:
+          EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
+      child: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : !(_compare?.hasData ?? false)
+              ? _buildEmpty(brightness)
+              : _buildBody(brightness),
     );
   }
 
@@ -138,14 +127,16 @@ class _UnionUpdateComparePageState extends State<UnionUpdateComparePage> {
       slivers: [
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+            padding: const EdgeInsets.fromLTRB(
+                AppDesignTokens.gutter, 4, AppDesignTokens.gutter, 8),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _buildFrontierCard(brightness, compare),
-                const SizedBox(height: 10),
+                EntranceAnimation(
+                    child: _buildFrontierCard(brightness, compare)),
+                const SizedBox(height: AppDesignTokens.cardGap),
                 _buildSectionChips(brightness, compare),
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
                 _buildSectionHint(brightness, compare),
                 const SizedBox(height: 4),
               ],
@@ -168,8 +159,14 @@ class _UnionUpdateComparePageState extends State<UnionUpdateComparePage> {
         else
           SliverList.builder(
             itemCount: songs.length,
-            itemBuilder: (context, index) =>
-                _buildSongRow(brightness, songs[index], index + 1),
+            itemBuilder: (context, index) => EntranceAnimation(
+              // 换分段时重播
+              key: ValueKey('${_section.name}-${songs[index].id}'),
+              index: index,
+              offset: const Offset(0, 8),
+              duration: const Duration(milliseconds: 300),
+              child: _buildSongRow(brightness, songs[index], index + 1),
+            ),
           ),
         const SliverToBoxAdapter(child: SizedBox(height: 24)),
       ],
@@ -180,12 +177,7 @@ class _UnionUpdateComparePageState extends State<UnionUpdateComparePage> {
   Widget _buildFrontierCard(Brightness brightness, UnionUpdateCompare compare) {
     final frontier = compare.frontier;
     final scheme = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppSurfaces.card(context),
-        borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
-      ),
+    return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -227,7 +219,7 @@ class _UnionUpdateComparePageState extends State<UnionUpdateComparePage> {
           Container(
             padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
             decoration: BoxDecoration(
-              color: scheme.surfaceContainerHighest.withValues(alpha: 0.5),
+              color: AppSurfaces.inset(context),
               borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
             ),
             child: Row(
@@ -277,9 +269,9 @@ class _UnionUpdateComparePageState extends State<UnionUpdateComparePage> {
         children: [
           Text(
             value,
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
+            style: AppTheme.number(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
               color: highlight
                   ? AppColors.warningOrange(brightness)
                   : AppColors.primaryText(brightness),
@@ -305,16 +297,16 @@ class _UnionUpdateComparePageState extends State<UnionUpdateComparePage> {
       (_Section.early, '国服超前上线', compare.earlyReleases.length),
     ];
     return Wrap(
-      spacing: 8,
-      runSpacing: 8,
+      spacing: 6,
+      runSpacing: 6,
       children: [
         for (final (section, label, count) in chips)
-          NoRipple(
-            child: ChoiceChip(
-              label: Text('$label $count', style: const TextStyle(fontSize: 12)),
-              selected: _section == section,
-              onSelected: (_) => setState(() => _section = section),
-            ),
+          FilterPill(
+            label: '$label $count',
+            selected: _section == section,
+            selectedColor: Theme.of(context).colorScheme.primary,
+            selectedForeground: Theme.of(context).colorScheme.onPrimary,
+            onTap: () => setState(() => _section = section),
           ),
       ],
     );
@@ -353,33 +345,24 @@ class _UnionUpdateComparePageState extends State<UnionUpdateComparePage> {
   }
 
   Widget _buildSongRow(Brightness brightness, Song song, int order) {
-    final scheme = Theme.of(context).colorScheme;
     final isUpcoming = _section == _Section.upcoming;
     // 「国服已上」段按首发日期降序，第一行就是前沿 —— 这就是「在 union 全量源里
     // 标注出水鱼最新歌曲」的那一处标注。
     final isFrontierRow =
         _section == _Section.cn && order == 1 && song.id == _compare?.frontier?.id;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+      padding: const EdgeInsets.fromLTRB(
+          AppDesignTokens.gutter, 0, AppDesignTokens.gutter, 8),
+      child: AppCard(
+        radius: AppDesignTokens.radiusMedium,
+        padding: const EdgeInsets.all(8),
         onTap: () => Navigator.push(
           context,
           MaterialPageRoute<void>(
             builder: (_) => SongInfoPage(songId: song.id),
           ),
         ),
-        child: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-            border: Border.all(
-              color: isUpcoming
-                  ? scheme.outlineVariant
-                  : scheme.outlineVariant.withValues(alpha: 0.6),
-            ),
-          ),
-          child: Row(
+        child: Row(
             children: [
               if (isUpcoming || isFrontierRow)
                 SizedBox(
@@ -406,8 +389,6 @@ class _UnionUpdateComparePageState extends State<UnionUpdateComparePage> {
                   children: [
                     Text(
                       song.basicInfo.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
@@ -418,8 +399,6 @@ class _UnionUpdateComparePageState extends State<UnionUpdateComparePage> {
                     Text(
                       '#${song.id} · ${_versionLabel(song)}'
                       ' · 日服 ${_formatDate(song.basicInfo.releaseDate)}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                           fontSize: 11,
                           color: AppColors.secondaryText(brightness)),
@@ -431,7 +410,6 @@ class _UnionUpdateComparePageState extends State<UnionUpdateComparePage> {
                   size: 18, color: AppColors.greyHint(brightness)),
             ],
           ),
-        ),
       ),
     );
   }
@@ -471,7 +449,7 @@ class _UnionUpdateComparePageState extends State<UnionUpdateComparePage> {
   void _showNotes() {
     showDialog<void>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
+      builder: (dialogContext) => AppAlertDialog(
         title: const Text('这个页面的口径'),
         content: SingleChildScrollView(
           child: Column(

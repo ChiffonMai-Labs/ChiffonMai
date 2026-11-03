@@ -7,6 +7,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/ExportPathUtil.dart';
+import '../utils/WindowDiagnostics.dart';
 
 /// 轻量日志环形缓存。只保留最近 2000 行，用户主动点击时写到公开目录。
 class LogExportService {
@@ -128,10 +129,7 @@ class LogExportService {
       ..writeln(
           '沉浸式状态栏: ${prefs.getBool('immersive_status_bar_enabled') ?? false}');
     for (final view in PlatformDispatcher.instance.views) {
-      report.writeln(
-          '窗口: physical=${view.physicalSize}, dpr=${view.devicePixelRatio}, '
-          'logical=${view.physicalSize / view.devicePixelRatio}, padding=${view.padding}, '
-          'insets=${view.viewInsets}, refreshRate=${view.display.refreshRate}');
+      report.writeln('窗口: ${WindowDiagnostics.view(view)}');
     }
     report
       ..writeln('说明: 此文件是应用日志；Android 原生 Surface/Vulkan/系统窗口问题仍需完整 adb logcat。')

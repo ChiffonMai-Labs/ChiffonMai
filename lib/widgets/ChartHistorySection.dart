@@ -12,6 +12,8 @@ import 'HistoryDateTimeDialog.dart';
 import 'HistoryLineChart.dart';
 import 'HistoryPointDelete.dart';
 import '../utils/AppDesignTokens.dart';
+import '../widgets/AppDialogs.dart';
+import '../widgets/AppToast.dart';
 
 /// 曲目详情页里的「这张谱面的成绩历史」区块（达成率曲线 + DX 曲线）。
 ///
@@ -190,9 +192,7 @@ class _ChartHistorySectionState extends State<ChartHistorySection> {
       if (mounted) await _load();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('保存历史失败：$e')),
-        );
+        AppToast.show('保存历史失败：$e');
       }
     }
   }
@@ -205,7 +205,7 @@ class _ChartHistorySectionState extends State<ChartHistorySection> {
       context,
       pointLabel: '${_formatDate(event.tMs)}\n'
           '达成率 ${event.achievement.toStringAsFixed(4)}%'
-          '${event.dxScore > 0 ? ' · DX ${event.dxScore}' : ''}',
+          '${event.dxScore > 0 ? ' · DX分数 ${event.dxScore}' : ''}',
     );
     if (!mounted || !confirmed) return;
     try {
@@ -219,9 +219,7 @@ class _ChartHistorySectionState extends State<ChartHistorySection> {
       if (mounted) await _load();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('删除记录点失败：$e')),
-        );
+        AppToast.show('删除记录点失败：$e');
       }
     }
   }
@@ -659,7 +657,7 @@ class _ManualChartPointDialogState extends State<_ManualChartPointDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    return AppAlertDialog(
       title: const Text('添加谱面成绩历史'),
       content: SingleChildScrollView(
         child: Column(
@@ -674,7 +672,6 @@ class _ManualChartPointDialogState extends State<_ManualChartPointDialog> {
               onChanged: (_) => _revalidate(),
               decoration: InputDecoration(
                 labelText: '达成率（%）',
-                border: const OutlineInputBorder(),
                 helperText: limitHelperText(
                   widget.maxAchievement,
                   widget.maxAchievement > 101.0 ? '宴会场子谱相加' : '普通谱面上限',
@@ -691,7 +688,6 @@ class _ManualChartPointDialogState extends State<_ManualChartPointDialog> {
               onChanged: (_) => _revalidate(),
               decoration: InputDecoration(
                 labelText: 'DX 分数（可选）',
-                border: const OutlineInputBorder(),
                 helperText: widget.maxDxScore > 0
                     ? limitHelperText(widget.maxDxScore, '谱面满分')
                     : null,

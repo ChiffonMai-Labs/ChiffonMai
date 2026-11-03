@@ -4,7 +4,9 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 
 import '../service/GuessChartGame/GuessAudioService.dart';
-import 'SmoothLinearProgressIndicator.dart';
+import '../utils/AppDesignTokens.dart';
+import '../utils/AppTheme.dart';
+import 'AppUi.dart';
 
 /// 结算后对照本轮题面试听原声；新回合或离页时释放播放器。
 class GuessOriginalAudioCard extends StatefulWidget {
@@ -166,73 +168,122 @@ class _GuessOriginalAudioCardState extends State<GuessOriginalAudioCard> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final loading = _busy && _duration == 0;
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainerLow,
-        border: Border.all(color: scheme.outlineVariant),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    final label = _error != null
+        ? '重试'
+        : _playing
+            ? '暂停'
+            : _finished
+                ? '重新播放'
+                : '播放原声';
+    final timeStyle =
+        AppTheme.number(fontSize: 11.5, color: scheme.onSurfaceVariant);
+    return AppCard(
+      padding: const EdgeInsets.fromLTRB(12, 12, 14, 12),
+      child: Row(
         children: [
-          Row(children: [
-            Icon(Icons.music_note_outlined, color: scheme.primary),
-            const SizedBox(width: 8),
-            Text('原声片段', style: Theme.of(context).textTheme.titleSmall),
-          ]),
-          const SizedBox(height: 6),
-          Text('本轮同一段音源，按原速正向播放',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(color: scheme.onSurfaceVariant)),
-          if (loading)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 22),
-              child: SmoothLinearProgressIndicator(),
-            )
-          else
-            Slider(
-              value: _position.clamp(0.0, _duration),
-              max: _duration > 0 ? _duration : 1,
-              onChanged: _duration > 0 && !_busy
-                  ? (value) => setState(() => _position = value)
-                  : null,
-              onChangeEnd: _seek,
-            ),
-          if (_error != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Text(_error!, style: TextStyle(color: scheme.error)),
-            ),
-          Row(children: [
-            Expanded(
-              child: Text(
-                _duration > 0
-                    ? '${_position.toStringAsFixed(1)} / ${_duration.toStringAsFixed(1)} 秒'
-                    : loading
-                        ? '正在准备原声…'
-                        : '点击播放试听',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(color: scheme.onSurfaceVariant),
+          PressScale(
+            child: Semantics(
+              button: true,
+              label: label,
+              child: Tooltip(
+                message: label,
+                child: GestureDetector(
+                  onTap: _busy ? null : _togglePlayback,
+                  child: AnimatedContainer(
+                    duration: AppDesignTokens.motion(
+                        context, const Duration(milliseconds: 180)),
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: _busy
+                          ? AppSurfaces.inset(context)
+                          : scheme.primary,
+                      shape: BoxShape.circle,
+                    ),
+                    child: loading
+                        ? Padding(
+                            padding: const EdgeInsets.all(15),
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2.4, color: scheme.primary),
+                          )
+                        : AnimatedSwitcher(
+                            duration: AppDesignTokens.motion(
+                                context, const Duration(milliseconds: 180)),
+                            transitionBuilder: (child, animation) =>
+                                ScaleTransition(scale: animation, child: child),
+                            child: Icon(
+                              _error != null || _finished
+                                  ? Icons.replay_rounded
+                                  : _playing
+                                      ? Icons.pause_rounded
+                                      : Icons.play_arrow_rounded,
+                              key: ValueKey(label),
+                              size: 30,
+                              color: _busy
+                                  ? scheme.onSurfaceVariant
+                                  : scheme.onPrimary,
+                            ),
+                          ),
+                  ),
+                ),
               ),
             ),
-            const SizedBox(width: 8),
-            FilledButton.tonalIcon(
-              onPressed: _busy ? null : _togglePlayback,
-              icon: Icon(_playing ? Icons.pause : Icons.play_arrow),
-              label: Text(_error != null
-                  ? '重试'
-                  : _playing
-                      ? '暂停'
-                      : _finished
-                          ? '重新播放'
-                          : '播放原声'),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  '原声片段',
+                  style: TextStyle(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w700,
+                    color: scheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  _error ??
+                      (loading ? '正在准备原声…' : '本轮同一段音源，按原速正向播放'),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color:
+                        _error != null ? scheme.error : scheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SliderTheme(
+                  data: SliderTheme.of(context).copyWith(
+                    trackHeight: 4,
+                    thumbShape:
+                        const RoundSliderThumbShape(enabledThumbRadius: 6),
+                    overlayShape: SliderComponentShape.noOverlay,
+                    inactiveTrackColor: AppSurfaces.inset(context),
+                  ),
+                  child: Slider(
+                    value: _position.clamp(0.0, _duration),
+                    max: _duration > 0 ? _duration : 1,
+                    onChanged: _duration > 0 && !_busy
+                        ? (value) => setState(() => _position = value)
+                        : null,
+                    onChangeEnd: _seek,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('${_position.toStringAsFixed(1)} 秒', style: timeStyle),
+                    Text(
+                      _duration > 0 ? '${_duration.toStringAsFixed(1)} 秒' : '--',
+                      style: timeStyle,
+                    ),
+                  ],
+                ),
+              ],
             ),
-          ]),
+          ),
         ],
       ),
     );

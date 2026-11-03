@@ -9,6 +9,7 @@ import 'package:my_first_flutter_app/entity/Multiplayer/RoomEntity.dart';
 import 'package:my_first_flutter_app/widgets/BackgroundPageScaffold.dart';
 import '../../widgets/AppUi.dart';
 import '../../utils/AppDesignTokens.dart';
+import '../../widgets/AppToast.dart';
 
 class MultiplayerLobbyPage extends StatefulWidget {
   const MultiplayerLobbyPage({super.key, this.manager});
@@ -94,8 +95,7 @@ class _MultiplayerLobbyPageState extends State<MultiplayerLobbyPage> {
             MaterialPageRoute(builder: (context) => GameRoomPage(room: result)));
       }
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('创建房间失败：$error')));
+      if (mounted) AppToast.show('创建房间失败：$error');
     } finally {
       if (mounted) setState(() => _isCreating = false);
     }
@@ -117,8 +117,7 @@ class _MultiplayerLobbyPageState extends State<MultiplayerLobbyPage> {
       await Navigator.push(context,
           MaterialPageRoute(builder: (context) => GameRoomPage(room: room)));
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('加入房间失败：$error')));
+      if (mounted) AppToast.show('加入房间失败：$error');
     } finally {
       if (mounted) setState(() => _isJoining = false);
     }

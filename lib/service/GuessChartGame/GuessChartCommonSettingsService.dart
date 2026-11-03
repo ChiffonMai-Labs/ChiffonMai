@@ -27,6 +27,8 @@ class GuessChartCommonSettingsService {
   static const List<String> defaultPeekDifficulties = [
     '4'
   ]; // 谱面片段猜歌的难度随机池（inote 编号），默认 EXPERT
+  static const double defaultPeekFlowSpeed = 8.0; // 谱面片段猜歌的流速，默认 8（播放器默认值）
+  static const String defaultPeekMirror = 'none'; // 谱面片段猜歌的镜像（SimaiMirrorMode.name）
   static const int defaultPlayDurationSeconds = 5; // 歌曲片段猜歌的播放时长，默认5秒
   static const double defaultAudioRate = 1.25;
   static const double minAudioRate = 0.1;
@@ -60,6 +62,8 @@ class GuessChartCommonSettingsService {
     int? tileRevealIntervalMs,
     int? peekDurationSeconds,
     List<String>? peekDifficulties,
+    double? peekFlowSpeed,
+    String? peekMirror,
     int? playDurationSeconds,
     double? audioRate,
   }) async {
@@ -98,6 +102,12 @@ class GuessChartCommonSettingsService {
     }
     if (peekDifficulties != null) {
       values[CacheKeyConstant.guessChartPeekDifficulties] = peekDifficulties;
+    }
+    if (peekFlowSpeed != null) {
+      values[CacheKeyConstant.guessChartPeekFlowSpeed] = peekFlowSpeed;
+    }
+    if (peekMirror != null) {
+      values[CacheKeyConstant.guessChartPeekMirror] = peekMirror;
     }
     if (playDurationSeconds != null) {
       values[CacheKeyConstant.guessChartPlayDuration] = playDurationSeconds;
@@ -177,6 +187,14 @@ class GuessChartCommonSettingsService {
         CacheKeyConstant.guessChartPeekDifficulties,
         defaultPeekDifficulties,
       ),
+      'peekFlowSpeed':
+          (values[CacheKeyConstant.guessChartPeekFlowSpeed] as num?)
+                  ?.toDouble() ??
+              defaultPeekFlowSpeed,
+      'peekMirror': valueOr(
+        CacheKeyConstant.guessChartPeekMirror,
+        defaultPeekMirror,
+      ),
       'playDurationSeconds': valueOr(
         CacheKeyConstant.guessChartPlayDuration,
         defaultPlayDurationSeconds,
@@ -200,6 +218,8 @@ class GuessChartCommonSettingsService {
     CacheKeyConstant.guessTileRevealInterval,
     CacheKeyConstant.guessChartPeekDuration,
     CacheKeyConstant.guessChartPeekDifficulties,
+    CacheKeyConstant.guessChartPeekFlowSpeed,
+    CacheKeyConstant.guessChartPeekMirror,
     CacheKeyConstant.guessChartPlayDuration,
   };
 
@@ -220,6 +240,8 @@ class GuessChartCommonSettingsService {
       tileRevealIntervalMs: defaultTileRevealIntervalMs,
       peekDurationSeconds: defaultPeekDurationSeconds,
       peekDifficulties: defaultPeekDifficulties,
+      peekFlowSpeed: defaultPeekFlowSpeed,
+      peekMirror: defaultPeekMirror,
       playDurationSeconds: defaultPlayDurationSeconds,
       audioRate: defaultAudioRate,
     );
@@ -250,6 +272,8 @@ class GuessChartCommonSettingsService {
         'tileRevealIntervalMs': defaultTileRevealIntervalMs,
         'peekDurationSeconds': defaultPeekDurationSeconds,
         'peekDifficulties': List<String>.from(defaultPeekDifficulties),
+        'peekFlowSpeed': defaultPeekFlowSpeed,
+        'peekMirror': defaultPeekMirror,
         'playDurationSeconds': defaultPlayDurationSeconds,
       };
 

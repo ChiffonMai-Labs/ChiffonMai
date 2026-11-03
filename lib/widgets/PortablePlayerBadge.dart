@@ -25,6 +25,11 @@ import '../utils/PortablePlayerScope.dart';
 import 'DxRatingCoverImage.dart';
 import 'PortablePlaybackModeButton.dart';
 import '../page/Portable/PortableNowPlayingPage.dart';
+import '../widgets/AppDialogs.dart';
+import 'AppUi.dart';
+import 'MarqueeText.dart';
+import '../utils/AppDesignTokens.dart';
+import '../utils/AppTheme.dart';
 
 // ===========================================================================
 // 曲绘
@@ -477,194 +482,247 @@ class _PortableMiniCardState extends State<PortableMiniCard> {
     final value = _dragValue ??
         (totalMs > 0 ? (positionMs / totalMs).clamp(0.0, 1.0) : 0.0);
 
+    final position = Duration(milliseconds: (value * totalMs).round());
+    final timeStyle = AppTheme.number(
+        fontSize: 11.5, color: scheme.onSurfaceVariant);
+
     return SafeArea(
       top: false,
       child: Container(
-        margin: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+        margin: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+        padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
         decoration: BoxDecoration(
-          color: scheme.surface,
-          borderRadius: BorderRadius.circular(16),
-          border:
-              Border.all(color: scheme.outlineVariant.withValues(alpha: 0.7)),
+          color: AppSurfaces.card(context),
+          borderRadius: BorderRadius.circular(AppDesignTokens.radiusLarge),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.22),
-              blurRadius: 18,
-              offset: const Offset(0, 6),
+              color: Colors.black.withValues(alpha: 0.18),
+              blurRadius: 24,
+              offset: const Offset(0, 8),
             ),
           ],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // 顶部细条：左边状态，右边是播放列表与悬浮球操作
-            Row(
-              children: [
-                Icon(
-                  _player.isPlaying ? Icons.graphic_eq : Icons.pause,
-                  size: 13,
-                  color: scheme.primary,
-                ),
-                const SizedBox(width: 5),
-                // 收紧一点：这一行右边现在还有「播放模式 / 播放列表 / 隐藏球」三个入口，
-                // 窄屏上不给它弹性的话会直接溢出。
-                Flexible(
-                  child: Text(
-                    _player.isPlaying ? '随身听 · 正在播放' : '随身听 · 已暂停',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: scheme.onSurfaceVariant,
+            Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: scheme.outlineVariant,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 12),
+            // 曲绘和歌名：点这一块进正在播放页
+            PressScale(
+              scale: 0.98,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => _openNowPlaying(context),
+                child: Row(
+                  children: [
+                    PortableCover(
+                      song: song,
+                      size: 64,
+                      radius: AppDesignTokens.radiusMedium,
                     ),
-                  ),
-                ),
-                const Spacer(),
-                // 播放模式（顺序/随机/单曲 + 循环次数）：和随身听曲库页共用同一个
-                // 控制器单例，所以在哪儿改都是同一份状态。
-                PortablePlaybackModeButton(
-                  iconButtonKey:
-                      const Key('portableMiniCardPlaybackModeButton'),
-                  iconSize: 19,
-                  density: VisualDensity.compact,
-                ),
-                if (widget.onOpenLibrary != null)
-                  InkWell(
-                    onTap: () {
-                      Navigator.of(context).pop();
-                      widget.onOpenLibrary!();
-                    },
-                    borderRadius: BorderRadius.circular(6),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 3,
-                      ),
-                      child: Row(
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.queue_music,
-                              size: 15, color: scheme.primary),
-                          const SizedBox(width: 3),
-                          Text(
-                            '播放列表',
+                          Row(
+                            children: [
+                              Icon(
+                                _player.isPlaying
+                                    ? Icons.graphic_eq_rounded
+                                    : Icons.pause_rounded,
+                                size: 13,
+                                color: scheme.primary,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                _player.isPlaying ? '正在播放' : '已暂停',
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: scheme.primary,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 3),
+                          MarqueeText(
+                            text: song.title,
                             style: TextStyle(
-                              fontSize: 11,
-                              color: scheme.primary,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: scheme.onSurface,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          MarqueeText(
+                            text: song.artist.isEmpty ? '未知艺术家' : song.artist,
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              color: scheme.onSurfaceVariant,
                             ),
                           ),
                         ],
                       ),
                     ),
+                    Icon(Icons.chevron_right_rounded,
+                        color: scheme.onSurfaceVariant),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            SliderTheme(
+              data: SliderTheme.of(context).copyWith(
+                trackHeight: 4,
+                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                overlayShape: SliderComponentShape.noOverlay,
+                inactiveTrackColor: AppSurfaces.inset(context),
+              ),
+              child: Slider(
+                value: value,
+                onChanged: totalMs <= 0
+                    ? null
+                    : (v) => setState(() => _dragValue = v),
+                onChangeEnd: (v) async {
+                  final target = Duration(milliseconds: (v * totalMs).round());
+                  setState(() => _dragValue = null);
+                  await _player.seek(target);
+                },
+              ),
+            ),
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(_fmt(position), style: timeStyle),
+                Text(_fmt(duration), style: timeStyle),
+              ],
+            ),
+            const SizedBox(height: 2),
+            // 控制条：播放模式 | 上一首 播放 下一首 | 播放列表
+            Row(
+              children: [
+                // 播放模式（顺序/随机/单曲 + 循环次数）：和随身听曲库页共用同一个
+                // 控制器单例，所以在哪儿改都是同一份状态。
+                PortablePlaybackModeButton(
+                  iconButtonKey:
+                      const Key('portableMiniCardPlaybackModeButton'),
+                  iconSize: 22,
+                  density: VisualDensity.compact,
+                ),
+                const Spacer(),
+                IconButton(
+                  tooltip: '上一首',
+                  iconSize: 30,
+                  icon: Icon(Icons.skip_previous_rounded,
+                      color: _player.hasPrevious
+                          ? scheme.onSurface
+                          : scheme.outlineVariant),
+                  onPressed:
+                      _player.hasPrevious ? () => _player.previous() : null,
+                ),
+                const SizedBox(width: 4),
+                PressScale(
+                  child: Semantics(
+                    button: true,
+                    label: _player.isPlaying ? '暂停' : '播放',
+                    child: Tooltip(
+                      message: _player.isPlaying ? '暂停' : '播放',
+                      child: GestureDetector(
+                        onTap: () => _player.togglePlayPause(),
+                        child: Container(
+                          width: 54,
+                          height: 54,
+                          decoration: BoxDecoration(
+                            color: scheme.primary,
+                            shape: BoxShape.circle,
+                          ),
+                          child: AnimatedSwitcher(
+                            duration: AppDesignTokens.motion(context,
+                                const Duration(milliseconds: 180)),
+                            transitionBuilder: (child, animation) =>
+                                ScaleTransition(scale: animation, child: child),
+                            child: Icon(
+                              _player.isPlaying
+                                  ? Icons.pause_rounded
+                                  : Icons.play_arrow_rounded,
+                              key: ValueKey(_player.isPlaying),
+                              size: 32,
+                              color: scheme.onPrimary,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
+                ),
+                const SizedBox(width: 4),
+                IconButton(
+                  tooltip: '下一首',
+                  iconSize: 30,
+                  icon: Icon(Icons.skip_next_rounded,
+                      color: _player.hasNext
+                          ? scheme.onSurface
+                          : scheme.outlineVariant),
+                  onPressed: _player.hasNext ? () => _player.next() : null,
+                ),
+                const Spacer(),
                 IconButton(
                   tooltip: '隐藏悬浮球',
+                  iconSize: 22,
+                  visualDensity: VisualDensity.compact,
                   icon: Icon(Icons.visibility_off_outlined,
-                      size: 19, color: scheme.primary),
+                      color: scheme.onSurfaceVariant),
                   onPressed: () => _confirmHideBall(context),
                 ),
               ],
             ),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                GestureDetector(
-                  onTap: () => _openNowPlaying(context),
-                  child: PortableCover(song: song, size: 52, radius: 8),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => _openNowPlaying(context),
-                    behavior: HitTestBehavior.opaque,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+            if (widget.onOpenLibrary != null) ...[
+              const SizedBox(height: 8),
+              PressScale(
+                scale: 0.98,
+                child: GestureDetector(
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    widget.onOpenLibrary!();
+                  },
+                  child: Container(
+                    height: 42,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: AppSurfaces.inset(context),
+                      borderRadius:
+                          BorderRadius.circular(AppDesignTokens.radiusSmall),
+                    ),
+                    child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        Icon(Icons.queue_music_rounded,
+                            size: 18, color: scheme.primary),
+                        const SizedBox(width: 6),
                         Text(
-                          song.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                          '播放列表',
                           style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: scheme.onSurface,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          song.artist.isEmpty ? '未知艺术家' : song.artist,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: scheme.onSurfaceVariant,
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w600,
+                            color: scheme.primary,
                           ),
                         ),
                       ],
                     ),
                   ),
                 ),
-                IconButton(
-                  tooltip: '上一首',
-                  icon: Icon(Icons.skip_previous, color: scheme.onSurface),
-                  onPressed:
-                      _player.hasPrevious ? () => _player.previous() : null,
-                ),
-                IconButton(
-                  tooltip: _player.isPlaying ? '暂停' : '播放',
-                  icon: Icon(
-                    _player.isPlaying ? Icons.pause_circle : Icons.play_circle,
-                    size: 34,
-                    color: scheme.primary,
-                  ),
-                  onPressed: () => _player.togglePlayPause(),
-                ),
-                IconButton(
-                  tooltip: '下一首',
-                  icon: Icon(Icons.skip_next, color: scheme.onSurface),
-                  onPressed: _player.hasNext ? () => _player.next() : null,
-                ),
-              ],
-            ),
-            Row(
-              children: [
-                Text(
-                  _fmt(Duration(milliseconds: (value * totalMs).round())),
-                  style:
-                      TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
-                ),
-                Expanded(
-                  child: SliderTheme(
-                    data: SliderTheme.of(context).copyWith(
-                      trackHeight: 2.5,
-                      thumbShape:
-                          const RoundSliderThumbShape(enabledThumbRadius: 6),
-                      overlayShape:
-                          const RoundSliderOverlayShape(overlayRadius: 12),
-                    ),
-                    child: Slider(
-                      value: value,
-                      onChanged: totalMs <= 0
-                          ? null
-                          : (v) => setState(() => _dragValue = v),
-                      onChangeEnd: (v) async {
-                        final target =
-                            Duration(milliseconds: (v * totalMs).round());
-                        setState(() => _dragValue = null);
-                        await _player.seek(target);
-                      },
-                    ),
-                  ),
-                ),
-                Text(
-                  _fmt(duration),
-                  style:
-                      TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
-                ),
-              ],
-            ),
+              ),
+            ],
           ],
         ),
       ),
@@ -681,7 +739,7 @@ class _PortableMiniCardState extends State<PortableMiniCard> {
   Future<void> _confirmHideBall(BuildContext context) async {
     final choice = await showDialog<_BallHideChoice>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
+      builder: (dialogContext) => AppAlertDialog(
         title: const Text('隐藏悬浮球'),
         content: const Text('可以继续播放并稍后回到随身听重新唤起，或同时暂停播放并移除通知栏音乐。'),
         actions: [

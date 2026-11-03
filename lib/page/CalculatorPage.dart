@@ -1,9 +1,12 @@
-import 'package:my_first_flutter_app/widgets/NoRipple.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
-import 'package:my_first_flutter_app/utils/CommonWidgetUtil.dart';
+import 'package:my_first_flutter_app/utils/CoverUtil.dart';
 import '../utils/AppDesignTokens.dart';
+import 'AchievementFullReverseCalculatorPage.dart';
+import '../widgets/AppUi.dart';
+import '../widgets/BackgroundPageScaffold.dart';
+import '../widgets/MarqueeText.dart';
 
 // ============================================================================
 // 共享：达成率-评级-倍率对照表（与 SongInfoPage 行 100-119 /
@@ -57,20 +60,15 @@ const List<int> _noteWeights = [_tapWeight, _holdWeight, _slideWeight, _touchWei
 // 5 列判定对应的填色（与 AchievementFullReverseCalculatorPage._buildNormalNoteTable 一致）
 // 顺序：[CP, PF, GR, GD, MS]（普通音符 5 档判定）
 const List<Color> _judgmentFillColors = [
-  Color(0xFFFFE082), // CP: Colors.yellow[200]!
-  Color(0xFFFFCA28), // PF: Colors.yellow[400]!
-  Color(0xFFEF9A9A), // GR: Colors.pink[200]!
-  Color(0xFFA5D6A7), // GD: Colors.green[200]!
-  Color(0xFFE0E0E0), // MS: Colors.grey[200]!
+  Color(0x38E8B400), // CP: Colors.yellow[200]!
+  Color(0x4DF0CF5A), // PF: Colors.yellow[400]!
+  Color(0x33D9467A), // GR: Colors.pink[200]!
+  Color(0x332F8F55), // GD: Colors.green[200]!
+  Color(0x2E8A9493), // MS: Colors.grey[200]!
 ];
 
-// 行标签底色（与 AchievementFullReverseCalculator 一致：浅蓝 100）
-Color _noteRowFillColor(Brightness brightness) =>
-    brightness == Brightness.dark ? Colors.blueGrey.shade800 : Colors.lightBlue.shade100;
-
-// 表头角落底色（与得分失分详细表格表头第一格一致：深色 grey.shade800 / 浅色 0xFFEFEFEF）
-Color _headerCornerFillColor(Brightness brightness) =>
-    brightness == Brightness.dark ? Colors.grey.shade800 : const Color(0xFFEFEFEF);
+// 行标签和表头角落的底色：半透明中性色，深浅色都能用。
+Color _noteRowFillColor(Brightness brightness) => const Color(0x1A808080);
 
 // ============================================================================
 // 共享算法：定数 + 达成率 → 单曲 Rating（与 SongInfoPage 行 1587-1611 一致）
@@ -201,7 +199,7 @@ _AchievementBreakdown _calculateAchievementBreakdown({
 // ============================================================================
 // CalculatorPage（顶层入口）
 // ============================================================================
-class CalculatorPage extends StatelessWidget {
+class CalculatorPage extends StatefulWidget {
   final String songId;
   final String songTitle;
   final String songType;
@@ -228,99 +226,126 @@ class CalculatorPage extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final brightness = Theme.of(context).brightness;
-    final colorScheme = Theme.of(context).colorScheme;
-    final primaryText = AppColors.primaryText(brightness);
+  State<CalculatorPage> createState() => _CalculatorPageState();
+}
 
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        // 防止键盘弹起时挤压背景导致卡顿
-        resizeToAvoidBottomInset: false,
-        body: Stack(
-          children: [
-            // 与同类计算器页面一致：通用背景 + Chiffon 背景
-            CommonWidgetUtil.buildCommonBgWidget(),
-            CommonWidgetUtil.buildCommonChiffonBgWidget(context),
-            // 页面主体
-            Column(
+class _CalculatorPageState extends State<CalculatorPage> {
+  int _tab = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final colors = AppColors.difficultyBadge(
+        widget.difficultyIndex, Theme.of(context).brightness);
+    return BackgroundPageScaffold(
+      title: '计算工具',
+      // 防止键盘弹起时挤压背景导致卡顿
+      resizeToAvoidBottomInset: false,
+      contentPadding:
+          EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+                AppDesignTokens.gutter, 4, AppDesignTokens.gutter, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // 顶部状态栏安全区 + 自定义标题栏
-                SafeArea(
-                  bottom: false,
-                  child: Container(
-                    padding: const EdgeInsets.fromLTRB(8, 8, 16, 8),
-                    child: Row(
-                      children: [
-                        IconButton(
-                          icon: Icon(Icons.arrow_back, color: colorScheme.onSurface),
-                          onPressed: () => Navigator.of(context).pop(),
-                        ),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                '计算工具',
-                                style: TextStyle(
-                                  fontSize: 21,
-                                  fontWeight: FontWeight.bold,
-                                  color: primaryText,
-                                ),
-                              ),
-                              Text(
-                                '当前为 [$songType] $songTitle [$difficultyLabel] 的数据',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: AppColors.secondaryText(brightness),
-                                  fontWeight: FontWeight.normal,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                // TabBar
-                Container(
-                  color: colorScheme.surface,
-                  child: TabBar(
-                    labelColor: AppColors.linkBlue(brightness),
-                    unselectedLabelColor: AppColors.secondaryText(brightness),
-                    indicatorColor: AppColors.linkBlue(brightness),
-                    tabs: const [
-                      Tab(text: '分数线/绝赞分布计算'),
-                      Tab(text: 'RATING线计算'),
-                    ],
-                  ),
-                ),
-                // Tab 内容
-                Expanded(
-                  child: TabBarView(
+                // 当前谱面
+                AppCard(
+                  radius: AppDesignTokens.radiusMedium,
+                  padding: const EdgeInsets.all(10),
+                  child: Row(
                     children: [
-                      _ScoreLineTab(
-                        noteCounts: noteCounts,
-                        userAchievement: userAchievement,
-                        fitDiff: fitDiff,
+                      ClipRRect(
+                        borderRadius:
+                            BorderRadius.circular(AppDesignTokens.radiusSmall),
+                        child: CoverUtil.buildCoverWidgetWithContext(
+                            context, widget.songId, 52),
                       ),
-                      _RatingLineTab(
-                        ds: ds,
-                        fitDiff: fitDiff,
-                        userAchievement: userAchievement,
-                        userRating: userRating,
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                SongTypeBadge(
+                                    songId: widget.songId,
+                                    type: widget.songType),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: MarqueeText(
+                                    text: widget.songTitle,
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700,
+                                      color: scheme.onSurface,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                AppBadge(
+                                  text: widget.difficultyLabel,
+                                  background: colors.background,
+                                  foreground: colors.foreground,
+                                  fontSize: 11,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  '定数 ${widget.ds.toStringAsFixed(1)}',
+                                  style: AppTheme.number(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: scheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
+                ),
+                const SizedBox(height: AppDesignTokens.cardGap),
+                SegmentedTabs(
+                  items: const [
+                    SegmentedTabItem('分数线 / 绝赞分布'),
+                    SegmentedTabItem('Rating 线'),
+                  ],
+                  selectedIndex: _tab,
+                  onChanged: (index) => setState(() => _tab = index),
                 ),
               ],
             ),
-          ],
-        ),
+          ),
+          // 两个标签页都保留状态，切回来输入的内容还在。
+          Expanded(
+            child: IndexedStack(
+              index: _tab,
+              sizing: StackFit.expand,
+              children: [
+                _ScoreLineTab(
+                  noteCounts: widget.noteCounts,
+                  userAchievement: widget.userAchievement,
+                  fitDiff: widget.fitDiff,
+                ),
+                _RatingLineTab(
+                  ds: widget.ds,
+                  fitDiff: widget.fitDiff,
+                  userAchievement: widget.userAchievement,
+                  userRating: widget.userRating,
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -401,9 +426,16 @@ class _RatingLineTabState extends State<_RatingLineTab> {
     final brightness = Theme.of(context).brightness;
     final primaryText = AppColors.primaryText(brightness);
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
+    // 输入框不能放进会回收子项的列表（§22.13）；底部给键盘留白。
+    return SingleChildScrollView(
+      padding: EdgeInsets.fromLTRB(
+          AppDesignTokens.gutter,
+          AppDesignTokens.cardGap,
+          AppDesignTokens.gutter,
+          AppDesignTokens.gutter + MediaQuery.viewInsetsOf(context).bottom),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
         // 模式选择（用 ChoiceChip + Wrap，避免 RadioListTile 在窄列里竖排一个字一行）
         _buildCard(
           screenWidth: screenWidth,
@@ -413,32 +445,16 @@ class _RatingLineTabState extends State<_RatingLineTab> {
             children: [
               _buildSectionTitle('计算模式', screenWidth, brightness),
               const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  NoRipple(
-                    child: ChoiceChip(
-                      label: const Text('按定数计算'),
-                      selected: _mode == 0,
-                      onSelected: (_) => _selectMode(0),
-                    ),
-                  ),
-                  NoRipple(
-                    child: ChoiceChip(
-                      label: const Text('按达成率计算'),
-                      selected: _mode == 1,
-                      onSelected: (_) => _selectMode(1),
-                    ),
-                  ),
-                  NoRipple(
-                    child: ChoiceChip(
-                      label: const Text('按Rating计算'),
-                      selected: _mode == 2,
-                      onSelected: (_) => _selectMode(2),
-                    ),
-                  ),
+              PillTabs(
+                items: const [
+                  SegmentedTabItem('按定数'),
+                  SegmentedTabItem('按达成率'),
+                  SegmentedTabItem('按 Rating'),
                 ],
+                selectedIndex: _mode,
+                onChanged: (mode) {
+                  if (mode != _mode) _selectMode(mode);
+                },
               ),
             ],
           ),
@@ -465,7 +481,6 @@ class _RatingLineTabState extends State<_RatingLineTab> {
                         FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
                       ],
                       decoration: InputDecoration(
-                        border: const OutlineInputBorder(),
                         hintText: _inputHint(),
                         isDense: true,
                       ),
@@ -487,7 +502,6 @@ class _RatingLineTabState extends State<_RatingLineTab> {
                           FilteringTextInputFormatter.digitsOnly,
                         ],
                         decoration: const InputDecoration(
-                          border: OutlineInputBorder(),
                           hintText: '如 5',
                           isDense: true,
                         ),
@@ -517,8 +531,9 @@ class _RatingLineTabState extends State<_RatingLineTab> {
             ],
           ),
         ),
-      ],
-    );
+              ],
+      ),
+);
   }
 
   String _inputLabel() {
@@ -546,7 +561,7 @@ class _RatingLineTabState extends State<_RatingLineTab> {
   Widget _buildResultTable(double screenWidth) {
     final input = double.tryParse(_inputController.text) ?? 0.0;
     final brightness = Theme.of(context).brightness;
-    final borderColor = AppColors.tableBorder(brightness);
+    final borderColor = Theme.of(context).colorScheme.outlineVariant;
 
     final List<List<String>> rows = [];
     if (_mode == 0) {
@@ -672,10 +687,10 @@ class _RatingLineTabState extends State<_RatingLineTab> {
       border: TableBorder(
         horizontalInside: BorderSide(color: borderColor, width: 1),
         verticalInside: BorderSide(color: borderColor, width: 1),
-        top: BorderSide(color: AppColors.tableBorder(brightness), width: 1.5),
-        bottom: BorderSide(color: AppColors.tableBorder(brightness), width: 1.5),
-        left: BorderSide(color: AppColors.tableBorder(brightness), width: 1.5),
-        right: BorderSide(color: AppColors.tableBorder(brightness), width: 1.5),
+        top: BorderSide(color: Theme.of(context).colorScheme.outlineVariant, width: 1),
+        bottom: BorderSide(color: Theme.of(context).colorScheme.outlineVariant, width: 1),
+        left: BorderSide(color: Theme.of(context).colorScheme.outlineVariant, width: 1),
+        right: BorderSide(color: Theme.of(context).colorScheme.outlineVariant, width: 1),
       ),
       columnWidths: const {
         0: FlexColumnWidth(1.4),
@@ -684,11 +699,7 @@ class _RatingLineTabState extends State<_RatingLineTab> {
       },
       children: [
         TableRow(
-          decoration: BoxDecoration(
-            color: brightness == Brightness.dark
-                ? Colors.grey.shade800
-                : const Color(0xFFEFEFEF),
-          ),
+          decoration: const BoxDecoration(color: Color(0x1A808080)),
           children: [
             _cell('定数', screenWidth, brightness, bold: true),
             // 达成率表头：可点击切换正/倒序
@@ -703,9 +714,7 @@ class _RatingLineTabState extends State<_RatingLineTab> {
         for (int i = 0; i < rows.length; i++)
           TableRow(
             decoration: BoxDecoration(
-              color: i.isEven
-              ? (brightness == Brightness.dark ? Colors.grey.shade900 : Colors.white)
-              : (brightness == Brightness.dark ? Colors.grey.shade800 : const Color(0xFFF7F7F7)),
+              color: i.isEven ? null : const Color(0x0D808080),
             ),
             children: [
               _cell(rows[i][0], screenWidth, brightness),
@@ -756,19 +765,9 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
   late final List<TextEditingController> _noteCountCtrls;
   // 目标达成率（上方"目标达成率"卡用）
   late final TextEditingController _targetCtrl;
-  // 绝赞分布计算的目标达成率（独立于上方）
-  late final TextEditingController _reverseTargetCtrl;
-
-  // 5×5 绝赞分布输入：5 行 × 5 列（CP/PF/GR/GD/MS）
-  // 第 5 行 BREAK 用 CP/P/GR/Go/M
-  late final List<List<TextEditingController>> _excellentCtrls;
 
   // 分数模式：0=0+, 1=100-, 2=101-
   int _scoreMode = 0;
-
-  // 绝赞反推计算状态
-  String? _reverseResultText;
-  bool _calculatingReverse = false;
 
   @override
   void initState() {
@@ -781,33 +780,12 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
     _targetCtrl = TextEditingController(
       text: widget.userAchievement?.toStringAsFixed(4) ?? '101.0000',
     );
-    _reverseTargetCtrl = TextEditingController(
-      text: widget.userAchievement?.toStringAsFixed(4) ?? '101.0000',
-    );
-
-    // 5×5 绝赞分布输入：5 行 × 5 列（CP/PF/GR/GD/MS）
-    // 第 5 行 BREAK 用 CP/P/GR/Go/M
-    // 默认全部填为 CP（即第 0 列 = 各 note 总数，其余 4 列 = 0）
-    _excellentCtrls = List.generate(
-      5,
-      (i) => [
-        TextEditingController(text: widget.noteCounts[i].toString()), // CP
-        TextEditingController(text: '0'),                              // PF
-        TextEditingController(text: '0'),                              // GR
-        TextEditingController(text: '0'),                              // GD
-        TextEditingController(text: '0'),                              // MS
-      ],
-    );
   }
 
   @override
   void dispose() {
     for (final c in _noteCountCtrls) c.dispose();
     _targetCtrl.dispose();
-    _reverseTargetCtrl.dispose();
-    for (final row in _excellentCtrls) {
-      for (final c in row) c.dispose();
-    }
     super.dispose();
   }
 
@@ -816,9 +794,16 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
     final screenWidth = MediaQuery.of(context).size.width;
     final brightness = Theme.of(context).brightness;
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
+    // 输入框不能放进会回收子项的列表（§22.13）；底部给键盘留白。
+    return SingleChildScrollView(
+      padding: EdgeInsets.fromLTRB(
+          AppDesignTokens.gutter,
+          AppDesignTokens.cardGap,
+          AppDesignTokens.gutter,
+          AppDesignTokens.gutter + MediaQuery.viewInsetsOf(context).bottom),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
         // ---- note 总数输入 ----
         _buildCard(
           screenWidth: screenWidth,
@@ -850,7 +835,6 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
                               ],
                               textAlign: TextAlign.center,
                               decoration: const InputDecoration(
-                                border: OutlineInputBorder(),
                                 isDense: true,
                                 contentPadding: EdgeInsets.symmetric(vertical: 8),
                               ),
@@ -874,29 +858,16 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildSectionTitle('得分/失分详细', screenWidth, brightness),
-                  ),
-                  Text('分数模式',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.secondaryText(brightness),
-                      )),
-                  const SizedBox(width: 8),
-                  DropdownButton<int>(
-                    value: _scoreMode,
-                    items: const [
-                      DropdownMenuItem(value: 0, child: Text('0+')),
-                      DropdownMenuItem(value: 1, child: Text('100-')),
-                      DropdownMenuItem(value: 2, child: Text('101-')),
-                    ],
-                    onChanged: (v) {
-                      if (v != null) setState(() => _scoreMode = v);
-                    },
-                  ),
+              _buildSectionTitle('得分 / 失分详细', screenWidth, brightness),
+              const SizedBox(height: 8),
+              PillTabs(
+                items: const [
+                  SegmentedTabItem('0+'),
+                  SegmentedTabItem('100-'),
+                  SegmentedTabItem('101-'),
                 ],
+                selectedIndex: _scoreMode,
+                onChanged: (mode) => setState(() => _scoreMode = mode),
               ),
               const SizedBox(height: 8),
               _buildAchievementDetailGrid(screenWidth, brightness),
@@ -923,10 +894,15 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
         ),
         const SizedBox(height: 12),
 
-        // ---- 绝赞分布（可展开） ----
-        _buildExcellentPanel(screenWidth, brightness),
-      ],
-    );
+        // ---- 绝赞分布：与「达成率反推」同一套输入和结果 ----
+        AchievementReversePanel(
+          title: '绝赞分布计算',
+          initialCounts: widget.noteCounts,
+          initialRate: widget.userAchievement?.toStringAsFixed(4) ?? '101.0000',
+        ),
+              ],
+      ),
+);
   }
 
   // 计算单个格子的得分/失分（按 _scoreMode 区分）
@@ -985,8 +961,8 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
           (isBreak && breakNum > 0) ? extraCoefficient / breakNum : 0.0;
 
       if (isBreak && baseCoefficient == 1.00) {
-        // BREAK PERFECT 列：+reward
-        return '+${reward.toStringAsFixed(4)}%';
+        // BREAK PERFECT 列：reward
+        return '${reward.toStringAsFixed(4)}%';
       }
 
       if (isBreak) {
@@ -1015,10 +991,8 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
         .entries
         .fold<int>(0, (sum, e) => sum + e.value * _noteWeights[e.key]);
 
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: AppColors.tableBorder(brightness), width: 1.5),
-      ),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -1040,9 +1014,7 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
   // 表格表头：空 + PERFECT + GREAT + GOOD + MISS
   Widget _buildTableHeaderRow(double screenWidth, Brightness brightness) {
     final labels = ['', 'PERFECT', 'GREAT', 'GOOD', 'MISS'];
-    final darkBg = brightness == Brightness.dark
-        ? Colors.grey.shade800
-        : const Color(0xFFEFEFEF);
+    const darkBg = Color(0x1A808080);
     // 4 个判定列着色（与下方绝赞分布表一致）
     final headerColors = <Color?>[
       darkBg,
@@ -1051,7 +1023,7 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
       _judgmentFillColors[3], // GOOD    → green200
       _judgmentFillColors[4], // MISS    → grey200
     ];
-    final border = AppColors.tableBorder(brightness);
+    final border = Theme.of(context).colorScheme.outlineVariant;
     return Row(
       children: [
         for (int i = 0; i < labels.length; i++)
@@ -1068,9 +1040,9 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
               // 仅最左 cell 画 outer left；中间 cell 不画 left border，
               // 否则会与左侧 cell 的 borderRight 叠加，形成加粗竖线
               borderLeft: i == 0
-                  ? BorderSide(color: border, width: 1.5) // 表格最左边外框
+                  ? BorderSide(color: border, width: 1) // 表格最左边外框
                   : BorderSide.none,
-              borderTop: BorderSide(color: border, width: 1.5), // 表格最上边外框
+              borderTop: BorderSide(color: border, width: 1), // 表格最上边外框
               borderBottom: BorderSide(color: border, width: 1), // 表头与数据分隔（内格线）
               borderRight: BorderSide(
                 color: border,
@@ -1094,13 +1066,13 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
     final List<double> coefficients = [1.00, 0.80, 0.50, 0.00];
     // 4 个判定列的填色（与下方绝赞分布表一致）
     const List<Color> rowJudgmentColors = [
-      Color(0xFFFFCA28), // PERFECT → yellow400
-      Color(0xFFEF9A9A), // GREAT   → pink200
-      Color(0xFFA5D6A7), // GOOD    → green200
-      Color(0xFFE0E0E0), // MISS    → grey200
+      Color(0x4DF0CF5A), // PERFECT → yellow400
+      Color(0x33D9467A), // GREAT   → pink200
+      Color(0x332F8F55), // GOOD    → green200
+      Color(0x2E8A9493), // MISS    → grey200
     ];
     final rowH = _rowHeight(screenWidth);
-    final border = AppColors.tableBorder(brightness);
+    final border = Theme.of(context).colorScheme.outlineVariant;
     return Row(
       children: [
         // 行标签列（6）
@@ -1113,7 +1085,7 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
             rowHeight: rowH,
             screenWidth: screenWidth,
             brightness: brightness,
-            borderLeft: BorderSide(color: border, width: 1.5), // 表格最左边外框
+            borderLeft: BorderSide(color: border, width: 1), // 表格最左边外框
             borderRight: BorderSide(color: border, width: 1), // 内格线
             borderBottom: BorderSide(color: border, width: 1), // 内格线
           ),
@@ -1156,7 +1128,7 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
   Widget _buildBreakRow(int totalWeight, double screenWidth, Brightness brightness) {
     final rowH = _rowHeight(screenWidth);
     final breakRowH = rowH * 3;
-    final border = AppColors.tableBorder(brightness);
+    final border = Theme.of(context).colorScheme.outlineVariant;
 
     // 列间竖向分隔线（3 行高）
     Widget verticalDivider() => Container(
@@ -1187,7 +1159,7 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
           style: TextStyle(
             fontSize: 11,
             color: color != null
-                ? Colors.black87
+                ? AppColors.primaryText(brightness)
                 : AppColors.primaryText(brightness),
           ),
         ),
@@ -1204,7 +1176,7 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
           color: color,
           border: Border(
             right: BorderSide(color: border, width: 1),
-            bottom: BorderSide(color: border, width: 1.5), // 表格最下边外框
+            bottom: BorderSide(color: border, width: 1), // 表格最下边外框
           ),
         ),
         child: Text(
@@ -1213,7 +1185,7 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
           style: TextStyle(
             fontSize: 11,
             color: color != null
-                ? Colors.black87
+                ? AppColors.primaryText(brightness)
                 : AppColors.primaryText(brightness),
           ),
         ),
@@ -1232,9 +1204,9 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
             decoration: BoxDecoration(
               color: _noteRowFillColor(brightness),
               border: Border(
-                left: BorderSide(color: border, width: 1.5), // 表格最左边外框
+                left: BorderSide(color: border, width: 1), // 表格最左边外框
                 right: BorderSide(color: border, width: 1), // 内格线
-                bottom: BorderSide(color: border, width: 1.5), // 表格最下边外框
+                bottom: BorderSide(color: border, width: 1), // 表格最下边外框
               ),
             ),
             child: Text(
@@ -1318,8 +1290,8 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
             decoration: BoxDecoration(
               color: _judgmentFillColors[4], // MISS → grey200
               border: Border(
-                right: BorderSide(color: border, width: 1.5), // 表格最右边外框
-                bottom: BorderSide(color: border, width: 1.5), // 表格最下边外框
+                right: BorderSide(color: border, width: 1), // 表格最右边外框
+                bottom: BorderSide(color: border, width: 1), // 表格最下边外框
               ),
             ),
             child: Text(
@@ -1327,7 +1299,7 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 11,
-                color: Colors.black87,
+                color: AppColors.primaryText(brightness),
               ),
             ),
           ),
@@ -1338,7 +1310,7 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
 
   // 单格高度（约屏幕高度的 4%）
   double _rowHeight(double screenWidth) =>
-      MediaQuery.of(context).size.height * 0.04;
+      34.0;
 
   // 通用单格渲染（用于表头 / 普通行）
   Widget _buildCell({
@@ -1362,15 +1334,18 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
       ),
       alignment: Alignment.center,
       padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.01),
-      child: Text(
-        text,
-        textAlign: TextAlign.center,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: isHeader ? FontWeight.bold : FontWeight.normal,
-          color: darkText ? Colors.black87 : AppColors.primaryText(brightness),
+      // 窄屏放不下时等比缩小，数字不换行也不省略
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(
+          text,
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          style: AppTheme.number(
+            fontSize: 11,
+            fontWeight: isHeader ? FontWeight.w700 : FontWeight.w500,
+            color: AppColors.primaryText(brightness),
+          ),
         ),
       ),
     );
@@ -1392,77 +1367,73 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
     final tapGreatEquivalentForTarget =
         singleTapGreatLoss > 0 ? ((101.0 - target) / singleTapGreatLoss) : 0.0;
 
+    final scheme = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // 左侧：目标达成率 标签
-            SizedBox(
-              width: screenWidth * 0.25,
-              child: Text(
-                '目标达成率',
-                textAlign: TextAlign.end,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.linkBlue(brightness),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            // 中间：输入框居中
             Expanded(
-              child: Center(
-                child: SizedBox(
-                  width: screenWidth * 0.3,
-                  child: TextField(
-                    controller: _targetCtrl,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
-                    ],
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                    ),
-                    style: TextStyle(fontSize: 14),
-                    onChanged: (v) {
-                      final parsed = double.tryParse(v);
-                      if (parsed != null && parsed > 101.0) {
-                        _targetCtrl.text = '101';
-                        _targetCtrl.selection = TextSelection.collapsed(
-                          offset: _targetCtrl.text.length,
-                        );
-                      }
-                      setState(() {});
-                    },
-                  ),
-                ),
-              ),
+              child: _buildSectionTitle('目标达成率', screenWidth, brightness),
             ),
-            const SizedBox(width: 8),
-            // 右侧：状态徽章
-            SizedBox(
-              width: screenWidth * 0.2,
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: _buildTargetStatusBadge(screenWidth, brightness),
-              ),
-            ),
+            _buildTargetStatusBadge(screenWidth, brightness),
           ],
         ),
         const SizedBox(height: 8),
-        // 容错信息单独成行居中
-        Center(
-          child: Text(
-            '达成 ${target.toStringAsFixed(4)}% 容错为 ${tapGreatEquivalentForTarget.toStringAsFixed(3)} 个 TAP GREAT',
-            style: TextStyle(
-              fontSize: 11,
-              color: AppColors.secondaryText(brightness),
-            ),
+        TextField(
+          controller: _targetCtrl,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+          ],
+          decoration: const InputDecoration(
+            isDense: true,
+            suffixText: '%',
+          ),
+          style: AppTheme.number(
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            color: scheme.onSurface,
+          ),
+          onChanged: (v) {
+            final parsed = double.tryParse(v);
+            if (parsed != null && parsed > 101.0) {
+              _targetCtrl.text = '101';
+              _targetCtrl.selection = TextSelection.collapsed(
+                offset: _targetCtrl.text.length,
+              );
+            }
+            setState(() {});
+          },
+        ),
+        const SizedBox(height: 10),
+        // 容错
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: scheme.primary.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                tapGreatEquivalentForTarget.toStringAsFixed(3),
+                style: AppTheme.number(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  color: scheme.primary,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '个 TAP GREAT 的容错',
+                  style: TextStyle(fontSize: 12, color: scheme.primary),
+                ),
+              ),
+            ],
           ),
         ),
       ],
@@ -1475,22 +1446,14 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
     final currentValue = double.tryParse(_targetCtrl.text) ?? 0.0;
     final isUserData =
         widget.userAchievement != null && currentValue == widget.userAchievement;
-    final bgColor = isUserData ? Colors.green.shade100 : Colors.orange.shade100;
-    final fgColor = isUserData ? Colors.green.shade800 : Colors.orange.shade800;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        isUserData ? '用户数据' : '自定义',
-        style: TextStyle(
-          fontSize: 11,
-          color: fgColor,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
+    final color = isUserData
+        ? AppColors.successForeground(brightness)
+        : AppColors.warningOrange(brightness);
+    return AppBadge(
+      text: isUserData ? '用户数据' : '自定义',
+      background: color.withValues(alpha: 0.14),
+      foreground: color,
+      fontSize: 11,
     );
   }
 
@@ -1524,486 +1487,33 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
           ? (1.0 - base) * 25.0 + (1.0 - extra) * totalWeight / (20.0 * breakNum)
           : 0.0;
       widgets.add(
-        Center(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 2),
-            child: Text(
-              'BREAK ${sub['label']}相当于 ${equivalent.toStringAsFixed(3)} 个 TAP GREAT',
-              style: TextStyle(
-                fontSize: 11,
-                color: AppColors.secondaryText(brightness),
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 3),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'BREAK ${sub['label']}',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: AppColors.secondaryText(brightness),
+                  ),
+                ),
               ),
-            ),
+              Text(
+                '${equivalent.toStringAsFixed(3)} 个 TAP GREAT',
+                style: AppTheme.number(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.primaryText(brightness),
+                ),
+              ),
+            ],
           ),
         ),
       );
     }
     return widgets;
-  }
-
-  // 构建 5×6 填色表格（note 类型 × 5 种判定 CP/PF/GR/GD/MS），Table 实现
-  Widget _buildExcellentTable(double screenWidth, Brightness brightness) {
-    final cellFontSize = screenWidth * 0.03;
-    // labelCell 背景为 theme-aware 颜色（_noteRowFillColor），用主题感知文字色
-    Widget labelCell(String text) => _buildTableCell(text,
-        color: _noteRowFillColor(brightness), fontSize: cellFontSize);
-    // headerCell 背景为固定 pastel 色（_judgmentFillColors），强制黑字
-    Widget headerCell(String text, int colorIdx, {double? fontSize}) =>
-        _buildTableCell(text,
-            color: _judgmentFillColors[colorIdx],
-            fontSize: fontSize ?? cellFontSize,
-            darkText: true);
-    Widget inputCell(int i, int j) => _buildNumberInputCell(
-          value: int.tryParse(_excellentCtrls[i][j].text) ?? 0,
-          controller: _excellentCtrls[i][j],
-          color: _judgmentFillColors[j],
-        );
-
-    return Table(
-      border: TableBorder(
-        // 内格线 1px
-        horizontalInside: BorderSide(color: AppColors.tableBorder(brightness), width: 1),
-        verticalInside: BorderSide(color: AppColors.tableBorder(brightness), width: 1),
-        // 外围 1.5px
-        top: BorderSide(color: AppColors.tableBorder(brightness), width: 1.5),
-        bottom: BorderSide(color: AppColors.tableBorder(brightness), width: 1.5),
-        left: BorderSide(color: AppColors.tableBorder(brightness), width: 1.5),
-        right: BorderSide(color: AppColors.tableBorder(brightness), width: 1.5),
-      ),
-      children: [
-        // 表头（CRITICAL PERFECT 字号调小，与源页 _buildNormalNoteTable 保持一致）
-        TableRow(
-          children: [
-            _buildTableCell('', color: _headerCornerFillColor(brightness), fontSize: cellFontSize),
-            headerCell('CRITICAL\nPERFECT', 0, fontSize: cellFontSize * 0.7),
-            headerCell('PERFECT', 1),
-            headerCell('GREAT', 2),
-            headerCell('GOOD', 3),
-            headerCell('MISS', 4),
-          ],
-        ),
-        // TAP 行
-        TableRow(
-          children: [
-            labelCell('TAP'),
-            inputCell(0, 0), // CP
-            inputCell(0, 1), // PF
-            inputCell(0, 2), // GR
-            inputCell(0, 3), // GD
-            inputCell(0, 4), // MS
-          ],
-        ),
-        // HOLD 行
-        TableRow(
-          children: [
-            labelCell('HOLD'),
-            inputCell(1, 0), // CP
-            inputCell(1, 1), // PF
-            inputCell(1, 2), // GR
-            inputCell(1, 3), // GD
-            inputCell(1, 4), // MS
-          ],
-        ),
-        // SLIDE 行
-        TableRow(
-          children: [
-            labelCell('SLIDE'),
-            inputCell(2, 0), // CP
-            inputCell(2, 1), // PF
-            inputCell(2, 2), // GR
-            inputCell(2, 3), // GD
-            inputCell(2, 4), // MS
-          ],
-        ),
-        // TOUCH 行
-        TableRow(
-          children: [
-            labelCell('TOUCH'),
-            inputCell(3, 0), // CP
-            inputCell(3, 1), // PF
-            inputCell(3, 2), // GR
-            inputCell(3, 3), // GD
-            inputCell(3, 4), // MS
-          ],
-        ),
-        // BREAK 行
-        TableRow(
-          children: [
-            labelCell('BREAK'),
-            inputCell(4, 0), // CP
-            inputCell(4, 1), // PF
-            inputCell(4, 2), // GR
-            inputCell(4, 3), // GD
-            inputCell(4, 4), // MS
-          ],
-        ),
-      ],
-    );
-  }
-
-  // 构建表格单元格：显式高度（screenHeight × 0.04）让背景填色撑满格子
-  // 不要用 SizedBox.expand，会让 Table.intrinsicRowHeight 测到 0 导致整行消失
-  // [darkText] true 时强制 Colors.black87（用于浅色 pastel 判定色背景，黑色可读）；
-  //             false 时使用主题感知颜色（用于深浅模式自动适配的 cell 背景）。
-  Widget _buildTableCell(String text, {Color? color, double fontSize = 12.0, bool darkText = false}) {
-    final screenHeight = MediaQuery.of(context).size.height;
-    final brightness = Theme.of(context).brightness;
-    final Color? textColor = darkText
-        ? Colors.black87
-        : AppColors.primaryText(brightness);
-    return Container(
-      height: screenHeight * 0.04,
-      decoration: BoxDecoration(color: color),
-      padding: EdgeInsets.symmetric(vertical: screenHeight * 0.005),
-      alignment: Alignment.center,
-      child: Text(
-        text,
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          fontWeight: FontWeight.bold,
-          fontSize: fontSize,
-          color: textColor,
-        ),
-      ),
-    );
-  }
-
-  // 构建数字输入单元格：显式高度让背景填色撑满
-  Widget _buildNumberInputCell({
-    required int value,
-    required TextEditingController controller,
-    required Color color,
-  }) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      height: screenHeight * 0.04,
-      decoration: BoxDecoration(color: color),
-      alignment: Alignment.center,
-      padding: EdgeInsets.zero,
-      margin: EdgeInsets.zero,
-      child: TextField(
-        controller: controller,
-        decoration: InputDecoration(
-          filled: false,
-          border: InputBorder.none,
-          hintText: value == 0 ? '' : value.toString(),
-          contentPadding: EdgeInsets.symmetric(
-              horizontal: screenWidth * 0.01,
-              vertical: screenHeight * 0.005),
-          isDense: true,
-        ),
-        keyboardType: TextInputType.number,
-        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          fontSize: 11,
-          color: isDark ? Colors.black87 : null,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildExcellentPanel(double screenWidth, Brightness brightness) {
-    return _buildCard(
-      screenWidth: screenWidth,
-      brightness: brightness,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // 标题
-          _buildSectionTitle('绝赞分布计算', screenWidth, brightness),
-          const SizedBox(height: 8),
-          // 5×6 填色表格（note 类型 × 5 种判定），复用 AchievementFullReverseCalculator 的填色配色
-          _buildExcellentTable(screenWidth, brightness),
-          const SizedBox(height: 12),
-          // 目标达成率输入（独立的 _reverseTargetCtrl）
-          _buildReverseTargetInputRow(screenWidth, brightness),
-          const SizedBox(height: 8),
-          // 计算按钮（移植 AchievementFullReverseCalculatorPage 的"计算绝赞详情"）
-          _buildReverseCalculateButton(screenWidth, brightness),
-          const SizedBox(height: 12),
-          // 结果显示
-          if (_reverseResultText != null)
-            _buildReverseResult(screenWidth, brightness),
-        ],
-      ),
-    );
-  }
-
-  // 反推目标达成率输入行（与 AchievementFullReverseCalculatorPage._buildAchievementRateInput 一致）
-  Widget _buildReverseTargetInputRow(double screenWidth, Brightness brightness) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        const Text('达成率: '),
-        SizedBox(
-          width: screenWidth * 0.3,
-          child: TextField(
-            controller: _reverseTargetCtrl,
-            decoration: InputDecoration(
-              filled: false,
-              border: const OutlineInputBorder(),
-              hintText: '四位小数',
-              contentPadding:
-                  EdgeInsets.symmetric(horizontal: screenWidth * 0.02),
-            ),
-            keyboardType:
-                const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,4}')),
-            ],
-            textAlign: TextAlign.center,
-            onChanged: (_) => setState(() {}),
-          ),
-        ),
-        SizedBox(width: screenWidth * 0.01),
-        const Text('%'),
-      ],
-    );
-  }
-
-  // 反推"计算绝赞详情"按钮（带 loading 状态）
-  Widget _buildReverseCalculateButton(double screenWidth, Brightness brightness) {
-    return Center(
-      child: ElevatedButton(
-        onPressed: _calculatingReverse ? null : _calculateFullReverse,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.linkBlue(brightness),
-          foregroundColor: Colors.white,
-          padding: EdgeInsets.symmetric(
-              vertical: screenWidth * 0.025,
-              horizontal: screenWidth * 0.08),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-          ),
-        ),
-        child: _calculatingReverse
-            ? Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SizedBox(
-                    width: screenWidth * 0.04,
-                    height: screenWidth * 0.04,
-                    child: const CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white),
-                  ),
-                  SizedBox(width: screenWidth * 0.025),
-                  const Text('计算中...'),
-                ],
-              )
-            : Text('计算绝赞详情',
-                style: TextStyle(fontSize: 14)),
-      ),
-    );
-  }
-
-  // 反推结果显示（与 AchievementFullReverseCalculatorPage 一致：✅/❌ + 50落/100落/80/60/50 + 基础/额外/总达成率/误差）
-  Widget _buildReverseResult(double screenWidth, Brightness brightness) {
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.all(screenWidth * 0.03),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-        border: Border.all(color: AppColors.linkBlue(brightness)),
-      ),
-      child: Text(
-        _reverseResultText!,
-        style: TextStyle(fontSize: 12, height: 1.5),
-      ),
-    );
-  }
-
-  // 绝赞反推核心逻辑（移植 AchievementFullReverseCalculatorPage._calculateFullReverse）
-  // 输入：5×5 表格（_excellentCtrls）、_reverseTargetCtrl 文本
-  // 思路：固定其他 note 总数，遍历 breakP 在 50落/100落 之间的分配，
-  //       遍历 breakG 在 80%/60%/50% 之间的分配，找最接近目标达成率的解。
-  void _calculateFullReverse() async {
-    if (_reverseTargetCtrl.text.isEmpty) {
-      _showReverseError('请输入目标达成率');
-      return;
-    }
-
-    double targetRate;
-    try {
-      targetRate = double.parse(_reverseTargetCtrl.text);
-      if (targetRate < 0 || targetRate > 101) {
-        _showReverseError('达成率请输入0~101之间的数值');
-        return;
-      }
-    } catch (e) {
-      _showReverseError('达成率格式错误，请输入有效的数字（如100.5000）');
-      return;
-    }
-
-    setState(() {
-      _calculatingReverse = true;
-      _reverseResultText = null;
-    });
-
-    await Future.delayed(const Duration(milliseconds: 100), () {
-      // 读取 5×5 输入
-      int tapCp   = int.tryParse(_excellentCtrls[0][0].text) ?? 0;
-      int tapP    = int.tryParse(_excellentCtrls[0][1].text) ?? 0;
-      int tapG    = int.tryParse(_excellentCtrls[0][2].text) ?? 0;
-      int tapGo   = int.tryParse(_excellentCtrls[0][3].text) ?? 0;
-      int tapM    = int.tryParse(_excellentCtrls[0][4].text) ?? 0;
-      int holdCp  = int.tryParse(_excellentCtrls[1][0].text) ?? 0;
-      int holdP   = int.tryParse(_excellentCtrls[1][1].text) ?? 0;
-      int holdG   = int.tryParse(_excellentCtrls[1][2].text) ?? 0;
-      int holdGo  = int.tryParse(_excellentCtrls[1][3].text) ?? 0;
-      int holdM   = int.tryParse(_excellentCtrls[1][4].text) ?? 0;
-      int slideCp = int.tryParse(_excellentCtrls[2][0].text) ?? 0;
-      int slideP  = int.tryParse(_excellentCtrls[2][1].text) ?? 0;
-      int slideG  = int.tryParse(_excellentCtrls[2][2].text) ?? 0;
-      int slideGo = int.tryParse(_excellentCtrls[2][3].text) ?? 0;
-      int slideM  = int.tryParse(_excellentCtrls[2][4].text) ?? 0;
-      int touchCp = int.tryParse(_excellentCtrls[3][0].text) ?? 0;
-      int touchP  = int.tryParse(_excellentCtrls[3][1].text) ?? 0;
-      int touchG  = int.tryParse(_excellentCtrls[3][2].text) ?? 0;
-      int touchGo = int.tryParse(_excellentCtrls[3][3].text) ?? 0;
-      int touchM  = int.tryParse(_excellentCtrls[3][4].text) ?? 0;
-      int breakCp = int.tryParse(_excellentCtrls[4][0].text) ?? 0;
-      int breakP  = int.tryParse(_excellentCtrls[4][1].text) ?? 0;
-      int breakG  = int.tryParse(_excellentCtrls[4][2].text) ?? 0;
-      int breakGo = int.tryParse(_excellentCtrls[4][3].text) ?? 0;
-      int breakM  = int.tryParse(_excellentCtrls[4][4].text) ?? 0;
-
-      // 各类型总数
-      int tapNum   = tapCp + tapP + tapG + tapGo + tapM;
-      int holdNum  = holdCp + holdP + holdG + holdGo + holdM;
-      int slideNum = slideCp + slideP + slideG + slideGo + slideM;
-      int touchNum = touchCp + touchP + touchG + touchGo + touchM;
-      int breakNum = breakCp + breakP + breakG + breakGo + breakM;
-
-      // 总权重
-      int totalTapWeight   = tapNum * _tapWeight;
-      int totalHoldWeight  = holdNum * _holdWeight;
-      int totalSlideWeight = slideNum * _slideWeight;
-      int totalTouchWeight = touchNum * _touchWeight;
-      int totalBreakWeight = breakNum * _breakWeight;
-      int totalWeight = totalTapWeight +
-          totalHoldWeight +
-          totalSlideWeight +
-          totalTouchWeight +
-          totalBreakWeight;
-
-      // 非 break 部分基础得分
-      double baseTap   = _tapWeight   * (tapCp   + tapP   + tapG   * 0.8 + tapGo   * 0.5);
-      double baseHold  = _holdWeight  * (holdCp  + holdP  + holdG  * 0.8 + holdGo  * 0.5);
-      double baseSlide = _slideWeight * (slideCp + slideP + slideG * 0.8 + slideGo * 0.5);
-      double baseTouch = _touchWeight * (touchCp + touchP + touchG * 0.8 + touchGo * 0.5);
-      double baseNonBreak = baseTap + baseHold + baseSlide + baseTouch;
-
-      // 反推迭代
-      bool found = false;
-      const double errorThreshold = 0.0001;
-      String result = '';
-      int bestP75 = 0, bestP50 = 0, bestG80 = 0, bestG60 = 0, bestG50 = 0;
-      double bestBaseScore = 0, bestExtraScore = 0, bestTotalScore = 0;
-      double minError = double.infinity;
-
-      for (int breakP75 = 0; breakP75 <= breakP; breakP75++) {
-        int breakP50 = breakP - breakP75;
-        for (int breakG80 = 0; breakG80 <= breakG; breakG80++) {
-          for (int breakG60 = 0; breakG60 <= breakG - breakG80; breakG60++) {
-            int breakG50 = breakG - breakG80 - breakG60;
-
-            // base: breakP 不论 50落/100落 都按 1.0 算
-            double baseBreak = _breakWeight *
-                (breakCp +
-                    breakP +
-                    breakG80 * 0.8 +
-                    breakG60 * 0.6 +
-                    breakG50 * 0.5 +
-                    breakGo * 0.4);
-            double baseTotal = baseNonBreak + baseBreak;
-            double baseScore = (baseTotal / totalWeight) * 100;
-            baseScore = double.parse(baseScore.toStringAsFixed(4));
-
-            // extra: breakP 50落=0.75, 100落=0.50; breakG 80/60/50 都 0.40
-            double extraBreak = breakCp +
-                breakP75 * 0.75 +
-                breakP50 * 0.50 +
-                (breakG80 + breakG60 + breakG50) * 0.40 +
-                breakGo * 0.30;
-            double extraScore = breakNum == 0 ? 0 : (extraBreak / breakNum);
-            extraScore = double.parse(extraScore.toStringAsFixed(4));
-
-            double totalScore = baseScore + extraScore;
-            totalScore = double.parse(totalScore.toStringAsFixed(4));
-            double error = (totalScore - targetRate).abs();
-
-            if (error < minError) {
-              minError = error;
-              bestP75 = breakP75;
-              bestP50 = breakP50;
-              bestG80 = breakG80;
-              bestG60 = breakG60;
-              bestG50 = breakG50;
-              bestBaseScore = baseScore;
-              bestExtraScore = extraScore;
-              bestTotalScore = totalScore;
-            }
-
-            if (error <= errorThreshold) {
-              result = """✅ 找到可行解（误差≤0.0001%）：
-目标达成率：${targetRate.toStringAsFixed(4)}%
-50落 = $breakP75
-100落 = $breakP50
-80% GREAT = $breakG80
-60% GREAT = $breakG60
-50% GREAT = $breakG50
-基础达成率：$baseScore%
-额外达成率：$extraScore%
-总达成率：$totalScore%
-误差：$error%""";
-              found = true;
-              break;
-            }
-          }
-          if (found) break;
-        }
-        if (found) break;
-      }
-
-      if (!found) {
-        result = """❌ 未找到符合误差阈值的解，以下是最接近的结果：
-目标达成率：${targetRate.toStringAsFixed(4)}%
-50落 = $bestP75
-100落 = $bestP50
-80% GREAT = $bestG80
-60% GREAT = $bestG60
-50% GREAT = $bestG50
-基础达成率：${bestBaseScore}%
-额外达成率：${bestExtraScore}%
-总达成率：${bestTotalScore}%
-最小误差：${minError}%""";
-      }
-
-      setState(() {
-        _calculatingReverse = false;
-        _reverseResultText = result;
-      });
-    });
-  }
-
-  void _showReverseError(String message) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('输入错误'),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('确定'),
-          ),
-        ],
-      ),
-    );
   }
 }
 
@@ -2015,24 +1525,16 @@ Widget _buildCard({
   required Brightness brightness,
   required Widget child,
 }) {
-  return Container(
-    width: double.infinity,
-    decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-      border: Border.all(color: AppColors.tableBorder(brightness), width: 2),
-    ),
-    padding: const EdgeInsets.all(12),
-    child: child,
-  );
+  return AppCard(child: child);
 }
 
 Widget _buildSectionTitle(String text, double screenWidth, Brightness brightness) {
   return Text(
     text,
     style: TextStyle(
-      fontSize: 14,
-      fontWeight: FontWeight.bold,
-      color: AppColors.linkBlue(brightness),
+      fontSize: 14.5,
+      fontWeight: FontWeight.w700,
+      color: AppColors.primaryText(brightness),
     ),
   );
 }

@@ -28,7 +28,7 @@ import java.io.File
  *
  * ## 为什么自己写而不用 audio_service 的通知
  *
- * 需求要的布局是「曲绘占左侧整高，右侧三行 = 曲名 / 艺术家 / 播放控制」。
+ * 需求要的布局是：收起时一行排完曲绘、曲名和控制键，展开时换成大曲绘加控制条。
  * audio_service（以及它底层的 `NotificationCompat.MediaStyle`）**只暴露
  * 标题/副标题/副文本/大图标与按钮列表，布局由系统决定**，做不到这个排版。
  * 所以这里用 `RemoteViews` 自绘一条通知。
@@ -82,17 +82,24 @@ class PortableNotificationService : Service() {
         const val EXTRA_MEDIA_ACTION = "mediaAction"
 
         /**
-         * 布局里 portable_art 的边长（dp）。改 R.layout.portable_notification 要同步改这里
-         * —— Kotlin 侧按它把曲绘裁成圆角方块。
+         * 两套布局里 portable_art 的边长（dp），改布局要同步改这里 —— Kotlin 侧按它裁圆角。
          */
-        private const val ART_SIZE_DP = 56f
+        private const val SMALL_ART_DP = 46f
+        private const val BIG_ART_DP = 92f
 
         /**
-         * 曲绘圆角半径占边长的比例（56dp × 0.25 = 14dp）。
+         * 曲绘的像素上限。两张位图都要随通知过 Binder（上限约 1MB），高密度屏上
+         * 不封顶的话 92dp 的那张一张就要 500KB 以上，容易抛 TransactionTooLargeException。
+         */
+        private const val SMALL_ART_MAX_PX = 168
+        private const val BIG_ART_MAX_PX = 256
+
+        /**
+         * 曲绘圆角半径占边长的比例。
          * RemoteViews 里的 ImageView 不支持 clipToOutline / ShapeableImageView，
          * 圆角只能在这里裁，见 [roundToSquare]。
          */
-        private const val ART_CORNER_RATIO = 0.25f
+        private const val ART_CORNER_RATIO = 0.2f
 
         /**
          * 「重申」通知的延时表（ms，相对收到 update 的时刻）。
@@ -138,7 +145,8 @@ class PortableNotificationService : Service() {
 
     /** 曲绘缓存：同一路径不重复读盘。 */
     private var cachedArtPath: String? = null
-    private var cachedArt: Bitmap? = null
+    private var cachedSmallArt: Bitmap? = null
+    private var cachedBigArt: Bitmap? = null
 
     private lateinit var notificationManager: NotificationManager
 
@@ -250,7 +258,8 @@ class PortableNotificationService : Service() {
             // 忽略
         }
         cachedArtPath = null
-        cachedArt = null
+        cachedSmallArt = null
+        cachedBigArt = null
         stopSelf()
     }
 
@@ -270,8 +279,13 @@ class PortableNotificationService : Service() {
         notificationManager.createNotificationChannel(channel)
     }
 
-    private fun buildNotification(current: PortableNotificationState): Notification {
-        val views = RemoteViews(packageName, R.layout.portable_notification)
+    /** 两套布局的控件 ID 相同，内容和点击只写一份。 */
+    private fun bindViews(
+        layoutId: Int,
+        current: PortableNotificationState,
+        art: Bitmap?
+    ): RemoteViews {
+        val views = RemoteViews(packageName, layoutId)
         views.setTextViewText(
             R.id.portable_title,
             current.title.ifEmpty { "随身听" }
@@ -296,15 +310,12 @@ class PortableNotificationService : Service() {
             if (current.hasNext) R.drawable.portable_ic_next
             else R.drawable.portable_ic_next_dim
         )
-
-        val art = resolveArt(current.artPath)
         if (art != null) {
             views.setImageViewBitmap(R.id.portable_art, art)
         } else {
             // 没有曲绘时退回应用图标，避免左侧留一个空洞
             views.setImageViewResource(R.id.portable_art, R.mipmap.ic_launcher)
         }
-
         views.setOnClickPendingIntent(
             R.id.portable_prev,
             mediaAction("previous", current.hasPrevious)
@@ -318,6 +329,17 @@ class PortableNotificationService : Service() {
             mediaAction("next", current.hasNext)
         )
         views.setOnClickPendingIntent(R.id.portable_root, openAppIntent())
+        return views
+    }
+
+    private fun buildNotification(current: PortableNotificationState): Notification {
+        resolveArt(current.artPath)
+        val views = bindViews(R.layout.portable_notification, current, cachedSmallArt)
+        val bigViews = bindViews(R.layout.portable_notification_big, current, cachedBigArt)
+        bigViews.setTextViewText(
+            R.id.portable_status,
+            if (current.isPlaying) "随身听 · 正在播放" else "随身听 · 已暂停"
+        )
 
         val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             Notification.Builder(this, CHANNEL_ID)
@@ -328,8 +350,7 @@ class PortableNotificationService : Service() {
         builder
             .setSmallIcon(R.mipmap.ic_launcher)
             .setCustomContentView(views)
-            // 展开态复用同一套布局：系统会把它拉宽，右侧留白随之消失
-            .setCustomBigContentView(views)
+            .setCustomBigContentView(bigViews)
             .setContentIntent(openAppIntent())
             .setOngoing(current.isPlaying)
             .setOnlyAlertOnce(true)
@@ -343,37 +364,48 @@ class PortableNotificationService : Service() {
         return builder.build()
     }
 
-    private fun resolveArt(path: String?): Bitmap? {
-        if (path.isNullOrEmpty()) return null
-        if (path == cachedArtPath) return cachedArt
+    private fun resolveArt(path: String?) {
+        if (path == cachedArtPath) return
         val decoded = try {
-            val file = File(path)
-            if (file.exists()) BitmapFactory.decodeFile(path) else null
+            if (!path.isNullOrEmpty() && File(path).exists()) {
+                BitmapFactory.decodeFile(path)
+            } else {
+                null
+            }
         } catch (_: Exception) {
             null
         }
-        // 缓存存**裁好的**那张，不是解码结果：否则每次 push（含重申）都要重裁一遍
+        // 缓存存**裁好的**，不是解码结果：否则每次 push（含重申）都要重裁一遍
         cachedArtPath = path
-        cachedArt = decoded?.let { roundToSquare(it, path) }
-        return cachedArt
+        cachedSmallArt = decoded?.let {
+            roundToSquare(it, SMALL_ART_DP, SMALL_ART_MAX_PX, path ?: "")
+        }
+        cachedBigArt = decoded?.let {
+            roundToSquare(it, BIG_ART_DP, BIG_ART_MAX_PX, path ?: "")
+        }
     }
 
     /**
-     * 把曲绘裁成圆角方块：边长 = [ART_SIZE_DP] 对应的像素，圆角 = 边长 × [ART_CORNER_RATIO]。
+     * 把曲绘裁成圆角方块：边长 = [sizeDp] 对应的像素（不超过 [maxPx]），圆角 = 边长 × [ART_CORNER_RATIO]。
      *
      * 为什么非要在 Kotlin 这一侧做：RemoteViews 里的 ImageView 用不了
      * `clipToOutline`、也没有 ShapeableImageView，给 ImageView 套个圆角背景也**盖不住**
      * 方角位图 —— 照原样贴图，通知栏里就是方角曲绘。
      *
-     * 顺带做两件事：centerCrop（曲绘不一定是 1:1）、把尺寸压到 56dp 对应的像素
+     * 顺带做两件事：centerCrop（曲绘不一定是 1:1）、压缩尺寸
      * （位图要过 Binder，越大越容易撞上限）。
      */
-    private fun roundToSquare(src: Bitmap, cacheKey: String): Bitmap = try {
+    private fun roundToSquare(
+        src: Bitmap,
+        sizeDp: Float,
+        maxPx: Int,
+        cacheKey: String
+    ): Bitmap = try {
         val size = TypedValue.applyDimension(
             TypedValue.COMPLEX_UNIT_DIP,
-            ART_SIZE_DP,
+            sizeDp,
             resources.displayMetrics
-        ).toInt()
+        ).toInt().coerceAtMost(maxPx)
         if (size <= 0 || src.width <= 0 || src.height <= 0) {
             src
         } else {

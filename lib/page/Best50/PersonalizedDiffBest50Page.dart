@@ -17,6 +17,8 @@ import 'package:my_first_flutter_app/utils/ImageEncodeUtil.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
 import '../../utils/AppDesignTokens.dart';
 import '../../widgets/Best50Ui.dart';
+import '../../widgets/AppDialogs.dart';
+import '../../widgets/ExportSuccessDialog.dart';
 
 class PersonalizedDiffBest50Page extends StatefulWidget {
   const PersonalizedDiffBest50Page({super.key});
@@ -30,6 +32,7 @@ class _PersonalizedDiffBest50PageState
     extends State<PersonalizedDiffBest50Page> {
   Map<String, dynamic>? _diffBest50Data;
   List<Map<String, dynamic>> _diffSongs = [];
+  List<Map<String, dynamic>> _remaining = [];
   List<dynamic>? _maimaiMusicData;
   bool _isLoading = true;
   int? _selectedTagId;
@@ -106,6 +109,7 @@ class _PersonalizedDiffBest50PageState
       setState(() {
         _diffBest50Data = data;
         _diffSongs = List<Map<String, dynamic>>.from(data?['diffBest50'] ?? []);
+        _remaining = List<Map<String, dynamic>>.from(data?['remaining'] ?? []);
         _isLoading = false;
       });
     } catch (e) {
@@ -113,6 +117,7 @@ class _PersonalizedDiffBest50PageState
       setState(() {
         _diffBest50Data = null;
         _diffSongs = [];
+        _remaining = [];
         _isLoading = false;
       });
     }
@@ -126,7 +131,7 @@ class _PersonalizedDiffBest50PageState
       showDialog(
         context: context,
         builder: (BuildContext context) {
-          return AlertDialog(
+          return AppAlertDialog(
             title: Text('提示'),
             content: Text('没有找到标签数据'),
             actions: [
@@ -159,7 +164,7 @@ class _PersonalizedDiffBest50PageState
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
+        return AppAlertDialog(
           title: Text('选择标签'),
           content: SizedBox(
             width: double.maxFinite,
@@ -184,8 +189,7 @@ class _PersonalizedDiffBest50PageState
                       ...entry.value.map((tag) {
                         return ListTile(
                           title: Text(tag.localizedName.zhHans),
-                          subtitle: Text(tag.localizedDescription.zhHans,
-                              maxLines: 1, overflow: TextOverflow.ellipsis),
+                          subtitle: Text(tag.localizedDescription.zhHans),
                           dense: true,
                           selected: _selectedTagId == tag.id,
                           onTap: () {
@@ -249,37 +253,13 @@ class _PersonalizedDiffBest50PageState
   Future<void> _exportToImage() async {
     try {
       if (_diffSongs.isEmpty) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: Text('提示'),
-            content: Text('没有数据可导出'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text('确定'),
-              ),
-            ],
-          ),
-        );
+        showAppNoticeDialog(context, title: '提示', message: '没有数据可导出');
         return;
       }
 
       bool hasPermission = await _requestStoragePermission();
       if (!hasPermission) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: Text('权限不足'),
-            content: Text('需要存储权限才能导出图片到相册，请在设置中开启权限'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text('确定'),
-              ),
-            ],
-          ),
-        );
+        showAppNoticeDialog(context, title: '权限不足', message: '需要存储权限才能导出图片到相册，请在设置中开启权限', tone: AppDialogTone.warning);
         return;
       }
 
@@ -304,20 +284,7 @@ class _PersonalizedDiffBest50PageState
       if (quality == null) return;
 
       // 显示加载指示器
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => AlertDialog(
-          title: Text('导出中'),
-          content: Row(
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(width: 16.0),
-              Text('正在生成图片...'),
-            ],
-          ),
-        ),
-      );
+      showAppProgressDialog(context, title: '导出中', message: '正在生成图片...');
 
       String title = '个性化拟合Best50 - ${_selectedTagName ?? '标签'}';
 
@@ -336,59 +303,14 @@ class _PersonalizedDiffBest50PageState
       Navigator.pop(context);
 
       if (file != null) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: Text('导出成功'),
-            content: Text('图片已保存到：\n${file.path}'),
-            actions: [
-              TextButton(
-                onPressed: () async {
-                  await Clipboard.setData(ClipboardData(text: file.path));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('路径已复制到剪贴板')),
-                  );
-                },
-                child: Text('复制路径'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text('确定'),
-              ),
-            ],
-          ),
-        );
+        showExportSuccessDialog(context, filePath: file.path, fileName: file.path.split('/').last);
       } else {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: Text('导出失败'),
-            content: Text('图片导出失败，请重试'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text('确定'),
-              ),
-            ],
-          ),
-        );
+        showAppNoticeDialog(context, title: '导出失败', message: '图片导出失败，请重试', tone: AppDialogTone.error);
       }
     } catch (e) {
       Navigator.pop(context);
 
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text('导出失败'),
-          content: Text('导出过程中出现错误：\n$e'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('确定'),
-            ),
-          ],
-        ),
-      );
+      showAppNoticeDialog(context, title: '导出失败', message: '导出过程中出现错误：\n$e', tone: AppDialogTone.error);
     }
   }
 
@@ -401,6 +323,7 @@ class _PersonalizedDiffBest50PageState
     return BackgroundPageScaffold(
       title: '个性化拟合 Best50',
       resizeToAvoidBottomInset: false,
+      actionsEndInset: 4,
       actions: [
         if (_selectedTagId != null && _diffSongs.isNotEmpty) ...[
           Best50IconAction(
@@ -414,7 +337,6 @@ class _PersonalizedDiffBest50PageState
               }
             },
           ),
-          const SizedBox(width: 4),
         ],
       ],
       contentPadding: EdgeInsets.only(
@@ -463,6 +385,11 @@ class _PersonalizedDiffBest50PageState
                               for (final s in _diffSongs)
                                 _cardData(Map<String, dynamic>.from(s))
                             ],
+                            remaining: [
+                              for (final s in _remaining)
+                                _cardData(Map<String, dynamic>.from(s))
+                            ],
+                            remainingLabel: 'RA ${_diffSongs.last['diffRating']}',
                           ),
                         ],
                       ),
@@ -625,7 +552,8 @@ class _PersonalizedDiffBest50PageState
         Best50Hero(
           total: diffRatingSum,
           label:
-              '拟合总 Rating（平均 ${diffRatingAverage.toStringAsFixed(1)}）',
+              '拟合总 Rating · 较该标签 Best50（平均 ${diffRatingAverage.toStringAsFixed(1)}）',
+          delta: (_diffBest50Data?['best50Diff'] as num?)?.toInt(),
         ),
         const SizedBox(height: 8),
         Best50MetaLine(

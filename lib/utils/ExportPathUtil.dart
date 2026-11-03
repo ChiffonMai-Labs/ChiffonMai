@@ -5,6 +5,9 @@ import 'package:file_picker/file_picker.dart';
 import 'package:media_scanner/media_scanner.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../widgets/AppDialogs.dart';
+import '../widgets/AppToast.dart';
+import '../utils/AppDesignTokens.dart';
 
 /// 统一的「公开导出目录」工具。
 ///
@@ -76,40 +79,24 @@ class ExportPathUtil {
       context: context,
       builder: (dialogContext) {
         final scheme = Theme.of(dialogContext).colorScheme;
-        return AlertDialog(
+        return AppAlertDialog(
           title: Text(title),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '当前保存位置：',
-                style: TextStyle(color: scheme.onSurfaceVariant),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                width: double.maxFinite,
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: scheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: scheme.outlineVariant),
-                ),
-                child: SelectableText(
-                  currentPath,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontFamily: 'monospace',
-                    height: 1.4,
-                    color: scheme.onSurface,
-                  ),
+                '当前保存位置',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: scheme.onSurfaceVariant,
                 ),
               ),
+              const SizedBox(height: 6),
+              AppDialogCodeBlock(currentPath),
               const SizedBox(height: 10),
-              Text(
-                '可以使用应用默认公开目录，或选择一个自定义文件夹。',
-                style: TextStyle(color: scheme.onSurfaceVariant),
-              ),
+              const Text('可以使用应用默认公开目录，或选择一个自定义文件夹。'),
             ],
           ),
           actions: [
@@ -127,9 +114,7 @@ class ExportPathUtil {
                   }
                 } catch (e) {
                   if (dialogContext.mounted) {
-                    ScaffoldMessenger.of(dialogContext).showSnackBar(
-                      SnackBar(content: Text('选择保存目录失败：$e')),
-                    );
+                    AppToast.show('选择保存目录失败：$e');
                   }
                 }
               },
@@ -149,9 +134,7 @@ class ExportPathUtil {
       final dir = Directory(choice.path!);
       if (!await _isWritable(dir)) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('这个目录不可写，请换一个文件夹。')),
-          );
+          AppToast.show('这个目录不可写，请换一个文件夹。');
         }
         return false;
       }

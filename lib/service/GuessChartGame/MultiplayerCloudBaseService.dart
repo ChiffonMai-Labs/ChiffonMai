@@ -510,6 +510,8 @@ class MultiplayerCloudBaseService {
     int tileRevealIntervalMs = 1500,
     int peekDurationSeconds = 8,
     List<String> peekDifficulties = const ['4'],
+    double peekFlowSpeed = RoomEntity.defaultPeekFlowSpeed,
+    String peekMirror = RoomEntity.defaultPeekMirror,
   }) async {
     try {
       debugPrint('[DEBUG][CloudService] 开始创建房间...');
@@ -553,6 +555,8 @@ class MultiplayerCloudBaseService {
         'tileRevealIntervalMs': tileRevealIntervalMs,
         'peekDurationSeconds': peekDurationSeconds,
         'peekDifficulties': peekDifficulties,
+        'peekFlowSpeed': peekFlowSpeed,
+        'peekMirror': peekMirror,
       });
     } catch (e) {
       _controller.add(MultiplayerEvent.error(message: '创建房间失败: $e'));

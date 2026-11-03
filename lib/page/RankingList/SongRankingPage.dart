@@ -2,7 +2,6 @@ import '../../service/CommunityAvatarStore.dart';
 import '../../widgets/RankingPlayerBriefSheet.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:my_first_flutter_app/constant/CacheKeyConstant.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
@@ -14,6 +13,11 @@ import 'package:my_first_flutter_app/widgets/BackgroundPageScaffold.dart';
 import 'package:my_first_flutter_app/widgets/CommunityAvatar.dart';
 import 'package:my_first_flutter_app/utils/RankingRowExtent.dart';
 import '../../utils/AppDesignTokens.dart';
+import 'package:my_first_flutter_app/widgets/RankingUi.dart';
+import 'package:my_first_flutter_app/widgets/AppUi.dart';
+import 'package:my_first_flutter_app/widgets/MarqueeText.dart';
+import '../../widgets/AppDialogs.dart';
+import '../../widgets/AppToast.dart';
 
 enum _DxScoreDisplayMode {
   starsBonus('星+'),
@@ -62,6 +66,13 @@ class SongRankingPage extends StatefulWidget {
 
 class _SongRankingPageState extends State<SongRankingPage> {
   final SongRankingService _service = SongRankingService();
+
+  // 切难度、切榜都在本页换数据，初始值来自 widget。
+  late int _difficultyIndex = widget.difficultyIndex;
+  late String _difficultyLabel = widget.difficultyLabel;
+  late double _difficultyDs = widget.difficultyDs;
+  late RankingType _rankingType = widget.rankingType;
+
   int _requestGeneration = 0;
   bool _isLoading = true;
   List<RankingEntry> _rankingList = [];
@@ -72,6 +83,7 @@ class _SongRankingPageState extends State<SongRankingPage> {
   String _currentPlayerId = '';
   final ScrollController _scrollController = ScrollController();
   final RankingRowExtent _rowExtent = RankingRowExtent();
+  final RankingEntrance _entrance = RankingEntrance();
   bool _showInvalidScoreWarning = false;
   bool _dontShowAgain = false;
   _DxScoreDisplayMode _dxScoreDisplayMode = _DxScoreDisplayMode.starsBonus;
@@ -131,7 +143,7 @@ class _SongRankingPageState extends State<SongRankingPage> {
         final dialogBrightness = Theme.of(context).brightness;
         return StatefulBuilder(
           builder: (context, setDialogState) {
-            return AlertDialog(
+            return AppAlertDialog(
               title: Row(
                 children: [
                   Icon(
@@ -193,7 +205,7 @@ class _SongRankingPageState extends State<SongRankingPage> {
               ],
               backgroundColor: Theme.of(context).colorScheme.surface,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
               ),
             );
           },
@@ -235,7 +247,7 @@ class _SongRankingPageState extends State<SongRankingPage> {
       return;
     }
 
-    int levelIndex = widget.difficultyIndex;
+    int levelIndex = _difficultyIndex;
     List<dynamic> ds = _songData!['ds'];
 
     if (ds.length == 2) {
@@ -450,107 +462,90 @@ class _SongRankingPageState extends State<SongRankingPage> {
   void _showDifficultySelector() {
     if (_songData == null) return;
 
-    List<dynamic> levels = _songData!['level'];
     List<dynamic> dsList = _songData!['ds'];
+    // UTAGE歌曲全部显示为UTAGE，否则按下标显示标准标签
+    final bool isUtage = widget.songId.length == 6;
 
     showDialog(
       context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text('选择难度'),
-          content: Container(
-            width: double.maxFinite,
-            child: ListView.builder(
-              shrinkWrap: true,
-              itemCount: levels.length,
-              itemBuilder: (context, index) {
-                // UTAGE歌曲全部显示为UTAGE，否则按下标显示标准标签
-                final bool isUtage = widget.songId.length == 6;
-                String levelLabel = isUtage
-                    ? ChartDifficulty.utageLabel
-                    : _getDifficultyLabelByIndex(index);
-                double ds = dsList[index] is num
-                    ? (dsList[index] as num).toDouble()
-                    : 0.0;
-
-                return InkWell(
-                  onTap: () {
-                    Navigator.pop(context);
-                    // 导航到选中难度的排行榜页面
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => SongRankingPage(
-                          songId: widget.songId,
-                          difficultyIndex: index,
-                          difficultyLabel: levelLabel,
-                          difficultyDs: ds,
-                          rankingType: widget.rankingType,
-                          songTitle: widget.songTitle,
-                          songType: widget.songType,
-                          artist: widget.artist,
-                          genre: widget.genre,
-                          from: widget.from,
-                          isExtra: widget.isExtra,
+      builder: (BuildContext dialogContext) {
+        return AppAlertDialog(
+          title: const Text('选择难度'),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (var index = 0; index < dsList.length; index++)
+                  Padding(
+                    padding: EdgeInsets.only(top: index == 0 ? 0 : 6),
+                    child: AppDialogOption(
+                      title: isUtage
+                          ? ChartDifficulty.utageLabel
+                          : _getDifficultyLabelByIndex(index),
+                      selected: index == _difficultyIndex,
+                      leading: Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: _getDifficultyColor(index),
+                          shape: BoxShape.circle,
                         ),
                       ),
-                    );
-                  },
-                  child: Container(
-                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: index == widget.difficultyIndex
-                          ? _getDifficultyBackgroundColor(index)
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding:
-                              EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: _getDifficultyBackgroundColor(index),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            levelLabel,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: _getDifficultyColor(index),
-                            ),
-                          ),
+                      trailing: Text(
+                        (dsList[index] is num
+                                ? (dsList[index] as num).toDouble()
+                                : 0.0)
+                            .toStringAsFixed(1),
+                        style: AppTheme.number(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: _getDifficultyColor(index),
                         ),
-                        SizedBox(width: 12),
-                        Text(
-                          '${ds.toStringAsFixed(1)}',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: _getDifficultyColor(index),
-                          ),
-                        ),
-                        if (index == widget.difficultyIndex)
-                          Expanded(
-                            child: Align(
-                              alignment: Alignment.centerRight,
-                              child: Icon(
-                                Icons.check,
-                                color: Theme.of(context).primaryColor,
-                              ),
-                            ),
-                          ),
-                      ],
+                      ),
+                      onTap: () {
+                        Navigator.pop(dialogContext);
+                        _switchDifficulty(index);
+                      },
                     ),
                   ),
-                );
-              },
+              ],
             ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('取消'),
+            ),
+          ],
         );
       },
     );
+  }
+
+  /// 在本页换难度。再次选中当前难度不重新加载。
+  void _switchDifficulty(int index) {
+    if (index == _difficultyIndex) return;
+    final dsList = _songData?['ds'] as List<dynamic>?;
+    final raw = dsList != null && index < dsList.length ? dsList[index] : null;
+    setState(() {
+      _difficultyIndex = index;
+      _difficultyLabel = widget.songId.length == 6
+          ? ChartDifficulty.utageLabel
+          : _getDifficultyLabelByIndex(index);
+      _difficultyDs = raw is num ? raw.toDouble() : 0.0;
+      _calculateMaxDxScore();
+    });
+    _loadRankingData();
+  }
+
+  /// 在本页切到另一个排行榜，难度不变。
+  void _switchRankingType() {
+    setState(() {
+      _rankingType = _rankingType == RankingType.achievementRate
+          ? RankingType.dxScore
+          : RankingType.achievementRate;
+    });
+    _loadRankingData();
   }
 
   String _getDifficultyLabelByIndex(int index) {
@@ -614,8 +609,8 @@ class _SongRankingPageState extends State<SongRankingPage> {
     try {
       List<RankingEntry> rankingList = await _service.getSongRanking(
         widget.songId,
-        widget.difficultyIndex,
-        widget.rankingType,
+        _difficultyIndex,
+        _rankingType,
         limit: 100,
       );
 
@@ -626,8 +621,8 @@ class _SongRankingPageState extends State<SongRankingPage> {
       });
       RankingEntry? userEntry = await _service.getUserRanking(
         widget.songId,
-        widget.difficultyIndex,
-        widget.rankingType,
+        _difficultyIndex,
+        _rankingType,
         currentPlayerId,
       );
       if (!mounted || generation != _requestGeneration) return;
@@ -641,7 +636,7 @@ class _SongRankingPageState extends State<SongRankingPage> {
       if (userEntry != null) {
         bool isValid = await _service.validateUserRecord(
           widget.songId,
-          widget.difficultyIndex,
+          _difficultyIndex,
           userEntry.achievementRate,
           userEntry.dxScore,
         );
@@ -672,138 +667,106 @@ class _SongRankingPageState extends State<SongRankingPage> {
     final entry = _currentUserEntry;
     if (entry == null) return;
     if (entry.rank > 100) {
-      Fluttertoast.showToast(msg: '抱歉，您不在前100名内');
+      AppToast.show('抱歉，您不在前100名内');
       return;
     }
     final index = _rankingList.indexWhere(
       (item) => item.playerId == entry.playerId,
     );
     if (index == -1) {
-      Fluttertoast.showToast(msg: '抱歉，您不在前100名内');
+      AppToast.show('抱歉，您不在前100名内');
       return;
     }
     _rowExtent.scrollRowToTop(_scrollController, index);
   }
 
+  Widget _buildIdentity(RankingEntry entry, {bool isCurrentUser = false}) {
+    return CommunityPlayerIdentity(
+      avatarId: entry.avatarId,
+      dataSource: entry.dataSource,
+      // 开发者白名单按 `<source>:<id>` 整串匹配，见 DataSourceTag
+      playerId: entry.playerId,
+      name: entry.playerName,
+      // 头像高度对齐「玩家名 + 数据源标签」两行文字的总高
+      // （单曲排行榜 / DX 分数排行榜共用这一行）
+      avatarMatchesTextHeight: true,
+      nameStyle: TextStyle(
+        fontSize: 14,
+        fontWeight: isCurrentUser ? FontWeight.bold : FontWeight.w500,
+        color: Theme.of(context).colorScheme.onSurface,
+      ),
+    );
+  }
+
+  /// 数值区按内容收缩（上限 [maxWidth]），右对齐靠不满的空白让给昵称。
+  Widget _buildValueCell(RankingEntry entry, Brightness brightness,
+      {double maxWidth = _valueColumnMaxWidth}) {
+    final scheme = Theme.of(context).colorScheme;
+    final isAchievement = _rankingType == RankingType.achievementRate;
+    final fc = entry.fc?.toLowerCase();
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: maxWidth),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerRight,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // DX分数排行榜显示星星等级
+                if (!isAchievement) ...[
+                  _buildDxScoreLabel(entry.dxScore, brightness),
+                  const SizedBox(width: 6),
+                ],
+                // AP/AP+ 标签
+                if (isAchievement && (fc == 'ap' || fc == 'app')) ...[
+                  ComboLabelBadge(raw: fc!),
+                  const SizedBox(width: 6),
+                ],
+                Text(
+                  isAchievement
+                      ? '${entry.achievementRate.toStringAsFixed(4)}%'
+                      : entry.dxScore.toString(),
+                  maxLines: 1,
+                  style: AppTheme.number(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: scheme.onSurface,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // 同步时间：数值区没有固定宽度兜着，超长时缩小而不是换行把行撑高。
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerRight,
+            child: Text(
+              _formatUpdateTime(entry.updateTime),
+              maxLines: 1,
+              style: TextStyle(fontSize: 10, color: scheme.onSurfaceVariant),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildRankingItem(
       RankingEntry entry, bool isCurrentUser, Brightness brightness) {
     return RankingPlayerRow(
-        playerId: entry.playerId,
-        nickname: entry.playerName,
-        child: Container(
-          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            border: Border(
-                bottom: BorderSide(color: AppColors.tableBorder(brightness))),
-            color: isCurrentUser
-                ? AppColors.linkBlue(brightness).withValues(alpha: 0.08)
-                : null,
-          ),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 40,
-                child: Center(
-                  child: _buildRankBadge(entry.rank, brightness),
-                ),
-              ),
-
-              SizedBox(width: 12),
-
-              Expanded(
-                child: CommunityPlayerIdentity(
-                  avatarId: entry.avatarId,
-                  dataSource: entry.dataSource,
-                  // 开发者白名单按 `<source>:<id>` 整串匹配，见 DataSourceTag
-                  playerId: entry.playerId,
-                  name: entry.playerName,
-                  // 头像高度对齐「玩家名 + 数据源标签」两行文字的总高
-                  // （单曲排行榜 / DX 分数排行榜共用这一行）
-                  avatarMatchesTextHeight: true,
-                  nameStyle: TextStyle(
-                    fontSize: 14,
-                    fontWeight:
-                        isCurrentUser ? FontWeight.bold : FontWeight.w500,
-                    color:
-                        isCurrentUser ? AppColors.linkBlue(brightness) : null,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-
-              // 数值区按内容收缩（上限 [_valueColumnMaxWidth]），不再固定占满 130dp：
-              // 右对齐靠不满的那一截空白本来就没人用，现在让给昵称。
-              ConstrainedBox(
-                constraints:
-                    const BoxConstraints(maxWidth: _valueColumnMaxWidth),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // DX分数排行榜显示星星等级
-                        if (widget.rankingType == RankingType.dxScore)
-                          _buildDxScoreLabel(entry.dxScore, brightness),
-                        if (widget.rankingType == RankingType.dxScore)
-                          SizedBox(width: 8),
-                        // AP/AP+ 标签
-                        if (widget.rankingType == RankingType.achievementRate &&
-                            (entry.fc?.toLowerCase() == 'ap' ||
-                                entry.fc?.toLowerCase() == 'app'))
-                          Container(
-                            padding: EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
-                            margin: EdgeInsets.only(right: 8),
-                            decoration: BoxDecoration(
-                              color: Colors.orange,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              entry.fc?.toLowerCase() == 'app'
-                                  ? 'AP+'
-                                  : entry.fc?.toUpperCase() ?? '',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        Text(
-                          widget.rankingType == RankingType.achievementRate
-                              ? '${entry.achievementRate.toStringAsFixed(4)}%'
-                              : entry.dxScore.toString(),
-                          textAlign: TextAlign.right,
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Theme.of(context).colorScheme.onSurface,
-                          ),
-                        ),
-                      ],
-                    ),
-                    // 同步时间
-                    //
-                    // 单行 + 省略号：数值区现在是「按内容收缩」的，没有固定宽度兜着，
-                    // 超长的绝对时间（`2024-01-01 12:00`）必须自己截断而不是换行把行撑高。
-                    Text(
-                      _formatUpdateTime(entry.updateTime),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: AppColors.greyHint(brightness),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ));
+      playerId: entry.playerId,
+      nickname: entry.playerName,
+      child: RankingRow(
+        rank: entry.rank,
+        highlighted: isCurrentUser,
+        identity: _buildIdentity(entry, isCurrentUser: isCurrentUser),
+        value: _buildValueCell(entry, brightness),
+      ),
+    );
   }
 
   RankingEntry get _prototypeEntry => RankingEntry(
@@ -822,111 +785,10 @@ class _SongRankingPageState extends State<SongRankingPage> {
         child: _buildRankingItem(_prototypeEntry, false, brightness),
       );
 
-  Widget _buildRankBadge(int rank, Brightness brightness) {
-    if (rank == 1) {
-      return Container(
-        width: 28,
-        height: 28,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Colors.yellow, Colors.orange],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-          shape: BoxShape.circle,
-        ),
-        child: const Icon(
-          Icons.emoji_events,
-          size: 16,
-          color: Colors.white,
-        ),
-      );
-    } else if (rank == 2) {
-      return Container(
-        width: 28,
-        height: 28,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Colors.grey, Colors.grey[400]!],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-          shape: BoxShape.circle,
-        ),
-        child: const Icon(
-          Icons.emoji_events,
-          size: 16,
-          color: Colors.white,
-        ),
-      );
-    } else if (rank == 3) {
-      return Container(
-        width: 28,
-        height: 28,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFFCD7F32), Color(0xFFB87333)],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-          shape: BoxShape.circle,
-        ),
-        child: const Icon(
-          Icons.emoji_events,
-          size: 16,
-          color: Colors.white,
-        ),
-      );
-    } else {
-      return Text(
-        rank.toString(),
-        style: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-          color: AppColors.greyHint(brightness),
-        ),
-      );
-    }
-  }
-
-  Widget _buildTypeBadge(String type) {
-    final brightness = Theme.of(context).brightness;
-    bool isUtage = widget.songId.length == 6;
-
-    if (isUtage) {
-      return Text(
-        ChartDifficulty.utageLabel,
-        style: TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.bold,
-          color: Colors.red,
-        ),
-      );
-    } else if (type == 'DX') {
-      return Text(
-        'DX',
-        style: TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.bold,
-          color: AppColors.warningOrange(brightness),
-        ),
-      );
-    } else {
-      return Text(
-        'ST',
-        style: TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.bold,
-          color: AppColors.linkBlue(brightness),
-        ),
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final brightness = Theme.of(context).brightness;
-    final title = widget.rankingType == RankingType.achievementRate
+    final title = _rankingType == RankingType.achievementRate
         ? '达成率排行榜'
         : 'DX分数排行榜';
 
@@ -948,57 +810,44 @@ class _SongRankingPageState extends State<SongRankingPage> {
       contentPadding:
           EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
       child: Column(children: [
-        // 歌曲信息区域 - 固定宽高，左侧曲绘，右侧信息
-        Container(
-          margin: EdgeInsets.fromLTRB(4, 0, 4, 8),
-          height: 120,
-          decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(
-                color: Theme.of(context).colorScheme.outlineVariant,
-              ),
-            ),
-          ),
-          child: Row(
-            children: [
-              // 左侧曲绘
-              Container(
-                width: 100,
-                height: 100,
-                margin: EdgeInsets.all(10),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+        // 歌曲信息卡片
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+              AppDesignTokens.gutter, 4, AppDesignTokens.gutter, 10),
+          child: AppCard(
+            radius: AppDesignTokens.radiusMedium,
+            padding: const EdgeInsets.all(10),
+            child: Row(
+              children: [
+                ClipRRect(
+                  borderRadius:
+                      BorderRadius.circular(AppDesignTokens.radiusSmall),
                   child: CoverUtil.buildCoverWidgetWithContext(
-                      context, widget.songId, 100),
+                      context, widget.songId, 84),
                 ),
-              ),
-
-              // 右侧信息
-              Expanded(
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(0, 12, 12, 12),
+                const SizedBox(width: 12),
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       // 第一行：谱面类型 + 歌名
                       Row(
                         children: [
-                          _buildTypeBadge(widget.songType),
-                          SizedBox(width: 8),
+                          SongTypeBadge(
+                              songId: widget.songId, type: widget.songType),
+                          const SizedBox(width: 6),
                           Expanded(
-                            child: Text(
-                              widget.songTitle,
+                            child: MarqueeText(
+                              text: widget.songTitle,
                               style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: Theme.of(context).colorScheme.onSurface,
                               ),
-                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ],
                       ),
-
                       // 第二行：版本与紧凑的显示切换，避免挤压难度标签。
                       Row(
                         children: [
@@ -1012,77 +861,120 @@ class _SongRankingPageState extends State<SongRankingPage> {
                                           type: widget.songType)),
                               style: TextStyle(
                                 fontSize: 12,
-                                color: AppColors.greyHint(brightness),
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          if (widget.rankingType == RankingType.dxScore) ...[
+                          if (_rankingType == RankingType.dxScore) ...[
                             const SizedBox(width: 4),
                             _buildDxScoreDisplaySwitcher(),
                           ],
                         ],
                       ),
-
-                      // 第三行：难度和定数（可点击切换难度）
-                      Align(
-                        alignment: Alignment.centerLeft,
+                      const SizedBox(height: 4),
+                      // 第三行：难度和定数（可点击切换难度）+ 切到另一个榜
+                      Row(
+                        children: [
+                      Material(
+                        color: _getDifficultyBackgroundColor(
+                            _difficultyIndex),
+                        clipBehavior: Clip.antiAlias,
+                        borderRadius:
+                            BorderRadius.circular(AppDesignTokens.radiusSmall),
                         child: InkWell(
                           onTap: _showDifficultySelector,
-                          child: Container(
-                            padding: EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: _getDifficultyBackgroundColor(
-                                  widget.difficultyIndex),
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(
-                                color:
-                                    _getDifficultyColor(widget.difficultyIndex),
-                                width: 1,
-                              ),
-                            ),
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(10, 4, 6, 4),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Text(
                                   _formatDifficultyLabel(
-                                      widget.difficultyLabel),
+                                      _difficultyLabel),
                                   style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,
                                     color: _getDifficultyColor(
-                                        widget.difficultyIndex),
+                                        _difficultyIndex),
                                   ),
                                 ),
-                                SizedBox(width: 4),
+                                const SizedBox(width: 4),
                                 Text(
-                                  '${widget.difficultyDs.toStringAsFixed(1)}',
-                                  style: TextStyle(
+                                  _difficultyDs.toStringAsFixed(1),
+                                  style: AppTheme.number(
                                     fontSize: 14,
-                                    fontWeight: FontWeight.bold,
+                                    fontWeight: FontWeight.w700,
                                     color: _getDifficultyColor(
-                                        widget.difficultyIndex),
+                                        _difficultyIndex),
                                   ),
                                 ),
-                                SizedBox(width: 4),
                                 Icon(
                                   Icons.arrow_drop_down,
-                                  size: 16,
+                                  size: 18,
                                   color: _getDifficultyColor(
-                                      widget.difficultyIndex),
+                                      _difficultyIndex),
                                 ),
                               ],
                             ),
                           ),
                         ),
                       ),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: PressScale(
+                          child: GestureDetector(
+                            onTap: _switchRankingType,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: AppSurfaces.inset(context),
+                                borderRadius: BorderRadius.circular(
+                                    AppDesignTokens.radiusSmall),
+                              ),
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.swap_horiz_rounded,
+                                      size: 15,
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .primary,
+                                    ),
+                                    const SizedBox(width: 3),
+                                    Text(
+                                      _rankingType ==
+                                              RankingType.achievementRate
+                                          ? 'DX分数榜'
+                                          : '达成率榜',
+                                      maxLines: 1,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .primary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
         Expanded(
@@ -1124,213 +1016,38 @@ class _SongRankingPageState extends State<SongRankingPage> {
                                     RankingEntry entry = _rankingList[index];
                                     bool isCurrentUser =
                                         entry.playerId == _currentPlayerId;
-                                    return _buildRankingItem(
-                                        entry, isCurrentUser, brightness);
+                                    return _entrance.wrap(_rankingList, index, _buildRankingItem(
+                                        entry, isCurrentUser, brightness));
                                   },
                                 ),
                               ),
                               if (_currentUserEntry != null)
-                                Material(
-                                  color: Colors.transparent,
-                                  child: InkWell(
-                                    onTap: _scrollToCurrentUser,
-                                    child: Ink(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 16, vertical: 12),
-                                      decoration: BoxDecoration(
-                                        border: Border(
-                                          top: BorderSide(
-                                              color: Theme.of(context)
-                                                  .primaryColor),
-                                        ),
-                                        color: AppColors.linkBlue(brightness)
-                                            .withValues(alpha: 0.08),
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          SizedBox(
-                                            width: 40,
-                                            child: Center(
-                                              child: _buildRankBadge(
-                                                  _currentUserEntry!.rank,
+                                RankingSelfBar(
+                                  rank: _currentUserEntry!.rank,
+                                  onTap: _scrollToCurrentUser,
+                                  identity: _buildIdentity(_currentUserEntry!,
+                                      isCurrentUser: true),
+                                  // 成绩异常时用警告替换数值和同步时间
+                                  value: _showInvalidScoreWarning
+                                      ? ConstrainedBox(
+                                          constraints: const BoxConstraints(
+                                              maxWidth:
+                                                  _currentUserValueColumnMaxWidth),
+                                          child: Text(
+                                            '您的此谱面游玩数据存在异常，请检查!',
+                                            textAlign: TextAlign.right,
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.bold,
+                                              color: AppColors.warningOrange(
                                                   brightness),
                                             ),
                                           ),
-
-                                          SizedBox(width: 12),
-
-                                          Expanded(
-                                            child: CommunityPlayerIdentity(
-                                              avatarId:
-                                                  _currentUserEntry!.avatarId,
-                                              dataSource:
-                                                  _currentUserEntry!.dataSource,
-                                              playerId:
-                                                  _currentUserEntry!.playerId,
-                                              name:
-                                                  _currentUserEntry!.playerName,
-                                              avatarMatchesTextHeight: true,
-                                              nameStyle: TextStyle(
-                                                fontSize: 14,
-                                                fontWeight: FontWeight.bold,
-                                                color: AppColors.linkBlue(
-                                                    brightness),
-                                              ),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 8),
-
-                                          // 与列表行同款：按内容收缩（上限
-                                          // [_currentUserValueColumnMaxWidth]），
-                                          // 省下的宽度让给昵称。
-                                          ConstrainedBox(
-                                            constraints: const BoxConstraints(
-                                                maxWidth:
-                                                    _currentUserValueColumnMaxWidth),
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.end,
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                // 如果成绩异常，显示警告信息
-                                                if (_showInvalidScoreWarning)
-                                                  Container(
-                                                    padding:
-                                                        EdgeInsets.symmetric(
-                                                            horizontal: 6,
-                                                            vertical: 2),
-                                                    decoration: BoxDecoration(
-                                                      color: AppColors
-                                                              .warningOrange(
-                                                                  brightness)
-                                                          .withValues(
-                                                              alpha: 0.12),
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                              4),
-                                                    ),
-                                                    child: Text(
-                                                      '您的此谱面游玩数据存在异常，请检查!',
-                                                      style: TextStyle(
-                                                        fontSize: 10,
-                                                        color: AppColors
-                                                            .warningOrange(
-                                                                brightness),
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                      ),
-                                                      textAlign:
-                                                          TextAlign.right,
-                                                    ),
-                                                  )
-                                                else
-                                                  Row(
-                                                    mainAxisAlignment:
-                                                        MainAxisAlignment.end,
-                                                    mainAxisSize:
-                                                        MainAxisSize.min,
-                                                    children: [
-                                                      // DX分数排行榜显示星星等级
-                                                      if (widget.rankingType ==
-                                                          RankingType.dxScore)
-                                                        _buildDxScoreLabel(
-                                                            _currentUserEntry!
-                                                                .dxScore,
-                                                            brightness),
-                                                      if (widget.rankingType ==
-                                                          RankingType.dxScore)
-                                                        SizedBox(width: 8),
-                                                      if (widget.rankingType ==
-                                                              RankingType
-                                                                  .achievementRate &&
-                                                          (_currentUserEntry!.fc
-                                                                      ?.toLowerCase() ==
-                                                                  'ap' ||
-                                                              _currentUserEntry!
-                                                                      .fc
-                                                                      ?.toLowerCase() ==
-                                                                  'app'))
-                                                        Container(
-                                                          padding: EdgeInsets
-                                                              .symmetric(
-                                                                  horizontal: 6,
-                                                                  vertical: 2),
-                                                          margin:
-                                                              EdgeInsets.only(
-                                                                  right: 8),
-                                                          decoration:
-                                                              BoxDecoration(
-                                                            color:
-                                                                Colors.orange,
-                                                            borderRadius:
-                                                                BorderRadius
-                                                                    .circular(
-                                                                        4),
-                                                          ),
-                                                          child: Text(
-                                                            _currentUserEntry!
-                                                                        .fc
-                                                                        ?.toLowerCase() ==
-                                                                    'app'
-                                                                ? 'AP+'
-                                                                : _currentUserEntry!
-                                                                        .fc
-                                                                        ?.toUpperCase() ??
-                                                                    '',
-                                                            style: TextStyle(
-                                                              fontSize: 12,
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .bold,
-                                                              color:
-                                                                  Colors.white,
-                                                            ),
-                                                          ),
-                                                        ),
-                                                      Text(
-                                                        widget.rankingType ==
-                                                                RankingType
-                                                                    .achievementRate
-                                                            ? '${_currentUserEntry!.achievementRate.toStringAsFixed(4)}%'
-                                                            : _currentUserEntry!
-                                                                .dxScore
-                                                                .toString(),
-                                                        textAlign:
-                                                            TextAlign.right,
-                                                        style: TextStyle(
-                                                          fontSize: 16,
-                                                          fontWeight:
-                                                              FontWeight.bold,
-                                                          color:
-                                                              Theme.of(context)
-                                                                  .colorScheme
-                                                                  .onSurface,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                // 同步时间（非异常时显示）
-                                                if (!_showInvalidScoreWarning)
-                                                  Text(
-                                                    _formatUpdateTime(
-                                                        _currentUserEntry!
-                                                            .updateTime),
-                                                    maxLines: 1,
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
-                                                    style: TextStyle(
-                                                      fontSize: 10,
-                                                      color: AppColors.greyHint(
-                                                          brightness),
-                                                    ),
-                                                  ),
-                                              ],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
+                                        )
+                                      : _buildValueCell(
+                                          _currentUserEntry!, brightness,
+                                          maxWidth:
+                                              _currentUserValueColumnMaxWidth),
                                 ),
                             ],
                           )),

@@ -41,8 +41,7 @@ extension _SongInfoActions on _SongInfoPageState {
         coverId: int.tryParse(widget.songId),
         difficulties: difficulties);
     if (mounted && added)
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('已加入下次想玩')));
+      AppToast.show('已加入下次想玩');
   }
 
   /// 显示 BV 号上传对话框
@@ -65,46 +64,60 @@ extension _SongInfoActions on _SongInfoPageState {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             final brightness = Theme.of(context).brightness;
-            return AlertDialog(
+            return AppAlertDialog(
               title: const Text('B站谱面确认播放量'),
               content: SingleChildScrollView(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // 歌曲信息
-                    Text(
-                      '歌曲: $songTitle',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    // 歌曲信息和当前播放量
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppSurfaces.inset(context),
+                        borderRadius:
+                            BorderRadius.circular(AppDesignTokens.radiusSmall),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            songTitle,
+                            style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: Theme.of(context).colorScheme.onSurface),
+                          ),
+                          Text('难度: $diffLabel'),
+                          const SizedBox(height: 6),
+                          if (_biliPlayCount != null) ...[
+                            Text('当前播放量: ${_formatBiliPlayCount()}'),
+                            if (_biliBvid != null) Text('BV号: ${_biliBvid}'),
+                            Text('来源: ${_getBiliSourceLabel()}',
+                                style: TextStyle(
+                                  color: _biliFromUser
+                                      ? AppColors.linkBlue(brightness)
+                                      : (_biliFromRedis
+                                          ? AppColors.warningOrange(brightness)
+                                          : AppColors.successGreen(brightness)),
+                                  fontSize: 12,
+                                )),
+                          ] else if (_biliPlayCountLoading)
+                            const Text('正在加载播放量...')
+                          else
+                            Text('暂无播放量数据',
+                                style: TextStyle(
+                                    color: AppColors.errorRed(brightness))),
+                        ],
+                      ),
                     ),
-                    Text('难度: $diffLabel'),
-                    const SizedBox(height: 8),
-                    // 当前播放量信息
-                    if (_biliPlayCount != null) ...[
-                      Text('当前播放量: ${_formatBiliPlayCount()}'),
-                      if (_biliBvid != null) Text('BV号: ${_biliBvid}'),
-                      Text('来源: ${_getBiliSourceLabel()}',
-                          style: TextStyle(
-                            color: _biliFromUser
-                                ? AppColors.linkBlue(brightness)
-                                : (_biliFromRedis
-                                    ? AppColors.warningOrange(brightness)
-                                    : AppColors.successGreen(brightness)),
-                            fontSize: 12,
-                          )),
-                      const Divider(),
-                    ] else if (_biliPlayCountLoading) ...[
-                      const Text('正在加载播放量...'),
-                      const SizedBox(height: 8),
-                    ] else ...[
-                      Text('暂无播放量数据',
-                          style:
-                              TextStyle(color: AppColors.errorRed(brightness))),
-                      const Divider(),
-                    ],
+                    const SizedBox(height: 14),
                     // 手动上传区域
-                    const Text('手动上传 BV 号:',
-                        style: TextStyle(fontWeight: FontWeight.bold)),
+                    Text('手动上传 BV 号',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: Theme.of(context).colorScheme.onSurface)),
                     const SizedBox(height: 4),
                     Text(
                       '当自动获取播放量失败时，可手动输入该歌曲谱面确认视频的 BV 号',
@@ -118,7 +131,6 @@ extension _SongInfoActions on _SongInfoPageState {
                       controller: bvController,
                       decoration: InputDecoration(
                         hintText: '例如: BV1xx411c7mD',
-                        border: const OutlineInputBorder(),
                         suffixIcon: bvController.text.isNotEmpty
                             ? IconButton(
                                 icon: const Icon(Icons.clear),
@@ -149,7 +161,7 @@ extension _SongInfoActions on _SongInfoPageState {
                           color: validationPassed == true
                               ? AppColors.successGreen(brightness)
                               : AppColors.errorRed(brightness),
-                          borderRadius: BorderRadius.circular(4),
+                          borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                         ),
                         child: Row(
                           children: [
@@ -284,12 +296,7 @@ extension _SongInfoActions on _SongInfoPageState {
                           );
 
                           Navigator.of(dialogContext).pop();
-                          ScaffoldMessenger.of(this.context).showSnackBar(
-                            const SnackBar(
-                              content: Text('BV 号已上传'),
-                              duration: Duration(seconds: 2),
-                            ),
-                          );
+                          AppToast.show('BV 号已上传', duration: Duration(seconds: 2));
                         }
                       : null,
                   child: const Text('确认上传'),
@@ -392,7 +399,7 @@ extension _SongInfoActions on _SongInfoPageState {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppAlertDialog(
         content: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -459,10 +466,10 @@ extension _SongInfoActions on _SongInfoPageState {
       if (file != null) {
         showDialog(
           context: context,
-          builder: (ctx) => AlertDialog(
+          builder: (ctx) => AppAlertDialog(
             title: Row(
               children: [
-                Icon(Icons.check_circle, color: Colors.green, size: 28),
+                Icon(Icons.check_circle, color: AppColors.successGreen(Theme.of(context).brightness), size: 28),
                 SizedBox(width: 8),
                 Text('导出成功'),
               ],
@@ -484,10 +491,10 @@ extension _SongInfoActions on _SongInfoPageState {
       } else {
         showDialog(
           context: context,
-          builder: (ctx) => AlertDialog(
+          builder: (ctx) => AppAlertDialog(
             title: Row(
               children: [
-                Icon(Icons.error, color: Colors.red, size: 28),
+                Icon(Icons.error, color: Theme.of(context).colorScheme.error, size: 28),
                 SizedBox(width: 8),
                 Text('导出失败'),
               ],
@@ -511,10 +518,10 @@ extension _SongInfoActions on _SongInfoPageState {
       debugPrint('分享卡片生成失败: $e');
       showDialog(
         context: context,
-        builder: (ctx) => AlertDialog(
+        builder: (ctx) => AppAlertDialog(
           title: Row(
             children: [
-              Icon(Icons.error, color: Colors.red, size: 28),
+              Icon(Icons.error, color: Theme.of(context).colorScheme.error, size: 28),
               SizedBox(width: 8),
               Text('导出失败'),
             ],
@@ -569,7 +576,7 @@ extension _SongInfoActions on _SongInfoPageState {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppAlertDialog(
         content: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -616,10 +623,10 @@ extension _SongInfoActions on _SongInfoPageState {
       if (file != null) {
         showDialog(
           context: context,
-          builder: (ctx) => AlertDialog(
+          builder: (ctx) => AppAlertDialog(
             title: Row(
               children: [
-                Icon(Icons.check_circle, color: Colors.green, size: 28),
+                Icon(Icons.check_circle, color: AppColors.successGreen(Theme.of(context).brightness), size: 28),
                 SizedBox(width: 8),
                 Text('导出成功'),
               ],
@@ -639,10 +646,10 @@ extension _SongInfoActions on _SongInfoPageState {
       } else {
         showDialog(
           context: context,
-          builder: (ctx) => AlertDialog(
+          builder: (ctx) => AppAlertDialog(
             title: Row(
               children: [
-                Icon(Icons.error, color: Colors.red, size: 28),
+                Icon(Icons.error, color: Theme.of(context).colorScheme.error, size: 28),
                 SizedBox(width: 8),
                 Text('导出失败'),
               ],
@@ -666,10 +673,10 @@ extension _SongInfoActions on _SongInfoPageState {
       debugPrint('曲目信息导出失败: $e');
       showDialog(
         context: context,
-        builder: (ctx) => AlertDialog(
+        builder: (ctx) => AppAlertDialog(
           title: Row(
             children: [
-              Icon(Icons.error, color: Colors.red, size: 28),
+              Icon(Icons.error, color: Theme.of(context).colorScheme.error, size: 28),
               SizedBox(width: 8),
               Text('导出失败'),
             ],
@@ -692,15 +699,7 @@ extension _SongInfoActions on _SongInfoPageState {
       // 请求存储权限
       PermissionStatus status = await _requestStoragePermission();
       if (!status.isGranted) {
-        Fluttertoast.showToast(
-          msg: '需要存储权限才能保存图片',
-          toastLength: Toast.LENGTH_SHORT,
-          gravity: ToastGravity.BOTTOM,
-          timeInSecForIosWeb: 1,
-          backgroundColor: Colors.orange,
-          textColor: Colors.white,
-          fontSize: 16.0,
-        );
+        AppToast.show('需要存储权限才能保存图片', tone: AppToastTone.warning);
         return;
       }
 
@@ -720,30 +719,14 @@ extension _SongInfoActions on _SongInfoPageState {
             String coverPath = CoverUtil.getLocalCoverPathRetry1(songId);
             byteData = await rootBundle.load(coverPath);
           } catch (e3) {
-            Fluttertoast.showToast(
-              msg: '无法加载封面图片',
-              toastLength: Toast.LENGTH_SHORT,
-              gravity: ToastGravity.BOTTOM,
-              timeInSecForIosWeb: 1,
-              backgroundColor: Colors.red,
-              textColor: Colors.white,
-              fontSize: 16.0,
-            );
+            AppToast.show('无法加载封面图片', tone: AppToastTone.error);
             return;
           }
         }
       }
 
       if (byteData == null) {
-        Fluttertoast.showToast(
-          msg: '无法加载封面图片',
-          toastLength: Toast.LENGTH_SHORT,
-          gravity: ToastGravity.BOTTOM,
-          timeInSecForIosWeb: 1,
-          backgroundColor: Colors.red,
-          textColor: Colors.white,
-          fontSize: 16.0,
-        );
+        AppToast.show('无法加载封面图片', tone: AppToastTone.error);
         return;
       }
 
@@ -777,25 +760,9 @@ extension _SongInfoActions on _SongInfoPageState {
         await MediaScanner.loadMedia(path: file.path);
       }
 
-      Fluttertoast.showToast(
-        msg: '曲绘已保存到相册',
-        toastLength: Toast.LENGTH_SHORT,
-        gravity: ToastGravity.BOTTOM,
-        timeInSecForIosWeb: 1,
-        backgroundColor: Colors.green,
-        textColor: Colors.white,
-        fontSize: 16.0,
-      );
+      AppToast.show('曲绘已保存到相册', tone: AppToastTone.success);
     } catch (e) {
-      Fluttertoast.showToast(
-        msg: '保存失败: $e',
-        toastLength: Toast.LENGTH_SHORT,
-        gravity: ToastGravity.BOTTOM,
-        timeInSecForIosWeb: 1,
-        backgroundColor: Colors.red,
-        textColor: Colors.white,
-        fontSize: 16.0,
-      );
+      AppToast.show('保存失败: $e', tone: AppToastTone.error);
     }
   }
 
@@ -841,7 +808,7 @@ extension _SongInfoActions on _SongInfoPageState {
     final title = _songData!['basic_info']?['title']?.toString() ?? '歌曲 PV';
     final openBilibili = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppAlertDialog(
         title: const Text('播放 PV'),
         content: const Text('请选择 PV 的播放方式'),
         actions: [
@@ -893,24 +860,8 @@ extension _SongInfoActions on _SongInfoPageState {
   Future<void> _fetchRelatedCollections(String songTitle) async {
     try {
       // 显示加载对话框
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (BuildContext context) {
-          return Dialog(
-            child: Container(
-              padding: EdgeInsets.all(20),
-              child: Row(
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(width: 16),
-                  Text('正在加载相关收藏品...'),
-                ],
-              ),
-            ),
-          );
-        },
-      );
+      showAppProgressDialog(context,
+          title: '请稍候', message: '正在加载相关收藏品...');
 
       // 获取歌曲类型
       final songType = _songData!['type'] ?? '';
@@ -932,7 +883,7 @@ extension _SongInfoActions on _SongInfoPageState {
       showDialog(
         context: context,
         builder: (BuildContext context) {
-          return AlertDialog(
+          return AppAlertDialog(
             title: Text('错误'),
             content: Text('获取相关收藏品时出错，请稍后重试'),
             actions: [
@@ -999,12 +950,12 @@ extension _SongInfoActions on _SongInfoPageState {
         final brightness = Theme.of(ctx).brightness;
         return StatefulBuilder(
           builder: (ctx, setDialogState) {
-            return AlertDialog(
+            return AppAlertDialog(
               title: Row(
                 children: [
                   Icon(
                     isEditing ? Icons.note : Icons.note_add_outlined,
-                    color: Colors.amber.shade700,
+                    color: AppColors.warningOrange(Theme.of(context).brightness),
                   ),
                   SizedBox(width: 8),
                   Expanded(
@@ -1026,7 +977,7 @@ extension _SongInfoActions on _SongInfoPageState {
                       Row(
                         children: [
                           ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                             child: CoverUtil.buildCoverWidgetWithContext(
                                 context, widget.songId, 60),
                           ),
@@ -1044,9 +995,7 @@ extension _SongInfoActions on _SongInfoPageState {
                                       child: Text(songTitle,
                                           style: TextStyle(
                                               fontWeight: FontWeight.w600,
-                                              fontSize: 15),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis),
+                                              fontSize: 15)),
                                     ),
                                   ],
                                 ),
@@ -1077,11 +1026,11 @@ extension _SongInfoActions on _SongInfoPageState {
                         decoration: InputDecoration(
                           hintText: '在这里写下你对这个谱面的笔记...\n例如：结尾的滑星要注意手顺',
                           border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8)),
+                              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall)),
                           focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                               borderSide: BorderSide(
-                                  color: Colors.amber.shade700, width: 2)),
+                                  color: AppColors.warningOrange(Theme.of(context).brightness), width: 2)),
                         ),
                         onChanged: (_) => setDialogState(() {}),
                       ),
@@ -1106,7 +1055,7 @@ extension _SongInfoActions on _SongInfoPageState {
                     onPressed: () async {
                       final confirm = await showDialog<bool>(
                         context: ctx,
-                        builder: (confirmCtx) => AlertDialog(
+                        builder: (confirmCtx) => AppAlertDialog(
                           title: Text('确认删除'),
                           content: Text('确定要删除这个谱面的笔记吗？此操作不可撤销。'),
                           actions: [
@@ -1139,7 +1088,7 @@ extension _SongInfoActions on _SongInfoPageState {
                         Navigator.of(ctx).pop();
                       }
                     },
-                    style: TextButton.styleFrom(foregroundColor: Colors.red),
+                    style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
                     child: Text('删除'),
                   ),
                 // 取消按钮
@@ -1169,7 +1118,7 @@ extension _SongInfoActions on _SongInfoPageState {
                         }
                       : null,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.amber.shade700,
+                    backgroundColor: AppColors.warningOrange(Theme.of(context).brightness),
                     foregroundColor: Colors.white,
                   ),
                   child: Text('保存'),
@@ -1304,125 +1253,60 @@ extension _SongInfoActions on _SongInfoPageState {
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        final screenWidth = MediaQuery.of(context).size.width;
-        final dialogWidth = screenWidth * 0.98; // 对话框宽度为屏幕宽度的98%
-
-        return AlertDialog(
-          title: Text('${songTitle}的相关收藏品'),
-          contentPadding: relatedCollections.isEmpty
-              ? EdgeInsets.all(20.0)
-              : EdgeInsets.all(8.0), // 未找到时使用默认内边距
-          content: Container(
-            width: dialogWidth,
-            child: SingleChildScrollView(
-              child: relatedCollections.isEmpty
-                  ? Container(
-                      padding: EdgeInsets.symmetric(vertical: 20),
-                      child: Text('未找到与该歌曲相关的收藏品'),
-                    )
-                  : Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: relatedCollections.map((item) {
-                        return GestureDetector(
-                          onTap: () {
-                            // 跳转到收藏品详情页面
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => CollectionInfoPage(
-                                  collectionId:
-                                      (item['collection'] as Collection).id,
-                                  collectionType: item['type'],
-                                ),
-                              ),
-                            );
-                          },
-                          child: Container(
-                            margin: EdgeInsets.only(bottom: 12),
-                            padding: EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              border: Border.all(
-                                color: Theme.of(context).brightness ==
-                                        Brightness.dark
-                                    ? Colors.grey.shade700
-                                    : Colors.grey.shade200,
-                              ),
-                              borderRadius: BorderRadius.circular(8),
-                              color: Theme.of(context).colorScheme.surface,
+        return AppAlertDialog(
+          title: const Text('相关收藏品'),
+          subtitle: songTitle,
+          content: relatedCollections.isEmpty
+              ? const AppDialogEmpty(
+                  icon: Icons.workspace_premium_outlined,
+                  message: '未找到与该歌曲相关的收藏品',
+                )
+              : SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (final (index, item) in relatedCollections.indexed)
+                        Padding(
+                          padding: EdgeInsets.only(top: index == 0 ? 0 : 8),
+                          child: AppDialogOption(
+                            title: item['name'],
+                            subtitle: item['description'],
+                            leading: AppBadge(
+                              text: _getCollectionTypeName(item['type']),
+                              background: _getCollectionTypeColor(item['type']),
+                              foreground: Colors.white,
                             ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Container(
-                                      padding: EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 4,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: _getCollectionTypeColor(
-                                            item['type']),
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: Text(
-                                        _getCollectionTypeName(item['type']),
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                    ),
-                                    SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        item['name'],
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16,
-                                          color: Theme.of(context)
-                                              .colorScheme
-                                              .onSurface,
-                                        ),
-                                      ),
-                                    ),
-                                    Icon(
-                                      Icons.arrow_forward_ios,
-                                      size: 16,
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .onSurfaceVariant,
-                                    ),
-                                  ],
-                                ),
-                                if (item['description'] != null &&
-                                    item['description'].isNotEmpty)
-                                  Padding(
-                                    padding: EdgeInsets.only(top: 8),
-                                    child: Text(
-                                      item['description'],
-                                      style: TextStyle(
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .onSurfaceVariant,
-                                        fontSize: 14,
-                                      ),
-                                    ),
+                            trailing: Icon(
+                              Icons.chevron_right_rounded,
+                              size: 20,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                            ),
+                            onTap: () {
+                              // 跳转到收藏品详情页面
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => CollectionInfoPage(
+                                    collectionId:
+                                        (item['collection'] as Collection).id,
+                                    collectionType: item['type'],
                                   ),
-                              ],
-                            ),
+                                ),
+                              );
+                            },
                           ),
-                        );
-                      }).toList(),
-                    ),
-            ),
-          ),
+                        ),
+                    ],
+                  ),
+                ),
           actions: [
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
               },
-              child: Text('关闭'),
+              child: const Text('关闭'),
             ),
           ],
         );

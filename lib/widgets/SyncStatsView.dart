@@ -2,6 +2,7 @@ import 'AnimatedChoiceBar.dart';
 import 'package:flutter/material.dart';
 
 import '../service/SyncStatsService.dart';
+import '../widgets/AppDialogs.dart';
 
 /// 同步统计的展示组件。
 ///
@@ -118,7 +119,7 @@ class SyncStatsView {
       context: context,
       builder: (ctx) {
         final scheme = Theme.of(ctx).colorScheme;
-        return AlertDialog(
+        return AppAlertDialog(
           title: const Text('同步统计'),
           content: SingleChildScrollView(
             child: Column(

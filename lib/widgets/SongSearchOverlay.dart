@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../service/SongSearchHistoryStore.dart';
 import 'TouchSearchButton.dart';
 import 'SearchOverlaySurface.dart';
+import '../widgets/AppToast.dart';
 
 /// 从原输入框展开的临时搜索层。
 class SongSearchOverlay extends StatefulWidget {
@@ -136,9 +137,7 @@ class _SongSearchOverlayState extends State<SongSearchOverlay> {
         }
       }
       if (mounted && !_closing) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('搜索历史更新失败，请重试')),
-        );
+        AppToast.show('搜索历史更新失败，请重试');
       }
     }
   }

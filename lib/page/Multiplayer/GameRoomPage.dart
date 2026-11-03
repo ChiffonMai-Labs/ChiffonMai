@@ -5,7 +5,6 @@ import 'dart:math';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:simai_flutter/simai_flutter.dart';
 import 'package:my_first_flutter_app/entity/Multiplayer/RoomEntity.dart';
@@ -32,6 +31,9 @@ import '../../widgets/MultiplayerRoomOverview.dart';
 import '../../widgets/GuessUi.dart';
 import '../../widgets/AppUi.dart';
 import '../../utils/AppDesignTokens.dart';
+import '../../widgets/AppDialogs.dart';
+import '../../widgets/AppToast.dart';
+import '../../widgets/ChartPeekPlaybackUi.dart';
 
 class GameRoomPage extends StatefulWidget {
   final RoomEntity room;
@@ -486,8 +488,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
     _errorMessageSubscription = _manager.errorMessageStream.listen((message) {
       if (!mounted || _isLeaving) return;
       setState(_completeAction);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(message)));
+      AppToast.show(message);
     });
   }
 
@@ -700,8 +701,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
     _actionTimer = Timer(const Duration(seconds: 8), () {
       if (!mounted || !_actionPending) return;
       setState(_completeAction);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('操作未收到确认，请检查连接后重试')));
+      AppToast.show('操作未收到确认，请检查连接后重试');
     });
   }
 
@@ -774,7 +774,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
+        return AppAlertDialog(
           title: Row(
             children: [
               Icon(Icons.menu_book_outlined, size: 20, color: scheme.primary),
@@ -807,10 +807,6 @@ class _GameRoomPageState extends State<GameRoomPage> {
                         color: AppColors.warningOrange(brightness)
                             .withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-                        border: Border.all(
-                          color: AppColors.warningOrange(brightness)
-                              .withValues(alpha: 0.5),
-                        ),
                       ),
                       child: Text(
                         // 玩家最容易误解的一点，单独点出来
@@ -930,12 +926,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
         guess.playerId == _manager.currentPlayerId &&
         guess.songId.toString() == guessedSong.id);
     if (hasGuessed) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('已经猜过这首歌了！'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+      AppToast.show('已经猜过这首歌了！', duration: Duration(seconds: 2));
       return;
     }
 
@@ -971,7 +962,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
+        return AppAlertDialog(
           title: const Text('确认离开'),
           content: const Text('是否离开当前房间？'),
           actions: [
@@ -1010,9 +1001,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
     } catch (error) {
       if (!mounted) return;
       setState(() => _isLeaving = false);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(
-              error is TimeoutException ? '退出房间未收到确认，请重试' : '退出房间失败：$error')));
+      AppToast.show(error is TimeoutException ? '退出房间未收到确认，请重试' : '退出房间失败：$error');
     }
   }
 
@@ -1233,7 +1222,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
                 controller: _searchController,
                 decoration: InputDecoration(
                   hintText: '搜索歌曲、ID、BPM、谱师等',
-                  prefixIcon: const Icon(Icons.search, size: 20),
+                  prefixIcon: GuessSearchIcon(searching: _isSearching),
                   border: const OutlineInputBorder(),
                   isDense: true,
                   suffixIcon: _searchController.text.isEmpty
@@ -1252,15 +1241,6 @@ class _GameRoomPageState extends State<GameRoomPage> {
             ),
           ],
         ),
-        // 搜索中状态（与单人猜歌页一致）
-        if (_isSearching)
-          Container(
-            margin: const EdgeInsets.only(top: 8),
-            padding: const EdgeInsets.all(16),
-            child: const Center(
-              child: CircularProgressIndicator(),
-            ),
-          ),
       ],
     );
   }
@@ -2618,7 +2598,27 @@ class _GameRoomPageState extends State<GameRoomPage> {
             borderRadius: BorderRadius.circular(12),
             child: SizedBox(
               height: 220,
-              child: SimaiPlayer(controller: controller),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  SimaiPlayer(controller: controller),
+                  Positioned(
+                    top: 8,
+                    left: 8,
+                    child: ChartPeekCountdownTag(
+                        time: controller.timeNotifier,
+                        clipStart: _peekClipStart,
+                        clipEnd: _peekClipEnd),
+                  ),
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: ChartPeekPlaybackTag(
+                        speed: controller.speed,
+                        mirror: controller.mirrorMode),
+                  ),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 8),
@@ -2766,6 +2766,9 @@ class _GameRoomPageState extends State<GameRoomPage> {
       );
 
       final controller = GuessChartByChartPeekPage.buildChartOnlyController(
+        flowSpeed: _currentRoom?.peekFlowSpeed ??
+            RoomEntity.defaultPeekFlowSpeed,
+        mirrorMode: ChartPeekPlayback.mirrorOf(_currentRoom?.peekMirror),
         chart: chart,
         initialChartTime: window.start,
       );
@@ -2903,6 +2906,9 @@ class _GameRoomPageState extends State<GameRoomPage> {
     _peekController?.dispose();
 
     final controller = GuessChartByChartPeekPage.buildChartOnlyController(
+      flowSpeed: _currentRoom?.peekFlowSpeed ??
+          RoomEntity.defaultPeekFlowSpeed,
+      mirrorMode: ChartPeekPlayback.mirrorOf(_currentRoom?.peekMirror),
       chart: chart,
       audioFilePath: path,
       initialChartTime: 0,
@@ -2929,7 +2935,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
     final bool isRoundOver = _gameState?.isRoundOver ?? false;
     final bool answerMode = isGameOver || isRoundOver;
     if (!answerMode && _peekReplaysLeft <= 0) {
-      Fluttertoast.showToast(msg: '复播次数已用完');
+      AppToast.show('复播次数已用完');
       return;
     }
     if (!answerMode) {
@@ -3158,9 +3164,24 @@ class _GameRoomPageState extends State<GameRoomPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(_currentRoom?.gameType.name ?? '歌曲片段',
-                style: const TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.w600)),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Flexible(
+                  child: Text(_currentRoom?.gameType.name ?? '歌曲片段',
+                      style: const TextStyle(
+                          color: Colors.white, fontWeight: FontWeight.w600)),
+                ),
+                if (_currentRoom?.gameType == GameType.pitchAudio) ...[
+                  const SizedBox(width: 8),
+                  AppBadge(
+                    text: guessAudioRateLabel(_currentRoom!.audioRate),
+                    background: Colors.white.withValues(alpha: 0.22),
+                    foreground: Colors.white,
+                  ),
+                ],
+              ],
+            ),
             const SizedBox(height: 8),
             // 进度条（拖动仅预览位置；音频以服务端种子的起始点整段播放，
             // 不支持 seek 到任意位置——只是把拖动反馈做得更平滑）
@@ -3333,8 +3354,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
     } catch (error) {
       if (current()) {
         setState(() => _isPlaying = false);
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('音频播放失败：$error')));
+        AppToast.show('音频播放失败：$error');
       }
     } finally {
       if (!current() && player != null && identical(player, _audioPlayer)) {

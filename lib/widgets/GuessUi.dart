@@ -361,6 +361,56 @@ class GuessHistoryHeader extends StatelessWidget {
   }
 }
 
+/// 变速变调音频的倍率标签文字：1.23×、1.5×、2×。
+String guessAudioRateLabel(double rate) {
+  final text = rate
+      .toStringAsFixed(2)
+      .replaceFirst(RegExp(r'0+$'), '')
+      .replaceFirst(RegExp(r'\.$'), '');
+  return '$text×';
+}
+
+/// 搜索框的前置图标：搜索时原地换成转圈，不占版面、不挡搜索结果，
+/// 也不会把上方内容顶来顶去。
+class GuessSearchIcon extends StatelessWidget {
+  final bool searching;
+
+  const GuessSearchIcon({super.key, required this.searching});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return AnimatedSwitcher(
+      duration: AppDesignTokens.motion(
+          context, const Duration(milliseconds: 180)),
+      transitionBuilder: (child, animation) => FadeTransition(
+        opacity: animation,
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 0.7, end: 1).animate(animation),
+          child: child,
+        ),
+      ),
+      child: searching
+          ? SizedBox.square(
+              key: const ValueKey('searching'),
+              dimension: 18,
+              child: Padding(
+                padding: const EdgeInsets.all(1),
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.2,
+                  strokeCap: StrokeCap.round,
+                  color: scheme.primary,
+                ),
+              ),
+            )
+          : Icon(Icons.search_rounded,
+              key: const ValueKey('idle'),
+              size: 18,
+              color: scheme.onSurfaceVariant),
+    );
+  }
+}
+
 /// 贴底输入栏：搜索框 + 投降；结束后换成「新游戏」。搜索结果弹在输入栏上方。
 class GuessInputBar extends StatelessWidget {
   final TextEditingController controller;
@@ -371,7 +421,7 @@ class GuessInputBar extends StatelessWidget {
   final VoidCallback onNewGame;
   final bool showResults;
 
-  /// 正在搜索时在输入栏上方显示一条进度。
+  /// 正在搜索时，输入框的搜索图标换成转圈。
   final bool searching;
   final int resultCount;
   final IndexedWidgetBuilder resultBuilder;
@@ -437,7 +487,6 @@ class GuessInputBar extends StatelessWidget {
               ),
             ),
           ),
-        if (searching) const LinearProgressIndicator(minHeight: 2),
         DecoratedBox(
           decoration: BoxDecoration(
             color: AppSurfaces.card(context),
@@ -489,8 +538,7 @@ class GuessInputBar extends StatelessWidget {
                                         icon: const Icon(Icons.close_rounded,
                                             size: 18),
                                       ),
-                            prefixIcon: Icon(Icons.search_rounded,
-                                size: 18, color: scheme.onSurfaceVariant),
+                            prefixIcon: GuessSearchIcon(searching: searching),
                             contentPadding:
                                 const EdgeInsets.symmetric(vertical: 15),
                             border: OutlineInputBorder(

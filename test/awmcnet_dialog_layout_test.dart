@@ -6,6 +6,7 @@ import 'package:my_first_flutter_app/service/SyncStatsService.dart';
 import 'package:my_first_flutter_app/utils/SyncRouteNotifier.dart';
 import 'package:my_first_flutter_app/widgets/SyncRouteSwitcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:my_first_flutter_app/widgets/AppDialogs.dart';
 
 /// 「同步成绩到 AWMC NET」对话框的布局 / 交互回归。
 ///
@@ -180,7 +181,7 @@ void main() {
     await tester.tap(find.text('开始同步'));
     await tester.pumpAndSettle();
 
-    expect(find.byType(AlertDialog), findsNothing,
+    expect(find.byType(AppAlertDialog), findsNothing,
         reason: '提交后对话框必须立刻关掉，30 多秒的等待交给按钮上的进度');
     expect(captured, isNotNull);
     expect(captured!.qr, 'SGWCMAID0123456789');

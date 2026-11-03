@@ -19,15 +19,17 @@ import 'package:my_first_flutter_app/utils/CommonCacheUtil.dart';
 import 'package:my_first_flutter_app/utils/StringUtil.dart';
 import 'package:my_first_flutter_app/utils/SongFilterUtil.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
-import '../../utils/ColorUtil.dart';
 import '../../utils/ExternalLaunchUtil.dart';
 import 'package:my_first_flutter_app/utils/LuoXueSongUtil.dart';
 import 'package:my_first_flutter_app/utils/RefreshRateUtil.dart';
 import 'package:my_first_flutter_app/page/SongInfoPage.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
-import '../../widgets/NoRipple.dart';
 import '../../widgets/GuessUi.dart';
 import '../../utils/AppDesignTokens.dart';
+import '../../widgets/AppDialogs.dart';
+import '../../widgets/AppToast.dart';
+import '../../widgets/ChartPeekPlaybackUi.dart';
+import '../../widgets/GuessSettingsUi.dart';
 
 /// 谱面片段猜歌（看谱猜歌）：从已缓存 maidata 的曲库中随机选一首，
 /// 随机截取一段 N 秒的谱面片段，**无声**播放谱面动画，凭「看谱」猜出歌名。
@@ -88,6 +90,8 @@ class GuessChartByChartPeekPage extends StatefulWidget {
     required MaiChart chart,
     required double initialChartTime,
     String? audioFilePath,
+    double flowSpeed = GuessChartCommonSettingsService.defaultPeekFlowSpeed,
+    SimaiMirrorMode mirrorMode = SimaiMirrorMode.none,
   }) {
     final controller = SimaiPlayerController(
       chart: chart,
@@ -96,6 +100,8 @@ class GuessChartByChartPeekPage extends StatefulWidget {
     );
     controller.showCornerInfo = false;
     controller.showAchievementRate = false;
+    controller.speed = flowSpeed;
+    controller.mirrorMode = mirrorMode;
     // 谱面片段始终开启“高亮保护套”，不受谱面播放页的持久化设置影响。
     controller.highlightExNotes = true;
     return controller;
@@ -137,6 +143,8 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
   // 谱面片段相关
   int _peekDurationSeconds = 8; // 片段时长（从设置中加载）
   List<String> _peekDifficulties = ['4']; // 难度随机池（inote 编号，从设置中加载）
+  double _peekFlowSpeed = GuessChartCommonSettingsService.defaultPeekFlowSpeed;
+  SimaiMirrorMode _peekMirror = SimaiMirrorMode.none;
   String? _resolvedDifficulty; // 本局实际播放的难度（inote 编号）
   String _unavailableReason = ''; // 谱面区不可用时的提示文案
   static const int _maxReplays = 3; // 复播次数上限
@@ -248,6 +256,9 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
               (d) => GuessChartByChartPeekPage.difficultyNames.containsKey(d))
           .toList();
       if (_peekDifficulties.isEmpty) _peekDifficulties = ['4'];
+      _peekFlowSpeed = (settings['peekFlowSpeed'] as num?)?.toDouble() ??
+          GuessChartCommonSettingsService.defaultPeekFlowSpeed;
+      _peekMirror = ChartPeekPlayback.mirrorOf(settings['peekMirror'] as String?);
     });
   }
 
@@ -509,6 +520,8 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
 
       // 无音频：走帧时钟，天然无声；且只保留谱面（关掉四角与中间信息）
       final controller = GuessChartByChartPeekPage.buildChartOnlyController(
+        flowSpeed: _peekFlowSpeed,
+        mirrorMode: _peekMirror,
         chart: chart,
         initialChartTime: _clipStart,
       );
@@ -620,6 +633,8 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
 
     // 答案模式同样只保留谱面（关掉四角与中间信息）
     final controller = GuessChartByChartPeekPage.buildChartOnlyController(
+      flowSpeed: _peekFlowSpeed,
+      mirrorMode: _peekMirror,
       chart: chart,
       audioFilePath: path,
       initialChartTime: 0,
@@ -736,12 +751,7 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
     bool hasGuessed = guessedId != null &&
         _guessHistory.any((guess) => guess.songId == guessedId);
     if (hasGuessed) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('已经猜过这首歌了！'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+      AppToast.show('已经猜过这首歌了！', duration: Duration(seconds: 2));
       _searchController.clear();
       _searchResults = [];
       _showSearchResults = false;
@@ -967,7 +977,7 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
+        return AppAlertDialog(
           title: const Text('规则说明'),
           content: SingleChildScrollView(
             child: Column(
@@ -1037,7 +1047,7 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
     );
   }
 
-  /// 后台校验「当前筛选条件是否还能抽到曲」，抽不到就用 SnackBar 提醒。
+  /// 后台校验「当前筛选条件是否还能抽到曲」，抽不到就用轻提示提醒。
   ///
   /// 放在保存**之后**异步执行：设置已经落盘、用户也已看到「已保存」，
   /// 这里慢一点不会让人干等。校验意义在于尽早发现「条件过严导致开局空转」，
@@ -1069,12 +1079,7 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
         masterMaxDx: masterMaxDx,
       );
       if (candidates.isNotEmpty || !mounted) return;
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text('当前筛选条件抽不到曲目，请放宽难度池 / 定数范围或筛选条件'),
-          duration: Duration(seconds: 4),
-        ),
-      );
+      AppToast.show('当前筛选条件抽不到曲目，请放宽难度池 / 定数范围或筛选条件', duration: Duration(seconds: 4));
     } catch (e) {
       debugPrint('校验筛选条件失败: $e');
     }
@@ -1102,6 +1107,8 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
     int tempTimeLimit = _timeLimit;
     int tempPeekDurationSeconds = _peekDurationSeconds;
     List<String> tempPeekDifficulties = List.from(_peekDifficulties);
+    double tempPeekFlowSpeed = _peekFlowSpeed;
+    SimaiMirrorMode tempPeekMirror = _peekMirror;
 
     // 「重置所有设置」用：默认值统一取自设置服务，页面不再手写字面量。
     void applySettingsDefaults() {
@@ -1117,14 +1124,17 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
       tempPeekDurationSeconds = defaults['peekDurationSeconds'] as int;
       tempPeekDifficulties =
           List<String>.from(defaults['peekDifficulties'] as List);
+      tempPeekFlowSpeed = (defaults['peekFlowSpeed'] as num).toDouble();
+      tempPeekMirror =
+          ChartPeekPlayback.mirrorOf(defaults['peekMirror'] as String?);
     }
 
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('设置'),
-          contentPadding: EdgeInsets.all(8.0),
+        return AppAlertDialog(
+          title: const Text('游戏设置'),
+          subtitle: '保存后下局生效',
           content: StatefulBuilder(
             builder: (BuildContext context, StateSetter setState) {
               return SingleChildScrollView(
@@ -1175,115 +1185,37 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
                           '选 EXPERT+MASTER 时两者任一落在范围内即可），'
                           '不是按 MASTER 定数。',
                     ),
-                    // 片段时长设置
-                    Container(
-                      padding: EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '片段时长',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Theme.of(context).colorScheme.onSurface,
-                            ),
-                          ),
-                          SizedBox(height: 20),
-                          Column(
-                            children: [
-                              Slider(
-                                value: tempPeekDurationSeconds.toDouble(),
-                                min: 3,
-                                max: 60,
-                                divisions: 57,
-                                label: '$tempPeekDurationSeconds 秒',
-                                onChanged: (value) {
-                                  setState(() {
-                                    tempPeekDurationSeconds = value.toInt();
-                                  });
-                                },
-                              ),
-                              Text('$tempPeekDurationSeconds 秒'),
-                            ],
-                          ),
-                          SizedBox(height: 16),
-                          Text(
-                            '难度随机池',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              color: Theme.of(context).colorScheme.onSurface,
-                            ),
-                          ),
-                          SizedBox(height: 8),
-                          // 每局从勾选的难度中随机抽一个播放
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: GuessChartByChartPeekPage
-                                .difficultyNames.entries
-                                .map((entry) {
-                              final String inote = entry.key;
-                              final String label = entry.value;
-                              final bool selected =
-                                  tempPeekDifficulties.contains(inote);
-                              final color = ColorUtil.getCardColor(
-                                  ChartDifficulty.fromMaidataIndex(
-                                      int.parse(inote))!);
-                              final foreground =
-                                  ThemeData.estimateBrightnessForColor(color) ==
-                                          Brightness.dark
-                                      ? Colors.white
-                                      : Colors.black87;
-                              return NoRipple(
-                                  child: FilterChip(
-                                label: Text(label),
-                                selected: selected,
-                                selectedColor: color,
-                                checkmarkColor: foreground,
-                                labelStyle: TextStyle(
-                                    color: selected
-                                        ? foreground
-                                        : Theme.of(context)
-                                            .colorScheme
-                                            .onSurface),
-                                side: BorderSide(
-                                    color: selected
-                                        ? color
-                                        : Theme.of(context)
-                                            .colorScheme
-                                            .outlineVariant),
-                                onSelected: (value) {
-                                  setState(() {
-                                    if (value) {
-                                      tempPeekDifficulties.add(inote);
-                                    } else {
-                                      tempPeekDifficulties.remove(inote);
-                                      // 至少保留一个难度
-                                      if (tempPeekDifficulties.isEmpty) {
-                                        tempPeekDifficulties.add('4');
-                                      }
-                                    }
-                                  });
-                                },
-                              ));
-                            }).toList(),
-                          ),
-                        ],
-                      ),
-                    ),
-                    // 重置按钮
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      child: Center(
-                        child: ElevatedButton(
-                          onPressed: () {
-                            setState(applySettingsDefaults);
-                          },
-                          child: Text('重置所有设置'),
+                    GuessSettingSection(
+                      title: '本模式设置',
+                      icon: Icons.music_note_rounded,
+                      children: [
+                        GuessSliderTile(
+                          label: '片段时长',
+                          valueText: '$tempPeekDurationSeconds 秒',
+                          value: tempPeekDurationSeconds.toDouble(),
+                          min: 3,
+                          max: 60,
+                          divisions: 57,
+                          onChanged: (value) =>
+                              setState(() => tempPeekDurationSeconds = value.toInt()),
                         ),
-                      ),
+                        ChartPeekPlaybackSettings(
+                          speed: tempPeekFlowSpeed,
+                          mirror: tempPeekMirror,
+                          onSpeedChanged: (value) =>
+                              setState(() => tempPeekFlowSpeed = value),
+                          onMirrorChanged: (value) =>
+                              setState(() => tempPeekMirror = value),
+                        ),
+                        ChartPeekDifficultyPool(
+                          selected: tempPeekDifficulties,
+                          onChanged: (pool) =>
+                              setState(() => tempPeekDifficulties = pool),
+                        ),
+                      ],
+                    ),
+                    GuessSettingsResetButton(
+                      onPressed: () => setState(applySettingsDefaults),
                     ),
                   ],
                 ),
@@ -1301,7 +1233,6 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
               onPressed: () async {
                 // 在 await 之前取好 Navigator / ScaffoldMessenger
                 final navigator = Navigator.of(context);
-                final messenger = ScaffoldMessenger.of(context);
 
                 // 先落盘并立刻反馈：saveSettings 只要 2ms，而抽曲校验要遍历
                 // 整份曲库（冷启动含读盘解析），是秒级操作。原先「先校验、
@@ -1316,13 +1247,13 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
                   timeLimit: tempTimeLimit,
                   peekDurationSeconds: tempPeekDurationSeconds,
                   peekDifficulties: tempPeekDifficulties,
+                  peekFlowSpeed: tempPeekFlowSpeed,
+                  peekMirror: tempPeekMirror.name,
                 );
 
                 if (!navigator.mounted) return;
                 navigator.pop();
-                messenger.showSnackBar(
-                  const SnackBar(content: Text('设置已保存，将在下局游戏生效')),
-                );
+                AppToast.show('设置已保存，将在下局游戏生效');
 
                 _warnIfNoSongMatches(
                   selectedVersions: tempSelectedVersions,
@@ -1377,6 +1308,20 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
           fit: StackFit.expand,
           children: [
             SimaiPlayer(controller: controller),
+            Positioned(
+              top: 8,
+              left: 8,
+              child: ChartPeekCountdownTag(
+                  time: controller.timeNotifier,
+                  clipStart: _clipStart,
+                  clipEnd: _clipEnd),
+            ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: ChartPeekPlaybackTag(
+                  speed: controller.speed, mirror: controller.mirrorMode),
+            ),
             // 片段结束后的半透明遮罩提示；答案模式下不遮挡（可点击复播按钮）
             if (_clipFinished && !_isGameOver)
               IgnorePointer(

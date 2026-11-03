@@ -19,6 +19,7 @@ import 'package:my_first_flutter_app/service/History/ChartHistoryCore.dart';
 import 'package:my_first_flutter_app/service/History/ChartHistoryStore.dart';
 import 'package:my_first_flutter_app/service/SongInfoService.dart';
 import 'package:my_first_flutter_app/utils/ScoreInputValidator.dart';
+import 'package:my_first_flutter_app/widgets/AppDialogs.dart';
 
 RatingPoint point(DateTime t, int rating, [int b35 = 11500, int b15 = 4853]) =>
     RatingPoint(
@@ -464,7 +465,7 @@ void main() {
     // 外层弹窗自己有 3 个输入框，秒数那个必须按弹窗限定来找
     await tester.enterText(
       find.descendant(
-        of: find.widgetWithText(AlertDialog, '选择时间'),
+        of: find.widgetWithText(AppAlertDialog, '选择时间'),
         matching: find.byType(TextField),
       ),
       '07',

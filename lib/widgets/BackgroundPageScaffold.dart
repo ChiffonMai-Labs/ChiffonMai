@@ -12,6 +12,7 @@ class BackgroundPageScaffold extends StatelessWidget {
   final String title;
   final Widget child;
   final List<Widget> actions;
+  final double actionsEndInset;
   final VoidCallback? onBack;
   final bool showBack;
   final bool resizeToAvoidBottomInset;
@@ -30,6 +31,7 @@ class BackgroundPageScaffold extends StatelessWidget {
     required this.title,
     required this.child,
     this.actions = const <Widget>[],
+    this.actionsEndInset = 0,
     this.onBack,
     this.showBack = true,
     this.resizeToAvoidBottomInset = false,
@@ -58,6 +60,7 @@ class BackgroundPageScaffold extends StatelessWidget {
                   AppHeader(
                     title: title,
                     actions: actions,
+                    actionsEndInset: actionsEndInset,
                     onBack: onBack,
                     showBack: showBack,
                     bottom: bottom,

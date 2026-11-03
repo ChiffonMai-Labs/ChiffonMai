@@ -278,18 +278,16 @@ class _AutoSyncStatusFooterState extends State<AutoSyncStatusFooter>
       return AutoSyncDisplay.progressBrief(task);
     }
     final last = task.lastResult;
-    final result = last == null
-        ? '暂无记录'
-        : last.status == 'success'
-            ? (last.submitted == 0 && last.unchanged > 0
-                ? '上轮已是最新 · 无需上传'
-                : '上轮成功 · 提交 ${last.submitted} 条')
-            : '上轮失败 · ${AutoSyncDisplay.errorBrief(last.error)}';
     final queue = task.queue;
     final userPosition = queue?.userPosition ?? queue?.position;
-    if (userPosition != null)
-      return '${queue!.upcoming ? '下轮' : '排队'}用户第 $userPosition 位 · $result';
-    return result;
+    final position = userPosition == null
+        ? null
+        : '${queue!.upcoming ? '下轮' : '本轮'}用户第$userPosition位';
+    if (last == null) return position ?? '暂无记录';
+    if (last.status != 'success') {
+      return '同步失败·${AutoSyncDisplay.errorBrief(last.error)}';
+    }
+    return position == null ? '同步成功' : '同步成功·$position';
   }
 
   AutoSyncQueue? get _queue {

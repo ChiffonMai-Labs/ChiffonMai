@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../constant/CacheKeyConstant.dart';
@@ -13,6 +12,7 @@ import '../../service/AWMC/AwmcQuickSyncService.dart';
 import '../../service/SyncStatsService.dart';
 import '../../service/PostSyncRefreshService.dart';
 import '../../utils/SecureCredentialStore.dart';
+import '../../widgets/AppToast.dart';
 import '../../widgets/SyncScoreDialogs.dart'
     show showDivingFishSyncInputDialog, showLuoXueSyncInputDialog;
 import '../../widgets/RefreshDataDialog.dart'
@@ -138,7 +138,7 @@ class AwmcSyncFlow {
     }
     if (credential == null) {
       if (context.mounted) {
-        Fluttertoast.showToast(msg: _missingCredentialHint(target));
+        AppToast.show(_missingCredentialHint(target));
       }
       return AwmcSyncOutcome(
         message: _missingCredentialHint(target),

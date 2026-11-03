@@ -7,6 +7,8 @@ import '../utils/ColorUtil.dart';
 import '../utils/CoverUtil.dart';
 import '../utils/StringUtil.dart';
 import 'AppUi.dart';
+import 'AppDialogs.dart';
+import 'MarqueeText.dart';
 
 /// Best50 系列页共用的界面组件。
 ///
@@ -489,7 +491,7 @@ class _AverageLine extends StatelessWidget {
                   Text('${row.achievement.toStringAsFixed(4)}%',
                       style: numStyle),
                   const SizedBox(width: 12),
-                  Text('DX ${(row.scoreRate * 100).toStringAsFixed(2)}%',
+                  Text('DX分数 ${(row.scoreRate * 100).toStringAsFixed(2)}%',
                       style:
                           numStyle.copyWith(color: scheme.onSurfaceVariant)),
                   const SizedBox(width: 8),
@@ -558,12 +560,19 @@ class Best50ActionButton extends StatelessWidget {
 
 /// 三列曲绘卡网格。卡片高度按宽度和系统字号算，不会被压扁。
 ///
-/// [extraCell] 放在最后一格（理论模式的「查看剩余」）。
+/// [remaining] 是榜单截断后和最后一首并列的谱面，非空时最后一格显示「剩余 N 首」，
+/// [remainingLabel] 写明并列的依据（RA 或定数）。
 class Best50Grid extends StatelessWidget {
   final List<Best50CardData> items;
-  final Widget? extraCell;
+  final List<Best50CardData> remaining;
+  final String? remainingLabel;
 
-  const Best50Grid({super.key, required this.items, this.extraCell});
+  const Best50Grid({
+    super.key,
+    required this.items,
+    this.remaining = const [],
+    this.remainingLabel,
+  });
 
   /// 单元格高度（自定义 Best50 的网格也用它）。
   static SliverGridDelegate delegate(
@@ -582,7 +591,7 @@ class Best50Grid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final count = items.length + (extraCell == null ? 0 : 1);
+    final count = items.length + (remaining.isEmpty ? 0 : 1);
     return LayoutBuilder(
       builder: (context, constraints) => GridView.builder(
         shrinkWrap: true,
@@ -591,7 +600,20 @@ class Best50Grid extends StatelessWidget {
         gridDelegate: delegate(context, constraints.maxWidth),
         itemCount: count,
         itemBuilder: (context, index) {
-          if (index >= items.length) return extraCell!;
+          if (index >= items.length) {
+            return EntranceAnimation(
+              index: index,
+              child: _Best50RemainingCell(
+                count: remaining.length,
+                label: remainingLabel ?? '',
+                onTap: () => showBest50RemainingDialog(
+                  context,
+                  items: remaining,
+                  label: remainingLabel ?? '',
+                ),
+              ),
+            );
+          }
           final data = items[index];
           return Best50CoverCard(
             data: data,
@@ -862,7 +884,7 @@ Future<void> showBest50SongSheet(BuildContext context, Best50CardData data) {
                             const SizedBox(width: 6),
                             Flexible(
                               child: Text(
-                                '${data.difficultyLabel} · ${data.type} · 定数 ${data.dsText}',
+                                '${data.difficultyLabel} · ${StringUtil.formatSongType(data.type)} · 定数 ${data.dsText}',
                                 style: TextStyle(
                                     fontSize: 12,
                                     color: scheme.onSurfaceVariant),
@@ -906,7 +928,7 @@ Future<void> showBest50SongSheet(BuildContext context, Best50CardData data) {
                   if (data.fs.isNotEmpty) ComboLabelBadge(raw: data.fs),
                   if (data.stars.isNotEmpty) StarBadge(stars: data.stars),
                   if (data.maxDxScore > 0)
-                    Text('DX ${data.dxScore} / ${data.maxDxScore}',
+                    Text('DX分数 ${data.dxScore} / ${data.maxDxScore}',
                         style: AppTheme.number(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
@@ -937,5 +959,132 @@ Future<void> showBest50SongSheet(BuildContext context, Best50CardData data) {
         ),
       );
     },
+  );
+}
+
+/// 网格最后一格：还有多少首和最后一首并列。
+class _Best50RemainingCell extends StatelessWidget {
+  final int count;
+  final String label;
+  final VoidCallback onTap;
+
+  const _Best50RemainingCell({
+    required this.count,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return AppCard(
+      radius: AppDesignTokens.radiusMedium,
+      padding: const EdgeInsets.all(8),
+      onTap: onTap,
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.queue_music_rounded, size: 26, color: scheme.primary),
+            const SizedBox(height: 8),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                '剩余 $count 首',
+                maxLines: 1,
+                style: TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w700,
+                  color: scheme.onSurface,
+                ),
+              ),
+            ),
+            const SizedBox(height: 2),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                label,
+                maxLines: 1,
+                style: AppTheme.number(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: scheme.primary,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 和最后一首并列的谱面列表，点行进歌曲详情。
+Future<void> showBest50RemainingDialog(
+  BuildContext context, {
+  required List<Best50CardData> items,
+  required String label,
+}) {
+  return showDialog<void>(
+    context: context,
+    builder: (dialogContext) => AppAlertDialog(
+      icon: const Icon(Icons.queue_music_rounded),
+      title: Text('剩余 ${items.length} 首'),
+      subtitle: '$label，和榜单最后一首相同',
+      content: SizedBox(
+        width: double.maxFinite,
+        child: ListView.separated(
+          shrinkWrap: true,
+          itemCount: items.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 6),
+          itemBuilder: (context, index) {
+            final data = items[index];
+            return AppDialogOption(
+              title: data.title,
+              titleWidget: Row(
+                children: [
+                  SongTypeBadge(
+                      songId: data.songId.toString(), type: data.type),
+                  const SizedBox(width: 6),
+                  // 歌名只占一行，放不下时横向滚动
+                  Expanded(
+                    child: MarqueeText(
+                      text: data.title,
+                      style: TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w600,
+                        height: 1.3,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              subtitle: '${data.difficultyLabel} · '
+                  '定数 ${data.dsText} · RA ${data.rating}',
+              subtitleSingleLine: true,
+              leading: ClipRRect(
+                borderRadius:
+                    BorderRadius.circular(AppDesignTokens.radiusSmall),
+                child: CoverUtil.buildCoverWidgetWithContext(
+                    context, data.songId.toString(), 44),
+              ),
+              trailing: Icon(
+                Icons.chevron_right_rounded,
+                size: 20,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+              onTap: data.onOpenSong,
+            );
+          },
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext),
+          child: const Text('关闭'),
+        ),
+      ],
+    ),
   );
 }

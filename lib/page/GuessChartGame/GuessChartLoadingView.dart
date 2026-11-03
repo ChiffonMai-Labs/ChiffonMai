@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../manager/DivingFish/MaimaiMusicDataManager.dart';
 import '../../service/ConnectivityService.dart';
+import '../../widgets/AppToast.dart';
 
 /// 单人猜歌页「开局取曲」失败时的兜底视图。
 ///
@@ -99,18 +100,13 @@ class _GuessChartLoadingViewState extends State<GuessChartLoadingView> {
     setState(() => _retrying = false);
 
     if (!solved) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('重新拉取曲库失败，请检查网络后重试'),
-          duration: Duration(seconds: 3),
-        ),
-      );
+      AppToast.show('重新拉取曲库失败，请检查网络后重试', duration: Duration(seconds: 3));
     }
   }
 
   /// 「打开设置」：调用方负责弹设置对话框并在改完后重开一局。
   ///
-  /// 这里**不**在失败时弹 SnackBar：用户可能只是点了「取消」，
+  /// 这里**不**在失败时弹提示：用户可能只是点了「取消」，
   /// 并没有发生任何失败；而设置里的「确定」自己已经有「设置已保存」提示。
   Future<void> _handleOpenSettings() async {
     if (_openingSettings) return;

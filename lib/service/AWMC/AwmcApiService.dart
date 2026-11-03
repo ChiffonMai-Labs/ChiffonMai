@@ -562,7 +562,7 @@ class AwmcCallResult {
   /// 失败时给用户看的文案（已脱敏）。
   ///
   /// **必须限长**：有的网关会把整页 HTML / 超长堆栈塞进 `msg`，
-  /// 原样返回会让 SnackBar、对话框、结果抽屉被撑出屏幕（几十万像素的溢出）。
+  /// 原样返回会让轻提示、对话框、结果抽屉被撑出屏幕（几十万像素的溢出）。
   String get displayMessage {
     if (ok) return '成功';
     if (errorMessage != null) {

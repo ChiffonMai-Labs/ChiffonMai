@@ -9,6 +9,7 @@ import '../constant/CacheKeyConstant.dart';
 import '../utils/SecureCredentialStore.dart';
 import '../service/PlayerExperienceService.dart';
 import 'package:my_first_flutter_app/utils/ApiClient.dart';
+import '../utils/MaimaiHubLoginNotifier.dart';
 
 // =============================================================================
 // 调试开关
@@ -244,6 +245,7 @@ class DivingFishProbeManager {
     await prefs.remove(CacheKeyConstant.probeFriendCode);
     _authToken = null;
     _friendCode = null;
+    MaimaiHubLoginNotifier.instance.value = false;
   }
 
   /// 确保 _authToken 可用：优先用内存中的，其次从系统安全存储恢复。
@@ -357,6 +359,7 @@ class DivingFishProbeManager {
       _log('  loginData 已返回（响应正文已隐藏）');
 
       _authToken = loginData['token'] as String?;
+      if (_authToken != null) MaimaiHubLoginNotifier.instance.value = true;
       _friendCode = (loginData['user'] as Map<String, dynamic>?)
           ?.tryGet<String>('friendCode');
 
@@ -2470,6 +2473,7 @@ class DivingFishProbeManager {
     } else {
       await prefs.remove(CacheKeyConstant.probeFriendCode);
     }
+    MaimaiHubLoginNotifier.instance.value = true;
   }
 
   /// 从 Set-Cookie 头中提取 jwt_token

@@ -1,18 +1,19 @@
 import '../../service/CommunityAvatarStore.dart';
 import '../../widgets/RankingPlayerBriefSheet.dart';
 import 'package:flutter/material.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../constant/CacheKeyConstant.dart';
 import '../../service/RankingList/AvgRankingListService.dart';
 import '../../utils/AppTheme.dart';
-import '../../utils/ColorUtil.dart';
 import '../../utils/StringUtil.dart';
 import '../../widgets/AppHeader.dart';
 import '../../widgets/ThemeAwareBackground.dart';
 import '../../widgets/CommunityAvatar.dart';
 import '../../utils/CurrentDataSourceNotifier.dart';
 import '../../utils/RankingRowExtent.dart';
+import '../../widgets/RankingUi.dart';
+import '../../widgets/AppUi.dart';
+import '../../widgets/AppToast.dart';
 
 class AvgScoreRankingListPage extends StatefulWidget {
   final AvgMetric initialMetric;
@@ -49,6 +50,7 @@ class _AvgScoreRankingListPageState extends State<AvgScoreRankingListPage> {
 
   /// 行高实测器（定位按钮要精确落位）：列表用 `prototypeItem` 把每行都排成它的高度。
   final RankingRowExtent _rowExtent = RankingRowExtent();
+  final RankingEntrance _entrance = RankingEntrance();
 
   @override
   void initState() {
@@ -122,7 +124,7 @@ class _AvgScoreRankingListPageState extends State<AvgScoreRankingListPage> {
       return;
     }
     if (_currentUserRankItem!.rank > 100) {
-      Fluttertoast.showToast(msg: '抱歉，您不在前100名内');
+      AppToast.show('抱歉，您不在前100名内');
       return;
     }
     final userIndex =
@@ -132,7 +134,7 @@ class _AvgScoreRankingListPageState extends State<AvgScoreRankingListPage> {
       // （真实行高只有 64，估高每行多 8dp，到第 40 名就滑过头 320dp）。
       _rowExtent.scrollRowToTop(_scrollController, userIndex);
     } else {
-      Fluttertoast.showToast(msg: '抱歉，您不在前100名内');
+      AppToast.show('抱歉，您不在前100名内');
     }
   }
 
@@ -204,114 +206,68 @@ class _AvgScoreRankingListPageState extends State<AvgScoreRankingListPage> {
           ? item.achievementCount
           : item.dxCount;
 
-  Widget _buildRankBadge(int rank, {required Brightness brightness}) {
-    if (rank == 1) {
-      return Container(
-        width: 28,
-        height: 28,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Colors.yellow, Colors.orange],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-          shape: BoxShape.circle,
-        ),
-        child: const Icon(Icons.emoji_events, size: 16, color: Colors.white),
-      );
-    } else if (rank == 2) {
-      return Container(
-        width: 28,
-        height: 28,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Colors.grey, Colors.grey[400]!],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-          shape: BoxShape.circle,
-        ),
-        child: const Icon(Icons.emoji_events, size: 16, color: Colors.white),
-      );
-    } else if (rank == 3) {
-      return Container(
-        width: 28,
-        height: 28,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Colors.orange[300]!, Colors.orange[600]!],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-          shape: BoxShape.circle,
-        ),
-        child: const Icon(Icons.emoji_events, size: 16, color: Colors.white),
-      );
-    } else {
-      return Text(
-        rank.toString(),
-        style: TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.bold,
-          color: AppColors.primaryText(brightness),
-        ),
-      );
-    }
-  }
-
-  Widget _buildValueCell(AvgRankItem item, {required Brightness brightness}) {
+  Widget _buildValueCell(AvgRankItem item) {
+    final scheme = Theme.of(context).colorScheme;
     // 仅在平均DX分数达成率榜单显示星级（scoreRate = 平均DX达成率 / 100）
-    final bool showStars = _currentMetric == AvgMetric.dx;
-    final String? stars =
-        showStars ? StringUtil.formatStars(item.avgDxAchievement / 100) : null;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (stars != null) ...[
-              Text(
-                stars,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: _starColor(stars, brightness),
+    final String? stars = _currentMetric == AvgMetric.dx
+        ? StringUtil.formatStars(item.avgDxAchievement / 100)
+        : null;
+    return SizedBox(
+      width: 132,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerRight,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (stars != null) ...[
+                  StarBadge(stars: stars, fontSize: 11),
+                  const SizedBox(width: 5),
+                ],
+                Text(
+                  _formatValue(_valueOf(item)),
+                  maxLines: 1,
+                  style: AppTheme.number(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: scheme.onSurface,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 5),
-            ],
-            Text(
-              _formatValue(_valueOf(item)),
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: AppColors.primaryText(brightness),
-              ),
+              ],
             ),
-          ],
-        ),
-        Text(
-          '${_recordCountOf(item)}条',
-          textAlign: TextAlign.right,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            fontSize: 11,
-            color: AppColors.greyHint(brightness),
           ),
-        ),
-      ],
+          Text(
+            '${_recordCountOf(item)}条',
+            maxLines: 1,
+            style: AppTheme.number(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  // 星级颜色：0 星默认白色在浅色主题下不可见，改用随主题的灰色
-  Color _starColor(String stars, Brightness brightness) {
-    final color = ColorUtil.getStarsColor(stars);
-    if (color == Colors.white) {
-      return AppColors.greyHint(brightness);
-    }
-    return color;
+  Widget _buildIdentity(AvgRankItem item, {bool isCurrentUser = false}) {
+    return CommunityPlayerIdentity(
+      avatarId: item.avatarId,
+      dataSource: item.dataSource,
+      // 开发者白名单按 `<source>:<id>` 整串匹配，见 DataSourceTag
+      playerId: item.playerId,
+      name: item.playerName.isEmpty ? '未知玩家' : item.playerName,
+      // 头像高度对齐「玩家名 + 数据源标签」两行文字的总高
+      avatarMatchesTextHeight: true,
+      nameStyle: TextStyle(
+        fontSize: 14,
+        fontWeight: isCurrentUser ? FontWeight.bold : FontWeight.w500,
+        color: Theme.of(context).colorScheme.onSurface,
+      ),
+    );
   }
 
   Widget _buildRankItem(
@@ -320,55 +276,15 @@ class _AvgScoreRankingListPageState extends State<AvgScoreRankingListPage> {
     required Brightness brightness,
   }) {
     return RankingPlayerRow(
-        playerId: item.playerId,
-        nickname: item.playerName,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            border: Border(
-                bottom: BorderSide(color: AppColors.tableBorder(brightness))),
-            color: isCurrentUser
-                ? AppColors.linkBlue(brightness).withValues(alpha: 0.08)
-                : null,
-          ),
-          child: Row(
-            children: [
-              // 排名
-              SizedBox(
-                width: 40,
-                child: Center(
-                    child: _buildRankBadge(item.rank, brightness: brightness)),
-              ),
-
-              Expanded(
-                child: CommunityPlayerIdentity(
-                  avatarId: item.avatarId,
-                  dataSource: item.dataSource,
-                  // 开发者白名单按 `<source>:<id>` 整串匹配，见 DataSourceTag
-                  playerId: item.playerId,
-                  name: item.playerName.isEmpty ? '未知玩家' : item.playerName,
-                  // 头像高度对齐「玩家名 + 数据源标签」两行文字的总高
-                  avatarMatchesTextHeight: true,
-                  nameStyle: TextStyle(
-                    fontSize: 14,
-                    fontWeight:
-                        isCurrentUser ? FontWeight.bold : FontWeight.w500,
-                    color: isCurrentUser
-                        ? AppColors.primaryText(brightness)
-                        : AppColors.secondaryText(brightness),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-
-              // 数值信息
-              SizedBox(
-                width: 140,
-                child: _buildValueCell(item, brightness: brightness),
-              ),
-            ],
-          ),
-        ));
+      playerId: item.playerId,
+      nickname: item.playerName,
+      child: RankingRow(
+        rank: item.rank,
+        highlighted: isCurrentUser,
+        identity: _buildIdentity(item, isCurrentUser: isCurrentUser),
+        value: _buildValueCell(item),
+      ),
+    );
   }
 
   /// 定位用的「原型行」：内容最全的一行（第 1 名那 28dp 奖杯 + 星级/达成率 +
@@ -452,36 +368,10 @@ class _AvgScoreRankingListPageState extends State<AvgScoreRankingListPage> {
                 ],
               ),
               // 免责声明
-              Container(
-                width: double.infinity,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                decoration: BoxDecoration(
-                  color: AppColors.warningOrange(brightness)
-                      .withValues(alpha: 0.08),
-                  border: Border(
-                      bottom: BorderSide(
-                          color: AppColors.warningOrange(brightness)
-                              .withValues(alpha: 0.3))),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(Icons.info_outline,
-                        size: 16, color: AppColors.warningOrange(brightness)),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        '本排行榜数据仅供参考和娱乐使用，不代表任何官方立场或权威性排名。平均达成率 / 平均DX分数达成率基于玩家自愿上传的全量成绩记录计算，服务端每 6 小时更新一次，可能存在误差或延迟。请理性看待排名结果，享受游戏乐趣。',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.warningOrange(brightness),
-                          height: 1.4,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+              const RankingNotice(
+                summary: '数据仅供参考和娱乐，不代表官方立场或权威排名',
+                detail:
+                    '本排行榜数据仅供参考和娱乐使用，不代表任何官方立场或权威性排名。平均达成率 / 平均DX分数达成率基于玩家自愿上传的全量成绩记录计算，服务端每 6 小时更新一次，可能存在误差或延迟。请理性看待排名结果，享受游戏乐趣。',
               ),
 
               // 排行榜列表
@@ -498,7 +388,10 @@ class _AvgScoreRankingListPageState extends State<AvgScoreRankingListPage> {
                             // `ListView` 会把 `MediaQuery.padding.top`（状态栏 24dp）当成
                             // 内边距垫在列表最上面，而状态栏已被 `AppHeader` 占掉 ——
                             // 结果就是「第一名那行上方多出一块空白」（实测 24dp）。
-                            padding: EdgeInsets.zero,
+                            padding: EdgeInsets.only(
+                                bottom: _currentUserRankItem == null
+                                    ? MediaQuery.paddingOf(context).bottom
+                                    : 0),
                             // 每行都排成原型行的高度：定位按钮才能用
                             // `index × 行高` 精确落位（行高不再靠 72 这种估算）
                             prototypeItem: _buildRowPrototype(brightness),
@@ -507,69 +400,24 @@ class _AvgScoreRankingListPageState extends State<AvgScoreRankingListPage> {
                               final item = _rankList[index];
                               final isCurrentUser = _currentUserId != null &&
                                   item.playerId == _currentUserId;
-                              return _buildRankItem(
+                              return _entrance.wrap(_rankList, index, _buildRankItem(
                                 item,
                                 isCurrentUser: isCurrentUser,
                                 brightness: brightness,
-                              );
+                              ));
                             },
                           ),
               ),
 
               // 底部固定显示当前用户
               if (!_isLoading && _currentUserRankItem != null)
-                Material(
-                  color: Colors.transparent,
-                  child: InkWell(
+                SafeArea(
+                  top: false,
+                  child: RankingSelfBar(
+                    rank: _currentUserRankItem!.rank,
                     onTap: _scrollToCurrentUser,
-                    child: Ink(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 12),
-                      decoration: BoxDecoration(
-                        border: Border(
-                            top: BorderSide(
-                                color: AppColors.primaryText(brightness))),
-                        color: AppColors.linkBlue(brightness)
-                            .withValues(alpha: 0.08),
-                      ),
-                      child: Row(
-                        children: [
-                          // 排名
-                          SizedBox(
-                            width: 40,
-                            child: Center(
-                              child: _buildRankBadge(_currentUserRankItem!.rank,
-                                  brightness: brightness),
-                            ),
-                          ),
-
-                          Expanded(
-                            child: CommunityPlayerIdentity(
-                              avatarId: _currentUserRankItem!.avatarId,
-                              dataSource: _currentUserRankItem!.dataSource,
-                              playerId: _currentUserRankItem!.playerId,
-                              name: _currentUserRankItem!.playerName.isEmpty
-                                  ? '未知玩家'
-                                  : _currentUserRankItem!.playerName,
-                              avatarMatchesTextHeight: true,
-                              nameStyle: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.primaryText(brightness),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-
-                          // 数值信息
-                          SizedBox(
-                            width: 140,
-                            child: _buildValueCell(_currentUserRankItem!,
-                                brightness: brightness),
-                          ),
-                        ],
-                      ),
-                    ),
+                    identity: _buildIdentity(_currentUserRankItem!, isCurrentUser: true),
+                    value: _buildValueCell(_currentUserRankItem!),
                   ),
                 ),
             ],

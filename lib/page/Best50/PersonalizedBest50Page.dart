@@ -18,11 +18,13 @@ import 'package:my_first_flutter_app/manager/MaiTagsManager.dart';
 import 'package:my_first_flutter_app/entity/DXRating/MaiTagsModel.dart';
 import 'package:my_first_flutter_app/utils/ExportQualitySelector.dart';
 import 'package:my_first_flutter_app/utils/ImageEncodeUtil.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
 import '../../widgets/AppUi.dart';
 import '../../utils/AppDesignTokens.dart';
 import '../../widgets/Best50Ui.dart';
+import '../../widgets/AppDialogs.dart';
+import '../../widgets/ExportSuccessDialog.dart';
+import '../../widgets/AppToast.dart';
 
 class PersonalizedBest50Page extends StatefulWidget {
   const PersonalizedBest50Page({super.key});
@@ -33,6 +35,8 @@ class PersonalizedBest50Page extends StatefulWidget {
 
 class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
   List<Map<String, dynamic>> _personalizedSongs = [];
+  List<Map<String, dynamic>> _remainingSongs = [];
+  String? _remainingLabel;
   bool _isLoading = true;
   String _selectedType = 'ap_plus_50'; // 默认选择AP+50
   String? _selectedCharter; // 选中的charter
@@ -252,6 +256,8 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
 
     try {
       final service = PersonalizedBest50Service();
+      service.lastRemaining = const [];
+      service.lastRemainingLabel = null;
       Map<String, dynamic>? data;
 
       // 根据选择的类型获取数据
@@ -390,14 +396,20 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
         // 为记录添加歌曲信息
         final enrichedRecords = await service.enrichRecordsWithSongInfo(
             (data['records'] is List ? data['records'] : []) as List<dynamic>);
+        final remainingLabel = service.lastRemainingLabel;
+        final enrichedRemaining =
+            await service.enrichRecordsWithSongInfo(service.lastRemaining);
 
         setState(() {
           _personalizedSongs = enrichedRecords;
+          _remainingSongs = enrichedRemaining;
+          _remainingLabel = remainingLabel;
           _isLoading = false;
         });
       } else {
         setState(() {
           _personalizedSongs = [];
+          _remainingSongs = [];
           _isLoading = false;
         });
       }
@@ -405,6 +417,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
       debugPrint('Error fetching personalized data: $e');
       setState(() {
         _personalizedSongs = [];
+        _remainingSongs = [];
         _isLoading = false;
       });
     }
@@ -469,37 +482,13 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
   Future<void> _exportToImage() async {
     try {
       if (_personalizedSongs.isEmpty) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: Text('提示'),
-            content: Text('没有数据可导出'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text('确定'),
-              ),
-            ],
-          ),
-        );
+        showAppNoticeDialog(context, title: '提示', message: '没有数据可导出');
         return;
       }
 
       bool hasPermission = await _requestStoragePermission();
       if (!hasPermission) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: Text('权限不足'),
-            content: Text('需要存储权限才能导出图片到相册，请在设置中开启权限'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text('确定'),
-              ),
-            ],
-          ),
-        );
+        showAppNoticeDialog(context, title: '权限不足', message: '需要存储权限才能导出图片到相册，请在设置中开启权限', tone: AppDialogTone.warning);
         return;
       }
 
@@ -540,20 +529,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
       }
 
       // 显示加载指示器
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => AlertDialog(
-          title: Text('导出中'),
-          content: Row(
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(width: 16.0),
-              Text('正在生成图片...'),
-            ],
-          ),
-        ),
-      );
+      showAppProgressDialog(context, title: '导出中', message: '正在生成图片...');
 
       String title = _selectedType == 'charter_50' && _selectedCharter != null
           ? '谱师50 - ${_selectedCharter!}'
@@ -582,61 +558,16 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
 
       // 显示导出结果
       if (file != null) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: Text('导出成功'),
-            content: Text('图片已保存到：\n${file.path}'),
-            actions: [
-              TextButton(
-                onPressed: () async {
-                  await Clipboard.setData(ClipboardData(text: file.path));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('路径已复制到剪贴板')),
-                  );
-                },
-                child: Text('复制路径'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text('确定'),
-              ),
-            ],
-          ),
-        );
+        showExportSuccessDialog(context, filePath: file.path, fileName: file.path.split('/').last);
       } else {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: Text('导出失败'),
-            content: Text('图片导出失败，请重试'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text('确定'),
-              ),
-            ],
-          ),
-        );
+        showAppNoticeDialog(context, title: '导出失败', message: '图片导出失败，请重试', tone: AppDialogTone.error);
       }
     } catch (e) {
       // 关闭加载指示器
       Navigator.pop(context);
 
       // 显示错误信息
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text('导出失败'),
-          content: Text('导出过程中出现错误：\n$e'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('确定'),
-            ),
-          ],
-        ),
-      );
+      showAppNoticeDialog(context, title: '导出失败', message: '导出过程中出现错误：\n$e', tone: AppDialogTone.error);
     }
   }
 
@@ -653,6 +584,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
     return BackgroundPageScaffold(
       title: '个性化 Best50',
       resizeToAvoidBottomInset: false,
+      actionsEndInset: 4,
       actions: [
         Best50IconAction(
           tooltip: '导出为图片',
@@ -665,7 +597,6 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
             }
           },
         ),
-        const SizedBox(width: 4),
       ],
       contentPadding:
           EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
@@ -736,7 +667,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
+        return AppAlertDialog(
           title: Text('选择类型'),
           content: SingleChildScrollView(
             child: ListBody(
@@ -810,23 +741,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
   void _showVersionSelectionDialog() {
     if (_versionCounts == null || _versionCounts!.isEmpty) {
       // 没有版本数据
-      showDialog(
-        context: context,
-        builder: (BuildContext context) {
-          return AlertDialog(
-            title: Text('提示'),
-            content: Text('没有找到版本数据'),
-            actions: [
-              TextButton(
-                child: Text('确定'),
-                onPressed: () {
-                  Navigator.of(context).pop();
-                },
-              ),
-            ],
-          );
-        },
-      );
+      showAppNoticeDialog(context, title: '提示', message: '没有找到版本数据');
       return;
     }
 
@@ -851,7 +766,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
+        return AppAlertDialog(
           title: Text('选择版本'),
           content: SingleChildScrollView(
             child: ListBody(
@@ -889,23 +804,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
   void _showGenreSelectionDialog() {
     if (_genreCounts == null || _genreCounts!.isEmpty) {
       // 没有流派数据
-      showDialog(
-        context: context,
-        builder: (BuildContext context) {
-          return AlertDialog(
-            title: Text('提示'),
-            content: Text('没有找到流派数据'),
-            actions: [
-              TextButton(
-                child: Text('确定'),
-                onPressed: () {
-                  Navigator.of(context).pop();
-                },
-              ),
-            ],
-          );
-        },
-      );
+      showAppNoticeDialog(context, title: '提示', message: '没有找到流派数据');
       return;
     }
 
@@ -916,7 +815,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
+        return AppAlertDialog(
           title: Text('选择流派'),
           content: SingleChildScrollView(
             child: ListBody(
@@ -954,7 +853,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
+        return AppAlertDialog(
           title: Text('选择星数'),
           content: SingleChildScrollView(
             child: ListBody(
@@ -1036,7 +935,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
   void _triggerBestN() {
     final v = int.tryParse(_bestNController.text.trim());
     if (v == null || v < 1) {
-      Fluttertoast.showToast(msg: '请输入 ≥ 1 的整数');
+      AppToast.show('请输入 ≥ 1 的整数');
       return;
     }
     setState(() {
@@ -1063,7 +962,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
+        return AppAlertDialog(
           title: Text('选择难度'),
           content: SingleChildScrollView(
             child: ListBody(
@@ -1102,7 +1001,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
       showDialog(
         context: context,
         builder: (BuildContext context) {
-          return AlertDialog(
+          return AppAlertDialog(
             title: Text('提示'),
             content: Text('没有找到标签数据'),
             actions: [
@@ -1135,7 +1034,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
+        return AppAlertDialog(
           title: Text('选择标签'),
           content: SizedBox(
             width: double.maxFinite,
@@ -1160,8 +1059,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
                       ...entry.value.map((tag) {
                         return ListTile(
                           title: Text(tag.localizedName.zhHans),
-                          subtitle: Text(tag.localizedDescription.zhHans,
-                              maxLines: 1, overflow: TextOverflow.ellipsis),
+                          subtitle: Text(tag.localizedDescription.zhHans),
                           dense: true,
                           selected: _selectedTagId == tag.id,
                           onTap: () {
@@ -1196,23 +1094,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
   void _showCharterSelectionDialog() {
     if (_charterCounts == null || _charterCounts!.isEmpty) {
       // 没有charter数据
-      showDialog(
-        context: context,
-        builder: (BuildContext context) {
-          return AlertDialog(
-            title: Text('提示'),
-            content: Text('没有找到符合条件的谱师数据'),
-            actions: [
-              TextButton(
-                child: Text('确定'),
-                onPressed: () {
-                  Navigator.of(context).pop();
-                },
-              ),
-            ],
-          );
-        },
-      );
+      showAppNoticeDialog(context, title: '提示', message: '没有找到符合条件的谱师数据');
       return;
     }
 
@@ -1224,7 +1106,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
+        return AppAlertDialog(
           title: Text('选择谱师'),
           content: SingleChildScrollView(
             child: ListBody(
@@ -1417,6 +1299,8 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
 
     return Best50Grid(
       items: [for (final s in _personalizedSongs) _cardData(s)],
+      remaining: [for (final s in _remainingSongs) _cardData(s)],
+      remainingLabel: _remainingLabel,
     );
   }
 

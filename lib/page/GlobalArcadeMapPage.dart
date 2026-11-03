@@ -10,6 +10,7 @@ import 'package:my_first_flutter_app/utils/CommonWidgetUtil.dart';
 import '../widgets/AppHeader.dart';
 import '../utils/ArcadeMarkerCluster.dart';
 import '../utils/AppDesignTokens.dart';
+import '../widgets/AppToast.dart';
 
 // 缓存 Key
 const _cacheKey = 'nearcade_shops_cache';
@@ -384,9 +385,7 @@ class _GlobalArcadeMapPageState extends State<GlobalArcadeMapPage> {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('请先开启设备定位服务')),
-          );
+          AppToast.show('请先开启设备定位服务');
         }
         return;
       }
@@ -399,9 +398,7 @@ class _GlobalArcadeMapPageState extends State<GlobalArcadeMapPage> {
       }
       if (permission == LocationPermission.deniedForever) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('定位权限已被永久拒绝，请在系统设置中开启')),
-          );
+          AppToast.show('定位权限已被永久拒绝，请在系统设置中开启');
         }
         return;
       }
@@ -429,9 +426,7 @@ class _GlobalArcadeMapPageState extends State<GlobalArcadeMapPage> {
 
       if (position == null) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('无法获取当前位置，请确认已开启定位服务且信号良好')),
-          );
+          AppToast.show('无法获取当前位置，请确认已开启定位服务且信号良好');
         }
         return;
       }
@@ -441,9 +436,7 @@ class _GlobalArcadeMapPageState extends State<GlobalArcadeMapPage> {
     } catch (e) {
       debugPrint('定位失败: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('定位失败: $e')),
-        );
+        AppToast.show('定位失败: $e');
       }
     }
   }

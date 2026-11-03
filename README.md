@@ -3,7 +3,7 @@
 <div align="center">
   <img src="https://img.shields.io/badge/Platform-Android-blue.svg" alt="Platform">
   <img src="https://img.shields.io/badge/Flutter-3.x-02569B.svg?logo=flutter&logoColor=white" alt="Flutter">
-  <img src="https://img.shields.io/badge/Version-2.9.0%2B52-6C63FF.svg" alt="Version">
+  <img src="https://img.shields.io/badge/Version-3.0.0--alpha%2B53-6C63FF.svg" alt="Version">
   <img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License">
 </div>
 
@@ -13,7 +13,7 @@ ChiffonMai 是一款面向舞萌 DX 玩家的移动端工具应用。它把曲�
 
 ## 当前版本与导航
 
-当前源码版本为 **2.9.0+52**。底部导航按用途分为 **首页、曲库、成绩、出勤、休闲、我的**；首页提供功能搜索和可排序的收藏入口。其余五页进一步按业务分组，成绩页直接显示全部分组。
+当前源码版本为 **3.0.0-alpha+53**。底部导航按用途分为 **首页、曲库、成绩、出勤、休闲、我的**；首页提供功能搜索和可排序的收藏入口。其余五页进一步按业务分组，成绩页直接显示全部分组。
 
 - **账号与授权**：支持水鱼、落雪和 AWMC NET 账号资料管理，提供注册引导、个人 key 获取说明与来源隔离的成绩数据。
 - **同步与刷新**：支持单平台、多端与自动同步；成绩同步成功后自动执行所选数据刷新，刷新失败单独提示。自动同步需配置各数据源凭据与机台身份。

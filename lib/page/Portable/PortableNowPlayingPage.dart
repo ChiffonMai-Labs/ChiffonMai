@@ -11,19 +11,19 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../../widgets/ExportSuccessDialog.dart';
 
 import '../../entity/Portable/PortableSong.dart';
 import '../../service/Portable/PortablePlayerController.dart';
 import '../../service/Portable/PortableSongDownloadService.dart';
-import '../../utils/AppTheme.dart';
 import '../../utils/ExportPathUtil.dart';
 import '../../utils/PortablePlayerScope.dart';
 import '../../widgets/AnimatedChoiceBar.dart';
+import '../../widgets/BackgroundPageScaffold.dart';
 import '../../widgets/MarqueeText.dart';
 import '../../widgets/PortablePlayerBadge.dart';
 import '../../widgets/PortablePlaybackModeButton.dart';
+import '../../widgets/AppToast.dart';
 
 class PortableNowPlayingPage extends StatefulWidget {
   const PortableNowPlayingPage({super.key});
@@ -74,42 +74,18 @@ class _PortableNowPlayingPageState extends State<PortableNowPlayingPage> {
 
   @override
   Widget build(BuildContext context) {
-    final inheritedTheme = Theme.of(context);
-    // 保留播放器的独立视觉，明暗模式跟随应用主题。
-    final scheme = AppColors.musicPlayerScheme(inheritedTheme.brightness);
-    final playerTheme = inheritedTheme.copyWith(
-      brightness: inheritedTheme.brightness,
-      colorScheme: scheme,
-      scaffoldBackgroundColor: scheme.surface,
-      textTheme: inheritedTheme.textTheme.apply(
-        bodyColor: scheme.onSurface,
-        displayColor: scheme.onSurface,
-      ),
-    );
+    // 配色、背景图和顶部栏都跟随应用主题，与其它页面一致。
+    final scheme = Theme.of(context).colorScheme;
     final song = _player.currentSong;
 
-    return Theme(
-      data: playerTheme,
-      child: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: (inheritedTheme.brightness == Brightness.dark
-                ? SystemUiOverlayStyle.light
-                : SystemUiOverlayStyle.dark)
-            .copyWith(
-          statusBarColor: Colors.transparent,
-          systemNavigationBarColor: scheme.surface,
-          systemNavigationBarDividerColor: Colors.transparent,
-          systemNavigationBarContrastEnforced: false,
-        ),
-        child: Scaffold(
-          resizeToAvoidBottomInset: false,
-          backgroundColor: scheme.surface,
-          body: SafeArea(
-            child: Builder(
-              builder: (context) => song == null
-                  ? (_player.isLoading ? _preparing(scheme) : _empty(scheme))
-                  : _content(context, scheme, song),
-            ),
-          ),
+    return BackgroundPageScaffold(
+      title: '播放音乐',
+      child: SafeArea(
+        top: false,
+        child: Builder(
+          builder: (context) => song == null
+              ? (_player.isLoading ? _preparing(scheme) : _empty(scheme))
+              : _content(context, scheme, song),
         ),
       ),
     );
@@ -195,9 +171,7 @@ class _PortableNowPlayingPageState extends State<PortableNowPlayingPage> {
   }
 
   void _showDownloadHint(String message) {
-    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-      SnackBar(content: Text(message), duration: const Duration(seconds: 4)),
-    );
+    AppToast.show(message, duration: const Duration(seconds: 4));
   }
 
   Widget _content(

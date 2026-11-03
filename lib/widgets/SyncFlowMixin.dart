@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../constant/CacheKeyConstant.dart';
@@ -33,6 +32,8 @@ import 'SyncScoreDialogs.dart'
 import 'ErrorMessageDialog.dart';
 import 'ConfettiEffect.dart';
 import 'MaimaiHubLoginGate.dart';
+import '../widgets/AppDialogs.dart';
+import '../widgets/AppToast.dart';
 
 /// 「同步成绩到水鱼 / 落雪 / AWMC NET」三个入口的**按钮上进度**编排。
 ///
@@ -181,7 +182,7 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
 
     final goToLogin = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppAlertDialog(
         title: const Text('提示'),
         content: const Text('请先登录你的水鱼账号，再使用同步功能。'),
         actions: [
@@ -229,7 +230,7 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
       if (!mounted) return;
       await showDialog<void>(
         context: context,
-        builder: (ctx) => AlertDialog(
+        builder: (ctx) => AppAlertDialog(
           title: const Text('账号不匹配'),
           content: Text(
             '当前登录水鱼账号绑定的 QQ（$bindQQ）与本机缓存的 QQ（$cachedQQ）不一致。\n\n请先登出当前水鱼账号，登录正确的账号后再同步。',
@@ -276,8 +277,7 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
       );
       syncOk = true;
       if (!mounted) return;
-      Fluttertoast.showToast(
-          msg: outcome.localDataRefreshed
+      AppToast.show(outcome.localDataRefreshed
               ? '同步完成！${outcome.exportedCount} 条成绩已同步，本地数据已刷新'
               : '同步完成！${outcome.exportedCount} 条成绩已推送到水鱼');
       if (outcome.refreshError != null && mounted) {
@@ -333,8 +333,7 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
     if (!mounted || outcome.cancelled) return;
     if (outcome.ok) {
       ConfettiEffect.show(context);
-      Fluttertoast.showToast(
-          msg: AwmcSyncFlow.successToast(AwmcSyncTarget.divingFish, outcome));
+      AppToast.show(AwmcSyncFlow.successToast(AwmcSyncTarget.divingFish, outcome));
       if (outcome.refreshError != null && mounted) {
         await showErrorMessageDialog(
           context,
@@ -379,7 +378,7 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
       );
       syncOk = true;
       if (!mounted) return;
-      Fluttertoast.showToast(msg: '同步完成！共 $count 条成绩已导出到落雪');
+      AppToast.show('同步完成！共 $count 条成绩已导出到落雪');
       if (refreshError != null && mounted) {
         await showErrorMessageDialog(context,
             message: '同步成功，但刷新数据失败：$refreshError');
@@ -420,8 +419,7 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
     if (!mounted || outcome.cancelled) return;
     if (outcome.ok) {
       ConfettiEffect.show(context);
-      Fluttertoast.showToast(
-          msg: AwmcSyncFlow.successToast(AwmcSyncTarget.luoXue, outcome));
+      AppToast.show(AwmcSyncFlow.successToast(AwmcSyncTarget.luoXue, outcome));
       if (outcome.refreshError != null && mounted) {
         await showErrorMessageDialog(
           context,
@@ -452,7 +450,7 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
     final message = AwmcNetSyncFlow.toastFor(outcome);
     if (outcome.ok) {
       ConfettiEffect.show(context);
-      Fluttertoast.showToast(msg: message);
+      AppToast.show(message);
       if (outcome.refreshError != null && mounted) {
         await showErrorMessageDialog(
           context,
@@ -680,7 +678,7 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
       if (!mounted) return;
       if (anySynchronized) ConfettiEffect.show(context);
       if (failures.isEmpty && refreshFailures.isEmpty) {
-        Fluttertoast.showToast(msg: '多端同步完成：${successes.join('、')}');
+        AppToast.show('多端同步完成：${successes.join('、')}');
       } else {
         await showErrorMessageDialog(
           context,

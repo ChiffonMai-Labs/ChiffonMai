@@ -1,4 +1,3 @@
-import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import 'package:my_first_flutter_app/service/RankTable/RankTableService.dart';
@@ -10,6 +9,10 @@ import 'package:my_first_flutter_app/page/SongInfoPage.dart';
 import 'package:my_first_flutter_app/widgets/BackgroundPageScaffold.dart';
 import '../../service/RankTable/RankCompletionStore.dart';
 import '../../widgets/RankCompletionButton.dart';
+import '../../utils/AppDesignTokens.dart';
+import '../../widgets/AppUi.dart';
+import '../../widgets/MarqueeText.dart';
+import '../../widgets/SmoothLinearProgressIndicator.dart';
 
 class RankDetailPage extends StatefulWidget {
   final String rankName;
@@ -27,16 +30,6 @@ class _RankDetailPageState extends State<RankDetailPage> {
   Map<String, dynamic>? _userPlayData;
   List<Song>? _songs;
   bool _isLoading = true;
-
-  late double _paddingXS;
-  late double _paddingS;
-  late double _paddingM;
-  late double _borderRadiusSmall;
-  late double _textSizeXS;
-  late double _textSizeS;
-  late double _textSizeM;
-  late double _textSizeL;
-  late double _scaleFactor;
 
   @override
   void initState() {
@@ -191,17 +184,6 @@ class _RankDetailPageState extends State<RankDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    _scaleFactor = screenWidth / 375.0;
-    _paddingXS = 4.0 * _scaleFactor;
-    _paddingS = 4.0 * _scaleFactor;
-    _paddingM = 12.0 * _scaleFactor;
-    _borderRadiusSmall = 8.0 * _scaleFactor;
-    _textSizeXS = 9.0 * _scaleFactor;
-    _textSizeS = 11.0 * _scaleFactor;
-    _textSizeM = 12.0 * _scaleFactor;
-    _textSizeL = 14.0 * _scaleFactor;
-
     final rankData = RankListService().getRankData(widget.rankName);
     final isNormalRank = [
       '初段',
@@ -216,441 +198,433 @@ class _RankDetailPageState extends State<RankDetailPage> {
       '十段'
     ].contains(widget.rankName);
 
-
-
     return BackgroundPageScaffold(
       title: widget.rankName,
-      contentPadding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
+      contentPadding:
+          EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
       child: _isLoading
-                      ? Center(child: CircularProgressIndicator())
-                      : SingleChildScrollView(
-                          padding: EdgeInsets.fromLTRB(_paddingM, 8, _paddingM, _paddingM),
-                          child: rankData != null
-                              ? _buildContent(rankData, isNormalRank)
-                              : _buildEmptyContent(),
-                        ),
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(AppDesignTokens.gutter, 8,
+                  AppDesignTokens.gutter, AppDesignTokens.gutter),
+              child: rankData != null
+                  ? _buildContent(rankData, isNormalRank)
+                  : _buildEmptyContent(),
+            ),
     );
   }
 
   Widget _buildContent(RankData rankData, bool isNormalRank) {
-    final brightness = Theme.of(context).brightness;
-    final textPrimaryColor = Theme.of(context).colorScheme.onSurface;
-    final subtitleColor = Theme.of(context).colorScheme.onSurfaceVariant;
-
-    // 分区容器（「预计结果」/「血量设置」）的边框统一走 M3 的 outlineVariant。
-    //
-    // 原来用的是 AppColors.tableBorder，它虽然按明暗分支，但两支都是**写死的中性灰**：
-    //   light → grey.shade300 #E0E0E0，压在浅色 surface 上只有约 1.26:1，基本看不见；
-    //   dark  → grey.shade700 #616161，压在深色 surface 上有约 3:1，非常显眼。
-    // 两边差了 2.4 倍，浅色下这条边框实际上等于没有，这就是「没做适配」的观感来源。
-    // 而且它也不跟随用户自定义主题色，纯黑模式专门覆盖的 outline 也吃不到。
-    //
-    // outlineVariant 由 ColorScheme 按明暗与种子色派生，深浅两侧对比度接近
-    // （约 1.63:1 / 1.98:1），且本项目的 cardTheme / dividerTheme 用的就是它，
-    // 放在这里正好和全局容器边框的观感保持一致。
-    final borderColor = Theme.of(context).colorScheme.outlineVariant;
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-          Flexible(
-              child: Container(
-            padding: EdgeInsets.symmetric(
-                horizontal: _paddingM, vertical: _paddingS),
-            decoration: BoxDecoration(
-              color:
-                  isNormalRank ? AppColors.medalColor('bronze') : Colors.purple,
-              borderRadius: BorderRadius.circular(_borderRadiusSmall),
+        _buildHero(rankData, isNormalRank),
+        const SizedBox(height: 10),
+        _buildCompletionRow(),
+        ..._buildResultCard(rankData),
+        const SizedBox(height: 16),
+        const AppSectionHeader(title: '段位曲目'),
+        for (int index = 0; index < 4; index++)
+          EntranceAnimation(
+            index: index,
+            duration: const Duration(milliseconds: 300),
+            offset: const Offset(0, 8),
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _buildSongCard(rankData, index),
             ),
-            child: Text(rankData.name,
-                style: TextStyle(
-                    fontSize: _textSizeL,
-                    fontWeight: FontWeight.bold,
-                    color:
-                        isNormalRank ? Colors.white : const Color(0xFFE6E6FA))),
-          )),
-          const SizedBox(width: 8),
-          RankCompletionButton(rank: widget.rankName),
-        ]),
-        SizedBox(height: _paddingM),
-        Text(
-          '段位曲目',
-          style: TextStyle(
-            fontSize: _textSizeM,
-            fontWeight: FontWeight.bold,
-            color: subtitleColor,
           ),
-        ),
-        SizedBox(height: _paddingXS),
-        Column(
-          children: List.generate(4, (index) {
-            final songId = rankData.songIds[index];
-            final levelIndex = rankData.levelIndexes[index];
-            final achievement = _getAchievement(songId, levelIndex);
-            final song = _getSongById(songId);
-            final hasAchievement = achievement.isNotEmpty;
-            final achievementValue = double.tryParse(achievement) ?? 0.0;
-
-            return InkWell(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => SongInfoPage(
-                      songId: songId,
-                      initialLevelIndex: levelIndex,
-                      isDefaultLevelIndex: false,
-                    ),
-                  ),
-                );
-              },
-              borderRadius: BorderRadius.circular(_borderRadiusSmall),
-              child: Container(
-                margin: EdgeInsets.only(bottom: _paddingS),
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: _getDifficultyBorderColor(levelIndex),
-                    width: 1,
-                  ),
-                  borderRadius: BorderRadius.circular(_borderRadiusSmall),
-                ),
-                padding: EdgeInsets.all(_paddingS),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Container(
-                      width: 60 * _scaleFactor,
-                      height: 60 * _scaleFactor,
-                      child: Stack(
-                        children: [
-                          CoverUtil.buildCoverWidgetWithContext(
-                            context,
-                            songId.isNotEmpty ? songId : '0',
-                            60 * _scaleFactor,
-                          ),
-                          Container(
-                            decoration: BoxDecoration(
-                              border: Border.all(
-                                color: _getDifficultyBorderColor(levelIndex),
-                                width: 2,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    SizedBox(width: _paddingS),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              _buildSongTypeTag(song?.type),
-                              SizedBox(width: _paddingXS),
-                              Expanded(
-                                child: Text(
-                                  song?.title ?? '曲目 ${index + 1}',
-                                  style: TextStyle(
-                                    fontSize: _textSizeM,
-                                    fontWeight: FontWeight.bold,
-                                    color: textPrimaryColor,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
-                          SizedBox(height: 2),
-                          Row(
-                            children: [
-                              Container(
-                                padding: EdgeInsets.symmetric(
-                                    horizontal: _paddingXS, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: _getDifficultyBorderColor(levelIndex)
-                                      .withOpacity(0.2),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  _getDifficultyName(levelIndex),
-                                  style: TextStyle(
-                                    fontSize: _textSizeXS,
-                                    color:
-                                        _getDifficultyBorderColor(levelIndex),
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                              SizedBox(width: _paddingS),
-                              Text(
-                                hasAchievement
-                                    ? '达成率: ${achievementValue.toStringAsFixed(4)}%'
-                                    : '未游玩',
-                                style: TextStyle(
-                                  fontSize: _textSizeS,
-                                  color:
-                                      hasAchievement && achievementValue >= 100
-                                          ? AppColors.successGreen(brightness)
-                                          : subtitleColor,
-                                  fontWeight:
-                                      hasAchievement && achievementValue >= 100
-                                          ? FontWeight.bold
-                                          : FontWeight.normal,
-                                ),
-                              ),
-                            ],
-                          ),
-                          if (hasAchievement && song != null) ...[
-                            SizedBox(height: 2),
-                            Builder(
-                              builder: (context) {
-                                final minDamage = _calcMinDamage(
-                                    song, levelIndex, achievement, rankData);
-                                return Text(
-                                  '预计最低扣血: $minDamage',
-                                  style: TextStyle(
-                                    fontSize: _textSizeS,
-                                    color: minDamage > 0
-                                        ? AppColors.errorRed(brightness)
-                                        : AppColors.greyHint(brightness),
-                                    fontWeight: minDamage > 0
-                                        ? FontWeight.bold
-                                        : FontWeight.normal,
-                                  ),
-                                );
-                              },
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }).toList(),
-        ),
-        () {
-          final result = _calcResult(rankData);
-          final totalAchievement = result['totalAchievement'] as double;
-          final remainingHp = result['remainingHp'] as int;
-          final isDead = result['isDead'] as bool;
-
-          bool allHaveAchievement = true;
-          for (int i = 0; i < 4; i++) {
-            final a =
-                _getAchievement(rankData.songIds[i], rankData.levelIndexes[i]);
-            if (a.isEmpty) {
-              allHaveAchievement = false;
-              break;
-            }
-          }
-
-          if (!allHaveAchievement) return SizedBox.shrink();
-
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(height: _paddingM),
-              Text(
-                '预计结果',
-                style: TextStyle(
-                  fontSize: _textSizeM,
-                  fontWeight: FontWeight.bold,
-                  color: subtitleColor,
-                ),
-              ),
-              SizedBox(height: _paddingXS),
-              Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  border: Border.all(color: borderColor, width: 1.0),
-                  borderRadius: BorderRadius.circular(_borderRadiusSmall),
-                ),
-                padding: EdgeInsets.all(_paddingM),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        _buildStatCell('总达成率'),
-                        _buildStatCell('剩余血量'),
-                        _buildStatCell('结果'),
-                      ],
-                    ),
-                    SizedBox(height: _paddingXS),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            '${totalAchievement.toStringAsFixed(4)}%',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: _textSizeL,
-                              fontWeight: FontWeight.bold,
-                              color: totalAchievement >= 400
-                                  ? AppColors.successGreen(brightness)
-                                  : AppColors.errorRed(brightness),
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          child: Text(
-                            remainingHp.toString(),
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: _textSizeL,
-                              fontWeight: FontWeight.bold,
-                              color: remainingHp > 0
-                                  ? AppColors.successGreen(brightness)
-                                  : AppColors.errorRed(brightness),
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          child: Text(
-                            isDead ? '不合格' : '合格',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: _textSizeL,
-                              fontWeight: FontWeight.bold,
-                              color: isDead
-                                  ? AppColors.errorRed(brightness)
-                                  : AppColors.successGreen(brightness),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          );
-        }(),
-        SizedBox(height: _paddingM),
-        Text(
-          '血量设置',
-          style: TextStyle(
-            fontSize: _textSizeM,
-            fontWeight: FontWeight.bold,
-            color: subtitleColor,
-          ),
-        ),
-        SizedBox(height: _paddingXS),
-        Container(
-          width: double.infinity,
-          decoration: BoxDecoration(
-            border: Border.all(color: borderColor, width: 1.0),
-            borderRadius: BorderRadius.circular(_borderRadiusSmall),
-          ),
-          padding: EdgeInsets.all(_paddingM),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  _buildStatCell('初始血量'),
-                  _buildStatCell('GREAT'),
-                  _buildStatCell('GOOD'),
-                  _buildStatCell('MISS'),
-                  _buildStatCell('通关回复'),
-                ],
-              ),
-              SizedBox(height: _paddingXS),
-              Row(
-                children: [
-                  _buildStatValueCell('${rankData.initialHp}',
-                      AppColors.successGreen(brightness)),
-                  _buildStatValueCell('-${rankData.greatDamage}',
-                      AppColors.warningOrange(brightness)),
-                  _buildStatValueCell('-${rankData.goodDamage}',
-                      AppColors.errorRed(brightness)),
-                  _buildStatValueCell(
-                      '-${rankData.missDamage}', Colors.redAccent),
-                  _buildStatValueCell(
-                      '+${rankData.healAmount}', Colors.lightGreen),
-                ],
-              ),
-            ],
-          ),
-        ),
+        const SizedBox(height: 6),
+        _buildHpSettings(rankData),
       ],
     );
   }
 
-  Widget _buildStatCell(String label) {
-    return Expanded(
-      child: Text(
-        label,
-        textAlign: TextAlign.center,
-        style: TextStyle(
-            fontSize: _textSizeM,
-            color: Theme.of(context).colorScheme.onSurface),
+  /// 段位名 + 完成情况。
+  Widget _buildHero(RankData rankData, bool isNormalRank) {
+    final background =
+        isNormalRank ? AppColors.medalColor('bronze') : Colors.purple;
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusLarge),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '段位认定',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Colors.white.withValues(alpha: 0.85),
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            rankData.name,
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildStatValueCell(String value, Color valueColor) {
-    return Expanded(
-      child: Text(
-        value,
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          fontSize: _textSizeL,
-          fontWeight: FontWeight.bold,
-          color: valueColor,
+  /// 挑战状态单独一行：点右边的标签修改。
+  Widget _buildCompletionRow() {
+    final scheme = Theme.of(context).colorScheme;
+    return AppCard(
+      radius: AppDesignTokens.radiusMedium,
+      padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+      child: Row(
+        children: [
+          Text(
+            '我的挑战',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: RankCompletionButton(rank: widget.rankName),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 预计结果：四首都有成绩才能算，否则不显示。
+  List<Widget> _buildResultCard(RankData rankData) {
+    for (int i = 0; i < 4; i++) {
+      if (_getAchievement(rankData.songIds[i], rankData.levelIndexes[i])
+          .isEmpty) {
+        return const [];
+      }
+    }
+    final scheme = Theme.of(context).colorScheme;
+    final brightness = Theme.of(context).brightness;
+    final result = _calcResult(rankData);
+    final totalAchievement = result['totalAchievement'] as double;
+    final remainingHp = result['remainingHp'] as int;
+    final isDead = result['isDead'] as bool;
+    final resultColor = isDead
+        ? AppColors.errorRed(brightness)
+        : AppColors.successGreen(brightness);
+    return [
+      const SizedBox(height: AppDesignTokens.cardGap),
+      AppCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '预计结果',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+                AppBadge(
+                  text: isDead ? '不合格' : '合格',
+                  numeric: false,
+                  fontSize: 14,
+                  background: resultColor.withValues(alpha: 0.14),
+                  foreground: resultColor,
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                '${totalAchievement.toStringAsFixed(4)}%',
+                maxLines: 1,
+                style: AppTheme.number(
+                  fontSize: 30,
+                  fontWeight: FontWeight.w800,
+                  color: totalAchievement >= 400
+                      ? AppColors.successGreen(brightness)
+                      : AppColors.errorRed(brightness),
+                ),
+              ),
+            ),
+            Text(
+              '总达成率',
+              style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Text(
+                  '剩余血量',
+                  style:
+                      TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+                ),
+                const Spacer(),
+                Text(
+                  '$remainingHp / ${rankData.initialHp}',
+                  style: AppTheme.number(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: remainingHp > 0
+                        ? AppColors.successGreen(brightness)
+                        : AppColors.errorRed(brightness),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            SmoothLinearProgressIndicator(
+              value: rankData.initialHp > 0
+                  ? (remainingHp / rankData.initialHp).clamp(0.0, 1.0).toDouble()
+                  : 0,
+              minHeight: 8,
+              color: resultColor,
+              backgroundColor: AppSurfaces.inset(context),
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ],
         ),
+      ),
+    ];
+  }
+
+  Widget _buildSongCard(RankData rankData, int index) {
+    final scheme = Theme.of(context).colorScheme;
+    final brightness = Theme.of(context).brightness;
+    final songId = rankData.songIds[index];
+    final levelIndex = rankData.levelIndexes[index];
+    final achievement = _getAchievement(songId, levelIndex);
+    final song = _getSongById(songId);
+    final hasAchievement = achievement.isNotEmpty;
+    final achievementValue = double.tryParse(achievement) ?? 0.0;
+    final minDamage = hasAchievement && song != null
+        ? _calcMinDamage(song, levelIndex, achievement, rankData)
+        : null;
+
+    return AppCard(
+      radius: AppDesignTokens.radiusMedium,
+      padding: const EdgeInsets.all(10),
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => SongInfoPage(
+              songId: songId,
+              initialLevelIndex: levelIndex,
+              isDefaultLevelIndex: false,
+            ),
+          ),
+        );
+      },
+      child: Row(
+        children: [
+          // 曲绘：左上角是第几首，边框是难度色
+          SizedBox(
+            width: 64,
+            height: 64,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  CoverUtil.buildCoverWidgetWithContext(
+                    context,
+                    songId.isNotEmpty ? songId : '0',
+                    64,
+                  ),
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius:
+                          BorderRadius.circular(AppDesignTokens.radiusSmall),
+                      border: Border.all(
+                        color: _getDifficultyBorderColor(levelIndex),
+                        width: 2,
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    left: 0,
+                    top: 0,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 7, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: _getDifficultyBorderColor(levelIndex),
+                        borderRadius: const BorderRadius.only(
+                          bottomRight: Radius.circular(8),
+                        ),
+                      ),
+                      child: Text(
+                        '${index + 1}',
+                        style: AppTheme.number(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                MarqueeText(
+                  text: song?.title ?? '曲目 ${index + 1}',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: scheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    if (song != null) ...[
+                      SongTypeBadge(songId: songId, type: song.type),
+                      const SizedBox(width: 4),
+                    ],
+                    ChartDifficultyBadge(
+                        levelIndex: levelIndex, songId: songId),
+                  ],
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  hasAchievement
+                      ? '${achievementValue.toStringAsFixed(4)}%'
+                      : '未游玩',
+                  style: hasAchievement
+                      ? AppTheme.number(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: achievementValue >= 100
+                              ? AppColors.successGreen(brightness)
+                              : scheme.onSurface,
+                        )
+                      : TextStyle(
+                          fontSize: 12, color: scheme.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+          if (minDamage != null) ...[
+            const SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  '-$minDamage',
+                  style: AppTheme.number(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: minDamage > 0
+                        ? AppColors.errorRed(brightness)
+                        : scheme.onSurfaceVariant,
+                  ),
+                ),
+                Text(
+                  '预计最低扣血',
+                  style:
+                      TextStyle(fontSize: 10, color: scheme.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHpSettings(RankData rankData) {
+    final brightness = Theme.of(context).brightness;
+    final success = AppColors.successGreen(brightness);
+    final warning = AppColors.warningOrange(brightness);
+    final error = AppColors.errorRed(brightness);
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const AppSectionHeader(
+            title: '血量设置',
+            padding: EdgeInsets.only(bottom: 10),
+          ),
+          Row(
+            children: [
+              Expanded(
+                child: StatTile(
+                  label: '初始血量',
+                  value: '${rankData.initialHp}',
+                  valueColor: success,
+                ),
+              ),
+              Expanded(
+                child: StatTile(
+                  label: 'GREAT',
+                  value: '-${rankData.greatDamage}',
+                  valueColor: warning,
+                ),
+              ),
+              Expanded(
+                child: StatTile(
+                  label: 'GOOD',
+                  value: '-${rankData.goodDamage}',
+                  valueColor: error,
+                ),
+              ),
+              Expanded(
+                child: StatTile(
+                  label: 'MISS',
+                  value: '-${rankData.missDamage}',
+                  valueColor: error,
+                ),
+              ),
+              Expanded(
+                child: StatTile(
+                  label: '通关回复',
+                  value: '+${rankData.healAmount}',
+                  valueColor: success,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildEmptyContent() {
-    final brightness = Theme.of(context).brightness;
     return Center(
       child: Text(
         '未找到段位数据',
         style: TextStyle(
-          fontSize: _textSizeM,
-          color: AppColors.greyHint(brightness),
+          fontSize: 13,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
         ),
       ),
     );
   }
 
-  String _getDifficultyName(int levelIndex) {
-    return ChartDifficulty.labelOf(levelIndex, fallback: 'UNKNOWN');
-  }
-
   Color _getDifficultyBorderColor(int levelIndex) {
     return AppColors.difficultyForegroundByIndex(levelIndex);
-  }
-
-  Widget _buildSongTypeTag(String? type) {
-    String tagText = '';
-    Color tagColor = Colors.grey;
-
-    if (type != null) {
-      if (type.toLowerCase() == 'dx') {
-        tagText = 'DX';
-        tagColor = AppColors.warningOrange(Theme.of(context).brightness);
-      } else if (type.toLowerCase() == 'sd') {
-        tagText = 'ST';
-        tagColor = AppColors.linkBlue(Theme.of(context).brightness);
-      }
-    }
-
-    if (tagText.isEmpty) {
-      return SizedBox.shrink();
-    }
-
-    return Text(
-      tagText,
-      style: TextStyle(
-        fontSize: _textSizeM,
-        fontWeight: FontWeight.bold,
-        color: tagColor,
-      ),
-    );
   }
 }

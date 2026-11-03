@@ -13,7 +13,6 @@ import 'package:marquee/marquee.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:media_scanner/media_scanner.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:my_first_flutter_app/manager/SongAliasManager.dart';
 import 'package:my_first_flutter_app/manager/DivingFish/MaimaiMusicDataManager.dart';
@@ -62,6 +61,8 @@ import 'package:my_first_flutter_app/widgets/NextPlayAddDialog.dart';
 import 'package:my_first_flutter_app/widgets/ChartHistorySection.dart';
 import 'package:my_first_flutter_app/widgets/CommunityAvatar.dart';
 import '../widgets/MarqueeText.dart';
+import '../widgets/AppDialogs.dart';
+import '../widgets/AppToast.dart';
 
 
 part 'song_info/SongInfoLoaders.dart';
@@ -104,10 +105,109 @@ class SongInfoPage extends StatefulWidget {
       this.isDefaultLevelIndex = true});
 
   @override
-  State<SongInfoPage> createState() => _SongInfoPageState();
+  State<SongInfoPage> createState() => _SongInfoSwitcherState();
 }
 
-class _SongInfoPageState extends State<SongInfoPage> {
+/// 一首歌的一个版本（ST 或 DX）。
+class _SongVersionEntry {
+  final String songId;
+  final int levelIndex;
+  final bool isDefaultLevelIndex;
+  bool revealed;
+
+  _SongVersionEntry({
+    required this.songId,
+    required this.levelIndex,
+    required this.isDefaultLevelIndex,
+    required this.revealed,
+  });
+}
+
+/// 在同一个路由里切换 ST / DX：新版本先在底下加载，好了再淡入盖住旧版本。
+/// 这样切换时不会闪加载圈，返回键也直接回到进入歌曲详情之前的页面。
+class _SongInfoSwitcherState extends State<SongInfoPage> {
+  static const Duration _fade = Duration(milliseconds: 280);
+
+  late final List<_SongVersionEntry> _entries = [
+    _SongVersionEntry(
+      songId: widget.songId,
+      levelIndex: widget.initialLevelIndex,
+      isDefaultLevelIndex: widget.isDefaultLevelIndex,
+      revealed: true,
+    ),
+  ];
+
+  void _switchTo(String songId, int levelIndex) {
+    // 上一次切换还没完成时不叠加
+    if (_entries.length > 1) return;
+    setState(() {
+      _entries.add(_SongVersionEntry(
+        songId: songId,
+        levelIndex: levelIndex,
+        isDefaultLevelIndex: false,
+        revealed: false,
+      ));
+    });
+  }
+
+  void _onLoaded(_SongVersionEntry entry) {
+    if (!mounted || entry.revealed) return;
+    setState(() => entry.revealed = true);
+    final fade = AppDesignTokens.motion(context, _fade);
+    Future<void>.delayed(fade, () {
+      if (!mounted) return;
+      setState(() => _entries.removeWhere((e) => e != entry));
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final fade = AppDesignTokens.motion(context, _fade);
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        for (final entry in _entries)
+          AnimatedOpacity(
+            key: ValueKey(entry.songId),
+            opacity: entry.revealed ? 1 : 0,
+            duration: fade,
+            curve: Curves.easeOut,
+            child: IgnorePointer(
+              ignoring: !entry.revealed,
+              child: _SongInfoView(
+                songId: entry.songId,
+                initialLevelIndex: entry.levelIndex,
+                isDefaultLevelIndex: entry.isDefaultLevelIndex,
+                onSwitchSong: _switchTo,
+                onLoaded: () => _onLoaded(entry),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _SongInfoView extends StatefulWidget {
+  final String songId;
+  final int initialLevelIndex;
+  final bool isDefaultLevelIndex;
+  final void Function(String songId, int levelIndex) onSwitchSong;
+  final VoidCallback onLoaded;
+
+  const _SongInfoView({
+    required this.songId,
+    required this.initialLevelIndex,
+    required this.isDefaultLevelIndex,
+    required this.onSwitchSong,
+    required this.onLoaded,
+  });
+
+  @override
+  State<_SongInfoView> createState() => _SongInfoPageState();
+}
+
+class _SongInfoPageState extends State<_SongInfoView> {
   final ScrollController _songScrollController = ScrollController();
   final GlobalKey _songScrollKey = GlobalKey();
   final GlobalKey _songTitleKey = GlobalKey();
@@ -181,7 +281,6 @@ class _SongInfoPageState extends State<SongInfoPage> {
   bool _starScoreTableExpanded = false; // 星星等级表格默认收起
   bool _showNextStarDiff = false; // 是否显示到下一星级的差距
   bool _achievementScoreTableExpanded = false; // 达成率表格默认收起
-  bool _tagsTableExpanded = false; // 谱面标签默认收起
   bool _toleranceCalculationExpanded = false; // 容错计算默认收起
   bool _ratingDistributionExpanded = false; // 评级分布默认收起
   bool _comboDistributionExpanded = false; // 连击分布默认收起
@@ -479,9 +578,7 @@ class _BookmarkFolderSelectorDialogState
           _folders.add(newFolder);
           _selectedFolderIds.add(newFolder.id);
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('已创建收藏夹「$name」并将当前谱面加入')),
-        );
+        AppToast.show('已创建收藏夹「$name」并将当前谱面加入');
       }
     }
   }
@@ -502,7 +599,7 @@ class _BookmarkFolderSelectorDialogState
           : 'Lv.${widget.chart.levelIndex}';
     }
 
-    return AlertDialog(
+    return AppAlertDialog(
       scrollable: true,
       title: const Text('收藏到收藏夹'),
       contentPadding: EdgeInsets.zero,
@@ -513,12 +610,10 @@ class _BookmarkFolderSelectorDialogState
           children: [
             // 当前谱面信息：左侧曲绘 + 右侧歌名+定数
             Container(
-              margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+              margin: const EdgeInsets.fromLTRB(20, 12, 20, 8),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: brightness == Brightness.dark
-                    ? const Color(0xFF2A2010)
-                    : Colors.amber.shade50,
+                color: AppSurfaces.inset(context),
                 borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
               ),
               child: Row(
@@ -547,8 +642,6 @@ class _BookmarkFolderSelectorDialogState
                                   fontSize: 15,
                                   fontWeight: FontWeight.w600,
                                 ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                           ],
@@ -578,8 +671,6 @@ class _BookmarkFolderSelectorDialogState
                 ],
               ),
             ),
-
-            const Divider(height: 1),
 
             // 收藏夹列表
             _isLoading
@@ -849,7 +940,7 @@ class _BookmarkFolderNameDialogState extends State<_BookmarkFolderNameDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    return AppAlertDialog(
       title: const Text('新建收藏夹'),
       content: TextField(
         controller: _controller,
@@ -859,7 +950,6 @@ class _BookmarkFolderNameDialogState extends State<_BookmarkFolderNameDialog> {
         decoration: InputDecoration(
           hintText: '请输入收藏夹名称',
           errorText: _error,
-          border: const OutlineInputBorder(),
         ),
         inputFormatters: [LengthLimitingTextInputFormatter(30)],
       ),

@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 
 import '../../service/AWMC/AwmcApiService.dart';
 import '../../service/AWMC/AwmcStore.dart';
 import '../../widgets/AppHeader.dart';
 import '../../widgets/QrQuickFillButtons.dart';
 import '../../utils/AppDesignTokens.dart';
+import '../../widgets/AppDialogs.dart';
+import '../../widgets/AppToast.dart';
 
 /// AWMC 控制台的公共 UI 组件（结果展示 / 凭据输入 / 写入二次确认）。
 ///
@@ -334,7 +335,7 @@ class AwmcUi {
     if (qrcode == null) return null;
     if (!AwmcCredentials.isValidQrcode(qrcode)) {
       if (context.mounted) {
-        Fluttertoast.showToast(msg: '二维码格式不正确（应以 SGWCMAID 开头）');
+        AppToast.show('二维码格式不正确（应以 SGWCMAID 开头）');
       }
       return null;
     }
@@ -402,7 +403,7 @@ class AwmcUi {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setLocal) => AlertDialog(
+        builder: (ctx, setLocal) => AppAlertDialog(
           icon: Icon(Icons.warning_amber_rounded, color: scheme.error),
           title: Text(title),
           content: SingleChildScrollView(
@@ -678,7 +679,7 @@ class _AwmcSecretDialogState extends State<_AwmcSecretDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    return AppAlertDialog(
       title: Text(widget.title),
       content: SingleChildScrollView(
         child: Column(
@@ -705,7 +706,6 @@ class _AwmcSecretDialogState extends State<_AwmcSecretDialog> {
               decoration: InputDecoration(
                 labelText: widget.label,
                 hintText: widget.hint,
-                border: const OutlineInputBorder(),
                 suffixIcon: IconButton(
                   tooltip: _obscure ? '显示' : '隐藏',
                   icon:

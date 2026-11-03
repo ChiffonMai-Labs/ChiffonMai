@@ -177,7 +177,8 @@ void main() {
     final tops = <double>{
       for (var i = 0; i < reMaster.evaluate().length; i++)
         tester.getRect(reMaster.at(i)).top,
-      tester.getRect(basics).top,
+      // 下方时间表里也有同名标签，这里只看时间条
+      tester.getRect(basics.first).top,
     };
     expect(tops.length, greaterThan(1),
         reason: '9 段在 375dp 屏上必须折成多行，不该还挤在一条线上');

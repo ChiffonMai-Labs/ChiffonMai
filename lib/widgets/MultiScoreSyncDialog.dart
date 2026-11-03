@@ -18,6 +18,7 @@ import 'QuickSyncOption.dart';
 import 'PostSyncRefreshOptions.dart';
 import 'RefreshDataDialog.dart' show RefreshDataRequest;
 import '../service/AWMC/AwmcQuickSyncService.dart';
+import '../widgets/AppDialogs.dart';
 
 /// 已确认具备凭据的同步目标；顺序由执行器固定为水鱼 → 落雪 → AWMC NET。
 class MultiScoreSyncInput {
@@ -460,7 +461,7 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
+  Widget build(BuildContext context) => AppAlertDialog(
         title: const Row(children: [
           Icon(Icons.devices_other_outlined, size: 22),
           SizedBox(width: 8),

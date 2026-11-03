@@ -13,6 +13,7 @@ import '../../widgets/NoRipple.dart';
 import '../../widgets/ScoreImprovementCard.dart';
 import '../../widgets/SongSearchEntry.dart';
 import '../SongInfoPage.dart';
+import '../../widgets/AppDialogs.dart';
 
 class ScoreImprovementHistoryPage extends StatefulWidget {
   const ScoreImprovementHistoryPage({super.key});
@@ -182,7 +183,7 @@ class _ScoreImprovementHistoryPageState
     FocusManager.instance.primaryFocus?.unfocus();
     showDialog<void>(
         context: context,
-        builder: (context) => AlertDialog(
+        builder: (context) => AppAlertDialog(
               title: const Text('关于成绩提升历史'),
               content: const SingleChildScrollView(
                   child: Text('成功刷新自己的成绩时自动记录，水鱼、落雪和 AWMC NET 按数据源与账号分别保存。\n\n'

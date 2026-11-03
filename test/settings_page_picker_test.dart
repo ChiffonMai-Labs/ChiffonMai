@@ -14,6 +14,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:my_first_flutter_app/page/SettingsPage.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
+import 'package:my_first_flutter_app/widgets/AppDialogs.dart';
 
 void main() {
   /// 渲染设置页（等宽 360dp 的常见手机）。
@@ -37,6 +38,8 @@ void main() {
 
   testWidgets('设置页把后缀展示成固定的 .cmf', (tester) async {
     await pumpSettings(tester);
+    await tester.tap(find.text('其他'));
+    await tester.pumpAndSettle();
     // 说明区要能滚到底（ListView 里）
     await tester.dragUntilVisible(
       find.text('收藏夹导出后缀'),
@@ -155,7 +158,7 @@ void main() {
     // 否则 find.widgetWithText(TextButton, '确定') 会同时命中两个而报歧义。
     final hexDialog = find.ancestor(
       of: find.text('输入十六进制颜色'),
-      matching: find.byType(AlertDialog),
+      matching: find.byType(AppAlertDialog),
     );
     final confirm = find.descendant(
       of: hexDialog,

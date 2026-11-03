@@ -21,6 +21,9 @@ import 'package:my_first_flutter_app/page/GuessChartGame/GuessChartLoadingView.d
 import '../../widgets/BackgroundPageScaffold.dart';
 import '../../widgets/GuessUi.dart';
 import '../../utils/AppDesignTokens.dart';
+import '../../widgets/AppDialogs.dart';
+import '../../widgets/AppToast.dart';
+import '../../widgets/GuessSettingsUi.dart';
 
 class GuessChartByCoverPage extends StatefulWidget {
   const GuessChartByCoverPage({super.key});
@@ -340,12 +343,7 @@ class _GuessChartByCoverPageState extends State<GuessChartByCoverPage> {
         _guessHistory.any((guess) => guess.songId == int.parse(guessedSong.id));
     if (hasGuessed) {
       // 显示提示
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('已经猜过这首歌了！'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+      AppToast.show('已经猜过这首歌了！', duration: Duration(seconds: 2));
       // 清空输入框
       _searchController.clear();
       _searchResults = [];
@@ -517,7 +515,7 @@ class _GuessChartByCoverPageState extends State<GuessChartByCoverPage> {
   // 构建信息项
 
 
-  /// 后台校验「当前筛选条件是否还能抽到曲」，抽不到就用 SnackBar 提醒。
+  /// 后台校验「当前筛选条件是否还能抽到曲」，抽不到就用轻提示提醒。
   ///
   /// 放在保存**之后**异步执行：设置已经落盘、用户也已看到「已保存」，
   /// 这里慢一点不会让人干等。校验意义在于尽早发现「条件过严导致开局空转」，
@@ -543,12 +541,7 @@ class _GuessChartByCoverPageState extends State<GuessChartByCoverPage> {
         selectedGenres: selectedGenres,
       );
       if (testSong != null || !mounted) return;
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text('当前筛选条件抽不到曲目，请放宽筛选条件'),
-          duration: Duration(seconds: 4),
-        ),
-      );
+      AppToast.show('当前筛选条件抽不到曲目，请放宽筛选条件', duration: Duration(seconds: 4));
     } catch (e) {
       debugPrint('校验筛选条件失败: $e');
     }
@@ -594,9 +587,10 @@ class _GuessChartByCoverPageState extends State<GuessChartByCoverPage> {
     await showDialog(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('设置'),
-          contentPadding: EdgeInsets.all(8.0), // 减小对话框内边距
+        return AppAlertDialog(
+          title: const Text('游戏设置'),
+          subtitle: '保存后下局生效',
+          contentPadding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
           content: StatefulBuilder(
             builder: (BuildContext context, StateSetter setState) {
               return SingleChildScrollView(
@@ -640,17 +634,8 @@ class _GuessChartByCoverPageState extends State<GuessChartByCoverPage> {
                         });
                       },
                     ),
-                    // 重置按钮
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      child: Center(
-                        child: ElevatedButton(
-                          onPressed: () {
-                            setState(applySettingsDefaults);
-                          },
-                          child: Text('重置所有设置'),
-                        ),
-                      ),
+                    GuessSettingsResetButton(
+                      onPressed: () => setState(applySettingsDefaults),
                     ),
                   ],
                 ),
@@ -668,7 +653,6 @@ class _GuessChartByCoverPageState extends State<GuessChartByCoverPage> {
               onPressed: () async {
                 // 在 await 之前取好 Navigator / ScaffoldMessenger（见下方说明）
                 final navigator = Navigator.of(context);
-                final messenger = ScaffoldMessenger.of(context);
 
                 // 先把设置落盘并立刻反馈：saveSettings 实测只要 2ms，
                 // 而抽曲校验要遍历整份曲库（冷启动还含读盘解析），是秒级操作。
@@ -686,9 +670,7 @@ class _GuessChartByCoverPageState extends State<GuessChartByCoverPage> {
 
                 if (!navigator.mounted) return;
                 navigator.pop();
-                messenger.showSnackBar(
-                  const SnackBar(content: Text('设置已保存，将在下局游戏生效')),
-                );
+                AppToast.show('设置已保存，将在下局游戏生效');
 
                 _warnIfNoSongMatches(
                   selectedVersions: tempSelectedVersions,
@@ -710,7 +692,7 @@ class _GuessChartByCoverPageState extends State<GuessChartByCoverPage> {
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
+        return AppAlertDialog(
           title: const Text('规则说明'),
           content: SingleChildScrollView(
             child: Column(
@@ -980,16 +962,6 @@ class _GuessChartByCoverPageState extends State<GuessChartByCoverPage> {
                                     ),
                                   const SizedBox(height: 20),
 
-                                  // 搜索中状态
-                                  if (_isSearching)
-                                    Container(
-                                      margin: const EdgeInsets.only(top: 8),
-                                      padding: const EdgeInsets.all(16),
-                                      child: const Center(
-                                        child: CircularProgressIndicator(),
-                                      ),
-                                    ),
-
                                   // 游戏结果显示
                                   if (_isGameOver && _targetSong != null)
                                     GestureDetector(
@@ -1205,6 +1177,7 @@ class _GuessChartByCoverPageState extends State<GuessChartByCoverPage> {
                                             },
                     onNewGame: _startNewGame,
                     showResults: _showSearchResults,
+                    searching: _isSearching,
                     resultCount: _searchResults.length,
                     resultBuilder: (context, index) =>
                         _buildSearchResultItem(_searchResults[index]),

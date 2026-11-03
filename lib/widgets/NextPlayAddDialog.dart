@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 
 import '../service/NextPlayQueueStore.dart';
 import '../utils/AppTheme.dart';
+import '../widgets/AppDialogs.dart';
+import '../utils/AppDesignTokens.dart';
 
 /// 下次想玩的难度选项。索引与歌曲详情页、随身听保持一致。
 class NextPlayDifficultyOption {
@@ -113,7 +115,7 @@ class _NextPlayAddFormState extends State<_NextPlayAddForm> {
   @override
   Widget build(BuildContext context) {
     final brightness = Theme.of(context).brightness;
-    return AlertDialog(
+    return AppAlertDialog(
       title: const Text('加入下次想玩'),
       content: SingleChildScrollView(
         child: Column(
@@ -122,8 +124,6 @@ class _NextPlayAddFormState extends State<_NextPlayAddForm> {
           children: [
             Text(
               widget.title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 12),
@@ -150,7 +150,7 @@ class _NextPlayAddFormState extends State<_NextPlayAddForm> {
               return Padding(
                 padding: const EdgeInsets.only(bottom: 6),
                 child: InkWell(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                   onTap: () => setState(() {
                     if (selected) {
                       _selected.remove(option.index);
@@ -164,13 +164,7 @@ class _NextPlayAddFormState extends State<_NextPlayAddForm> {
                         const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                     decoration: BoxDecoration(
                       color: background,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: selected
-                            ? foreground
-                            : foreground.withOpacity(0.35),
-                        width: selected ? 2 : 1,
-                      ),
+                      borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                     ),
                     child: Row(
                       children: [

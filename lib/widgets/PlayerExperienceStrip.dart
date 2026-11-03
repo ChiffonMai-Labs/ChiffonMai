@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../service/PlayerExperienceService.dart';
 import 'SmoothLinearProgressIndicator.dart';
+import '../widgets/AppDialogs.dart';
 
 class PlayerExperienceStrip extends StatelessWidget {
   final Map<String, dynamic> data;
@@ -66,7 +67,7 @@ class MyPlayerExperience extends StatelessWidget {
                 icon: const Icon(Icons.info_outline, size: 20),
                 onPressed: () => showDialog<void>(
                     context: context,
-                    builder: (context) => AlertDialog(
+                    builder: (context) => AppAlertDialog(
                           title: const Text('成长规则'),
                           content: const Text(
                               '按北京时间，每天首次启动 App 时检查签到；本机登录或验证账号成功后，也会为当天尚未签到的账号自动签到。\n\n'

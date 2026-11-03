@@ -113,6 +113,8 @@ void main() {
         tileRevealIntervalMs: 100,
         peekDurationSeconds: 3,
         peekDifficulties: const ['4'],
+        peekFlowSpeed: 7.5,
+        peekMirror: 'full',
         playDurationSeconds: 1,
         audioRate: 1.35,
       );

@@ -13,6 +13,8 @@ import 'DsRangeRecommendPage.dart';
 import 'FavoriteFolderPage.dart';
 import 'NextPlayQueuePage.dart';
 import 'GlobalArcadeMapPage.dart';
+import '../widgets/AppToast.dart';
+import '../widgets/FriendLinkUi.dart';
 
 class AttendanceHubPage extends StatefulWidget {
   /// 页头标题 / 说明。嵌在「游玩」页里时由外层传入（见 PlayZoneHubPage）。
@@ -51,15 +53,11 @@ class _AttendanceHubPageState extends State<AttendanceHubPage> {
       if (await ExternalLaunchUtil.open(uri)) {
         return;
       } else if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('无法打开链接：$fallbackHint')),
-        );
+        AppToast.show('无法打开链接：$fallbackHint');
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('打开失败：$e')),
-        );
+        AppToast.show('打开失败：$e');
       }
     }
   }
@@ -166,6 +164,7 @@ class _AttendanceHubPageState extends State<AttendanceHubPage> {
             title: widget.title,
             subtitle: widget.subtitle,
             headerBottom: widget.headerBottom,
+            hero: const FriendLinkCarousel(),
             icon: Icons.explore_rounded,
             children: [
               for (final section in sections) ...[

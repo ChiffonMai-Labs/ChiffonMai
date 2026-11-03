@@ -17,6 +17,8 @@ import '../../widgets/HistoryPointDelete.dart';
 import '../../widgets/AppHeader.dart';
 import '../../widgets/HistoryDateTimeDialog.dart';
 import '../../utils/AppDesignTokens.dart';
+import '../../widgets/AppDialogs.dart';
+import '../../widgets/AppToast.dart';
 
 /// Rating 历史曲线。
 ///
@@ -145,9 +147,7 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
       if (mounted) await _load();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('保存历史失败：$e')),
-        );
+        AppToast.show('保存历史失败：$e');
       }
     }
   }
@@ -169,9 +169,7 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
       if (mounted) await _load();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('删除记录点失败：$e')),
-        );
+        AppToast.show('删除记录点失败：$e');
       }
     }
   }
@@ -195,10 +193,7 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
     final awmcQQ = metas[RefreshDataSource.awmc.key]?.id ?? '';
     if (awmcQQ.isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('AWMC NET 还没绑定 QQ，请先在「同步成绩到 AWMC NET」入口绑定')),
-        );
+        AppToast.show('AWMC NET 还没绑定 QQ，请先在「同步成绩到 AWMC NET」入口绑定');
       }
       return;
     }
@@ -212,9 +207,7 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
       if (!mounted) return;
 
       if (result.points.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('AWMC NET 上 QQ $awmcQQ 近 90 天没有任何 Rating 记录'),
-        ));
+        AppToast.show('AWMC NET 上 QQ $awmcQQ 近 90 天没有任何 Rating 记录');
         return;
       }
 
@@ -240,23 +233,17 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
 
       await _load();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(added > 0
+      AppToast.show(added > 0
             ? '已从 AWMC NET 同步 Rating 趋势，新增 $added 条'
-            : 'AWMC NET 没有新数据点（${result.points.length} 条都已记录过）'),
-      ));
+            : 'AWMC NET 没有新数据点（${result.points.length} 条都已记录过）');
     } on AwmcNetTrendException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('同步失败：${e.message}')),
-        );
+        AppToast.show('同步失败：${e.message}');
       }
     } catch (e) {
       debugPrint('[RatingHistory] 从 AWMC NET 同步趋势失败：$e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('同步失败：$e')),
-        );
+        AppToast.show('同步失败：$e');
       }
     } finally {
       if (mounted) {
@@ -380,7 +367,7 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
             Text(
               '已记录 ${summary.chartCount} 张谱面的成绩基线'
               ' · ${summary.eventCount} 次成绩变化'
-              '（曲目详情页里，单谱的达成率 / DX 曲线就画在这些变化上）',
+              '（曲目详情页里，单谱的达成率 / DX分数曲线就画在这些变化上）',
               style: TextStyle(
                 fontSize: 11.5,
                 color: AppColors.secondaryText(brightness),
@@ -784,7 +771,7 @@ class _ManualRatingDialogState extends State<_ManualRatingDialog> {
   @override
   Widget build(BuildContext context) {
     final limits = widget.limits;
-    return AlertDialog(
+    return AppAlertDialog(
       title: const Text('添加 Rating 历史'),
       content: SingleChildScrollView(
         child: Column(
@@ -797,7 +784,6 @@ class _ManualRatingDialogState extends State<_ManualRatingDialog> {
               onChanged: (_) => _revalidate(),
               decoration: InputDecoration(
                 labelText: 'Rating',
-                border: const OutlineInputBorder(),
                 helperText: limitHelperText(limits.total, '当前理论 Rating') ??
                     _unknownLimitHint,
                 helperStyle: const TextStyle(fontSize: 11),
@@ -812,7 +798,6 @@ class _ManualRatingDialogState extends State<_ManualRatingDialog> {
               onChanged: (_) => _revalidate(),
               decoration: InputDecoration(
                 labelText: 'Best35（可选）',
-                border: const OutlineInputBorder(),
                 helperText: limitHelperText(limits.best35, '当前理论 B35') ??
                     _unknownLimitHint,
                 helperStyle: const TextStyle(fontSize: 11),
@@ -827,7 +812,6 @@ class _ManualRatingDialogState extends State<_ManualRatingDialog> {
               onChanged: (_) => _revalidate(),
               decoration: InputDecoration(
                 labelText: 'Best15（可选）',
-                border: const OutlineInputBorder(),
                 helperText: limitHelperText(limits.best15, '当前理论 B15') ??
                     _unknownLimitHint,
                 helperStyle: const TextStyle(fontSize: 11),

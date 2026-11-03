@@ -81,12 +81,18 @@ class RoomEntity {
   /// 谱面片段难度随机池（inote 编号 '2'..'6'），用于 chartPeek 模式
   final List<String> peekDifficulties;
 
+  /// 谱面片段流速（3~9）与镜像（SimaiMirrorMode.name），用于 chartPeek 模式
+  final double peekFlowSpeed;
+  final String peekMirror;
+
   /// 模式专属设置的默认值（与构造参数默认值同一份，供 [withModeSettingsFallback] 判断）。
   static const int defaultFlashDurationMs = 300;
   static const int defaultTileCount = 1000;
   static const int defaultTileRevealIntervalMs = 1500;
   static const int defaultPeekDurationSeconds = 8;
   static const List<String> defaultPeekDifficulties = ['4'];
+  static const double defaultPeekFlowSpeed = 8.0;
+  static const String defaultPeekMirror = 'none';
 
   RoomEntity({
     required this.roomId,
@@ -115,6 +121,8 @@ class RoomEntity {
     this.tileRevealIntervalMs = defaultTileRevealIntervalMs,
     this.peekDurationSeconds = defaultPeekDurationSeconds,
     this.peekDifficulties = defaultPeekDifficulties,
+    this.peekFlowSpeed = defaultPeekFlowSpeed,
+    this.peekMirror = defaultPeekMirror,
   })  : _roomCode = roomCode,
         lastActivityAt = lastActivityAt ?? createdAt;
 
@@ -145,6 +153,11 @@ class RoomEntity {
               peekDifficulties.first == defaultPeekDifficulties.first
           ? fallback.peekDifficulties
           : peekDifficulties,
+      peekFlowSpeed: peekFlowSpeed == defaultPeekFlowSpeed
+          ? fallback.peekFlowSpeed
+          : peekFlowSpeed,
+      peekMirror:
+          peekMirror == defaultPeekMirror ? fallback.peekMirror : peekMirror,
     );
   }
 
@@ -246,6 +259,11 @@ class RoomEntity {
               ? const ['4']
               : parseStringList(
                   json['peek_difficulties'] ?? json['peekDifficulties']),
+      peekFlowSpeed: double.tryParse(
+              '${json['peek_flow_speed'] ?? json['peekFlowSpeed']}') ??
+          defaultPeekFlowSpeed,
+      peekMirror: (json['peek_mirror'] ?? json['peekMirror'])?.toString() ??
+          defaultPeekMirror,
     );
   }
 
@@ -277,6 +295,8 @@ class RoomEntity {
       'tile_reveal_interval_ms': tileRevealIntervalMs,
       'peek_duration_seconds': peekDurationSeconds,
       'peek_difficulties': peekDifficulties,
+      'peek_flow_speed': peekFlowSpeed,
+      'peek_mirror': peekMirror,
     };
   }
 
@@ -308,6 +328,8 @@ class RoomEntity {
     int? tileRevealIntervalMs,
     int? peekDurationSeconds,
     List<String>? peekDifficulties,
+    double? peekFlowSpeed,
+    String? peekMirror,
   }) {
     return RoomEntity(
       roomId: roomId ?? this.roomId,
@@ -337,6 +359,8 @@ class RoomEntity {
       tileRevealIntervalMs: tileRevealIntervalMs ?? this.tileRevealIntervalMs,
       peekDurationSeconds: peekDurationSeconds ?? this.peekDurationSeconds,
       peekDifficulties: peekDifficulties ?? this.peekDifficulties,
+      peekFlowSpeed: peekFlowSpeed ?? this.peekFlowSpeed,
+      peekMirror: peekMirror ?? this.peekMirror,
     );
   }
 

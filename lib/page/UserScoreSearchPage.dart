@@ -10,8 +10,10 @@ import '../utils/CoverUtil.dart';
 import 'package:my_first_flutter_app/constant/VersionListConstant.dart';
 import 'package:my_first_flutter_app/widgets/BackgroundPageScaffold.dart';
 import '../widgets/AppUi.dart';
+import '../widgets/GuessSettingsUi.dart';
 import '../utils/AppDesignTokens.dart';
 import '../widgets/MarqueeText.dart';
+import '../widgets/AppDialogs.dart';
 
 class UserScoreSearchPage extends StatefulWidget {
   /// 进入页面时直接打开搜索框（成绩 Hub 的搜索入口）。
@@ -30,11 +32,50 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
   List<dynamic> _sortedSongs = [];
   List<dynamic> _pagedSongs = [];
   bool _isLoading = true;
-  Map<String, int>? _stats; // 存储统计数据
 
-  /// 点评级分布条选中的评级（下标对应 [_rankBuckets]），null = 不筛。
-  int? _rankFilter;
+  /// 分布卡片当前显示：0 = 评级，1 = 星数，2 = 连击，3 = 同步。
+  int _distributionMode = 0;
+
+  /// 点分布条选中的档位（下标对应 [_distributionLabels]），null = 不筛。
+  int? _bucketFilter;
   static const List<String> _rankBuckets = ['SSS+', 'SSS', 'SS+', 'SS', 'S+以下'];
+  static const List<String> _starBuckets = ['✦5', '✦4', '✦3', '✦2', '✦1', '✦0'];
+
+  /// 连击和同步的每种评价单独一档，字段值与筛选用的是同一份。
+  static const List<String> _comboBuckets = ['AP+', 'AP', 'FC+', 'FC', '无连击'];
+  static const List<String> _syncBuckets = [
+    'FDX+',
+    'FDX',
+    'FS+',
+    'FS',
+    'SYNC',
+    '无同步',
+  ];
+
+  List<String> get _distributionLabels => switch (_distributionMode) {
+        0 => _rankBuckets,
+        1 => _starBuckets,
+        2 => _comboBuckets,
+        _ => _syncBuckets,
+      };
+
+  int _bucketOf(dynamic song) => switch (_distributionMode) {
+        0 => _rankBucketOf(song),
+        1 => _starBucketOf(song),
+        2 => _evaluationBucketOf(song['fc'], _comboBuckets,
+            UserScoreSearchService.comboFilterValues),
+        _ => _evaluationBucketOf(song['fs'], _syncBuckets,
+            UserScoreSearchService.syncFilterValues),
+      };
+
+  /// 没有评价或是没见过的值都算进最后一档（无评价）。
+  static int _evaluationBucketOf(
+      dynamic value, List<String> buckets, Map<String, String> values) {
+    final code = value?.toString().toLowerCase() ?? '';
+    final index =
+        buckets.indexWhere((bucket) => values[bucket] == code);
+    return index < 0 ? buckets.length - 1 : index;
+  }
 
   /// 曲名 / 定数搜索。
   late bool _searchOpen = widget.openSearch;
@@ -49,6 +90,19 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
     return 4;
   }
 
+  /// 星数档位（✦5 含更高的 ✦5.5 / ✦6）。
+  int _starBucketOf(dynamic song) {
+    if (!song.containsKey('dxScore')) return 5;
+    final rate =
+        _dxRateCache[song] ??= _calculateDXScoreRate(song);
+    if (rate >= 0.97) return 0;
+    if (rate >= 0.95) return 1;
+    if (rate >= 0.93) return 2;
+    if (rate >= 0.90) return 3;
+    if (rate >= 0.85) return 4;
+    return 5;
+  }
+
   bool _matchesSearch(dynamic song) {
     final q = _searchQuery.trim().toLowerCase();
     if (q.isEmpty) return true;
@@ -59,13 +113,29 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
 
   /// 通过搜索后的成绩（评级分布的统计口径）。
   List<dynamic> get _searchedSongs =>
-      _sortedSongs.where(_matchesSearch).toList();
+      _searchedCache ??= _sortedSongs.where(_matchesSearch).toList();
+  List<dynamic>? _searchedCache;
 
-  /// 最终显示的成绩（再叠加评级筛选）。
-  List<dynamic> get _visibleSongs => _rankFilter == null
-      ? _searchedSongs
-      : _searchedSongs.where((s) => _rankBucketOf(s) == _rankFilter).toList();
-  
+  /// 各分布的档位计数（键是分布序号）。切换分布只读这里，来回切不用重新统计。
+  final Map<int, List<int>> _distributionCounts = {};
+
+  /// 成绩或搜索词变化后调用，下次用到时再重新计算。
+  void _invalidateSongCaches() {
+    _searchedCache = null;
+    _visibleCache = null;
+    _distributionCounts.clear();
+  }
+
+  /// 最终显示的成绩（再叠加分布条选中的档位）。
+  List<dynamic> get _visibleSongs {
+    final bucket = _bucketFilter;
+    if (bucket == null) return _searchedSongs;
+    return _visibleCache ??=
+        _searchedSongs.where((s) => _bucketOf(s) == bucket).toList();
+  }
+
+  List<dynamic>? _visibleCache;
+
   int _currentPage = 1;
   int _pageSize = 50;
   final TextEditingController _pageSizeController = TextEditingController(text: '50');
@@ -82,14 +152,26 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
   // 显示模式：true为曲绘模式，false为列表模式
   bool _isCoverMode = false;
   
-  // 筛选条件
-  Map<String, String> _filterConditions = {
-    '版本筛选': '',
-    '定数筛选': '',
-    '难度筛选': '',
-    '达成率筛选': '',
-    '连击/同步筛选': '',
+  // 筛选条件：每项都可多选，空列表表示全部
+  final Map<String, List<String>> _filterConditions = {
+    '版本筛选': [],
+    '定数筛选': [],
+    '难度筛选': [],
+    '达成率筛选': [],
+    '连击/同步筛选': [],
   };
+
+  static const List<({String label, String range})> _achievementOptions = [
+    (label: 'SSS+', range: '100.5-101'),
+    (label: 'SSS', range: '100-100.4999'),
+    (label: 'SS+', range: '99.5-99.9999'),
+    (label: 'SS', range: '99-99.4999'),
+    (label: 'S+', range: '98.0-98.9999'),
+    (label: 'S', range: '97-97.9999'),
+    (label: 'AAA', range: '94-96.9999'),
+    (label: 'AA', range: '90-93.9999'),
+    (label: 'A', range: '80-89.9999'),
+  ];
   
   // 版本列表
   static List<String> _versionList = VersionListConstant.versionOrderList;
@@ -107,38 +189,51 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
   
   // 初始化按钮尺寸变量
 
-  Future<void> _loadData() async {
-    setState(() {
-      _isLoading = true;
-    });
-    
+  int _loadRequest = 0;
+
+  /// [silent] 用于筛选和排序变化：不换成整页转圈，分布卡片留在原地，
+  /// 数字和分布条才能从旧值过渡到新值。
+  Future<void> _loadData({bool silent = false}) async {
+    final request = ++_loadRequest;
+    if (!silent) {
+      setState(() {
+        _isLoading = true;
+      });
+    }
+
     try {
-      _userPlayData = await _service.getUserPlayData();
-      if (_userPlayData != null) {
+      final playData = await _service.getUserPlayData();
+      if (playData != null) {
         // 初始化歌曲缓存，确保星数计算时缓存可用
         await _service.initSongCache();
-        _sortedSongs = await _service.getSortedSongs(_userPlayData!, _currentSortBy);
+        var songs = await _service.getSortedSongs(playData, _currentSortBy);
         // 应用筛选条件
-        _sortedSongs = await _service.filterSongs(_sortedSongs, _filterConditions);
-        _updatePagedSongs();
-        // 计算统计数据
-        _stats = await _calculateStats();
+        songs = await _service.filterSongs(songs, _filterConditions);
+        // 连续改筛选时只认最新一次
+        if (request != _loadRequest) return;
+        _dxRateCache.clear();
+        _sortedSongs = songs;
+        _invalidateSongCaches();
       }
+      if (request != _loadRequest) return;
+      _userPlayData = playData;
+      _updatePagedSongs();
     } catch (e) {
       debugPrint('加载数据出错: $e');
-    } finally {
+    }
+    if (mounted && request == _loadRequest) {
       setState(() {
         _isLoading = false;
       });
     }
   }
-  
+
   // 显示排序方式对话框
   void _showSortDialog() {
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
+        return AppAlertDialog(
           title: Text('选择排序方式'),
           content: StatefulBuilder(
             builder: (BuildContext context, StateSetter setState) {
@@ -200,7 +295,7 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
               child: Text('确认'),
               onPressed: () {
                 Navigator.of(context).pop();
-                _loadData(); // 重新加载数据
+                _loadData(silent: true); // 重新加载数据
               },
             ),
           ],
@@ -209,74 +304,40 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
     );
   }
   
+  /// 应用一项筛选；对话框取消时返回 null，不做任何事。
+  void _applyFilter(String key, List<String>? values) {
+    if (values == null || !mounted) return;
+    setState(() {
+      _filterConditions[key] = values;
+      _currentPage = 1; // 筛选条件变化时，切换到第1页
+    });
+    _loadData(silent: true); // 重新加载数据
+  }
+
+  /// 筛选胶囊上显示的已选内容。
+  String? _filterSummary(String key, String Function(String) label) {
+    final values = _filterConditions[key]!;
+    return values.isEmpty ? null : values.map(label).join('、');
+  }
+
   // 显示版本筛选对话框
-  void _showVersionFilterDialog() {
-    showDialog(
+  Future<void> _showVersionFilterDialog() async {
+    final result = await showDialog<List<String>>(
       context: context,
-      builder: (BuildContext context) {
-        String selectedVersion = _filterConditions['版本筛选'] ?? '';
-        return AlertDialog(
-          title: Text('版本筛选'),
-          content: StatefulBuilder(
-            builder: (BuildContext context, StateSetter setState) {
-              return Container(
-                width: double.maxFinite,
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      RadioListTile<String>(
-                        title: Text('全部'),
-                        value: '',
-                        groupValue: selectedVersion,
-                        onChanged: (value) {
-                          setState(() {
-                            selectedVersion = value!;
-                          });
-                        },
-                      ),
-                      ..._versionList.map((version) {
-                        return RadioListTile<String>(
-                          title: Text(_formatVersion(version)),
-                          value: version,
-                          groupValue: selectedVersion,
-                          onChanged: (value) {
-                            setState(() {
-                              selectedVersion = value!;
-                            });
-                          },
-                        );
-                      }).toList(),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-          actions: [
-            TextButton(
-              child: Text('取消'),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-            TextButton(
-              child: Text('确认'),
-              onPressed: () {
-                setState(() {
-                  _filterConditions['版本筛选'] = selectedVersion;
-                  _currentPage = 1; // 筛选条件变化时，切换到第1页
-                });
-                Navigator.of(context).pop();
-                _loadData(); // 重新加载数据
-              },
-            ),
-          ],
-        );
-      },
+      builder: (_) => _ChoiceFilterDialog(
+        title: '版本筛选',
+        initial: _filterConditions['版本筛选']!,
+        groups: [
+          _ChoiceGroup(items: [
+            for (final version in _versionList)
+              _Choice(version, _formatVersion(version)),
+          ]),
+        ],
+      ),
     );
+    _applyFilter('版本筛选', result);
   }
-  
+
   // 根据定数计算等级显示（x或x+）
   String _getLevelDisplay(double ds) {
     if (ds >= 15.0) {
@@ -329,433 +390,121 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
     });
   }
   
+  /// 定数范围对应的等级名（14.0-14.5 → 14，14.6-14.9 → 14+），自定义范围原样显示。
+  static String _dsRangeLabel(String range) {
+    if (range == '15.0-15.0') return '15';
+    final match = RegExp(r'^(\d+)\.(0|6)-(\d+)\.(5|9)$').firstMatch(range);
+    if (match == null || match.group(1) != match.group(3)) return range;
+    if (match.group(2) == '0' && match.group(4) == '5') return match.group(1)!;
+    if (match.group(2) == '6' && match.group(4) == '9') return '${match.group(1)}+';
+    return range;
+  }
+
+  static String _achievementRangeLabel(String range) {
+    for (final option in _achievementOptions) {
+      if (option.range == range) return option.label;
+    }
+    return range;
+  }
+
   // 显示定数筛选对话框
-  void _showDsFilterDialog() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        final brightness = Theme.of(context).brightness;
-        final scheme = Theme.of(context).colorScheme;
-        return FutureBuilder<List<String>>(
-          future: _getLevelOptions(),
-          builder: (context, snapshot) {
-            List<Map<String, String>> quickOptions = [];
-            if (snapshot.hasData) {
-              for (String level in snapshot.data!) {
-                double minDs, maxDs;
-                if (level == '15') {
-                  minDs = 15.0;
-                  maxDs = 15.0;
-                } else if (level.endsWith('+')) {
-                  int base = int.parse(level.substring(0, level.length - 1));
-                  minDs = base + 0.6;
-                  maxDs = base + 0.9;
-                } else {
-                  int base = int.parse(level);
-                  minDs = base.toDouble();
-                  maxDs = base + 0.5;
-                }
-                quickOptions.add({
-                  'label': level,
-                  'min': minDs.toStringAsFixed(1),
-                  'max': maxDs.toStringAsFixed(1),
-                });
-              }
-            }
-            
-            String currentRange = _filterConditions['定数筛选'] ?? '';
-            TextEditingController minController = TextEditingController();
-            TextEditingController maxController = TextEditingController();
-            
-            if (currentRange.contains('-')) {
-              List<String> parts = currentRange.split('-');
-              if (parts.length == 2) {
-                minController.text = parts[0];
-                maxController.text = parts[1];
-              }
-            }
-            
-            return AlertDialog(
-              title: Text('定数筛选'),
-              content: SingleChildScrollView(
-                child: StatefulBuilder(
-                  builder: (BuildContext context, StateSetter setState) {
-                    return Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: TextField(
-                                controller: minController,
-                                keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                onChanged: (_) => setState(() {}),
-                                decoration: InputDecoration(
-                                  labelText: '下界',
-                                  hintText: '1.0',
-                                  suffixIcon: minController.text.isEmpty
-                                      ? null
-                                      : IconButton(
-                                          tooltip: '清除下界',
-                                          icon: Icon(Icons.clear),
-                                          onPressed: () {
-                                            minController.clear();
-                                            setState(() {});
-                                          },
-                                        ),
-                                ),
-                              ),
-                            ),
-                            SizedBox(width: 16),
-                            Expanded(
-                              child: TextField(
-                                controller: maxController,
-                                keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                onChanged: (_) => setState(() {}),
-                                decoration: InputDecoration(
-                                  labelText: '上界',
-                                  hintText: '15.0',
-                                  suffixIcon: maxController.text.isEmpty
-                                      ? null
-                                      : IconButton(
-                                          tooltip: '清除上界',
-                                          icon: Icon(Icons.clear),
-                                          onPressed: () {
-                                            maxController.clear();
-                                            setState(() {});
-                                          },
-                                        ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 8),
-                        Text('最多一位小数，留空表示默认值', style: TextStyle(fontSize: 12, color: AppColors.secondaryText(brightness))),
-                        SizedBox(height: 16),
-                        Text('快捷选项:', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                        SizedBox(height: 8),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: quickOptions.map((option) {
-                            return ElevatedButton(
-                              onPressed: () {
-                                setState(() {
-                                  minController.text = option['min']!;
-                                  maxController.text = option['max']!;
-                                });
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: scheme.primaryContainer,
-                                foregroundColor: scheme.onPrimaryContainer,
-                                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                                textStyle: TextStyle(fontSize: 12),
-                              ),
-                              child: Text(option['label']!),
-                            );
-                          }).toList(),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              ),
-              actions: [
-                TextButton(
-                  child: Text('取消'),
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                  },
-                ),
-                TextButton(
-                  child: Text('确认'),
-                  onPressed: () {
-                    String minText = minController.text.trim();
-                    String maxText = maxController.text.trim();
-                    String range = '';
-
-                    if (minText.isNotEmpty || maxText.isNotEmpty) {
-                      range = '$minText-$maxText';
-                    }
-
-                    setState(() {
-                      _filterConditions['定数筛选'] = range;
-                      _currentPage = 1;
-                    });
-                    Navigator.of(context).pop();
-                    _loadData();
-                  },
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-  
-  // 显示难度筛选对话框
-  void _showDifficultyFilterDialog() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        String selectedDifficulty = _filterConditions['难度筛选'] ?? '';
-        List<String> difficulties = ['', ...ChartDifficulty.labels];
-        return AlertDialog(
-          title: Text('难度筛选'),
-          content: StatefulBuilder(
-            builder: (BuildContext context, StateSetter setState) {
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                children: difficulties.map((difficulty) {
-                  return RadioListTile<String>(
-                    title: Text(difficulty.isEmpty ? '全部' : difficulty),
-                    value: difficulty,
-                    groupValue: selectedDifficulty,
-                    onChanged: (value) {
-                      setState(() {
-                        selectedDifficulty = value!;
-                      });
-                    },
-                  );
-                }).toList(),
-              );
-            },
-          ),
-          actions: [
-            TextButton(
-              child: Text('取消'),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-            TextButton(
-              child: Text('确认'),
-              onPressed: () {
-                setState(() {
-                  _filterConditions['难度筛选'] = selectedDifficulty;
-                  _currentPage = 1; // 筛选条件变化时，切换到第1页
-                });
-                Navigator.of(context).pop();
-                _loadData(); // 重新加载数据
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
-  
-  // 显示达成率筛选对话框
-  void _showAchievementFilterDialog() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        final brightness = Theme.of(context).brightness;
-        final scheme = Theme.of(context).colorScheme;
-        // 达成率快捷选项
-        List<Map<String, String>> quickOptions = [
-          {'label': 'SSS+', 'min': '100.5', 'max': '101'},
-          {'label': 'SSS', 'min': '100', 'max': '100.4999'},
-          {'label': 'SS+', 'min': '99.5', 'max': '99.9999'},
-          {'label': 'SS', 'min': '99', 'max': '99.4999'},
-          {'label': 'S+', 'min': '98.0', 'max': '98.9999'},
-          {'label': 'S', 'min': '97', 'max': '97.9999'},
-          {'label': 'AAA', 'min': '94', 'max': '96.9999'},
-          {'label': 'AA', 'min': '90', 'max': '93.9999'},
-          {'label': 'A', 'min': '80', 'max': '89.9999'},
-        ];
-        
-        String currentRange = _filterConditions['达成率筛选'] ?? '';
-        TextEditingController minController = TextEditingController();
-        TextEditingController maxController = TextEditingController();
-        
-        // 解析当前范围
-        if (currentRange.contains('-')) {
-          List<String> parts = currentRange.split('-');
-          if (parts.length == 2) {
-            minController.text = parts[0];
-            maxController.text = parts[1];
+  Future<void> _showDsFilterDialog() async {
+    final levels = await _getLevelOptions();
+    if (!mounted) return;
+    final options = [
+      for (final level in levels)
+        () {
+          final String range;
+          if (level == '15') {
+            range = '15.0-15.0';
+          } else if (level.endsWith('+')) {
+            final base = level.substring(0, level.length - 1);
+            range = '$base.6-$base.9';
+          } else {
+            range = '$level.0-$level.5';
           }
-        }
-        
-        return AlertDialog(
-          title: Text('达成率筛选'),
-          content: SingleChildScrollView(
-            child: StatefulBuilder(
-              builder: (BuildContext context, StateSetter setState) {
-                return Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: minController,
-                            keyboardType: TextInputType.numberWithOptions(decimal: true),
-                            onChanged: (_) => setState(() {}),
-                            decoration: InputDecoration(
-                              labelText: '下界',
-                              hintText: '0',
-                              suffixIcon: minController.text.isEmpty
-                                  ? null
-                                  : IconButton(
-                                      tooltip: '清除下界',
-                                      icon: Icon(Icons.clear),
-                                      onPressed: () {
-                                        minController.clear();
-                                        setState(() {});
-                                      },
-                                    ),
-                            ),
-                          ),
-                        ),
-                        SizedBox(width: 16),
-                        Expanded(
-                          child: TextField(
-                            controller: maxController,
-                            keyboardType: TextInputType.numberWithOptions(decimal: true),
-                            onChanged: (_) => setState(() {}),
-                            decoration: InputDecoration(
-                              labelText: '上界',
-                              hintText: '101',
-                              suffixIcon: maxController.text.isEmpty
-                                  ? null
-                                  : IconButton(
-                                      tooltip: '清除上界',
-                                      icon: Icon(Icons.clear),
-                                      onPressed: () {
-                                        maxController.clear();
-                                        setState(() {});
-                                      },
-                                    ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 8),
-                    Text('最多四位小数，留空表示默认值', style: TextStyle(fontSize: 12, color: AppColors.secondaryText(brightness))),
-                    SizedBox(height: 16),
-                    Text('快捷选项:', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                    SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: quickOptions.map((option) {
-                        return ElevatedButton(
-                          onPressed: () {
-                            setState(() {
-                              minController.text = option['min']!;
-                              maxController.text = option['max']!;
-                            });
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: scheme.primaryContainer,
-                            foregroundColor: scheme.onPrimaryContainer,
-                            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                            textStyle: TextStyle(fontSize: 12),
-                          ),
-                          child: Text(option['label']!),
-                        );
-                      }).toList(),
-                    ),
-                  ],
-                );
-              },
-            ),
-          ),
-          actions: [
-            TextButton(
-              child: Text('取消'),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-            TextButton(
-              child: Text('确认'),
-              onPressed: () {
-                String minText = minController.text.trim();
-                String maxText = maxController.text.trim();
-                String range = '';
-
-                if (minText.isNotEmpty || maxText.isNotEmpty) {
-                  range = '$minText-$maxText';
-                }
-
-                setState(() {
-                  _filterConditions['达成率筛选'] = range;
-                  _currentPage = 1; // 筛选条件变化时，切换到第1页
-                });
-                Navigator.of(context).pop();
-                _loadData(); // 重新加载数据
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
-  
-  // 显示连击/同步筛选对话框
-  void _showComboFilterDialog() {
-    showDialog(
+          return (label: level, range: range);
+        }(),
+    ];
+    final result = await showDialog<List<String>>(
       context: context,
-      builder: (BuildContext context) {
-        String selectedFilter = _filterConditions['连击/同步筛选'] ?? '';
-        List<String> filters = ['全部', '无连击评价', 'FC', 'FC+', 'AP', 'AP+', '无同步评价', 'SYNC', 'FS', 'FS+', 'FDX', 'FDX+'];
-        List<String> filterValues = ['全部', '无连击评价', 'FC', 'FC+', 'AP', 'AP+', '无同步评价', 'SYNC', 'FS', 'FS+', 'FDX', 'FDX+'];
-        return AlertDialog(
-          title: Text('连击/同步筛选'),
-          content: StatefulBuilder(
-            builder: (BuildContext context, StateSetter setState) {
-              return Container(
-                width: double.maxFinite,
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: List.generate(filters.length, (index) {
-                      return RadioListTile<String>(
-                        title: Text(filters[index]),
-                        value: filterValues[index],
-                        groupValue: selectedFilter,
-                        onChanged: (value) {
-                          setState(() {
-                            selectedFilter = value!;
-                          });
-                        },
-                      );
-                    }),
-                  ),
-                ),
-              );
-            },
-          ),
-          actions: [
-            TextButton(
-              child: Text('取消'),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-            TextButton(
-              child: Text('确认'),
-              onPressed: () {
-                setState(() {
-                  _filterConditions['连击/同步筛选'] = selectedFilter;
-                  _currentPage = 1; // 筛选条件变化时，切换到第1页
-                });
-                Navigator.of(context).pop();
-                _loadData(); // 重新加载数据
-              },
-            ),
-          ],
-        );
-      },
+      builder: (_) => _RangeFilterDialog(
+        title: '定数筛选',
+        options: options,
+        initial: _filterConditions['定数筛选']!,
+        minHint: '1.0',
+        maxHint: '15.0',
+        hint: '最多一位小数，留空表示默认值',
+      ),
     );
+    _applyFilter('定数筛选', result);
   }
-  
+
+  // 显示难度筛选对话框
+  Future<void> _showDifficultyFilterDialog() async {
+    final result = await showDialog<List<String>>(
+      context: context,
+      builder: (_) => _ChoiceFilterDialog(
+        title: '难度筛选',
+        initial: _filterConditions['难度筛选']!,
+        groups: [
+          _ChoiceGroup(items: [
+            for (final label in ChartDifficulty.labels)
+              _Choice(
+                label,
+                label,
+                color: ChartDifficulty.standardIndexByLabel[label] == null
+                    ? AppColors.utageAccent(
+                        brightness: Theme.of(context).brightness)
+                    : ColorUtil.getCardColor(
+                        ChartDifficulty.standardIndexByLabel[label]!),
+              ),
+          ]),
+        ],
+      ),
+    );
+    _applyFilter('难度筛选', result);
+  }
+
+  // 显示达成率筛选对话框
+  Future<void> _showAchievementFilterDialog() async {
+    final result = await showDialog<List<String>>(
+      context: context,
+      builder: (_) => _RangeFilterDialog(
+        title: '达成率筛选',
+        options: _achievementOptions,
+        initial: _filterConditions['达成率筛选']!,
+        minHint: '0',
+        maxHint: '101',
+        hint: '最多四位小数，留空表示默认值',
+      ),
+    );
+    _applyFilter('达成率筛选', result);
+  }
+
+  // 显示连击/同步筛选对话框
+  Future<void> _showComboFilterDialog() async {
+    final result = await showDialog<List<String>>(
+      context: context,
+      builder: (_) => _ChoiceFilterDialog(
+        title: '连击/同步筛选',
+        subtitle: '同组内满足任意一项，连击和同步都选时需同时满足',
+        initial: _filterConditions['连击/同步筛选']!,
+        groups: [
+          _ChoiceGroup(title: '连击', items: [
+            for (final item in UserScoreSearchService.comboFilterValues.keys)
+              _Choice(item, item),
+          ]),
+          _ChoiceGroup(title: '同步', items: [
+            for (final item in UserScoreSearchService.syncFilterValues.keys)
+              _Choice(item, item),
+          ]),
+        ],
+      ),
+    );
+    _applyFilter('连击/同步筛选', result);
+  }
+
   void _updatePagedSongs() {
     _pagedSongs = _service.getPagedSongs(_visibleSongs, _currentPage, _pageSize);
   }
@@ -783,178 +532,13 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
     return count == 0 ? 1 : (count / _pageSize).ceil();
   }
 
-  // 计算统计数据
-  Future<Map<String, int>> _calculateStats() async {
-    if (_sortedSongs.isEmpty) {
-      return {
-        'total': 0,
-        'sssp': 0,
-        'sss': 0,
-        'fc': 0,
-        'ap': 0,
-        'fs': 0,
-        'fdx': 0,
-        'star5': 0,
-        'star4': 0,
-        'star3': 0,
-        'star2': 0,
-        'star1': 0,
-      };
-    }
-    
-    List<dynamic> records = _sortedSongs;
-    int total = records.length;
-    int sssp = 0; // ≥SSS+
-    int sss = 0;  // ≥SSS
-    int fc = 0;   // FC/FC+
-    int ap = 0;   // AP/AP+
-    int fs = 0;   // FS/FS+
-    int fdx = 0;  // FDX/FDX+
-    int star5 = 0; // 5星
-    int star4 = 0; // 4星
-    int star3 = 0; // 3星
-    int star2 = 0; // 2星
-    int star1 = 0; // 1星
-    
-    // 计算星数时，先缓存DX分数达成率，避免重复计算
-    Map<dynamic, double> dxRateMap = {};
-    
-    for (var record in records) {
-      // 统计成绩等级
-      if (record.containsKey('achievements')) {
-        double achievements = double.tryParse(record['achievements'].toString()) ?? 0;
-        if (achievements >= 100.5) {
-          sssp++;
-        } else if (achievements >= 100.0) {
-          sss++;
-        }
-      }
-      
-      // 统计FC/AP
-      if (record.containsKey('fc')) {
-        String fcValue = record['fc'].toString().toLowerCase();
-        if (fcValue == 'fc' || fcValue == 'fcp') {
-          fc++;
-        }
-        if (fcValue == 'ap' || fcValue == 'app') {
-          ap++;
-        }
-      }
-      
-      // 统计FS/FDX
-      if (record.containsKey('fs')) {
-        String fsValue = record['fs'].toString().toLowerCase();
-        if (fsValue == 'fs' || fsValue == 'fsp') {
-          fs++;
-        }
-        if (fsValue == 'fsd' || fsValue == 'fsdp') {
-          fdx++;
-        }
-      }
-    }
-    
-    // 单独计算星数，避免在主循环中阻塞
-    for (var record in records) {
-      // 统计星数
-      if (record.containsKey('dxScore')) {
-        // ignore: unused_local_variable
-        int dxScore = int.tryParse(record['dxScore'].toString()) ?? 0;
-        // 计算DX分数达成率
-        double rate;
-        if (dxRateMap.containsKey(record)) {
-          rate = dxRateMap[record]!;
-        } else {
-          rate = await _calculateDXScoreRate(record);
-          dxRateMap[record] = rate;
-        }
-        if (rate >= 0.97) {
-          star5++;
-        } else if (rate >= 0.95) {
-          star4++;
-        } else if (rate >= 0.93) {
-          star3++;
-        } else if (rate >= 0.90) {
-          star2++;
-        } else if (rate >= 0.85) {
-          star1++;
-        }
-      }
-    }
-    
-    return {
-      'total': total,
-      'sssp': sssp,
-      'sss': sss,
-      'fc': fc,
-      'ap': ap,
-      'fs': fs,
-      'fdx': fdx,
-      'star5': star5,
-      'star4': star4,
-      'star3': star3,
-      'star2': star2,
-      'star1': star1,
-    };
-  }
-  
   // 使用UserScoreSearchService中的方法计算DX分数达成率
   double _calculateDXScoreRate(dynamic record) {
     return _service.calculateDXScoreRateSync(record);
   }
-  
-  // 构建星数统计项
-  Widget _buildStarStatItem(String stars, int value) {
-    return _statCell(StarBadge(stars: stars, fontSize: 11), value);
-  }
-  
-  // 获取星星颜色
-
-  // 构建统计项
-  Widget _buildStatItem(String label, int value) {
-    return _statCell(
-      Text(
-        label,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-            fontSize: 11,
-            color: Theme.of(context).colorScheme.onSurfaceVariant),
-      ),
-      value,
-    );
-  }
-
-  Widget _statCell(Widget label, int value) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-      decoration: BoxDecoration(
-        color: AppSurfaces.inset(context),
-        borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          label,
-          const SizedBox(height: 4),
-          Text(
-            '$value',
-            maxLines: 1,
-            style: AppTheme.number(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
-    // ignore: unused_local_variable
-    final stats =  _calculateStats();
-
     return BackgroundPageScaffold(
       title: '成绩查询',
       resizeToAvoidBottomInset: false, // 防止键盘弹出时调整布局
@@ -1047,11 +631,6 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
                               _buildListGrid(),
                             const SizedBox(height: AppDesignTokens.cardGap),
                             _buildPageSizeRow(),
-                            const SizedBox(height: AppDesignTokens.cardGap),
-                            CollapsibleCard(
-                              title: '详细统计',
-                              child: _buildStatsGrid(),
-                            ),
                           ],
                         ),
                       ),
@@ -1064,6 +643,7 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
 
   void _setSearchQuery(String query) {
     _searchQuery = query;
+    _invalidateSongCaches();
     _currentPage = 1;
     _updatePagedSongs();
   }
@@ -1089,169 +669,219 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
     );
   }
 
-  // 评级分布：色块宽度 = 数量，点色块或下方数字按评级筛选
+  // 评级 / 星数 / 连击 / 同步分布：色块宽度 = 数量，点色块或下方数字按该档筛选
   Widget _buildDistributionCard() {
     final scheme = Theme.of(context).colorScheme;
     final brightness = Theme.of(context).brightness;
     final songs = _searchedSongs;
-    final counts = List<int>.filled(_rankBuckets.length, 0);
-    for (final s in songs) {
-      counts[_rankBucketOf(s)]++;
-    }
+    final labels = _distributionLabels;
+    final filter = _bucketFilter;
+    final counts = _distributionCounts.putIfAbsent(_distributionMode, () {
+      final result = List<int>.filled(labels.length, 0);
+      for (final s in songs) {
+        result[_bucketOf(s)]++;
+      }
+      return result;
+    });
+    Color colorOf(int i) => switch (_distributionMode) {
+          0 => AppColors.rankDistribution(i, brightness),
+          1 => AppColors.starDistribution(i, brightness),
+          2 => AppColors.comboDistribution(i, brightness),
+          _ => AppColors.syncDistribution(i, brightness),
+        };
     void pick(int i) => setState(() {
-          _rankFilter = _rankFilter == i ? null : i;
+          _bucketFilter = filter == i ? null : i;
+          _visibleCache = null;
           _currentPage = 1;
           _updatePagedSongs();
         });
-    double opacityOf(int i) =>
-        _rankFilter == null || _rankFilter == i ? 1 : 0.3;
+    double opacityOf(int i) => filter == null || filter == i ? 1 : 0.3;
+    final hintStyle = TextStyle(fontSize: 12, color: scheme.onSurfaceVariant);
     return AppCard(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              const Expanded(
-                child: Text('评级分布',
-                    style:
-                        TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
-              ),
-              Text(
-                _rankFilter == null
-                    ? '点色块筛选 · 共 ${songs.length} 条'
-                    : '已筛选 ${_rankBuckets[_rankFilter!]} · 再点取消',
-                style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
-              ),
+          SegmentedTabs(
+            height: 38,
+            items: const [
+              SegmentedTabItem('评级'),
+              SegmentedTabItem('星数'),
+              SegmentedTabItem('连击'),
+              SegmentedTabItem('同步'),
             ],
+            selectedIndex: _distributionMode,
+            onChanged: (mode) {
+              if (mode == _distributionMode) return;
+              setState(() {
+                _distributionMode = mode;
+                // 切分布只换这张卡片。选中过档位时才影响歌曲列表：
+                // 筛选跟着分布走，切走后不留一个看不见的筛选条件
+                if (filter != null) {
+                  _bucketFilter = null;
+                  _visibleCache = null;
+                  _currentPage = 1;
+                  _updatePagedSongs();
+                }
+              });
+            },
           ),
           const SizedBox(height: 10),
-          SizedBox(
-            height: 14,
+          FadeSwitcher(
+            value: filter == null ? '' : labels[filter],
+            child: filter == null
+                ? Row(
+                    children: [
+                      Text('点色块或统计项筛选 · 共 ', style: hintStyle),
+                      RollingNumber(value: songs.length, style: hintStyle),
+                      Text(' 条', style: hintStyle),
+                    ],
+                  )
+                : Text('已筛选 ${labels[filter]} · 再点取消', style: hintStyle),
+          ),
+          const SizedBox(height: 10),
+          _buildDistributionBar(counts, labels, colorOf, opacityOf, pick),
+          const SizedBox(height: 10),
+          FadeSwitcher(
+            value: _distributionMode,
             child: Row(
-              children: [
-                for (var i = 0; i < counts.length; i++)
-                  if (counts[i] > 0)
+                children: [
+                  for (var i = 0; i < counts.length; i++)
                     Expanded(
-                      flex: counts[i],
-                      child: Semantics(
-                        button: true,
-                        label: '${_rankBuckets[i]} ${counts[i]} 条，点按筛选',
-                        excludeSemantics: true,
-                        child: GestureDetector(
-                          onTap: () => pick(i),
-                          child: AnimatedOpacity(
-                            opacity: opacityOf(i),
-                            duration: AppDesignTokens.motion(
-                                context, AppDesignTokens.fastMotion),
-                            child: Container(
-                              margin: const EdgeInsets.symmetric(horizontal: 1.5),
-                              decoration: BoxDecoration(
-                                color:
-                                    AppColors.rankDistribution(i, brightness),
-                                borderRadius: BorderRadius.circular(4),
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => pick(i),
+                        child: AnimatedOpacity(
+                          opacity: opacityOf(i),
+                          duration: AppDesignTokens.motion(
+                              context, AppDesignTokens.fastMotion),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // 行高固定：中文和英文字母的字体行高不同，
+                              // 否则下方的数字会高低不齐
+                              SizedBox(
+                                height: 16,
+                                child: Row(
+                                children: [
+                                  Container(
+                                    width: 6,
+                                    height: 6,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: colorOf(i),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Flexible(
+                                    child: FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      alignment: Alignment.centerLeft,
+                                      child: Text(labels[i],
+                                          maxLines: 1,
+                                          style: AppTheme.number(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w700,
+                                              color: scheme.onSurfaceVariant)),
+                                    ),
+                                  ),
+                                ],
+                                ),
                               ),
-                            ),
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerLeft,
+                                child: RollingNumber(
+                                  value: counts[i],
+                                  style: AppTheme.number(
+                                      fontSize: 17,
+                                      fontWeight: FontWeight.w700,
+                                      color: scheme.onSurface),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
                     ),
-              ],
+                ],
             ),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              for (var i = 0; i < counts.length; i++)
-                Expanded(
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () => pick(i),
-                    child: Opacity(
-                      opacity: opacityOf(i),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                width: 6,
-                                height: 6,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color:
-                                      AppColors.rankDistribution(i, brightness),
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              Flexible(
-                                child: Text(_rankBuckets[i],
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: AppTheme.number(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w700,
-                                        color: scheme.onSurfaceVariant)),
-                              ),
-                            ],
-                          ),
-                          Text('${counts[i]}',
-                              style: AppTheme.number(
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.w700,
-                                  color: scheme.onSurface)),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-            ],
           ),
         ],
       ),
     );
   }
 
-  // 详细统计（总数 / 连击同步 / 星数）
-  Widget _buildStatsGrid() {
-    final s = _stats!;
-    Widget row(List<Widget> cells) => Row(
+  /// 分布条。始终摆满最多档位的格子数：切换分布或筛选变化时同一格的位置、宽度和颜色
+  /// 一起过渡，看起来是色块变形成另一组；没有成绩的格子宽度为 0。
+  Widget _buildDistributionBar(
+    List<int> counts,
+    List<String> labels,
+    Color Function(int) colorOf,
+    double Function(int) opacityOf,
+    void Function(int) pick,
+  ) {
+    final motion =
+        AppDesignTokens.motion(context, AppDesignTokens.mediumMotion);
+    final curve = AppDesignTokens.emphasizedCurve;
+    return SizedBox(
+      height: 14,
+      child: LayoutBuilder(builder: (context, constraints) {
+        final widths = stackedBarWidths(counts, constraints.maxWidth,
+            gap: _distributionBarGap);
+        var left = 0.0;
+        return Stack(
           children: [
-            for (var i = 0; i < cells.length; i++) ...[
-              if (i > 0) const SizedBox(width: 8),
-              Expanded(child: cells[i]),
-            ],
+            for (var i = 0; i < _maxDistributionBuckets; i++)
+              () {
+                final exists = i < counts.length;
+                final width = exists ? widths[i] : 0.0;
+                final position = left;
+                if (width > 0) left += width + _distributionBarGap;
+                return AnimatedPositioned(
+                  key: ValueKey(i),
+                  duration: motion,
+                  curve: curve,
+                  left: position,
+                  top: 0,
+                  bottom: 0,
+                  width: width,
+                  child: Semantics(
+                    button: width > 0,
+                    label: width > 0
+                        ? '${labels[i]} ${counts[i]} 条，点按筛选'
+                        : null,
+                    excludeSemantics: true,
+                    child: GestureDetector(
+                      onTap: width > 0 ? () => pick(i) : null,
+                      child: AnimatedOpacity(
+                        opacity: width > 0 && exists ? opacityOf(i) : 0,
+                        duration: motion,
+                        child: AnimatedContainer(
+                          duration: motion,
+                          curve: curve,
+                          decoration: BoxDecoration(
+                            // 收起的格子保持原色淡出，不闪成别的颜色
+                            color: colorOf(exists ? i : counts.length - 1),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }(),
           ],
         );
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        row([
-          _buildStatItem('总谱面数', s['total']!),
-          _buildStatItem('SSS+', s['sssp']!),
-          _buildStatItem('SSS', s['sss']!),
-        ]),
-        const SizedBox(height: 8),
-        row([
-          _buildStatItem('FC/FC+', s['fc']!),
-          _buildStatItem('AP/AP+', s['ap']!),
-          _buildStatItem('FS/FS+', s['fs']!),
-          _buildStatItem('FDX/FDX+', s['fdx']!),
-        ]),
-        const SizedBox(height: 8),
-        row([
-          for (final n in [5, 4, 3, 2, 1])
-            _buildStarStatItem('✦$n', s['star$n']!),
-        ]),
-      ],
+      }),
     );
   }
 
+  static const double _distributionBarGap = 3;
+  static const int _maxDistributionBuckets = 6;
+
   // 横向滑动的筛选胶囊
   Widget _buildFilterRow() {
-    final version = _filterConditions['版本筛选'];
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       clipBehavior: Clip.none,
@@ -1259,33 +889,31 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
         children: [
           FilterPill(
             label: '版本',
-            value: version != null && version.isNotEmpty
-                ? _formatVersion(version)
-                : null,
+            value: _filterSummary('版本筛选', _formatVersion),
             onTap: _showVersionFilterDialog,
           ),
           const SizedBox(width: 6),
           FilterPill(
             label: '定数',
-            value: _filterConditions['定数筛选'],
+            value: _filterSummary('定数筛选', _dsRangeLabel),
             onTap: _showDsFilterDialog,
           ),
           const SizedBox(width: 6),
           FilterPill(
             label: '难度',
-            value: _filterConditions['难度筛选'],
+            value: _filterSummary('难度筛选', (value) => value),
             onTap: _showDifficultyFilterDialog,
           ),
           const SizedBox(width: 6),
           FilterPill(
             label: '达成率',
-            value: _filterConditions['达成率筛选'],
+            value: _filterSummary('达成率筛选', _achievementRangeLabel),
             onTap: _showAchievementFilterDialog,
           ),
           const SizedBox(width: 6),
           FilterPill(
             label: '连击/同步',
-            value: _filterConditions['连击/同步筛选'],
+            value: _filterSummary('连击/同步筛选', (value) => value),
             onTap: _showComboFilterDialog,
           ),
         ],
@@ -1629,7 +1257,7 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
       child: Column(
         // 换页、筛选、排序后重播入场动画
         key: ValueKey(
-            '$_currentPage-$_rankFilter-$_currentSortBy-$_searchQuery'),
+            '$_currentPage-$_bucketFilter-$_currentSortBy-$_searchQuery'),
         children: [
           for (var i = 0; i < _pagedSongs.length; i++)
             EntranceAnimation(
@@ -1778,6 +1406,265 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _Choice {
+  final String value;
+  final String label;
+  final Color? color;
+
+  const _Choice(this.value, this.label, {this.color});
+}
+
+class _ChoiceGroup {
+  final String? title;
+  final List<_Choice> items;
+
+  const _ChoiceGroup({this.title, required this.items});
+}
+
+/// 多选筛选对话框：点选胶囊，「全部」清空。确认时返回选中的值，取消返回 null。
+class _ChoiceFilterDialog extends StatefulWidget {
+  final String title;
+  final String? subtitle;
+  final List<_ChoiceGroup> groups;
+  final List<String> initial;
+
+  const _ChoiceFilterDialog({
+    required this.title,
+    required this.groups,
+    required this.initial,
+    this.subtitle,
+  });
+
+  @override
+  State<_ChoiceFilterDialog> createState() => _ChoiceFilterDialogState();
+}
+
+class _ChoiceFilterDialogState extends State<_ChoiceFilterDialog> {
+  late final Set<String> _selected = widget.initial.toSet();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return AppAlertDialog(
+      title: Text(widget.title),
+      subtitle: widget.subtitle ?? '可多选，满足任意一项即可',
+      scrollable: true,
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          GuessChoicePill(
+            label: '全部',
+            selected: _selected.isEmpty,
+            onTap: () => setState(_selected.clear),
+          ),
+          for (final group in widget.groups) ...[
+            const SizedBox(height: 12),
+            if (group.title != null) ...[
+              Text(
+                group.title!,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: scheme.onSurface,
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final item in group.items)
+                  GuessChoicePill(
+                    label: item.label,
+                    selected: _selected.contains(item.value),
+                    selectedColor: item.color,
+                    selectedForeground: item.color == null
+                        ? null
+                        : ThemeData.estimateBrightnessForColor(item.color!) ==
+                                Brightness.dark
+                            ? Colors.white
+                            : Colors.black87,
+                    onTap: () => setState(() {
+                      if (!_selected.remove(item.value)) {
+                        _selected.add(item.value);
+                      }
+                    }),
+                  ),
+              ],
+            ),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('取消'),
+        ),
+        TextButton(
+          onPressed: () {
+            // 按选项顺序返回，胶囊上的摘要不随点选顺序跳动
+            Navigator.of(context).pop([
+              for (final group in widget.groups)
+                for (final item in group.items)
+                  if (_selected.contains(item.value)) item.value,
+            ]);
+          },
+          child: const Text('确认'),
+        ),
+      ],
+    );
+  }
+}
+
+/// 范围筛选对话框：快捷档可多选，另可填一个自定义范围，选中的范围取并集。
+/// 输入框控制器由这里持有，退出动画期间不会被提前释放。
+class _RangeFilterDialog extends StatefulWidget {
+  final String title;
+  final List<({String label, String range})> options;
+  final List<String> initial;
+  final String minHint;
+  final String maxHint;
+  final String hint;
+
+  const _RangeFilterDialog({
+    required this.title,
+    required this.options,
+    required this.initial,
+    required this.minHint,
+    required this.maxHint,
+    required this.hint,
+  });
+
+  @override
+  State<_RangeFilterDialog> createState() => _RangeFilterDialogState();
+}
+
+class _RangeFilterDialogState extends State<_RangeFilterDialog> {
+  final TextEditingController _minController = TextEditingController();
+  final TextEditingController _maxController = TextEditingController();
+  late final Set<String> _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    final known = widget.options.map((option) => option.range).toSet();
+    _selected = widget.initial.where(known.contains).toSet();
+    for (final range in widget.initial) {
+      if (known.contains(range)) continue;
+      final parts = range.split('-');
+      if (parts.length == 2) {
+        _minController.text = parts[0];
+        _maxController.text = parts[1];
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _minController.dispose();
+    _maxController.dispose();
+    super.dispose();
+  }
+
+  Widget _field(TextEditingController controller, String label, String hint) {
+    return TextField(
+      controller: controller,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      onChanged: (_) => setState(() {}),
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hint,
+        suffixIcon: controller.text.isEmpty
+            ? null
+            : IconButton(
+                tooltip: '清除$label',
+                icon: const Icon(Icons.clear),
+                onPressed: () => setState(controller.clear),
+              ),
+      ),
+    );
+  }
+
+  void _confirm() {
+    var min = _minController.text.trim();
+    var max = _maxController.text.trim();
+    final minValue = double.tryParse(min);
+    final maxValue = double.tryParse(max);
+    // 上下界填反时自动对调
+    if (minValue != null && maxValue != null && minValue > maxValue) {
+      (min, max) = (max, min);
+    }
+    Navigator.of(context).pop([
+      for (final option in widget.options)
+        if (_selected.contains(option.range)) option.range,
+      if (min.isNotEmpty || max.isNotEmpty) '$min-$max',
+    ]);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final heading = TextStyle(
+      fontSize: 13,
+      fontWeight: FontWeight.w700,
+      color: scheme.onSurface,
+    );
+    return AppAlertDialog(
+      title: Text(widget.title),
+      subtitle: '可多选，满足任意一项即可',
+      scrollable: true,
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('快捷选项', style: heading),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final option in widget.options)
+                GuessChoicePill(
+                  label: option.label,
+                  selected: _selected.contains(option.range),
+                  onTap: () => setState(() {
+                    if (!_selected.remove(option.range)) {
+                      _selected.add(option.range);
+                    }
+                  }),
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text('自定义范围', style: heading),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(child: _field(_minController, '下界', widget.minHint)),
+              const SizedBox(width: 12),
+              Expanded(child: _field(_maxController, '上界', widget.maxHint)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            widget.hint,
+            style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('取消'),
+        ),
+        TextButton(onPressed: _confirm, child: const Text('确认')),
+      ],
     );
   }
 }

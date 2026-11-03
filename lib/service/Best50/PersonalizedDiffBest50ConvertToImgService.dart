@@ -10,12 +10,12 @@ import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:media_scanner/media_scanner.dart';
-import 'package:my_first_flutter_app/utils/TextStyleUtil.dart';
 import 'package:my_first_flutter_app/utils/ColorUtil.dart';
 import 'package:my_first_flutter_app/utils/StringUtil.dart';
 import 'package:my_first_flutter_app/utils/ImageEncodeUtil.dart';
 import 'package:my_first_flutter_app/widgets/B50GameCardWidget.dart';
 import 'package:my_first_flutter_app/widgets/MetaRowWidget.dart';
+import 'package:my_first_flutter_app/widgets/ExportStatsUi.dart';
 
 class PersonalizedDiffBest50ConvertToImg {
   // 导出为图片的方法
@@ -246,6 +246,7 @@ class PersonalizedDiffBest50ConvertToImg {
       {bool thunderMode = false,
       bool thunderVertical = true}) async {
     int diffRatingSum = diffBest50Data?['diffRatingSum'] ?? 0;
+    int best50Diff = (diffBest50Data?['best50Diff'] as num?)?.toInt() ?? 0;
     double diffRatingAverage =
         diffSongs.isNotEmpty ? diffRatingSum / diffSongs.length : 0.0;
 
@@ -274,9 +275,9 @@ class PersonalizedDiffBest50ConvertToImg {
         vertical: thunderVertical,
         count: diffSongs.length,
         statistics:
-            '拟合 Rating $diffRatingSum\n平均 Rating ${diffRatingAverage.toStringAsFixed(1)}\n'
+            '拟合 Rating $diffRatingSum（较该标签 Best50 ${best50Diff > 0 ? '+' : ''}$best50Diff）\n平均 Rating ${diffRatingAverage.toStringAsFixed(1)}\n'
             '平均达成率 ${averageAchievement.toStringAsFixed(4)}%\n'
-            '平均 DX 分达成率 ${(averageScoreRate * 100).toStringAsFixed(2)}%',
+            '平均DX分数达成率 ${(averageScoreRate * 100).toStringAsFixed(2)}%',
         cardBuilder: (index) => _buildDataGameCard(
             context, diffSongs[index], maimaiMusicData, maxIdLength),
       );
@@ -318,8 +319,14 @@ class PersonalizedDiffBest50ConvertToImg {
                 ),
                 SizedBox(height: 16.0),
 
-                _buildRatingSection(context, title, diffRatingSum,
-                    diffRatingAverage, averageAchievement, averageScoreRate),
+                _buildRatingSection(
+                    context,
+                    title,
+                    diffRatingSum,
+                    diffRatingAverage,
+                    best50Diff,
+                    averageAchievement,
+                    averageScoreRate),
                 SizedBox(height: 20.0),
 
                 _buildSectionTitle(context, title),
@@ -346,107 +353,44 @@ class PersonalizedDiffBest50ConvertToImg {
       String title,
       int diffRatingSum,
       double diffRatingAverage,
+      int best50Diff,
       double averageAchievement,
       double averageScoreRate) {
-    const double containerWidth = 1200.0;
-
-    double mainFontSize = containerWidth * 0.032;
-    double subFontSize = containerWidth * 0.025;
-    double sectionTitleFontSize = containerWidth * 0.03;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: Colors.black, width: 2.0),
-        borderRadius: BorderRadius.circular(8.0),
-      ),
-      padding: EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(
-                  child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Text(
-                          '拟合总Rating',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: mainFontSize,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black,
-                          ),
-                        ),
-                        SizedBox(height: 8.0),
-                        Center(
-                          child: RichText(
-                            textAlign: TextAlign.center,
-                            text: TextSpan(
-                              children: [
-                                TextStyleUtil.span(
-                                  diffRatingSum.toString(),
-                                  TextStyle(
-                                    fontSize: mainFontSize,
-                                    color: Colors.black,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                TextStyleUtil.span(
-                                  '(平均${diffRatingAverage.toStringAsFixed(1)})',
-                                  TextStyle(
-                                    fontSize: subFontSize,
-                                    color: Colors.black,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const VerticalDivider(width: 24, thickness: 1),
-                Expanded(
-                  child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Text(
-                          '平均达成率/DX分数达成率',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: sectionTitleFontSize,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Center(
-                          child: _buildDualDecimalText(
-                            context,
-                            averageAchievement,
-                            averageScoreRate * 100,
-                            scoreRate: averageScoreRate,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+    return ExportStatsPanel(
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              flex: 2,
+              child: ExportHeroBlock(
+                label: '拟合总Rating',
+                value: '$diffRatingSum',
+                caption: '平均 ${diffRatingAverage.toStringAsFixed(1)}',
+              ),
             ),
-          ),
-        ],
+            const SizedBox(width: 10),
+            Expanded(
+              flex: 2,
+              child: ExportStatBlock(
+                label: '较该标签 Best50',
+                value: '${best50Diff > 0 ? '+' : ''}$best50Diff',
+                valueColor: best50Diff >= 0
+                    ? ExportStatsColors.positive
+                    : ExportStatsColors.negative,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              flex: 4,
+              child: ExportAchievementBlock(
+                label: '平均达成率 / DX分数达成率',
+                achievement: averageAchievement,
+                scoreRate: averageScoreRate,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -515,90 +459,6 @@ class PersonalizedDiffBest50ConvertToImg {
       starsColor: starsColor,
       maxIdLength: maxIdLength,
       scale: 1.0,
-    );
-  }
-
-  // 构建小数文本
-  static Widget _buildDecimalText(
-    BuildContext context,
-    double value, {
-    bool isPercentage = false,
-    int decimalPlaces = 4,
-    Color color = Colors.white,
-  }) {
-    const double containerWidth = 1200.0;
-    double mainFontSize = containerWidth * 0.032;
-    double subFontSize = containerWidth * 0.025;
-
-    String text = value.toStringAsFixed(decimalPlaces);
-    List<String> parts = text.split('.');
-    String integerPart = parts[0];
-    String decimalPart = parts.length > 1 ? '.${parts[1]}' : '';
-    String percentageSymbol = isPercentage ? '%' : '';
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.baseline,
-      textBaseline: TextBaseline.alphabetic,
-      children: [
-        Text(
-          integerPart,
-          style: TextStyle(
-              fontSize: mainFontSize,
-              fontWeight: FontWeight.bold,
-              color: color),
-        ),
-        Text(
-          '$decimalPart$percentageSymbol',
-          style: TextStyle(
-              fontSize: subFontSize, fontWeight: FontWeight.bold, color: color),
-        ),
-      ],
-    );
-  }
-
-  // 构建双小数文本
-  static Widget _buildDualDecimalText(
-    BuildContext context,
-    double value1,
-    double value2, {
-    int decimalPlaces1 = 4,
-    int decimalPlaces2 = 2,
-    Color color = Colors.black,
-    double? scoreRate,
-  }) {
-    const double containerWidth = 1200.0;
-    double fontSize = containerWidth * 0.03;
-
-    final starsText =
-        scoreRate != null ? StringUtil.formatStars(scoreRate) : null;
-    final starsColor =
-        scoreRate != null ? ColorUtil.getStarsColor(starsText!) : null;
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _buildDecimalText(context, value1,
-            decimalPlaces: decimalPlaces1, color: color),
-        Text('/',
-            style: TextStyle(
-                fontSize: fontSize, fontWeight: FontWeight.bold, color: color)),
-        _buildDecimalText(context, value2,
-            decimalPlaces: decimalPlaces2, color: color),
-        // DX 分达成率右侧添加星级（achievement / dxScore% / ✦x）
-        if (starsText != null) ...[
-          Text('/',
-              style: TextStyle(
-                  fontSize: fontSize,
-                  fontWeight: FontWeight.bold,
-                  color: color)),
-          Text(starsText,
-              style: TextStyle(
-                  fontSize: fontSize,
-                  fontWeight: FontWeight.bold,
-                  color: starsColor)),
-        ],
-      ],
     );
   }
 

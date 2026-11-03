@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter/foundation.dart' show ValueNotifier, debugPrint;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:my_first_flutter_app/entity/DivingFish/UserBest50Entity.dart';
 import 'package:my_first_flutter_app/entity/DivingFish/RecordItem.dart';
@@ -11,6 +11,9 @@ class UserBest50Manager {
   static final UserBest50Manager _instance = UserBest50Manager._internal();
   factory UserBest50Manager() => _instance;
   UserBest50Manager._internal();
+
+  /// 成绩或 Best50 缓存写入后递增，常驻的页面（成绩 Hub）靠它刷新。
+  static final ValueNotifier<int> dataRevision = ValueNotifier<int>(0);
 
   Future<UserBest50Entity> getUserBest50(
     String qq, {
@@ -69,6 +72,7 @@ class UserBest50Manager {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('best50_data_$qq', json.encode(data));
       await prefs.setString('last_used_qq', qq);
+      dataRevision.value++;
     } catch (e) {
       debugPrint('Error caching best50 data: $e');
     }
@@ -85,6 +89,47 @@ class UserBest50Manager {
           : json.decode(cachedData) as Map<String, dynamic>;
     } catch (e) {
       debugPrint('Error getting cached best50 data: $e');
+      return null;
+    }
+  }
+
+  /// 取用于显示的 Best50：有缓存用缓存，没有就按成绩现算。
+  ///
+  /// 落雪不写 Best50 缓存（见 LuoXueUserPlayDataManager），只读缓存的地方
+  /// 切到落雪后拿不到数据，这里和 Best50 详情页用同一套口径。
+  Future<Map<String, dynamic>?> getBest50ForDisplay() async {
+    final cached = await getCachedBest50Data();
+    if (cached != null) return cached;
+    try {
+      final playData = await UserPlayDataManager().getCachedUserPlayData();
+      final records = playData?['records'];
+      if (records is! List || records.isEmpty) return null;
+      final songs = await MaimaiMusicDataManager().getCachedSongs();
+      final newSongIds = {
+        for (final song in songs ?? const <Song>[])
+          if (song.basicInfo.isNew) song.id,
+      };
+      final items = _parseRecordItems(records);
+      final oldSongs = items
+          .where((r) => !newSongIds.contains(r.songId.toString()))
+          .toList()
+        ..sort((a, b) => b.ra.compareTo(a.ra));
+      final newSongs = items
+          .where((r) => newSongIds.contains(r.songId.toString()))
+          .toList()
+        ..sort((a, b) => b.ra.compareTo(a.ra));
+      final best35 = oldSongs.take(35).toList();
+      final best15 = newSongs.take(15).toList();
+      return {
+        'rating': [...best35, ...best15].fold<int>(0, (sum, r) => sum + r.ra),
+        'additional_rating': 0,
+        'charts': {
+          'sd': [for (final r in best35) r.toJson()],
+          'dx': [for (final r in best15) r.toJson()],
+        },
+      };
+    } catch (e) {
+      debugPrint('按成绩计算 Best50 失败: $e');
       return null;
     }
   }

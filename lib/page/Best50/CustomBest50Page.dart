@@ -24,6 +24,8 @@ import '../../widgets/BackgroundPageScaffold.dart';
 import '../../widgets/AppUi.dart';
 import '../../utils/AppDesignTokens.dart';
 import '../../widgets/Best50Ui.dart';
+import '../../widgets/AppDialogs.dart';
+import '../../widgets/ExportSuccessDialog.dart';
 
 /// 自定义 Best50 的一键排序方式。
 enum _SortMode { raDesc, raAsc, dsDesc, dsAsc }
@@ -854,20 +856,7 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
     );
     if (!mounted || quality == null) return;
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const AlertDialog(
-        title: Text('导出中'),
-        content: Row(
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(width: 16.0),
-            Text('正在生成图片...'),
-          ],
-        ),
-      ),
-    );
+    showAppProgressDialog(context, title: '导出中', message: '正在生成图片...');
 
     try {
       final file = await PersonalizedB50ConvertToImg.convertToImage(
@@ -886,30 +875,7 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
       Navigator.pop(context); // 关闭进度弹窗
 
       if (file != null) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('导出成功'),
-            content: Text('图片已保存到：\n${file.path}'),
-            actions: [
-              TextButton(
-                onPressed: () async {
-                  await Clipboard.setData(ClipboardData(text: file.path));
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('路径已复制到剪贴板')),
-                    );
-                  }
-                },
-                child: const Text('复制路径'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('确定'),
-              ),
-            ],
-          ),
-        );
+        showExportSuccessDialog(context, filePath: file.path, fileName: file.path.split('/').last);
       } else {
         _showMessage('导出失败', '图片导出失败，请重试');
       }
@@ -924,7 +890,7 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
   void _showMessage(String title, String content) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => AppAlertDialog(
         title: Text(title),
         content: Text(content),
         actions: [
@@ -941,7 +907,7 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
     if (_filledEntries.isEmpty) return;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => AppAlertDialog(
         title: const Text('清空全部'),
         content: const Text('确定要清空全部 50 个卡位吗？此操作不可撤销。'),
         actions: [
@@ -981,13 +947,13 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
     return BackgroundPageScaffold(
       title: '自定义 Best50',
       resizeToAvoidBottomInset: false,
+      actionsEndInset: 4,
       actions: [
         Best50IconAction(
           tooltip: '导出为图片',
           icon: Icons.image_outlined,
           onPressed: _exportToImage,
         ),
-        const SizedBox(width: 4),
       ],
       contentPadding:
           EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),

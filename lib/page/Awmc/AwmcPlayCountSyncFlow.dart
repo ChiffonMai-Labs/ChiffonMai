@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 
 import '../../service/AWMC/AwmcApiService.dart';
 import '../../service/AWMC/AwmcGatewaySettings.dart';
@@ -8,6 +7,8 @@ import '../../service/AWMC/AwmcStore.dart';
 import '../../utils/AppTheme.dart';
 import '../../widgets/QrQuickFillButtons.dart';
 import '../../utils/AppDesignTokens.dart';
+import '../../widgets/AppDialogs.dart';
+import '../../widgets/AppToast.dart';
 
 /// 独立读取机台游玩次数的结果。
 class AwmcPlayCountSyncOutcome {
@@ -84,7 +85,7 @@ class AwmcPlayCountSyncFlow {
       barrierDismissible: false,
       builder: (dialogContext) {
         dialogRoute ??= ModalRoute.of(dialogContext);
-        return AlertDialog(
+        return AppAlertDialog(
           title: const Row(
             children: [
               Icon(Icons.numbers_rounded, size: 22),
@@ -115,7 +116,6 @@ class AwmcPlayCountSyncFlow {
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                     ),
-                    contentPadding: const EdgeInsets.all(12),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -123,7 +123,7 @@ class AwmcPlayCountSyncFlow {
                   onPressed: () {
                     final qr = controller.text.trim();
                     if (qr.isEmpty || !qr.startsWith('SGWCMAID')) {
-                      Fluttertoast.showToast(msg: '请输入有效的 SGWCMAID 机台登入二维码');
+                      AppToast.show('请输入有效的 SGWCMAID 机台登入二维码');
                       return;
                     }
                     Navigator.of(dialogContext).pop(qr);

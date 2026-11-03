@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../manager/DivingFishProbeManager.dart';
 import '../utils/AppTheme.dart';
 import 'MaimaiHubLoginDialog.dart';
+import '../widgets/AppDialogs.dart';
 
 /// 线路2（maimai Score Hub）同步前确保登录态。
 ///
@@ -25,7 +26,7 @@ Future<bool> ensureMaimaiHubLogin(
     context: context,
     builder: (ctx) {
       final brightness = Theme.of(ctx).brightness;
-      return AlertDialog(
+      return AppAlertDialog(
         title: const Row(children: [
           Icon(Icons.hub_outlined, size: 22),
           SizedBox(width: 8),

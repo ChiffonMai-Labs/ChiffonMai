@@ -42,65 +42,40 @@ extension _SongInfoLayout on _SongInfoPageState {
     showDialog<void>(
       context: context,
       builder: (BuildContext dialogContext) {
-        return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppDesignTokens.radiusLarge),
-          ),
-          child: EntranceAnimation(
+        return AppAlertDialog(
+          title: Text(basicInfo['title'].toString()),
+          content: EntranceAnimation(
             duration: const Duration(milliseconds: 380),
             offset: Offset.zero,
             scaleFrom: 0.4,
-            child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  basicInfo['title'].toString(),
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+            // Center 默认会撑满可用高度，这里只让它管水平居中。
+            child: Center(
+              heightFactor: 1,
+              child: SizedBox(
+                width: 250,
+                height: 250,
+                child: ClipRRect(
+                  borderRadius:
+                      BorderRadius.circular(AppDesignTokens.radiusMedium),
+                  child: CoverUtil.buildCoverWidgetWithContext(
+                      dialogContext, widget.songId.toString(), 300),
                 ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: 250,
-                  height: 250,
-                  child: ClipRRect(
-                    borderRadius:
-                        BorderRadius.circular(AppDesignTokens.radiusMedium),
-                    child: CoverUtil.buildCoverWidgetWithContext(
-                        dialogContext, widget.songId.toString(), 300),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(
-                      onPressed: () => Navigator.of(dialogContext).pop(),
-                      child: const Text('关闭'),
-                    ),
-                    const SizedBox(width: 8),
-                    FilledButton.icon(
-                      onPressed: () async {
-                        await _saveCoverToGallery(widget.songId.toString(),
-                            basicInfo['title']?.toString() ?? 'cover');
-                      },
-                      style: FilledButton.styleFrom(
-                        backgroundColor: accentColor,
-                        foregroundColor: Colors.white,
-                      ),
-                      icon: const Icon(Icons.download_rounded, size: 18),
-                      label: const Text('保存到相册'),
-                    ),
-                  ],
-                ),
-              ],
+              ),
             ),
           ),
-          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('关闭'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                await _saveCoverToGallery(widget.songId.toString(),
+                    basicInfo['title']?.toString() ?? 'cover');
+              },
+              child: const Text('保存到相册'),
+            ),
+          ],
         );
       },
     );
@@ -473,18 +448,8 @@ extension _SongInfoLayout on _SongInfoPageState {
             shape: const StadiumBorder(),
             clipBehavior: Clip.antiAlias,
             child: InkWell(
-              onTap: () {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => SongInfoPage(
-                      songId: _alternativeSongId!,
-                      initialLevelIndex: _currentDiffIndex,
-                      isDefaultLevelIndex: false,
-                    ),
-                  ),
-                );
-              },
+              onTap: () => widget.onSwitchSong(
+                  _alternativeSongId!, _currentDiffIndex),
               child: Padding(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
@@ -648,7 +613,7 @@ extension _SongInfoLayout on _SongInfoPageState {
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 1),
           AnimatedSize(
             duration: motion,
             curve: AppDesignTokens.emphasizedCurve,
@@ -657,6 +622,7 @@ extension _SongInfoLayout on _SongInfoPageState {
             child: FadeSwitcher(
               value: userRecord != null,
               alignment: AlignmentDirectional.topStart,
+              sizeFollowsCurrent: true,
               child: userRecord != null
                   ? _buildBestScoreBody(userRecord)
                   : Row(
@@ -665,10 +631,17 @@ extension _SongInfoLayout on _SongInfoPageState {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                '还没有 ${_getDiffLabel(_currentDiffIndex)} 的成绩',
-                                style: const TextStyle(
-                                    fontSize: 15, fontWeight: FontWeight.w700),
+                              // 难度名长短不一，放不下时整行缩小，避免末字单独换行。
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  '还没有 ${_getDiffLabel(_currentDiffIndex)} 的成绩',
+                                  maxLines: 1,
+                                  style: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700),
+                                ),
                               ),
                               const SizedBox(height: 2),
                               Text('打完同步一下就会显示在这里', style: muted),
@@ -686,7 +659,7 @@ extension _SongInfoLayout on _SongInfoPageState {
                                 const EdgeInsets.symmetric(horizontal: 14),
                             shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(14)),
-                            textStyle: const TextStyle(
+                            textStyle: AppTheme.font(
                                 fontSize: 13, fontWeight: FontWeight.w600),
                           ),
                           child: const Text('加入下次想玩'),
@@ -732,8 +705,10 @@ extension _SongInfoLayout on _SongInfoPageState {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // 两个数字字号不同，按盒子底边对齐时字的下沿对不齐，所以按基线对齐。
         Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
           children: [
             Expanded(
               child: FittedBox(
@@ -754,12 +729,11 @@ extension _SongInfoLayout on _SongInfoPageState {
               ),
             ),
             const SizedBox(width: 10),
+            // Column 的基线取第一个子项：倒序排列，让参与对齐的是数值而不是上方的标签。
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
+              verticalDirection: VerticalDirection.up,
               children: [
-                Text('Rating',
-                    style: TextStyle(
-                        fontSize: 11, color: scheme.onSurfaceVariant)),
                 RollingNumber(
                   value: userRecord['ra'] as num,
                   style: AppTheme.number(
@@ -767,6 +741,9 @@ extension _SongInfoLayout on _SongInfoPageState {
                       fontWeight: FontWeight.w700,
                       color: scheme.onSurface),
                 ),
+                Text('Rating',
+                    style: TextStyle(
+                        fontSize: 11, color: scheme.onSurfaceVariant)),
               ],
             ),
           ],
@@ -935,6 +912,7 @@ extension _SongInfoLayout on _SongInfoPageState {
             value: value,
             valueColor: color,
             card: true,
+            centered: true,
             valueSize: 16,
             valueWidget: number == null
                 ? null
@@ -1059,10 +1037,14 @@ extension _SongInfoLayout on _SongInfoPageState {
       ('TOUCH', 3),
     ];
     const breakLabels = ['真绝赞TAP', '真绝赞HOLD', '保护套绝赞', '绝赞星星'];
-    final motion = AppDesignTokens.motion(context, AppDesignTokens.slowMotion);
     final ordered = [for (final n in noteOrder) noteCounts[n.$2]];
-    final lastNonZero = ordered.lastIndexWhere((c) => c > 0);
-    final gapCount = ordered.where((c) => c > 0).length - 1;
+    // 没有解析结果时是「-」，不计入比例条
+    final breakCounts = [
+      for (var i = 0; i < breakLabels.length; i++)
+        int.tryParse(_getBreakCountDisplay(i)),
+    ];
+    final breakValues = [for (final c in breakCounts) c ?? 0];
+    final totalBreaks = breakValues.fold<int>(0, (sum, n) => sum + n);
 
     return [
       AppCard(
@@ -1082,91 +1064,35 @@ extension _SongInfoLayout on _SongInfoPageState {
                 ),
               ),
             ),
-            // 比例条（优先使用Maidata解析的物量统计），切难度时色块宽度过渡
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final usable = constraints.maxWidth -
-                    (gapCount < 0 ? 0 : gapCount) * 2;
-                return ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
-                  child: SizedBox(
-                    height: 12,
-                    child: Row(
-                      children: [
-                        for (var i = 0; i < ordered.length; i++)
-                          AnimatedContainer(
-                            duration: motion,
-                            curve: AppDesignTokens.emphasizedCurve,
-                            width: totalNotes == 0
-                                ? 0
-                                : usable * ordered[i] / totalNotes,
-                            margin: EdgeInsets.only(
-                                right: ordered[i] > 0 && i != lastNonZero
-                                    ? 2
-                                    : 0),
-                            color: AppColors.noteDistribution[i],
-                          ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
+            // 比例条（优先使用Maidata解析的物量统计）
+            _buildDistributionBar(ordered, AppColors.noteDistribution),
             const SizedBox(height: 10),
-            Row(
-              children: [
-                for (var i = 0; i < noteOrder.length; i++)
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              width: 6,
-                              height: 6,
-                              decoration: BoxDecoration(
-                                color: AppColors.noteDistribution[i],
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            Flexible(
-                              child: FittedBox(
-                                fit: BoxFit.scaleDown,
-                                child: Text(noteOrder[i].$1,
-                                    style: AppTheme.number(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w500,
-                                        color: scheme.onSurfaceVariant)),
-                              ),
-                            ),
-                          ],
-                        ),
-                        RollingNumber(
-                          value: ordered[i],
-                          style: AppTheme.number(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                              color: scheme.onSurface),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
+            _buildDistributionLegend(
+              [for (final n in noteOrder) n.$1],
+              ordered,
+              AppColors.noteDistribution,
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             // Break统计区域
-            Row(
-              children: [
-                for (var i = 0; i < breakLabels.length; i++) ...[
-                  if (i > 0) const SizedBox(width: 6),
-                  Expanded(
-                    child: _buildBreakItem(
-                        breakLabels[i], _getBreakCountDisplay(i)),
-                  ),
-                ],
-              ],
+            AppSectionHeader(
+              title: '绝赞分布',
+              padding: const EdgeInsets.only(bottom: 10),
+              trailing: RollingNumber(
+                value: totalBreaks,
+                prefix: '共 ',
+                style: AppTheme.number(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+            _buildDistributionBar(breakValues, AppColors.breakDistribution),
+            const SizedBox(height: 10),
+            _buildDistributionLegend(
+              breakLabels,
+              breakCounts,
+              AppColors.breakDistribution,
             ),
           ],
         ),
@@ -1194,7 +1120,7 @@ extension _SongInfoLayout on _SongInfoPageState {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildStatItem('BPM', _displayBpm(basicInfo)),
+                _buildStatItem('BPM', _displayBpmWithBase(basicInfo)),
                 _buildStatItem('首次上线',
                     _formatReleaseDate(basicInfo['release_date'] ?? '')),
               ],
@@ -1348,94 +1274,43 @@ extension _SongInfoLayout on _SongInfoPageState {
     ];
   }
 
-  /// 谱面标签(仅供参考)：与旧版完全一致的展开 / 收起与标签说明弹窗。
+  /// 谱面标签(仅供参考)：常驻展开，点标签弹出说明。
   Widget _buildTagsSection(Color accentColor) {
     final brightness = Theme.of(context).brightness;
     final groupedTags = _getTagsByGroup();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 标题和展开收起按钮（整行可点击）
-        InkWell(
-          onTap: () {
-            _update(() {
-              _tagsTableExpanded = !_tagsTableExpanded;
-            });
-          },
-          borderRadius: BorderRadius.circular(8),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  '谱面标签(仅供参考)',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                AnimatedRotation(
-                  turns: _tagsTableExpanded ? 0.5 : 0,
-                  duration: const Duration(milliseconds: 220),
-                  child: Icon(Icons.expand_more, color: accentColor),
-                ),
-              ],
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 8),
+          child: Text(
+            '谱面标签(仅供参考)',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ),
-        AnimatedSize(
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeInOutCubic,
-          alignment: Alignment.topCenter,
-          child: SizedBox(
-            width: double.infinity,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 标签分组（根据展开状态显示）
-                if (_tagsTableExpanded) ...[
-                  const SizedBox(height: 6),
-                  for (var group in groupedTags.entries)
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          group.key,
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: accentColor,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        if (group.value.isNotEmpty)
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: group.value
-                                .map((tag) => _buildTagChip(
-                                    tag, group.key, brightness))
-                                .toList(),
-                          )
-                        else
-                          Text(
-                            '当前分类暂无标签',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant,
-                            ),
-                          ),
-                        const SizedBox(height: 12),
-                      ],
-                    ),
-                ],
-              ],
+        // 不分行显示分类，所有标签按顺序铺开，满了换行
+        if (groupedTags.values.every((tags) => tags.isEmpty))
+          Text(
+            '暂无标签',
+            style: TextStyle(
+              fontSize: 12,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
+          )
+        else
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final group in groupedTags.entries)
+                for (final tag in group.value)
+                  _buildTagChip(tag, group.key, brightness),
+            ],
           ),
-        ),
+        const SizedBox(height: 12),
       ],
     );
   }
@@ -1447,11 +1322,11 @@ extension _SongInfoLayout on _SongInfoPageState {
         if (description == null || description.isEmpty) return;
         showDialog<void>(
           context: context,
-          builder: (ctx) => AlertDialog(
+          builder: (ctx) => AppAlertDialog(
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12)),
+                borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall)),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,

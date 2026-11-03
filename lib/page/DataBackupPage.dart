@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 import 'package:my_first_flutter_app/service/DataBackupService.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import 'package:my_first_flutter_app/utils/ExportPathUtil.dart';
 import '../widgets/BackgroundPageScaffold.dart';
 import '../widgets/ExportSuccessDialog.dart';
 import '../utils/AppDesignTokens.dart';
+import '../widgets/AppDialogs.dart';
+import '../widgets/AppToast.dart';
 
 class DataBackupPage extends StatefulWidget {
   const DataBackupPage({super.key});
@@ -273,19 +274,13 @@ class _DataBackupPageState extends State<DataBackupPage> {
       } else {
         if (mounted) {
           setState(() => _isExporting = false);
-          Fluttertoast.showToast(
-            msg: '导出已取消',
-            toastLength: Toast.LENGTH_SHORT,
-          );
+          AppToast.show('导出已取消');
         }
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isExporting = false);
-        Fluttertoast.showToast(
-          msg: '导出失败: ${e.toString().replaceFirst("Exception: ", "")}',
-          toastLength: Toast.LENGTH_LONG,
-        );
+        AppToast.show('导出失败: ${e.toString().replaceFirst("Exception: ", "")}');
       }
     }
   }
@@ -312,7 +307,7 @@ class _DataBackupPageState extends State<DataBackupPage> {
 
       final confirm = await showDialog<bool>(
         context: context,
-        builder: (ctx) => AlertDialog(
+        builder: (ctx) => AppAlertDialog(
           scrollable: true,
           title: Row(
             children: [
@@ -395,10 +390,7 @@ class _DataBackupPageState extends State<DataBackupPage> {
           // 不重载的话用户恢复后随手改一下，就会用旧值把刚导入的数据盖掉。
           await _service.reloadAfterRestore();
           if (mounted) {
-            Fluttertoast.showToast(
-              msg: '数据恢复成功！共恢复 $count 项设置和 $fileCount 个用户文件。\n建议重启应用以确保完全生效。',
-              toastLength: Toast.LENGTH_LONG,
-            );
+            AppToast.show('数据恢复成功！共恢复 $count 项设置和 $fileCount 个用户文件。\n建议重启应用以确保完全生效。');
           }
         } finally {
           if (mounted) setState(() => _isRestoring = false);
@@ -410,10 +402,7 @@ class _DataBackupPageState extends State<DataBackupPage> {
           _isImporting = false;
           _isRestoring = false;
         });
-        Fluttertoast.showToast(
-          msg: '导入失败: ${e.toString().replaceFirst("Exception: ", "")}',
-          toastLength: Toast.LENGTH_LONG,
-        );
+        AppToast.show('导入失败: ${e.toString().replaceFirst("Exception: ", "")}');
       }
     }
   }

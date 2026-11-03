@@ -7,7 +7,8 @@ class OnboardingStateStore {
   static final OnboardingStateStore instance = OnboardingStateStore._();
 
   // 协议确认加入后，旧的“完成/跳过”记录不能代替本次明确同意。
-  static const int currentVersion = 3;
+  // 引导内容大改时把它加一，所有用户下次打开都会重新看一遍。
+  static const int currentVersion = 4;
   static const String agreementVersion = '2026-10-25';
   static const String _completedVersionKey = 'onboarding_completed_version';
   static const String _agreementVersionKey = 'onboarding_agreement_version';

@@ -31,6 +31,7 @@ import '../manager/DivingFish/UserBest50Manager.dart';
 import '../service/History/ChartHistoryStore.dart';
 import '../utils/AppTheme.dart';
 import '../utils/CoverUtil.dart';
+import '../utils/CurrentDataSourceNotifier.dart';
 
 class ScoreHubPage extends StatefulWidget {
   const ScoreHubPage({super.key});
@@ -51,6 +52,7 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
   List<int> _ratingSeries = const [];
   List<int> _dailyImprovements = const [];
   bool _visible = false;
+  int _overviewRequest = 0;
 
   @override
   void didChangeDependencies() {
@@ -62,15 +64,37 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
     _visible = visible;
   }
 
+  @override
+  void initState() {
+    super.initState();
+    UserBest50Manager.dataRevision.addListener(_onDataChanged);
+    CurrentDataSourceNotifier.instance.addListener(_onDataChanged);
+  }
+
+  @override
+  void dispose() {
+    UserBest50Manager.dataRevision.removeListener(_onDataChanged);
+    CurrentDataSourceNotifier.instance.removeListener(_onDataChanged);
+    super.dispose();
+  }
+
+  /// 换数据源、刷新成绩时这个标签可能正开着，不能只靠切回标签重读。
+  /// 看不见时不用读，切回来会重读。
+  void _onDataChanged() {
+    if (_visible) unawaited(_loadOverview());
+  }
+
   Future<void> _loadOverview() async {
+    final request = ++_overviewRequest;
     try {
-      final data = await UserBest50Manager().getCachedBest50Data();
+      final data = await UserBest50Manager().getBest50ForDisplay();
       final key = await ChartHistoryStore.storageKey();
       final series =
           await ChartHistoryStore.instance.ratingSeries(sourceKey: key);
       final improvements =
           await ChartHistoryStore.instance.scoreImprovements(sourceKey: key);
-      if (!mounted) return;
+      // 连续刷新时只认最新一次，旧结果不能覆盖新数据
+      if (!mounted || request != _overviewRequest) return;
       List<int> ids(dynamic list) => [
             for (final s in (list as List? ?? const []))
               (s['song_id'] as num?)?.toInt() ?? 0,
@@ -140,7 +164,7 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
                             initialMetric: AvgMetric.achievement)),
                   ),
                   LinkPill(
-                    label: '平均 DX 达成率',
+                    label: '平均DX分数达成率',
                     onTap: () => _open(
                         context,
                         const AvgScoreRankingListPage(
@@ -302,8 +326,10 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
                           fontWeight: FontWeight.w700,
                           color: scheme.onSurfaceVariant)),
                 ),
-                for (final id in shown)
+                for (final (index, id) in shown.indexed)
                   Padding(
+                    // 同一首歌的不同难度可能同时上榜，Key 要带上位置
+                    key: ValueKey('$label-$index-$id'),
                     padding: const EdgeInsets.only(right: 4),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(6),
@@ -590,7 +616,7 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
             ),
             '平均DX分数达成率排行榜': HubActionTile(
               title: '平均DX分数达成率排行榜',
-              subtitle: '按全量成绩的平均DX得分达成率排名',
+              subtitle: '按全量成绩的平均DX分数达成率排名',
               icon: Icons.score_outlined,
               isFavorited: _isFavorited('平均DX分数达成率排行榜'),
               onToggleFavorite: () => _toggleFavorite('平均DX分数达成率排行榜'),

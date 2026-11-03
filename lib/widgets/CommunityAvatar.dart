@@ -117,6 +117,7 @@ class CommunityPlayerIdentity extends StatelessWidget {
             children: [
               Text(name,
                   style: nameStyle,
+                  strutStyle: _nameStrut(context),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis),
               const SizedBox(height: nameTagGap),
@@ -146,6 +147,12 @@ class CommunityPlayerIdentity extends StatelessWidget {
     );
   }
 
+  /// 玩家名的行高支柱：昵称里的日文、符号会回退到其它字体，行高不能跟着字形变，
+  /// 否则这一行比 `prototypeItem` 高，标签就从底部溢出。
+  StrutStyle _nameStrut(BuildContext context) => StrutStyle.fromTextStyle(
+      DefaultTextStyle.of(context).style.merge(nameStyle),
+      forceStrutHeight: true);
+
   /// 「玩家名（一行）+ 间距 + 标签行」真实渲染出来的总高。
   ///
   /// 用 `TextPainter` 量而不是估一个 40 之类的数字：名字与标签都跟着系统字号缩放、
@@ -161,6 +168,7 @@ class CommunityPlayerIdentity extends StatelessWidget {
     final defaultStyle = DefaultTextStyle.of(context);
     final painter = TextPainter(
       text: TextSpan(text: name, style: defaultStyle.style.merge(nameStyle)),
+      strutStyle: _nameStrut(context),
       textDirection: Directionality.of(context),
       textScaler: MediaQuery.textScalerOf(context),
       textHeightBehavior: defaultStyle.textHeightBehavior ??

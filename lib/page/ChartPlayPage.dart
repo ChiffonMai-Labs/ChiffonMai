@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:simai_flutter/simai_flutter.dart';
 import 'package:my_first_flutter_app/service/ChartPlaySettingsStore.dart';
@@ -14,6 +13,7 @@ import 'package:my_first_flutter_app/utils/CoverUtil.dart';
 import 'package:my_first_flutter_app/utils/RefreshRateUtil.dart';
 import 'package:my_first_flutter_app/widgets/SmoothLinearProgressIndicator.dart';
 import 'package:my_first_flutter_app/widgets/MarqueeText.dart';
+import '../widgets/AppToast.dart';
 
 class ChartPlayPage extends StatefulWidget {
   final String maidataContent;
@@ -371,10 +371,8 @@ class _ChartPlayPageState extends State<ChartPlayPage>
       'Video exported: ${result.width}x${result.height} '
       '(${result.duration.inSeconds}s, $sizeMb MB) -> ${result.path}',
     );
-    Fluttertoast.showToast(
-      msg: '视频已生成，请在导出页点击“保存到相册”：'
-          '${result.width}×${result.height} · $sizeMb MB',
-    );
+    AppToast.show('视频已生成，请在导出页点击“保存到相册”：'
+          '${result.width}×${result.height} · $sizeMb MB');
   }
 
   // Android 11+ 的 Movies 是分区存储目录，第三方库直接在其中创建临时文件

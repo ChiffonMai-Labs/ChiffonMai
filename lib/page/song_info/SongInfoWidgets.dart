@@ -5,7 +5,9 @@ part of '../SongInfoPage.dart';
 /// 2026-11 从 SongInfoPage.dart 原样拆出（方法体未改，仅 setState → _update）。
 extension _SongInfoWidgets on _SongInfoPageState {
 
-  Widget _buildBpmDialogContent(String value) {
+  Widget _buildBpmDialogContent(String rawValue) {
+    // 基准值在下面单独一行，这里只显示范围，去掉卡片上括号里的基准值。
+    final value = rawValue.split('(').first;
     // 使用当前谱面的完整顺序，保留降速后再次升回同一 BPM 的记录。
     final values =
         _maidataBpmChangesByDiffIndex[_currentDiffIndex] ?? const <double>[];
@@ -177,7 +179,7 @@ extension _SongInfoWidgets on _SongInfoPageState {
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
+        return AppAlertDialog(
           title: Text(label),
           content:
               label == 'BPM' ? _buildBpmDialogContent(value) : Text(value),
@@ -186,9 +188,7 @@ extension _SongInfoWidgets on _SongInfoPageState {
               onPressed: () {
                 Clipboard.setData(ClipboardData(text: value));
                 Navigator.of(context).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('已复制到剪贴板')),
-                );
+                AppToast.show('已复制到剪贴板');
               },
               child: Text('复制'),
             ),
@@ -256,62 +256,82 @@ extension _SongInfoWidgets on _SongInfoPageState {
 
 
 
-  // 构建Break统计项
-  Widget _buildBreakItem(String type, String count) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final brightness = Theme.of(context).brightness;
-
-    Color textColor;
-    switch (type) {
-      case '真绝赞TAP':
-        textColor = AppColors.errorRed(brightness);
-        break;
-      case '真绝赞HOLD':
-        textColor = const Color(0xFFFF6B6B); // 浅红色
-        break;
-      case '保护套绝赞':
-        textColor = AppColors.linkBlue(brightness);
-        break;
-      case '绝赞星星':
-        textColor = Colors.yellow[700] ?? Colors.yellow;
-        break;
-      default:
-        textColor = Theme.of(context).colorScheme.onSurface;
-    }
-
-    return Container(
-      decoration: BoxDecoration(
-        color: AppSurfaces.inset(context),
-        borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-      ),
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-      child: Column(
-        children: [
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(
-              type,
-              maxLines: 1,
-              style: TextStyle(
-                fontSize: (screenWidth * 0.024).clamp(9.0, 10.5).toDouble(),
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
+  /// 分段比例条（物量、绝赞共用）：切难度时色块宽度过渡。
+  Widget _buildDistributionBar(List<int> counts, List<Color> colors) {
+    final motion = AppDesignTokens.motion(context, AppDesignTokens.slowMotion);
+    final total = counts.fold<int>(0, (sum, n) => sum + n);
+    final lastNonZero = counts.lastIndexWhere((c) => c > 0);
+    final gapCount = counts.where((c) => c > 0).length - 1;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final usable =
+            constraints.maxWidth - (gapCount < 0 ? 0 : gapCount) * 2;
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: SizedBox(
+            height: 12,
+            child: Row(
+              children: [
+                for (var i = 0; i < counts.length; i++)
+                  AnimatedContainer(
+                    duration: motion,
+                    curve: AppDesignTokens.emphasizedCurve,
+                    width: total == 0 ? 0 : usable * counts[i] / total,
+                    margin: EdgeInsets.only(
+                        right: counts[i] > 0 && i != lastNonZero ? 2 : 0),
+                    color: colors[i],
+                  ),
+              ],
             ),
           ),
-          Builder(builder: (context) {
-            final style = AppTheme.number(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: textColor,
-            );
-            final number = int.tryParse(count);
-            // 没有解析结果时是「-」，不滚动
-            return number == null
-                ? Text(count, style: style)
-                : RollingNumber(value: number, style: style);
-          }),
-        ],
-      ),
+        );
+      },
+    );
+  }
+
+  /// 分段条下方的图例：色点 + 名称 + 滚动数字。[counts] 为 null 表示没有数据，显示「-」。
+  Widget _buildDistributionLegend(
+      List<String> labels, List<int?> counts, List<Color> colors) {
+    final scheme = Theme.of(context).colorScheme;
+    final numberStyle = AppTheme.number(
+        fontSize: 15, fontWeight: FontWeight.w600, color: scheme.onSurface);
+    return Row(
+      children: [
+        for (var i = 0; i < labels.length; i++)
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: colors[i],
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Flexible(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(labels[i],
+                            style: AppTheme.number(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w500,
+                                color: scheme.onSurfaceVariant)),
+                      ),
+                    ),
+                  ],
+                ),
+                counts[i] == null
+                    ? Text('-', style: numberStyle)
+                    : RollingNumber(value: counts[i]!, style: numberStyle),
+              ],
+            ),
+          ),
+      ],
     );
   }
 
@@ -351,7 +371,7 @@ extension _SongInfoWidgets on _SongInfoPageState {
         showDialog(
           context: context,
           builder: (BuildContext context) {
-            return AlertDialog(
+            return AppAlertDialog(
               title: Text('${songTitle}的别名'),
               content: SingleChildScrollView(
                 child: Column(
@@ -367,10 +387,10 @@ extension _SongInfoWidgets on _SongInfoPageState {
                     const SizedBox(height: 6),
                     // 每条别名可点击复制到剪贴板（点击后不关闭弹窗，方便连续复制）
                     ...aliases.map((alias) => InkWell(
-                          borderRadius: BorderRadius.circular(6),
+                          borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                           onTap: () async {
                             await Clipboard.setData(ClipboardData(text: alias));
-                            Fluttertoast.showToast(msg: '已复制：$alias');
+                            AppToast.show('已复制：$alias');
                           },
                           child: Padding(
                             padding: const EdgeInsets.symmetric(

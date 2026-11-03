@@ -5,6 +5,7 @@ import 'package:my_first_flutter_app/manager/DivingFish/MaimaiMusicDataManager.d
 import 'package:my_first_flutter_app/manager/MaiTagsManager.dart';
 import 'package:my_first_flutter_app/service/AWMC/AwmcPlayCountStore.dart';
 import 'package:my_first_flutter_app/utils/SongFilterUtil.dart';
+import '../../utils/Best50Tie.dart';
 
 class PersonalizedBest50Service {
   // 单例模式
@@ -14,6 +15,25 @@ class PersonalizedBest50Service {
   PersonalizedBest50Service._internal();
 
   // 获取AP+50数据
+  /// 最近一次截断后，和最后一首并列的谱面及并列依据。
+  List<dynamic> lastRemaining = const [];
+  String? lastRemainingLabel;
+
+  /// 取前 [limit] 条，并记下被截掉的并列谱面。[sorted] 要已按 [field] 降序排好。
+  List<dynamic> _cut(dynamic sorted, {int limit = 50, String field = 'ra'}) {
+    final list = List<dynamic>.from(sorted as Iterable);
+    lastRemaining = tiedBeyondCut(list, limit, field);
+    if (lastRemaining.isNotEmpty) {
+      final value = (list[limit - 1] as Map)[field];
+      lastRemainingLabel = switch (field) {
+        'playCount' => 'PC $value',
+        'ds' => '定数 $value',
+        _ => 'RA $value',
+      };
+    }
+    return list.take(limit).toList();
+  }
+
   Future<Map<String, dynamic>?> getAPPlus50Data() async {
     try {
       // 获取用户游玩数据
@@ -38,7 +58,7 @@ class PersonalizedBest50Service {
       });
 
       // 取前50条
-      final top50Records = appRecords.take(50).toList();
+      final top50Records = _cut(appRecords);
 
       // 构建返回数据
       return {
@@ -82,7 +102,7 @@ class PersonalizedBest50Service {
       });
 
       // 取前50条
-      final top50Records = apRecords.take(50).toList();
+      final top50Records = _cut(apRecords);
 
       // 构建返回数据
       return {
@@ -126,7 +146,7 @@ class PersonalizedBest50Service {
       });
 
       // 取前50条
-      final top50Records = fcRecords.take(50).toList();
+      final top50Records = _cut(fcRecords);
 
       // 构建返回数据
       return {
@@ -170,7 +190,7 @@ class PersonalizedBest50Service {
       });
 
       // 取前50条
-      final top50Records = fcpRecords.take(50).toList();
+      final top50Records = _cut(fcpRecords);
 
       // 构建返回数据
       return {
@@ -217,7 +237,7 @@ class PersonalizedBest50Service {
       });
 
       // 取前50条
-      final top50Records = cunRecords.take(50).toList();
+      final top50Records = _cut(cunRecords);
 
       // 构建返回数据
       return {
@@ -264,7 +284,7 @@ class PersonalizedBest50Service {
       });
 
       // 取前50条
-      final top50Records = mingDaoRecords.take(50).toList();
+      final top50Records = _cut(mingDaoRecords);
 
       // 构建返回数据
       return {
@@ -310,7 +330,7 @@ class PersonalizedBest50Service {
       });
 
       // 取前50条
-      final top50Records = cuniaoPlusRecords.take(50).toList();
+      final top50Records = _cut(cuniaoPlusRecords);
 
       // 构建返回数据
       return {
@@ -356,7 +376,7 @@ class PersonalizedBest50Service {
       });
 
       // 取前50条
-      final top50Records = suoxuePlusRecords.take(50).toList();
+      final top50Records = _cut(suoxuePlusRecords);
 
       // 构建返回数据
       return {
@@ -402,7 +422,7 @@ class PersonalizedBest50Service {
       });
 
       // 取前50条
-      final top50Records = cuniaoRecords.take(50).toList();
+      final top50Records = _cut(cuniaoRecords);
 
       // 构建返回数据
       return {
@@ -448,7 +468,7 @@ class PersonalizedBest50Service {
       });
 
       // 取前50条
-      final top50Records = suoxueRecords.take(50).toList();
+      final top50Records = _cut(suoxueRecords);
 
       // 构建返回数据
       return {
@@ -584,7 +604,7 @@ class PersonalizedBest50Service {
       });
 
       // 取前50条
-      final top50Records = charterRecords.take(50).toList();
+      final top50Records = _cut(charterRecords);
 
       // 构建返回数据
       return {
@@ -666,7 +686,7 @@ class PersonalizedBest50Service {
       });
 
       // 取前50条
-      final top50Records = versionRecords.take(50).toList();
+      final top50Records = _cut(versionRecords);
 
       // 构建返回数据
       return {
@@ -723,7 +743,7 @@ class PersonalizedBest50Service {
       });
 
       // 取前50条
-      final top50Records = dxRecords.take(50).toList();
+      final top50Records = _cut(dxRecords);
 
       // 构建返回数据
       return {
@@ -779,7 +799,7 @@ class PersonalizedBest50Service {
       });
 
       // 取前50条
-      final top50Records = stRecords.take(50).toList();
+      final top50Records = _cut(stRecords);
 
       // 构建返回数据
       return {
@@ -823,7 +843,7 @@ class PersonalizedBest50Service {
       });
 
       // 取前50条
-      final top50Records = fsRecords.take(50).toList();
+      final top50Records = _cut(fsRecords);
 
       // 构建返回数据
       return {
@@ -867,7 +887,7 @@ class PersonalizedBest50Service {
       });
 
       // 取前50条
-      final top50Records = fspRecords.take(50).toList();
+      final top50Records = _cut(fspRecords);
 
       // 构建返回数据
       return {
@@ -911,7 +931,7 @@ class PersonalizedBest50Service {
       });
 
       // 取前50条
-      final top50Records = fsdRecords.take(50).toList();
+      final top50Records = _cut(fsdRecords);
 
       // 构建返回数据
       return {
@@ -955,7 +975,7 @@ class PersonalizedBest50Service {
       });
 
       // 取前50条
-      final top50Records = fsdpRecords.take(50).toList();
+      final top50Records = _cut(fsdpRecords);
 
       // 构建返回数据
       return {
@@ -1006,7 +1026,7 @@ class PersonalizedBest50Service {
       });
 
       // 取前50条
-      final top50Records = filteredRecords.take(50).toList();
+      final top50Records = _cut(filteredRecords);
 
       return {
         'records': top50Records,
@@ -1057,7 +1077,7 @@ class PersonalizedBest50Service {
       });
 
       // 取前50条
-      final top50Records = filteredRecords.take(50).toList();
+      final top50Records = _cut(filteredRecords);
 
       return {
         'records': top50Records,
@@ -1185,7 +1205,7 @@ class PersonalizedBest50Service {
       });
 
       // 取前50条
-      final top50Records = starRecords.take(50).toList();
+      final top50Records = _cut(starRecords);
 
       // 构建返回数据
       return {
@@ -1292,7 +1312,7 @@ class PersonalizedBest50Service {
       }
 
       // 取前50条
-      final top50Records = genreRecords.take(50).toList();
+      final top50Records = _cut(genreRecords);
 
       // 构建返回数据
       return {
@@ -1367,7 +1387,7 @@ class PersonalizedBest50Service {
       });
 
       // 取前50条
-      final top50Records = tagRecords.take(50).toList();
+      final top50Records = _cut(tagRecords);
 
       return {
         'records': top50Records,
@@ -1408,7 +1428,7 @@ class PersonalizedBest50Service {
       });
 
       // 取前50条
-      final top50Records = allRecords.take(50).toList();
+      final top50Records = _cut(allRecords);
 
       // 构建返回数据
       return {
@@ -1454,7 +1474,7 @@ class PersonalizedBest50Service {
         return raB.compareTo(raA);
       });
 
-      final topN = pool.take(n).toList();
+      final topN = _cut(pool, limit: n);
       return {
         'records': topN,
         'total': topN.length,
@@ -1526,7 +1546,7 @@ class PersonalizedBest50Service {
         return ((b['ra'] ?? 0) as int).compareTo((a['ra'] ?? 0) as int);
       });
 
-      final top50 = pool.take(50).toList();
+      final top50 = _cut(pool, field: 'playCount');
       return {
         'records': top50,
         'total': top50.length,
@@ -1614,7 +1634,7 @@ class PersonalizedBest50Service {
         return raB.compareTo(raA);
       });
 
-      final top50 = filtered.take(50).toList();
+      final top50 = _cut(filtered);
       return {
         'records': top50,
         'total': top50.length,
@@ -1658,7 +1678,7 @@ class PersonalizedBest50Service {
         return raB.compareTo(raA);
       });
 
-      final top50 = filtered.take(50).toList();
+      final top50 = _cut(filtered);
       return {
         'records': top50,
         'total': top50.length,
@@ -1728,7 +1748,7 @@ class PersonalizedBest50Service {
         return bDs.compareTo(aDs);
       });
 
-      final top50 = filtered.take(50).toList();
+      final top50 = _cut(filtered, field: 'ds');
       return {
         'records': top50,
         'total': top50.length,

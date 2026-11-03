@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../utils/AppTheme.dart';
 import 'AnimatedStatMetric.dart';
 import '../utils/AppDesignTokens.dart';
+import '../widgets/AppDialogs.dart';
 
 /// 单人猜歌共用的本局状态与每日统计，统计项保持两行四列。
 class GuessGameStatusPanel extends StatefulWidget {
@@ -46,7 +47,7 @@ class _GuessGameStatusPanelState extends State<GuessGameStatusPanel> {
     if (_resetting) return;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => AppAlertDialog(
         title: const Text('重置今日统计？'),
         content: const Text('将清空当前玩法今日的正确、错误、用时和连胜记录。'),
         actions: [

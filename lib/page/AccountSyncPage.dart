@@ -8,6 +8,8 @@ import '../utils/UserProfileNotifier.dart';
 import '../utils/SecureCredentialStore.dart';
 import 'HubComponents.dart';
 import '../widgets/ErrorMessageDialog.dart';
+import '../widgets/AppDialogs.dart';
+import '../widgets/AppToast.dart';
 
 class AccountSyncPage extends StatefulWidget {
   const AccountSyncPage({super.key});
@@ -65,9 +67,7 @@ class _AccountSyncPageState extends State<AccountSyncPage> {
         CacheKeyConstant.awmcNetImportToken, token);
     if (!mounted) return;
     setState(() => _awmcToken = token);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('AWMC NET 成绩导入 Token 已保存')),
-    );
+    AppToast.show('AWMC NET 成绩导入 Token 已保存');
   }
 
   Future<void> _clearAwmcToken() async {
@@ -75,9 +75,7 @@ class _AccountSyncPageState extends State<AccountSyncPage> {
     if (!mounted) return;
     _awmcTokenController.clear();
     setState(() => _awmcToken = null);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('AWMC NET 成绩导入 Token 已清除')),
-    );
+    AppToast.show('AWMC NET 成绩导入 Token 已清除');
   }
 
   Future<void> _login() async {
@@ -102,9 +100,7 @@ class _AccountSyncPageState extends State<AccountSyncPage> {
     if (loggedIn != true || !mounted) return;
     await _loadAccountState();
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('水鱼账号登录成功')),
-      );
+      AppToast.show('水鱼账号登录成功');
     }
   }
 
@@ -221,8 +217,7 @@ class _AccountSyncPageState extends State<AccountSyncPage> {
   }
 
   void _showUnavailableMessage(String message) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+    AppToast.show(message);
   }
 }
 
@@ -274,7 +269,7 @@ class _LoginDialogState extends State<_LoginDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    return AppAlertDialog(
       title: const Text('登录水鱼'),
       content: Column(
         mainAxisSize: MainAxisSize.min,

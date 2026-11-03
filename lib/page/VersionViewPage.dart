@@ -13,6 +13,8 @@ import 'package:my_first_flutter_app/utils/NavigationPreferences.dart';
 import '../widgets/AnimatedChoiceBar.dart';
 import '../widgets/BackgroundPageScaffold.dart';
 import '../utils/AppDesignTokens.dart';
+import '../widgets/AppToast.dart';
+import '../widgets/AppDialogs.dart';
 
 /// 一个版本在日服与国服中的显示信息。
 ///
@@ -98,76 +100,44 @@ class ImagePreviewDialog extends StatelessWidget {
   }
 
   void _showMessage(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
-    );
+    AppToast.show(message, duration: const Duration(seconds: 2));
   }
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Dialog(
-      clipBehavior: Clip.antiAlias,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 440, maxHeight: 620),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(18, 14, 8, 10),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      versionName,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: '关闭',
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close_rounded),
-                  ),
-                ],
+    return AppAlertDialog(
+      title: Text(versionName),
+      constraints: const BoxConstraints(maxWidth: 440),
+      content: ClipRRect(
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+        child: InteractiveViewer(
+          minScale: 0.8,
+          maxScale: 5,
+          child: Image.asset(
+            imagePath,
+            fit: BoxFit.contain,
+            errorBuilder: (_, __, ___) => Padding(
+              padding: const EdgeInsets.all(32),
+              child: Icon(
+                Icons.image_not_supported_outlined,
+                size: 56,
+                color: scheme.onSurfaceVariant,
               ),
             ),
-            Flexible(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 18),
-                child: InteractiveViewer(
-                  minScale: 0.8,
-                  maxScale: 5,
-                  child: Image.asset(
-                    imagePath,
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) => Padding(
-                      padding: const EdgeInsets.all(32),
-                      child: Icon(
-                        Icons.image_not_supported_outlined,
-                        size: 56,
-                        color: scheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(18, 10, 18, 14),
-              child: SizedBox(
-                width: double.infinity,
-                child: FilledButton.tonalIcon(
-                  onPressed: () => _saveImage(context),
-                  icon: const Icon(Icons.download_rounded),
-                  label: const Text('保存图片'),
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('关闭'),
+        ),
+        FilledButton(
+          onPressed: () => _saveImage(context),
+          child: const Text('保存图片'),
+        ),
+      ],
     );
   }
 }

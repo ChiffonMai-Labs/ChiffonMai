@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../service/RankTable/RankCompletionStore.dart';
 import '../utils/AppTheme.dart';
+import '../widgets/AppDialogs.dart';
+import '../utils/AppDesignTokens.dart';
 
 /// 段位完成情况的文字标签，同时作为编辑入口。
 class RankCompletionButton extends StatelessWidget {
@@ -48,13 +50,13 @@ class RankCompletionButton extends StatelessWidget {
               context: context,
               builder: (_) => _RankCompletionDialog(rank: rank),
             ),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(AppDesignTokens.radiusPill),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 180),
               padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
               decoration: BoxDecoration(
                 color: color(context, status),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(AppDesignTokens.radiusPill),
               ),
               child: Text('${label(status)}$suffix',
                   style: const TextStyle(
@@ -120,7 +122,7 @@ class _RankCompletionDialogState extends State<_RankCompletionDialog> {
   @override
   Widget build(BuildContext context) {
     final canInput = _status != RankCompletion.unplayed;
-    return AlertDialog(
+    return AppAlertDialog(
       title: const Text('段位完成情况'),
       content: SingleChildScrollView(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -128,7 +130,7 @@ class _RankCompletionDialogState extends State<_RankCompletionDialog> {
           InkWell(
             splashFactory: NoSplash.splashFactory,
             highlightColor: Colors.transparent,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
             onTap: () {
               if (_status == option) return;
               setState(() => _status = option);
@@ -141,7 +143,7 @@ class _RankCompletionDialogState extends State<_RankCompletionDialog> {
                 color: option == _status
                     ? Theme.of(context).colorScheme.primaryContainer
                     : Colors.transparent,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
               ),
               child: Row(children: [
                 Expanded(child: Text(RankCompletionButton.label(option))),

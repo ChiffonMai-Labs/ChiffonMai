@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:my_first_flutter_app/service/DailyRecommendService.dart';
 import 'package:my_first_flutter_app/entity/DivingFish/Song.dart';
 import 'package:my_first_flutter_app/utils/CoverUtil.dart';
-import 'package:my_first_flutter_app/utils/ColorUtil.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import 'SongInfoPage.dart';
 import '../widgets/BackgroundPageScaffold.dart';
 import '../widgets/DifficultyConstantLabel.dart';
+import '../utils/AppDesignTokens.dart';
+import '../widgets/AppUi.dart';
+import '../widgets/MarqueeText.dart';
 
 class DailyRecommendPage extends StatefulWidget {
   const DailyRecommendPage({super.key});
@@ -64,88 +66,55 @@ class _DailyRecommendPageState extends State<DailyRecommendPage> {
     }
   }
 
-  /// 歌曲类型标签：与最近评论页一致。
-  /// UTAGE 优先用 songId.length == 6 判断（DivingFish 部分 UTAGE 曲目
-  /// 的 type 字段会标为 DX，此处按 6 位数 ID 强纠正为红/UT）；
-  /// 其余按 song.type 区分 DX / ST。
-  Widget _buildTypeTag(String songId, String songType, Brightness brightness) {
-    final bool isUtage = songId.length == 6;
-    final String label = isUtage ? 'UT' : (songType == 'DX' ? 'DX' : 'ST');
-
-    Color bgColor;
-    Color textColor;
-    switch (label) {
-      case 'UT':
-        // 与 SongInfoPage 一致：粉色主题（背景 = utageCard，文字 = utageAccent）
-        bgColor = brightness == Brightness.dark
-            ? const Color(0xFF5C3545)
-            : const Color(0xFFFFB3D1);
-        textColor = brightness == Brightness.dark
-            ? const Color(0xFFFF85B9)
-            : const Color(0xFFFF69B4);
-        break;
-      case 'DX':
-        bgColor = brightness == Brightness.dark
-            ? Colors.orange.withValues(alpha: 0.2)
-            : Colors.orange.shade100;
-        textColor =
-            brightness == Brightness.dark ? Colors.orange[300]! : Colors.orange;
-        break;
-      default:
-        bgColor = brightness == Brightness.dark
-            ? Colors.blue.withValues(alpha: 0.2)
-            : Colors.blue.shade100;
-        textColor =
-            brightness == Brightness.dark ? Colors.blue[300]! : Colors.blue;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-          color: textColor,
-        ),
-      ),
-    );
-  }
-
   Widget _buildDailyHero(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            scheme.primaryContainer.withValues(alpha: 0.94),
-            scheme.secondaryContainer.withValues(alpha: 0.76),
-          ],
-        ),
-        border: Border.all(color: scheme.outlineVariant),
+        color: scheme.primary,
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusLarge),
       ),
-      child: Text(
-        _todayDate.isEmpty ? '正在准备今日推荐…' : _todayDate,
-        style: TextStyle(
-          color: scheme.onPrimaryContainer,
-          fontSize: 18,
-          fontWeight: FontWeight.w800,
-        ),
-        textAlign: TextAlign.center,
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '今日推荐',
+                  style: TextStyle(
+                    color: scheme.onPrimary.withValues(alpha: 0.8),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _todayDate.isEmpty ? '正在准备今日推荐…' : _todayDate,
+                  style: TextStyle(
+                    color: scheme.onPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            '${_songs.length} 首',
+            style: AppTheme.number(
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: scheme.onPrimary,
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildSongCard(
-      BuildContext context, _SongDisplay item, Brightness brightness) {
+  Widget _buildSongCard(BuildContext context, _SongDisplay item) {
     final scheme = Theme.of(context).colorScheme;
     final song = item.song;
     int highestIdx = 0;
@@ -155,7 +124,6 @@ class _DailyRecommendPageState extends State<DailyRecommendPage> {
         break;
       }
     }
-    final accentColor = ColorUtil.getCardColor(highestIdx);
     final labels = <Widget>[];
     for (var i = 0; i < song.ds.length; i++) {
       if (song.ds[i] <= 0) continue;
@@ -166,113 +134,75 @@ class _DailyRecommendPageState extends State<DailyRecommendPage> {
       ));
     }
 
-    return Material(
-      color: scheme.surface
-          .withValues(alpha: brightness == Brightness.dark ? 0.66 : 0.88),
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-        side: BorderSide(color: scheme.outlineVariant),
+    return AppCard(
+      radius: AppDesignTokens.radiusMedium,
+      padding: const EdgeInsets.all(10),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => SongInfoPage(
+            songId: song.id,
+            initialLevelIndex: highestIdx,
+            isDefaultLevelIndex: false,
+          ),
+        ),
       ),
-      child: InkWell(
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => SongInfoPage(
-              songId: song.id,
-              initialLevelIndex: highestIdx,
-              isDefaultLevelIndex: false,
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+            child: CoverUtil.buildCoverWidget(song.id, 84),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    SongTypeBadge(songId: song.id, type: song.type),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: MarqueeText(
+                        text: song.basicInfo.title,
+                        style: TextStyle(
+                          color: scheme.onSurface,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                MarqueeText(
+                  text: song.basicInfo.artist.isEmpty
+                      ? '未知艺术家'
+                      : song.basicInfo.artist,
+                  style:
+                      TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
+                ),
+                if (labels.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        for (var i = 0; i < labels.length; i++) ...[
+                          if (i > 0) const SizedBox(width: 5),
+                          labels[i],
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 88,
-                height: 88,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                      color: accentColor.withValues(alpha: 0.65), width: 2),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: CoverUtil.buildCoverWidgetWithContextRRect(
-                  context,
-                  song.id,
-                  88,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: SizedBox(
-                  height: 88,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              _buildTypeTag(song.id, song.type, brightness),
-                              const SizedBox(width: 7),
-                              Expanded(
-                                child: Text(
-                                  song.basicInfo.title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: scheme.onSurface,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            song.basicInfo.artist.isEmpty
-                                ? '未知艺术家'
-                                : song.basicInfo.artist,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: scheme.onSurfaceVariant,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const Spacer(),
-                      if (labels.isNotEmpty)
-                        SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            children: [
-                              for (var i = 0; i < labels.length; i++) ...[
-                                if (i > 0) const SizedBox(width: 5),
-                                labels[i],
-                              ],
-                            ],
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 4),
-              Padding(
-                padding: const EdgeInsets.only(top: 30),
-                child: Icon(Icons.arrow_forward_ios_rounded,
-                    size: 16, color: scheme.onSurfaceVariant),
-              ),
-            ],
-          ),
-        ),
+          const SizedBox(width: 4),
+          Icon(Icons.chevron_right_rounded,
+              size: 20, color: scheme.onSurfaceVariant),
+        ],
       ),
     );
   }
@@ -350,26 +280,14 @@ class _DailyRecommendPageState extends State<DailyRecommendPage> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         _buildDailyHero(context),
-                        const SizedBox(height: 16),
-                        Row(
-                          children: [
-                            Text('今日推荐',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleMedium
-                                    ?.copyWith(
-                                      fontWeight: FontWeight.w800,
-                                    )),
-                            const Spacer(),
-                            Text('${_songs.length} 首歌曲',
-                                style: TextStyle(
-                                    color: scheme.onSurfaceVariant,
-                                    fontSize: 12)),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: AppDesignTokens.cardGap),
                         for (var i = 0; i < _songs.length; i++) ...[
-                          _buildSongCard(context, _songs[i], brightness),
+                          EntranceAnimation(
+                            index: i,
+                            duration: const Duration(milliseconds: 300),
+                            offset: const Offset(0, 8),
+                            child: _buildSongCard(context, _songs[i]),
+                          ),
                           if (i < _songs.length - 1) const SizedBox(height: 10),
                         ],
                       ],

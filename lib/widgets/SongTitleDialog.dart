@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../utils/TranslationUtil.dart';
+import '../widgets/AppDialogs.dart';
+import '../widgets/AppToast.dart';
 
 class SongTitleDialog extends StatefulWidget {
   final String title;
@@ -34,7 +36,7 @@ class _SongTitleDialogState extends State<SongTitleDialog> {
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
+  Widget build(BuildContext context) => AppAlertDialog(
         title: const Text('歌曲标题'),
         content: SingleChildScrollView(
             child: Column(
@@ -76,8 +78,7 @@ class _SongTitleDialogState extends State<SongTitleDialog> {
               onPressed: () async {
                 await Clipboard.setData(ClipboardData(text: widget.title));
                 if (context.mounted)
-                  ScaffoldMessenger.of(context)
-                      .showSnackBar(const SnackBar(content: Text('已复制到剪贴板')));
+                  AppToast.show('已复制到剪贴板');
               },
               child: const Text('复制')),
           TextButton(

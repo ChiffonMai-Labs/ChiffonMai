@@ -64,7 +64,11 @@ void main() {
       return http.Response(jsonEncode(response(qq)), 200);
     });
     final before = prefs.getString(CacheKeyConstant.userPlayData);
-    final result = await FriendCompareService().compareWithFriend('67890');
+    final result = await FriendCompareService().compareWithFriend(
+      '67890',
+      mySource: RefreshDataSource.shuiyu,
+      friendSource: RefreshDataSource.shuiyu,
+    );
     expect(requested, ['12345', '67890']);
     expect(result.friendNickname, '67890');
     expect(prefs.getString(CacheKeyConstant.userPlayData), before);

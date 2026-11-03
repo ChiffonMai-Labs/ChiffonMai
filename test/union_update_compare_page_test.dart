@@ -10,6 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:my_first_flutter_app/entity/DivingFish/Song.dart';
 import 'package:my_first_flutter_app/page/UnionUpdateComparePage.dart';
 import 'package:my_first_flutter_app/utils/StringUtil.dart';
+import 'package:my_first_flutter_app/widgets/AppDialogs.dart';
 
 Song song(
   String id, {
@@ -213,7 +214,7 @@ void main() {
     // 页面正文里也有同一句，断言必须限定在弹窗内
     expect(
       find.descendant(
-        of: find.byType(AlertDialog),
+        of: find.byType(AppAlertDialog),
         matching: find.textContaining('不是国服上线时间'),
       ),
       findsOneWidget,

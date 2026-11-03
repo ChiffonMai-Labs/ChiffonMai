@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:my_first_flutter_app/constant/AppLinks.dart';
+import 'package:my_first_flutter_app/widgets/AppToast.dart';
 import 'package:my_first_flutter_app/widgets/RefreshDataDialog.dart'
     show launchUrlFallback;
 
@@ -27,12 +28,17 @@ void main() {
   });
 
   tearDown(() {
+    AppToast.hide();
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(SystemChannels.platform, null);
   });
 
   Future<void> pumpHost(WidgetTester tester) async {
     await tester.pumpWidget(MaterialApp(
+      builder: (context, child) => Stack(children: [
+        child!,
+        const Positioned(top: 0, left: 0, right: 0, child: AppToastHost()),
+      ]),
       home: Scaffold(
         body: Builder(
           builder: (context) => TextButton(
@@ -51,6 +57,10 @@ void main() {
 
   testWidgets('默认：复制链接本身 + 通用提示', (tester) async {
     await tester.pumpWidget(MaterialApp(
+      builder: (context, child) => Stack(children: [
+        child!,
+        const Positioned(top: 0, left: 0, right: 0, child: AppToastHost()),
+      ]),
       home: Scaffold(
         body: Builder(
           builder: (context) => TextButton(
@@ -76,10 +86,6 @@ void main() {
 
     expect(copied, [AppLinks.qqGroupNumber],
         reason: '加群链接在浏览器里没用，必须复制群号');
-    expect(find.byType(SnackBar), findsOneWidget,
-        reason: '必须看得见提示，不能只是静默复制');
     expect(find.textContaining('群号 291826702 已复制到剪贴板'), findsOneWidget);
-    // 提示带一个关闭按钮（文案由调用方给，这里验证框架那层还在）
-    expect(find.text('知道了'), findsOneWidget);
   });
 }

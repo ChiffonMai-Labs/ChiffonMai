@@ -20,14 +20,8 @@ import 'package:my_first_flutter_app/utils/ApiClient.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import 'package:my_first_flutter_app/widgets/KaleidXScopeSourceNotice.dart';
 
-/// 门详细页（6 个颜色门 + 新增的颜色门页）。
+/// 所有门共用一个详情页。
 const List<String> kGateDetailPages = [
-  'KaleidXScopeInfoPageBLUE.dart',
-  'KaleidXScopeInfoPageWHITE.dart',
-  'KaleidXScopeInfoPagePURPLE.dart',
-  'KaleidXScopeInfoPageBLACK.dart',
-  'KaleidXScopeInfoPageYELLOW.dart',
-  'KaleidXScopeInfoPageRED.dart',
   'KaleidXScopeGatePage.dart',
 ];
 
@@ -97,7 +91,7 @@ void main() {
     }
 
     // 1) 先证明攻略正文真的渲染了（底部那个按钮原本就在这段内容的最下面）
-    expect(find.text('解锁方法'), findsOneWidget,
+    expect(find.text('门扉条件'), findsOneWidget,
         reason: '门数据加载完必须渲染出攻略正文，否则下面的断言会假通过');
 
     // 2) 数据来源链接：整页只有顶部那一条，且位于正文上方
@@ -108,7 +102,7 @@ void main() {
         findsOneWidget,
         reason: '顶部来源条自带一个「打开外部链接」图标');
     expect(tester.getRect(notice).bottom,
-        lessThan(tester.getRect(find.text('解锁方法')).top),
+        lessThan(tester.getRect(find.text('门扉条件')).top),
         reason: '唯一的数据来源链接必须在正文上方（顶部）');
 
     // 3) 底部那个文字按钮（含它自己的 open_in_new 图标）已经删除
@@ -117,7 +111,7 @@ void main() {
         reason: '整页只应剩下顶部来源条里的那个图标');
   });
 
-  test('7 个门详细页都挂着顶部来源条，且没有任何页面自己开外部链接', () {
+  test('门详情页挂着顶部来源条，且没有自己开外部链接', () {
     for (final name in kGateDetailPages) {
       final src = File('lib/page/KaleidXScope/$name').readAsStringSync();
       expect(src.contains('KaleidXScopeSourceNotice'), isTrue,

@@ -20,6 +20,10 @@ import '../widgets/FishIcon.dart';
 import '../widgets/GuideLinkText.dart';
 import '../widgets/NoRipple.dart';
 import '../widgets/SmoothLinearProgressIndicator.dart';
+import '../widgets/AppToast.dart';
+import '../utils/AppDesignTokens.dart';
+import '../widgets/AppUi.dart';
+import '../widgets/QrQuickFillButtons.dart';
 
 class AutoSyncPage extends StatefulWidget {
   const AutoSyncPage({super.key});
@@ -39,7 +43,7 @@ class _SourceState {
       {this.task,
       this.registration,
       this.ready = false,
-      this.reason = '请先输入二维码绑定机台身份，或完成一次普通二维码同步',
+      this.reason = '',
       this.error,
       this.accountId,
       this.missingKey = false});
@@ -60,6 +64,9 @@ class _AutoSyncPageState extends State<AutoSyncPage>
   bool _queueLoading = true;
   bool _queueRefreshing = false;
   bool _queueError = false;
+
+  /// 还没绑定机台身份。三个数据源共用一份，所以表单放在数据源列表上面。
+  bool _identityMissing = false;
 
   @override
   void initState() {
@@ -102,16 +109,20 @@ class _AutoSyncPageState extends State<AutoSyncPage>
     AccountMeta? account;
     var missingKey = false;
     var ready = false;
-    var reason = '请先设置该数据源的个人 key 和账号';
+    var reason = '';
     try {
       account = (await AccountStore.loadAll())[source.key];
       final key = await SecureCredentialStore.read(_personalKeyOf(platform));
-      missingKey = account != null &&
-          account.id.isNotEmpty &&
-          (key == null || key.trim().isEmpty);
-      await AwmcQuickSyncService.accountFor(platform, requireData: false);
-      ready = await AwmcQuickIdentityStore.read() != null;
-      reason = ready ? '同步凭据已就绪' : '请先输入二维码绑定机台身份，凭据可供三个数据源共用';
+      missingKey = key == null || key.trim().isEmpty;
+      if (missingKey) {
+        reason = '填好上面的个人 key 后就可以开启';
+      } else if (account == null || account.id.isEmpty) {
+        reason = '还没有${platform.label}账号，请先到「账号管理」登录并刷新数据';
+      } else {
+        await AwmcQuickSyncService.accountFor(platform, requireData: false);
+        ready = await AwmcQuickIdentityStore.read() != null;
+        reason = ready ? '同步凭据已就绪' : '绑定上方的机台身份后就可以开启';
+      }
     } on StateError catch (error) {
       reason = '${error.message}';
     } catch (_) {
@@ -144,8 +155,15 @@ class _AutoSyncPageState extends State<AutoSyncPage>
     _refreshing = true;
     if (!silent) setState(() => _loading = true);
     final states = await Future.wait(SyncPlatform.values.map(_loadSource));
+    bool identityMissing = _identityMissing;
+    try {
+      identityMissing = await AwmcQuickIdentityStore.read() == null;
+    } catch (_) {
+      // 安全存储读取失败时保持上一次的判断
+    }
     if (!mounted || request != _request) return;
     setState(() {
+      _identityMissing = identityMissing;
       _sources.addAll(Map.fromIterables(SyncPlatform.values, states));
       _loading = false;
       _refreshing = false;
@@ -187,7 +205,7 @@ class _AutoSyncPageState extends State<AutoSyncPage>
             await AwmcQuickSyncService.accountFor(platform, requireData: false);
         final userId = await AwmcQuickIdentityStore.read();
         if (userId == null) {
-          throw const AutoSyncException('请先输入二维码绑定机台身份，缓存同步凭据');
+          throw const AutoSyncException('请先在上方绑定机台身份');
         }
         await _service.enable(
             platform: platform,
@@ -199,10 +217,9 @@ class _AutoSyncPageState extends State<AutoSyncPage>
         await _service.disable(platform);
       }
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(enabled
+      AppToast.show(enabled
               ? '已开启${platform.label}自动同步，每天北京时间 08:00–24:00 分时处理'
-              : '已关闭${platform.label}自动同步，并删除服务端托管凭据')));
+              : '已关闭${platform.label}自动同步，并删除服务端托管凭据');
     } catch (error) {
       if (!mounted) return;
       if (error is AutoSyncException &&
@@ -216,10 +233,9 @@ class _AutoSyncPageState extends State<AutoSyncPage>
         );
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(error is AutoSyncException
+      AppToast.show(error is AutoSyncException
               ? error.message
-              : '自动同步设置失败，请检查账号状态后重试')));
+              : '自动同步设置失败，请检查账号状态后重试');
     } finally {
       if (mounted) {
         await _load();
@@ -230,8 +246,6 @@ class _AutoSyncPageState extends State<AutoSyncPage>
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
     return BackgroundPageScaffold(
       title: '自动同步',
       actions: [
@@ -240,101 +254,208 @@ class _AutoSyncPageState extends State<AutoSyncPage>
             onPressed: _loading || _saving != null ? null : _load,
             icon: const Icon(Icons.refresh))
       ],
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(24, 12, 24, 28),
-        children: [
-          _scheduleHeader(),
-          if (_saving != null) ...[
-            const SizedBox(height: 16),
-            const SmoothLinearProgressIndicator(),
+      // 不用 ListView：滚出屏幕的个人 key 输入框不能被回收，否则没保存的内容会丢。
+      child: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(AppDesignTokens.gutter, 4,
+            AppDesignTokens.gutter, 28 + MediaQuery.viewInsetsOf(context).bottom),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            EntranceAnimation(index: 0, child: _overviewCard()),
+            const SizedBox(height: 20),
+            const AppSectionHeader(title: '排队情况'),
+            EntranceAnimation(index: 1, child: _queueOverview()),
+            const SizedBox(height: 20),
+            const AppSectionHeader(title: '同步数据源'),
+            if (_identityMissing) ...[
+              _IdentityBindCard(onBound: () => _load(silent: true)),
+              const SizedBox(height: AppDesignTokens.cardGap),
+            ],
+            for (final (index, platform) in SyncPlatform.values.indexed)
+              EntranceAnimation(
+                index: index + 2,
+                child: Padding(
+                  padding:
+                      const EdgeInsets.only(bottom: AppDesignTokens.cardGap),
+                  child: _sourceTile(platform),
+                ),
+              ),
+            EntranceAnimation(index: 5, child: _guideCard()),
           ],
-          const SizedBox(height: 24),
-          _queueOverview(),
-          Row(children: [
-            Expanded(
-                child: Text('同步数据源',
-                    style: theme.textTheme.titleMedium
-                        ?.copyWith(fontWeight: FontWeight.w600))),
-            Text(
-                _loading
-                    ? '正在读取…'
-                    : '已开启 ${_sources.values.where((s) => s.enabled).length} / ${SyncPlatform.values.length}',
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: scheme.onSurfaceVariant)),
-          ]),
-          const SizedBox(height: 4),
-          for (final platform in SyncPlatform.values) _sourceTile(platform),
-          const SizedBox(height: 16),
-          _statusLabel(Icons.info_outline_rounded, '同步说明', scheme.onSurface),
-          const SizedBox(height: 12),
-          Text(
-              '输入二维码绑定机台身份后，同步凭据可供三个数据源共用；也可以通过一次普通二维码同步自动完成绑定。各数据源仍需配置各自的个人 key 和账号。\n\n每天在北京时间 08:00–24:00 分时安排快速同步：同一用户的三个数据源共用一份机台成绩读取结果，再分别读取目标成绩并上传变化。\n\n执行中会显示当前阶段、已读取页数、上传与已提交条数、已用时长；遇到上游等待会显示原因和预计重试时间。上轮结果会给出耗时、机台数据采集时间和下次重试时间。\n\n自动同步使用统一的上游请求预算和限流；遇到维护、配额不足或网络错误会暂停并显示原因，不会连续重试。\n\n正在执行时关闭，会停止后续批次，已经提交的成绩会保留；上传结果不确定时会先核对，不盲目重复提交。',
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: scheme.onSurfaceVariant, height: 1.7)),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _scheduleHeader() {
+  /// 顶部概览：一眼看到开了几个、什么时候跑、每个数据源现在的状态。
+  Widget _overviewCard() {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [
-        Icon(Icons.autorenew_rounded, size: 18, color: scheme.primary),
-        const SizedBox(width: 7),
-        Text('每天一次，分时自动更新',
-            style: theme.textTheme.titleSmall?.copyWith(color: scheme.primary)),
-      ]),
-      const SizedBox(height: 18),
-      Row(children: [
-        _scheduleTime('08:00–24:00', '分时排队窗口', Icons.wb_sunny_outlined),
-      ]),
-      const SizedBox(height: 14),
-      Text('北京时间（UTC+8） · 每天一次 · 仅快速同步',
-          style: theme.textTheme.bodySmall
-              ?.copyWith(color: scheme.onSurfaceVariant)),
-      const SizedBox(height: 4),
-      Text(
-          '每天分批排队处理；批次进行中或等待开始时新加入用户会排在当前批次末尾，批次结束后与其他用户一起进入下一轮随机排序；上游限流或队列较长时会顺延到后续窗口。',
-          style: theme.textTheme.bodyMedium),
-      const SizedBox(height: 8),
-      Text(
-          _roundTimeoutMinutes == null
-              ? '单个用户批次有整体处理时限：上游慢响应、配额不足或大量上传超过时限时，会自动结束本轮并在上轮结果中说明原因，次日窗口继续（排队等待不计入）。'
-              : '机台成绩读取完成后，单个用户最多处理 $_roundTimeoutMinutes 分钟；读取前的排队和额度等待不计入。超出处理时限或当天服务窗口会结束本轮，次日窗口继续。',
-          style: theme.textTheme.bodyMedium),
-      const SizedBox(height: 16),
-      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(Icons.verified_user_outlined,
-            size: 16, color: scheme.onSurfaceVariant),
-        const SizedBox(width: 7),
-        Expanded(
-            child: Text('开启后加密托管同步凭据，关闭即删除。',
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: scheme.onSurfaceVariant, height: 1.5))),
-      ]),
-    ]);
-  }
-
-  Widget _scheduleTime(String time, String label, IconData icon) {
-    final theme = Theme.of(context);
-    return Flexible(
+    final enabled = _sources.values.where((s) => s.enabled).length;
+    return AppCard(
+      padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(time,
-            style: theme.textTheme.headlineLarge
-                ?.copyWith(fontWeight: FontWeight.w600, letterSpacing: -1)),
-        const SizedBox(height: 4),
-        Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, size: 15, color: theme.colorScheme.onSurfaceVariant),
-          const SizedBox(width: 5),
-          Text(label,
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+        Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          Text(_loading && _sources.isEmpty ? '–' : '$enabled',
+              style: AppTheme.number(
+                  fontSize: 44,
+                  fontWeight: FontWeight.w800,
+                  height: 1,
+                  color: enabled > 0 ? scheme.primary : scheme.onSurface)),
+          const SizedBox(width: 4),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Text('/ ${SyncPlatform.values.length}',
+                style: AppTheme.number(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: scheme.onSurfaceVariant)),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 5),
+              child: Text(_loading ? '正在读取…' : '个数据源已开启',
+                  style: theme.textTheme.bodyMedium
+                      ?.copyWith(color: scheme.onSurfaceVariant)),
+            ),
+          ),
+          Container(
+            width: 42,
+            height: 42,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: scheme.primaryContainer.withValues(alpha: 0.55),
+              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+            ),
+            child: Icon(Icons.autorenew_rounded,
+                size: 24, color: scheme.primary),
+          ),
+        ]),
+        if (_saving != null) ...[
+          const SizedBox(height: 12),
+          const SmoothLinearProgressIndicator(),
+        ],
+        const SizedBox(height: 14),
+        Wrap(spacing: 6, runSpacing: 6, children: [
+          for (final platform in SyncPlatform.values) _sourceChip(platform),
+        ]),
+        const SizedBox(height: 14),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppSurfaces.inset(context),
+            borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+          ),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Icon(Icons.wb_sunny_outlined,
+                  size: 16, color: scheme.onSurfaceVariant),
+              const SizedBox(width: 7),
+              Text('08:00–24:00',
+                  style: AppTheme.number(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      color: scheme.onSurface)),
+              const SizedBox(width: 8),
+              Text('分时排队窗口',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: scheme.onSurfaceVariant)),
+            ]),
+            const SizedBox(height: 5),
+            Text('北京时间（UTC+8） · 每天一次 · 仅快速同步',
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: scheme.onSurfaceVariant)),
+          ]),
+        ),
+        const SizedBox(height: 10),
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Icon(Icons.verified_user_outlined,
+              size: 15, color: scheme.onSurfaceVariant),
+          const SizedBox(width: 6),
+          Expanded(
+              child: Text('开启后加密托管同步凭据，关闭即删除。',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: scheme.onSurfaceVariant, height: 1.4))),
         ]),
       ]),
     );
   }
+
+  /// 概览里每个数据源一枚小胶囊：开启绿、同步中主题色、等待上游橙、未开启灰。
+  Widget _sourceChip(SyncPlatform platform) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final state = _sources[platform] ?? const _SourceState();
+    final task = state.task;
+    final color = state.error != null
+        ? scheme.error
+        : !state.enabled
+            ? scheme.outline
+            : task?.status == 'running'
+                ? (task!.waiting
+                    ? AppColors.warningOrange(theme.brightness)
+                    : scheme.primary)
+                : AppColors.successForeground(theme.brightness);
+    return AnimatedContainer(
+      duration:
+          AppDesignTokens.motion(context, const Duration(milliseconds: 220)),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: state.enabled ? 0.12 : 0.08),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusPill),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        const SizedBox(width: 6),
+        Text(platform.label,
+            style: theme.textTheme.labelSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: state.enabled ? color : scheme.onSurfaceVariant)),
+      ]),
+    );
+  }
+
+  /// 规则说明默认收起，内容一条不少。
+  Widget _guideCard() {
+    final theme = Theme.of(context);
+    final style = theme.textTheme.bodySmall?.copyWith(
+        color: theme.colorScheme.onSurfaceVariant, height: 1.7);
+    return CollapsibleCard(
+      title: '同步说明',
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(
+            '每天分批排队处理；批次进行中或等待开始时新加入用户会排在当前批次末尾，批次结束后与其他用户一起进入下一轮随机排序；上游限流或队列较长时会顺延到后续窗口。',
+            style: style),
+        const SizedBox(height: 8),
+        Text(
+            _roundTimeoutMinutes == null
+                ? '单个用户批次有整体处理时限：上游慢响应、配额不足或大量上传超过时限时，会自动结束本轮并在上轮结果中说明原因，次日窗口继续（排队等待不计入）。'
+                : '机台成绩读取完成后，单个用户最多处理 $_roundTimeoutMinutes 分钟；读取前的排队和额度等待不计入。超出处理时限或当天服务窗口会结束本轮，次日窗口继续。',
+            style: style),
+        const SizedBox(height: 8),
+        Text(
+            '输入二维码绑定机台身份后，同步凭据可供三个数据源共用；也可以通过一次普通二维码同步自动完成绑定。各数据源仍需配置各自的个人 key 和账号。\n\n每天在北京时间 08:00–24:00 分时安排快速同步：同一用户的三个数据源共用一份机台成绩读取结果，再分别读取目标成绩并上传变化。\n\n执行中会显示当前阶段、已读取页数、上传与已提交条数、已用时长；遇到上游等待会显示原因和预计重试时间。上轮结果会给出耗时、机台数据采集时间和下次重试时间。\n\n自动同步使用统一的上游请求预算和限流；遇到维护、配额不足或网络错误会暂停并显示原因，不会连续重试。\n\n正在执行时关闭，会停止后续批次，已经提交的成绩会保留；上传结果不确定时会先核对，不盲目重复提交。',
+            style: style),
+      ]),
+    );
+  }
+
+  /// 卡片里的凹槽分区。
+  Widget _insetPanel(Widget child) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppSurfaces.inset(context),
+          borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+        ),
+        child: child,
+      );
 
   Widget _sourceTile(SyncPlatform platform) {
     final state = _sources[platform] ?? const _SourceState();
@@ -348,10 +469,8 @@ class _AutoSyncPageState extends State<AutoSyncPage>
         : '账号尾号 ${id.length <= 4 ? id : id.substring(id.length - 4)}';
     final disabled =
         _loading || _saving != null || (!state.enabled && !state.ready);
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 18),
-      decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(color: scheme.outlineVariant))),
+    return AppCard(
+      padding: const EdgeInsets.all(14),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Container(
@@ -359,7 +478,8 @@ class _AutoSyncPageState extends State<AutoSyncPage>
             height: 40,
             decoration: BoxDecoration(
                 color: scheme.primaryContainer.withValues(alpha: 0.55),
-                borderRadius: BorderRadius.circular(12)),
+                borderRadius:
+                    BorderRadius.circular(AppDesignTokens.radiusSmall)),
             alignment: Alignment.center,
             child: switch (platform) {
               SyncPlatform.divingFish =>
@@ -394,16 +514,19 @@ class _AutoSyncPageState extends State<AutoSyncPage>
             ),
           )),
         ]),
-        const SizedBox(height: 14),
+        const SizedBox(height: 12),
         if (!_loading && state.missingKey) ...[
-          _PersonalKeyForm(
+          _insetPanel(_PersonalKeyForm(
             key: ValueKey('${platform.key}:${state.accountId}'),
             platform: platform,
-            accountId: state.accountId!,
+            accountId: state.accountId ?? '',
             onSaved: () => _load(silent: true),
-          ),
+          )),
           const SizedBox(height: 14),
         ],
+        _insetPanel(Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
         if (state.error != null) ...[
           _statusLabel(Icons.cloud_off_outlined, '状态暂未确认', scheme.error),
           const SizedBox(height: 6),
@@ -437,9 +560,10 @@ class _AutoSyncPageState extends State<AutoSyncPage>
                       : state.reason,
               style: theme.textTheme.bodySmall
                   ?.copyWith(color: scheme.onSurfaceVariant, height: 1.5)),
+            ])),
         if (task?.lastResult != null ||
             state.enabled && state.error == null) ...[
-          const SizedBox(height: 14),
+          const SizedBox(height: 8),
           _previousResult(task?.lastResult, nextRunAt: task?.nextRunAt),
         ],
         if (_service.refreshError(platform) case final String error) ...[
@@ -547,13 +671,8 @@ class _AutoSyncPageState extends State<AutoSyncPage>
                 : '上轮 · ${_resultLabel(result)}';
     final stats = result == null ? null : AutoSyncDisplay.resultStats(result);
     final limitMinutes = AutoSyncDisplay.roundTimeoutMinutes(null, result);
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.only(left: 12),
-      decoration: BoxDecoration(
-          border:
-              Border(left: BorderSide(color: scheme.outlineVariant, width: 2))),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    return _insetPanel(
+      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         _statusLabel(
             failed
                 ? Icons.error_outline_rounded
@@ -625,14 +744,8 @@ class _AutoSyncPageState extends State<AutoSyncPage>
         break;
       }
     }
-    return Container(
-        margin: const EdgeInsets.only(bottom: 28),
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        decoration: BoxDecoration(
-            border: Border(
-          top: BorderSide(color: scheme.outlineVariant),
-          bottom: BorderSide(color: scheme.outlineVariant),
-        )),
+    return AppCard(
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -640,7 +753,7 @@ class _AutoSyncPageState extends State<AutoSyncPage>
               Expanded(
                   child: Text('${queue?.upcoming == true ? '下轮' : '本轮'}队列',
                       style: theme.textTheme.titleSmall)),
-              _statusDot(_queueLoading
+              _statusDot(_queueError, _queueLoading
                   ? '统计加载中'
                   : _queueError
                       ? '更新失败'
@@ -674,7 +787,9 @@ class _AutoSyncPageState extends State<AutoSyncPage>
               ])
             ],
             ...[
-              const SizedBox(height: 18),
+              const SizedBox(height: 14),
+              Divider(height: 1, color: scheme.outlineVariant),
+              const SizedBox(height: 14),
               Text('上轮队列处理', style: theme.textTheme.titleSmall),
               const SizedBox(height: 10),
               Row(children: [
@@ -698,14 +813,16 @@ class _AutoSyncPageState extends State<AutoSyncPage>
         ));
   }
 
-  Widget _statusDot(String label) {
+  Widget _statusDot(bool failed, String label) {
     final scheme = Theme.of(context).colorScheme;
     return Row(mainAxisSize: MainAxisSize.min, children: [
       Container(
           width: 5,
           height: 5,
           decoration:
-              BoxDecoration(color: scheme.primary, shape: BoxShape.circle)),
+              BoxDecoration(
+                  color: failed ? scheme.error : scheme.primary,
+                  shape: BoxShape.circle)),
       const SizedBox(width: 6),
       Text(label,
           style: Theme.of(context)
@@ -761,6 +878,104 @@ String _personalKeyOf(SyncPlatform platform) => switch (platform) {
       SyncPlatform.awmc => CacheKeyConstant.awmcNetImportToken,
     };
 
+/// 绑定机台身份：只用二维码换 userId，二维码本身不保存。
+class _IdentityBindCard extends StatefulWidget {
+  final Future<void> Function() onBound;
+
+  const _IdentityBindCard({required this.onBound});
+
+  @override
+  State<_IdentityBindCard> createState() => _IdentityBindCardState();
+}
+
+class _IdentityBindCardState extends State<_IdentityBindCard> {
+  final _controller = TextEditingController();
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _bind() async {
+    if (_saving) return;
+    final value = _controller.text.trim();
+    if (value.isEmpty) {
+      setState(() => _error = '请先填写机台登入二维码');
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await AwmcQuickSyncService.bindIdentityWithQr(value);
+      if (!mounted) return;
+      FocusManager.instance.primaryFocus?.unfocus();
+      _controller.clear();
+      AppToast.show('机台身份已绑定');
+      await widget.onBound();
+    } on FormatException catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } catch (_) {
+      if (mounted) setState(() => _error = '绑定失败，请确认二维码未过期后重试');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return AppCard(
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('先绑定机台身份',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleSmall
+                  ?.copyWith(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          Text(
+            '在舞萌 | 中二公众号请求并打开登入二维码，扫描后把 SGWCMAID 开头的字符串填到下面。'
+            '三个数据源共用这一次绑定，二维码本身不会保存；完成一次普通二维码同步也会自动绑定。',
+            style: TextStyle(
+                fontSize: 12.5, height: 1.5, color: scheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: 10),
+          QrQuickFillButtons(controller: _controller, enabled: !_saving),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _controller,
+            enabled: !_saving,
+            autocorrect: false,
+            enableSuggestions: false,
+            style: const TextStyle(fontSize: 13),
+            decoration: InputDecoration(
+              labelText: '机台登入二维码',
+              hintText: 'SGWCMAID...',
+              isDense: true,
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              errorText: _error,
+            ),
+            onSubmitted: (_) => _bind(),
+          ),
+          const SizedBox(height: 8),
+          FilledButton(
+            onPressed: _saving ? null : _bind,
+            child: Text(_saving ? '正在绑定…' : '绑定机台身份'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// 控制器跟随输入区域自身的生命周期，轮询不会清空尚未保存的输入。
 class _PersonalKeyForm extends StatefulWidget {
   final SyncPlatform platform;
@@ -801,7 +1016,7 @@ class _PersonalKeyFormState extends State<_PersonalKeyForm> {
     try {
       final source = AwmcQuickSyncService.sourceOf(widget.platform);
       final account = (await AccountStore.loadAll())[source.key];
-      if (account?.id != widget.accountId) {
+      if (widget.accountId.isNotEmpty && account?.id != widget.accountId) {
         throw const AutoSyncException('账号已变化，请刷新页面后重新填写');
       }
       final message = await AutoSyncService.instance
@@ -809,8 +1024,7 @@ class _PersonalKeyFormState extends State<_PersonalKeyForm> {
       if (!mounted) return;
       FocusManager.instance.primaryFocus?.unfocus();
       _controller.clear();
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(message)));
+      AppToast.show(message);
       await widget.onSaved();
     } catch (error) {
       if (mounted)

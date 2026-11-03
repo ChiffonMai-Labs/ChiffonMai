@@ -1,12 +1,14 @@
-import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import 'package:my_first_flutter_app/service/RankTable/RankTableService.dart';
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:my_first_flutter_app/utils/CoverUtil.dart';
 import 'package:my_first_flutter_app/page/RankTable/RankTableDetailPage.dart';
 import 'package:my_first_flutter_app/widgets/BackgroundPageScaffold.dart';
 import '../../service/RankTable/RankCompletionStore.dart';
+import '../../widgets/AppUi.dart';
 import '../../widgets/RankCompletionButton.dart';
+import '../../widgets/SmoothLinearProgressIndicator.dart';
 import '../../utils/AppDesignTokens.dart';
 
 class RankListPage extends StatefulWidget {
@@ -19,6 +21,7 @@ class RankListPage extends StatefulWidget {
 class _RankListPageState extends State<RankListPage> {
   final RankListService _service = RankListService();
   final _completion = RankCompletionStore.instance;
+  int _group = 0;
 
   @override
   void initState() {
@@ -37,178 +40,238 @@ class _RankListPageState extends State<RankListPage> {
     super.dispose();
   }
 
-  late double _paddingXS;
-  late double _paddingS;
-  late double _paddingM;
-  late double _borderRadiusSmall;
-  late double _textSizeM;
-  late double _scaleFactor;
+  bool _isCleared(String rank) {
+    final status = _completion.status(rank);
+    return status == RankCompletion.passed ||
+        status == RankCompletion.redPassed;
+  }
+
+  /// 段位 / 真段位两组（两个皆传归在真段位），顺序跟着 [RankListService.getRankOptions]。
+  List<(String, List<String>)> _groups() {
+    final options = _service.getRankOptions();
+    bool isShin(String rank) => rank.startsWith('真') || rank.endsWith('皆传');
+    return [
+      ('段位', options.where((r) => !isShin(r)).toList()),
+      ('真段位', options.where(isShin).toList()),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
-    final brightness = Theme.of(context).brightness;
-    final screenWidth = MediaQuery.of(context).size.width;
-    _scaleFactor = screenWidth / 375.0;
-    _paddingXS = 4.0 * _scaleFactor;
-    _paddingS = 4.0 * _scaleFactor;
-    _paddingM = 12.0 * _scaleFactor;
-    _borderRadiusSmall = AppDesignTokens.radiusSmall;
-    _textSizeM = 12.0 * _scaleFactor;
-
+    final groups = _groups();
+    final (_, ranks) = groups[_group];
     return BackgroundPageScaffold(
       title: '段位表',
       contentPadding:
           EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
       child: SingleChildScrollView(
-        padding: EdgeInsets.fromLTRB(_paddingM, 8, _paddingM, _paddingM),
+        padding: const EdgeInsets.fromLTRB(AppDesignTokens.gutter, 4,
+            AppDesignTokens.gutter, AppDesignTokens.gutter),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              '选择段位',
-              style: TextStyle(
-                fontSize: _textSizeM,
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-            SizedBox(height: _paddingXS),
-            Column(
-              children: _service.getRankOptions().map((rank) {
-                final rankData = _service.getRankData(rank);
-                final isNormalRank = [
-                  '初段',
-                  '二段',
-                  '三段',
-                  '四段',
-                  '五段',
-                  '六段',
-                  '七段',
-                  '八段',
-                  '九段',
-                  '十段'
-                ].contains(rank);
-
-                return Container(
-                  margin: EdgeInsets.only(bottom: _paddingXS),
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: switch (_completion.status(rank)) {
-                        RankCompletion.passed =>
-                          AppColors.successGreen(brightness)
-                              .withValues(alpha: .25),
-                        RankCompletion.failed =>
-                          AppColors.errorRed(brightness).withValues(alpha: .25),
-                        RankCompletion.redPassed =>
-                          AppColors.warningOrange(brightness)
-                              .withValues(alpha: .25),
-                        RankCompletion.unplayed =>
-                          AppSurfaces.card(context),
-                      },
-                      foregroundColor: Theme.of(context).colorScheme.onSurface,
-                      padding: EdgeInsetsDirectional.fromSTEB(
-                          16 * _scaleFactor, 8, 20 * _scaleFactor, 8),
-                      minimumSize: Size(double.infinity, 56 * _scaleFactor),
-                      shape: RoundedRectangleBorder(
-                        borderRadius:
-                            BorderRadius.circular(AppDesignTokens.radiusMedium),
-                      ),
-                    ),
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => RankDetailPage(rankName: rank),
-                        ),
-                      );
-                    },
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Container(
-                          padding: EdgeInsets.symmetric(
-                              horizontal: _paddingM, vertical: _paddingXS),
-                          decoration: BoxDecoration(
-                            color: isNormalRank
-                                ? AppColors.medalColor('bronze')
-                                : Colors.purple,
-                            borderRadius:
-                                BorderRadius.circular(_borderRadiusSmall),
-                          ),
-                          child: Text(
-                            rank,
-                            style: TextStyle(
-                              fontSize: _textSizeM,
-                              fontWeight: FontWeight.bold,
-                              color: isNormalRank
-                                  ? Colors.white
-                                  : const Color(0xFFE6E6FA),
-                            ),
-                          ),
-                        ),
-                        SizedBox(width: _paddingS),
-                        if (rankData != null)
-                          Flexible(
-                              child: Row(
-                            children: List.generate(4, (index) {
-                              final songId = rankData.songIds[index];
-                              final levelIndex = rankData.levelIndexes[index];
-                              return Container(
-                                margin: EdgeInsets.only(
-                                    left: index > 0 ? _paddingXS : 0),
-                                width: 40 * _scaleFactor,
-                                height: 40 * _scaleFactor,
-                                child: Stack(
-                                  children: [
-                                    CoverUtil.buildCoverWidgetWithContext(
-                                      context,
-                                      songId.isNotEmpty ? songId : '0',
-                                      40 * _scaleFactor,
-                                    ),
-                                    Container(
-                                      decoration: BoxDecoration(
-                                        border: Border.all(
-                                          color: _getDifficultyBorderColor(
-                                              levelIndex),
-                                          width: 2,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }).toList(),
-                          )),
-                        RankCompletionButton(
-                          rank: rank,
-                          showAchievement: false,
-                        ),
-                      ],
-                    ),
+            EntranceAnimation(child: _buildSummary()),
+            const SizedBox(height: AppDesignTokens.cardGap),
+            SegmentedTabs(
+              items: [
+                for (final (label, members) in groups)
+                  SegmentedTabItem(
+                    '$label ${members.where(_isCleared).length}/${members.length}',
                   ),
-                );
-              }).toList(),
+              ],
+              selectedIndex: _group,
+              onChanged: (index) => setState(() => _group = index),
             ),
+            const SizedBox(height: AppDesignTokens.cardGap),
+            for (final (index, rank) in ranks.indexed)
+              EntranceAnimation(
+                // 换分组时重播
+                key: ValueKey('$_group-$rank'),
+                index: index,
+                offset: const Offset(0, 10),
+                duration: const Duration(milliseconds: 340),
+                child: Padding(
+                  padding:
+                      const EdgeInsets.only(bottom: AppDesignTokens.cardGap),
+                  child: _buildRankCard(rank),
+                ),
+              ),
           ],
         ),
       ),
     );
   }
 
-  Color _getDifficultyBorderColor(int levelIndex) {
-    switch (levelIndex) {
-      case ChartDifficulty.basic:
-        return Colors.green;
-      case ChartDifficulty.advanced:
-        return Color(0xFFFFCC00);
-      case ChartDifficulty.expert:
-        return Colors.pink;
-      case ChartDifficulty.master:
-        return Colors.purple;
-      case ChartDifficulty.reMaster:
-        return Colors.purple.shade200;
-      default:
-        return Colors.grey;
-    }
+  Widget _buildSummary() {
+    final scheme = Theme.of(context).colorScheme;
+    final options = _service.getRankOptions();
+    final cleared = options.where(_isCleared).length;
+    final red = options
+        .where((r) => _completion.status(r) == RankCompletion.redPassed)
+        .length;
+    final failed = options
+        .where((r) => _completion.status(r) == RankCompletion.failed)
+        .length;
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              RollingNumber(
+                value: cleared,
+                style: AppTheme.number(
+                  fontSize: 34,
+                  fontWeight: FontWeight.w800,
+                  color: scheme.primary,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                '/ ${options.length} 已合格',
+                style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
+              ),
+              const Spacer(),
+              if (red > 0) ...[
+                Text(
+                  '赤合格 $red',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.warningOrange(
+                        Theme.of(context).brightness),
+                  ),
+                ),
+                const SizedBox(width: 10),
+              ],
+              if (failed > 0)
+                Text(
+                  '不合格 $failed',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: scheme.error,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SmoothLinearProgressIndicator(
+            value: options.isEmpty ? 0 : cleared / options.length,
+            minHeight: 8,
+            color: scheme.primary,
+            backgroundColor: AppSurfaces.inset(context),
+            borderRadius: BorderRadius.circular(4),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRankCard(String rank) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final brightness = theme.brightness;
+    final rankData = _service.getRankData(rank);
+    final accent = switch (_group) {
+      0 => AppColors.medalColor('bronze'),
+      _ => AppColors.difficultyForegroundByIndex(ChartDifficulty.master,
+          brightness: brightness),
+    };
+    final tint = switch (_completion.status(rank)) {
+      RankCompletion.passed => AppColors.successGreen(brightness),
+      RankCompletion.failed => AppColors.errorRed(brightness),
+      RankCompletion.redPassed => AppColors.warningOrange(brightness),
+      RankCompletion.unplayed => null,
+    };
+    return AppCard(
+      radius: AppDesignTokens.radiusMedium,
+      padding: const EdgeInsets.all(12),
+      color: tint == null
+          ? null
+          : Color.alphaBlend(
+              tint.withValues(alpha: 0.1), AppSurfaces.card(context)),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => RankDetailPage(rankName: rank),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              AppBadge(
+                text: rank,
+                background: accent.withValues(alpha: 0.14),
+                foreground: accent,
+                fontSize: 14,
+              ),
+              if (rankData != null) ...[
+                const SizedBox(width: 8),
+                Text(
+                  'HP ${rankData.initialHp}',
+                  style: AppTheme.number(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+              const Spacer(),
+              RankCompletionButton(rank: rank, showAchievement: false),
+            ],
+          ),
+          if (rankData != null) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                for (var i = 0; i < 4; i++) ...[
+                  if (i > 0) const SizedBox(width: 8),
+                  Expanded(
+                    child: _buildCover(
+                      rankData.songIds[i],
+                      rankData.levelIndexes[i],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// 曲绘外圈用难度色，一眼看出每首打什么难度。
+  Widget _buildCover(String songId, int levelIndex) {
+    const ring = 2.5;
+    final color = AppColors.difficultyForegroundByIndex(levelIndex,
+        brightness: Theme.of(context).brightness);
+    return AspectRatio(
+      aspectRatio: 1,
+      child: Container(
+        padding: const EdgeInsets.all(ring),
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+        ),
+        child: ClipRRect(
+          borderRadius:
+              BorderRadius.circular(AppDesignTokens.radiusSmall - ring),
+          child: LayoutBuilder(
+            builder: (context, constraints) =>
+                CoverUtil.buildCoverWidgetWithContext(
+              context,
+              songId.isNotEmpty ? songId : '0',
+              constraints.maxWidth,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

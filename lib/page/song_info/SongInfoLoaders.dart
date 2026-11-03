@@ -160,6 +160,7 @@ extension _SongInfoLoaders on _SongInfoPageState {
       // 检查当前谱面是否有笔记
       _checkNoteStatus();
       _loadBest50Opportunity();
+      widget.onLoaded();
     }
   }
 
@@ -704,6 +705,8 @@ extension _SongInfoLoaders on _SongInfoPageState {
                             ? Colors.blueAccent
                             : scheme.onSurfaceVariant)),
         ]),
+        // 按箭头的字号固定行高：没有箭头的首个值也和带箭头的值落在同一基线上。
+        strutStyle: const StrutStyle(fontSize: 16, forceStrutHeight: true),
         maxLines: 1,
         overflow: TextOverflow.ellipsis);
   }
@@ -711,6 +714,12 @@ extension _SongInfoLoaders on _SongInfoPageState {
   String _displayBpm(dynamic basicInfo) {
     return _maidataBpmByDiffIndex[_currentDiffIndex] ??
         basicInfo['bpm'].toString();
+  }
+
+  /// 基础信息里的 BPM：有变速时写成「最小值-最大值(基准值)」，例如 90-163(163)。
+  String _displayBpmWithBase(dynamic basicInfo) {
+    final bpm = _displayBpm(basicInfo);
+    return _hasBpmChanges ? '$bpm(${_defaultBpm(basicInfo)})' : bpm;
   }
 
   // 加载参考时长（从落雪音频获取；落雪失败时尝试 wmc 兜底）

@@ -256,6 +256,8 @@ class MultiplayerManager {
     int tileRevealIntervalMs = 1500,
     int peekDurationSeconds = 8,
     List<String> peekDifficulties = const ['4'],
+    double peekFlowSpeed = RoomEntity.defaultPeekFlowSpeed,
+    String peekMirror = RoomEntity.defaultPeekMirror,
   }) async {
     debugPrint('[DEBUG][Manager] 开始创建房间请求...');
     debugPrint(
@@ -313,6 +315,8 @@ class MultiplayerManager {
       tileRevealIntervalMs: tileRevealIntervalMs,
       peekDurationSeconds: peekDurationSeconds,
       peekDifficulties: peekDifficulties,
+      peekFlowSpeed: peekFlowSpeed,
+      peekMirror: peekMirror,
     );
 
     debugPrint('[DEBUG][Manager] 等待房间创建结果...');

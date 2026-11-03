@@ -28,6 +28,9 @@ import '../../widgets/SmoothLinearProgressIndicator.dart';
 import '../../widgets/AppUi.dart';
 import '../../utils/AppDesignTokens.dart';
 import '../../widgets/Best50Ui.dart';
+import '../../widgets/AppDialogs.dart';
+import '../../widgets/ExportSuccessDialog.dart';
+import '../../widgets/AppToast.dart';
 
 class B50Page extends StatefulWidget {
   final Map<String, dynamic>? b50Data;
@@ -43,6 +46,10 @@ class _B50PageState extends State<B50Page> {
   List<Map<String, dynamic>>? _maimaiMusicData;
   List<Map<String, dynamic>> _dxSongs = [];
   List<Map<String, dynamic>> _sdSongs = [];
+
+  // 全部成绩（按分组、RA 降序），用来找和榜单最后一首 RA 并列的谱面。
+  List<Map<String, dynamic>> _oldRecords = [];
+  List<Map<String, dynamic>> _newRecords = [];
   List<Map<String, dynamic>> _theoreticalDxSongs = [];
   List<Map<String, dynamic>> _theoreticalSdSongs = [];
   // 存储被截断的相同定数歌曲
@@ -127,6 +134,7 @@ class _B50PageState extends State<B50Page> {
       if (widget.b50Data != null) {
         _updateB50Data(widget.b50Data!);
       } else {
+        unawaited(_loadRecordsForTies());
         // 尝试加载缓存的Best50数据
         final best50Manager = UserBest50Manager();
         final cachedBest50Data = await best50Manager.getCachedBest50Data();
@@ -144,6 +152,45 @@ class _B50PageState extends State<B50Page> {
         _isLoading = false;
       });
     }
+  }
+
+  Future<void> _loadRecordsForTies() async {
+    try {
+      final data = await UserPlayDataManager().getCachedUserPlayData();
+      final records = data?['records'];
+      if (records is! List || !mounted) return;
+      final oldRecords = <Map<String, dynamic>>[];
+      final newRecords = <Map<String, dynamic>>[];
+      for (final raw in records) {
+        if (raw is! Map) continue;
+        final record = Map<String, dynamic>.from(raw);
+        final songId = record['song_id'];
+        if (songId is! int || record['ra'] == null) continue;
+        (_isSongNew(songId) ? newRecords : oldRecords).add(record);
+      }
+      setState(() {
+        _oldRecords = oldRecords;
+        _newRecords = newRecords;
+      });
+    } catch (e) {
+      debugPrint('读取并列谱面失败: $e');
+    }
+  }
+
+  /// 不在榜上、RA 和榜单最后一首相同的成绩。
+  List<Map<String, dynamic>> _tiedRecords(
+      List<Map<String, dynamic>> shown, List<Map<String, dynamic>> records) {
+    if (shown.isEmpty) return const [];
+    final lastRa = shown.last['ra'];
+    final shownKeys = {
+      for (final s in shown) '${s['song_id']}_${s['level_index']}',
+    };
+    return [
+      for (final r in records)
+        if (r['ra'] == lastRa &&
+            !shownKeys.contains('${r['song_id']}_${r['level_index']}'))
+          r,
+    ];
   }
 
   /// 从用户游玩数据计算Best50（落雪数据源场景）
@@ -541,15 +588,21 @@ class _B50PageState extends State<B50Page> {
     final songs = _segment == 0
         ? (_isTheoreticalMode ? _theoreticalSdSongs : _sdSongs)
         : (_isTheoreticalMode ? _theoreticalDxSongs : _dxSongs);
-    final remaining = !_isTheoreticalMode
-        ? null
-        : (_segment == 0 ? _remainingSdSongsInfo : _remainingDxSongsInfo);
+    final theoreticalRemaining =
+        _segment == 0 ? _remainingSdSongsInfo : _remainingDxSongsInfo;
+    final List<Map<String, dynamic>> remaining = _isTheoreticalMode
+        ? List<Map<String, dynamic>>.from(theoreticalRemaining?['songs'] ?? [])
+        : _tiedRecords(songs, _segment == 0 ? _oldRecords : _newRecords);
+    final remainingLabel = _isTheoreticalMode
+        ? '定数 ${((theoreticalRemaining?['ds'] ?? 0.0) as double).toStringAsFixed(1)}'
+        : (songs.isEmpty ? null : 'RA ${songs.last['ra']}');
 
     return BackgroundPageScaffold(
       title: _isTheoreticalMode ? '理论Rating Best50' : 'Best50',
       resizeToAvoidBottomInset: false,
       contentPadding:
           EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
+      actionsEndInset: 4,
       actions: [
         Best50IconAction(
           tooltip: '保存当前记录',
@@ -576,7 +629,6 @@ class _B50PageState extends State<B50Page> {
             }
           },
         ),
-        const SizedBox(width: 4),
       ],
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(AppDesignTokens.gutter, 4,
@@ -593,8 +645,8 @@ class _B50PageState extends State<B50Page> {
             Best50Grid(
               key: ValueKey('$_isTheoreticalMode-$_segment'),
               items: [for (final s in songs) _cardData(s)],
-              extraCell:
-                  remaining == null ? null : _buildRemainingCard(remaining),
+              remaining: [for (final s in remaining) _cardData(s)],
+              remainingLabel: remainingLabel,
             ),
           ],
         ),
@@ -626,8 +678,7 @@ class _B50PageState extends State<B50Page> {
     if (AccountSwitchService.isBusy ||
         _snapshotRevision != AccountSwitchService.revision) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('账号数据已更新，请重新打开 Best50 后保存')));
+        AppToast.show('账号数据已更新，请重新打开 Best50 后保存');
       }
       return;
     }
@@ -649,9 +700,7 @@ class _B50PageState extends State<B50Page> {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_snapshotKey!, json.encode(_snapshots));
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('Best50 记录已保存 ($dateStr)'),
-            duration: Duration(seconds: 1)));
+        AppToast.show('Best50 记录已保存 ($dateStr)', duration: Duration(seconds: 1));
       }
     } catch (e) {
       debugPrint('保存快照失败: $e');
@@ -672,7 +721,7 @@ class _B50PageState extends State<B50Page> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) {
           final dialogBrightness = Theme.of(ctx).brightness;
-          return AlertDialog(
+          return AppAlertDialog(
             title: Row(
               children: [
                 Icon(Icons.history,
@@ -719,17 +768,13 @@ class _B50PageState extends State<B50Page> {
                                     Text('Rating: ${s['rating']}',
                                         style: TextStyle(
                                             fontSize: 13,
-                                            fontWeight: FontWeight.bold),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis),
+                                            fontWeight: FontWeight.bold)),
                                     Text(s['date'] ?? '',
                                         style: TextStyle(
                                             fontSize: 11,
                                             color: Theme.of(ctx)
                                                 .colorScheme
-                                                .onSurfaceVariant),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis),
+                                                .onSurfaceVariant)),
                                   ],
                                 ),
                               ),
@@ -1097,47 +1142,6 @@ class _B50PageState extends State<B50Page> {
   }
 
 
-  // 构建"查看剩余"卡片
-  Widget _buildRemainingCard(Map<String, dynamic> remainingInfo) {
-    final remainingBrightness = Theme.of(context).brightness;
-    double ds = remainingInfo['ds'] ?? 0.0;
-    int count = remainingInfo['count'] ?? 0;
-
-    return AppCard(
-      radius: AppDesignTokens.radiusSmall,
-      padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
-      onTap: () => _showRemainingSongsDialog(remainingInfo, ''),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.music_note,
-                color: AppColors.linkBlue(remainingBrightness),
-                size: MediaQuery.of(context).size.width * 0.06),
-            SizedBox(height: 4.0),
-            Text(
-              '剩余$count首',
-              style: TextStyle(
-                fontSize: MediaQuery.of(context).size.width * 0.03,
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.onSurface,
-              ),
-            ),
-            Text(
-              ds.toStringAsFixed(1),
-              style: AppTheme.number(
-                fontSize: 13,
-                color: AppColors.linkBlue(remainingBrightness),
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Best50CardData _cardData(Map<String, dynamic> songData) {
     final achievementRate = double.parse(songData['achievements'].toString());
     final int score = songData['dxScore'];
@@ -1173,84 +1177,6 @@ class _B50PageState extends State<B50Page> {
             isDefaultLevelIndex: false,
           ),
         ),
-      ),
-    );
-  }
-
-  // 显示剩余歌曲对话框
-  void _showRemainingSongsDialog(
-      Map<String, dynamic> remainingInfo, String sectionName) {
-    double ds = remainingInfo['ds'] ?? 0.0;
-    List<Map<String, dynamic>> songs = remainingInfo['songs'] ?? [];
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('${sectionName}剩余谱面 (定数 ${ds.toStringAsFixed(1)})'),
-        contentPadding: EdgeInsets.symmetric(vertical: 8.0, horizontal: 8.0),
-        content: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * 0.7,
-          ),
-          child: Container(
-            width: MediaQuery.of(context).size.width * 0.9,
-            child: ListView.builder(
-              shrinkWrap: true,
-              padding: EdgeInsets.zero,
-              itemCount: songs.length,
-              itemBuilder: (context, index) {
-                var song = songs[index];
-                String difficultyLabel =
-                    _getDifficultyLabel(song['level_index'] ?? 0);
-                String type = song['type'] ?? '';
-                bool isDxMode = type == 'DX';
-
-                return ListTile(
-                  contentPadding:
-                      EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
-                  leading: CoverUtil.buildCoverWidgetWithContext(
-                      context, song['song_id'].toString(), 50),
-                  title: Row(
-                    children: [
-                      Text(
-                        isDxMode ? 'DX' : 'ST',
-                        style: TextStyle(
-                          fontSize: MediaQuery.of(context).size.width * 0.04,
-                          fontWeight: FontWeight.bold,
-                          color: isDxMode
-                              ? AppColors.warningOrange(
-                                  Theme.of(context).brightness)
-                              : AppColors.linkBlue(
-                                  Theme.of(context).brightness),
-                        ),
-                      ),
-                      SizedBox(width: 8.0),
-                      Expanded(
-                        child: Text(
-                          song['title'] ?? '未知歌曲',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: MediaQuery.of(context).size.width * 0.04,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
-                        ),
-                      ),
-                    ],
-                  ),
-                  subtitle: Text(
-                      '$difficultyLabel | ${song['ds']} | RA: ${song['ra']}'),
-                );
-              },
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('关闭'),
-          ),
-        ],
       ),
     );
   }
@@ -1374,19 +1300,7 @@ class _B50PageState extends State<B50Page> {
       debugPrint('Step 1 completed: hasPermission = $hasPermission');
 
       if (!hasPermission) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: Text('权限不足'),
-            content: Text('需要存储权限才能导出图片到相册，请在设置中开启权限'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text('确定'),
-              ),
-            ],
-          ),
-        );
+        showAppNoticeDialog(context, title: '权限不足', message: '需要存储权限才能导出图片到相册，请在设置中开启权限', tone: AppDialogTone.warning);
         return;
       }
 
@@ -1412,20 +1326,7 @@ class _B50PageState extends State<B50Page> {
       );
       if (quality == null) return; // user cancelled
 
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => AlertDialog(
-          title: Text('导出中'),
-          content: Row(
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(width: 16.0),
-              Text('正在生成图片...'),
-            ],
-          ),
-        ),
-      );
+      showAppProgressDialog(context, title: '导出中', message: '正在生成图片...');
 
       final file = await B50ConvertToImg.convertToImage(
         context,
@@ -1443,63 +1344,16 @@ class _B50PageState extends State<B50Page> {
       Navigator.of(context, rootNavigator: true).pop();
 
       if (file != null) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: Text('导出成功'),
-            content: Text('图片已保存到：\n${file.path}'),
-            actions: [
-              TextButton(
-                onPressed: () async {
-                  await Clipboard.setData(ClipboardData(text: file.path));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('路径已复制到剪贴板')),
-                  );
-                },
-                child: Text('复制路径'),
-              ),
-              TextButton(
-                onPressed: () =>
-                    Navigator.of(context, rootNavigator: true).pop(),
-                child: Text('确定'),
-              ),
-            ],
-          ),
-        );
+        showExportSuccessDialog(context, filePath: file.path, fileName: file.path.split('/').last);
       } else {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: Text('导出失败'),
-            content: Text('图片导出失败，请重试'),
-            actions: [
-              TextButton(
-                onPressed: () =>
-                    Navigator.of(context, rootNavigator: true).pop(),
-                child: Text('确定'),
-              ),
-            ],
-          ),
-        );
+        showAppNoticeDialog(context, title: '导出失败', message: '图片导出失败，请重试', tone: AppDialogTone.error);
       }
     } catch (e) {
       // 确保关闭任何打开的对话框
       try {
         Navigator.of(context, rootNavigator: true).pop();
       } catch (_) {}
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text('导出失败'),
-          content: Text('图片导出失败：${e.toString()}'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context, rootNavigator: true).pop(),
-              child: Text('确定'),
-            ),
-          ],
-        ),
-      );
+      showAppNoticeDialog(context, title: '导出失败', message: '图片导出失败：${e.toString()}', tone: AppDialogTone.error);
     }
   }
 }

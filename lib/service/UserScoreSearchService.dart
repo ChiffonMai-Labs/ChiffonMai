@@ -222,164 +222,102 @@ class UserScoreSearchService {
     return songs.sublist(startIndex, endIndex);
   }
   
-  // 筛选歌曲
-  Future<List<dynamic>> filterSongs(List<dynamic> songs, Map<String, String> filterConditions) async {
+  /// 连击 / 同步筛选项对应的成绩字段值（空串表示没有该评价）。
+  static const Map<String, String> comboFilterValues = {
+    '无连击': '',
+    'FC': 'fc',
+    'FC+': 'fcp',
+    'AP': 'ap',
+    'AP+': 'app',
+  };
+  static const Map<String, String> syncFilterValues = {
+    '无同步': '',
+    'SYNC': 'sync',
+    'FS': 'fs',
+    'FS+': 'fsp',
+    'FDX': 'fsd',
+    'FDX+': 'fsdp',
+  };
+
+  static bool _inAnyRange(
+      double value, List<String> ranges, double defaultMin, double defaultMax) {
+    return ranges.any((range) {
+      final parts = range.split('-');
+      if (parts.length != 2) return true;
+      final min = double.tryParse(parts[0]) ?? defaultMin;
+      final max = double.tryParse(parts[1]) ?? defaultMax;
+      return value >= min && value <= max;
+    });
+  }
+
+  static bool _matchesDifficulty(dynamic song, String difficulty) {
+    final songId = song['song_id'].toString();
+    final isUtage = songId.length == 6 && int.tryParse(songId) != null;
+    if (difficulty == ChartDifficulty.utageLabel) return isUtage;
+    final levelIndex = ChartDifficulty.standardIndexByLabel[difficulty];
+    if (levelIndex == null) return true;
+    if (song['level_index'] != levelIndex) return false;
+    // 选择 BASIC 时，过滤掉 ID 为 6 位数的歌曲
+    return !(difficulty == ChartDifficulty.basicLabel && isUtage);
+  }
+
+  /// 筛选歌曲。同一条件内多选取并集（满足任意一项），不同条件之间取交集。
+  /// 连击和同步是两个维度，分开取并集后再取交集，例如「AP + FDX」。
+  Future<List<dynamic>> filterSongs(
+      List<dynamic> songs, Map<String, List<String>> filterConditions) async {
     // 初始化缓存
     await _initSongCache();
+    final versions = filterConditions['版本筛选'] ?? const <String>[];
+    final dsRanges = filterConditions['定数筛选'] ?? const <String>[];
+    final difficulties = filterConditions['难度筛选'] ?? const <String>[];
+    final achievementRanges = filterConditions['达成率筛选'] ?? const <String>[];
+    final combos = filterConditions['连击/同步筛选'] ?? const <String>[];
+    final fcValues = {
+      for (final item in combos)
+        if (comboFilterValues[item] case final value?) value,
+    };
+    final fsValues = {
+      for (final item in combos)
+        if (syncFilterValues[item] case final value?) value,
+    };
+
     return songs.where((song) {
-      // 版本筛选
-      if (filterConditions['版本筛选'] != null && filterConditions['版本筛选']!.isNotEmpty) {
-        String version = filterConditions['版本筛选']!;
-        // 从缓存的音乐数据中获取版本信息
-        String songId = song['song_id'].toString();
-        bool versionMatch = false;
-        
-        if (_cachedSongs != null) {
-          var foundSong = _cachedSongs!.where((s) => s.id == songId).firstOrNull;
-          if (foundSong != null && foundSong.basicInfo.from != '') {
-            versionMatch = foundSong.basicInfo.from == version && !foundSong.isExtra;
-          }
-        }
-        
-        if (!versionMatch) {
+      // 版本筛选：从缓存的音乐数据中获取版本信息
+      if (versions.isNotEmpty) {
+        final songId = song['song_id'].toString();
+        final found = _cachedSongs?.where((s) => s.id == songId).firstOrNull;
+        if (found == null ||
+            found.isExtra ||
+            !versions.contains(found.basicInfo.from)) {
           return false;
         }
       }
-      
-      // 定数筛选
-      if (filterConditions['定数筛选'] != null && filterConditions['定数筛选']!.isNotEmpty) {
-        String dsRange = filterConditions['定数筛选']!;
-        if (dsRange.contains('-')) {
-          List<String> parts = dsRange.split('-');
-          if (parts.length == 2) {
-            double minDs = double.tryParse(parts[0]) ?? 1.0;
-            double maxDs = double.tryParse(parts[1]) ?? 15.0;
-            double songDs = double.tryParse(song['ds'].toString()) ?? 0;
-            if (songDs < minDs || songDs > maxDs) {
-              return false;
-            }
-          }
-        }
+
+      if (dsRanges.isNotEmpty &&
+          !_inAnyRange(double.tryParse(song['ds'].toString()) ?? 0, dsRanges,
+              1.0, 15.0)) {
+        return false;
       }
-      
-      // 难度筛选
-      if (filterConditions['难度筛选'] != null && filterConditions['难度筛选']!.isNotEmpty) {
-        String difficulty = filterConditions['难度筛选']!;
-        
-        // 处理UTAGE选项，筛选ID为6位数的歌曲
-        if (difficulty == ChartDifficulty.utageLabel) {
-          String songId = song['song_id'].toString();
-          if (songId.length != 6 || int.tryParse(songId) == null) {
-            return false;
-          }
-        } else {
-          Map<String, int> difficultyMap = ChartDifficulty.standardIndexByLabel;
-          int? levelIndex = difficultyMap[difficulty];
-          if (levelIndex != null) {
-            // 检查难度是否匹配
-            if (song['level_index'] != levelIndex) {
-              return false;
-            }
-            
-            // 选择BASIC的时候，过滤掉ID为6位数的歌曲
-            if (difficulty == ChartDifficulty.basicLabel) {
-              String songId = song['song_id'].toString();
-              if (songId.length == 6 && int.tryParse(songId) != null) {
-                return false;
-              }
-            }
-          }
-        }
+
+      if (difficulties.isNotEmpty &&
+          !difficulties.any((item) => _matchesDifficulty(song, item))) {
+        return false;
       }
-      
-      // 达成率筛选
-      if (filterConditions['达成率筛选'] != null && filterConditions['达成率筛选']!.isNotEmpty) {
-        String achievementFilter = filterConditions['达成率筛选']!;
-        if (achievementFilter.contains('-')) {
-          List<String> parts = achievementFilter.split('-');
-          if (parts.length == 2) {
-            double minAchievement = double.tryParse(parts[0]) ?? 0;
-            double maxAchievement = double.tryParse(parts[1]) ?? 101;
-            double songAchievement = double.tryParse(song['achievements'].toString()) ?? 0;
-            if (songAchievement < minAchievement || songAchievement > maxAchievement) {
-              return false;
-            }
-          }
-        }
+
+      if (achievementRanges.isNotEmpty &&
+          !_inAnyRange(double.tryParse(song['achievements'].toString()) ?? 0,
+              achievementRanges, 0, 101)) {
+        return false;
       }
-      
-      // 连击/同步筛选
-      if (filterConditions['连击/同步筛选'] != null && filterConditions['连击/同步筛选']!.isNotEmpty) {
-        String comboFilter = filterConditions['连击/同步筛选']!;
-        if (comboFilter == '无连击评价') {
-          // 无连击评价 (fc为"")
-          String fc = song['fc'].toString().toLowerCase();
-          if (fc != "") {
-            return false;
-          }
-        } else if (comboFilter == 'FC') {
-          // FC(fc为"fc")
-          String fc = song['fc'].toString().toLowerCase();
-          if (fc != 'fc') {
-            return false;
-          }
-        } else if (comboFilter == 'FC+') {
-          // FC+(fc为"fcp")
-          String fc = song['fc'].toString().toLowerCase();
-          if (fc != 'fcp') {
-            return false;
-          }
-        } else if (comboFilter == 'AP') {
-          // AP(fc为"ap")
-          String fc = song['fc'].toString().toLowerCase();
-          if (fc != 'ap') {
-            return false;
-          }
-        } else if (comboFilter == 'AP+') {
-          // AP+(fc为"app")
-          String fc = song['fc'].toString().toLowerCase();
-          if (fc != 'app') {
-            return false;
-          }
-        } else if (comboFilter == '无同步评价') {
-          // 无同步评价(fs为"")
-          String fs = song['fs'].toString().toLowerCase();
-          if (fs != "") {
-            return false;
-          }
-        } else if (comboFilter == 'SYNC') {
-          // SYNC(fs为"sync")
-          String fs = song['fs'].toString().toLowerCase();
-          if (fs != 'sync') {
-            return false;
-          }
-        } else if (comboFilter == 'FS') {
-          // FS(fs为"fs")
-          String fs = song['fs'].toString().toLowerCase();
-          if (fs != 'fs') {
-            return false;
-          }
-        } else if (comboFilter == 'FS+') {
-          // FS+(fs为"fsp")
-          String fs = song['fs'].toString().toLowerCase();
-          if (fs != 'fsp') {
-            return false;
-          }
-        } else if (comboFilter == 'FDX') {
-          // FDX(fs为"fsd")
-          String fs = song['fs'].toString().toLowerCase();
-          if (fs != 'fsd') {
-            return false;
-          }
-        } else if (comboFilter == 'FDX+') {
-          // FDX+(fs为"fsdp")
-          String fs = song['fs'].toString().toLowerCase();
-          if (fs != 'fsdp') {
-            return false;
-          }
-        }
+
+      if (fcValues.isNotEmpty &&
+          !fcValues.contains(song['fc']?.toString().toLowerCase() ?? '')) {
+        return false;
       }
-      
+      if (fsValues.isNotEmpty &&
+          !fsValues.contains(song['fs']?.toString().toLowerCase() ?? '')) {
+        return false;
+      }
       return true;
     }).toList();
   }

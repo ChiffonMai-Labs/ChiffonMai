@@ -138,11 +138,11 @@ void main() {
 
     expect(find.byType(PortableMiniCard), findsOneWidget,
         reason: '点球应该弹出迷你卡片（这里曾是「点球没反应」）');
-    expect(find.textContaining('随身听 ·'), findsOneWidget);
+    expect(find.textContaining(RegExp('正在播放|已暂停')), findsOneWidget);
 
     // 卡片上的播放/暂停要真的落到控制器上
     expect(PortablePlayerController().isPlaying, isTrue);
-    await tester.tap(find.byIcon(Icons.pause_circle));
+    await tester.tap(find.byIcon(Icons.pause_rounded));
     await pumpFrames(tester);
     expect(PortablePlayerController().isPlaying, isFalse);
   });

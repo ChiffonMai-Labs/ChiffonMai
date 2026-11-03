@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/AppDialogs.dart';
 
 /// 历史点共用的日期、时分和秒选择器。
 Future<DateTime?> showHistoryDateTimeDialog(
@@ -126,7 +127,7 @@ class _HistoryDateTimeDialogState extends State<_HistoryDateTimeDialog> {
     final dateText = '${_selected.year}-${_two(_selected.month)}-'
         '${_two(_selected.day)}';
     final timeText = '${_two(_selected.hour)}:${_two(_selected.minute)}';
-    return AlertDialog(
+    return AppAlertDialog(
       title: const Text('选择时间'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
@@ -155,7 +156,6 @@ class _HistoryDateTimeDialogState extends State<_HistoryDateTimeDialog> {
             keyboardType: TextInputType.number,
             decoration: const InputDecoration(
               labelText: '秒（0-59）',
-              border: OutlineInputBorder(),
             ),
             onChanged: _onSecondsChanged,
           ),

@@ -7,6 +7,8 @@ import '../service/SyncStatsService.dart';
 import '../utils/AppTheme.dart';
 import 'NoRipple.dart';
 import 'QrQuickFillButtons.dart';
+import '../widgets/AppDialogs.dart';
+import '../widgets/AppToast.dart';
 
 /// 各同步表单共用的快速同步选项。绑定安全机台身份后才允许开启。
 class QuickSyncOption extends StatefulWidget {
@@ -136,8 +138,7 @@ class _QuickSyncOptionState extends State<QuickSyncOption> {
                         await AwmcQuickSyncService.forgetIdentity();
                       } catch (_) {
                         if (context.mounted)
-                          ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('用户凭据删除失败，请重试')));
+                          AppToast.show('用户凭据删除失败，请重试');
                       } finally {
                         if (mounted) {
                           await _check();
@@ -167,13 +168,11 @@ class _QuickSyncOptionState extends State<QuickSyncOption> {
     try {
       await AwmcQuickSyncService.bindIdentityWithQr(qrCode);
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('机台身份已缓存，现在可以使用快速同步')));
+      AppToast.show('机台身份已缓存，现在可以使用快速同步');
       await _check();
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('绑定机台身份失败：$error')));
+      AppToast.show('绑定机台身份失败：$error');
     } finally {
       if (mounted) setState(() => _binding = false);
     }
@@ -208,7 +207,7 @@ class _BindQuickIdentityDialogState extends State<_BindQuickIdentityDialog> {
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
+  Widget build(BuildContext context) => AppAlertDialog(
         title: const Text('绑定机台身份'),
         content: SingleChildScrollView(
           child: Column(
@@ -228,7 +227,6 @@ class _BindQuickIdentityDialogState extends State<_BindQuickIdentityDialog> {
                 decoration: InputDecoration(
                   hintText: '舞萌DX | 中二节奏登入二维码（SGWCMAID...）',
                   errorText: _error,
-                  border: const OutlineInputBorder(),
                 ),
               ),
             ],

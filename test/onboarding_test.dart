@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:my_first_flutter_app/page/OnboardingPage.dart';
 import 'package:my_first_flutter_app/service/OnboardingStateStore.dart';
+import 'package:my_first_flutter_app/widgets/AppDialogs.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -164,7 +165,7 @@ void main() {
     final confirmation = find.widgetWithText(FilledButton, '监护人同意');
     expect(tester.widget<FilledButton>(confirmation).onPressed, isNull);
     await tester.tap(find.descendant(
-        of: find.byType(AlertDialog), matching: find.byType(Checkbox)));
+        of: find.byType(AppAlertDialog), matching: find.byType(Checkbox)));
     await tester.pumpAndSettle();
     await tester.tap(confirmation);
     await tester.pumpAndSettle();

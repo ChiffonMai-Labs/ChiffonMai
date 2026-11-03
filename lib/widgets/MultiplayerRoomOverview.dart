@@ -8,6 +8,7 @@ import 'MarqueeText.dart';
 import 'CommunityAvatar.dart';
 import '../utils/AppDesignTokens.dart';
 import '../utils/AppTheme.dart';
+import '../widgets/AppToast.dart';
 
 /// 房间身份与规则独立于对局内容，等待和游玩时都能快速找到房间码。
 class MultiplayerRoomHeader extends StatelessWidget {
@@ -43,8 +44,7 @@ class MultiplayerRoomHeader extends StatelessWidget {
             onPressed: () async {
               await Clipboard.setData(ClipboardData(text: room.roomCode));
               if (context.mounted)
-                ScaffoldMessenger.of(context)
-                    .showSnackBar(const SnackBar(content: Text('房间码已复制')));
+                AppToast.show('房间码已复制');
             }),
       ]);
     return Container(
@@ -90,8 +90,7 @@ class MultiplayerRoomHeader extends StatelessWidget {
             onPressed: () async {
               await Clipboard.setData(ClipboardData(text: room.roomCode));
               if (!context.mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('房间码已复制，发送给好友即可加入')));
+              AppToast.show('房间码已复制，发送给好友即可加入');
             },
             icon: const Icon(Icons.copy_rounded, size: 20),
           ),

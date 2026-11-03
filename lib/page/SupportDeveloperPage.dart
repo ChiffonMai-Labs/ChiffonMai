@@ -5,6 +5,9 @@ import '../utils/ExternalLaunchUtil.dart';
 import '../utils/ExportPathUtil.dart';
 import '../widgets/BackgroundPageScaffold.dart';
 import '../utils/AppDesignTokens.dart';
+import '../widgets/AppUi.dart';
+import '../widgets/AppDialogs.dart';
+import '../widgets/AppToast.dart';
 
 /// 支持开发者页面：展示赞赏码与爱发电链接。
 class SupportDeveloperPage extends StatefulWidget {
@@ -36,7 +39,7 @@ class _SupportDeveloperPageState extends State<SupportDeveloperPage> {
       if (!mounted) return;
       await showDialog<void>(
           context: context,
-          builder: (ctx) => AlertDialog(
+          builder: (ctx) => AppAlertDialog(
                   title: const Text('赞赏码已保存'),
                   content: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -58,8 +61,7 @@ class _SupportDeveloperPageState extends State<SupportDeveloperPage> {
                   ]));
     } catch (e) {
       if (mounted)
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('保存失败：$e')));
+        AppToast.show('保存失败：$e');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -82,27 +84,13 @@ class _SupportDeveloperPageState extends State<SupportDeveloperPage> {
   void _launchUrlFallback(String url) {
     Clipboard.setData(ClipboardData(text: url));
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('无法打开浏览器，链接已复制到剪贴板，请手动粘贴到浏览器打开'),
-          duration: const Duration(seconds: 3),
-          action: SnackBarAction(
-            label: '知道了',
-            onPressed: () {},
-          ),
-        ),
-      );
+      AppToast.show('无法打开浏览器，链接已复制到剪贴板，请手动粘贴到浏览器打开', duration: const Duration(seconds: 3), actionLabel: '知道了', onAction: () {});
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final Color textPrimaryColor = Theme.of(context).colorScheme.onSurface;
-    final Color textSecondaryColor = Theme.of(
-      context,
-    ).colorScheme.onSurface.withOpacity(0.7);
-
+    final scheme = Theme.of(context).colorScheme;
     return BackgroundPageScaffold(
       title: '支持开发者',
       resizeToAvoidBottomInset: false,
@@ -110,76 +98,105 @@ class _SupportDeveloperPageState extends State<SupportDeveloperPage> {
         bottom: MediaQuery.paddingOf(context).bottom,
       ),
       child: SingleChildScrollView(
-        padding: EdgeInsets.fromLTRB(screenWidth * 0.05, 8, screenWidth * 0.05, screenWidth * 0.05),
+        padding: const EdgeInsets.fromLTRB(AppDesignTokens.gutter, 8,
+            AppDesignTokens.gutter, AppDesignTokens.gutter),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              'ChiffonMai 是一款完全免费的开源工具，\n如果它帮到了你，欢迎支持开发者！',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: textSecondaryColor,
-                fontSize: 14,
-                height: 1.6,
-              ),
-            ),
-            SizedBox(height: screenWidth * 0.05),
-            Text(
-              '微信赞赏码',
-              style: TextStyle(
-                color: textPrimaryColor,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            SizedBox(height: screenWidth * 0.03),
+            // 开场卡片
             Container(
+              padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: AppSurfaces.card(context),
-                borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
+                color: scheme.primary,
+                borderRadius: BorderRadius.circular(AppDesignTokens.radiusLarge),
               ),
-              clipBehavior: Clip.antiAlias,
-              child: Image.asset(
-                'assets/qrcode/zanshangma.jpg',
-                width: screenWidth * 0.55,
-                fit: BoxFit.contain,
-              ),
-            ),
-            SizedBox(height: screenWidth * 0.05),
-            OutlinedButton.icon(
-              onPressed: _saving ? null : _downloadCode,
-              icon: const Icon(Icons.download_outlined),
-              label: Text(_saving ? '正在保存…' : '下载赞赏码图片'),
-            ),
-            SizedBox(height: screenWidth * 0.05),
-            Text(
-              '或通过爱发电支持我',
-              style: TextStyle(
-                color: textPrimaryColor,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            SizedBox(height: screenWidth * 0.03),
-            ElevatedButton.icon(
-              onPressed: _openAfdian,
-              icon: const Icon(Icons.favorite),
-              label: const Text('前往爱发电'),
-              style: ElevatedButton.styleFrom(
-                padding: EdgeInsets.symmetric(
-                  horizontal: screenWidth * 0.08,
-                  vertical: screenWidth * 0.03,
-                ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: scheme.onPrimary.withValues(alpha: 0.16),
+                      borderRadius:
+                          BorderRadius.circular(AppDesignTokens.radiusSmall),
+                    ),
+                    child: Icon(Icons.favorite_rounded,
+                        color: scheme.onPrimary, size: 26),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Text(
+                      'ChiffonMai 是一款完全免费的开源工具，如果它帮到了你，欢迎支持开发者！',
+                      style: TextStyle(
+                        color: scheme.onPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        height: 1.5,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-            SizedBox(height: screenWidth * 0.05),
+            const SizedBox(height: AppDesignTokens.cardGap),
+            // 微信赞赏码
+            AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const AppSectionHeader(
+                    title: '微信赞赏码',
+                    padding: EdgeInsets.only(bottom: 12),
+                  ),
+                  Center(
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        // 二维码要白底才好扫，深色模式也一样
+                        color: Colors.white,
+                        borderRadius:
+                            BorderRadius.circular(AppDesignTokens.radiusMedium),
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: Image.asset(
+                        'assets/qrcode/zanshangma.jpg',
+                        width: 200,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  FilledButton.tonalIcon(
+                    onPressed: _saving ? null : _downloadCode,
+                    icon: const Icon(Icons.download_outlined),
+                    label: Text(_saving ? '正在保存…' : '下载赞赏码图片'),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppDesignTokens.cardGap),
+            // 爱发电
+            AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const AppSectionHeader(
+                    title: '或通过爱发电支持我',
+                    padding: EdgeInsets.only(bottom: 12),
+                  ),
+                  FilledButton.icon(
+                    onPressed: _openAfdian,
+                    icon: const Icon(Icons.favorite),
+                    label: const Text('前往爱发电'),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
             Text(
               '你的支持是我持续维护与开发的动力，感谢！❤️',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: textSecondaryColor,
-                fontSize: 12,
-              ),
+              style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
             ),
           ],
         ),

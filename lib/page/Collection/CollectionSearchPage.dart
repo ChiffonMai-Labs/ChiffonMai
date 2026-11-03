@@ -8,6 +8,8 @@ import '../../utils/AppTheme.dart';
 import 'CollectionInfoPage.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
 import '../../utils/AppDesignTokens.dart';
+import '../../widgets/AppToast.dart';
+import '../../widgets/AppDialogs.dart';
 
 class CollectionSearchPage extends StatefulWidget {
   const CollectionSearchPage({Key? key}) : super(key: key);
@@ -296,110 +298,58 @@ class _CollectionSearchPageState extends State<CollectionSearchPage>
     final result = await showDialog<Set<String>>(
       context: context,
       builder: (dialogContext) {
-        return Dialog(
-          insetPadding:
-              const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-          child: StatefulBuilder(
-            builder: (context, setDialogState) {
-              final colorScheme = Theme.of(context).colorScheme;
-              return Padding(
-                padding: const EdgeInsets.fromLTRB(20, 18, 20, 14),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AppAlertDialog(
+              icon: const Icon(Icons.palette_outlined),
+              title: const Text('筛选称号底色'),
+              subtitle: '可同时选择多个底色',
+              content: SingleChildScrollView(
+                child: GridView.count(
+                  crossAxisCount: 2,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  padding: EdgeInsets.zero,
+                  crossAxisSpacing: 8,
+                  mainAxisSpacing: 8,
+                  childAspectRatio: 2.5,
                   children: [
-                    Row(
-                      children: [
-                        Icon(Icons.palette_outlined,
-                            color: colorScheme.primary),
-                        const SizedBox(width: 8),
-                        const Expanded(
-                          child: Text(
-                            '筛选称号底色',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        IconButton(
-                          onPressed: () => Navigator.pop(dialogContext),
-                          icon: const Icon(Icons.close),
-                          tooltip: '关闭',
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      '可同时选择多个底色',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: colorScheme.onSurfaceVariant,
+                    for (final color in ['ALL', ..._colorOptions])
+                      _buildAnimatedColorLabel(
+                        context,
+                        color,
+                        selected: color == 'ALL'
+                            ? draft.isEmpty ||
+                                draft.length == _colorOptions.length
+                            : draft.contains(color),
+                        onTap: () {
+                          setDialogState(() {
+                            if (color == 'ALL') {
+                              draft
+                                ..clear()
+                                ..addAll(_colorOptions);
+                            } else if (!draft.add(color)) {
+                              draft.remove(color);
+                            }
+                          });
+                        },
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    GridView.count(
-                      crossAxisCount: 2,
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      padding: EdgeInsets.zero,
-                      crossAxisSpacing: 8,
-                      mainAxisSpacing: 8,
-                      childAspectRatio: 2.5,
-                      children: [
-                        for (final color in ['ALL', ..._colorOptions])
-                          _buildAnimatedColorLabel(
-                            context,
-                            color,
-                            selected: color == 'ALL'
-                                ? draft.isEmpty ||
-                                    draft.length == _colorOptions.length
-                                : draft.contains(color),
-                            onTap: () {
-                              setDialogState(() {
-                                if (color == 'ALL') {
-                                  draft
-                                    ..clear()
-                                    ..addAll(_colorOptions);
-                                } else if (!draft.add(color)) {
-                                  draft.remove(color);
-                                }
-                              });
-                            },
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 18),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        TextButton(
-                          onPressed: () => setDialogState(draft.clear),
-                          style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 10),
-                            minimumSize: const Size(72, 44),
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          ),
-                          child: const Text('清除选择'),
-                        ),
-                        const SizedBox(width: 8),
-                        FilledButton(
-                          onPressed: () => Navigator.pop(
-                              dialogContext, Set<String>.from(draft)),
-                          style: FilledButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            minimumSize: const Size(96, 44),
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          ),
-                          child: const Text('应用'),
-                        ),
-                      ],
-                    ),
                   ],
                 ),
-              );
-            },
-          ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => setDialogState(draft.clear),
+                  child: const Text('清除选择'),
+                ),
+                FilledButton(
+                  onPressed: () =>
+                      Navigator.pop(dialogContext, Set<String>.from(draft)),
+                  child: const Text('应用'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -469,16 +419,12 @@ class _CollectionSearchPageState extends State<CollectionSearchPage>
   Future<void> _clearCache() async {
     try {
       await CollectionsManager().clearAllCache();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('缓存已清除，重新加载数据中...')),
-      );
+      AppToast.show('缓存已清除，重新加载数据中...');
       // 重新执行搜索
       await _performSearch();
     } catch (e) {
       debugPrint('清除缓存时出错: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('清除缓存失败')),
-      );
+      AppToast.show('清除缓存失败');
     }
   }
 

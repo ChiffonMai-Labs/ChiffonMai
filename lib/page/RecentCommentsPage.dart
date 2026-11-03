@@ -1,4 +1,3 @@
-import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import '../api/ApiUrls.dart';
@@ -12,6 +11,8 @@ import 'package:my_first_flutter_app/utils/ApiClient.dart';
 import '../widgets/BackgroundPageScaffold.dart';
 import '../widgets/CommunityAvatar.dart';
 import '../utils/AppDesignTokens.dart';
+import '../widgets/AppUi.dart';
+import '../widgets/MarqueeText.dart';
 
 /// 最近评论页面：展示最近50条评论，每页10条，Redis+MySQL二级缓存
 class RecentCommentsPage extends StatefulWidget {
@@ -108,137 +109,6 @@ class _RecentCommentsPageState extends State<RecentCommentsPage> {
     return song?.title ?? songId;
   }
 
-  // ---- 类型 & 难度标签（与 SpecialRankingListPage 完全一致） ----
-
-  Widget _buildTypeTag(String type, String songId, Brightness brightness) {
-    bool isUtage = songId.length == 6;
-
-    Color bgColor;
-    Color textColor;
-
-    if (isUtage) {
-      bgColor = brightness == Brightness.dark
-          ? Colors.red.withValues(alpha: 0.2)
-          : Colors.red.shade100;
-      textColor = brightness == Brightness.dark
-          ? Colors.red[300]!
-          : Colors.red;
-    } else if (type == 'DX') {
-      bgColor = brightness == Brightness.dark
-          ? Colors.orange.withValues(alpha: 0.2)
-          : Colors.orange.shade100;
-      textColor = brightness == Brightness.dark
-          ? Colors.orange[300]!
-          : Colors.orange;
-    } else {
-      bgColor = brightness == Brightness.dark
-          ? Colors.blue.withValues(alpha: 0.2)
-          : Colors.blue.shade100;
-      textColor = brightness == Brightness.dark
-          ? Colors.blue[300]!
-          : Colors.blue;
-    }
-
-    final label = isUtage ? 'UT' : (type == 'DX' ? 'DX' : 'ST');
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-          color: textColor,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDifficultyTag(int difficultyIndex, String songId, Brightness brightness) {
-    Color bgColor;
-    Color textColor;
-    final label = ChartDifficulty.labelOf(difficultyIndex,
-        isUtage: ChartDifficulty.isUtageSong(songId));
-
-    if (songId.length == 6) {
-      bgColor = brightness == Brightness.dark
-          ? Colors.red.withValues(alpha: 0.2)
-          : Colors.red.shade100;
-      textColor = brightness == Brightness.dark
-          ? Colors.red[300]!
-          : Colors.red;
-    } else {
-      switch (difficultyIndex) {
-        case ChartDifficulty.basic:
-          bgColor = brightness == Brightness.dark
-              ? Colors.green.withValues(alpha: 0.2)
-              : Colors.green.shade100;
-          textColor = brightness == Brightness.dark
-              ? Colors.green[300]!
-              : Colors.green.shade700;
-          break;
-        case ChartDifficulty.advanced:
-          bgColor = brightness == Brightness.dark
-              ? Colors.orange.withValues(alpha: 0.2)
-              : Colors.orange.shade100;
-          textColor = brightness == Brightness.dark
-              ? Colors.orange[300]!
-              : Colors.orange.shade700;
-          break;
-        case ChartDifficulty.expert:
-          bgColor = brightness == Brightness.dark
-              ? Colors.red.withValues(alpha: 0.2)
-              : Colors.red.shade100;
-          textColor = brightness == Brightness.dark
-              ? Colors.red[300]!
-              : Colors.red;
-          break;
-        case ChartDifficulty.master:
-          bgColor = brightness == Brightness.dark
-              ? Colors.purple.withValues(alpha: 0.2)
-              : Colors.purple.shade100;
-          textColor = brightness == Brightness.dark
-              ? Colors.purple[200]!
-              : Colors.purple.shade700;
-          break;
-        case ChartDifficulty.reMaster:
-          // 复用公共明暗配色，深色背景下保留浅紫文字。
-          bgColor = AppColors.difficultyBackgroundByIndex(
-              ChartDifficulty.reMaster, brightness: brightness);
-          textColor = AppColors.difficultyForegroundByIndex(
-              ChartDifficulty.reMaster, brightness: brightness);
-          break;
-        default:
-          bgColor = brightness == Brightness.dark
-              ? Colors.grey.withValues(alpha: 0.2)
-              : Colors.grey.shade100;
-          textColor = brightness == Brightness.dark
-              ? Colors.grey[400]!
-              : Colors.grey.shade700;
-      }
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-          color: textColor,
-        ),
-      ),
-    );
-  }
-
   String _formatTime(String? timestamp) {
     if (timestamp == null) return '';
     try {
@@ -270,7 +140,6 @@ class _RecentCommentsPageState extends State<RecentCommentsPage> {
   @override
   Widget build(BuildContext context) {
     final brightness = Theme.of(context).brightness;
-    final screenWidth = MediaQuery.of(context).size.width;
     final Color textPrimaryColor = Theme.of(context).colorScheme.onSurface;
     return BackgroundPageScaffold(
       title: '最近评论',
@@ -290,7 +159,7 @@ class _RecentCommentsPageState extends State<RecentCommentsPage> {
               ? _buildError(brightness)
               : _comments.isEmpty
                   ? _buildEmpty(brightness)
-                  : _buildCommentList(brightness, screenWidth),
+                  : _buildCommentList(brightness),
     );
   }
 
@@ -334,178 +203,139 @@ class _RecentCommentsPageState extends State<RecentCommentsPage> {
     );
   }
 
-  Widget _buildCommentList(Brightness brightness, double screenWidth) {
+  Widget _buildCommentList(Brightness brightness) {
     return Column(
       children: [
         Expanded(
           child: ListView.builder(
             controller: _scrollController,
-            padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.03, vertical: 8),
+            padding: const EdgeInsets.fromLTRB(
+                AppDesignTokens.gutter, 4, AppDesignTokens.gutter, 8),
             itemCount: _comments.length,
             itemBuilder: (context, index) {
-              final comment = _comments[index];
-              return _buildCommentCard(comment, brightness, screenWidth);
+              final card = Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _buildCommentCard(_comments[index], brightness),
+              );
+              // 只给首屏做入场，滚回来时不重播
+              return index < 8
+                  ? EntranceAnimation(
+                      index: index,
+                      duration: const Duration(milliseconds: 300),
+                      offset: const Offset(0, 8),
+                      child: card,
+                    )
+                  : card;
             },
           ),
         ),
-        _buildPagination(brightness),
+        _buildPagination(),
       ],
     );
   }
 
-  Widget _buildCommentCard(CommentItem comment, Brightness brightness, double screenWidth) {
+  Widget _buildCommentCard(CommentItem comment, Brightness brightness) {
+    final scheme = Theme.of(context).colorScheme;
     final songId = comment.songId;
     final song = _getSong(songId);
     final levelIndex = comment.levelIndex ?? 0;
 
-    return GestureDetector(
+    return AppCard(
+      radius: AppDesignTokens.radiusMedium,
+      padding: const EdgeInsets.all(12),
       onTap: () => _navigateToSong(songId, levelIndex),
-      child: Container(
-        margin: EdgeInsets.only(bottom: 8),
-        padding: EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.6),
-          borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-          border: Border.all(color: AppColors.buttonBorder(brightness), width: 0.5),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            // 曲绘
-            ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: SizedBox(
-                width: 56,
-                height: 56,
-                child: CoverUtil.buildCoverWidget(songId, 56),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 评论的是哪张谱面
+          Row(
+            children: [
+              ClipRRect(
+                borderRadius:
+                    BorderRadius.circular(AppDesignTokens.radiusSmall),
+                child: CoverUtil.buildCoverWidget(songId, 44),
               ),
-            ),
-            SizedBox(width: 10),
-            // 右侧内容
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // 第一行：类型标签 + 难度标签 + 时间
-                  Row(
-                    children: [
-                      if (song != null)
-                        _buildTypeTag(song.type, songId, brightness),
-                      if (song != null) const SizedBox(width: 6),
-                      _buildDifficultyTag(levelIndex, songId, brightness),
-                      const Spacer(),
-                      Icon(Icons.access_time, size: 10, color: AppColors.greyHint(brightness, shade: 600)),
-                      const SizedBox(width: 2),
-                      Text(
-                        _formatTime(comment.createdAt),
-                        style: TextStyle(fontSize: 10, color: AppColors.greyHint(brightness, shade: 600)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    MarqueeText(
+                      text: _getSongTitle(songId),
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: scheme.onSurface,
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  // 第二行：歌曲标题
-                  Text(
-                    _getSongTitle(songId),
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.onSurface,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  // 评论内容
-                  Text(
-                    comment.content,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Theme.of(context).colorScheme.onSurface,
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        if (song != null) ...[
+                          SongTypeBadge(songId: songId, type: song.type),
+                          const SizedBox(width: 4),
+                        ],
+                        ChartDifficultyBadge(
+                            levelIndex: levelIndex, songId: songId),
+                      ],
                     ),
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  // 用户
-                  Row(
-                    children: [
-                      CommunityAvatar(avatarId: comment.avatarId, size: 20),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          comment.displayName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(fontSize: 10, color: AppColors.greyHint(brightness, shade: 600)),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+                  ],
+                ),
               ),
+              Icon(Icons.chevron_right_rounded,
+                  size: 20, color: scheme.onSurfaceVariant),
+            ],
+          ),
+          const SizedBox(height: 10),
+          // 评论内容完整显示
+          Text(
+            comment.content,
+            style: TextStyle(
+              fontSize: 14,
+              height: 1.45,
+              color: scheme.onSurface,
             ),
-            // 箭头提示可点击
-            Padding(
-              padding: const EdgeInsets.only(left: 4),
-              child: Icon(Icons.chevron_right, size: 18, color: AppColors.greyHint(brightness, shade: 400)),
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 10),
+          // 谁、什么时候
+          Row(
+            children: [
+              CommunityAvatar(avatarId: comment.avatarId, size: 20),
+              const SizedBox(width: 6),
+              Expanded(
+                child: MarqueeText(
+                  text: comment.displayName,
+                  style:
+                      TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                _formatTime(comment.createdAt),
+                style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildPagination(Brightness brightness) {
+  void _goToPage(int page) {
+    setState(() => _currentPage = page);
+    if (_scrollController.hasClients) _scrollController.jumpTo(0);
+    _loadComments();
+  }
+
+  Widget _buildPagination() {
     const int totalRecords = 50;
     final totalPages = (totalRecords / _pageSize).ceil();
-
-    return Container(
-      padding: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-      decoration: BoxDecoration(
-        border: Border(top: BorderSide(color: AppColors.tableBorder(brightness), width: 1)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          ElevatedButton(
-            onPressed: _currentPage > 1
-                ? () {
-                    setState(() => _currentPage--);
-                    _scrollController.animateTo(0, duration: Duration(milliseconds: 300), curve: Curves.easeOut);
-                    _loadComments();
-                  }
-                : null,
-            style: ElevatedButton.styleFrom(
-              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              textStyle: TextStyle(fontSize: 13),
-            ),
-            child: const Text('上一页'),
-          ),
-          const SizedBox(width: 16),
-          Text(
-            '$_currentPage / $totalPages',
-            style: TextStyle(
-              fontSize: 14,
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
-          ),
-          const SizedBox(width: 16),
-          ElevatedButton(
-            onPressed: _currentPage < totalPages
-                ? () {
-                    setState(() => _currentPage++);
-                    _scrollController.animateTo(0, duration: Duration(milliseconds: 300), curve: Curves.easeOut);
-                    _loadComments();
-                  }
-                : null,
-            style: ElevatedButton.styleFrom(
-              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              textStyle: TextStyle(fontSize: 13),
-            ),
-            child: const Text('下一页'),
-          ),
-        ],
-      ),
+    return PagerBar(
+      page: _currentPage,
+      totalPages: totalPages,
+      onPrevious: _currentPage > 1 ? () => _goToPage(_currentPage - 1) : null,
+      onNext:
+          _currentPage < totalPages ? () => _goToPage(_currentPage + 1) : null,
     );
   }
 }

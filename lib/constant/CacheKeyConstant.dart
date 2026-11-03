@@ -110,6 +110,8 @@ class CacheKeyConstant {
   static const String guessChartTileCount = 'guessChart_tileCount';
   static const String guessTileRevealInterval = 'guessTile_revealInterval';
   static const String guessChartPeekDuration = 'guessChart_peekDuration';
+  static const String guessChartPeekFlowSpeed = 'guessChart_peekFlowSpeed';
+  static const String guessChartPeekMirror = 'guessChart_peekMirror';
   static const String guessChartPeekDifficulties =
       'guessChart_peekDifficulties';
   // 歌曲片段猜歌的音频片段播放时长

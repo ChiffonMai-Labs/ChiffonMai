@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../utils/AppDesignTokens.dart';
+import '../utils/AppTheme.dart';
+import 'AppDialogs.dart';
+import '../widgets/AppToast.dart';
 
 /// 导出或下载完成后的结果弹窗。
 ///
@@ -55,64 +59,36 @@ class _ExportSuccessDialogState extends State<_ExportSuccessDialog> {
     await Clipboard.setData(ClipboardData(text: widget.filePath));
     if (!mounted) return;
     setState(() => _copied = true);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('路径已复制到剪贴板')),
-    );
+    AppToast.show('路径已复制到剪贴板');
   }
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final hasWarning = widget.fallbackPath != null || widget.warning != null;
-    return AlertDialog(
-      title: Row(
-        children: [
-          Icon(Icons.check_circle, color: Colors.green.shade600, size: 22),
-          const SizedBox(width: 8),
-          Expanded(child: Text(widget.title)),
-        ],
-      ),
+    final warnColor = AppColors.warningOrange(Theme.of(context).brightness);
+    final warnStyle =
+        TextStyle(fontSize: 12, height: 1.4, color: scheme.onSurface);
+    return AppDialog(
+      title: widget.title,
+      tone: AppDialogTone.success,
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '${widget.successPrefix} ${widget.fileName}',
-            style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            '文件已保存到：',
-            style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
-          ),
-          const SizedBox(height: 8),
-          Container(
-            width: double.maxFinite,
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: scheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: scheme.outlineVariant),
-            ),
-            child: SelectableText(
-              widget.filePath,
-              style: TextStyle(
-                fontSize: 12,
-                fontFamily: 'monospace',
-                height: 1.4,
-                color: scheme.onSurface,
-              ),
-            ),
-          ),
+          Text('${widget.successPrefix} ${widget.fileName}'),
+          const SizedBox(height: 10),
+          AppDialogCodeBlock(widget.filePath),
+          // 公开目录不可写时必须橙色告警，不能静默把文件丢进沙箱（AGENTS.md §2）
           if (hasWarning) ...[
             const SizedBox(height: 10),
             Container(
-              width: double.maxFinite,
-              padding: const EdgeInsets.all(8),
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.orange.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: Colors.orange.withValues(alpha: 0.4)),
+                color: warnColor.withValues(alpha: 0.14),
+                borderRadius:
+                    BorderRadius.circular(AppDesignTokens.radiusSmall),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -120,12 +96,12 @@ class _ExportSuccessDialogState extends State<_ExportSuccessDialog> {
                   if (widget.fallbackPath != null)
                     Text(
                       '公开目录不可写，文件已保存到备用路径：${widget.fallbackPath}',
-                      style: TextStyle(fontSize: 12, height: 1.4, color: scheme.onSurface),
+                      style: warnStyle,
                     ),
                   if (widget.fallbackPath != null && widget.warning != null)
                     const SizedBox(height: 4),
                   if (widget.warning != null)
-                    Text(widget.warning!, style: TextStyle(fontSize: 12, height: 1.4, color: scheme.onSurface)),
+                    Text(widget.warning!, style: warnStyle),
                 ],
               ),
             ),
@@ -133,16 +109,12 @@ class _ExportSuccessDialogState extends State<_ExportSuccessDialog> {
         ],
       ),
       actions: [
-        TextButton.icon(
+        FilledButton.tonalIcon(
           onPressed: _copyPath,
-          icon: Icon(
-            _copied ? Icons.check : Icons.copy,
-            size: 16,
-            color: _copied ? Colors.green.shade600 : null,
-          ),
+          icon: Icon(_copied ? Icons.check : Icons.copy, size: 16),
           label: Text(_copied ? '已复制' : '复制路径'),
         ),
-        TextButton(
+        FilledButton(
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('关闭'),
         ),

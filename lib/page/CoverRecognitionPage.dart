@@ -4,18 +4,20 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import '../widgets/SmoothLinearProgressIndicator.dart';
 import 'package:flutter/services.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../service/CoverRecognitionService.dart';
 import '../utils/CoverUtil.dart';
 import '../utils/AppTheme.dart';
-import '../utils/AppConstants.dart';
 import '../utils/OcrImageCropUtil.dart';
-import '../widgets/CoverActionButton.dart';
 import '../widgets/BackgroundPageScaffold.dart';
 import 'SongInfoPage.dart';
 import '../utils/AppDesignTokens.dart';
+import '../widgets/AppUi.dart';
+import '../widgets/MarqueeText.dart';
+import '../widgets/RankingUi.dart';
+import '../widgets/AppDialogs.dart';
+import '../widgets/AppToast.dart';
 
 /// 曲绘识别页面
 /// 支持拍照/相册选取 → 手动裁剪 → 识别 → 显示Top10匹配结果
@@ -71,12 +73,12 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
       );
       if (mounted) {
         setState(() => _isPrecomputing = false);
-        Fluttertoast.showToast(msg: '曲绘索引建立完成！共处理 $_precomputeTotal 张曲绘');
+        AppToast.show('曲绘索引建立完成！共处理 $_precomputeTotal 张曲绘');
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isPrecomputing = false);
-        Fluttertoast.showToast(msg: '索引建立失败: $e');
+        AppToast.show('索引建立失败: $e');
       }
     }
   }
@@ -84,23 +86,12 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
   void _showSourcePicker() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        decoration: BoxDecoration(
-          color: Theme.of(ctx).colorScheme.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-        ),
-        padding: const EdgeInsets.symmetric(vertical: 16),
+      showDragHandle: true,
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.only(bottom: 16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                    color: AppColors.tableBorder(Theme.of(context).brightness),
-                    borderRadius: BorderRadius.circular(2))),
-            const SizedBox(height: 16),
             const Text('选择图片来源',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
@@ -134,7 +125,7 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
       final status = await Permission.camera.request();
       if (!status.isGranted) {
         if (mounted) {
-          Fluttertoast.showToast(msg: '需要相机权限');
+          AppToast.show('需要相机权限');
           openAppSettings();
         }
         return;
@@ -168,7 +159,7 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
         }
       }
     } catch (e) {
-      Fluttertoast.showToast(msg: '选取图片失败: $e');
+      AppToast.show('选取图片失败: $e');
     }
   }
 
@@ -182,11 +173,11 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
           _result = result;
           _isRecognizing = false;
         });
-        if (result == null) Fluttertoast.showToast(msg: '识别失败，请重试');
+        if (result == null) AppToast.show('识别失败，请重试');
       }
     } catch (e) {
       if (mounted) setState(() => _isRecognizing = false);
-      Fluttertoast.showToast(msg: '识别出错: $e');
+      AppToast.show('识别出错: $e');
     }
   }
 
@@ -198,7 +189,7 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
   Future<void> _rebuildIndex() async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppAlertDialog(
         title: const Text('重建曲绘索引'),
         content: const Text('将清除现有索引并重新为全部曲绘计算哈希。这可能需要数十秒，确定继续吗？'),
         actions: [
@@ -241,11 +232,12 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
       ]));
     }
     return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(sw * 0.04, 8, sw * 0.04, sw * 0.04),
+      padding: const EdgeInsets.fromLTRB(AppDesignTokens.gutter, 8,
+          AppDesignTokens.gutter, AppDesignTokens.gutter),
       child: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
         if (_result != null) ...[
           _buildTopMatch(sw, c),
-          const SizedBox(height: 16),
+          const SizedBox(height: AppDesignTokens.cardGap),
           _buildTop10List(sw, c),
           const SizedBox(height: 16),
           _buildActionButtons(sw, c),
@@ -265,80 +257,111 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
   }
 
   Widget _buildPrecomputeProgress(double sw, Color c) {
+    final scheme = Theme.of(context).colorScheme;
     final p =
         _precomputeTotal > 0 ? _precomputeCurrent / _precomputeTotal : 0.0;
-    return Padding(
-        padding: EdgeInsets.all(sw * 0.06),
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(Icons.image_search,
-              size: sw * 0.13, color: c.withValues(alpha: 0.6)),
-          const SizedBox(height: 24),
-          Text('正在建立曲绘索引...',
-              style: TextStyle(
-                  color: c, fontSize: sw * 0.045, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          Text('为 $_precomputeTotal 张曲绘计算特征',
-              style: TextStyle(
-                  color: c.withValues(alpha: 0.6), fontSize: sw * 0.032)),
-          const SizedBox(height: 16),
-          SmoothLinearProgressIndicator(
-              value: p,
-              minHeight: 6,
-              borderRadius: BorderRadius.circular(3),
-              backgroundColor: Theme.of(context).colorScheme.surface,
-              valueColor: AlwaysStoppedAnimation<Color>(c)),
-          const SizedBox(height: 8),
-          Text('$_precomputeCurrent / $_precomputeTotal',
-              style: TextStyle(
-                  color: c.withValues(alpha: 0.5), fontSize: sw * 0.03)),
-          const SizedBox(height: 8),
-          Text('仅首次需要，请耐心等待',
-              style: TextStyle(
-                  color: c.withValues(alpha: 0.4), fontSize: sw * 0.026)),
-        ]));
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppDesignTokens.gutter),
+        child: AppCard(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Icon(Icons.image_search, size: 44, color: scheme.primary),
+              const SizedBox(height: 14),
+              Text('正在建立曲绘索引...',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      color: scheme.onSurface,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800)),
+              const SizedBox(height: 4),
+              Text('为 $_precomputeTotal 张曲绘计算特征',
+                  textAlign: TextAlign.center,
+                  style:
+                      TextStyle(color: scheme.onSurfaceVariant, fontSize: 13)),
+              const SizedBox(height: 14),
+              SmoothLinearProgressIndicator(
+                  value: p,
+                  minHeight: 8,
+                  borderRadius: BorderRadius.circular(4),
+                  backgroundColor: AppSurfaces.inset(context),
+                  color: scheme.primary),
+              const SizedBox(height: 8),
+              Text('$_precomputeCurrent / $_precomputeTotal',
+                  textAlign: TextAlign.center,
+                  style: AppTheme.number(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: scheme.onSurface)),
+              const SizedBox(height: 4),
+              Text('仅首次需要，请耐心等待',
+                  textAlign: TextAlign.center,
+                  style:
+                      TextStyle(color: scheme.onSurfaceVariant, fontSize: 11)),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
-  Widget _buildPhotoGuide(double sw, Color c) => Column(children: [
-        const SizedBox(height: 16),
-        Icon(Icons.image_search,
-            size: sw * 0.18, color: c.withValues(alpha: 0.35)),
-        const SizedBox(height: 12),
-        Text('拍摄或选择一张曲绘图片',
-            style: TextStyle(
-                color: c, fontSize: sw * 0.045, fontWeight: FontWeight.w600)),
-        const SizedBox(height: 8),
-        Text('选取后可手动框选曲绘区域\n提高识别准确率',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-                color: c.withValues(alpha: 0.5), fontSize: sw * 0.03)),
-      ]);
+  Widget _buildPhotoGuide(double sw, Color c) => const RecognitionGuideCard(
+        icon: Icons.image_search,
+        title: '拍摄或选择一张曲绘图片',
+        description: '选取后可手动框选曲绘区域，提高识别准确率',
+        steps: ['拍照或从相册选择图片', '框选图片里的曲绘区域', '开始识别，查看最接近的曲目'],
+      );
 
-  Widget _buildPhotoPreview(double sw, Color c) => Column(children: [
-        const SizedBox(height: 8),
-        Container(
-          width: sw * 0.65,
-          height: sw * 0.65,
-          decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: c.withValues(alpha: 0.3), width: 2),
-              boxShadow: [
-                AppConstants.defaultShadow(Theme.of(context).brightness)
-              ]),
-          child: ClipRRect(
-              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+  Widget _buildPhotoPreview(double sw, Color c) {
+    final scheme = Theme.of(context).colorScheme;
+    return AppCard(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AspectRatio(
+            aspectRatio: 1,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
               child: Image.file(
                 File(_photoPath!),
                 fit: BoxFit.cover,
                 cacheWidth: 1080,
-              )),
-        ),
-        const SizedBox(height: 10),
-        Text('图片已就绪',
-            style: TextStyle(
-                color: c.withValues(alpha: 0.5), fontSize: sw * 0.03)),
-      ]);
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.check_circle_outline,
+                  size: 16, color: scheme.primary),
+              const SizedBox(width: 6),
+              Text('图片已就绪',
+                  style:
+                      TextStyle(color: scheme.onSurfaceVariant, fontSize: 13)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 相似度 → 颜色：高绿、中橙、低红。
+  Color _similarityColor(double sim, {double high = 80, double mid = 60}) {
+    final brightness = Theme.of(context).brightness;
+    return sim >= high
+        ? AppColors.successGreen(brightness)
+        : sim >= mid
+            ? AppColors.warningOrange(brightness)
+            : AppColors.errorRed(brightness);
+  }
 
   Widget _buildTopMatch(double sw, Color c) {
+    final scheme = Theme.of(context).colorScheme;
     final songId = _result!['songId'] as String? ?? '';
     final sim = _result!['similarity'] as double? ?? 0;
     final hashSim = _result!['hashSimilarity'] as double? ?? 0;
@@ -347,162 +370,134 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
     final artist = _result!['artist'] as String? ?? '';
     final lowConf = _result!['lowConfidence'] as bool? ?? false;
     final brightness = Theme.of(context).brightness;
-    final mc = sim >= 80
-        ? AppColors.successGreen(brightness)
-        : sim >= 60
-            ? AppColors.warningOrange(brightness)
-            : AppColors.errorRed(brightness);
-    return Column(children: [
-      const SizedBox(height: 8),
-
-      // 低置信度警告
-      if (lowConf)
-        Container(
-          width: sw * 0.85,
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: EdgeInsets.all(sw * 0.03),
-          decoration: BoxDecoration(
-            color: AppColors.errorRed(brightness).withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-            border: Border.all(
-                color: AppColors.errorRed(brightness).withValues(alpha: 0.3)),
-          ),
-          child: Row(children: [
-            Icon(Icons.warning_amber,
-                color: AppColors.errorRed(brightness), size: 22),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text('匹配度过低，可能不是曲绘照片，请重新框选裁剪区域后再试',
-                  style: TextStyle(
-                      color: AppColors.errorRed(brightness),
-                      fontSize: sw * 0.03)),
-            ),
-          ]),
-        ),
-
-      // 左右对比：用户输入 vs 匹配曲绘
-      Row(
-        mainAxisAlignment: MainAxisAlignment.center,
+    final mc = _similarityColor(sim);
+    // 页边距 + 卡片内边距 + 中间箭头之后，两张图平分剩下的宽度
+    final imageSize = (sw - 2 * AppDesignTokens.gutter - 2 * 14 - 36) / 2;
+    return AppCard(
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // 左侧：用户输入图片
-          _buildSideImage(
-            sw: sw,
-            c: c,
-            label: '输入图片',
-            image: _photoPath != null
-                ? Image.file(
-                    File(_photoPath!),
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
-                      color: Theme.of(context).colorScheme.surface,
-                      child: Center(
-                        child: Icon(Icons.broken_image,
-                            size: sw * 0.08,
-                            color: AppColors.greyHint(
-                                Theme.of(context).brightness)),
-                      ),
-                    ),
-                  )
-                : null,
-            borderColor: AppColors.tableBorder(Theme.of(context).brightness),
+          // 低置信度警告
+          if (lowConf)
+            Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.errorRed(brightness).withValues(alpha: 0.1),
+                borderRadius:
+                    BorderRadius.circular(AppDesignTokens.radiusSmall),
+              ),
+              child: Row(children: [
+                Icon(Icons.warning_amber,
+                    color: AppColors.errorRed(brightness), size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('匹配度过低，可能不是曲绘照片，请重新框选裁剪区域后再试',
+                      style: TextStyle(
+                          color: AppColors.errorRed(brightness), fontSize: 12)),
+                ),
+              ]),
+            ),
+
+          // 左右对比：用户输入 vs 匹配曲绘
+          Row(
+            children: [
+              // 左侧：用户输入图片
+              _buildSideImage(
+                size: imageSize,
+                label: '输入图片',
+                image: _photoPath != null
+                    ? Image.file(
+                        File(_photoPath!),
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => ColoredBox(
+                          color: AppSurfaces.inset(context),
+                          child: Center(
+                            child: Icon(Icons.broken_image,
+                                size: 32, color: scheme.onSurfaceVariant),
+                          ),
+                        ),
+                      )
+                    : null,
+              ),
+              SizedBox(
+                width: 36,
+                child: Icon(Icons.arrow_forward_rounded, color: mc, size: 22),
+              ),
+              // 右侧：匹配曲绘
+              // ⚠️ 不能用 AssetImage(CoverUtil.buildCoverPath(songId))：那是**原始 id**
+              // 的路径，5 位（DX 条目，如 11312 / 10030）与 6 位（宴会场）的曲绘资源
+              // 名字是剔除后的 id（1312.webp / 1634.webp），直读必然 errorBuilder
+              // —— 表现就是「识别结果里的曲绘不显示」。统一走 CoverUtil 的多级兜底。
+              _buildSideImage(
+                size: imageSize,
+                label: '匹配曲绘',
+                image: CoverUtil.buildCoverWidget(songId, imageSize),
+                borderColor: mc,
+              ),
+            ],
           ),
-          // 中间箭头
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: sw * 0.015),
-            child: Icon(Icons.arrow_forward, color: mc, size: sw * 0.06),
-          ),
-          // 右侧：匹配曲绘
-          // ⚠️ 不能用 AssetImage(CoverUtil.buildCoverPath(songId))：那是**原始 id**
-          // 的路径，5 位（DX 条目，如 11312 / 10030）与 6 位（宴会场）的曲绘资源
-          // 名字是剔除后的 id（1312.webp / 1634.webp），直读必然 errorBuilder
-          // —— 表现就是「识别结果里的曲绘不显示」。统一走 CoverUtil 的多级兜底。
-          _buildSideImage(
-            sw: sw,
-            c: c,
-            label: '匹配曲绘',
-            image: CoverUtil.buildCoverWidget(songId, sw * 0.35),
-            borderColor: mc,
-            isMatch: true,
-          ),
-        ],
-      ),
-      const SizedBox(height: 12),
-      Container(
-        padding: EdgeInsets.all(sw * 0.035),
-        decoration: BoxDecoration(
-            color: mc.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: mc.withValues(alpha: 0.3))),
-        child: Column(children: [
-          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(
-                sim >= 80
-                    ? Icons.check_circle
-                    : sim >= 60
-                        ? Icons.help_outline
-                        : Icons.warning_amber,
-                color: mc,
-                size: sw * 0.045),
-            const SizedBox(width: 6),
-            Text(
-                lowConf
-                    ? '综合匹配 ${sim.toStringAsFixed(2)}%（不可靠）'
-                    : '综合匹配 ${sim.toStringAsFixed(2)}%',
-                style: TextStyle(
-                    color: mc,
-                    fontSize: sw * 0.043,
-                    fontWeight: FontWeight.bold)),
-          ]),
-          const SizedBox(height: 6),
-          // 纹理相似度 + 颜色相似度 分解
-          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            _buildSimBadge(sw, '纹理', hashSim),
-            SizedBox(width: sw * 0.04),
-            _buildSimBadge(sw, '颜色', colorSim),
-          ]),
-          const SizedBox(height: 8),
+          const SizedBox(height: 14),
+          // 曲名
           Text(title,
               style: TextStyle(
-                  color: c, fontSize: sw * 0.048, fontWeight: FontWeight.bold),
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis),
-          const SizedBox(height: 2),
-          Text(artist,
-              style: TextStyle(
-                  color: c.withValues(alpha: 0.65), fontSize: sw * 0.033)),
-        ]),
+                  color: scheme.onSurface,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800)),
+          if (artist.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(artist,
+                style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12)),
+          ],
+          const SizedBox(height: 12),
+          // 综合匹配
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text('${sim.toStringAsFixed(2)}%',
+                  style: AppTheme.number(
+                      fontSize: 28, fontWeight: FontWeight.w800, color: mc)),
+              const SizedBox(width: 8),
+              Text(lowConf ? '综合匹配（不可靠）' : '综合匹配',
+                  style:
+                      TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          // 纹理相似度 + 颜色相似度 分解
+          _buildSimRow('纹理', hashSim),
+          const SizedBox(height: 6),
+          _buildSimRow('颜色', colorSim),
+        ],
       ),
-    ]);
+    );
   }
 
-  Widget _buildSimBadge(double sw, String label, double value) {
-    final brightness = Theme.of(context).brightness;
-    final color = value >= 80
-        ? AppColors.successGreen(brightness)
-        : value >= 55
-            ? AppColors.warningOrange(brightness)
-            : AppColors.errorRed(brightness);
-    return Container(
-      padding:
-          EdgeInsets.symmetric(horizontal: sw * 0.025, vertical: sw * 0.008),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+  Widget _buildSimRow(String label, double value) {
+    final scheme = Theme.of(context).colorScheme;
+    final color = _similarityColor(value, mid: 55);
+    return Row(children: [
+      SizedBox(
+        width: 32,
+        child: Text(label,
+            style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
       ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Text('$label ',
-            style: TextStyle(
-                fontSize: sw * 0.026,
-                color: Theme.of(context).colorScheme.onSurfaceVariant)),
-        Text('${value.toStringAsFixed(2)}%',
-            style: TextStyle(
-                fontSize: sw * 0.028,
-                fontWeight: FontWeight.bold,
-                color: color)),
-      ]),
-    );
+      Expanded(
+        child: SmoothLinearProgressIndicator(
+          value: (value / 100).clamp(0.0, 1.0).toDouble(),
+          minHeight: 6,
+          color: color,
+          backgroundColor: AppSurfaces.inset(context),
+          borderRadius: BorderRadius.circular(3),
+        ),
+      ),
+      const SizedBox(width: 8),
+      Text('${value.toStringAsFixed(2)}%',
+          style: AppTheme.number(
+              fontSize: 12, fontWeight: FontWeight.w700, color: color)),
+    ]);
   }
 
   /// 左右对比里的一格。
@@ -511,54 +506,47 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
   /// `CoverUtil.buildCoverWidget` 走多级兜底链，它返回的是 Widget ——
   /// 用 provider 就没法落地「本地路径规则 + 网络兜底」了。
   Widget _buildSideImage({
-    required double sw,
-    required Color c,
+    required double size,
     required String label,
     required Widget? image,
-    required Color borderColor,
-    bool isMatch = false,
+    Color? borderColor,
   }) {
-    final size = sw * 0.35;
+    final scheme = Theme.of(context).colorScheme;
+    final radius = BorderRadius.circular(AppDesignTokens.radiusMedium);
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(label,
-            style: TextStyle(
-                fontSize: sw * 0.026, color: c.withValues(alpha: 0.5))),
-        const SizedBox(height: 4),
-        Container(
+        SizedBox(
           width: size,
           height: size,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-            border: Border.all(color: borderColor, width: isMatch ? 3 : 1.5),
-            boxShadow: isMatch
-                ? [
-                    BoxShadow(
-                        color: borderColor.withValues(alpha: 0.3),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2))
-                  ]
-                : [AppConstants.defaultShadow(Theme.of(context).brightness)],
-          ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(isMatch ? 7 : 8.5),
-            child: image ??
-                Container(
-                    color: Theme.of(context).colorScheme.surface,
-                    child: Center(
-                        child: Icon(Icons.image,
-                            size: sw * 0.08,
-                            color: AppColors.greyHint(
-                                Theme.of(context).brightness)))),
+            borderRadius: radius,
+            child: Stack(fit: StackFit.expand, children: [
+              image ??
+                  ColoredBox(
+                      color: AppSurfaces.inset(context),
+                      child: Center(
+                          child: Icon(Icons.image,
+                              size: 32, color: scheme.onSurfaceVariant))),
+              if (borderColor != null)
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: radius,
+                    border: Border.all(color: borderColor, width: 2.5),
+                  ),
+                ),
+            ]),
           ),
         ),
+        const SizedBox(height: 6),
+        Text(label,
+            style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
       ],
     );
   }
 
   Widget _buildTop10List(double sw, Color c) {
-    final brightness = Theme.of(context).brightness;
+    final scheme = Theme.of(context).colorScheme;
     final matches = (_result!['topMatches'] as List<dynamic>?) ?? [];
     if (matches.isEmpty) return const SizedBox.shrink();
 
@@ -580,114 +568,79 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
         .toList(); // 截取前10条，确保过滤/去重后始终显示10个
     if (validMatches.isEmpty) return const SizedBox.shrink();
 
-    return Container(
-      decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-          border: Border.all(color: Theme.of(context).colorScheme.surface)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Padding(
-          padding:
-              EdgeInsets.fromLTRB(sw * 0.04, sw * 0.03, sw * 0.04, sw * 0.02),
-          child: Row(children: [
-            Icon(Icons.leaderboard, size: sw * 0.04, color: c),
-            const SizedBox(width: 6),
-            Text('识别结果 Top 10',
-                style: TextStyle(
-                    color: c,
-                    fontSize: sw * 0.038,
-                    fontWeight: FontWeight.bold)),
-          ]),
+    return AppCard(
+      padding: EdgeInsets.zero,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        const AppSectionHeader(
+          title: '识别结果 Top 10',
+          padding: EdgeInsets.fromLTRB(14, 14, 14, 8),
         ),
-        const Divider(height: 1),
         ...validMatches.asMap().entries.map((e) {
-          final i = e.key;
           final m = e.value as Map<String, dynamic>;
           final sid = m['songId'] as String? ?? '';
           final sim = m['similarity'] as double? ?? 0;
           final title = m['songTitle'] as String? ?? '';
           final artist = m['artist'] as String? ?? '';
-          final best = i == 0;
-          return Container(
-            color: best
-                ? AppColors.successGreen(brightness).withValues(alpha: 0.06)
-                : Theme.of(context).colorScheme.surface,
-            child: ListTile(
-              dense: true,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => SongInfoPage(songId: sid),
-                  ),
-                );
-              },
-              leading: Container(
-                width: sw * 0.12,
-                height: sw * 0.12,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(
-                      color: best
-                          ? AppColors.successGreen(brightness)
-                          : AppColors.tableBorder(brightness),
-                      width: best ? 2 : 1),
+          return InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => SongInfoPage(songId: sid),
                 ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(5),
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(10, 8, 14, 8),
+              decoration: BoxDecoration(
+                border: Border(
+                    top: BorderSide(color: AppSurfaces.hairline(context))),
+              ),
+              child: Row(children: [
+                SizedBox(
+                    width: 32,
+                    child: Center(child: RankingMedal(rank: e.key + 1))),
+                const SizedBox(width: 6),
+                ClipRRect(
+                  borderRadius:
+                      BorderRadius.circular(AppDesignTokens.radiusSmall),
                   // ⚠️ 原来直接 Image.asset(CoverUtil.buildCoverPath(sid))：
                   // 那是**原始 id** 的路径，5 位（DX 条目，如 11312 / 10030）与
                   // 6 位（宴会场）的曲绘资源名是剔除后的 id（1312.webp / 1634.webp），
                   // 直读必然失败 → Top10 里部分曲绘显示成裂图。
                   // 统一走 CoverUtil 的多级兜底（本地规则 + 网络 + dxrating）。
-                  child: CoverUtil.buildCoverWidget(sid, sw * 0.12),
+                  child: CoverUtil.buildCoverWidget(sid, 44),
                 ),
-              ),
-              title: Text(title.isNotEmpty ? title : '歌曲 #$sid',
-                  style: TextStyle(
-                      fontSize: sw * 0.032,
-                      fontWeight: best ? FontWeight.bold : FontWeight.normal),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis),
-              subtitle: artist.isNotEmpty
-                  ? Text(artist,
-                      style: TextStyle(
-                          fontSize: sw * 0.025,
-                          color: AppColors.greyHint(brightness)),
-                      maxLines: 1)
-                  : null,
-              trailing: Container(
-                padding: EdgeInsets.symmetric(
-                    horizontal: sw * 0.02, vertical: sw * 0.006),
-                decoration: BoxDecoration(
-                    color: sim >= 80
-                        ? AppColors.successGreen(brightness)
-                            .withValues(alpha: 0.1)
-                        : sim >= 60
-                            ? AppColors.warningOrange(brightness)
-                                .withValues(alpha: 0.1)
-                            : Theme.of(context).colorScheme.surface,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(
-                        color: sim >= 80
-                            ? AppColors.successGreen(brightness)
-                                .withValues(alpha: 0.25)
-                            : sim >= 60
-                                ? AppColors.warningOrange(brightness)
-                                    .withValues(alpha: 0.25)
-                                : AppColors.tableBorder(brightness))),
-                child: Text('${sim.toStringAsFixed(2)}%',
-                    style: TextStyle(
-                        fontSize: sw * 0.026,
-                        fontWeight: FontWeight.w600,
-                        color: sim >= 80
-                            ? AppColors.successGreen(brightness)
-                            : sim >= 60
-                                ? AppColors.warningOrange(brightness)
-                                : Theme.of(context)
-                                    .colorScheme
-                                    .onSurfaceVariant)),
-              ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      MarqueeText(
+                        text: title.isNotEmpty ? title : '歌曲 #$sid',
+                        style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: scheme.onSurface),
+                      ),
+                      if (artist.isNotEmpty)
+                        MarqueeText(
+                          text: artist,
+                          style: TextStyle(
+                              fontSize: 11, color: scheme.onSurfaceVariant),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text('${sim.toStringAsFixed(2)}%',
+                    style: AppTheme.number(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: sim >= 60
+                            ? _similarityColor(sim)
+                            : scheme.onSurfaceVariant)),
+              ]),
             ),
           );
         }),
@@ -695,55 +648,86 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
     );
   }
 
-  Widget _buildActionButtons(double sw, Color c) => Wrap(
-        spacing: sw * 0.03,
-        runSpacing: sw * 0.02,
-        alignment: WrapAlignment.center,
+  Widget _buildActionButtons(double sw, Color c) {
+    final Widget content;
+    if (_photoPath == null) {
+      content = FilledButton.icon(
+        onPressed: _showSourcePicker,
+        icon: const Icon(Icons.add_a_photo),
+        label: const Text('选择图片'),
+      );
+    } else if (_result == null) {
+      content = Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (_photoPath == null) ...[
-            ElevatedButton.icon(
-              onPressed: _showSourcePicker,
-              icon: const Icon(Icons.add_a_photo),
-              label: const Text('选择图片'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.primary,
-                foregroundColor: Theme.of(context).colorScheme.onPrimary,
+          FilledButton.icon(
+            onPressed: _isRecognizing ? null : _recognize,
+            icon: _isRecognizing
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.search),
+            label: Text(_isRecognizing ? '识别中...' : '开始识别'),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.tonalIcon(
+                  onPressed: () async {
+                    if (_photoPath == null) return;
+                    final cropped = await Navigator.push<String>(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) =>
+                                _ImageCropPage(imagePath: _photoPath!)));
+                    if (cropped != null && mounted)
+                      setState(() {
+                        _photoPath = cropped;
+                        _result = null;
+                      });
+                  },
+                  icon: const Icon(Icons.crop),
+                  label: const Text('重新裁剪'),
+                ),
               ),
-            ),
-          ] else if (_result == null) ...[
-            _btn(sw, c, Icons.search, _isRecognizing ? '识别中...' : '开始识别',
-                _isRecognizing ? null : _recognize, true),
-            _btn(sw, c, Icons.crop, '重新裁剪', () async {
-              if (_photoPath == null) return;
-              final cropped = await Navigator.push<String>(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => _ImageCropPage(imagePath: _photoPath!)));
-              if (cropped != null && mounted)
-                setState(() {
-                  _photoPath = cropped;
-                  _result = null;
-                });
-            }, false),
-            _btn(sw, c, Icons.refresh, '重选', _reset, false),
-          ] else ...[
-            _btn(sw, c, Icons.refresh, '重新识别', _reset, true),
-            _btn(sw, c, Icons.add_a_photo, '再选一张', _showSourcePicker, false),
-          ],
+              const SizedBox(width: 8),
+              Expanded(
+                child: FilledButton.tonalIcon(
+                  onPressed: _reset,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('重选'),
+                ),
+              ),
+            ],
+          ),
         ],
       );
-
-  Widget _btn(double sw, Color c, IconData icon, String label,
-          VoidCallback? onTap, bool primary) =>
-      CoverActionButton(
-        icon: icon,
-        label: label,
-        onPressed: onTap,
-        accent: c,
-        scale: sw,
-        primary: primary,
-        loading: _isRecognizing,
+    } else {
+      content = Row(
+        children: [
+          Expanded(
+            child: FilledButton.icon(
+              onPressed: _reset,
+              icon: const Icon(Icons.refresh),
+              label: const Text('重新识别'),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: FilledButton.tonalIcon(
+              onPressed: _showSourcePicker,
+              icon: const Icon(Icons.add_a_photo),
+              label: const Text('再选一张'),
+            ),
+          ),
+        ],
       );
+    }
+    return SizedBox(width: double.infinity, child: content);
+  }
 
   Widget _buildCacheInfo(double sw, Color c) => FutureBuilder<bool>(
         future: _service.isHashCacheValid(),
@@ -752,14 +736,14 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
           final ok = snap.data ?? false;
           return Row(mainAxisAlignment: MainAxisAlignment.center, children: [
             Icon(ok ? Icons.check_circle_outline : Icons.info_outline,
-                size: sw * 0.032,
+                size: 14,
                 color: ok
                     ? AppColors.successGreen(brightness)
                     : AppColors.warningOrange(brightness)),
             const SizedBox(width: 4),
             Text(ok ? '曲绘索引就绪' : '索引未建立',
                 style: TextStyle(
-                    fontSize: sw * 0.026,
+                    fontSize: 11,
                     color: ok
                         ? AppColors.successGreen(brightness)
                         : AppColors.warningOrange(brightness))),
@@ -769,7 +753,7 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
                 onTap: _rebuildIndex,
                 child: Text('重建索引',
                     style: TextStyle(
-                        fontSize: sw * 0.026,
+                        fontSize: 11,
                         color: c.withValues(alpha: 0.6),
                         decoration: TextDecoration.underline)),
               ),
@@ -841,7 +825,7 @@ class _ImageCropPageState extends State<_ImageCropPage> {
       debugPrint('曲绘裁剪页加载图片失败: $e');
       if (!mounted) return;
       setState(() => _loading = false);
-      Fluttertoast.showToast(msg: '图片无法读取，请换一张图片重试');
+      AppToast.show('图片无法读取，请换一张图片重试');
       Navigator.of(context).pop();
     }
   }
@@ -1052,7 +1036,7 @@ class _ImageCropPageState extends State<_ImageCropPage> {
         height: crop.height / _imageRect.height,
       );
       if (encoded == null) {
-        Fluttertoast.showToast(msg: '裁剪失败，将使用原图继续');
+        AppToast.show('裁剪失败，将使用原图继续');
         return widget.imagePath;
       }
       final outPath =
@@ -1061,7 +1045,7 @@ class _ImageCropPageState extends State<_ImageCropPage> {
       return outPath;
     } catch (e) {
       debugPrint('裁剪出错: $e');
-      Fluttertoast.showToast(msg: '裁剪失败，将使用原图继续');
+      AppToast.show('裁剪失败，将使用原图继续');
       return widget.imagePath;
     }
   }

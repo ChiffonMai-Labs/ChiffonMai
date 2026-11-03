@@ -187,7 +187,7 @@ class _DifficultyDistributionPageState
         unselectedTextColor: color,
         borderColor: color.withValues(alpha: 0.4),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+        textStyle: AppTheme.font(fontSize: 12, fontWeight: FontWeight.w600),
         onTap: () => _onLevelChanged(index),
       ),
     );
@@ -412,7 +412,7 @@ class _DifficultyDistributionPageState
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: AppColors.tableBorder(Theme.of(ctx).brightness),
+                      color: Theme.of(ctx).colorScheme.outlineVariant,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),

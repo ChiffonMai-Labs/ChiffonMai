@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'AppDialogs.dart';
 
 /// 统一的错误信息弹窗。
 ///
@@ -12,41 +13,12 @@ Future<void> showErrorMessageDialog(
   final text = message.trim().isEmpty ? '未知错误' : message.trim();
   return showDialog<void>(
     context: context,
-    builder: (ctx) => AlertDialog(
-      title: Row(
-        children: [
-          Icon(Icons.error_outline_rounded,
-              color: Theme.of(ctx).colorScheme.error),
-          const SizedBox(width: 8),
-          Expanded(child: Text(title)),
-        ],
-      ),
-      content: ConstrainedBox(
-        constraints: const BoxConstraints(maxHeight: 360),
-        child: SingleChildScrollView(
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Theme.of(ctx).colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(8),
-              border:
-                  Border.all(color: Theme.of(ctx).colorScheme.outlineVariant),
-            ),
-            child: SelectableText(
-              text,
-              style: TextStyle(
-                color: Theme.of(ctx).colorScheme.onSurface,
-                fontSize: 13,
-                height: 1.45,
-                fontFamily: 'monospace',
-              ),
-            ),
-          ),
-        ),
-      ),
+    builder: (ctx) => AppDialog(
+      title: title,
+      tone: AppDialogTone.error,
+      content: AppDialogCodeBlock(text),
       actions: [
-        TextButton(
+        FilledButton(
           onPressed: () => Navigator.of(ctx).pop(),
           child: const Text('知道了'),
         ),

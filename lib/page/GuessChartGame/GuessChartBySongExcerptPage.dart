@@ -28,6 +28,10 @@ import 'GuessChartLoadingView.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
 import '../../widgets/GuessUi.dart';
 import '../../utils/AppDesignTokens.dart';
+import '../../widgets/AppDialogs.dart';
+import '../../widgets/AppToast.dart';
+import '../../widgets/AppUi.dart';
+import '../../widgets/GuessSettingsUi.dart';
 
 class GuessChartBySongExcerptPage extends StatefulWidget {
   final GuessAudioMode mode;
@@ -460,12 +464,7 @@ class _GuessChartBySongExcerptPageState
         _guessHistory.any((guess) => guess.songId == int.parse(guessedSong.id));
     if (hasGuessed) {
       // 显示提示
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('已经猜过这首歌了！'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+      AppToast.show('已经猜过这首歌了！', duration: Duration(seconds: 2));
       // 清空输入框
       _searchController.clear();
       _searchResults = [];
@@ -629,7 +628,7 @@ class _GuessChartBySongExcerptPageState
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
+        return AppAlertDialog(
           title: const Text('规则说明'),
           content: SingleChildScrollView(
             child: Column(
@@ -688,7 +687,7 @@ class _GuessChartBySongExcerptPageState
     );
   }
 
-  /// 后台校验「当前筛选条件是否还能抽到曲」，抽不到就用 SnackBar 提醒。
+  /// 后台校验「当前筛选条件是否还能抽到曲」，抽不到就用轻提示提醒。
   ///
   /// 放在保存**之后**异步执行：设置已经落盘、用户也已看到「已保存」，
   /// 这里慢一点不会让人干等。校验意义在于尽早发现「条件过严导致开局空转」，
@@ -715,12 +714,7 @@ class _GuessChartBySongExcerptPageState
         selectedGenres: selectedGenres,
       );
       if ((testResult != null && testResult.isNotEmpty) || !mounted) return;
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text('当前筛选条件抽不到曲目，请放宽筛选条件'),
-          duration: Duration(seconds: 4),
-        ),
-      );
+      AppToast.show('当前筛选条件抽不到曲目，请放宽筛选条件', duration: Duration(seconds: 4));
     } catch (e) {
       debugPrint('校验筛选条件失败: $e');
     }
@@ -771,9 +765,10 @@ class _GuessChartBySongExcerptPageState
     await showDialog(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('设置'),
-          contentPadding: EdgeInsets.all(8.0), // 减小对话框内边距
+        return AppAlertDialog(
+          title: const Text('游戏设置'),
+          subtitle: '保存后下局生效',
+          contentPadding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
           content: StatefulBuilder(
             builder: (BuildContext context, StateSetter setState) {
               return SingleChildScrollView(
@@ -817,59 +812,30 @@ class _GuessChartBySongExcerptPageState
                         });
                       },
                     ),
-                    // 播放时长设置
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '播放时长设置',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Theme.of(context).colorScheme.onSurface,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Column(
-                            children: [
-                              Slider(
-                                value: tempPlayDuration.toDouble(),
-                                min: 1,
-                                max: 30,
-                                divisions: 29,
-                                label: '$tempPlayDuration 秒',
-                                onChanged: (value) {
-                                  setState(() {
-                                    tempPlayDuration = value.toInt();
-                                  });
-                                },
-                              ),
-                              Text('$tempPlayDuration 秒'),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (widget.mode == GuessAudioMode.pitchAudio)
-                      GuessAudioRateSlider(
-                        value: tempAudioRate,
-                        onChanged: (value) =>
-                            setState(() => tempAudioRate = value),
-                      ),
-                    // 重置按钮
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      child: Center(
-                        child: ElevatedButton(
-                          onPressed: () {
-                            setState(applySettingsDefaults);
-                          },
-                          child: Text('重置所有设置'),
+                    GuessSettingSection(
+                      title: '本模式设置',
+                      icon: Icons.graphic_eq_rounded,
+                      children: [
+                        GuessSliderTile(
+                          label: '播放时长',
+                          valueText: '$tempPlayDuration 秒',
+                          value: tempPlayDuration.toDouble(),
+                          min: 1,
+                          max: 30,
+                          divisions: 29,
+                          onChanged: (value) =>
+                              setState(() => tempPlayDuration = value.toInt()),
                         ),
-                      ),
+                        if (widget.mode == GuessAudioMode.pitchAudio)
+                          GuessAudioRateSlider(
+                            value: tempAudioRate,
+                            onChanged: (value) =>
+                                setState(() => tempAudioRate = value),
+                          ),
+                      ],
+                    ),
+                    GuessSettingsResetButton(
+                      onPressed: () => setState(applySettingsDefaults),
                     ),
                   ],
                 ),
@@ -887,7 +853,6 @@ class _GuessChartBySongExcerptPageState
               onPressed: () async {
                 // 提示设置已保存，将在下局生效
                 final navigator = Navigator.of(context);
-                final messenger = ScaffoldMessenger.of(context);
 
                 // 先落盘并立刻反馈：saveSettings 只要 2ms，而抽曲校验要遍历
                 // 整份曲库（本模式还要读落雪曲库，冷启动含读盘解析），是秒级
@@ -918,9 +883,7 @@ class _GuessChartBySongExcerptPageState
 
                 if (!navigator.mounted) return;
                 navigator.pop();
-                messenger.showSnackBar(
-                  const SnackBar(content: Text('设置已保存，将在下局游戏生效')),
-                );
+                AppToast.show('设置已保存，将在下局游戏生效');
 
                 _warnIfNoSongMatches(
                   selectedVersions: tempSelectedVersions,
@@ -1042,8 +1005,7 @@ class _GuessChartBySongExcerptPageState
       log('播放准备失败：$error');
       if (current()) {
         setState(() => _isPlaying = false);
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('音频播放失败：$error')));
+        AppToast.show('音频播放失败：$error');
       }
     } finally {
       if (!current() && player != null && identical(player, _audioPlayer)) {
@@ -1129,82 +1091,125 @@ class _GuessChartBySongExcerptPageState
         height: 140,
       );
     }
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 8,
-            offset: Offset(0, 3),
-          ),
-        ],
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Colors.blue[400]!, Colors.purple[500]!],
-        ),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+    final scheme = Theme.of(context).colorScheme;
+    final total =
+        _totalDuration > 0 ? _totalDuration : _currentPlayDuration.toDouble();
+    final label = _audioLoading
+        ? '正在准备音频…'
+        : _isPlaying
+            ? '暂停'
+            : (_hasPlayed ? '重新播放' : '播放歌曲片段');
+    final timeStyle =
+        AppTheme.number(fontSize: 11.5, color: scheme.onSurfaceVariant);
+    return AppCard(
+      padding: const EdgeInsets.fromLTRB(12, 12, 14, 12),
+      child: Row(
         children: [
-          // 播放进度条
-          Slider(
-            value: _currentPosition,
-            min: 0.0,
-            max: _totalDuration > 0
-                ? _totalDuration
-                : _currentPlayDuration.toDouble(),
-            onChanged: _onSeek,
-            onChangeEnd: (value) {
-              // 拖动结束后可以添加逻辑
-            },
-            activeColor: Colors.white,
-            inactiveColor: Colors.white.withOpacity(0.5),
-          ),
-
-          // 时间显示
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                '${_currentPosition.toStringAsFixed(1)}秒',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
+          PressScale(
+            child: Semantics(
+              button: true,
+              label: label,
+              child: Tooltip(
+                message: label,
+                child: GestureDetector(
+                  onTap: _audioLoading
+                      ? null
+                      : _isPlaying
+                          ? _pausePlayback
+                          : _playSongExcerpt,
+                  child: AnimatedContainer(
+                    duration: AppDesignTokens.motion(
+                        context, const Duration(milliseconds: 180)),
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: _audioLoading
+                          ? AppSurfaces.inset(context)
+                          : scheme.primary,
+                      shape: BoxShape.circle,
+                    ),
+                    child: _audioLoading
+                        ? Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2.4, color: scheme.primary),
+                          )
+                        : AnimatedSwitcher(
+                            duration: AppDesignTokens.motion(
+                                context, const Duration(milliseconds: 180)),
+                            transitionBuilder: (child, animation) =>
+                                ScaleTransition(scale: animation, child: child),
+                            child: Icon(
+                              _isPlaying
+                                  ? Icons.pause_rounded
+                                  : _hasPlayed
+                                      ? Icons.replay_rounded
+                                      : Icons.play_arrow_rounded,
+                              key: ValueKey(label),
+                              size: 32,
+                              color: scheme.onPrimary,
+                            ),
+                          ),
+                  ),
                 ),
               ),
-              Text(
-                '${(_totalDuration > 0 ? _totalDuration : _currentPlayDuration.toDouble()).toStringAsFixed(1)}秒',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                ),
-              ),
-            ],
+            ),
           ),
-
-          const SizedBox(height: 16),
-
-          // 播放/暂停按钮
-          ElevatedButton(
-            onPressed: _audioLoading
-                ? null
-                : _isPlaying
-                    ? _pausePlayback
-                    : _playSongExcerpt,
-            child: Text(_audioLoading
-                ? '正在准备音频…'
-                : _isPlaying
-                    ? '暂停'
-                    : (_hasPlayed ? '重新播放' : '播放歌曲片段')),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: Colors.blue,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w700,
+                          color: scheme.onSurface,
+                        ),
+                      ),
+                    ),
+                    if (widget.mode == GuessAudioMode.pitchAudio) ...[
+                      const SizedBox(width: 8),
+                      AppBadge(
+                        text: guessAudioRateLabel(_currentAudioRate),
+                        background: scheme.primaryContainer,
+                        foreground: scheme.onPrimaryContainer,
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 8),
+                // 播放进度条
+                SliderTheme(
+                  data: SliderTheme.of(context).copyWith(
+                    trackHeight: 4,
+                    thumbShape:
+                        const RoundSliderThumbShape(enabledThumbRadius: 6),
+                    overlayShape: SliderComponentShape.noOverlay,
+                    inactiveTrackColor: AppSurfaces.inset(context),
+                  ),
+                  child: Slider(
+                    value: _currentPosition.clamp(0.0, total),
+                    min: 0.0,
+                    max: total,
+                    onChanged: _onSeek,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                // 时间显示
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('${_currentPosition.toStringAsFixed(1)} 秒',
+                        style: timeStyle),
+                    Text('${total.toStringAsFixed(1)} 秒', style: timeStyle),
+                  ],
+                ),
+              ],
             ),
           ),
         ],
@@ -1309,24 +1314,6 @@ class _GuessChartBySongExcerptPageState
                                           rate: _currentAudioRate,
                                           seed: _audioSeed,
                                           singlePlayer: true,
-                                        ),
-                                      ),
-
-                                    // 搜索中状态
-                                    if (_isSearching)
-                                      Container(
-                                        margin: const EdgeInsets.only(top: 8),
-                                        padding: const EdgeInsets.all(16),
-                                        child: Center(
-                                          child: Column(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.center,
-                                            children: [
-                                              CircularProgressIndicator(),
-                                              SizedBox(height: 16),
-                                              Text(_currentLoadingTip),
-                                            ],
-                                          ),
                                         ),
                                       ),
 
@@ -1545,6 +1532,7 @@ class _GuessChartBySongExcerptPageState
                                               },
                     onNewGame: _startNewGame,
                     showResults: _showSearchResults,
+                    searching: _isSearching,
                     resultCount: _searchResults.length,
                     resultBuilder: (context, index) =>
                         _buildSearchResultItem(_searchResults[index]),

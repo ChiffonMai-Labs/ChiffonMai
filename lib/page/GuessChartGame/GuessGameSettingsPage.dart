@@ -4,13 +4,13 @@ import '../../service/GuessChartGame/GuessChartCommonSettingsService.dart';
 import '../../service/GuessChartGame/GuessChartByInfoService.dart';
 import '../../utils/CommonWidgetUtil.dart';
 import '../../utils/SongFilterUtil.dart';
-import '../../utils/ChartDifficulty.dart';
-import '../../utils/ColorUtil.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
-import '../../widgets/NoRipple.dart';
 import '../../widgets/GuessAudioRateSlider.dart';
+import '../../widgets/GuessSettingsUi.dart';
 import '../../utils/AppDesignTokens.dart';
 import '../../widgets/AppUi.dart';
+import '../../widgets/AppToast.dart';
+import '../../widgets/ChartPeekPlaybackUi.dart';
 
 /// 猜歌设置统一入口，继续使用各模式原有的设置存储。
 class GuessGameSettingsPage extends StatefulWidget {
@@ -26,6 +26,7 @@ class _GuessGameSettingsPageState extends State<GuessGameSettingsPage> {
   String? _error;
   Timer? _saveTimer;
   Future<void> _writes = Future.value();
+  bool _saveFailed = false;
 
   @override
   void initState() {
@@ -74,70 +75,57 @@ class _GuessGameSettingsPageState extends State<GuessGameSettingsPage> {
               tileRevealIntervalMs: s['tileRevealIntervalMs'],
               peekDurationSeconds: s['peekDurationSeconds'],
               peekDifficulties: List<String>.from(s['peekDifficulties']),
+              peekFlowSpeed: (s['peekFlowSpeed'] as num).toDouble(),
+              peekMirror: s['peekMirror'] as String,
               playDurationSeconds: s['playDurationSeconds'],
               audioRate: (s['audioRate'] as num).toDouble(),
             ))
         .catchError((Object error) {
-      if (mounted)
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('设置保存失败，请重试')));
+      _saveFailed = true;
+      AppToast.show('设置保存失败，请重试');
     });
   }
 
   @override
   void dispose() {
     _saveTimer?.cancel();
-    if (_settings != null) _save();
+    if (_settings != null) {
+      _save();
+      // 等写盘结束再提示，保存失败时只提示失败
+      _writes.whenComplete(() {
+        if (!_saveFailed) AppToast.show('设置已保存到本地');
+      });
+    }
     super.dispose();
   }
 
   Widget _slider(String title, String key, double min, double max,
       int divisions, String unit) {
-    final value = (_settings![key] as num).toDouble().clamp(min, max);
-    return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        child: Column(children: [
-          Row(children: [
-            Expanded(child: Text(title)),
-            Text('${value.round()}$unit',
-                style: const TextStyle(fontWeight: FontWeight.w600))
-          ]),
-          Slider(
-              value: value,
-              min: min,
-              max: max,
-              divisions: divisions,
-              onChanged: (value) => _change(key, value.round())),
-        ]));
+    final value = (_settings![key] as num).toDouble();
+    return GuessSliderTile(
+      label: title,
+      valueText: '${value.round()}$unit',
+      value: value,
+      min: min,
+      max: max,
+      divisions: divisions,
+      onChanged: (value) => _change(key, value.round()),
+    );
   }
 
-  Widget _section(String title, IconData icon, List<Widget> children) =>
-      Padding(
+  Widget _gap(int index, Widget child) => EntranceAnimation(
+        index: index,
+        offset: const Offset(0, 10),
+        child: Padding(
           padding: const EdgeInsets.only(bottom: AppDesignTokens.cardGap),
-          child: AppCard(
-              padding: EdgeInsets.zero,
-              child: NoRipple(
-                  child: ExpansionTile(
-        initiallyExpanded: true,
-        // 收起后保留控件状态，避免再次展开时重建输入与筛选区域。
-        maintainState: true,
-        expansionAnimationStyle: MediaQuery.disableAnimationsOf(context)
-            ? AnimationStyle.noAnimation
-            : const AnimationStyle(
-                duration: Duration(milliseconds: 320),
-                curve: Curves.easeInOutCubic,
-                reverseCurve: Curves.easeInOutCubic,
-              ),
-        leading: Icon(icon),
-        title: Text(title),
-        shape: const Border(),
-        collapsedShape: const Border(),
-        children: children,
-      ))));
+          child: child,
+        ),
+      );
 
   @override
   Widget build(BuildContext context) {
     final s = _settings;
+    final scheme = Theme.of(context).colorScheme;
     return BackgroundPageScaffold(
       title: '单人猜歌游戏设置',
       resizeToAvoidBottomInset: false,
@@ -146,131 +134,136 @@ class _GuessGameSettingsPageState extends State<GuessGameSettingsPage> {
               child: _error == null
                   ? const CircularProgressIndicator()
                   : TextButton(onPressed: _load, child: Text(_error!)))
-          : ListView(
+          : SingleChildScrollView(
               padding: EdgeInsets.fromLTRB(
                   AppDesignTokens.gutter,
-                  8,
+                  4,
                   AppDesignTokens.gutter,
-                  MediaQuery.paddingOf(context).bottom + 16),
-              children: [
+                  MediaQuery.paddingOf(context).bottom +
+                      MediaQuery.viewInsetsOf(context).bottom +
+                      16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
                   Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                      child: Text('修改会自动保存，并在下一局单人游戏中生效。',
-                          style: TextStyle(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant))),
-                  _section('共用设置', Icons.tune, [
-                    CommonWidgetUtil.buildGuessChartSettingsWidget(
-                      context,
-                      _versions,
-                      _genres,
-                      List<String>.from(s['selectedVersions']),
-                      (s['masterMinDx'] as num).toDouble(),
-                      (s['masterMaxDx'] as num).toDouble(),
-                      List<String>.from(s['selectedGenres']),
-                      s['maxGuesses'],
-                      s['timeLimit'],
-                      (value) => _change('selectedVersions', value),
-                      (min, max) {
-                        _settings!['masterMinDx'] = min;
-                        _change('masterMaxDx', max);
-                      },
-                      (value) => _change('selectedGenres', value),
-                      (value) => _change('maxGuesses', value),
-                      (value) => _change('timeLimit', value),
-                    )
-                  ]),
-                  _section('歌曲片段、倒放与变速变调', Icons.graphic_eq, [
-                    _slider('片段播放时长', 'playDurationSeconds', 1, 30, 29, ' 秒'),
-                    GuessAudioRateSlider(
-                      value: (s['audioRate'] as num).toDouble(),
-                      onChanged: (value) => _change('audioRate', value),
-                    ),
-                  ]),
-                  _section('模糊曲绘', Icons.blur_on,
-                      [_slider('模糊程度', 'blurLevel', 0, 100, 100, '%')]),
-                  _section('开字母', Icons.text_fields, [
-                    _slider('每次抽取歌曲数', 'songCount', 1, 10, 9, ' 首'),
-                    _slider('非英文字符过滤阈值', 'nonEnglishCharThreshold', 0, 100, 100,
-                        '%'),
-                  ]),
-                  _section('曲绘快闪', Icons.flash_on, [
-                    _slider('快闪时长', 'flashDurationMs', 100, 3000, 29, ' ms')
-                  ]),
-                  _section('曲绘拼图', Icons.grid_on, [
-                    _slider('切块数量', 'tileCount', 100, 10000, 99, ' 块'),
-                    _slider(
-                        '揭示间隔', 'tileRevealIntervalMs', 100, 10000, 99, ' ms'),
-                  ]),
-                  _section('谱面片段', Icons.music_note, [
-                    _slider('片段时长', 'peekDurationSeconds', 3, 60, 57, ' 秒'),
-                    Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                        child: NoRipple(
-                            child: Wrap(
-                                spacing: 8,
-                                runSpacing: 4,
-                                children: ChartDifficulty.standardIndices
-                                    .map((index) {
-                                  final inote =
-                                      '${ChartDifficulty.toMaidataIndex(index)}';
-                                  final selected =
-                                      (s['peekDifficulties'] as List)
-                                          .contains(inote);
-                                  final color = ColorUtil.getCardColor(index);
-                                  final foreground =
-                                      ThemeData.estimateBrightnessForColor(
-                                                  color) ==
-                                              Brightness.dark
-                                          ? Colors.white
-                                          : Colors.black87;
-                                  return FilterChip(
-                                    label: Text(ChartDifficulty.labelOf(index)),
-                                    selected: selected,
-                                    selectedColor: color,
-                                    checkmarkColor: foreground,
-                                    labelStyle: TextStyle(
-                                        color: selected
-                                            ? foreground
-                                            : Theme.of(context)
-                                                .colorScheme
-                                                .onSurface),
-                                    side: BorderSide(
-                                        color: selected
-                                            ? color
-                                            : Theme.of(context)
-                                                .colorScheme
-                                                .outlineVariant),
-                                    onSelected: (selected) {
-                                      final pool = List<String>.from(
-                                          s['peekDifficulties']);
-                                      final inote =
-                                          '${ChartDifficulty.toMaidataIndex(index)}';
-                                      selected
-                                          ? pool.add(inote)
-                                          : pool.remove(inote);
-                                      if (pool.isNotEmpty)
-                                        _change('peekDifficulties', pool);
-                                    },
-                                  );
-                                }).toList()))),
-                  ]),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
-                    child: OutlinedButton.icon(
-                      icon: const Icon(Icons.restore),
-                      label: const Text('恢复默认设置'),
-                      onPressed: () {
-                        setState(() => _settings = _service.defaultSettings());
-                        _saveTimer?.cancel();
-                        _save();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('已恢复默认设置')));
-                      },
+                    padding: const EdgeInsets.fromLTRB(4, 0, 4, 12),
+                    child: Row(
+                      children: [
+                        Icon(Icons.cloud_done_outlined,
+                            size: 16, color: scheme.onSurfaceVariant),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            '修改会自动保存，下一局生效。',
+                            style: TextStyle(
+                                fontSize: 12.5,
+                                color: scheme.onSurfaceVariant),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ]),
+                  CommonWidgetUtil.buildGuessChartSettingsWidget(
+                    context,
+                    _versions,
+                    _genres,
+                    List<String>.from(s['selectedVersions']),
+                    (s['masterMinDx'] as num).toDouble(),
+                    (s['masterMaxDx'] as num).toDouble(),
+                    List<String>.from(s['selectedGenres']),
+                    s['maxGuesses'],
+                    s['timeLimit'],
+                    (value) => _change('selectedVersions', value),
+                    (min, max) {
+                      _settings!['masterMinDx'] = min;
+                      _change('masterMaxDx', max);
+                    },
+                    (value) => _change('selectedGenres', value),
+                    (value) => _change('maxGuesses', value),
+                    (value) => _change('timeLimit', value),
+                    card: true,
+                  ),
+                  const SizedBox(height: AppDesignTokens.cardGap),
+                  _gap(
+                    0,
+                    GuessSettingSection(
+                      card: true,
+                      title: '歌曲片段、倒放与变速变调',
+                      icon: Icons.graphic_eq_rounded,
+                      children: [
+                        _slider('片段播放时长', 'playDurationSeconds', 1, 30, 29, ' 秒'),
+                        GuessAudioRateSlider(
+                          value: (s['audioRate'] as num).toDouble(),
+                          onChanged: (value) => _change('audioRate', value),
+                        ),
+                      ],
+                    ),
+                  ),
+                  _gap(
+                    1,
+                    GuessSettingSection(
+                      card: true,
+                      title: '谱面片段',
+                      icon: Icons.music_note_rounded,
+                      children: [
+                        _slider('片段时长', 'peekDurationSeconds', 3, 60, 57, ' 秒'),
+                        ChartPeekPlaybackSettings(
+                          speed: (s['peekFlowSpeed'] as num).toDouble(),
+                          mirror: ChartPeekPlayback.mirrorOf(
+                              s['peekMirror'] as String?),
+                          onSpeedChanged: (value) =>
+                              _change('peekFlowSpeed', value),
+                          onMirrorChanged: (value) =>
+                              _change('peekMirror', value.name),
+                        ),
+                        ChartPeekDifficultyPool(
+                          selected: List<String>.from(s['peekDifficulties']),
+                          onChanged: (pool) =>
+                              _change('peekDifficulties', pool),
+                        ),
+                      ],
+                    ),
+                  ),
+                  _gap(
+                    2,
+                    GuessSettingSection(
+                      card: true,
+                      title: '曲绘玩法',
+                      icon: Icons.image_outlined,
+                      children: [
+                        _slider('模糊曲绘：模糊程度', 'blurLevel', 0, 100, 100, '%'),
+                        _slider('曲绘快闪：快闪时长', 'flashDurationMs', 100, 3000, 29,
+                            ' ms'),
+                        _slider('曲绘拼图：切块数量', 'tileCount', 100, 10000, 99, ' 块'),
+                        _slider('曲绘拼图：揭示间隔', 'tileRevealIntervalMs', 100, 10000,
+                            99, ' ms'),
+                      ],
+                    ),
+                  ),
+                  _gap(
+                    3,
+                    GuessSettingSection(
+                      card: true,
+                      title: '开字母',
+                      icon: Icons.abc_rounded,
+                      children: [
+                        _slider('每次抽取歌曲数', 'songCount', 1, 10, 9, ' 首'),
+                        _slider('非英文字符过滤阈值', 'nonEnglishCharThreshold', 0, 100,
+                            100, '%'),
+                      ],
+                    ),
+                  ),
+                  GuessSettingsResetButton(
+                    onPressed: () {
+                      setState(() => _settings = _service.defaultSettings());
+                      _saveTimer?.cancel();
+                      _save();
+                      AppToast.show('已恢复默认设置');
+                    },
+                  ),
+                ],
+              ),
+            ),
     );
   }
 }

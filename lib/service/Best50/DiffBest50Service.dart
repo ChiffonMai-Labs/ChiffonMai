@@ -5,6 +5,7 @@ import '../../manager/DivingFish/DiffMusicDataManager.dart';
 import '../../manager/DivingFish/UserBest50Manager.dart';
 import '../../manager/DivingFish/MaimaiMusicDataManager.dart';
 import '../../utils/SongFilterUtil.dart';
+import '../../utils/Best50Tie.dart';
 
 class DiffBest50Service {
   // 单例模式
@@ -169,6 +170,8 @@ class DiffBest50Service {
       // 按DiffRating降序排序
       diffBest50.sort((a, b) => b['diffRating'].compareTo(a['diffRating']));
 
+      final remaining = tiedBeyondCut(diffBest50, 50, 'diffRating');
+
       // 取前50条
       if (diffBest50.length > 50) {
         diffBest50 = diffBest50.sublist(0, 50);
@@ -185,6 +188,7 @@ class DiffBest50Service {
       return {
         'diffRatingSum': diffRatingSum,
         'diffBest50': diffBest50,
+        'remaining': remaining,
         'best50Diff': best50Diff,
       };
     } catch (e) {
@@ -499,6 +503,9 @@ class DiffBest50Service {
       diffSdSongs.sort((a, b) => b['diffRating'].compareTo(a['diffRating']));
       diffDxSongs.sort((a, b) => b['diffRating'].compareTo(a['diffRating']));
 
+      final sdRemaining = tiedBeyondCut(diffSdSongs, 35, 'diffRating');
+      final dxRemaining = tiedBeyondCut(diffDxSongs, 15, 'diffRating');
+
       // 非当前版本取前35首，当前版本取前15首
       if (diffSdSongs.length > 35) {
         diffSdSongs = diffSdSongs.sublist(0, 35);
@@ -533,6 +540,8 @@ class DiffBest50Service {
         'diffBest50': diffBest50,
         'diffSdSongs': diffSdSongs,
         'diffDxSongs': diffDxSongs,
+        'sdRemaining': sdRemaining,
+        'dxRemaining': dxRemaining,
         'best50Diff': best50Diff,
       };
     } catch (e) {

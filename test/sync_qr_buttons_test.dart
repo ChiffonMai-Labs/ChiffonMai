@@ -18,12 +18,6 @@ void main() {
 
   setUp(() {
     SharedPreferences.setMockInitialValues({});
-    // fluttertoast 走平台通道，测试环境里没有实现
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(
-      const MethodChannel('fluttertoast'),
-      (call) async => null,
-    );
   });
 
   Future<void> pumpAndOpen(

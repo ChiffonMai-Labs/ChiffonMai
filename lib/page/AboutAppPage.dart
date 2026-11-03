@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/services.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../api/ApiUrls.dart';
@@ -11,6 +10,7 @@ import '../widgets/AppHeader.dart';
 import '../widgets/AppLauncherIcon.dart';
 import 'LegalDocumentPage.dart';
 import '../utils/AppDesignTokens.dart';
+import '../widgets/AppToast.dart';
 
 /// 关于页：品牌介绍、维护者与致谢分组直接布局在主题背景上。
 class AboutAppPage extends StatefulWidget {
@@ -147,7 +147,7 @@ class _AboutAppPageState extends State<AboutAppPage> {
     } catch (e) {
       debugPrint('[AboutAppPage] 打开链接失败: $e');
     }
-    Fluttertoast.showToast(msg: '无法打开链接：$url');
+    AppToast.show('无法打开链接：$url');
   }
 
   /// 邮箱优先走邮件客户端；没有可用客户端时退回「复制到剪贴板」，
@@ -162,7 +162,7 @@ class _AboutAppPageState extends State<AboutAppPage> {
       debugPrint('[AboutAppPage] 打开邮件客户端失败: $e');
     }
     await Clipboard.setData(const ClipboardData(text: _email));
-    Fluttertoast.showToast(msg: '邮箱已复制到剪贴板');
+    AppToast.show('邮箱已复制到剪贴板');
   }
 
   @override

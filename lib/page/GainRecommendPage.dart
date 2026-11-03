@@ -9,6 +9,8 @@ import '../utils/StringUtil.dart';
 import '../widgets/BackgroundPageScaffold.dart';
 import 'SongInfoPage.dart';
 import '../utils/AppDesignTokens.dart';
+import '../widgets/AppToast.dart';
+import '../widgets/AppUi.dart';
 
 /// 吃分推荐：按「仅这一张谱达标后 B50 涨多少」挑谱。算法由 AWMC 提供。
 ///
@@ -139,14 +141,13 @@ class _GainRecommendPageState extends State<GainRecommendPage> {
   }
 
   Future<void> _onFeedback(GainCandidate c, String action) async {
-    final messenger = ScaffoldMessenger.of(context);
     final label = '${c.title} [${c.level}]';
     if (action == 'skip') {
       setState(() {
         _skipped.add(c.key);
         _removeFromPage(c.key);
       });
-      messenger.showSnackBar(SnackBar(content: Text('已跳过 $label（仅本次）')));
+      AppToast.show('已跳过 $label（仅本次）');
       return;
     }
     final kind =
@@ -155,7 +156,7 @@ class _GainRecommendPageState extends State<GainRecommendPage> {
       await GainFeedbackStore.instance
           .record(c.key, kind, title: c.title, level: c.level);
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('保存反馈失败：$e')));
+      AppToast.show('保存反馈失败：$e');
       return;
     }
     if (!mounted) return;
@@ -163,18 +164,9 @@ class _GainRecommendPageState extends State<GainRecommendPage> {
       _feedbackExcluded = {..._feedbackExcluded, c.key};
       _removeFromPage(c.key);
     });
-    messenger.showSnackBar(SnackBar(
-      content: Text(kind == GainFeedbackKind.dislike
+    AppToast.show(kind == GainFeedbackKind.dislike
           ? '不再推荐 $label（可在反馈管理里撤销）'
-          : '$label 暂停推荐 14 天'),
-      // Flutter 3.41 起，带 action 的 SnackBar 默认 persist（不自动消失），
-      // 这里仍按 duration 自动收回，避免底部提示一直挂着挡内容。
-      persist: false,
-      action: SnackBarAction(
-        label: '撤销',
-        onPressed: () => _undoFeedback(c.key),
-      ),
-    ));
+          : '$label 暂停推荐 14 天', actionLabel: '撤销', onAction: () => _undoFeedback(c.key));
   }
 
   /// 撤销后谱面不会自动插回当前批，下一次换批 / 重新开始时才可能再出现。
@@ -240,12 +232,13 @@ class _GainRecommendPageState extends State<GainRecommendPage> {
         Expanded(
           child: ListView(
             controller: _scrollController,
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+            padding: const EdgeInsets.fromLTRB(AppDesignTokens.gutter, 4,
+                AppDesignTokens.gutter, AppDesignTokens.gutter),
             children: [
-              _SummaryCard(snapshot: snapshot),
-              const SizedBox(height: 8),
+              EntranceAnimation(child: _SummaryCard(snapshot: snapshot)),
+              const SizedBox(height: AppDesignTokens.cardGap),
               _buildRouteSelector(context, snapshot),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppDesignTokens.cardGap),
               if (page.items.isEmpty)
                 _CenteredMessage(
                   message: _route == null && snapshot.result.candidates.isEmpty
@@ -256,19 +249,26 @@ class _GainRecommendPageState extends State<GainRecommendPage> {
                 )
               else ...[
                 _buildPageHeader(context, snapshot, page),
-                for (final c in page.items)
-                  _CandidateCard(
-                    candidate: c,
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => SongInfoPage(
-                          songId: c.songId.toString(),
-                          initialLevelIndex: c.levelIndex,
+                for (final (index, c) in page.items.indexed)
+                  EntranceAnimation(
+                    // 换批或换路线时重播
+                    key: ValueKey('$_batch-$_route-${c.songId}-${c.levelIndex}'),
+                    index: index,
+                    offset: const Offset(0, 10),
+                    duration: const Duration(milliseconds: 340),
+                    child: _CandidateCard(
+                      candidate: c,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => SongInfoPage(
+                            songId: c.songId.toString(),
+                            initialLevelIndex: c.levelIndex,
+                          ),
                         ),
                       ),
+                      onFeedback: (action) => _onFeedback(c, action),
                     ),
-                    onFeedback: (action) => _onFeedback(c, action),
                   ),
                 if (page.fillNote.isNotEmpty)
                   Padding(
@@ -298,17 +298,13 @@ class _GainRecommendPageState extends State<GainRecommendPage> {
       for (final route in GainRoute.values)
         (route, '${route.label} ${result.count(route)}'),
     ];
-    return Wrap(
-      spacing: 8,
-      runSpacing: 4,
-      children: [
-        for (final (route, label) in options)
-          ChoiceChip(
-            label: Text(label),
-            selected: _route == route,
-            onSelected: (_) => _switchRoute(route),
-          ),
-      ],
+    return PillTabs(
+      items: [for (final (_, label) in options) SegmentedTabItem(label)],
+      selectedIndex: options.indexWhere((option) => option.$1 == _route),
+      onChanged: (index) {
+        // 再点当前选项不重新加载
+        if (options[index].$1 != _route) _switchRoute(options[index].$1);
+      },
     );
   }
 
@@ -317,58 +313,68 @@ class _GainRecommendPageState extends State<GainRecommendPage> {
     final combined = combinedGainOfPage(snapshot.result.records, page.items);
     final scheme = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.only(bottom: 10),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (combined != null && combined > 0) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: scheme.primary.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+              ),
+              child: Row(
+                children: [
+                  Text(
+                    '+$combined',
+                    style: AppTheme.number(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: scheme.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      '本页全部达成的合计（按 B50 逐步重算，已扣除互相顶替）',
+                      style: TextStyle(fontSize: 12, color: scheme.primary),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
           Text(
             '第 $_batch 批 · ${page.items.length} 条（每条为独立净收益，不可直接相加）',
             style: _hintStyle(context),
           ),
-          if (combined != null && combined > 0)
-            Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: Text(
-                '本页全部达成合计 +$combined（按 B50 逐步重算，已扣除互相顶替）',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: scheme.primary,
-                ),
-              ),
-            ),
         ],
       ),
     );
   }
 
   Widget _buildBottomBar(BuildContext context, GainPage page) {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-      decoration: BoxDecoration(
-        border: Border(top: BorderSide(color: scheme.outlineVariant)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: _restart,
-              icon: const Icon(Icons.restart_alt_rounded),
-              label: const Text('重新开始'),
-            ),
+    return BottomActionBar(
+      children: [
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: _restart,
+            icon: const Icon(Icons.restart_alt_rounded),
+            label: const Text('重新开始'),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: FilledButton.icon(
-              onPressed:
-                  page.items.isEmpty || page.remaining == 0 ? null : _nextBatch,
-              icon: const Icon(Icons.autorenew_rounded),
-              label: Text(page.remaining == 0 ? '已无更多' : '换一批'),
-            ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: FilledButton.icon(
+            onPressed:
+                page.items.isEmpty || page.remaining == 0 ? null : _nextBatch,
+            icon: const Icon(Icons.autorenew_rounded),
+            label: Text(page.remaining == 0 ? '已无更多' : '换一批'),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -400,52 +406,57 @@ class _SummaryCard extends StatelessWidget {
       if (snapshot.unmatchedRecords > 0)
         '${snapshot.unmatchedRecords} 条成绩在曲库里找不到，按旧曲处理；刷新曲库后更准确',
     ];
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Wrap(
-              spacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.end,
-              children: [
-                Text('当前 B50', style: _hintStyle(context)),
-                Text(
-                  '${baseline.raSum}',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: scheme.primary,
-                  ),
-                ),
-                Text(
-                  'B35 $b35Sum · B15 $b15Sum',
-                  style: _hintStyle(context),
-                ),
-              ],
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('当前 B50', style: _hintStyle(context)),
+          RollingNumber(
+            value: baseline.raSum,
+            style: AppTheme.number(
+              fontSize: 36,
+              fontWeight: FontWeight.w800,
+              height: 1.2,
+              color: scheme.primary,
             ),
-            const SizedBox(height: 4),
-            Text(
-              'B35 底线 RA ${baseline.floor(false)}（${baseline.b35.length}/$gainB35Size）'
-              ' · B15 底线 RA ${baseline.floor(true)}（${baseline.b15.length}/$gainB15Size）',
-              style: _hintStyle(context),
-            ),
-            for (final note in notes)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(
-                  note,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.warningOrange(
-                        Theme.of(context).brightness),
-                  ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: StatTile(
+                  card: true,
+                  label: 'B35 · 底线 ${baseline.floor(false)}',
+                  value: '$b35Sum',
                 ),
               ),
-          ],
-        ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: StatTile(
+                  card: true,
+                  label: 'B15 · 底线 ${baseline.floor(true)}',
+                  value: '$b15Sum',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '已计入 B35 ${baseline.b35.length}/$gainB35Size · B15 ${baseline.b15.length}/$gainB15Size',
+            style: _hintStyle(context),
+          ),
+          for (final note in notes)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                note,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppColors.warningOrange(Theme.of(context).brightness),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -470,106 +481,118 @@ class _CandidateCard extends StatelessWidget {
     final brightness = theme.brightness;
     final routeColor = _routeColor(c.route, brightness);
     final achv = c.achievements;
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppDesignTokens.cardGap),
+      child: AppCard(
+        radius: AppDesignTokens.radiusMedium,
+        padding: const EdgeInsets.fromLTRB(10, 10, 4, 10),
         onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(10, 10, 0, 10),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-                child: CoverUtil.buildCoverWidget(c.songId.toString(), 64),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Wrap(
-                            spacing: 4,
-                            runSpacing: 4,
-                            children: [
-                              _Tag(text: c.route.label, color: routeColor),
-                              _Tag(
-                                text:
-                                    '${StringUtil.formatSongType(c.type)} ${c.ds.toStringAsFixed(1)}',
-                                color: AppColors.difficultyForegroundByIndex(
-                                    c.levelIndex,
-                                    brightness: brightness),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          '+${c.netGain}',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: routeColor,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      c.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        color: scheme.onSurface,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      achv == null
-                          ? '未记录成绩 → 参考目标 ${c.target.toStringAsFixed(4)}%'
-                          : '${achv.toStringAsFixed(4)}% → ${c.target.toStringAsFixed(4)}%',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: scheme.onSurface,
-                      ),
-                    ),
-                    if (achv != null) ...[
-                      const SizedBox(height: 2),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius:
+                      BorderRadius.circular(AppDesignTokens.radiusSmall),
+                  child: CoverUtil.buildCoverWidget(c.songId.toString(), 56),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       Text(
-                        '提升 ${c.need.toStringAsFixed(4)}%',
+                        c.title,
                         style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          height: 1.3,
                           color: scheme.onSurface,
                         ),
                       ),
+                      const SizedBox(height: 5),
+                      Wrap(
+                        spacing: 4,
+                        runSpacing: 4,
+                        children: [
+                          _Tag(text: c.route.label, color: routeColor),
+                          _Tag(
+                            text:
+                                '${StringUtil.formatSongType(c.type)} ${c.ds.toStringAsFixed(1)}',
+                            color: AppColors.difficultyForegroundByIndex(
+                                c.levelIndex,
+                                brightness: brightness),
+                          ),
+                        ],
+                      ),
                     ],
-                    const SizedBox(height: 2),
-                    Text(c.reason, style: _hintStyle(context)),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      '+${c.netGain}',
+                      style: AppTheme.number(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                        height: 1.1,
+                        color: routeColor,
+                      ),
+                    ),
+                    Text('净收益', style: _hintStyle(context)),
                   ],
                 ),
+                PopupMenuButton<String>(
+                  tooltip: '反馈',
+                  padding: EdgeInsets.zero,
+                  icon: Icon(Icons.more_vert_rounded,
+                      size: 20, color: scheme.onSurfaceVariant),
+                  onSelected: onFeedback,
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: 'skip', child: Text('这次跳过')),
+                    PopupMenuItem(value: 'stuck', child: Text('暂时卡住（14 天）')),
+                    PopupMenuItem(value: 'dislike', child: Text('不喜欢这张谱')),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Container(
+              margin: const EdgeInsets.only(right: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppSurfaces.inset(context),
+                borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
               ),
-              PopupMenuButton<String>(
-                tooltip: '反馈',
-                icon: Icon(Icons.more_vert_rounded,
-                    color: scheme.onSurfaceVariant),
-                onSelected: onFeedback,
-                itemBuilder: (_) => const [
-                  PopupMenuItem(value: 'skip', child: Text('这次跳过')),
-                  PopupMenuItem(value: 'stuck', child: Text('暂时卡住（14 天）')),
-                  PopupMenuItem(value: 'dislike', child: Text('不喜欢这张谱')),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      achv == null
+                          ? '未记录成绩 → 参考目标 ${c.target.toStringAsFixed(4)}%'
+                          : '${achv.toStringAsFixed(4)}% → ${c.target.toStringAsFixed(4)}%'
+                              '（提升 ${c.need.toStringAsFixed(4)}%）',
+                      maxLines: 1,
+                      style: AppTheme.number(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: scheme.onSurface,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(c.reason, style: _hintStyle(context)),
                 ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -583,21 +606,11 @@ class _Tag extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: color.withValues(alpha: 0.5)),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-          color: color,
-        ),
-      ),
+    return AppBadge(
+      text: text,
+      background: color.withValues(alpha: 0.12),
+      foreground: color,
+      fontSize: 11,
     );
   }
 }

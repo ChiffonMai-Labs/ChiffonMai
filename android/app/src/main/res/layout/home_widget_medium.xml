@@ -1,0 +1,296 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/w_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_bg"
+    android:orientation="horizontal"
+    android:padding="12dp">
+<LinearLayout
+    android:layout_width="0dp"
+    android:layout_height="match_parent"
+    android:layout_weight="1"
+    android:orientation="vertical">
+    <LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center_vertical"
+    android:orientation="horizontal">
+    <ImageView
+        android:id="@+id/w_avatar"
+        android:layout_width="28dp"
+        android:layout_height="28dp"
+        android:layout_marginEnd="8dp"
+        android:scaleType="centerCrop"
+        android:src="@mipmap/ic_launcher"
+        android:contentDescription="@null" />
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+        <TextView
+    android:id="@+id/w_nickname"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:maxLines="1"
+    android:ellipsize="none"
+    android:includeFontPadding="false"
+    android:textSize="13sp"
+    android:textColor="@color/widget_ink"
+    android:text="ChiffonMai"
+    android:fontFamily="@font/outfit_medium"
+    android:autoSizeTextType="uniform"
+    android:autoSizeMinTextSize="10sp"
+    android:autoSizeMaxTextSize="13sp"
+    android:autoSizeStepGranularity="1sp" />
+
+        
+    </LinearLayout>
+</LinearLayout>
+
+    <LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="0dp"
+    android:layout_weight="1"
+    android:gravity="center_vertical"
+    android:orientation="vertical"
+    >
+<TextView
+    android:id="@+id/w_rating_title"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:maxLines="1"
+    android:ellipsize="none"
+    android:includeFontPadding="false"
+    android:textSize="11sp"
+    android:textColor="@color/widget_muted"
+    android:text="Rating"
+    android:fontFamily="@font/outfit_medium"
+     />
+<TextView
+    android:id="@+id/w_rating"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:maxLines="1"
+    android:ellipsize="none"
+    android:includeFontPadding="false"
+    android:textSize="36sp"
+    android:textColor="@color/widget_primary"
+    android:text="--"
+    android:fontFamily="@font/outfit_bold"
+    android:autoSizeTextType="uniform"
+    android:autoSizeMinTextSize="20sp"
+    android:autoSizeMaxTextSize="36sp"
+    android:autoSizeStepGranularity="1sp" />
+</LinearLayout>
+
+    <ProgressBar
+    android:id="@+id/w_rating_bar"
+    style="?android:attr/progressBarStyleHorizontal"
+    android:layout_width="match_parent"
+    android:layout_height="6dp"
+    android:max="100"
+    android:progress="70"
+    android:progressDrawable="@drawable/widget_progress" />
+<FrameLayout android:layout_width="1dp" android:layout_height="4dp" />
+<LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+        <TextView
+    android:fontFamily="@font/outfit_regular"
+    android:id="@+id/w_b35"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:maxLines="1"
+    android:ellipsize="none"
+    android:includeFontPadding="false"
+    android:textSize="11sp"
+    android:textColor="@color/widget_muted"
+    android:text="B35 -"
+    
+     />
+
+        <FrameLayout android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" />
+        <TextView
+    android:fontFamily="@font/outfit_regular"
+    android:id="@+id/w_b15"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:maxLines="1"
+    android:ellipsize="none"
+    android:includeFontPadding="false"
+    android:textSize="11sp"
+    android:textColor="@color/widget_muted"
+    android:text="B15 -"
+    
+     />
+
+    </LinearLayout>
+</LinearLayout>
+<FrameLayout android:layout_width="1dp" android:layout_height="match_parent" android:layout_marginStart="12dp" android:layout_marginEnd="12dp" android:background="@color/widget_line" />
+<LinearLayout
+    android:layout_width="0dp"
+    android:layout_height="match_parent"
+    android:layout_weight="1"
+    android:orientation="vertical">
+    <LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="0dp"
+    android:layout_weight="1"
+    android:gravity="center_vertical"
+    android:orientation="vertical"
+    >
+<LinearLayout
+    android:id="@+id/w_server_area"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
+    <LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center_vertical"
+    android:orientation="horizontal">
+    <ImageView
+        android:id="@+id/w_server_dot"
+        android:layout_width="8dp"
+        android:layout_height="8dp"
+        android:layout_marginEnd="6dp"
+        android:src="@drawable/widget_dot"
+        android:contentDescription="@null" />
+    <TextView
+    android:id="@+id/w_label_w_server_dot"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:maxLines="1"
+    android:ellipsize="none"
+    android:includeFontPadding="false"
+    android:textSize="12sp"
+    android:textColor="@color/widget_muted"
+    android:text="舞萌状态"
+    android:fontFamily="@font/outfit_medium"
+     />
+
+</LinearLayout>
+
+    <FrameLayout android:layout_width="1dp" android:layout_height="4dp" />
+    <TextView
+    android:id="@+id/w_server"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:maxLines="1"
+    android:ellipsize="none"
+    android:includeFontPadding="false"
+    android:textSize="16sp"
+    android:textColor="@color/widget_ink"
+    android:text="暂时未知"
+    android:fontFamily="@font/outfit_medium"
+    android:autoSizeTextType="uniform"
+    android:autoSizeMinTextSize="12sp"
+    android:autoSizeMaxTextSize="16sp"
+    android:autoSizeStepGranularity="1sp" />
+
+    <FrameLayout android:layout_width="1dp" android:layout_height="2dp" />
+    <TextView
+    android:fontFamily="@font/outfit_regular"
+    android:id="@+id/w_server_detail"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:maxLines="1"
+    android:ellipsize="none"
+    android:includeFontPadding="false"
+    android:textSize="11sp"
+    android:textColor="@color/widget_muted"
+    android:text="打开 App 更新"
+    
+    android:autoSizeTextType="uniform"
+    android:autoSizeMinTextSize="9sp"
+    android:autoSizeMaxTextSize="11sp"
+    android:autoSizeStepGranularity="1sp" />
+
+</LinearLayout>
+</LinearLayout>
+
+    <FrameLayout android:layout_width="1dp" android:layout_height="4dp" />
+<FrameLayout android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/widget_line" />
+<FrameLayout android:layout_width="1dp" android:layout_height="4dp" />
+<LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="0dp"
+    android:layout_weight="1"
+    android:gravity="center_vertical"
+    android:orientation="vertical"
+    >
+<LinearLayout
+    android:id="@+id/w_sync_area"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
+    <LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center_vertical"
+    android:orientation="horizontal">
+    <ImageView
+        android:id="@+id/w_sync_dot"
+        android:layout_width="8dp"
+        android:layout_height="8dp"
+        android:layout_marginEnd="6dp"
+        android:src="@drawable/widget_dot"
+        android:contentDescription="@null" />
+    <TextView
+    android:id="@+id/w_label_w_sync_dot"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:maxLines="1"
+    android:ellipsize="none"
+    android:includeFontPadding="false"
+    android:textSize="12sp"
+    android:textColor="@color/widget_muted"
+    android:text="自动同步"
+    android:fontFamily="@font/outfit_medium"
+     />
+
+</LinearLayout>
+
+    <FrameLayout android:layout_width="1dp" android:layout_height="4dp" />
+    <TextView
+    android:id="@+id/w_sync"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:maxLines="1"
+    android:ellipsize="none"
+    android:includeFontPadding="false"
+    android:textSize="16sp"
+    android:textColor="@color/widget_ink"
+    android:text="暂时未知"
+    android:fontFamily="@font/outfit_medium"
+    android:autoSizeTextType="uniform"
+    android:autoSizeMinTextSize="12sp"
+    android:autoSizeMaxTextSize="16sp"
+    android:autoSizeStepGranularity="1sp" />
+
+    <FrameLayout android:layout_width="1dp" android:layout_height="2dp" />
+    <TextView
+    android:fontFamily="@font/outfit_regular"
+    android:id="@+id/w_sync_detail"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:maxLines="1"
+    android:ellipsize="none"
+    android:includeFontPadding="false"
+    android:textSize="11sp"
+    android:textColor="@color/widget_muted"
+    android:text="打开 App 更新"
+    
+    android:autoSizeTextType="uniform"
+    android:autoSizeMinTextSize="9sp"
+    android:autoSizeMaxTextSize="11sp"
+    android:autoSizeStepGranularity="1sp" />
+
+</LinearLayout>
+</LinearLayout>
+
+</LinearLayout>
+</LinearLayout>

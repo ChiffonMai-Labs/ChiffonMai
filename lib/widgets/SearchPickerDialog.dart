@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../widgets/AppDialogs.dart';
+import '../utils/AppDesignTokens.dart';
 
 /// 「带搜索框的单项选择弹窗」——谱师 / 曲师这类动辄几百条、需要现场筛选的列表共用。
 ///
@@ -82,7 +84,7 @@ class _SearchPickerDialogState extends State<_SearchPickerDialog> {
             .where((e) => e.key.toLowerCase().contains(keyword))
             .toList();
 
-    return AlertDialog(
+    return AppAlertDialog(
       title: Text(widget.title),
       content: SingleChildScrollView(
         child: ListBody(
@@ -95,7 +97,7 @@ class _SearchPickerDialogState extends State<_SearchPickerDialog> {
                 prefixIcon: const Icon(Icons.search, size: 20),
                 isDense: true,
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                 ),
                 contentPadding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 8),

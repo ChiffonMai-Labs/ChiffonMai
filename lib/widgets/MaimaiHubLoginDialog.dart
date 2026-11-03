@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../manager/DivingFishProbeManager.dart';
 import '../utils/AppTheme.dart';
 import 'QrQuickFillButtons.dart';
+import '../widgets/AppDialogs.dart';
 
 /// 独立的 maimai Score Hub 登录入口。
 ///
@@ -97,7 +98,7 @@ class _MaimaiHubLoginDialogState extends State<_MaimaiHubLoginDialog> {
   Widget build(BuildContext context) {
     final brightness = Theme.of(context).brightness;
     final scheme = Theme.of(context).colorScheme;
-    return AlertDialog(
+    return AppAlertDialog(
       title: Row(
         children: [
           Icon(
@@ -152,10 +153,8 @@ class _MaimaiHubLoginDialogState extends State<_MaimaiHubLoginDialog> {
                       hintStyle: TextStyle(
                           fontSize: 13,
                           color: AppColors.greyHint(brightness, shade: 400)),
-                      border: const OutlineInputBorder(),
                       errorText: _inputError,
                       errorMaxLines: 3,
-                      contentPadding: const EdgeInsets.all(12),
                     ),
                   ),
                   if (_error != null) ...[

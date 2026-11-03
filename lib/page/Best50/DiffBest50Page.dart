@@ -17,6 +17,8 @@ import '../../widgets/BackgroundPageScaffold.dart';
 import '../../widgets/AppUi.dart';
 import '../../utils/AppDesignTokens.dart';
 import '../../widgets/Best50Ui.dart';
+import '../../widgets/AppDialogs.dart';
+import '../../widgets/ExportSuccessDialog.dart';
 
 class DiffBest50Page extends StatefulWidget {
   const DiffBest50Page({super.key});
@@ -151,6 +153,7 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
     return BackgroundPageScaffold(
       title: '拟合 Best50',
       resizeToAvoidBottomInset: false,
+      actionsEndInset: 4,
       actions: [
         Best50IconAction(
           tooltip: '导出为图片',
@@ -164,7 +167,6 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
             }
           },
         ),
-        const SizedBox(width: 4),
       ],
       contentPadding: EdgeInsets.only(
         bottom: MediaQuery.paddingOf(context).bottom,
@@ -261,6 +263,15 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
             items: [
               for (final s in songs) _cardData(Map<String, dynamic>.from(s))
             ],
+            remaining: [
+              for (final s in (_diffBest50Data?[_currentMode == 0
+                      ? 'remaining'
+                      : (_segment == 0 ? 'sdRemaining' : 'dxRemaining')] as List?) ??
+                  const [])
+                _cardData(Map<String, dynamic>.from(s as Map))
+            ],
+            remainingLabel:
+                songs.isEmpty ? null : 'RA ${_toInt(songs.last['diffRating'])}',
           ),
         ],
       ),
@@ -536,19 +547,7 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
       // 先请求存储权限
       bool hasPermission = await _requestStoragePermission();
       if (!hasPermission) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: Text('权限不足'),
-            content: Text('需要存储权限才能导出图片到相册，请在设置中开启权限'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text('确定'),
-              ),
-            ],
-          ),
-        );
+        showAppNoticeDialog(context, title: '权限不足', message: '需要存储权限才能导出图片到相册，请在设置中开启权限', tone: AppDialogTone.warning);
         return;
       }
 
@@ -572,20 +571,7 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
       if (quality == null) return;
 
       // 显示加载指示器
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => AlertDialog(
-          title: Text('导出中'),
-          content: Row(
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(width: 16.0),
-              Text('正在生成图片...'),
-            ],
-          ),
-        ),
-      );
+      showAppProgressDialog(context, title: '导出中', message: '正在生成图片...');
 
       // 调用导出方法
       final file = await DiffBest50ConvertToImg.convertToImage(
@@ -604,61 +590,16 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
 
       // 显示导出结果
       if (file != null) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: Text('导出成功'),
-            content: Text('图片已保存到：\n${file.path}'),
-            actions: [
-              TextButton(
-                onPressed: () async {
-                  await Clipboard.setData(ClipboardData(text: file.path));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('路径已复制到剪贴板')),
-                  );
-                },
-                child: Text('复制路径'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text('确定'),
-              ),
-            ],
-          ),
-        );
+        showExportSuccessDialog(context, filePath: file.path, fileName: file.path.split('/').last);
       } else {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: Text('导出失败'),
-            content: Text('图片导出失败，请重试'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text('确定'),
-              ),
-            ],
-          ),
-        );
+        showAppNoticeDialog(context, title: '导出失败', message: '图片导出失败，请重试', tone: AppDialogTone.error);
       }
     } catch (e) {
       // 关闭加载指示器
       Navigator.pop(context);
 
       // 显示错误信息
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text('导出失败'),
-          content: Text('导出过程中出现错误：\n$e'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('确定'),
-            ),
-          ],
-        ),
-      );
+      showAppNoticeDialog(context, title: '导出失败', message: '导出过程中出现错误：\n$e', tone: AppDialogTone.error);
     }
   }
 }

@@ -1,9 +1,15 @@
 import 'package:flutter/material.dart';
 import '../service/LoadingTipsStore.dart';
-import '../utils/CommonWidgetUtil.dart';
-import '../widgets/AppHeader.dart';
+import '../utils/AppDesignTokens.dart';
+import '../utils/AppTheme.dart';
+import '../widgets/AppSwitch.dart';
+import '../widgets/AppUi.dart';
+import '../widgets/BackgroundPageScaffold.dart';
+import '../widgets/SmoothLinearProgressIndicator.dart';
 import '../widgets/AnimatedChoiceBar.dart';
 import '../widgets/EmptyState.dart';
+import '../widgets/AppDialogs.dart';
+import '../widgets/AppToast.dart';
 
 class LoadingTipsPage extends StatefulWidget {
   const LoadingTipsPage({super.key});
@@ -48,14 +54,11 @@ class _LoadingTipsPageState extends State<LoadingTipsPage> {
     if (cloud) {
       final id = await _store.submitCloudTip(value);
       if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(id == null ? '上传失败，请稍后重试' : '已提交审核（$id），审核通过后才会展示')));
+        AppToast.show(id == null ? '上传失败，请稍后重试' : '已提交审核（$id），审核通过后才会展示');
     } else {
       await _store.addLocalTip(value);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('本地语录添加成功')),
-        );
+        AppToast.show('本地语录添加成功');
       }
     }
   }
@@ -66,124 +69,184 @@ class _LoadingTipsPageState extends State<LoadingTipsPage> {
     if (mounted) {
       setState(() => _busy = false);
       if (!ok) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('获取加载语录失败，已保留本地缓存')),
-        );
+        AppToast.show('获取加载语录失败，已保留本地缓存');
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final tips = _store.catalogue;
     final localTips = _store.localTips;
-    return DefaultTabController(
-        length: 2,
-        child: Scaffold(
-          resizeToAvoidBottomInset: false,
-          backgroundColor: Colors.transparent,
-          body: Stack(
-            fit: StackFit.expand,
-            children: [
-              // 图片首帧尚未解码时先铺主题表面，避免透明 Scaffold 露出黑底闪烁。
-              ColoredBox(color: Theme.of(context).colorScheme.surface),
-              CommonWidgetUtil.buildCommonBgWidget(),
-              CommonWidgetUtil.buildCommonChiffonBgWidget(context),
-              Column(
-                children: [
-                  AppHeader(title: '加载语录管理', actions: [
-                    IconButton(
-                        onPressed: _busy ? null : _refresh,
-                        icon: const Icon(Icons.refresh),
-                        tooltip: '刷新语录'),
-                  ]),
-                  TabBar(
-                    tabs: const [Tab(text: '本地语录'), Tab(text: '云端语录')],
-                    onTap: (index) => setState(() => _tab = index),
-                  ),
-                  Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
-                      child: Wrap(spacing: 8, runSpacing: 4, children: [
-                        OutlinedButton.icon(
-                            onPressed: () => _addTip(cloud: false),
-                            icon: const Icon(Icons.add, size: 18),
-                            label: const Text('本地新增语录')),
-                        FilledButton.tonalIcon(
-                            onPressed: () => _addTip(cloud: true),
-                            icon: const Icon(Icons.cloud_upload_outlined,
-                                size: 18),
-                            label: const Text('上传到云端')),
-                      ])),
-                  if (_store.totalCount > 0)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
-                      child: Row(children: [
-                        Expanded(
-                            child: Text(
-                                '已启用 ${_store.enabledCount} / ${_store.totalCount} 条')),
-                        TextButton(
-                            onPressed: () => _store.setAllEnabled(true),
-                            child: const Text('全选')),
-                        TextButton(
-                            onPressed: () => _store.setAllEnabled(false),
-                            child: const Text('全不选')),
-                      ]),
+    final current = _tab == 0 ? localTips : tips;
+    final total = _store.totalCount;
+    return BackgroundPageScaffold(
+      title: '加载语录管理',
+      actions: [
+        IconButton(
+            onPressed: _busy ? null : _refresh,
+            icon: const Icon(Icons.refresh),
+            tooltip: '刷新语录'),
+      ],
+      contentPadding:
+          EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+                AppDesignTokens.gutter, 4, AppDesignTokens.gutter, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (total > 0) ...[
+                  AppCard(
+                    padding: const EdgeInsets.fromLTRB(14, 12, 6, 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.baseline,
+                          textBaseline: TextBaseline.alphabetic,
+                          children: [
+                            RollingNumber(
+                              value: _store.enabledCount,
+                              style: AppTheme.number(
+                                fontSize: 28,
+                                fontWeight: FontWeight.w800,
+                                color: scheme.primary,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '/ $total 条已启用',
+                              style: TextStyle(
+                                  fontSize: 13, color: scheme.onSurfaceVariant),
+                            ),
+                            const Spacer(),
+                            TextButton(
+                                onPressed: () => _store.setAllEnabled(true),
+                                child: const Text('全选')),
+                            TextButton(
+                                onPressed: () => _store.setAllEnabled(false),
+                                child: const Text('全不选')),
+                          ],
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: SmoothLinearProgressIndicator(
+                            value: _store.enabledCount / total,
+                            minHeight: 6,
+                            color: scheme.primary,
+                            backgroundColor: AppSurfaces.inset(context),
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                        ),
+                      ],
                     ),
-                  Expanded(
-                    child: _busy && tips.isEmpty && _store.localTips.isEmpty
-                        ? const Center(child: CircularProgressIndicator())
-                        : FadeContent(
-                            child: (_tab == 0 ? localTips : tips).isEmpty
-                                ? EmptyState(key: ValueKey('empty-$_tab'))
-                                : ListView(
-                                    key: ValueKey(_tab),
-                                    padding: EdgeInsets.zero,
-                                    children: [
-                                      if (_tab == 0 &&
-                                          localTips.isNotEmpty) ...[
-                                        const Padding(
-                                            padding: EdgeInsets.fromLTRB(
-                                                16, 0, 16, 4),
-                                            child: Text('本地新增语录',
-                                                style: TextStyle(
-                                                    fontWeight:
-                                                        FontWeight.w600))),
-                                        for (final tip in localTips)
-                                          _tipTile(tip),
-                                      ],
-                                      if (_tab == 1 && tips.isNotEmpty) ...[
-                                        const Padding(
-                                            padding: EdgeInsets.fromLTRB(
-                                                16, 0, 16, 4),
-                                            child: Text('云端语录',
-                                                style: TextStyle(
-                                                    fontWeight:
-                                                        FontWeight.w600))),
-                                        for (final tip in tips) _tipTile(tip),
-                                      ],
-                                    ],
-                                  )),
                   ),
+                  const SizedBox(height: AppDesignTokens.cardGap),
                 ],
+                SegmentedTabs(
+                  items: [
+                    SegmentedTabItem('本地语录 ${localTips.length}'),
+                    SegmentedTabItem('云端语录 ${tips.length}'),
+                  ],
+                  selectedIndex: _tab,
+                  onChanged: (index) => setState(() => _tab = index),
+                ),
+                const SizedBox(height: AppDesignTokens.cardGap),
+              ],
+            ),
+          ),
+          Expanded(
+            child: _busy && tips.isEmpty && localTips.isEmpty
+                ? const Center(child: CircularProgressIndicator())
+                : FadeContent(
+                    child: current.isEmpty
+                        ? EmptyState(key: ValueKey('empty-$_tab'))
+                        : ListView.builder(
+                            key: ValueKey(_tab),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: AppDesignTokens.gutter),
+                            itemCount: current.length,
+                            itemBuilder: (context, index) => EntranceAnimation(
+                              index: index,
+                              offset: const Offset(0, 8),
+                              duration: const Duration(milliseconds: 300),
+                              child: _tipTile(current[index]),
+                            ),
+                          ),
+                  ),
+          ),
+          BottomActionBar(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _addTip(cloud: false),
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('本地新增'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: () => _addTip(cloud: true),
+                  icon: const Icon(Icons.cloud_upload_outlined, size: 18),
+                  label: const Text('上传到云端'),
+                ),
               ),
             ],
           ),
-        ));
+        ],
+      ),
+    );
   }
 
-  Widget _tipTile(LoadingTip tip) => CheckboxListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-        value: !_store.disabledIds.contains(tip.id),
-        title: Text(tip.text),
-        secondary: tip.id.startsWith('local_')
-            ? IconButton(
+  Widget _tipTile(LoadingTip tip) {
+    final scheme = Theme.of(context).colorScheme;
+    final enabled = !_store.disabledIds.contains(tip.id);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: AppCard(
+        radius: AppDesignTokens.radiusMedium,
+        padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
+        child: Row(
+          children: [
+            Expanded(
+              child: AnimatedDefaultTextStyle(
+                duration: AppDesignTokens.motion(
+                    context, const Duration(milliseconds: 180)),
+                style: TextStyle(
+                  fontSize: 14,
+                  height: 1.45,
+                  color: enabled ? scheme.onSurface : scheme.onSurfaceVariant,
+                ),
+                child: Text(tip.text),
+              ),
+            ),
+            if (tip.id.startsWith('local_'))
+              IconButton(
                 tooltip: '删除本地语录',
-                icon: const Icon(Icons.delete_outline),
+                visualDensity: VisualDensity.compact,
+                icon: Icon(Icons.delete_outline,
+                    size: 20, color: scheme.onSurfaceVariant),
                 onPressed: () => _store.removeLocalTip(tip.id),
-              )
-            : null,
-        onChanged: (value) => _store.setEnabled(tip.id, value ?? false),
-      );
+              ),
+            const SizedBox(width: 4),
+            Semantics(
+              label: tip.text,
+              child: AppSwitch(
+                value: enabled,
+                onChanged: (value) => _store.setEnabled(tip.id, value),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 /// 输入框控制器必须归属于对话框自身的 State。
@@ -210,7 +273,7 @@ class _LoadingTipInputDialogState extends State<_LoadingTipInputDialog> {
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
+  Widget build(BuildContext context) => AppAlertDialog(
         title: Text(widget.title),
         content: TextField(
           controller: _controller,

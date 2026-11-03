@@ -166,6 +166,55 @@
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
 
+        <!-- 桌面小组件，见 HomeWidgets.kt -->
+        <receiver
+            android:name=".HomeWidgetRating"
+            android:exported="false"
+            android:label="@string/home_widget_rating_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/home_widget_rating_info" />
+        </receiver>
+
+        <receiver
+            android:name=".HomeWidgetStatus"
+            android:exported="false"
+            android:label="@string/home_widget_status_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/home_widget_status_info" />
+        </receiver>
+
+        <receiver
+            android:name=".HomeWidgetMedium"
+            android:exported="false"
+            android:label="@string/home_widget_medium_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/home_widget_medium_info" />
+        </receiver>
+
+        <receiver
+            android:name=".HomeWidgetLarge"
+            android:exported="false"
+            android:label="@string/home_widget_large_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/home_widget_large_info" />
+        </receiver>
+
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

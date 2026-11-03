@@ -1,5 +1,4 @@
 import '../../service/PaiziProgressService.dart';
-import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:io';
@@ -22,6 +21,10 @@ import '../../widgets/LxnsAssetImage.dart';
 import '../../widgets/TrophyTitleBadge.dart';
 import '../../entity/DivingFish/Song.dart';
 import '../../utils/AppDesignTokens.dart';
+import '../../widgets/AppUi.dart';
+import '../../widgets/MarqueeText.dart';
+import '../../widgets/AppDialogs.dart';
+import '../../widgets/AppToast.dart';
 
 class CollectionInfoPage extends StatefulWidget {
   final int collectionId;
@@ -111,19 +114,7 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
     try {
       bool hasPermission = await _requestStoragePermission();
       if (!hasPermission) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: Text('权限不足'),
-            content: Text('需要存储权限才能保存图片到相册，请在设置中开启权限'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text('确定'),
-              ),
-            ],
-          ),
-        );
+        showAppNoticeDialog(context, title: '权限不足', message: '需要存储权限才能保存图片到相册，请在设置中开启权限', tone: AppDialogTone.warning);
         return;
       }
 
@@ -164,12 +155,7 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
 
   // 显示Toast提示
   void _showToast(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: Duration(seconds: 2),
-      ),
-    );
+    AppToast.show(message, duration: Duration(seconds: 2));
   }
 
   // 复制图片链接到剪贴板
@@ -370,153 +356,6 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
     }
   }
 
-  // 获取定数显示（第3,4,5个定数，第5个没有显示为-）
-  String _getDsDisplay(List<double>? dsList) {
-    if (dsList == null || dsList.isEmpty) {
-      return '- / - / -';
-    }
-    String ds3 = dsList.length > 2 ? dsList[2].toStringAsFixed(1) : '-';
-    String ds4 = dsList.length > 3 ? dsList[3].toStringAsFixed(1) : '-';
-    String ds5 = dsList.length > 4 ? dsList[4].toStringAsFixed(1) : '-';
-    return '$ds3 / $ds4 / $ds5';
-  }
-
-  // 获取难度显示
-  Widget _getDifficultiesDisplay(List<int> difficulties) {
-    final Map<int, Map<String, dynamic>> difficultyMap = {
-      for (final index in ChartDifficulty.standardIndices)
-        index: {
-          'label': ChartDifficulty.labelOf(index),
-          'color': AppColors.difficultyForegroundByIndex(index),
-          'bgColor': AppColors.difficultyBackgroundByIndex(index),
-        },
-    };
-
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: difficulties.map((d) {
-        final difficultyInfo = difficultyMap[d] ??
-            {
-              'label': d.toString(),
-              'color': Colors.grey,
-              'bgColor': Colors.grey[100]
-            };
-        return Container(
-          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: difficultyInfo['bgColor'],
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: difficultyInfo['color'], width: 1),
-          ),
-          child: Text(
-            difficultyInfo['label'],
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: difficultyInfo['color'],
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  // 获取FC显示
-  Widget _getFcDisplay(String fc) {
-    final Map<String, Map<String, dynamic>> fcMap = {
-      'ap': {
-        'label': 'AP',
-        'color': AppColors.achievementForeground('AP'),
-        'bgColor': AppColors.achievementBackground('AP')
-      },
-      'app': {
-        'label': 'AP+',
-        'color': AppColors.achievementForeground('AP+'),
-        'bgColor': AppColors.achievementBackground('AP+')
-      },
-      'fc': {
-        'label': 'FC',
-        'color': AppColors.achievementForeground('FC'),
-        'bgColor': AppColors.achievementBackground('FC')
-      },
-      'fcp': {
-        'label': 'FC+',
-        'color': AppColors.achievementForeground('FC+'),
-        'bgColor': AppColors.achievementBackground('FC+')
-      },
-    };
-
-    final fcInfo = fcMap[fc] ??
-        {'label': fc, 'color': Colors.grey, 'bgColor': Colors.grey[100]};
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: fcInfo['bgColor'],
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: fcInfo['color'], width: 1),
-      ),
-      child: Text(
-        fcInfo['label'],
-        style: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.bold,
-          color: fcInfo['color'],
-        ),
-      ),
-    );
-  }
-
-  // 获取FS显示
-  Widget _getFsDisplay(String fs) {
-    final Map<String, Map<String, dynamic>> fsMap = {
-      'fs': {
-        'label': 'FS',
-        'color': AppColors.achievementForeground('FS'),
-        'bgColor': AppColors.achievementBackground('FS')
-      },
-      'fsp': {
-        'label': 'FS+',
-        'color': AppColors.achievementForeground('FS+'),
-        'bgColor': AppColors.achievementBackground('FS+')
-      },
-      'fsd': {
-        'label': 'FDX',
-        'color': AppColors.achievementForeground('FDX'),
-        'bgColor': AppColors.achievementBackground('FDX')
-      },
-      'fsdp': {
-        'label': 'FDX+',
-        'color': AppColors.achievementForeground('FDX+'),
-        'bgColor': AppColors.achievementBackground('FDX+')
-      },
-      'sync': {
-        'label': 'SYNC',
-        'color': AppColors.achievementForeground('SYNC'),
-        'bgColor': AppColors.achievementBackground('SYNC')
-      },
-    };
-
-    final fsInfo = fsMap[fs] ??
-        {'label': fs, 'color': Colors.grey, 'bgColor': Colors.grey[100]};
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: fsInfo['bgColor'],
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: fsInfo['color'], width: 1),
-      ),
-      child: Text(
-        fsInfo['label'],
-        style: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.bold,
-          color: fsInfo['color'],
-        ),
-      ),
-    );
-  }
-
   // 根据颜色类型获取背景色
   Color _getColorFromType(String colorType) {
     switch (colorType) {
@@ -547,86 +386,68 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
   }
 
   Widget _buildCollectionSongCard(
-      CollectionRequiredSong requiredSong, Song? song) {
+      CollectionRequiredSong requiredSong, Song? song,
+      {bool showDivider = false}) {
+    final scheme = Theme.of(context).colorScheme;
+    final songId = song?.id.toString() ?? requiredSong.id.toString();
     // 获取定数列表
     List<double> dsList = [];
     if (song != null && song.ds != null && song.ds is List) {
       dsList = song.ds;
     }
-    return GestureDetector(
+    return InkWell(
       onTap: () {
         // 跳转到歌曲详情页面，默认选择MASTER难度
         Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) => SongInfoPage(
-              songId: song?.id.toString() ?? requiredSong.id.toString(),
+              songId: songId,
               initialLevelIndex: 3, // 3 代表 MASTER 难度
             ),
           ),
         );
       },
       child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(
-            color: Theme.of(context).colorScheme.outlineVariant,
-            width: 1,
-          ),
+          border: showDivider
+              ? Border(top: BorderSide(color: AppSurfaces.hairline(context)))
+              : null,
         ),
-        padding: EdgeInsets.all(4),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // 曲绘
-            Container(
-              width: 40,
-              height: 40,
-              child: CoverUtil.buildCoverWidgetWithContext(
-                context,
-                song?.id.toString() ?? requiredSong.id.toString(),
-                40,
-              ),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+              child: CoverUtil.buildCoverWidgetWithContext(context, songId, 48),
             ),
-            SizedBox(width: 6),
-            // 歌曲信息
+            const SizedBox(width: 10),
             Expanded(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(
-                    requiredSong.title,
+                  MarqueeText(
+                    text: requiredSong.title,
                     style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: scheme.onSurface,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
-                  SizedBox(height: 1),
-                  // 第二行：类型|版本
+                  const SizedBox(height: 2),
+                  // 类型 | 版本
                   Text(
                     '${_getTypeDisplay(requiredSong.type)} | ${song != null ? StringUtil.formatVersion2WithFlag(song.basicInfo.from, song.isExtra) : '-'}',
-                    style: TextStyle(
-                      fontSize: 9,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    style:
+                        TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
                   ),
-                  SizedBox(height: 1),
-                  // 第三行：第3,4,5个定数（EXPERT/MASTER/Re:MASTER）
-                  Text(
-                    _getDsDisplay(dsList),
-                    style: TextStyle(
-                      fontSize: 9,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  if (dsList.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    ChartConstantBadges(
+                      constants: dsList,
+                      isUtage: songId.length == 6,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  ],
                 ],
               ),
             ),
@@ -638,36 +459,30 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
 
   Widget _buildExcludedSongSection() {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _buildSectionHeading(
-            context, Icons.playlist_remove_outlined, '条件外排除曲目'),
-        const SizedBox(height: 8),
-        Text('共 ${_excludedSongs.length} 首，不计入所需条件',
-            style: TextStyle(
-                fontSize: 14,
-                color: Theme.of(context).colorScheme.onSurfaceVariant)),
-        const SizedBox(height: 6),
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
+        const SizedBox(height: 4),
+        AppSectionHeader(
+          title: '条件外排除曲目',
+          subtitle: '共 ${_excludedSongs.length} 首，不计入所需条件',
+        ),
+        AppCard(
           padding: EdgeInsets.zero,
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 4,
-              mainAxisSpacing: 4,
-              childAspectRatio: 2,
-              mainAxisExtent: 54),
-          itemCount: _excludedSongs.length,
-          itemBuilder: (context, index) {
-            final song = _excludedSongs[index];
-            return _buildCollectionSongCard(
-                CollectionRequiredSong(
-                    id: int.tryParse(song.id) ?? 0,
-                    title: song.title,
-                    type: song.type),
-                song);
-          },
+          radius: AppDesignTokens.radiusMedium,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var i = 0; i < _excludedSongs.length; i++)
+                _buildCollectionSongCard(
+                  CollectionRequiredSong(
+                      id: int.tryParse(_excludedSongs[i].id) ?? 0,
+                      title: _excludedSongs[i].title,
+                      type: _excludedSongs[i].type),
+                  _excludedSongs[i],
+                  showDivider: i > 0,
+                ),
+            ],
+          ),
         ),
       ],
     );
@@ -694,62 +509,75 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
             seenSongs.add('${song.id}:${song.title}:${song.type}');
           }
 
+          final songs = requiredItem.songs!;
           uniqueSongLists.add(
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                GridView.builder(
-                  shrinkWrap: true,
-                  physics: NeverScrollableScrollPhysics(),
-                  padding: EdgeInsets.zero,
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 4, // 进一步减小横向间距
-                    mainAxisSpacing: 4, // 进一步减小纵向间距
-                    childAspectRatio: 2.0, // 与 mainAxisExtent 一起给出固定格子高度
-                    mainAxisExtent: 54, // 给曲绘、上下内边距和边框留出完整空间，避免卡片底部溢出
-                  ),
-                  itemCount: requiredItem.songs!.length,
-                  itemBuilder: (context, index) => _buildCollectionSongCard(
-                      requiredItem.songs![index],
-                      _songMap?[requiredItem.songs![index]]),
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppDesignTokens.cardGap),
+              child: AppCard(
+                padding: EdgeInsets.zero,
+                radius: AppDesignTokens.radiusMedium,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (var i = 0; i < songs.length; i++)
+                      _buildCollectionSongCard(
+                        songs[i],
+                        _songMap?[songs[i]],
+                        showDivider: i > 0,
+                      ),
+                  ],
                 ),
-                SizedBox(height: 12), // 减小底部间距
-              ],
+              ),
             ),
           );
         }
       }
     }
 
-    // 添加歌曲数量显示
+    // 标题带歌曲总数
     if (seenSongs.isNotEmpty) {
       uniqueSongLists.insert(
-          0,
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '总计 ${seenSongs.length} 首歌曲',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-              // 距离下方歌曲卡片的小间距（原为 16，配合 GridView 的固定格子高度收紧）
-              SizedBox(height: 6),
-            ],
-          ));
+        0,
+        AppSectionHeader(
+          title: '歌曲列表',
+          subtitle: '总计 ${seenSongs.length} 首歌曲',
+        ),
+      );
     }
 
     return uniqueSongLists;
   }
 
+  /// 所需条件的一行：左边条件名，右边徽章。
+  Widget _buildConditionRow(String label, List<Widget> badges) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 96,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 3),
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ),
+          Expanded(child: Wrap(spacing: 6, runSpacing: 6, children: badges)),
+        ],
+      ),
+    );
+  }
+
   // 合并所需条件
   List<Widget> _getMergedRequiredConditions(
       List<CollectionRequired> requiredList) {
-    final Set<String> seenFc = {};
-    final Set<String> seenFs = {};
+    final brightness = Theme.of(context).brightness;
     final Set<int> allDifficulties = {};
     final List<Widget> mergedConditions = [];
 
@@ -764,25 +592,10 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
     // 显示合并后的难度
     if (allDifficulties.isNotEmpty) {
       final sortedDifficulties = allDifficulties.toList()..sort();
-      mergedConditions.add(
-        Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '所需难度:',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              SizedBox(height: 4),
-              _getDifficultiesDisplay(sortedDifficulties),
-            ],
-          ),
-        ),
-      );
+      mergedConditions.add(_buildConditionRow('所需难度', [
+        for (final d in sortedDifficulties)
+          ChartDifficultyBadge(levelIndex: d, songId: '', fontSize: 14),
+      ]));
     }
 
     // 检查描述中是否包含 RANK 信息
@@ -798,10 +611,8 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
       bool hasRankA = description.toLowerCase().contains('rank a');
 
       if (match != null) {
-        final rank = match.group(1);
-
         // 根据 RANK 级别确定所需最低达成率
-        switch (rank) {
+        switch (match.group(1)) {
           case 'S':
             requiredRate = '97%';
             break;
@@ -828,240 +639,59 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
 
       if (requiredRate.isNotEmpty) {
         // 根据达成率确定颜色
-        Color rateColor = Colors.grey[800]!;
+        Color rateColor = Theme.of(context).colorScheme.onSurface;
         if (requiredRate == '80%') {
-          rateColor = AppColors.errorRed(Theme.of(context).brightness);
+          rateColor = AppColors.errorRed(brightness);
         } else if (['97%', '98%', '99%', '99.5%'].contains(requiredRate)) {
-          rateColor = AppColors.linkBlue(Theme.of(context).brightness);
+          rateColor = AppColors.linkBlue(brightness);
         } else if (['100%', '100.5%'].contains(requiredRate)) {
-          rateColor = AppColors.warningOrange(Theme.of(context).brightness);
+          rateColor = AppColors.warningOrange(brightness);
         }
-
-        mergedConditions.add(
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '所需最低达成率:',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                SizedBox(height: 4),
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: rateColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: rateColor, width: 1),
-                  ),
-                  child: Text(
-                    requiredRate,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: rateColor,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+        mergedConditions.add(_buildConditionRow('所需最低达成率', [
+          AppBadge(
+            text: requiredRate,
+            fontSize: 14,
+            background: rateColor.withValues(alpha: 0.12),
+            foreground: rateColor,
           ),
-        );
+        ]));
       }
 
       // 检查是否包含 SPEED SONIC 字样
-      bool hasSpeedSonic = description.toLowerCase().contains('speed sonic');
-      if (hasSpeedSonic) {
-        mergedConditions.add(
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '所需游玩流速:',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                SizedBox(height: 4),
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: AppColors.linkBlue(Theme.of(context).brightness)
-                        .withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                        color: AppColors.linkBlue(Theme.of(context).brightness),
-                        width: 1),
-                  ),
-                  child: Text(
-                    'SONIC',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.linkBlue(Theme.of(context).brightness),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+      if (description.toLowerCase().contains('speed sonic')) {
+        final sonic = AppColors.linkBlue(brightness);
+        mergedConditions.add(_buildConditionRow('所需游玩流速', [
+          AppBadge(
+            text: 'SONIC',
+            fontSize: 14,
+            background: sonic.withValues(alpha: 0.12),
+            foreground: sonic,
           ),
-        );
+        ]));
       }
     }
 
-    // 处理所需连击和同步
+    // 所需连击和同步：fc 字段里也可能是同步类型，归到所需同步
+    const syncTypes = ['fs', 'fsp', 'fsd', 'fsdp', 'sync'];
+    final fcValues = <String>{};
+    final fsValues = <String>{};
     for (final requiredItem in requiredList) {
-      // 处理fc字段
-      if (requiredItem.fc != null) {
-        // 定义同步类型的fc值
-        final syncTypes = ['fs', 'fsp', 'fsd', 'fsdp', 'sync'];
-
-        if (syncTypes.contains(requiredItem.fc!)) {
-          // fc字段是同步类型，显示到所需同步里
-          if (!seenFs.contains(requiredItem.fc!)) {
-            seenFs.add(requiredItem.fc!);
-            mergedConditions.add(
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '所需同步:',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    SizedBox(height: 4),
-                    _getFsDisplay(requiredItem.fc!),
-                  ],
-                ),
-              ),
-            );
-          }
-        } else {
-          // fc字段是连击类型，显示到所需连击里
-          if (!seenFc.contains(requiredItem.fc!)) {
-            seenFc.add(requiredItem.fc!);
-            mergedConditions.add(
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '所需连击:',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    SizedBox(height: 4),
-                    _getFcDisplay(requiredItem.fc!),
-                  ],
-                ),
-              ),
-            );
-          }
-        }
-      }
-
-      // 处理所需同步（fs字段）
-      if (requiredItem.fs != null) {
-        if (!seenFs.contains(requiredItem.fs!)) {
-          seenFs.add(requiredItem.fs!);
-          mergedConditions.add(
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '所需同步:',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  SizedBox(height: 4),
-                  _getFsDisplay(requiredItem.fs!),
-                ],
-              ),
-            ),
-          );
-        }
-      }
+      final fc = requiredItem.fc;
+      if (fc != null) (syncTypes.contains(fc) ? fsValues : fcValues).add(fc);
+      if (requiredItem.fs != null) fsValues.add(requiredItem.fs!);
     }
-
-    // 添加底部间距
-    if (mergedConditions.isNotEmpty) {
-      mergedConditions.add(SizedBox(height: 16));
+    if (fcValues.isNotEmpty) {
+      mergedConditions.add(_buildConditionRow('所需连击', [
+        for (final fc in fcValues) ComboLabelBadge(raw: fc, fontSize: 14),
+      ]));
+    }
+    if (fsValues.isNotEmpty) {
+      mergedConditions.add(_buildConditionRow('所需同步', [
+        for (final fs in fsValues) ComboLabelBadge(raw: fs, fontSize: 14),
+      ]));
     }
 
     return mergedConditions;
-  }
-
-  Widget _buildSectionHeading(
-      BuildContext context, IconData icon, String title) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Row(
-      children: [
-        Icon(icon, size: 20, color: colorScheme.primary),
-        const SizedBox(width: 8),
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.bold,
-            color: colorScheme.onSurface,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildActionButton({
-    required BuildContext context,
-    required IconData icon,
-    required String label,
-    required VoidCallback? onPressed,
-    required bool primary,
-  }) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final foregroundColor =
-        primary ? colorScheme.onPrimary : colorScheme.onSurface;
-    final backgroundColor =
-        primary ? colorScheme.primary : colorScheme.surfaceContainerHighest;
-
-    return Expanded(
-      child: SizedBox(
-        height: 44,
-        child: ElevatedButton.icon(
-          onPressed: onPressed,
-          icon: Icon(icon, size: 18),
-          label: Text(label),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: backgroundColor,
-            foregroundColor: foregroundColor,
-            elevation: 0,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            minimumSize: Size.zero,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-            ),
-          ),
-        ),
-      ),
-    );
   }
 
   Widget _buildCollectionPreview(BuildContext context) {
@@ -1073,41 +703,17 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
       'frames' => CollectionsImageUtil.getFrameImageURL(_collection!),
       _ => const SizedBox.shrink(),
     };
-    final height = widget.collectionType == 'plates' ? 150.0 : 200.0;
+    final height = widget.collectionType == 'plates' ? 130.0 : 190.0;
 
-    return Column(
-      children: [
-        Container(
-          width: double.infinity,
-          height: height,
-          decoration: BoxDecoration(
-            color: AppSurfaces.card(context),
-            borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: image,
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            _buildActionButton(
-              context: context,
-              icon: Icons.save_alt,
-              label: _isSavingImage ? '保存中' : '保存到相册',
-              onPressed: _isSavingImage ? null : _saveImageToGallery,
-              primary: true,
-            ),
-            const SizedBox(width: 10),
-            _buildActionButton(
-              context: context,
-              icon: Icons.link,
-              label: '复制链接',
-              onPressed: _copyImageUrl,
-              primary: false,
-            ),
-          ],
-        ),
-      ],
+    return Container(
+      height: height,
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: AppSurfaces.inset(context),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: image,
     );
   }
 
@@ -1170,119 +776,172 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
     final nameNeedsTranslation = _isEnglishOrJapanese(collection.name);
     final descriptionNeedsTranslation = collection.description != null &&
         _isEnglishOrJapanese(collection.description!);
+    final isTrophy = widget.collectionType == 'trophies';
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          collection.name,
-          style: TextStyle(
-            fontSize: 27,
-            height: 1.15,
-            fontWeight: FontWeight.bold,
-            color: colorScheme.onSurface,
-          ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          'ID: ${widget.collectionId}',
-          style: TextStyle(fontSize: 14, color: colorScheme.onSurfaceVariant),
-        ),
-        if (nameNeedsTranslation) ...[
-          const SizedBox(height: 8),
-          _buildTranslationBlock(
-            context: context,
-            translatedText: _translatedName,
-            isTranslating: _isTranslatingName,
-            onTranslate: _translateName,
-            sourceLabel: _isEnglishAndJapanese(collection.name)
-                ? '日语+英语'
-                : _isEnglish(collection.name)
-                    ? '英语'
-                    : '日语',
-          ),
-        ],
-        const SizedBox(height: 24),
-        if (widget.collectionType == 'trophies') ...[
-          _buildSectionHeading(context, Icons.badge_outlined, '称号展示预览'),
-          const SizedBox(height: 10),
-          TrophyTitleBadge(
-              name: collection.name,
-              color: collection.color,
-              trophyId: collection.id,
-              staticTextOffsetY: 1),
-          const SizedBox(height: 24),
-        ],
-        if (widget.collectionType == 'trophies' &&
-            collection.color != null) ...[
-          _buildSectionHeading(context, Icons.palette_outlined, '底色'),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            decoration: BoxDecoration(
-              gradient: collection.color == 'Rainbow'
-                  ? const LinearGradient(
-                      colors: [
-                        Colors.red,
-                        Colors.orange,
-                        Colors.yellow,
-                        Colors.green,
-                        Colors.blue,
-                        Colors.indigo,
-                        Colors.purple,
-                      ],
-                    )
-                  : null,
-              color: collection.color == 'Rainbow'
-                  ? null
-                  : _getColorFromType(collection.color!),
-              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-              border: Border.all(color: colorScheme.outlineVariant),
-            ),
-            child: Text(
-              collection.color!,
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.bold,
-                color: collection.color == 'Rainbow'
-                    ? Colors.white
-                    : _getTextColorForBackground(collection.color!),
+        // 头部：预览、名称、操作
+        AppCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _buildCollectionPreview(context),
+              if (isTrophy) ...[
+                TrophyTitleBadge(
+                    name: collection.name,
+                    color: collection.color,
+                    trophyId: collection.id,
+                    staticTextOffsetY: 1),
+                const SizedBox(height: 14),
+              ],
+              Text(
+                collection.name,
+                style: TextStyle(
+                  fontSize: 22,
+                  height: 1.2,
+                  fontWeight: FontWeight.w800,
+                  color: colorScheme.onSurface,
+                ),
               ),
-            ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Text(
+                    'ID ${widget.collectionId}',
+                    style: AppTheme.number(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  if (isTrophy && collection.color != null) ...[
+                    const SizedBox(width: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 2),
+                      decoration: BoxDecoration(
+                        gradient: collection.color == 'Rainbow'
+                            ? const LinearGradient(
+                                colors: [
+                                  Colors.red,
+                                  Colors.orange,
+                                  Colors.yellow,
+                                  Colors.green,
+                                  Colors.blue,
+                                  Colors.indigo,
+                                  Colors.purple,
+                                ],
+                              )
+                            : null,
+                        color: collection.color == 'Rainbow'
+                            ? null
+                            : _getColorFromType(collection.color!),
+                        borderRadius:
+                            BorderRadius.circular(AppDesignTokens.radiusPill),
+                        border: Border.all(color: colorScheme.outlineVariant),
+                      ),
+                      child: Text(
+                        collection.color!,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: collection.color == 'Rainbow'
+                              ? Colors.white
+                              : _getTextColorForBackground(collection.color!),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              if (nameNeedsTranslation) ...[
+                const SizedBox(height: 8),
+                _buildTranslationBlock(
+                  context: context,
+                  translatedText: _translatedName,
+                  isTranslating: _isTranslatingName,
+                  onTranslate: _translateName,
+                  sourceLabel: _isEnglishAndJapanese(collection.name)
+                      ? '日语+英语'
+                      : _isEnglish(collection.name)
+                          ? '英语'
+                          : '日语',
+                ),
+              ],
+              if (!isTrophy) ...[
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: _isSavingImage ? null : _saveImageToGallery,
+                        icon: const Icon(Icons.save_alt, size: 18),
+                        label: Text(_isSavingImage ? '保存中' : '保存到相册'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: FilledButton.tonalIcon(
+                        onPressed: _copyImageUrl,
+                        icon: const Icon(Icons.link, size: 18),
+                        label: const Text('复制链接'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ],
           ),
-          const SizedBox(height: 24),
-        ],
+        ),
         if (collection.description != null) ...[
-          _buildSectionHeading(context, Icons.notes_outlined, '描述'),
-          const SizedBox(height: 10),
-          Text(
-            collection.description!,
-            style: TextStyle(
-                fontSize: 16, height: 1.5, color: colorScheme.onSurface),
-          ),
-          if (descriptionNeedsTranslation) ...[
-            const SizedBox(height: 8),
-            _buildTranslationBlock(
-              context: context,
-              translatedText: _translatedDescription,
-              isTranslating: _isTranslatingDescription,
-              onTranslate: _translateDescription,
-              sourceLabel: _isEnglishAndJapanese(collection.description!)
-                  ? '日语+英语'
-                  : _isEnglish(collection.description!)
-                      ? '英语'
-                      : '日语',
+          const SizedBox(height: AppDesignTokens.cardGap),
+          AppCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const AppSectionHeader(
+                  title: '描述',
+                  padding: EdgeInsets.only(bottom: 8),
+                ),
+                Text(
+                  collection.description!,
+                  style: TextStyle(
+                      fontSize: 14, height: 1.5, color: colorScheme.onSurface),
+                ),
+                if (descriptionNeedsTranslation) ...[
+                  const SizedBox(height: 8),
+                  _buildTranslationBlock(
+                    context: context,
+                    translatedText: _translatedDescription,
+                    isTranslating: _isTranslatingDescription,
+                    onTranslate: _translateDescription,
+                    sourceLabel: _isEnglishAndJapanese(collection.description!)
+                        ? '日语+英语'
+                        : _isEnglish(collection.description!)
+                            ? '英语'
+                            : '日语',
+                  ),
+                ],
+              ],
             ),
-          ],
-          const SizedBox(height: 24),
+          ),
         ],
         if (collection.required != null && collection.required!.isNotEmpty) ...[
-          _buildSectionHeading(context, Icons.checklist_outlined, '所需条件'),
-          const SizedBox(height: 4),
-          ..._getMergedRequiredConditions(collection.required!),
-          const SizedBox(height: 8),
-          _buildSectionHeading(context, Icons.library_music_outlined, '歌曲列表'),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppDesignTokens.cardGap),
+          AppCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const AppSectionHeader(
+                  title: '所需条件',
+                  padding: EdgeInsets.zero,
+                ),
+                ..._getMergedRequiredConditions(collection.required!),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
           ..._getUniqueSongLists(collection.required!),
           if (!_isLoadingSongs &&
               widget.collectionType == 'plates' &&
@@ -1323,19 +982,14 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
                     ],
                   ),
                 )
-              : Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                  child: ListView(
-                    key: ValueKey(
-                        'collection_${widget.collectionId}_${widget.collectionType}'),
-                    padding: EdgeInsets.zero,
-                    children: [
-                      _buildCollectionPreview(context),
-                      if (widget.collectionType != 'trophies')
-                        const SizedBox(height: 24),
-                      _buildCollectionDetails(context),
-                    ],
-                  ),
+              : ListView(
+                  key: ValueKey(
+                      'collection_${widget.collectionId}_${widget.collectionType}'),
+                  padding: const EdgeInsets.fromLTRB(AppDesignTokens.gutter, 4,
+                      AppDesignTokens.gutter, AppDesignTokens.gutter),
+                  children: [
+                    _buildCollectionDetails(context),
+                  ],
                 ),
     );
   }

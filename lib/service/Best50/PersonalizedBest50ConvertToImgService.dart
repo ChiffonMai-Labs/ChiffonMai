@@ -10,12 +10,12 @@ import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:media_scanner/media_scanner.dart';
-import 'package:my_first_flutter_app/utils/TextStyleUtil.dart';
 import 'package:my_first_flutter_app/utils/ColorUtil.dart';
 import 'package:my_first_flutter_app/utils/StringUtil.dart';
 import 'package:my_first_flutter_app/utils/ImageEncodeUtil.dart';
 import 'package:my_first_flutter_app/widgets/B50GameCardWidget.dart';
 import 'package:my_first_flutter_app/widgets/MetaRowWidget.dart';
+import 'package:my_first_flutter_app/widgets/ExportStatsUi.dart';
 
 class PersonalizedB50ConvertToImg {
   // 全局Key，用于获取widget的渲染对象
@@ -310,7 +310,7 @@ class PersonalizedB50ConvertToImg {
         vertical: thunderVertical,
         count: personalizedSongs.length,
         statistics: '共 ${personalizedSongs.length} 张谱面\nRating 合计 $sum\n'
-            '平均 DX 分达成率 ${(averageScoreRate * 100).toStringAsFixed(2)}%',
+            '平均DX分数达成率 ${(averageScoreRate * 100).toStringAsFixed(2)}%',
         warning: warningText,
         sortLabel: sortLabel,
         cardBuilder: (index) => _buildGameCard(
@@ -448,12 +448,6 @@ class PersonalizedB50ConvertToImg {
   // 构建统计区域
   static Widget _buildStatsSection(
       BuildContext context, List<Map<String, dynamic>> songs) {
-    const double containerWidth = 1200.0;
-
-    double titleFontSize = containerWidth * 0.025; // 约30px
-    double mainFontSize = containerWidth * 0.03; // 约36px
-    double subFontSize = containerWidth * 0.02; // 约24px
-
     int totalSongs = songs.length;
     int totalRa =
         songs.fold(0, (sum, song) => sum + ((song['ra'] ?? 0) as int));
@@ -465,122 +459,34 @@ class PersonalizedB50ConvertToImg {
     double avgAchievement =
         totalSongs > 0 ? totalAchievement / totalSongs : 0.0;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: Colors.black, width: 2.0),
-        borderRadius: BorderRadius.circular(8.0),
-      ),
-      padding: EdgeInsets.all(16.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          Column(
-            children: [
-              Text(
-                '歌曲数',
-                style: TextStyle(
-                  fontSize: titleFontSize,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
+    return ExportStatsPanel(
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              flex: 3,
+              child: ExportHeroBlock(
+                label: '总RA',
+                value: '$totalRa',
+                caption: '平均RA ${avgRa.toStringAsFixed(1)}',
               ),
-              SizedBox(height: 8.0),
-              Text(
-                '$totalSongs',
-                style: TextStyle(
-                  fontSize: mainFontSize,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              flex: 2,
+              child: ExportStatBlock(label: '歌曲数', value: '$totalSongs'),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              flex: 4,
+              child: ExportStatBlock(
+                label: '平均达成率',
+                value: '${avgAchievement.toStringAsFixed(4)}%',
               ),
-            ],
-          ),
-          Column(
-            children: [
-              Text(
-                '总RA',
-                style: TextStyle(
-                  fontSize: titleFontSize,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
-              ),
-              SizedBox(height: 8.0),
-              Text(
-                '$totalRa',
-                style: TextStyle(
-                  fontSize: mainFontSize,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
-              ),
-            ],
-          ),
-          Column(
-            children: [
-              Text(
-                '平均RA',
-                style: TextStyle(
-                  fontSize: titleFontSize,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
-              ),
-              SizedBox(height: 8.0),
-              RichText(
-                text: TextSpan(
-                  children: [
-                    TextStyleUtil.span(
-                      avgRa.toStringAsFixed(1),
-                      TextStyle(
-                        fontSize: mainFontSize,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          Column(
-            children: [
-              Text(
-                '平均达成率',
-                style: TextStyle(
-                  fontSize: titleFontSize,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
-              ),
-              SizedBox(height: 8.0),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
-                children: [
-                  Text(
-                    avgAchievement.toStringAsFixed(4).split('.')[0],
-                    style: TextStyle(
-                      fontSize: mainFontSize,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
-                    ),
-                  ),
-                  Text(
-                    '.${avgAchievement.toStringAsFixed(4).split('.')[1]}%',
-                    style: TextStyle(
-                      fontSize: subFontSize,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }

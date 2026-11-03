@@ -5,7 +5,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../api/ApiUrls.dart';
@@ -47,6 +46,8 @@ import '../utils/StringUtil.dart';
 import '../utils/UserProfileNotifier.dart';
 import '../utils/ExternalLaunchUtil.dart';
 import 'DivingFishAccountSection.dart';
+import '../widgets/AppDialogs.dart';
+import '../widgets/AppToast.dart';
 
 // 数据源枚举 / 当前数据源 Notifier 已抽到 utils，这里 re-export，
 // 让既有 `import 'RefreshDataDialog.dart' show RefreshDataSource, ...` 继续可用。
@@ -429,10 +430,10 @@ class _RefreshDataDialogState extends State<_RefreshDataDialog> {
     });
 
     if (qq == null || qq.isEmpty) {
-      Fluttertoast.showToast(msg: '还是没读到 QQ 号。请确认已在水鱼官网保存，或重新登录一次水鱼账号');
+      AppToast.show('还是没读到 QQ 号。请确认已在水鱼官网保存，或重新登录一次水鱼账号');
       return;
     }
-    Fluttertoast.showToast(msg: '已读到绑定 QQ：$qq');
+    AppToast.show('已读到绑定 QQ：$qq');
     // 拿到 QQ 了，顺手探一次授权状态
     await _checkAuthorization();
   }
@@ -444,7 +445,7 @@ class _RefreshDataDialogState extends State<_RefreshDataDialog> {
   Future<void> _startAuthorization() async {
     final qq = _bindQQ;
     if (qq.isEmpty) {
-      Fluttertoast.showToast(msg: '未找到 QQ 号');
+      AppToast.show('未找到 QQ 号');
       return;
     }
     setState(() => _recheckingAuth = true);
@@ -454,16 +455,14 @@ class _RefreshDataDialogState extends State<_RefreshDataDialog> {
       _recheckingAuth = false;
       if (ok) _consentPending = true;
     });
-    Fluttertoast.showToast(
-      msg: ok ? '已打开授权页，完成授权后回到这里点「我已授权，重新检测」' : '发起授权失败，请稍后重试',
-    );
+    AppToast.show(ok ? '已打开授权页，完成授权后回到这里点「我已授权，重新检测」' : '发起授权失败，请稍后重试');
   }
 
   /// 「我已授权，重新检测」：显式重查一次授权状态。
   Future<void> _recheckAuthorization() async {
     final qq = _bindQQ;
     if (qq.isEmpty) {
-      Fluttertoast.showToast(msg: '未找到 QQ 号');
+      AppToast.show('未找到 QQ 号');
       return;
     }
     setState(() => _recheckingAuth = true);
@@ -475,11 +474,11 @@ class _RefreshDataDialogState extends State<_RefreshDataDialog> {
       if (result == true) _consentPending = false;
     });
     if (result == true) {
-      Fluttertoast.showToast(msg: '授权成功，现在可以刷新数据了');
+      AppToast.show('授权成功，现在可以刷新数据了');
     } else if (result == false) {
-      Fluttertoast.showToast(msg: '还没检测到授权，请确认在浏览器里点了「同意」');
+      AppToast.show('还没检测到授权，请确认在浏览器里点了「同意」');
     } else {
-      Fluttertoast.showToast(msg: '检测失败，请检查网络后重试');
+      AppToast.show('检测失败，请检查网络后重试');
     }
   }
 
@@ -499,7 +498,7 @@ class _RefreshDataDialogState extends State<_RefreshDataDialog> {
   Widget build(BuildContext context) {
     final brightness = Theme.of(context).brightness;
 
-    return AlertDialog(
+    return AppAlertDialog(
       title: const Text('刷新数据'),
       content: SizedBox(
         width: 520,
@@ -644,7 +643,7 @@ class _RefreshDataDialogState extends State<_RefreshDataDialog> {
                 onPressed: () {
                   final url = LuoXueUserPlayDataManager().getAuthorizationUrl();
                   Clipboard.setData(ClipboardData(text: url));
-                  Fluttertoast.showToast(msg: '授权链接已复制，请在浏览器中粘贴打开');
+                  AppToast.show('授权链接已复制，请在浏览器中粘贴打开');
                 },
               ),
             ],
@@ -783,10 +782,10 @@ class _RefreshDataDialogState extends State<_RefreshDataDialog> {
         bindQq: _bindQQ,
       )) {
         case DivingFishQqState.notLoggedIn:
-          Fluttertoast.showToast(msg: '请先在「系统 → 登录水鱼」登录水鱼账号');
+          AppToast.show('请先在「系统 → 登录水鱼」登录水鱼账号');
           return;
         case DivingFishQqState.noBindQq:
-          Fluttertoast.showToast(msg: '你的水鱼账号还没绑定 QQ 号，请先到水鱼官网「编辑个人资料」里填上');
+          AppToast.show('你的水鱼账号还没绑定 QQ 号，请先到水鱼官网「编辑个人资料」里填上');
           return;
         case DivingFishQqState.bound:
           break;
@@ -796,18 +795,18 @@ class _RefreshDataDialogState extends State<_RefreshDataDialog> {
     if (_currentDataSource == RefreshDataSource.luoxue &&
         authCodeController.text.trim().isEmpty &&
         !_hasSavedLuoXueToken) {
-      Fluttertoast.showToast(msg: '请先填写落雪授权码');
+      AppToast.show('请先填写落雪授权码');
       return;
     }
     // AWMC NET 无需登录，但必须有 QQ 号才查得到
     if (_currentDataSource == RefreshDataSource.awmc) {
       final qq = awmcQqController.text.trim();
       if (qq.isEmpty) {
-        Fluttertoast.showToast(msg: '请输入 AWMC NET 的 QQ 号');
+        AppToast.show('请输入 AWMC NET 的 QQ 号');
         return;
       }
       if (!RegExp(r'^\d{5,12}$').hasMatch(qq)) {
-        Fluttertoast.showToast(msg: 'QQ 号格式不对（应为 5–12 位数字）');
+        AppToast.show('QQ 号格式不对（应为 5–12 位数字）');
         return;
       }
     }
@@ -815,11 +814,7 @@ class _RefreshDataDialogState extends State<_RefreshDataDialog> {
     final isOnline = await ConnectivityService().hasConnection();
     if (!isOnline) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('当前无网络连接，无法刷新数据。请联网后重试。'),
-              duration: Duration(seconds: 3)),
-        );
+        AppToast.show('当前无网络连接，无法刷新数据。请联网后重试。', duration: Duration(seconds: 3));
       }
       return;
     }
@@ -862,13 +857,7 @@ void launchUrlFallback(
 }) {
   Clipboard.setData(ClipboardData(text: copyText ?? url));
   if (!context.mounted) return;
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Text(message ?? '无法打开浏览器，链接已复制到剪贴板，请手动粘贴到浏览器打开'),
-      duration: const Duration(seconds: 4),
-      action: SnackBarAction(label: '知道了', onPressed: () {}),
-    ),
-  );
+  AppToast.show(message ?? '无法打开浏览器，链接已复制到剪贴板，请手动粘贴到浏览器打开', duration: const Duration(seconds: 4), actionLabel: '知道了', onAction: () {});
 }
 
 // ============================================================

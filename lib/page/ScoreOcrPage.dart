@@ -1,23 +1,17 @@
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:my_first_flutter_app/widgets/NoRipple.dart';
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:url_launcher/url_launcher.dart';
 
-import '../api/ApiUrls.dart';
 import '../constant/CacheKeyConstant.dart';
 import '../entity/DivingFish/Song.dart';
 import '../entity/MaimaiHubOcrResult.dart';
-import '../manager/DivingFish/DivingFishOAuthManager.dart';
 import '../manager/DivingFish/MaimaiMusicDataManager.dart';
 import '../manager/DivingFishProbeManager.dart';
 import '../manager/LuoXue/LuoXueOAuthManager.dart';
@@ -26,8 +20,6 @@ import '../service/SongSearchService.dart';
 import '../service/DivingFishScoreUploadService.dart';
 import '../service/LuoXueScoreUploadService.dart';
 import '../service/MaimaiHubOcrService.dart';
-import '../utils/ApiClient.dart';
-import '../utils/AppConstants.dart';
 import '../utils/AppTheme.dart';
 import '../utils/CoverUtil.dart';
 import '../utils/OcrImageCropUtil.dart';
@@ -35,8 +27,10 @@ import '../utils/SongFilterUtil.dart';
 import '../utils/StringUtil.dart';
 import '../utils/SecureCredentialStore.dart';
 import '../widgets/BackgroundPageScaffold.dart';
-import '../widgets/RefreshDataDialog.dart' show launchUrlFallback;
 import '../utils/AppDesignTokens.dart';
+import '../widgets/AppUi.dart';
+import '../widgets/AppToast.dart';
+import '../widgets/QrQuickFillButtons.dart';
 
 /// 结算画面识别页（拍摄机台结算画面 → 裁剪 → 识别 → 显示结构化成绩）
 ///
@@ -195,32 +189,6 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
   /// maimai Score Hub 登录态；null 表示还没查完
   bool? _loggedIn;
 
-  /// 水鱼 OAuth 授权状态（读取成绩需要授权本应用）。
-  /// **三态**：null = 正在检查 / 无法判断，false = 未授权，true = 已授权。
-  /// 判定方式照抄「账号管理」对话框的 `_buildDivingFishAuthSection`。
-  bool? _dfAuthorized;
-
-  /// 落雪个人 API 密钥是否**存在本机**。
-  ///
-  /// 这就是「本页的同步按钮能不能真的传上去」的唯一前提：直传落雪要的是
-  /// 密钥本体（`X-User-Token`），而 maimai Score Hub 只肯返回一个布尔值、不肯把密钥还回来
-  /// （见 [DivingFishProbeManager.setLxnsImportToken] 与后端 `PATCH /me`）。
-  /// 所以密钥只在 maimai Score Hub 上有 = 本机传不了。
-  bool _lxnsKeyLocal = false;
-
-  /// maimai Score Hub 是否已绑定落雪密钥。**只能拿来提示，不能当成可同步的条件。**
-  ///
-  /// 之前这里是个三态 `_lxnsHasToken`，本地没有就问 maimai Score Hub，服务端说 true 就显示
-  /// 「已设置密钥」—— 于是出现了「界面写着已设置、点同步却说没设置」：
-  /// 密钥在云端，本机读不到。现在把这两个事实分开记。
-  bool _lxnsKeyOnHub = false;
-
-  /// 落雪状态是否还没查完（查完才显示结论，避免先闪一下「未设置」）
-  bool _lxnsChecked = true;
-
-  /// 水鱼授权检查用的 QQ（profile.bind_qq 取不到时回落本地缓存）
-  String _authQQ = '';
-
   /// 识别结果里每张图匹配到的本地曲库数据，key 是 [MaimaiHubOcrItem.index]。
   /// 匹配不到就是没有这一项（曲库未刷新 / OCR 出的曲名跟曲库对不上）。
   final Map<int, Song> _matchedSongs = {};
@@ -229,7 +197,7 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
   ///
   /// 之前 [_resolveMatchedSongs] 在曲库为空时直接 return，结果是**所有**卡片
   /// 都定位不到歌、两个同步按钮全部变灰，而界面上一句解释都没有；用户只会
-  /// 看到账号状态写着「已授权 / 已设置密钥」，以为是登录出了问题。
+  /// 以为是登录出了问题。
   /// 记下这个状态，是为了能明确区分「曲库没下载」和「这一首没匹配上」。
   bool _songLibraryEmpty = false;
 
@@ -383,7 +351,7 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
   /// 这一条**为什么**不能同步；能同步时返回 null。
   ///
   /// 存在的意义是「别让按钮无缘无故变灰」。之前这两个按钮的可用性只体现在
-  /// 变灰上，用户看到账号状态写着「已授权 / 已设置密钥」却点不动按钮，
+  /// 变灰上，用户点不动按钮，
   /// 完全不知道卡在哪一步 —— 实际原因在 OCR 数据这一侧，与登录状态无关。
   /// 现在把原因直接写在按钮下面。
   ///
@@ -425,7 +393,7 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
         await DivingFishProbeManager().getCachedDivingFishImportToken();
     if (!mounted) return;
     if (token == null || token.isEmpty) {
-      Fluttertoast.showToast(msg: '还没有水鱼 Import-Token，请先到「登录水鱼」完成登录');
+      AppToast.show('还没有水鱼 Import-Token，请先到「登录水鱼」完成登录');
       return;
     }
 
@@ -442,15 +410,13 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
         dxScore: _dxScoreOf(item),
       );
       if (!mounted) return;
-      Fluttertoast.showToast(
-        msg: result.isNew
+      AppToast.show(result.isNew
             ? '已新增到水鱼：${song.basicInfo.title}'
-            : '已更新水鱼成绩：${song.basicInfo.title}',
-      );
+            : '已更新水鱼成绩：${song.basicInfo.title}');
     } on ScoreUploadException catch (e) {
-      if (mounted) Fluttertoast.showToast(msg: e.message);
+      if (mounted) AppToast.show(e.message);
     } catch (e) {
-      if (mounted) Fluttertoast.showToast(msg: '同步失败：$e');
+      if (mounted) AppToast.show('同步失败：$e');
     } finally {
       if (mounted) setState(() => _uploadingIndex = null);
     }
@@ -464,8 +430,7 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
   /// 定位不到具体曲目，直接拒绝而不是硬传。
   ///
   /// 认证由 service 内部决定：OAuth Bearer 优先，个人 API 密钥回退。本页面
-  /// 只在「两条都拿不到」时弹粘贴框 —— OAuth 已经授权过的用户走 OAuth 那条
-  /// 路，没有被打扰。
+  /// 只在「两条都拿不到」时提示去账号管理填写。
   Future<void> _syncToLuoXue(MaimaiHubOcrItem item) async {
     if (_uploadingLuoXueIndex != null) return;
 
@@ -476,20 +441,18 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
 
     final songId = int.tryParse(song.id);
     if (songId == null) {
-      Fluttertoast.showToast(msg: '无法解析曲目 ID，不能同步到落雪');
+      AppToast.show('无法解析曲目 ID，不能同步到落雪');
       return;
     }
 
-    // OAuth 没有、本地密钥也没有 —— 就地让用户粘一个，避免弹个 toast 让人
-    // 自己去找入口。两条路都有的话就走 OAuth，不打扰用户。
+    // OAuth 和本地密钥都没有时传不上去，点同步时才检查。
     final hasOAuth = await LuoXueOAuthManager().getAccessToken() != null;
-    if (!hasOAuth && !_lxnsKeyLocal) {
-      await _promptForLxnsKey();
-      if (!mounted) return;
-      // 粘了也不代表能用（空字符串会被拦下）。再确认一次，避免空跑一次上传
-      final again =
-          await LuoXueOAuthManager().getAccessToken() != null || _lxnsKeyLocal;
-      if (!again) return;
+    final localKey = await SecureCredentialStore.read(
+        CacheKeyConstant.probeLxnsImportToken);
+    if (!mounted) return;
+    if (!hasOAuth && (localKey == null || localKey.isEmpty)) {
+      AppToast.show('还没有落雪个人 API 密钥，请先到「账号管理」填写');
+      return;
     }
 
     setState(() => _uploadingLuoXueIndex = item.index);
@@ -504,14 +467,11 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
         dxScore: _dxScoreOf(item),
       );
       if (!mounted) return;
-      Fluttertoast.showToast(
-        msg: _composeLuoXueToast(song.basicInfo.title, result),
-        toastLength: Toast.LENGTH_LONG,
-      );
+      AppToast.show(_composeLuoXueToast(song.basicInfo.title, result));
     } on LuoXueUploadException catch (e) {
-      if (mounted) Fluttertoast.showToast(msg: e.message);
+      if (mounted) AppToast.show(e.message);
     } catch (e) {
-      if (mounted) Fluttertoast.showToast(msg: '同步失败：$e');
+      if (mounted) AppToast.show('同步失败：$e');
     } finally {
       if (mounted) setState(() => _uploadingLuoXueIndex = null);
     }
@@ -537,9 +497,9 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
       lines.add('达成率 ${_formatAchievement(r.newAchievement!)}%');
     }
     if (r.oldDxScore != null && r.newDxScore != null) {
-      lines.add('DX 分 ${r.oldDxScore} → ${r.newDxScore}');
+      lines.add('DX分数 ${r.oldDxScore} → ${r.newDxScore}');
     } else if (r.newDxScore != null) {
-      lines.add('DX 分 ${r.newDxScore}');
+      lines.add('DX分数 ${r.newDxScore}');
     }
     return lines.join('\n');
   }
@@ -555,7 +515,6 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
   void initState() {
     super.initState();
     _checkLogin();
-    _refreshAuthStatus();
   }
 
   Future<void> _checkLogin() async {
@@ -563,203 +522,17 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
     if (mounted) setState(() => _loggedIn = ok);
   }
 
-  // ========== 上传目标账号状态 ==========
-  //
-  // 判定方式**照抄「账号管理」对话框**（HomePage `_showAccountManageDialog`），
-  // 不自己发明第二套标准 —— 否则同一个账号在两个页面会显示不同结论：
-  //
-  //   水鱼 → `DivingFishOAuthManager.checkAuthorization(qq)`
-  //          检查的是「本应用有没有被授权读取该 QQ 的成绩」，不是「有没有 token」。
-  //          没有 OAuth 授权时，写入同样会被服务端拒绝。
-  //   落雪 → 本机密钥 (`probeLxnsImportToken`) 优先；其次问 maimai Score Hub
-  //          （`DivingFishProbeManager.hasLxnsImportToken()`，只返布尔）。
-  //          状态条上看到的「已设置密钥」= 本机有，跟上传能用的条件一致；
-  //          「云端已绑定·本机缺密钥」= maimai Score Hub 有但本机没有，**不能直接同步**。
-  //          两条路（OAuth / X-User-Token）真要发起同步时由 service 自己决定。
-
-  /// 读取两个上传目标的账号状态。
-  ///
-  /// 识别完成后再刷一次——用户可能刚在别处登录/授权过。
-  /// 全程 try/catch：这些都是网络查询，失败不能让整页崩，只显示「未确认」。
-  Future<void> _refreshAuthStatus() async {
-    setState(() {
-      _dfAuthorized = null; // 重新进入"检查中"
-      _lxnsChecked = false;
-    });
-
-    // ── 水鱼：先拿 QQ，再查授权状态 ──
-    bool? dfAuth;
-    String qq = '';
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      qq = prefs.getString(CacheKeyConstant.probeDivingFishBindQQ) ?? '';
-
-      final jwt = await SecureCredentialStore.read(
-              CacheKeyConstant.probeDivingFishToken) ??
-          '';
-      if (jwt.isNotEmpty) {
-        // 与账号管理一致：优先用 profile 里的 bind_qq
-        try {
-          final resp = await ApiClient.get(
-            Uri.parse(ApiUrls.DivingFishProfileApi),
-            headers: {
-              'Content-Type': 'application/json',
-              'Cookie': 'jwt_token=$jwt',
-            },
-          );
-          if (resp.statusCode == 200) {
-            final p = json.decode(resp.body) as Map<String, dynamic>;
-            final bindQQ = p['bind_qq']?.toString() ?? '';
-            qq = bindQQ;
-          }
-        } catch (e) {
-          debugPrint('[ScoreOcr] 拉取水鱼 profile 失败: $e');
-        }
-      }
-
-      dfAuth = qq.isEmpty
-          ? null // 没有 QQ 就没法查授权，显示「未确认」而不是「未授权」
-          : await DivingFishOAuthManager().checkAuthorization(qq);
-    } catch (e) {
-      debugPrint('[ScoreOcr] 查询水鱼授权状态失败: $e');
-      dfAuth = null;
-    }
-
-    // ── 落雪：分两个事实查，别混成一个 ──
-    //
-    // 「本机有密钥」= 本页可以直传；「maimai Score Hub 有密钥」= 只有服务端能代传，
-    // 本页的同步按钮用不上它。账号管理对话框也是先查本地再问 maimai Score Hub，
-    // 但它那边两个来源都算「已设置」；在本页那样会撒谎。
-    bool keyLocal = false;
-    bool keyOnHub = false;
-    try {
-      final local = await SecureCredentialStore.read(
-          CacheKeyConstant.probeLxnsImportToken);
-      keyLocal = local != null && local.isNotEmpty;
-      if (!keyLocal) {
-        keyOnHub = await DivingFishProbeManager().hasLxnsImportToken() == true;
-      }
-    } catch (e) {
-      debugPrint('[ScoreOcr] 查询落雪密钥状态失败: $e');
-    }
-
-    if (!mounted) return;
-    setState(() {
-      _authQQ = qq;
-      _dfAuthorized = dfAuth;
-      _lxnsKeyLocal = keyLocal;
-      _lxnsKeyOnHub = keyOnHub;
-      _lxnsChecked = true;
-    });
-  }
-
-  /// 点状态条。
-  ///
-  ///   - 水鱼：`openBindingLink(qq)` 直接打开授权链接（照抄账号管理，不是只弹提示）
-  ///   - 落雪：**本机有密钥**才去开绑定页；没有密钥就直接开粘贴框。
-  ///     本页的同步走直传，非要本机有密钥不可，所以把「粘贴密钥」放在第一次
-  ///     点击就能到的地方 —— 让用户先去网页拿密钥、再自己找地方粘贴、
-  ///     回来发现还是不行，就是之前那条死路。
-  Future<void> _onAuthChipTap({required bool isDivingFish}) async {
-    if (isDivingFish) {
-      if (_authQQ.isEmpty) {
-        Fluttertoast.showToast(msg: '未找到 QQ 号，请先到「系统 → 登录水鱼」登录');
-        return;
-      }
-      final ok = await DivingFishOAuthManager().openBindingLink(_authQQ);
-      if (!mounted) return;
-      Fluttertoast.showToast(msg: ok ? '已打开授权链接，完成授权后返回即可' : '发起授权失败，请稍后重试');
-      if (ok) await _refreshAuthStatus();
-      return;
-    }
-
-    if (_lxnsKeyLocal) {
-      // 已有密钥还点：当作「去落雪看看/换一个」的入口
-      await _openLxnsProfilePage();
-      return;
-    }
-    await _promptForLxnsKey();
-  }
-
-  /// 打开落雪的第三方绑定页（个人 API 密钥就在那个页面生成）
-  Future<void> _openLxnsProfilePage() async {
-    final uri =
-        Uri.parse('https://maimai.lxns.net/user/profile?tab=thirdparty');
-    try {
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } else if (mounted) {
-        // canLaunchUrl 之后已经跨了 async gap，用 context 前必须查 mounted
-        launchUrlFallback(uri.toString(), context);
-      }
-    } catch (e) {
-      debugPrint('[ScoreOcr] 打开落雪绑定页失败：$e');
-      if (mounted) launchUrlFallback(uri.toString(), context);
-    }
-  }
-
-  /// 在本页直接粘贴落雪个人 API 密钥。
-  ///
-  /// 为什么要有这个框：直传落雪要的是密钥本体，而 maimai Score Hub 只返回
-  /// `hasLxnsImportToken` 这个布尔值（后端 `PATCH /me` 是只写不读），
-  /// 所以「密钥只在云端」这种状态下本机无论如何都传不了，必须让用户
-  /// 在本机存一份。之前唯一的入口在首页「账号管理」里，太绕。
-  ///
-  /// 保存后照账号管理的做法顺手同步给 maimai Score Hub；那一步是**尽力而为**，
-  /// 失败也不提示、不拦流程 —— 本地直传根本不依赖 maimai Score Hub。
-  Future<void> _promptForLxnsKey() async {
-    final text = await showDialog<String>(
-      context: context,
-      // 用一个 StatefulWidget 承载对话框内容：controller 由它的 State 持有、
-      // 在 dispose() 里释放，时机由框架保证正好在退出动画之后。
-      // 直接在 showDialog 之后立刻 controller.dispose() 会让 TextField
-      // 在退出动画期间被强行解除监听，触发 framework.dart 里的
-      // `_dependents.isEmpty` 断言。
-      builder: (_) => _LxnsKeyPromptDialog(cloudOnlyHint: _lxnsKeyOnHub),
-    );
-    if (!mounted) return;
-    // 取消（null）和被保存按钮拦下的空串要分开处理：后者什么都不做会让人
-    // 以为保存成功了
-    if (text == null) return;
-    if (text.isEmpty) {
-      Fluttertoast.showToast(msg: '密钥为空，没有保存');
-      return;
-    }
-
-    await SecureCredentialStore.write(
-        CacheKeyConstant.probeLxnsImportToken, text);
-    // 顺手同步给 maimai Score Hub。失败也不影响本机直传，所以不 await、不报错。
-    unawaited(DivingFishProbeManager().setLxnsImportToken(text));
-
-    if (!mounted) return;
-    Fluttertoast.showToast(msg: '落雪密钥已保存到本机，可以同步了');
-    await _refreshAuthStatus();
-  }
-
   // ========== 选图 ==========
 
   void _showSourcePicker() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        decoration: BoxDecoration(
-          color: Theme.of(ctx).colorScheme.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-        ),
-        padding: const EdgeInsets.symmetric(vertical: 16),
+      showDragHandle: true,
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.only(bottom: 16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppColors.tableBorder(Theme.of(context).brightness),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 16),
             const Text('选择图片来源',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
@@ -793,7 +566,7 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
       final status = await Permission.camera.request();
       if (!status.isGranted) {
         if (mounted) {
-          Fluttertoast.showToast(msg: '需要相机权限');
+          AppToast.show('需要相机权限');
           await openAppSettings();
         }
         return;
@@ -830,7 +603,7 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
         }
       }
     } catch (e) {
-      if (mounted) Fluttertoast.showToast(msg: '选取图片失败: $e');
+      if (mounted) AppToast.show('选取图片失败: $e');
     }
   }
 
@@ -857,11 +630,9 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
       // 用本地曲库补全曲绘 / 版本 / 流派 / 定数。识别本身不依赖它，
       // 所以单独 await，失败也不影响成绩展示。
       await _resolveMatchedSongs(result);
-      // 顺手刷新两个上传目标的账号状态：用户可能刚在别处登录过
-      await _refreshAuthStatus();
       if (!mounted) return;
       if (!result.hasAnySuccess) {
-        Fluttertoast.showToast(msg: '没有识别出成绩，可裁剪得更贴近结算区域后重试');
+        AppToast.show('没有识别出成绩，可裁剪得更贴近结算区域后重试');
       }
     } on MaimaiHubOcrException catch (e) {
       if (!mounted) return;
@@ -871,14 +642,14 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
         // 401 会被翻译成「登录状态已失效」，顺手刷新登录态提示
         if (e.message.contains('登录')) _loggedIn = false;
       });
-      Fluttertoast.showToast(msg: e.message);
+      AppToast.show(e.message);
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _error = e.toString();
         _isRecognizing = false;
       });
-      Fluttertoast.showToast(msg: '识别出错: $e');
+      AppToast.show('识别出错: $e');
     }
   }
 
@@ -1571,12 +1342,21 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
 
   Widget _buildContent(double sw, Color c) {
     return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(sw * 0.04, 8, sw * 0.04, sw * 0.04),
+      padding: EdgeInsets.fromLTRB(sw * 0.04, 8, sw * 0.04,
+          sw * 0.04 + MediaQuery.viewInsetsOf(context).bottom),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           if (_loggedIn == false) ...[
-            _buildLoginBanner(sw, c),
+            _OcrHubLoginPanel(
+              onLoggedIn: () {
+                setState(() {
+                  _loggedIn = true;
+                  _error = null;
+                });
+                AppToast.show('maimai Score Hub 登录成功');
+              },
+            ),
             const SizedBox(height: 16),
           ],
           if (_isRecognizing) ...[
@@ -1603,60 +1383,50 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
     );
   }
 
-  Widget _buildRecognizing(double sw, Color c) => Padding(
-        padding: EdgeInsets.all(sw * 0.06),
+  Widget _buildRecognizing(double sw, Color c) {
+    final scheme = Theme.of(context).colorScheme;
+    return SizedBox(
+      width: double.infinity,
+      child: AppCard(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const SizedBox(height: 32),
             const CircularProgressIndicator(),
             const SizedBox(height: 16),
             Text('正在识别成绩',
                 style: TextStyle(
-                    color: c,
-                    fontSize: sw * 0.045,
-                    fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
+                    color: scheme.onSurface,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800)),
+            const SizedBox(height: 6),
             Text('曲绘 + 标题双路匹配，通常需要几秒',
-                style: TextStyle(
-                    color: c.withValues(alpha: 0.6), fontSize: sw * 0.032)),
-            const SizedBox(height: 32),
+                textAlign: TextAlign.center,
+                style:
+                    TextStyle(color: scheme.onSurfaceVariant, fontSize: 13)),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildGuide(double sw, Color c) => const RecognitionGuideCard(
+        icon: Icons.document_scanner,
+        title: '对着机台结算页面拍一张照片',
+        description: '自动识别曲名、达成率、DX 分数、难度与 FC/FS',
+        steps: ['拍照或从相册选择结算画面', '尽量拍正、拍清，识别更准', '核对结果后可同步到水鱼或落雪'],
       );
 
-  Widget _buildGuide(double sw, Color c) => Column(
+  Widget _buildPhotoPreview(double sw, Color c) {
+    final scheme = Theme.of(context).colorScheme;
+    return AppCard(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const SizedBox(height: 24),
-          Icon(Icons.document_scanner,
-              size: sw * 0.18, color: c.withValues(alpha: 0.35)),
-          const SizedBox(height: 12),
-          Text('对着机台结算页面拍一张照片',
-              style: TextStyle(
-                  color: c, fontSize: sw * 0.045, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 8),
-          Text('自动识别曲名、达成率、DX 分数、难度与 FC/FS\n尽量拍正、拍清，识别更准',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  color: c.withValues(alpha: 0.5), fontSize: sw * 0.03)),
-        ],
-      );
-
-  Widget _buildPhotoPreview(double sw, Color c) => Column(
-        children: [
-          const SizedBox(height: 8),
-          Container(
-            width: sw * 0.7,
-            constraints: BoxConstraints(maxHeight: sw * 1.0),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: c.withValues(alpha: 0.3), width: 2),
-              boxShadow: [
-                AppConstants.defaultShadow(Theme.of(context).brightness)
-              ],
-            ),
+          ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: sw),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+              borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
               child: Image.file(
                 File(_photoPath!),
                 fit: BoxFit.contain,
@@ -1665,167 +1435,97 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
             ),
           ),
           const SizedBox(height: 10),
-          Text('图片已就绪，点击下方「识别」开始',
-              style: TextStyle(
-                  color: c.withValues(alpha: 0.5), fontSize: sw * 0.03)),
-        ],
-      );
-
-  Widget _buildErrorBanner(double sw, Color c) => Container(
-        width: sw * 0.85,
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: AppColors.errorRed(Theme.of(context).brightness)
-              .withValues(alpha: 0.15),
-          borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-          border: Border.all(
-            color: AppColors.errorRed(Theme.of(context).brightness)
-                .withValues(alpha: 0.5),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.check_circle_outline,
+                  size: 16, color: scheme.primary),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text('图片已就绪，点击下方「开始识别」',
+                    style: TextStyle(
+                        color: scheme.onSurfaceVariant, fontSize: 13)),
+              ),
+            ],
           ),
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.error_outline,
-                color: AppColors.errorRed(Theme.of(context).brightness)),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(_error ?? '',
-                  style: TextStyle(
-                      color: c.withValues(alpha: 0.85), fontSize: sw * 0.032)),
+        ],
+      ),
+    );
+  }
+
+  /// 错误 / 未登录这类提示条：浅色底 + 图标 + 说明。
+  Widget _buildNoticeBanner(IconData icon, Color color, String text) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 20, color: color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: 13,
+                height: 1.4,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
             ),
-          ],
-        ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorBanner(double sw, Color c) => _buildNoticeBanner(
+        Icons.error_outline,
+        AppColors.errorRed(Theme.of(context).brightness),
+        _error ?? '',
       );
 
   /// 未登录 maimai Score Hub 时的提示横幅。
   ///
   /// 识别接口必须带用户 token，未登录必然 401，所以提前说清楚，
   /// 免得用户截好图才在最后一步失败。
-  Widget _buildLoginBanner(double sw, Color c) {
-    final warn = AppColors.warningOrange(Theme.of(context).brightness);
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: warn.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-        border: Border.all(color: warn.withValues(alpha: 0.5)),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.lock_outline, color: warn),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              '未登录 maimai Score Hub，无法识别。'
-              '请先到「系统 → 登录 maimai Score Hub」完成认证；登录后可直接识别，无需实际同步成绩。',
-              style: TextStyle(
-                  color: c.withValues(alpha: 0.85), fontSize: sw * 0.032),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   // ========== 结构化识别结果 ==========
 
   Widget _buildResultList(double sw, Color c) {
     final batch = _result!;
+    final brightness = Theme.of(context).brightness;
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              batch.hasAnySuccess ? Icons.check_circle : Icons.error_outline,
-              color: batch.hasAnySuccess
-                  ? AppColors.successGreen(Theme.of(context).brightness)
-                  : AppColors.errorRed(Theme.of(context).brightness),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              batch.hasAnySuccess
-                  ? '识别完成 · ${batch.okCount}/${batch.results.length} 张成功'
-                  : '未能识别出成绩',
-              style: TextStyle(
-                  color: c, fontSize: sw * 0.04, fontWeight: FontWeight.bold),
-            ),
-          ],
+        Padding(
+          padding: const EdgeInsets.fromLTRB(4, 0, 4, 10),
+          child: Row(
+            children: [
+              Icon(
+                batch.hasAnySuccess ? Icons.check_circle : Icons.error_outline,
+                size: 20,
+                color: batch.hasAnySuccess
+                    ? AppColors.successGreen(brightness)
+                    : AppColors.errorRed(brightness),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  batch.hasAnySuccess
+                      ? '识别完成 · ${batch.okCount}/${batch.results.length} 张成功'
+                      : '未能识别出成绩',
+                  style: TextStyle(
+                      color: c, fontSize: 15, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
         ),
-        const SizedBox(height: 12),
         ...batch.results.map((item) => _buildResultCard(item, sw, c)),
       ],
-    );
-  }
-
-  /// 单个账号状态小胶囊。
-  ///
-  /// [ready] 三态：true=就绪（绿）/ false=未就绪（橙）/ null=未确认（灰）
-  Widget _buildAuthChip({
-    required String label,
-    required bool? ready,
-    required String readyText,
-    required String notReadyText,
-    String? unknownText,
-
-    /// `ready == false` 但仍有一种「半可用」的独立状态时用（落雪的
-    /// 「云端已绑定、本机没有」）。给文案就会显示成橙色警告态。
-    String? warnText,
-    required VoidCallback onTap,
-    required double sw,
-  }) {
-    final brightness = Theme.of(context).brightness;
-    final Color color;
-    final String status;
-    final IconData icon;
-
-    if (ready == true) {
-      color = AppColors.successGreen(brightness);
-      status = readyText;
-      icon = Icons.check_circle_outline;
-    } else if (warnText != null) {
-      color = AppColors.warningOrange(brightness);
-      status = warnText;
-      icon = Icons.cloud_done_outlined;
-    } else if (ready == false) {
-      color = AppColors.warningOrange(brightness);
-      status = notReadyText;
-      icon = Icons.error_outline;
-    } else {
-      color = AppColors.greyHint(brightness);
-      status = unknownText ?? '未确认';
-      icon = Icons.help_outline;
-    }
-
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: color.withValues(alpha: 0.45)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 14, color: color),
-            const SizedBox(width: 5),
-            Text(
-              '$label $status',
-              style: TextStyle(
-                  fontSize: 12, color: color, fontWeight: FontWeight.w600),
-            ),
-            // 未就绪时给一个可点的暗示
-            if (ready != true) ...[
-              const SizedBox(width: 3),
-              Icon(Icons.chevron_right, size: 13, color: color),
-            ],
-          ],
-        ),
-      ),
     );
   }
 
@@ -1839,29 +1539,149 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
     final diffIndex = _difficultyIndexOf(difficulty);
     final achievement = _achievementOf(item);
     final dxScore = _dxScoreOf(item);
+    final fcBadge = _fcBadge(_fcOf(item));
+    final fsBadge = _fsBadge(_fsOf(item));
 
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 12),
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: AppSurfaces.card(context),
-        borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── 顶部：难度 / 谱面类型 / 置信度 ──────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
-            child: Row(
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppDesignTokens.cardGap),
+      child: AppCard(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // ── 曲名（左侧带曲绘 + 难度 / 谱面类型）────────────────────
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildDifficultyBadge(item, brightness),
-                if (item.isDx != null) ...[
-                  const SizedBox(width: 6),
-                  _buildChip(item.isDx! ? 'DX' : '标准', scheme.primary),
+                // 曲绘：只在能定位到歌曲时才有（否则宁可不显示）
+                if (song != null) ...[
+                  ClipRRect(
+                    borderRadius:
+                        BorderRadius.circular(AppDesignTokens.radiusSmall),
+                    child: CoverUtil.buildCoverWidget(song.id, 76),
+                  ),
+                  const SizedBox(width: 12),
                 ],
-                const Spacer(),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        children: [
+                          _buildDifficultyBadge(item, brightness),
+                          if (item.isDx != null)
+                            _buildChip(item.isDx! ? 'DX' : '标准', scheme.primary),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      if (best != null)
+                        Text(
+                          _edits[item.index]?.titleOf(best.title) ?? best.title,
+                          style: TextStyle(
+                              color: scheme.onSurface,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800,
+                              height: 1.25),
+                        )
+                      else
+                        Text('未识别出曲名',
+                            style: TextStyle(
+                                color: AppColors.errorRed(brightness),
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold)),
+                      // 曲师：曲库匹配到才有
+                      if (song != null &&
+                          song.basicInfo.artist.trim().isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          song.basicInfo.artist,
+                          style: TextStyle(
+                              color: scheme.onSurfaceVariant, fontSize: 12),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+
+            // ── 核心数字：达成率 + DX 分数（改了就用改后的值）──────────
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+              decoration: BoxDecoration(
+                color: AppSurfaces.inset(context),
+                borderRadius:
+                    BorderRadius.circular(AppDesignTokens.radiusMedium),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: _buildHeroStat(
+                      label: '达成率',
+                      value: achievement == null
+                          ? '—'
+                          : '${achievement.toStringAsFixed(4)}%',
+                      grade: _achievementGrade(achievement),
+                    ),
+                  ),
+                  Container(
+                    width: 1,
+                    height: 36,
+                    color: AppSurfaces.hairline(context),
+                  ),
+                  Expanded(
+                    flex: 2,
+                    child: _buildHeroStat(
+                      label: 'DX 分数',
+                      value: dxScore?.toString() ?? '—',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // ── 成就徽章：只在确实有数据时出现（改了就用改后的值）──────
+            if (fcBadge != null || fsBadge != null) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  if (fcBadge != null) ComboLabelBadge(raw: fcBadge),
+                  if (fcBadge != null && fsBadge != null)
+                    const SizedBox(width: 6),
+                  if (fsBadge != null) ComboLabelBadge(raw: fsBadge),
+                ],
+              ),
+            ],
+
+            // ── 曲库信息 / 置信度 / 命中来源 ──────────────────────────
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                if (song != null && song.basicInfo.from.trim().isNotEmpty)
+                  _buildChip(
+                      // extra 曲目走不带年号的口径（宴会场 / 追加曲）
+                      StringUtil.formatVersion2WithFlag(
+                          song.basicInfo.from, SongFilterUtil.isExtra(song)),
+                      scheme.primary),
+                if (song != null && song.basicInfo.genre.trim().isNotEmpty)
+                  _buildChip(song.basicInfo.genre, scheme.tertiary),
+                if (song != null &&
+                    diffIndex != null &&
+                    _levelAtIndex(song, diffIndex) != null)
+                  _buildChip(
+                      '等级 ${_levelAtIndex(song, diffIndex)}', scheme.secondary),
+                if (song != null &&
+                    diffIndex != null &&
+                    _dsAtIndex(song, diffIndex) != null)
+                  _buildChip(
+                      '定数 ${_dsAtIndex(song, diffIndex)!.toStringAsFixed(1)}',
+                      scheme.secondary),
                 if (best != null)
                   _buildChip(
                     best.confidence == null
@@ -1871,381 +1691,158 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
                   ),
               ],
             ),
-          ),
-
-          // ── 曲名（左侧带曲绘 + 曲库基础信息）──────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 曲绘：只在能定位到歌曲时才有（否则宁可不显示）
-                if (song != null) ...[
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-                    child: CoverUtil.buildCoverWidget(song.id, 96),
-                  ),
-                  const SizedBox(width: 12),
-                ],
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (best != null)
-                        Text(
-                          _edits[item.index]?.titleOf(best.title) ?? best.title,
-                          style: TextStyle(
-                              color: c,
-                              fontSize: sw * 0.052,
-                              fontWeight: FontWeight.bold,
-                              height: 1.2),
-                        )
-                      else
-                        Text('未识别出曲名',
-                            style: TextStyle(
-                                color: AppColors.errorRed(brightness),
-                                fontSize: sw * 0.042,
-                                fontWeight: FontWeight.bold)),
-                      // 曲师：曲库匹配到才有
-                      if (song != null &&
-                          song.basicInfo.artist.trim().isNotEmpty) ...[
-                        const SizedBox(height: 3),
-                        Text(
-                          song.basicInfo.artist,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              color: c.withValues(alpha: 0.65),
-                              fontSize: sw * 0.032),
-                        ),
-                      ],
-                      // 版本 / 流派 / 等级 / 定数
-                      if (song != null) ...[
-                        const SizedBox(height: 6),
-                        Wrap(
-                          spacing: 6,
-                          runSpacing: 4,
-                          children: [
-                            if (song.basicInfo.from.trim().isNotEmpty)
-                              _buildChip(
-                                  // extra 曲目走不带年号的口径（宴会场 / 追加曲）
-                                  StringUtil.formatVersion2WithFlag(
-                                      song.basicInfo.from,
-                                      SongFilterUtil.isExtra(song)),
-                                  scheme.primary),
-                            if (song.basicInfo.genre.trim().isNotEmpty)
-                              _buildChip(song.basicInfo.genre, scheme.tertiary),
-                            if (diffIndex != null &&
-                                _levelAtIndex(song, diffIndex) != null)
-                              _buildChip('等级 ${_levelAtIndex(song, diffIndex)}',
-                                  scheme.secondary),
-                            if (diffIndex != null &&
-                                _dsAtIndex(song, diffIndex) != null)
-                              _buildChip(
-                                  '定数 ${_dsAtIndex(song, diffIndex)!.toStringAsFixed(1)}',
-                                  scheme.secondary),
-                          ],
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // 命中来源（曲绘 / 标题）
-          if (best != null && best.sources.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              child: Text(
+            // 命中来源（曲绘 / 标题）
+            if (best != null && best.sources.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
                 '命中来源：${best.sources.map(_sourceLabel).join(' + ')}',
-                style: TextStyle(
-                    color: c.withValues(alpha: 0.5), fontSize: sw * 0.028),
+                style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 11),
               ),
-            ),
-          ],
+            ],
 
-          // ── 核心数字：达成率 + DX 分数（改了就用改后的值）──────────
-          const SizedBox(height: 12),
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 14),
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            decoration: BoxDecoration(
-              color: scheme.surfaceContainerHighest.withValues(alpha: 0.5),
-              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+            // ── 操作区 ────────────────────────────────────────────
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () => _showEditSheet(item),
+              icon: const Icon(Icons.edit_note, size: 18),
+              label: const Text('编辑此项'),
             ),
-            child: Row(
+            const SizedBox(height: 8),
+            Row(
               children: [
                 Expanded(
-                    child: _buildHeroStat(
-                  label: '达成率',
-                  // 达成率是玩家最关心的数字，单独放大并按评级上色
-                  value: achievement == null
-                      ? '—'
-                      : '${achievement.toStringAsFixed(4)}%',
-                  grade: _achievementGrade(achievement),
-                  color: achievement == null
-                      ? c.withValues(alpha: 0.4)
-                      : AppColors.ratingColorOnSurface(
-                          _achievementGrade(achievement), brightness),
-                  sw: sw,
-                  c: c,
-                )),
-                Container(
-                  width: 1,
-                  height: sw * 0.11,
-                  color: scheme.outlineVariant,
-                ),
-                Expanded(
-                    child: _buildHeroStat(
-                  label: 'DX 分数',
-                  value: dxScore?.toString() ?? '—',
-                  color: c,
-                  sw: sw,
-                  c: c,
-                )),
-              ],
-            ),
-          ),
-
-          // ── 成就徽章：只在确实有数据时出现（改了就用改后的值）──────
-          if (_fcBadge(_fcOf(item)) != null ||
-              _fsBadge(_fsOf(item)) != null) ...[
-            const SizedBox(height: 10),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              child: Row(
-                children: [
-                  if (_fcBadge(_fcOf(item)) != null)
-                    _buildAchievementBadge(_fcBadge(_fcOf(item))!, brightness),
-                  if (_fcBadge(_fcOf(item)) != null &&
-                      _fsBadge(_fsOf(item)) != null)
-                    const SizedBox(width: 6),
-                  if (_fsBadge(_fsOf(item)) != null)
-                    _buildAchievementBadge(_fsBadge(_fsOf(item))!, brightness),
-                ],
-              ),
-            ),
-          ],
-
-          // ── 操作区 ────────────────────────────────────────────
-          //
-          // 两行布局（按用户要求）：
-          //   第一行：[编辑此项] [同步到水鱼] [同步到落雪]
-          //   第二行：[水鱼 已登录] [落雪 已登录]
-          //
-          // 用 Wrap 而不是 Row：窄屏上三个按钮可能放不下，Wrap 会自动换行而
-          // 不是溢出（Row 会直接抛 overflow）。状态行同理。
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: () => _showEditSheet(item),
-                  icon: const Icon(Icons.edit_note, size: 18),
-                  label: const Text('编辑此项'),
-                  style: OutlinedButton.styleFrom(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    textStyle: const TextStyle(fontSize: 13),
-                  ),
-                ),
-                OutlinedButton.icon(
-                  onPressed: _canSync(item) && _uploadingIndex != item.index
-                      ? () => _syncToDivingFish(item)
-                      : null,
-                  icon: _uploadingIndex == item.index
-                      ? const SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.cloud_upload_outlined, size: 18),
-                  label:
-                      Text(_uploadingIndex == item.index ? '同步中...' : '同步到水鱼'),
-                  style: OutlinedButton.styleFrom(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    textStyle: const TextStyle(fontSize: 13),
-                  ),
-                ),
-                OutlinedButton.icon(
-                  // 落雪要数字曲目 id，且 id 体系与水鱼不同（服务层负责转换）。
-                  // 与「同步到水鱼」共用 _canSync 的前置条件。
-                  onPressed:
-                      _canSync(item) && _uploadingLuoXueIndex != item.index
-                          ? () => _syncToLuoXue(item)
-                          : null,
-                  icon: _uploadingLuoXueIndex == item.index
-                      ? const SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.cloud_sync_outlined, size: 18),
-                  label: Text(
-                      _uploadingLuoXueIndex == item.index ? '同步中...' : '同步到落雪'),
-                  style: OutlinedButton.styleFrom(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    textStyle: const TextStyle(fontSize: 13),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // ── 同步不可用的原因 ──────────────────────────────────
-          //
-          // 就贴在按钮下面：这两个按钮为什么会变灰，答案必须紧挨着它们，
-          // 否则用户只会去怀疑账号状态（那里写着「已授权」）。
-          if (item.isOk && _syncBlockReason(item) != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 6, 14, 0),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.info_outline,
-                      size: sw * 0.032,
-                      color: AppColors.warningOrange(brightness)),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      '暂不能同步：${_syncBlockReason(item)}',
-                      style: TextStyle(
-                        color: AppColors.warningOrange(brightness),
-                        fontSize: sw * 0.028,
-                        height: 1.3,
-                      ),
+                  child: FilledButton.tonalIcon(
+                    onPressed: _canSync(item) && _uploadingIndex != item.index
+                        ? () => _syncToDivingFish(item)
+                        : null,
+                    icon: _uploadingIndex == item.index
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.cloud_upload_outlined, size: 18),
+                    label: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                          _uploadingIndex == item.index ? '同步中...' : '同步到水鱼'),
                     ),
                   ),
-                ],
-              ),
-            ),
-
-          // 账号状态另起一行，就贴在两个同步按钮下面。
-          //
-          // 放这里的用意：这两个按钮点下去会不会白点，取决于有没有登录；
-          // 状态紧挨着按钮，用户读到「未登录」的同一眼就能看到该点哪儿。
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 6,
-              children: [
-                _buildAuthChip(
-                  label: '水鱼',
-                  // 三态：null=检查中 / false=未授权 / true=已授权
-                  ready: _dfAuthorized,
-                  readyText: '已授权',
-                  notReadyText: '未授权',
-                  unknownText: '检查中…',
-                  onTap: () => _onAuthChipTap(isDivingFish: true),
-                  sw: sw,
                 ),
-                _buildAuthChip(
-                  label: '落雪',
-                  // 「已设置密钥」只看**本机**有没有密钥 —— 本页走直传，
-                  // 密钥只在 Hub 上是传不上去的。之前这里把 Hub 的布尔值
-                  // 也算「已设置」，才会出现「界面说已设置、点同步说没设置」。
-                  ready: _lxnsChecked ? _lxnsKeyLocal : null,
-                  readyText: '已设置密钥',
-                  notReadyText: '未设置密钥·点此粘贴',
-                  warnText:
-                      (_lxnsChecked && _lxnsKeyOnHub) ? '云端已绑定·本机缺密钥' : null,
-                  unknownText: '检查中…',
-                  onTap: () => _onAuthChipTap(isDivingFish: false),
-                  sw: sw,
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FilledButton.tonalIcon(
+                    // 落雪要数字曲目 id，且 id 体系与水鱼不同（服务层负责转换）。
+                    // 与「同步到水鱼」共用 _canSync 的前置条件。
+                    onPressed:
+                        _canSync(item) && _uploadingLuoXueIndex != item.index
+                            ? () => _syncToLuoXue(item)
+                            : null,
+                    icon: _uploadingLuoXueIndex == item.index
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.cloud_sync_outlined, size: 18),
+                    label: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(_uploadingLuoXueIndex == item.index
+                          ? '同步中...'
+                          : '同步到落雪'),
+                    ),
+                  ),
                 ),
               ],
             ),
-          ),
 
-          // ── 其它候选 ──────────────────────────────────────────
-          if (item.candidates.length > 1) ...[
-            const SizedBox(height: 12),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(14, 8, 14, 10),
-              decoration: BoxDecoration(
-                border: Border(
-                  top: BorderSide(color: scheme.outlineVariant),
+            // ── 同步不可用的原因 ──────────────────────────────────
+            //
+            // 就贴在按钮下面：这两个按钮为什么会变灰，答案必须紧挨着它们，
+            // 否则用户只会去怀疑账号状态。
+            if (item.isOk && _syncBlockReason(item) != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.info_outline,
+                        size: 14, color: AppColors.warningOrange(brightness)),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        '暂不能同步：${_syncBlockReason(item)}',
+                        style: TextStyle(
+                          color: AppColors.warningOrange(brightness),
+                          fontSize: 11,
+                          height: 1.3,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              child: Text(
+
+            // ── 其它候选 ──────────────────────────────────────────
+            if (item.candidates.length > 1) ...[
+              const SizedBox(height: 10),
+              Text(
                 '其它候选：${item.candidates.skip(1).map((x) => x.title).join(' · ')}',
                 style: TextStyle(
-                    color: c.withValues(alpha: 0.55),
-                    fontSize: sw * 0.028,
-                    height: 1.4),
+                    color: scheme.onSurfaceVariant, fontSize: 11, height: 1.4),
               ),
-            ),
-          ] else
-            const SizedBox(height: 14),
+            ],
 
-          // ── 失败原因 ──────────────────────────────────────────
-          if (!item.isOk && item.error != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
-              child: Text(item.error!,
+            // ── 失败原因 ──────────────────────────────────────────
+            if (!item.isOk && item.error != null) ...[
+              const SizedBox(height: 8),
+              Text(item.error!,
                   style: TextStyle(
-                      color: AppColors.errorRed(brightness),
-                      fontSize: sw * 0.03)),
-            ),
-        ],
+                      color: AppColors.errorRed(brightness), fontSize: 12)),
+            ],
+          ],
+        ),
       ),
     );
   }
 
-  /// 核心数字（达成率 / DX 分数）：大号数值 + 小号标签
+  /// 核心数字（达成率 / DX 分数）：大号数值 + 小号标签，放不下时等比缩小。
   Widget _buildHeroStat({
     required String label,
     required String value,
-    required Color color,
-    required double sw,
-    required Color c,
     String? grade,
-  }) =>
-      Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(value,
-                  style: TextStyle(
-                      color: color,
-                      fontSize: sw * 0.058,
-                      fontWeight: FontWeight.bold,
-                      height: 1.1)),
-              if (grade != null) ...[
-                const SizedBox(width: 6),
-                Text(grade,
-                    style: TextStyle(
-                        color: color,
-                        fontSize: sw * 0.032,
-                        fontWeight: FontWeight.bold)),
+  }) {
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(value,
+                    maxLines: 1,
+                    style: AppTheme.number(
+                        fontSize: 21,
+                        fontWeight: FontWeight.w800,
+                        color: scheme.onSurface)),
+                if (grade != null) ...[
+                  const SizedBox(width: 6),
+                  RankBadge(rank: grade),
+                ],
               ],
-            ],
+            ),
           ),
-          const SizedBox(height: 3),
-          Text(label,
-              style: TextStyle(
-                  color: c.withValues(alpha: 0.5), fontSize: sw * 0.026)),
-        ],
-      );
+        ),
+        const SizedBox(height: 3),
+        Text(label,
+            style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 11)),
+      ],
+    );
+  }
 
   /// 难度徽章（带难度配色，复用项目里 difficulty*ByIndex 的色板）
   Widget _buildDifficultyBadge(MaimaiHubOcrItem item, Brightness brightness) {
@@ -2280,35 +1877,15 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
     );
   }
 
-  /// FC / FS 成就徽章（复用 achievement* 配色，和其它页面一致）
-  Widget _buildAchievementBadge(String text, Brightness brightness) =>
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        decoration: BoxDecoration(
-          color: AppColors.achievementBackground(text),
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(
-              color:
-                  AppColors.achievementForeground(text).withValues(alpha: 0.5),
-              width: 0.8),
-        ),
-        child: Text(text,
-            style: TextStyle(
-                color: AppColors.achievementForeground(text),
-                fontSize: 11,
-                fontWeight: FontWeight.bold)),
-      );
-
   Widget _buildChip(String text, Color color) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.16),
+          color: color.withValues(alpha: 0.14),
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: color.withValues(alpha: 0.55), width: 0.8),
         ),
         child: Text(text,
             style: TextStyle(
-                color: color, fontSize: 11, fontWeight: FontWeight.bold)),
+                color: color, fontSize: 11, fontWeight: FontWeight.w700)),
       );
 
   String _sourceLabel(String source) {
@@ -2391,44 +1968,46 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
   Widget _buildActionButtons(double sw, Color c) {
     final hasPhoto = _photoPath != null;
     final hasResult = _result != null;
-    return Wrap(
-      spacing: 12,
-      runSpacing: 8,
-      alignment: WrapAlignment.center,
-      children: [
-        ElevatedButton.icon(
-          onPressed: _showSourcePicker,
-          icon: const Icon(Icons.add_a_photo),
-          label: Text(hasPhoto ? '换一张' : '选择图片'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Theme.of(context).colorScheme.primary,
-            foregroundColor: Theme.of(context).colorScheme.onPrimary,
-          ),
-        ),
-        if (hasPhoto && !hasResult)
-          ElevatedButton.icon(
-            onPressed: _isRecognizing ? null : _recognize,
-            icon: const Icon(Icons.document_scanner),
-            label: const Text('开始识别'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor:
-                  AppColors.successGreen(Theme.of(context).brightness),
-              foregroundColor: Colors.white,
+    return SizedBox(
+      width: double.infinity,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (!hasPhoto)
+            FilledButton.icon(
+              onPressed: _showSourcePicker,
+              icon: const Icon(Icons.add_a_photo),
+              label: const Text('选择图片'),
+            )
+          else ...[
+            FilledButton.icon(
+              onPressed: _isRecognizing ? null : _recognize,
+              icon: Icon(hasResult ? Icons.refresh : Icons.document_scanner),
+              label: Text(hasResult ? '再次识别' : '开始识别'),
             ),
-          ),
-        if (hasResult)
-          ElevatedButton.icon(
-            onPressed: _recognize,
-            icon: const Icon(Icons.refresh),
-            label: const Text('再次识别'),
-          ),
-        if (hasPhoto || hasResult)
-          OutlinedButton.icon(
-            onPressed: _reset,
-            icon: const Icon(Icons.refresh),
-            label: const Text('清除重选'),
-          ),
-      ],
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.tonalIcon(
+                    onPressed: _showSourcePicker,
+                    icon: const Icon(Icons.add_a_photo),
+                    label: const Text('换一张'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FilledButton.tonalIcon(
+                    onPressed: _reset,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('清除重选'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -2444,18 +2023,21 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
 // ────────────────────────────────────────────────────────
 
 /// 「粘贴落雪密钥」对话框。
-class _LxnsKeyPromptDialog extends StatefulWidget {
-  /// maimai Score Hub 已绑定但本机没有密钥时为 true，对话框里额外给一行橙色说明
-  /// 「本机读不到密钥，同步仍不可用」。
-  final bool cloudOnlyHint;
-  const _LxnsKeyPromptDialog({required this.cloudOnlyHint});
+/// 没登录 maimai Score Hub 时就地用二维码登录：只认证，不抓取也不同步成绩。
+/// 控制器由这里的 State 持有，页面重建不会清掉输入。
+class _OcrHubLoginPanel extends StatefulWidget {
+  final VoidCallback onLoggedIn;
+
+  const _OcrHubLoginPanel({required this.onLoggedIn});
 
   @override
-  State<_LxnsKeyPromptDialog> createState() => _LxnsKeyPromptDialogState();
+  State<_OcrHubLoginPanel> createState() => _OcrHubLoginPanelState();
 }
 
-class _LxnsKeyPromptDialogState extends State<_LxnsKeyPromptDialog> {
+class _OcrHubLoginPanelState extends State<_OcrHubLoginPanel> {
   final _controller = TextEditingController();
+  bool _loggingIn = false;
+  String? _error;
 
   @override
   void dispose() {
@@ -2463,98 +2045,101 @@ class _LxnsKeyPromptDialogState extends State<_LxnsKeyPromptDialog> {
     super.dispose();
   }
 
-  Future<void> _openLxnsProfilePage() async {
-    final uri =
-        Uri.parse('https://maimai.lxns.net/user/profile?tab=thirdparty');
+  Future<void> _login() async {
+    if (_loggingIn) return;
+    final qrCode = _controller.text.trim();
+    if (qrCode.isEmpty) {
+      setState(() => _error = '请粘贴或扫描登入二维码');
+      return;
+    }
+    if (!qrCode.startsWith('SGWCMAID')) {
+      setState(() => _error = '请使用舞萌|中二公众号生成的登入二维码');
+      return;
+    }
+    FocusManager.instance.primaryFocus?.unfocus();
+    setState(() {
+      _loggingIn = true;
+      _error = null;
+    });
     try {
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } else if (mounted) {
-        launchUrlFallback(uri.toString(), context);
+      final result = await DivingFishProbeManager().loginByQr(qrCode);
+      if (!mounted) return;
+      if (result == null) {
+        setState(() {
+          _loggingIn = false;
+          _error = '登录失败，二维码可能已过期，请重新生成';
+        });
+        return;
       }
+      widget.onLoggedIn();
     } catch (e) {
-      debugPrint('[ScoreOcr] 打开落雪绑定页失败：$e');
-      if (mounted) launchUrlFallback(uri.toString(), context);
+      if (!mounted) return;
+      setState(() {
+        _loggingIn = false;
+        _error = '登录失败：$e';
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final brightness = Theme.of(context).brightness;
-    return AlertDialog(
-      title: const Row(
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return AppCard(
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Icon(Icons.vpn_key_outlined, size: 22),
-          SizedBox(width: 8),
-          Text('落雪个人 API 密钥'),
+          Text(
+            '先登录 maimai Score Hub',
+            style: theme.textTheme.titleSmall
+                ?.copyWith(fontWeight: FontWeight.w700, color: scheme.onSurface),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '识别结算画面需要登录。在舞萌 | 中二公众号请求并打开登入二维码，扫描后把字符串填到下面。'
+            '只用来认证，不会抓取或同步成绩；登录状态保存在本机，之后不用重复登录。',
+            style: TextStyle(
+                fontSize: 12.5, height: 1.5, color: scheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: 10),
+          QrQuickFillButtons(controller: _controller, enabled: !_loggingIn),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _controller,
+            enabled: !_loggingIn,
+            maxLines: 3,
+            minLines: 1,
+            autocorrect: false,
+            enableSuggestions: false,
+            style: const TextStyle(fontSize: 13),
+            decoration: InputDecoration(
+              labelText: '机台登入二维码',
+              hintText: 'SGWCMAID...',
+              isDense: true,
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              errorText: _error,
+              errorMaxLines: 3,
+            ),
+            onChanged: (_) {
+              if (_error != null) setState(() => _error = null);
+            },
+          ),
+          const SizedBox(height: 8),
+          FilledButton.icon(
+            onPressed: _loggingIn ? null : _login,
+            icon: _loggingIn
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.login, size: 18),
+            label: Text(_loggingIn ? '登录中…' : '登录'),
+          ),
         ],
       ),
-      content: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              '同步成绩需要密钥存在本机。到「落雪咖啡屋 → 账号详情 → 个人 API 密钥」'
-              '生成后，粘贴到这里：',
-              style: TextStyle(
-                  fontSize: 13, color: AppColors.greyHint(brightness)),
-            ),
-            if (widget.cloudOnlyHint) ...[
-              const SizedBox(height: 10),
-              Text(
-                '云端已绑定过密钥，但本机读不到它，所以同步仍不可用 —— 请在这里再粘一次。',
-                style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.warningOrange(brightness),
-                    height: 1.35),
-              ),
-            ],
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              icon: const Icon(Icons.paste, size: 16),
-              label: const Text('读取剪贴板', style: TextStyle(fontSize: 13)),
-              onPressed: () async {
-                final data = await Clipboard.getData(Clipboard.kTextPlain);
-                final t = (data?.text ?? '').trim();
-                if (t.isEmpty) {
-                  Fluttertoast.showToast(msg: '剪贴板为空');
-                  return;
-                }
-                _controller.text = t;
-              },
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _controller,
-              autofocus: true,
-              decoration: InputDecoration(
-                hintText: '粘在此处（形如 KVV1nwdHG5LWl6Gm-5TNq...）',
-                hintStyle: TextStyle(
-                    fontSize: 13,
-                    color: AppColors.greyHint(brightness, shade: 400)),
-                border:
-                    OutlineInputBorder(borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall)),
-                contentPadding: const EdgeInsets.all(12),
-              ),
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('取消'),
-        ),
-        TextButton(
-          onPressed: _openLxnsProfilePage,
-          child: const Text('去落雪生成'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.pop(context, _controller.text.trim()),
-          child: const Text('保存'),
-        ),
-      ],
     );
   }
 }
@@ -2599,7 +2184,7 @@ class _OcrImageCropPageState extends State<_OcrImageCropPage> {
       // 裁剪使用已经限制到 2048px 的预览图，避免再次把相机原图全尺寸解码。
       final data = await _image!.toByteData(format: ui.ImageByteFormat.png);
       if (data == null) {
-        Fluttertoast.showToast(msg: '裁剪失败，将使用原图继续');
+        AppToast.show('裁剪失败，将使用原图继续');
         return;
       }
       final bytes = data.buffer.asUint8List();
@@ -2619,7 +2204,7 @@ class _OcrImageCropPageState extends State<_OcrImageCropPage> {
       debugPrint('OCR 裁剪页加载图片失败: $e');
       if (!mounted) return;
       setState(() => _loading = false);
-      Fluttertoast.showToast(msg: '图片无法读取，请换一张图片重试');
+      AppToast.show('图片无法读取，请换一张图片重试');
       Navigator.of(context).pop();
     }
   }
@@ -2824,7 +2409,7 @@ class _OcrImageCropPageState extends State<_OcrImageCropPage> {
         height: crop.height / _imageRect.height,
       );
       if (encoded == null) {
-        Fluttertoast.showToast(msg: '裁剪失败，将使用原图继续');
+        AppToast.show('裁剪失败，将使用原图继续');
         return widget.imagePath;
       }
       final outPath =
@@ -2833,7 +2418,7 @@ class _OcrImageCropPageState extends State<_OcrImageCropPage> {
       return outPath;
     } catch (e) {
       debugPrint('OCR 裁剪出错: $e');
-      Fluttertoast.showToast(msg: '裁剪失败，将使用原图继续');
+      AppToast.show('裁剪失败，将使用原图继续');
       return widget.imagePath;
     }
   }

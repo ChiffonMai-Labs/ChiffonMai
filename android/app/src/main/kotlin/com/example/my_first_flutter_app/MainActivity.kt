@@ -34,7 +34,20 @@ import java.io.OutputStream
  * 其余逻辑（三个 MethodChannel 与 intent 处理）与原来一致。
  */
 class MainActivity : AudioServiceActivity() {
+    companion object {
+        /** 桌面小组件点击时带的功能名，见 [HomeWidgetStore]。 */
+        const val EXTRA_WIDGET_ACTION = "home_widget_action"
+    }
+
     private val CHANNEL = "com.example.app/media_store"
+
+    /** 桌面小组件：Dart 推数据过来，小组件上的点击再传回 Dart。 */
+    private val HOME_WIDGET_CHANNEL = "com.example.app/home_widget"
+    private var homeWidgetChannel: MethodChannel? = null
+
+    /** 同导入通道的规则：Dart 准备好之前的点击先留着，等它来取。 */
+    private var pendingWidgetAction: String? = null
+    private var dartWidgetReady = false
 
     /** 收藏夹「一键导入」通道：把文件管理器/分享进来的文件路径交给 Dart。 */
     private val IMPORT_CHANNEL = "com.example.app/open_file"
@@ -91,6 +104,30 @@ class MainActivity : AudioServiceActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+
+        val widgetChannel = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            HOME_WIDGET_CHANNEL
+        )
+        homeWidgetChannel = widgetChannel
+        widgetChannel.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "update" -> {
+                    @Suppress("UNCHECKED_CAST")
+                    val values = call.arguments as? Map<String, Any?> ?: emptyMap()
+                    HomeWidgetStore.write(applicationContext, values)
+                    HomeWidgetStore.refreshAll(applicationContext)
+                    result.success(true)
+                }
+                "takePendingAction" -> {
+                    dartWidgetReady = true
+                    result.success(pendingWidgetAction)
+                    pendingWidgetAction = null
+                }
+                else -> result.notImplemented()
+            }
+        }
+        handleWidgetIntent(intent)
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SYSTEM_UI_CHANNEL)
             .setMethodCallHandler { call, result ->
@@ -419,6 +456,18 @@ class MainActivity : AudioServiceActivity() {
         setIntent(intent)
         // 热启动：App 已在后台，用户又点开一个文件
         handleImportIntent(intent)
+        handleWidgetIntent(intent)
+    }
+
+    /** 取出小组件点击。用完要清掉 extra，否则 Activity 重建时会重放。 */
+    private fun handleWidgetIntent(intent: Intent?) {
+        val action = intent?.getStringExtra(EXTRA_WIDGET_ACTION) ?: return
+        intent.removeExtra(EXTRA_WIDGET_ACTION)
+        if (dartWidgetReady) {
+            homeWidgetChannel?.invokeMethod("onAction", action)
+        } else {
+            pendingWidgetAction = action
+        }
     }
 
     /** 从 VIEW / SEND intent 里取出文件并转交给 Dart。 */

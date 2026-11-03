@@ -16,6 +16,8 @@ import '../../widgets/BackgroundPageScaffold.dart';
 import '../../widgets/AppUi.dart';
 import '../../utils/AppDesignTokens.dart';
 import '../../widgets/Best50Ui.dart';
+import '../../widgets/AppDialogs.dart';
+import '../../widgets/ExportSuccessDialog.dart';
 
 /// 理想 Best50：把全部游玩记录里非 SSS+ 的成绩升一档（100.4 → 100.5），
 /// 重算 RA 后重新取 B35 + B15，并列出相对原榜的新进榜歌曲。
@@ -113,7 +115,7 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
   void _showMessage(String title, String content) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => AppAlertDialog(
         title: Text(title),
         content: Text(content),
         actions: [
@@ -163,20 +165,7 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
     );
     if (!mounted || quality == null) return;
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const AlertDialog(
-        title: Text('导出中'),
-        content: Row(
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(width: 16.0),
-            Text('正在生成图片...'),
-          ],
-        ),
-      ),
-    );
+    showAppProgressDialog(context, title: '导出中', message: '正在生成图片...');
 
     try {
       final b50Data = {
@@ -199,30 +188,7 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
       Navigator.pop(context);
 
       if (file != null) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('导出成功'),
-            content: Text('图片已保存到：\n${file.path}'),
-            actions: [
-              TextButton(
-                onPressed: () async {
-                  await Clipboard.setData(ClipboardData(text: file.path));
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('路径已复制到剪贴板')),
-                    );
-                  }
-                },
-                child: const Text('复制路径'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('确定'),
-              ),
-            ],
-          ),
-        );
+        showExportSuccessDialog(context, filePath: file.path, fileName: file.path.split('/').last);
       } else {
         _showMessage('导出失败', '图片导出失败，请重试');
       }
@@ -249,6 +215,7 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
     return BackgroundPageScaffold(
       title: '理想 Best50',
       resizeToAvoidBottomInset: false,
+      actionsEndInset: 4,
       actions: [
         if (_data != null) ...[
           Best50IconAction(
@@ -256,7 +223,6 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
             icon: Icons.image_outlined,
             onPressed: _exportToImage,
           ),
-          const SizedBox(width: 4),
         ],
       ],
       contentPadding:
@@ -373,29 +339,43 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
 
   Widget _buildNewEntriesSection() {
     final scheme = Theme.of(context).colorScheme;
-    return AppCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          AppSectionHeader(
-            title: '本次新进榜（${_newEntries.length} 首）',
-            padding: const EdgeInsets.only(bottom: 6),
-          ),
-          if (_newEntries.isEmpty)
-            Text(
-              '无新歌进榜（升档后榜单成员不变）',
-              style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
-            )
-          else
-            for (final e in _newEntries)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 2.0),
-                child: Text(
-                  '· ${e['title']}  · 定数 ${(e['ds'] as num).toStringAsFixed(1)}  · RA ${e['oldRa']} → ${e['newRa']}',
-                  style: TextStyle(fontSize: 13, color: scheme.onSurface),
-                ),
+    return CollapsibleCard(
+      title: '本次新进榜（${_newEntries.length} 首）',
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: _newEntries.isEmpty
+            ? Text(
+                '无新歌进榜（升档后榜单成员不变）',
+                style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (final e in _newEntries)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 5),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${e['title']}',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: scheme.onSurface,
+                            ),
+                          ),
+                          const SizedBox(height: 1),
+                          Text(
+                            '定数 ${(e['ds'] as num).toStringAsFixed(1)} · RA ${e['oldRa']} → ${e['newRa']}',
+                            style: TextStyle(
+                                fontSize: 12, color: scheme.onSurfaceVariant),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
               ),
-        ],
       ),
     );
   }
@@ -416,6 +396,13 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
     return Best50Grid(
       key: ValueKey(_segment),
       items: [for (final m in songs) _cardData(m)],
+      remaining: [
+        for (final m in (_data?[_segment == 0 ? 'sdRemaining' : 'dxRemaining']
+                as List?) ??
+            const [])
+          _cardData(Map<String, dynamic>.from(m as Map))
+      ],
+      remainingLabel: 'RA ${songs.last['ra']}',
     );
   }
 

@@ -12,10 +12,10 @@ import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:media_scanner/media_scanner.dart';
-import 'package:my_first_flutter_app/utils/TextStyleUtil.dart';
 import 'package:my_first_flutter_app/utils/ColorUtil.dart';
 import 'package:my_first_flutter_app/utils/StringUtil.dart';
 import 'package:my_first_flutter_app/utils/ImageEncodeUtil.dart';
+import 'package:my_first_flutter_app/widgets/ExportStatsUi.dart';
 
 class B50ConvertToImg {
   // 全局Key，用于获取widget的渲染对象
@@ -391,7 +391,7 @@ class B50ConvertToImg {
         showUserInfo: !isTheoreticalMode,
         statistics: 'Rating $rating\nBest35 $best35Sum · Best15 $best15Sum\n'
             '平均达成率 ${best50AchievementAverage.toStringAsFixed(4)}%\n'
-            '平均 DX 分达成率 ${(best50ScoreRateAverage * 100).toStringAsFixed(2)}%',
+            '平均DX分数达成率 ${(best50ScoreRateAverage * 100).toStringAsFixed(2)}%',
         cardBuilder: (index) => _buildDataGameCard(
             context, songs[index], b50Data, maimaiMusicData, maxIdLength),
       );
@@ -513,97 +513,6 @@ class B50ConvertToImg {
   // 元数据块统一复用共享组件，固定为 215px 高。
   static Widget _buildMetaRow() => const MetaRowWidget();
 
-  // 单行：标题 + 数值（标题与数值之间留 4px，行内紧凑；标题 widget 由调用方提供以保留原样式）
-  // 用于统计区 Row 内子块（块1 Rating / 块2 达成率），统一布局节奏
-  // [crossAxisAlignment] 默认 start；块1/块2 居中时传 center，让 title/value 在块内水平居中
-  static Widget _buildStatRow({
-    required Widget title,
-    required Widget value,
-    double titleValueGap = 4.0,
-    CrossAxisAlignment crossAxisAlignment = CrossAxisAlignment.start,
-  }) {
-    return Column(
-      crossAxisAlignment: crossAxisAlignment,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        title,
-        SizedBox(height: titleValueGap),
-        value,
-      ],
-    );
-  }
-
-  // Rating/Best 35/Best 15 数值：主值 + 括号内平均（粗体黑字 + 常规黑字）
-  // 仅复用布局，不动字号字重
-  static Widget _buildRatingValue(
-    int sum,
-    double average, {
-    required double mainFontSize,
-    required double subFontSize,
-  }) {
-    return RichText(
-      text: TextSpan(
-        children: [
-          TextStyleUtil.span(
-            sum.toString(),
-            TextStyle(
-              fontSize: mainFontSize,
-              color: Colors.black,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          TextStyleUtil.span(
-            '(平均${average.toStringAsFixed(1)})',
-            TextStyle(
-              fontSize: subFontSize,
-              color: Colors.black,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // 单行统计项：用于块1/块2底部填充（Best35/Best15 定数区间、SSS+/SSS 数量）。
-  // 文本水平居中，超过块宽时自动缩小字号以保持单行。
-  static Widget _buildSimpleStat({
-    required String label,
-    required String value,
-    required double labelFontSize,
-    required double valueFontSize,
-  }) {
-    return Align(
-      alignment: Alignment.center,
-      child: FittedBox(
-        fit: BoxFit.scaleDown,
-        alignment: Alignment.center,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.baseline,
-          textBaseline: TextBaseline.alphabetic,
-          children: [
-            Text(
-              '$label: ',
-              style: TextStyle(
-                fontSize: labelFontSize,
-                fontWeight: FontWeight.bold,
-                color: Colors.black,
-              ),
-            ),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: valueFontSize,
-                fontWeight: FontWeight.bold,
-                color: const Color(0xFF4DA8FF),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   // 计算给定歌曲集合的定数区间，格式为 "max ~ min"（保留 1 位小数）。
   // 空集合或无有效 ds 字段时返回 "-"。
   static String _computeDsRange(List<Map<String, dynamic>> songs) {
@@ -657,214 +566,112 @@ class B50ConvertToImg {
       double best15ScoreRateAverage,
       List<Map<String, dynamic>> sdSongs,
       List<Map<String, dynamic>> dxSongs) {
-    // 图片容器固定宽度为1200，以此为基准计算字体大小
-    const double containerWidth = 1200.0;
+    // 两个小块并排，按较高的那个撑开。
+    Widget pair(Widget left, Widget right) => IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(child: left),
+              const SizedBox(width: 10),
+              Expanded(child: right),
+            ],
+          ),
+        );
 
-    // 根据容器宽度计算字体大小（与App观感一致）
-    double mainFontSize = containerWidth * 0.032; // 约38px
-    double subFontSize = containerWidth * 0.025; // 约30px
-    double sectionTitleFontSize = containerWidth * 0.03; // 约36px
-
-    // 计算填充用的统计量：
-    //   - Best35/Best15 定数区间（最大值 ~ 最小值）
-    //   - 50首中 SSS+ 与 SSS 数量（sdSongs + dxSongs 合计）
-    final String best35DsRange = _computeDsRange(sdSongs);
-    final String best15DsRange = _computeDsRange(dxSongs);
-    final int totalSssPlusCount =
-        _countRate(sdSongs, 'sssp') + _countRate(dxSongs, 'sssp');
-    final int totalSssCount =
-        _countRate(sdSongs, 'sss') + _countRate(dxSongs, 'sss');
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: Colors.black, width: 2.0),
-        borderRadius: BorderRadius.circular(8.0),
-      ),
-      padding: EdgeInsets.all(16.0),
-      // 用 IntrinsicHeight 让三个块按最高子节点对齐高度，
-      // 同时不依赖父级有限高度约束（Row 默认是横向 flex，stretch 会要求外部 h 有限）
+    return ExportStatsPanel(
+      // 用 IntrinsicHeight 让三栏按最高的一栏对齐，且不依赖外部的有限高度
       child: IntrinsicHeight(
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // 块1：Rating 总和 — 文本水平居中、垂直居中
-            // 下方留白用于追加 Best35 定数区间 + 50首 SSS+ 数量（合并入块1，间距小）
+            // 第一栏：Rating、B35 / B15 总和与定数区间
             Expanded(
               flex: 4,
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _buildStatRow(
-                    title: Align(
-                      alignment: Alignment.center,
-                      child: Text(
-                        'Rating',
-                        style: TextStyle(
-                          fontSize: sectionTitleFontSize,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black,
-                        ),
-                      ),
+                  Expanded(
+                    child: ExportHeroBlock(
+                      label: 'Rating',
+                      value: '$rating',
+                      caption: '平均 ${ratingAverage.toStringAsFixed(1)}',
                     ),
-                    value: Align(
-                      alignment: Alignment.center,
-                      child: _buildRatingValue(
-                        rating,
-                        ratingAverage,
-                        mainFontSize: mainFontSize,
-                        subFontSize: subFontSize,
-                      ),
-                    ),
-                    crossAxisAlignment: CrossAxisAlignment.center,
                   ),
-                  const SizedBox(height: 12),
-                  _buildStatRow(
-                    title: Align(
-                      alignment: Alignment.center,
-                      child: Text(
-                        'Best 35',
-                        style: TextStyle(
-                          fontSize: mainFontSize,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black,
-                        ),
-                      ),
+                  const SizedBox(height: 10),
+                  pair(
+                    ExportStatBlock(
+                      label: 'Best 35',
+                      value: '$best35Sum',
+                      caption: '平均 ${best35Average.toStringAsFixed(1)}',
                     ),
-                    value: Align(
-                      alignment: Alignment.center,
-                      child: _buildRatingValue(
-                        best35Sum,
-                        best35Average,
-                        mainFontSize: mainFontSize,
-                        subFontSize: subFontSize,
-                      ),
+                    ExportStatBlock(
+                      label: 'Best 15',
+                      value: '$best15Sum',
+                      caption: '平均 ${best15Average.toStringAsFixed(1)}',
                     ),
-                    crossAxisAlignment: CrossAxisAlignment.center,
                   ),
-                  const SizedBox(height: 12),
-                  _buildStatRow(
-                    title: Align(
-                      alignment: Alignment.center,
-                      child: Text(
-                        'Best 15',
-                        style: TextStyle(
-                          fontSize: mainFontSize,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black,
-                        ),
-                      ),
+                  const SizedBox(height: 10),
+                  pair(
+                    ExportStatBlock(
+                      label: 'Best35 定数区间',
+                      value: _computeDsRange(sdSongs),
                     ),
-                    value: Align(
-                      alignment: Alignment.center,
-                      child: _buildRatingValue(
-                        best15Sum,
-                        best15Average,
-                        mainFontSize: mainFontSize,
-                        subFontSize: subFontSize,
-                      ),
+                    ExportStatBlock(
+                      label: 'Best15 定数区间',
+                      value: _computeDsRange(dxSongs),
                     ),
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                  ),
-                  const SizedBox(height: 8),
-                  // 填充 1：Best35 定数区间（最大值 ~ 最小值，来自 sdSongs）
-                  _buildSimpleStat(
-                    label: 'Best35 定数区间',
-                    value: best35DsRange,
-                    labelFontSize: sectionTitleFontSize * 0.9,
-                    valueFontSize: mainFontSize,
-                  ),
-                  const SizedBox(height: 4),
-                  // 填充 2：Best15 定数区间（最大值 ~ 最小值，来自 dxSongs）
-                  _buildSimpleStat(
-                    label: 'Best15 定数区间',
-                    value: best15DsRange,
-                    labelFontSize: sectionTitleFontSize * 0.9,
-                    valueFontSize: mainFontSize,
                   ),
                 ],
               ),
             ),
-
             const SizedBox(width: 12),
-
-            // 块2：达成率 — 文本水平居中、垂直居中
-            // 下方留白用于追加 Best15 定数区间 + 50首 SSS 数量（合并入块2，间距小）
-            // 平均达成率/DX分数达成率 行间距拉到 20，让块2 视觉密度更舒展
+            // 第二栏：平均达成率 / DX 分数达成率 / 星级，50 首的评级数量
             Expanded(
               flex: 4,
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _buildStatRow(
-                    title: _buildSectionTitleText(
-                        context, 'Best 50 平均达成率/DX分数达成率', sectionTitleFontSize,
-                        alignment: Alignment.center),
-                    value: Align(
-                      alignment: Alignment.center,
-                      child: _buildDualDecimalText(
-                          context,
-                          best50AchievementAverage,
-                          best50ScoreRateAverage * 100,
-                          scoreRate: best50ScoreRateAverage),
+                  Expanded(
+                    child: ExportAchievementBlock(
+                      label: 'Best 50 平均',
+                      achievement: best50AchievementAverage,
+                      scoreRate: best50ScoreRateAverage,
                     ),
-                    crossAxisAlignment: CrossAxisAlignment.center,
                   ),
-                  const SizedBox(height: 20),
-                  _buildStatRow(
-                    title: _buildSectionTitleText(
-                        context, 'Best 35 平均达成率/DX分数达成率', sectionTitleFontSize,
-                        alignment: Alignment.center),
-                    value: Align(
-                      alignment: Alignment.center,
-                      child: _buildDualDecimalText(
-                          context,
-                          best35AchievementAverage,
-                          best35ScoreRateAverage * 100,
-                          scoreRate: best35ScoreRateAverage),
+                  const SizedBox(height: 10),
+                  Expanded(
+                    child: ExportAchievementBlock(
+                      label: 'Best 35 平均',
+                      achievement: best35AchievementAverage,
+                      scoreRate: best35ScoreRateAverage,
                     ),
-                    crossAxisAlignment: CrossAxisAlignment.center,
                   ),
-                  const SizedBox(height: 20),
-                  _buildStatRow(
-                    title: _buildSectionTitleText(
-                        context, 'Best 15 平均达成率/DX分数达成率', sectionTitleFontSize,
-                        alignment: Alignment.center),
-                    value: Align(
-                      alignment: Alignment.center,
-                      child: _buildDualDecimalText(
-                          context,
-                          best15AchievementAverage,
-                          best15ScoreRateAverage * 100,
-                          scoreRate: best15ScoreRateAverage),
+                  const SizedBox(height: 10),
+                  Expanded(
+                    child: ExportAchievementBlock(
+                      label: 'Best 15 平均',
+                      achievement: best15AchievementAverage,
+                      scoreRate: best15ScoreRateAverage,
                     ),
-                    crossAxisAlignment: CrossAxisAlignment.center,
                   ),
-                  const SizedBox(height: 8),
-                  // 填充 1：50首 SSS+ 数量（sdSongs + dxSongs 合计）
-                  _buildSimpleStat(
-                    label: '50首 SSS+ 数量',
-                    value: totalSssPlusCount.toString(),
-                    labelFontSize: sectionTitleFontSize * 0.9,
-                    valueFontSize: mainFontSize,
-                  ),
-                  const SizedBox(height: 4),
-                  // 填充 2：50首 SSS 数量（sdSongs + dxSongs 合计）
-                  _buildSimpleStat(
-                    label: '50首 SSS 数量',
-                    value: totalSssCount.toString(),
-                    labelFontSize: sectionTitleFontSize * 0.9,
-                    valueFontSize: mainFontSize,
+                  const SizedBox(height: 10),
+                  pair(
+                    ExportStatBlock(
+                      label: '50首 SSS+ 数量',
+                      value:
+                          '${_countRate(sdSongs, 'sssp') + _countRate(dxSongs, 'sssp')}',
+                    ),
+                    ExportStatBlock(
+                      label: '50首 SSS 数量',
+                      value:
+                          '${_countRate(sdSongs, 'sss') + _countRate(dxSongs, 'sss')}',
+                    ),
                   ),
                 ],
               ),
             ),
-
             const SizedBox(width: 12),
-
-            // 块3：可提升定数 RA 对照表（保持原左对齐）
+            // 第三栏：可提升定数 RA 对照表
             Expanded(
               flex: 5,
               child: _buildImprovableRatingTable(context, sdSongs, dxSongs),
@@ -963,15 +770,9 @@ class B50ConvertToImg {
         const SizedBox(height: 4),
         Expanded(
           child: Table(
-            border: TableBorder(
+            border: const TableBorder(
               horizontalInside:
-                  BorderSide(color: const Color(0xFFCCCCCC), width: 1),
-              verticalInside:
-                  BorderSide(color: const Color(0xFFCCCCCC), width: 1),
-              top: BorderSide(color: Colors.black, width: 1.5),
-              bottom: BorderSide(color: Colors.black, width: 1.5),
-              left: BorderSide(color: Colors.black, width: 1.5),
-              right: BorderSide(color: Colors.black, width: 1.5),
+                  BorderSide(color: ExportStatsColors.track, width: 1),
             ),
             columnWidths: const {
               0: FlexColumnWidth(2.0),
@@ -984,7 +785,7 @@ class B50ConvertToImg {
             children: [
               // 表头：定数 + 5 个评级图标
               TableRow(
-                decoration: const BoxDecoration(color: Color(0xFFEFEFEF)),
+                decoration: const BoxDecoration(color: ExportStatsColors.inset),
                 children: [
                   _buildHeaderCell('定数', cellFontSize, bold: true),
                   for (final t in tiers) _buildTierIconCell(t, headerIconSize),
@@ -994,7 +795,7 @@ class B50ConvertToImg {
               for (int i = 0; i < diffList.length; i++)
                 TableRow(
                   decoration: BoxDecoration(
-                    color: i.isEven ? Colors.white : const Color(0xFFF7F7F7),
+                    color: Colors.white,
                   ),
                   children: [
                     _buildHeaderCell(
@@ -1033,27 +834,6 @@ class B50ConvertToImg {
       }
     }
     return minRa;
-  }
-
-  // 单行标题文字：超出块宽时自动缩小（scaleDown），永远保持单行不换行
-  // [alignment] 默认 centerLeft；块2 居中时传 center，让标题字符在块内水平居中
-  static Widget _buildSectionTitleText(
-      BuildContext context, String text, double fontSize,
-      {Alignment alignment = Alignment.centerLeft}) {
-    return FittedBox(
-      fit: BoxFit.scaleDown,
-      alignment: alignment,
-      child: Text(
-        text,
-        maxLines: 1,
-        softWrap: false,
-        style: TextStyle(
-          fontSize: fontSize,
-          fontWeight: FontWeight.bold,
-          color: Colors.black,
-        ),
-      ),
-    );
   }
 
   // 表头文字 cell
@@ -1295,115 +1075,6 @@ class B50ConvertToImg {
       starsColor: starsColor,
       maxIdLength: maxIdLength,
       scale: 1.0,
-    );
-  }
-
-  // 构建小数文本
-  static Widget _buildDecimalText(
-    BuildContext context,
-    double value, {
-    bool isPercentage = false,
-    int decimalPlaces = 4,
-    Color color = Colors.white,
-  }) {
-    // 图片容器固定宽度为1200，以此为基准计算字体大小
-    const double containerWidth = 1200.0;
-
-    // 根据容器宽度计算字体大小（与App观感一致）
-    double mainFontSize = containerWidth * 0.032; // 约38px
-    double subFontSize = containerWidth * 0.025; // 约30px
-
-    String text = value.toStringAsFixed(decimalPlaces);
-
-    // 分割整数部分和小数部分
-    List<String> parts = text.split('.');
-    String integerPart = parts[0];
-    String decimalPart = parts.length > 1 ? '.${parts[1]}' : '';
-    String percentageSymbol = isPercentage ? '%' : '';
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.baseline,
-      textBaseline: TextBaseline.alphabetic,
-      children: [
-        // 整数部分
-        Text(
-          integerPart,
-          style: TextStyle(
-            fontSize: mainFontSize,
-            fontWeight: FontWeight.bold,
-            color: color,
-          ),
-        ),
-        // 小数部分和百分号
-        Text(
-          '$decimalPart$percentageSymbol',
-          style: TextStyle(
-            fontSize: subFontSize,
-            fontWeight: FontWeight.bold,
-            color: color,
-          ),
-        ),
-      ],
-    );
-  }
-
-  // 构建双小数文本
-  static Widget _buildDualDecimalText(
-    BuildContext context,
-    double value1,
-    double value2, {
-    int decimalPlaces1 = 4,
-    int decimalPlaces2 = 2,
-    Color color = Colors.black,
-    double? scoreRate,
-  }) {
-    // 图片容器固定宽度为1200，以此为基准计算字体大小
-    const double containerWidth = 1200.0;
-
-    // 根据容器宽度计算字体大小（与App观感一致）
-    double fontSize = containerWidth * 0.03; // 约36px
-
-    final starsText =
-        scoreRate != null ? StringUtil.formatStars(scoreRate) : null;
-    final starsColor =
-        scoreRate != null ? ColorUtil.getStarsColor(starsText!) : null;
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _buildDecimalText(context, value1,
-            decimalPlaces: decimalPlaces1, color: color),
-        Text(
-          '/',
-          style: TextStyle(
-            fontSize: fontSize,
-            fontWeight: FontWeight.bold,
-            color: color,
-          ),
-        ),
-        _buildDecimalText(context, value2,
-            decimalPlaces: decimalPlaces2, color: color),
-        // DX 分达成率右侧添加星级（achievement / dxScore% / ✦x）
-        if (starsText != null) ...[
-          Text(
-            '/',
-            style: TextStyle(
-              fontSize: fontSize,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-          Text(
-            starsText,
-            style: TextStyle(
-              fontSize: fontSize,
-              fontWeight: FontWeight.bold,
-              color: starsColor,
-            ),
-          ),
-        ],
-      ],
     );
   }
 

@@ -1,10 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:my_first_flutter_app/page/KaleidXScope/KaleidXScopeInfoPageBLACK.dart';
-import 'package:my_first_flutter_app/page/KaleidXScope/KaleidXScopeInfoPageBLUE.dart';
-import 'package:my_first_flutter_app/page/KaleidXScope/KaleidXScopeInfoPageWHITE.dart';
-import 'package:my_first_flutter_app/page/KaleidXScope/KaleidXScopeInfoPagePURPLE.dart';
-import 'package:my_first_flutter_app/page/KaleidXScope/KaleidXScopeInfoPageYELLOW.dart';
-import 'package:my_first_flutter_app/page/KaleidXScope/KaleidXScopeInfoPageRED.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
 import '../../service/KaleidXScope/KaleidXScopeGateService.dart';
 import 'KaleidXScopeGatePage.dart';
@@ -128,65 +122,12 @@ class _KaleidXScopeSelectPageState extends State<KaleidXScopeSelectPage> {
                             child: Text(_listError!)),
                       ..._scopeData
                           .map((item) => GestureDetector(
-                                onTap: () {
-                                  if (item['type'] == 'blue') {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) =>
-                                            KaleidXScopeInfoPageBLUE(),
-                                      ),
-                                    );
-                                  } else if (item['type'] == 'white') {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) =>
-                                            KaleidXScopeInfoPageWHITE(),
-                                      ),
-                                    );
-                                  } else if (item['type'] == 'purple') {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) =>
-                                            KaleidXScopeInfoPagePURPLE(),
-                                      ),
-                                    );
-                                  } else if (item['type'] == 'black') {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) =>
-                                            KaleidXScopeInfoPageBLACK(),
-                                      ),
-                                    );
-                                  } else if (item['type'] == 'yellow') {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) =>
-                                            KaleidXScopeInfoPageYELLOW(),
-                                      ),
-                                    );
-                                  } else if (item['type'] == 'red') {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) =>
-                                            KaleidXScopeInfoPageRED(),
-                                      ),
-                                    );
-                                  } else {
-                                    Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                            builder: (_) =>
-                                                KaleidXScopeGatePage(
-                                                    color: item['type']!,
-                                                    title: item['title']!)));
-                                  }
-                                },
+                                onTap: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                        builder: (_) => KaleidXScopeGatePage(
+                                            color: item['type']!,
+                                            title: item['title']!))),
                                 child: ClipRRect(
                                   borderRadius: BorderRadius.circular(12),
                                   child: Stack(

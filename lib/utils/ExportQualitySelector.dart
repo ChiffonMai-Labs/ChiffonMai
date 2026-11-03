@@ -7,6 +7,7 @@ import '../widgets/AnimatedChoiceBar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:my_first_flutter_app/utils/ImageEncodeUtil.dart';
+import 'AppDesignTokens.dart';
 
 /// 导出质量选择结果
 class ExportQualityResult {
@@ -91,9 +92,9 @@ class ExportQualitySelector {
                   .copyWith(splashFactory: NoSplash.splashFactory),
               child: Container(
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surface,
+                  color: AppSurfaces.card(context),
                   borderRadius:
-                      const BorderRadius.vertical(top: Radius.circular(16)),
+                      const BorderRadius.vertical(top: Radius.circular(28)),
                 ),
                 padding: EdgeInsets.only(
                   bottom: MediaQuery.of(context).padding.bottom + 16,
@@ -109,7 +110,7 @@ class ExportQualitySelector {
                         width: 40,
                         height: 4,
                         decoration: BoxDecoration(
-                          color: Colors.grey[400],
+                          color: Theme.of(context).colorScheme.outlineVariant,
                           borderRadius: BorderRadius.circular(2),
                         ),
                       ),

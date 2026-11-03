@@ -24,6 +24,7 @@ import 'package:my_first_flutter_app/constant/VersionListConstant.dart';
 import 'package:my_first_flutter_app/constant/GenreListConstant.dart';
 import '../widgets/AppUi.dart';
 import '../utils/AppDesignTokens.dart';
+import '../widgets/AppDialogs.dart';
 
 enum _ConstantFilterMode { anyChart, perDifficulty }
 
@@ -42,6 +43,10 @@ class _SongSearchPageState extends State<SongSearchPage> {
   List<dynamic> _allSearchResults = []; // 所有搜索结果
   List<dynamic> _currentPageResults = []; // 当前页的结果
   bool _isSearching = false;
+
+  /// 每发布一批不同的结果就加一，结果列表的入场动画靠它重播。
+  /// 不能用 _searchGeneration：它在改筛选的瞬间就变了，旧结果会原地重播一次。
+  int _resultsRevision = 0;
   String? _errorMessage;
   TextEditingController _searchController = TextEditingController();
   Timer? _searchTimer;
@@ -85,7 +90,24 @@ class _SongSearchPageState extends State<SongSearchPage> {
   bool _onlyDx = false;
   int? _songCount;
 
+  // 舞萌的全部等级：1–6 没有加号，7 起每级分 x / x+。
   static const List<String> _quickLevels = [
+    '1',
+    '2',
+    '3',
+    '4',
+    '5',
+    '6',
+    '7',
+    '7+',
+    '8',
+    '8+',
+    '9',
+    '9+',
+    '10',
+    '10+',
+    '11',
+    '11+',
     '12',
     '12+',
     '13',
@@ -180,11 +202,13 @@ class _SongSearchPageState extends State<SongSearchPage> {
     }
   }
 
-  /// 等级快捷键对应的定数范围（与成绩查询的等级口径一致：x.0–x.5 / x.6–x.9）。
+  /// 等级快捷键对应的定数范围（与成绩查询的等级口径一致：x.0–x.5 / x.6–x.9；
+  /// 1–6 没有加号，整级都是 x.0–x.9）。
   (String, String) _quickLevelRange(String level) {
     if (level == '15') return ('15.0', '15.0');
     final plus = level.endsWith('+');
     final base = level.replaceAll('+', '');
+    if (!plus && int.parse(base) < 7) return ('$base.0', '$base.9');
     return plus ? ('$base.6', '$base.9') : ('$base.0', '$base.5');
   }
 
@@ -202,7 +226,6 @@ class _SongSearchPageState extends State<SongSearchPage> {
       _constantFilterMode = _ConstantFilterMode.anyChart;
       _minLevelController.text = selected ? '' : range.$1;
       _maxLevelController.text = selected ? '' : range.$2;
-      _resetSearchResultState();
     });
     _performFilteredSearch();
   }
@@ -801,6 +824,10 @@ class _SongSearchPageState extends State<SongSearchPage> {
       if (!mounted || generation != _searchGeneration) return;
       setState(() {
         _appliedDifficultyConstantFilter = difficultyFilter;
+        // 结果真的变了才重播入场动画，同样的结果原地不动
+        if (!_sameResults(_allSearchResults, filteredResults)) {
+          _resultsRevision++;
+        }
         _allSearchResults = filteredResults;
         _totalItems = filteredResults.length;
         _totalPages = (_totalItems + _pageSize - 1) ~/ _pageSize; // 计算总页数
@@ -823,6 +850,14 @@ class _SongSearchPageState extends State<SongSearchPage> {
         _isSearching = false;
       });
     }
+  }
+
+  bool _sameResults(List<dynamic> a, List<dynamic> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i].id != b[i].id) return false;
+    }
+    return true;
   }
 
   // 更新当前页的结果
@@ -1019,7 +1054,6 @@ class _SongSearchPageState extends State<SongSearchPage> {
     setState(() {
       _constantFilterMode = mode;
       _difficultyConstantFilter = _readDifficultyConstants();
-      _resetSearchResultState();
     });
     unawaited(_performSearch(_searchController.text));
   }
@@ -1029,9 +1063,14 @@ class _SongSearchPageState extends State<SongSearchPage> {
     ++_searchGeneration; // 输入尚未完成时，旧请求也不能再发布结果。
     setState(() {
       _difficultyConstantFilter = _readDifficultyConstants();
-      _resetSearchResultState(
-          error: _difficultyConstantFilter.isValid ? null : '请先修正按难度组合的定数输入');
-      _isSearching = _difficultyConstantFilter.isValid && _hasSearchCriteria;
+      if (!_difficultyConstantFilter.isValid) {
+        _resetSearchResultState(error: '请先修正按难度组合的定数输入');
+      } else if (!_hasSearchCriteria) {
+        _resetSearchResultState();
+      } else {
+        _errorMessage = null;
+        _isSearching = true;
+      }
     });
     if (_difficultyConstantFilter.isValid) _debouncedFilter();
   }
@@ -1047,7 +1086,6 @@ class _SongSearchPageState extends State<SongSearchPage> {
         _minLevelController.clear();
         _maxLevelController.clear();
       }
-      _resetSearchResultState();
     });
     _performFilteredSearch();
   }
@@ -2010,7 +2048,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                     .where((e) => e.toLowerCase().contains(query))
                     .toList();
 
-            return AlertDialog(
+            return AppAlertDialog(
               title: Text(title),
               content: SizedBox(
                 width: double.maxFinite,
@@ -2291,7 +2329,8 @@ class _SongSearchPageState extends State<SongSearchPage> {
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
           child: Center(child: child),
         );
-    if (_isSearching) {
+    // 已有结果时留在原地，等新结果出来再替换，不切到转圈再切回来
+    if (_isSearching && _allSearchResults.isEmpty) {
       return message(Column(
         children: [
           CircularProgressIndicator(color: scheme.onSurface),
@@ -2354,10 +2393,14 @@ class _SongSearchPageState extends State<SongSearchPage> {
             ],
           ))
         else
-          AppCard(
+          AnimatedOpacity(
+            opacity: _isSearching ? 0.55 : 1,
+            duration: AppDesignTokens.motion(
+                context, AppDesignTokens.fastMotion),
+            child: AppCard(
             padding: EdgeInsets.zero,
             child: Column(
-              key: ValueKey('$_searchGeneration-$_currentPage'),
+              key: ValueKey('$_resultsRevision-$_currentPage'),
               children: [
                 for (var i = 0; i < _currentPageResults.length; i++)
                   EntranceAnimation(
@@ -2370,6 +2413,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                   ),
               ],
             ),
+          ),
           ),
         if (_totalPages > 1)
           Padding(
@@ -2422,7 +2466,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
 
     // 获取标签信息
     List<String> tagInfoList = _getTagInfoForSong(song);
-    final List<String> levels = List<String>.from(song.level);
+    final List<num> constants = List<num>.from(song.ds);
     final highlight =
         TextStyle(fontSize: 12, height: 1.35, color: scheme.primary);
 
@@ -2443,7 +2487,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
         ),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             ClipRRect(
               borderRadius:
@@ -2488,48 +2532,22 @@ class _SongSearchPageState extends State<SongSearchPage> {
                     style:
                         TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
                   ),
+                  // 定数小方块放在匹配信息上面，让匹配文本能占满整行
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: ChartConstantBadges(
+                        constants: constants, isUtage: isUtage),
+                  ),
                   // 匹配信息
-                  for (final info in matchInfo)
-                    Text('${info['type']}：${info['value']}', style: highlight),
-                  for (final tagInfo in tagInfoList)
-                    Text(tagInfo, style: highlight),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            // 等级小方块：四个一行，Re:MASTER 换到第二行
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 118),
-              child: Wrap(
-                alignment: WrapAlignment.end,
-                spacing: 3,
-                runSpacing: 3,
-                children: [
-                  for (var i = 0; i < levels.length; i++)
-                    Builder(builder: (context) {
-                      final c = isUtage
-                          ? AppColors.difficultyBadge(2, brightness)
-                          : AppColors.difficultyBadge(i, brightness);
-                      // 不用 Container.alignment：它会把方块撑满 Wrap 的宽度。
-                      return Container(
-                        constraints:
-                            const BoxConstraints(minWidth: 22, minHeight: 22),
-                        padding: const EdgeInsets.symmetric(horizontal: 3),
-                        decoration: BoxDecoration(
-                          color: c.background,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Center(
-                          widthFactor: 1,
-                          heightFactor: 1,
-                          child: Text(levels[i],
-                              style: AppTheme.number(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: c.foreground)),
-                        ),
-                      );
-                    }),
+                  for (final line in _mergeMatchInfo(matchInfo))
+                    Text(line, style: highlight),
+                  if (tagInfoList.isNotEmpty)
+                    Text(
+                      tagInfoList
+                          .map((info) => info.replaceFirst('：', ' '))
+                          .join('，'),
+                      style: highlight,
+                    ),
                 ],
               ),
             ),
@@ -2622,6 +2640,21 @@ class _SongSearchPageState extends State<SongSearchPage> {
 
   String _getDifficultyByIndexForSong(dynamic song, int index) {
     return _isUtageSong(song) ? 'utage' : _getDifficultyByIndex(index);
+  }
+
+  /// 同一类匹配信息合并成一行，例如「定数：EXPERT 13.5，MASTER 14.2」。
+  List<String> _mergeMatchInfo(List<Map<String, String>> infos) {
+    final merged = <String, Set<String>>{};
+    for (final info in infos) {
+      final isChartValue = {'定数', '物量'}.contains(info['type']);
+      final value = info['value']!;
+      merged.putIfAbsent(info['type']!, () => <String>{}).add(
+          isChartValue ? value.replaceFirst('：', ' ') : value);
+    }
+    return [
+      for (final entry in merged.entries)
+        '${entry.key}：${entry.value.join('，')}',
+    ];
   }
 
   // 获取匹配信息
@@ -2726,9 +2759,9 @@ class _SongSearchPageState extends State<SongSearchPage> {
         final chart = song.charts[index];
         if (chart.charter == _selectedCharter) {
           matchInfos.add({
-            'type':
-                '${ChartDifficulty.labelOf(index, isUtage: _isUtageSong(song))}谱师',
-            'value': chart.charter
+            'type': '谱师',
+            'value':
+                '${ChartDifficulty.labelOf(index, isUtage: _isUtageSong(song))} ${chart.charter}'
           });
         }
       }
@@ -2778,9 +2811,9 @@ class _SongSearchPageState extends State<SongSearchPage> {
       final chart = song.charts[index];
       if (chart.charter.toLowerCase().contains(query)) {
         matchInfos.add({
-          'type':
-              '${ChartDifficulty.labelOf(index, isUtage: _isUtageSong(song))}谱师',
-          'value': chart.charter
+          'type': '谱师',
+          'value':
+              '${ChartDifficulty.labelOf(index, isUtage: _isUtageSong(song))} ${chart.charter}'
         });
       }
     }

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../utils/AppDesignTokens.dart';
 import '../utils/AppTheme.dart';
+import '../utils/ChartDifficulty.dart';
 import '../utils/ColorUtil.dart';
 
 /// 2026-11 UI 重构（B 方案）的公共组件。
@@ -241,6 +242,10 @@ class StatTile extends StatelessWidget {
   /// 自定义数值部件（数字滚动），优先于 [value] 的默认文字。
   final Widget? valueWidget;
 
+  /// 标签和数值水平居中，默认靠左。这种格子通常并排摆放，所以行高也固定：
+  /// 内容变长只缩小文字，格子不会跟着变矮。
+  final bool centered;
+
   const StatTile({
     super.key,
     required this.label,
@@ -250,17 +255,25 @@ class StatTile extends StatelessWidget {
     this.valueSize = 17,
     this.trailing,
     this.valueWidget,
+    this.centered = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     // 放不下时等比缩小，重要数据和说明都不用省略号截断。
-    Widget fit(Widget child) => FittedBox(
-          fit: BoxFit.scaleDown,
-          alignment: Alignment.centerLeft,
-          child: child,
-        );
+    final scaler = MediaQuery.textScalerOf(context);
+    Widget fit(Widget child, double fontSize) {
+      final fitted = FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: centered ? Alignment.center : Alignment.centerLeft,
+        child: child,
+      );
+      return centered
+          ? SizedBox(height: scaler.scale(fontSize) * 1.35, child: fitted)
+          : fitted;
+    }
+
     final valueText = valueWidget ??
         Text(
           value,
@@ -272,31 +285,37 @@ class StatTile extends StatelessWidget {
           ),
         );
     final body = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment:
+          centered ? CrossAxisAlignment.center : CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
         fit(FadeSwitcher(
           value: label,
+          alignment: centered
+              ? AlignmentDirectional.center
+              : AlignmentDirectional.centerStart,
           child: Text(
             label,
             maxLines: 1,
             style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
           ),
-        )),
+        ), 11),
         const SizedBox(height: 2),
-        fit(trailing == null
-            ? valueText
-            : Row(
-                mainAxisSize: MainAxisSize.min,
-                // 字号不同的两段文字底部平齐
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
-                children: [
-                  valueText,
-                  const SizedBox(width: 8),
-                  trailing!,
-                ],
-              )),
+        fit(
+            trailing == null
+                ? valueText
+                : Row(
+                    mainAxisSize: MainAxisSize.min,
+                    // 字号不同的两段文字底部平齐
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
+                    children: [
+                      valueText,
+                      const SizedBox(width: 8),
+                      trailing!,
+                    ],
+                  ),
+            valueSize),
       ],
     );
     if (!card) return body;
@@ -1148,6 +1167,141 @@ class UnderlineTabs extends StatelessWidget {
   }
 }
 
+/// 按数量分配分段条的宽度：不足最小宽度的段固定为最小宽度，其余按比例分剩下的
+/// 宽度，1700 条里的 1 条也看得见；分完可能又有段变小，所以循环到稳定。
+List<double> stackedBarWidths(
+  List<int> counts,
+  double total, {
+  double gap = 3,
+  double minWidth = 6,
+}) {
+  final widths = List<double>.filled(counts.length, 0);
+  final nonEmpty = [
+    for (var i = 0; i < counts.length; i++)
+      if (counts[i] > 0) i
+  ];
+  if (nonEmpty.isEmpty) return widths;
+  final available = total - gap * (nonEmpty.length - 1);
+  final pinned = <int>{};
+  while (true) {
+    final free = available - pinned.length * minWidth;
+    final rest = nonEmpty.where((i) => !pinned.contains(i)).toList();
+    final sum = rest.fold<int>(0, (s, i) => s + counts[i]);
+    final tooSmall =
+        rest.where((i) => free * counts[i] / sum < minWidth).toList();
+    if (tooSmall.isEmpty || tooSmall.length == rest.length) {
+      for (final i in nonEmpty) {
+        widths[i] = pinned.contains(i) || tooSmall.contains(i)
+            ? minWidth
+            : free * counts[i] / sum;
+      }
+      return widths;
+    }
+    pinned.addAll(tooSmall);
+  }
+}
+
+/// 只读的分段条（胜 / 平 / 负这类），段宽变化带过渡。
+class StackedBar extends StatelessWidget {
+  final List<({int count, Color color})> segments;
+  final double height;
+  final double gap;
+
+  const StackedBar({
+    super.key,
+    required this.segments,
+    this.height = 10,
+    this.gap = 3,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final duration =
+        AppDesignTokens.motion(context, AppDesignTokens.mediumMotion);
+    return SizedBox(
+      height: height,
+      child: LayoutBuilder(builder: (context, constraints) {
+        final widths = stackedBarWidths(
+            [for (final s in segments) s.count], constraints.maxWidth,
+            gap: gap);
+        var left = 0.0;
+        return Stack(
+          children: [
+            for (var i = 0; i < segments.length; i++)
+              () {
+                final position = left;
+                if (widths[i] > 0) left += widths[i] + gap;
+                return AnimatedPositioned(
+                  key: ValueKey(i),
+                  duration: duration,
+                  curve: AppDesignTokens.emphasizedCurve,
+                  left: position,
+                  top: 0,
+                  bottom: 0,
+                  width: widths[i],
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: segments[i].color,
+                      borderRadius: BorderRadius.circular(height / 2),
+                    ),
+                  ),
+                );
+              }(),
+          ],
+        );
+      }),
+    );
+  }
+}
+
+/// 一首歌全部难度的定数，每个定数一个带难度色的小标签。
+class ChartConstantBadges extends StatelessWidget {
+  final List<num> constants;
+  final bool isUtage;
+
+  const ChartConstantBadges({
+    super.key,
+    required this.constants,
+    this.isUtage = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final brightness = Theme.of(context).brightness;
+    return Wrap(
+      spacing: 3,
+      runSpacing: 3,
+      children: [
+        for (var i = 0; i < constants.length; i++)
+          () {
+            final c = AppColors.difficultyBadge(isUtage ? 2 : i, brightness);
+            // 不用 Container.alignment：它会把方块撑满 Wrap 的宽度
+            return Container(
+              constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+              padding: const EdgeInsets.symmetric(horizontal: 3),
+              decoration: BoxDecoration(
+                color: c.background,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Center(
+                widthFactor: 1,
+                heightFactor: 1,
+                child: Text(
+                  constants[i].toStringAsFixed(1),
+                  style: AppTheme.number(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: c.foreground,
+                  ),
+                ),
+              ),
+            );
+          }(),
+      ],
+    );
+  }
+}
+
 /// 可折叠的白卡片：默认收起的次要内容（详细统计等）。
 class CollapsibleCard extends StatefulWidget {
   final String title;
@@ -1229,12 +1383,18 @@ class FilterPill extends StatelessWidget {
   /// 开关型胶囊（仅 DX、只搜歌名）：直接给选中状态，不显示箭头。
   final bool? selected;
 
+  /// 选中时的底色和文字色，不传时用次级容器色。
+  final Color? selectedColor;
+  final Color? selectedForeground;
+
   const FilterPill({
     super.key,
     required this.label,
     required this.onTap,
     this.value,
     this.selected,
+    this.selectedColor,
+    this.selectedForeground,
   });
 
   @override
@@ -1242,9 +1402,13 @@ class FilterPill extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final hasValue = value != null && value!.isNotEmpty;
     final active = selected ?? hasValue;
-    final fg = active ? scheme.onSecondaryContainer : scheme.onSurfaceVariant;
+    final fg = active
+        ? (selectedForeground ?? scheme.onSecondaryContainer)
+        : scheme.onSurfaceVariant;
     return Material(
-      color: active ? scheme.secondaryContainer : AppSurfaces.track(context),
+      color: active
+          ? (selectedColor ?? scheme.secondaryContainer)
+          : AppSurfaces.track(context),
       borderRadius: BorderRadius.circular(10),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -1360,6 +1524,221 @@ class ComboLabelBadge extends StatelessWidget {
   }
 }
 
+/// 谱面类型徽章：UT（6 位 id 的宴谱）/ DX / ST。
+class SongTypeBadge extends StatelessWidget {
+  final String songId;
+  final String type;
+  final double fontSize;
+
+  const SongTypeBadge({
+    super.key,
+    required this.songId,
+    required this.type,
+    this.fontSize = 10,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final brightness = Theme.of(context).brightness;
+    final isUtage = songId.length == 6;
+    final colors = isUtage
+        ? AppColors.difficultyBadge(2, brightness)
+        : (type == 'DX'
+            ? AppColors.difficultyBadge(1, brightness)
+            : AppColors.syncBadge(brightness));
+    return AppBadge(
+      text: isUtage ? 'UT' : (type == 'DX' ? 'DX' : 'ST'),
+      background: colors.background,
+      foreground: colors.foreground,
+      fontSize: fontSize,
+    );
+  }
+}
+
+/// 难度徽章（BASIC ~ Re:MASTER / 宴），配色见 [AppColors.difficultyBadge]。
+class ChartDifficultyBadge extends StatelessWidget {
+  final int levelIndex;
+  final String songId;
+
+  /// 不传时按 [levelIndex] 取显示名。
+  final String? label;
+  final double fontSize;
+
+  const ChartDifficultyBadge({
+    super.key,
+    required this.levelIndex,
+    required this.songId,
+    this.label,
+    this.fontSize = 10,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isUtage = songId.length == 6;
+    final colors = AppColors.difficultyBadge(
+        isUtage ? 2 : levelIndex.clamp(0, 4).toInt(),
+        Theme.of(context).brightness);
+    return AppBadge(
+      text: label ?? ChartDifficulty.labelOf(levelIndex, isUtage: isUtage),
+      background: colors.background,
+      foreground: colors.foreground,
+      fontSize: fontSize,
+    );
+  }
+}
+
+/// 列表底部的翻页条：上一页 / 页码 / 下一页。
+class PagerBar extends StatelessWidget {
+  final int page;
+  final int totalPages;
+
+  /// 为 null 时对应按钮置灰。
+  final VoidCallback? onPrevious;
+  final VoidCallback? onNext;
+
+  const PagerBar({
+    super.key,
+    required this.page,
+    required this.totalPages,
+    required this.onPrevious,
+    required this.onNext,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+          AppDesignTokens.gutter, 4, AppDesignTokens.gutter, 8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        decoration: BoxDecoration(
+          color: AppSurfaces.card(context),
+          borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
+        ),
+        child: Row(
+          children: [
+            IconButton(
+              tooltip: '上一页',
+              onPressed: onPrevious,
+              icon: const Icon(Icons.chevron_left_rounded),
+            ),
+            Expanded(
+              child: Text(
+                '$page / $totalPages',
+                textAlign: TextAlign.center,
+                style: AppTheme.number(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: scheme.onSurface,
+                ),
+              ),
+            ),
+            IconButton(
+              tooltip: '下一页',
+              onPressed: onNext,
+              icon: const Icon(Icons.chevron_right_rounded),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 识别功能准备页的引导卡片：图标、说明和操作步骤。
+class RecognitionGuideCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String description;
+  final List<String> steps;
+
+  const RecognitionGuideCard({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.description,
+    required this.steps,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return AppCard(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Center(
+            child: Container(
+              width: 68,
+              height: 68,
+              decoration: BoxDecoration(
+                color: scheme.primaryContainer,
+                borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
+              ),
+              child: Icon(icon, size: 34, color: scheme.onPrimaryContainer),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+              color: scheme.onSurface,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            description,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 13,
+              height: 1.45,
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 16),
+          for (var i = 0; i < steps.length; i++)
+            Padding(
+              padding: EdgeInsets.only(top: i == 0 ? 0 : 8),
+              child: Row(
+                children: [
+                  Container(
+                    width: 22,
+                    height: 22,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: AppSurfaces.inset(context),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Text(
+                      '${i + 1}',
+                      style: AppTheme.number(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: scheme.primary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      steps[i],
+                      style: TextStyle(fontSize: 13, color: scheme.onSurface),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 // ---------------------------------------------------------------------------
 // 动效
 // ---------------------------------------------------------------------------
@@ -1388,7 +1767,11 @@ class EntranceAnimation extends StatefulWidget {
     this.duration = const Duration(milliseconds: 420),
     this.offset = const Offset(0, 14),
     this.scaleFrom = 1,
+    this.enabled = true,
   });
+
+  /// 为 false 时直接显示。放在同一个位置切换，不会因为换了部件类型而重建子树。
+  final bool enabled;
 
   @override
   State<EntranceAnimation> createState() => _EntranceAnimationState();
@@ -1422,7 +1805,8 @@ class _EntranceAnimationState extends State<EntranceAnimation>
     super.didChangeDependencies();
     if (_started) return;
     _started = true;
-    if (MediaQuery.maybeDisableAnimationsOf(context) == true) {
+    if (!widget.enabled ||
+        MediaQuery.maybeDisableAnimationsOf(context) == true) {
       _controller.value = 1;
     } else {
       _controller.forward();
@@ -1495,11 +1879,16 @@ class FadeSwitcher extends StatelessWidget {
   final Widget child;
   final AlignmentGeometry alignment;
 
+  /// 为 true 时高度只看新内容，旧内容叠在上面淡出。放在 AnimatedSize 里用：
+  /// 默认情况下要等旧内容淡完高度才变，渐隐和收起就成了先后两步。
+  final bool sizeFollowsCurrent;
+
   const FadeSwitcher({
     super.key,
     required this.value,
     required this.child,
     this.alignment = AlignmentDirectional.centerStart,
+    this.sizeFollowsCurrent = false,
   });
 
   @override
@@ -1511,7 +1900,10 @@ class FadeSwitcher extends StatelessWidget {
       layoutBuilder: (current, previous) => Stack(
         alignment: alignment,
         children: [
-          ...previous,
+          for (final old in previous)
+            sizeFollowsCurrent
+                ? Positioned(top: 0, left: 0, right: 0, child: old)
+                : old,
           if (current != null) current,
         ],
       ),

@@ -1,4 +1,3 @@
-import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import '../../widgets/AnimatedChoiceBar.dart';
 import 'package:flutter/material.dart';
 import '../../widgets/EmptyState.dart';
@@ -8,6 +7,10 @@ import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import '../SongInfoPage.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
 import '../../utils/AppDesignTokens.dart';
+import '../../widgets/RankingUi.dart';
+import '../../widgets/AppUi.dart';
+import '../../widgets/MarqueeText.dart';
+import '../../widgets/AppDialogs.dart';
 
 class SpecialRankingListPage extends StatefulWidget {
   const SpecialRankingListPage({super.key});
@@ -30,6 +33,7 @@ enum RankingType {
 }
 
 class _SpecialRankingListPageState extends State<SpecialRankingListPage> {
+  final RankingEntrance _entrance = RankingEntrance();
   final SpecialRankingListService _service = SpecialRankingListService();
   bool _isLoading = true;
   RankingType _currentRankingType = RankingType.breakCount;
@@ -218,7 +222,7 @@ class _SpecialRankingListPageState extends State<SpecialRankingListPage> {
     showDialog(
       context: context,
       builder: (BuildContext dialogContext) {
-        return AlertDialog(
+        return AppAlertDialog(
           title: Text('选择排行榜类型',
               style: TextStyle(color: AppColors.primaryText(brightness))),
           actions: [
@@ -326,194 +330,103 @@ class _SpecialRankingListPageState extends State<SpecialRankingListPage> {
     );
   }
 
-  Widget _buildRankBadge(int rank, Brightness brightness) {
-    Color badgeColor;
-    String badgeText;
-
-    switch (rank) {
-      case 1:
-        badgeColor = Colors.yellow.shade600;
-        badgeText = '1';
-        break;
-      case 2:
-        badgeColor = Colors.grey.shade400;
-        badgeText = '2';
-        break;
-      case 3:
-        badgeColor = Colors.orange.shade400;
-        badgeText = '3';
-        break;
-      default:
-        return Container(
-          width: 28,
-          height: 28,
-          alignment: Alignment.center,
-          child: Text(
-            rank.toString(),
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: AppColors.secondaryText(brightness),
+  Widget _buildEntryCard(SpecialRankingEntry entry) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: AppCard(
+        radius: AppDesignTokens.radiusMedium,
+        padding: const EdgeInsets.fromLTRB(8, 10, 10, 10),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => SongInfoPage(
+                songId: entry.songId,
+                initialLevelIndex: entry.difficultyIndex,
+                isDefaultLevelIndex: false,
+              ),
             ),
-          ),
-        );
-    }
-
-    return Container(
-      width: 28,
-      height: 28,
-      decoration: BoxDecoration(
-        color: badgeColor,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        badgeText,
-        style: const TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.bold,
-          color: Colors.white,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTypeTag(String type, String songId, Brightness brightness) {
-    bool isUtage = songId.length == 6;
-
-    if (isUtage) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        decoration: BoxDecoration(
-          color: brightness == Brightness.dark
-              ? Colors.red.withValues(alpha: 0.2)
-              : Colors.red.shade100,
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: Text(
-          'UT',
-          style: TextStyle(
-            fontSize: 10,
-            fontWeight: FontWeight.bold,
-            color: brightness == Brightness.dark ? Colors.red[300] : Colors.red,
-          ),
-        ),
-      );
-    } else if (type == 'DX') {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        decoration: BoxDecoration(
-          color: brightness == Brightness.dark
-              ? Colors.orange.withValues(alpha: 0.2)
-              : Colors.orange.shade100,
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: Text(
-          'DX',
-          style: TextStyle(
-            fontSize: 10,
-            fontWeight: FontWeight.bold,
-            color: brightness == Brightness.dark
-                ? Colors.orange[300]
-                : Colors.orange,
-          ),
-        ),
-      );
-    } else {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        decoration: BoxDecoration(
-          color: brightness == Brightness.dark
-              ? Colors.blue.withValues(alpha: 0.2)
-              : Colors.blue.shade100,
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: Text(
-          'ST',
-          style: TextStyle(
-            fontSize: 10,
-            fontWeight: FontWeight.bold,
-            color:
-                brightness == Brightness.dark ? Colors.blue[300] : Colors.blue,
-          ),
-        ),
-      );
-    }
-  }
-
-  Widget _buildDifficultyTag(String difficultyLabel, int difficultyIndex,
-      String songId, Brightness brightness) {
-    Color bgColor;
-    Color textColor;
-
-    if (songId.length == 6) {
-      bgColor = brightness == Brightness.dark
-          ? Colors.red.withValues(alpha: 0.2)
-          : Colors.red.shade100;
-      textColor = brightness == Brightness.dark ? Colors.red[300]! : Colors.red;
-    } else {
-      switch (difficultyIndex) {
-        case ChartDifficulty.basic:
-          bgColor = brightness == Brightness.dark
-              ? Colors.green.withValues(alpha: 0.2)
-              : Colors.green.shade100;
-          textColor = brightness == Brightness.dark
-              ? Colors.green[300]!
-              : Colors.green.shade700;
-          break;
-        case ChartDifficulty.advanced:
-          bgColor = brightness == Brightness.dark
-              ? Colors.orange.withValues(alpha: 0.2)
-              : Colors.orange.shade100;
-          textColor = brightness == Brightness.dark
-              ? Colors.orange[300]!
-              : Colors.orange.shade700;
-          break;
-        case ChartDifficulty.expert:
-          bgColor = brightness == Brightness.dark
-              ? Colors.red.withValues(alpha: 0.2)
-              : Colors.red.shade100;
-          textColor =
-              brightness == Brightness.dark ? Colors.red[300]! : Colors.red;
-          break;
-        case ChartDifficulty.master:
-          bgColor = brightness == Brightness.dark
-              ? Colors.purple.withValues(alpha: 0.2)
-              : Colors.purple.shade100;
-          textColor = brightness == Brightness.dark
-              ? Colors.purple[200]!
-              : Colors.purple.shade700;
-          break;
-        case ChartDifficulty.reMaster:
-          bgColor = brightness == Brightness.dark
-              ? Colors.purple.withValues(alpha: 0.2)
-              : Colors.purple.shade100;
-          textColor = brightness == Brightness.dark
-              ? Colors.purple[200]!
-              : Colors.purple.shade300;
-          break;
-        default:
-          bgColor = brightness == Brightness.dark
-              ? Colors.grey.withValues(alpha: 0.2)
-              : Colors.grey.shade100;
-          textColor = brightness == Brightness.dark
-              ? Colors.grey[400]!
-              : Colors.grey.shade700;
-      }
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        difficultyLabel,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-          color: textColor,
+          );
+        },
+        child: Row(
+          children: [
+            SizedBox(
+                width: 32,
+                child: Center(child: RankingMedal(rank: entry.rank))),
+            const SizedBox(width: 6),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+              child: CoverUtil.buildCoverWidgetWithContext(
+                  context, entry.songId, 52),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  MarqueeText(
+                    text: entry.songTitle,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: scheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Row(
+                    children: [
+                      SongTypeBadge(songId: entry.songId, type: entry.songType),
+                      if (_currentRankingType != RankingType.bpmRanking) ...[
+                        const SizedBox(width: 4),
+                        ChartDifficultyBadge(
+                          levelIndex: entry.difficultyIndex,
+                          songId: entry.songId,
+                          label: entry.difficultyLabel,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '${entry.ds}',
+                          style: AppTheme.number(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            // 排行榜数值
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: _getRankingValueColor().withValues(alpha: 0.14),
+                borderRadius:
+                    BorderRadius.circular(AppDesignTokens.radiusSmall),
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    _formatRankingValue(entry.breakCount),
+                    style: AppTheme.number(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      color: scheme.onSurface,
+                    ),
+                  ),
+                  Text(
+                    _getRankingValueLabel(),
+                    style:
+                        TextStyle(fontSize: 10, color: scheme.onSurfaceVariant),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -665,196 +578,15 @@ if (_usingCachedData)
                                     ? const EmptyState(
                                         message: '暂无排行榜数据，稍后刷新试试吧')
                                     : ListView.builder(
-                                        padding: EdgeInsets.zero,
+                                        padding: const EdgeInsets.fromLTRB(
+                                            AppDesignTokens.gutter,
+                                            0,
+                                            AppDesignTokens.gutter,
+                                            8),
                                         itemCount: _rankingList.length,
-                                        itemBuilder: (context, index) {
-                                          SpecialRankingEntry entry =
-                                              _rankingList[index];
-                                          return InkWell(
-                                              onTap: () {
-                                                Navigator.push(
-                                                  context,
-                                                  MaterialPageRoute(
-                                                    builder: (context) =>
-                                                        SongInfoPage(
-                                                      songId: entry.songId,
-                                                      initialLevelIndex:
-                                                          entry.difficultyIndex,
-                                                      isDefaultLevelIndex:
-                                                          false,
-                                                    ),
-                                                  ),
-                                                );
-                                              },
-                                              child: Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                  horizontal: 16,
-                                                  vertical: 12,
-                                                ),
-                                                decoration: BoxDecoration(
-                                                  border: index <
-                                                          _rankingList.length -
-                                                              1
-                                                      ? Border(
-                                                          bottom: BorderSide(
-                                                            color: AppColors
-                                                                .tableBorder(
-                                                                    brightness),
-                                                            width: 0.5,
-                                                          ),
-                                                        )
-                                                      : null,
-                                                ),
-                                                child: Row(
-                                                  children: [
-                                                    // 排名
-                                                    _buildRankBadge(
-                                                        entry.rank, brightness),
-                                                    const SizedBox(width: 12),
-
-                                                    // 封面
-                                                    ClipRRect(
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                              8),
-                                                      child: CoverUtil
-                                                          .buildCoverWidgetWithContext(
-                                                        context,
-                                                        entry.songId,
-                                                        56,
-                                                      ),
-                                                    ),
-                                                    const SizedBox(width: 12),
-
-                                                    // 歌曲信息
-                                                    Expanded(
-                                                      child: Column(
-                                                        crossAxisAlignment:
-                                                            CrossAxisAlignment
-                                                                .start,
-                                                        children: [
-                                                          Row(
-                                                            children: [
-                                                              _buildTypeTag(
-                                                                  entry
-                                                                      .songType,
-                                                                  entry.songId,
-                                                                  brightness),
-                                                              const SizedBox(
-                                                                  width: 6),
-                                                              Expanded(
-                                                                child: Text(
-                                                                  entry
-                                                                      .songTitle,
-                                                                  style:
-                                                                      TextStyle(
-                                                                    fontSize:
-                                                                        14,
-                                                                    fontWeight:
-                                                                        FontWeight
-                                                                            .bold,
-                                                                    color: AppColors
-                                                                        .primaryText(
-                                                                            brightness),
-                                                                  ),
-                                                                  maxLines: 1,
-                                                                  overflow:
-                                                                      TextOverflow
-                                                                          .ellipsis,
-                                                                ),
-                                                              ),
-                                                            ],
-                                                          ),
-                                                          const SizedBox(
-                                                              height: 4),
-                                                          if (_currentRankingType !=
-                                                              RankingType
-                                                                  .bpmRanking)
-                                                            Row(
-                                                              children: [
-                                                                _buildDifficultyTag(
-                                                                    entry
-                                                                        .difficultyLabel,
-                                                                    entry
-                                                                        .difficultyIndex,
-                                                                    entry
-                                                                        .songId,
-                                                                    brightness),
-                                                                const SizedBox(
-                                                                    width: 8),
-                                                                Text(
-                                                                  '${entry.ds}',
-                                                                  style:
-                                                                      TextStyle(
-                                                                    fontSize:
-                                                                        12,
-                                                                    color: AppColors
-                                                                        .secondaryText(
-                                                                            brightness),
-                                                                  ),
-                                                                ),
-                                                              ],
-                                                            ),
-                                                        ],
-                                                      ),
-                                                    ),
-                                                    const SizedBox(width: 12),
-
-                                                    // 排行榜数值
-                                                    Container(
-                                                      padding: const EdgeInsets
-                                                          .symmetric(
-                                                        horizontal: 12,
-                                                        vertical: 6,
-                                                      ),
-                                                      decoration: BoxDecoration(
-                                                        color: Color.lerp(
-                                                          _getRankingValueColor(),
-                                                          AppColors
-                                                              .cardBackground(
-                                                                  brightness),
-                                                          0.85,
-                                                        ),
-                                                        borderRadius:
-                                                            BorderRadius
-                                                                .circular(8),
-                                                      ),
-                                                      child: Column(
-                                                        crossAxisAlignment:
-                                                            CrossAxisAlignment
-                                                                .center,
-                                                        children: [
-                                                          Text(
-                                                            _formatRankingValue(
-                                                                entry
-                                                                    .breakCount),
-                                                            style: TextStyle(
-                                                              fontSize: 18,
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .bold,
-                                                              color: AppColors
-                                                                  .primaryText(
-                                                                      brightness),
-                                                            ),
-                                                          ),
-                                                          Text(
-                                                            _getRankingValueLabel(),
-                                                            style: TextStyle(
-                                                              fontSize: 10,
-                                                              color: AppColors
-                                                                  .secondaryText(
-                                                                      brightness),
-                                                            ),
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ));
-                                        },
+                                        itemBuilder: (context, index) =>
+                                            _entrance.wrap(_rankingList, index,
+                                                _buildEntryCard(_rankingList[index])),
                                       ),
                           ],
                         ),

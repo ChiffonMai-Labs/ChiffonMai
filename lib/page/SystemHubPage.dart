@@ -4,7 +4,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 import 'HubComponents.dart';
 import '../utils/FeatureRegistry.dart';
 import 'SettingsPage.dart';
@@ -61,6 +60,9 @@ import '../widgets/AccountRegistrationGuideDialog.dart';
 import '../widgets/ConfettiEffect.dart';
 import '../entity/FeatureModels.dart';
 import '../utils/AppDesignTokens.dart';
+import '../widgets/AppDialogs.dart';
+import '../widgets/AppToast.dart';
+import '../utils/MaimaiHubLoginNotifier.dart';
 
 class SystemHubPage extends StatefulWidget {
   final VoidCallback onAccountManageTap;
@@ -75,7 +77,7 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
   /// 首页搜索调用系统 Hub 的原有入口，沿用同一份进度与互斥状态。
   Future<void> openFeature(ButtonItem item) async {
     if (anyBusy) {
-      Fluttertoast.showToast(msg: '正在处理其它任务，请稍候');
+      AppToast.show('正在处理其它任务，请稍候');
       return;
     }
     if (item.title == '登录 maimai Score Hub') {
@@ -156,6 +158,7 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
     unawaited(CommunityAvatarStore.instance.activate());
     _collectionsReady = Future.wait(
         [_fetchAvatarIcons(), _fetchExtraAppearance(), _fetchAvatarPlates()]);
+    MaimaiHubLoginNotifier.instance.addListener(_onMaimaiHubLoginChanged);
     unawaited(_refreshMaimaiHubLoginState());
     // 线路 + 统计（与首页收藏区共享同一份状态；重复调用幂等）
     SyncRouteNotifier.instance.addListener(_onSyncRouteChanged);
@@ -164,8 +167,17 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
     HomeRefreshNotifier.isBusy.addListener(_onHomeRefreshBusyChanged);
   }
 
+  void _onMaimaiHubLoginChanged() {
+    if (mounted) {
+      setState(
+          () => _maimaiHubLoggedIn = MaimaiHubLoginNotifier.instance.value);
+    }
+  }
+
   Future<void> _refreshMaimaiHubLoginState() async {
     final token = await DivingFishProbeManager().ensureAuthToken();
+    // 本机已有登录态时也要同步给通知器，之后失效才能从 true 变成 false 触发刷新。
+    MaimaiHubLoginNotifier.instance.value = token != null;
     if (mounted) setState(() => _maimaiHubLoggedIn = token != null);
   }
 
@@ -175,6 +187,7 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
 
   @override
   void dispose() {
+    MaimaiHubLoginNotifier.instance.removeListener(_onMaimaiHubLoginChanged);
     CommunityAvatarStore.instance.removeListener(_onAvatarChanged);
     LoginStateNotifier.instance.removeListener(_onAvatarLoginChanged);
     UserProfileNotifier.instance.removeListener(_onUserProfileChanged);
@@ -281,12 +294,12 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
           void choose(Future<void> Function() save) {
             if (store.value.playerId != player) {
               if (ctx.mounted) Navigator.pop(ctx);
-              Fluttertoast.showToast(msg: '账号已切换，请重新选择装扮');
+              AppToast.show('账号已切换，请重新选择装扮');
               return;
             }
             if (ctx.mounted) Navigator.pop(ctx);
             unawaited(save().catchError((Object _) {
-              Fluttertoast.showToast(msg: '装扮未能保存，请重新选择');
+              AppToast.show('装扮未能保存，请重新选择');
             }));
           }
 
@@ -335,9 +348,9 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
       if (!mounted) return;
       await showDialog<void>(
           context: context,
-          builder: (ctx) => AlertDialog(
+          builder: (ctx) => AppAlertDialog(
                 title: const Text('日志已导出'),
-                content: SelectableText(file.path),
+                content: AppDialogCodeBlock(file.path),
                 actions: [
                   TextButton(
                       onPressed: () => Navigator.pop(ctx),
@@ -346,8 +359,7 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
               ));
     } catch (e) {
       if (mounted)
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('导出日志失败：$e')));
+        AppToast.show('导出日志失败：$e');
     }
   }
 
@@ -371,7 +383,7 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
       debugPrint('打开 $url 失败: $e');
     }
     if (!context.mounted) return;
-    // 统一走公共兜底：复制剪贴板 + SnackBar（各写一遍很容易漏掉复制那一步）
+    // 统一走公共兜底：复制剪贴板 + 轻提示（各写一遍很容易漏掉复制那一步）
     launchUrlFallback(
       url,
       context,
@@ -401,7 +413,7 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
       });
       if (!mounted) return;
       ConfettiEffect.show(context);
-      Fluttertoast.showToast(msg: '数据刷新成功!');
+      AppToast.show('数据刷新成功!');
     } on ProberException catch (e) {
       // 未授权 → 直接拉起授权页；其余按统一文案提示。
       // 与首页刷新入口共用 presentRefreshError，避免两边行为不一致。
@@ -443,7 +455,7 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
       );
       if (!mounted) return;
       ConfettiEffect.show(context);
-      Fluttertoast.showToast(msg: '数据刷新成功!');
+      AppToast.show('数据刷新成功!');
     } on ProberException catch (e) {
       // 未授权 → 直接拉起授权页；其余按统一文案提示。
       // 与首页刷新入口共用 presentRefreshError，避免两边行为不一致。
@@ -462,14 +474,14 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
 
   Future<void> _showCacheManagementDialog() async {
     if (anyBusy) {
-      Fluttertoast.showToast(msg: '正在处理其它任务，请稍候');
+      AppToast.show('正在处理其它任务，请稍候');
       return;
     }
     final reload = await showCacheManagementDialog(context);
     if (reload != true || !mounted || anyBusy) return;
     try {
       await CacheManagementService.instance.reloadBaseMaidata();
-      if (mounted) Fluttertoast.showToast(msg: '基础量 maidata 已重新拉取');
+      if (mounted) AppToast.show('基础量 maidata 已重新拉取');
     } catch (error) {
       if (mounted) await showErrorMessageDialog(context, message: '重新拉取失败：$error');
     }
@@ -493,11 +505,9 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
         },
       );
       if (!mounted || outcome.cancelled) return;
-      Fluttertoast.showToast(
-        msg: outcome.ok
+      AppToast.show(outcome.ok
             ? '游玩次数已更新（${outcome.cachedRecords} 条）'
-            : '游玩次数读取失败：${outcome.message ?? '未知错误'}',
-      );
+            : '游玩次数读取失败：${outcome.message ?? '未知错误'}');
     } finally {
       if (mounted) {
         setState(() {
@@ -512,9 +522,7 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
     final isOnline = await ConnectivityService().hasConnection();
     if (!mounted) return;
     if (!isOnline) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('当前无网络连接，请联网后重试')),
-      );
+      AppToast.show('当前无网络连接，请联网后重试');
       return;
     }
     final updateManager = LZYCheckUpdateManager();
@@ -568,14 +576,14 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
     if (!mounted) return;
     if (loggedIn) {
       setState(() => _maimaiHubLoggedIn = true);
-      Fluttertoast.showToast(msg: 'maimai Score Hub 登录状态已保存，现在可以使用 OCR 了');
+      AppToast.show('maimai Score Hub 登录状态已保存，现在可以使用 OCR 了');
     }
   }
 
   Future<bool> _confirmLogout() async {
     final result = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppAlertDialog(
         title: const Text('确认登出水鱼账号'),
         content: const Text('登出后将清除缓存的登录信息和 ImportToken，确定要登出吗？'),
         actions: [
@@ -605,7 +613,7 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
       await UserProfileNotifier.clearShuiyuAccountCache();
       if (!mounted) return;
       LoginStateNotifier.setLoggedIn(false);
-      Fluttertoast.showToast(msg: '已登出水鱼账号');
+      AppToast.show('已登出水鱼账号');
     } catch (e) {
       debugPrint('登出水鱼账号失败：$e');
       if (mounted) {

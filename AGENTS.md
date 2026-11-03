@@ -176,8 +176,11 @@ android:launchMode="singleTask"   <!-- 全局单实例，后续启动走 onNewIn
 | `com.example.app/media_store` | 保存图片到相册 |
 | `com.example.app/open_file` | 收藏夹文件「一键导入」（`getInitialImportPath` / `onFileOpened`） |
 | `com.example.app/display` | 屏幕刷新率（`setHighRefreshRate` / `restoreRefreshRate` / `queryRefreshRate`） |
+| `com.example.app/home_widget` | 桌面小组件（`update` 推数据，`takePendingAction` / `onAction` 传点击），见 `HomeWidgets.kt` 与 `lib/service/HomeWidgetService.dart` |
 
 `on_file` 通道的投递规则：**只有 Dart 已注册监听（`dartImportReady`）时才实时投递并清空 pending**，否则保留 pending 等 Dart 来取。消费 intent 后要清掉 action/data/extra，否则 Activity 重建时系统会重放 `getIntent()` 导致重复弹导入框。
+
+**小组件和通知栏布局只能用 RemoteViews 白名单里的控件**：`View`、`Space` 都不行（占位用 `FrameLayout`）。编译、analyze 和 Gradle 构建都查不出来，到桌面才整块加载失败、显示空白。回归测试：`test/remote_views_layout_test.dart`。
 
 ### 6.3 返回手势：必须关掉「预测性返回」（两处，缺一不可）
 
@@ -355,7 +358,6 @@ AppHeader(
 |---|---|
 | [lib/page/CoverRecognitionPage.dart](lib/page/CoverRecognitionPage.dart) 与 [lib/page/ScoreOcrPage.dart](lib/page/ScoreOcrPage.dart) 的裁剪工具栏 | **深色全屏图片裁剪 UI**，跟标准顶部区域观感完全不同 |
 | [lib/page/FavoriteFolderPage.dart](lib/page/FavoriteFolderPage.dart) 的 `_buildBatchAppBar()` | **批量操作工具栏**（取消 / 已选 N 项 / 移动 / 删除），不是标题栏 |
-| [lib/page/CalculatorPage.dart](lib/page/CalculatorPage.dart) 的双行标题（"计算工具" + 副标题） | `AppHeader` 只支持单行标题 |
 
 > `HomePage` / `AppShell` / `HubComponents.HubPageScaffold` 是首页 / 主壳 / 枢纽布局，`SongInfoPage` 的头图自带返回键，都跟本约定无关。
 
@@ -498,7 +500,7 @@ AppHeader(
 - **Outfit 是全 App 的主字体**：主题文字和 `AppTheme.font` 都是 Outfit，中文自动按相同字重回落到思源黑体。新页面、新组件不用单独指定。
 - **数字为主角的地方**（Rating、达成率、定数、物量、评级缩写）用 `AppTheme.number(...)`：同样是 Outfit，多了等宽数字，数字变化时宽度不抖。
 - 顶部标题规格见 §11。Hub 页大标题 30 / w800，不带说明文字。
-- 字体**不打包**，走 `google_fonts` 运行时下载：安装包要控制在 100MB 以内，思源黑体单个字重就约 10MB。
+- 字体**不打包**，走 `google_fonts` 运行时下载：安装包要控制在 100MB 以内，思源黑体单个字重就约 10MB。唯一例外是桌面小组件：它在桌面进程里渲染，拿不到运行时字体，所以 `res/font/` 内置了只含拉丁字符的 Outfit，中文走系统字体。
 
 ### 22.3 颜色
 
@@ -509,11 +511,17 @@ AppHeader(
 
 ### 22.4 组件
 
-- `lib/widgets/AppUi.dart`：`AppCard`、`AppSectionHeader`、`AppBadge` / `RankBadge` / `ComboBadge` / `StarBadge`、`RatingTierChip`、`StatTile`、`SplitBar`、`SegmentedTabs`（`inlineCaption` 数值横排）、`PillTabs`（音符类型）、`UnderlineTabs`（歌曲详情）、`CountField`、`JudgeCountRow`、`EmphasisCard`、`BottomActionBar`、`FeatureIconTile`（首页常用）、`CollapsibleCard`、`FilterPill`、`LinkPill`。
-- `lib/widgets/GuessUi.dart`：`GuessCell`（比对色块，翻转进场）、`GuessHistoryCard`、`GuessHistoryHeader`（含图例）、`GuessInputBar`（贴底输入栏），单人猜歌和多人房间共用。
+- `lib/widgets/AppUi.dart`：`AppCard`、`AppSectionHeader`、`AppBadge` / `RankBadge` / `ComboBadge` / `StarBadge`、`RatingTierChip`、`StatTile`、`SplitBar`、`StackedBar`（多段比例条，极小的段保留最小宽度）、`SegmentedTabs`（`inlineCaption` 数值横排）、`PillTabs`（音符类型）、`UnderlineTabs`（歌曲详情）、`CountField`、`JudgeCountRow`、`EmphasisCard`、`BottomActionBar`、`FeatureIconTile`（首页常用）、`CollapsibleCard`、`FilterPill`、`LinkPill`、`SongTypeBadge`、`ChartDifficultyBadge`、`PagerBar`、`RecognitionGuideCard`（识别功能准备页）。
+- `lib/widgets/GuessUi.dart`：`GuessCell`（比对色块，翻转进场）、`GuessHistoryCard`、`GuessHistoryHeader`（含图例）、`GuessInputBar`（贴底输入栏）、`GuessSearchIcon`（搜索中图标原地转圈），单人猜歌和多人房间共用。`lib/widgets/GuessSettingsUi.dart`：猜歌设置的分组、滑条行、多选入口（底部面板）和选项胶囊，设置页、建房页和局内对话框共用。`lib/widgets/ChartPeekPlaybackUi.dart`：谱面片段的流速、镜像、难度随机池设置与播放区角标。`lib/widgets/FriendLinkUi.dart`：友链封面（`image_url` 优先，没有时按主题色和图标生成）与 Hub 轮播 `FriendLinkCarousel`。
+- `lib/widgets/RankingUi.dart`：`RankingMedal`、`RankingRow`、`RankingSelfBar`、`RankingNotice`，各玩家排行榜共用。⚠️ 这些榜用 `prototypeItem` 等高排布，行里所有文字都要固定行高（`CommunityPlayerIdentity` 已处理），否则字形回退会让个别行溢出。
+- `lib/widgets/ProgressUi.dart`：完成度总览、展示切换、分组标题、歌曲行、曲绘格、`ProgressSongSliver`、`ProgressListSkeleton`，个性化成绩查询和牌子进度共用。⚠️ 歌曲可能有上千首，列表必须用 `ProgressSongSliver` 按需构建，不要放回 `Column`；服务层的长循环要定期让出事件循环（`_yieldToUi`），只 `await` 已完成的 Future 插不进帧。
+- `lib/widgets/RecommendUi.dart`：推荐结果卡片和输入框，目标 Rating / 定数区间 / 标签三个推荐页共用。
+- `lib/widgets/AppToast.dart`：全 App 唯一的轻提示 `AppToast.show(文案, {tone, actionLabel, onAction, duration})`，不需要 context；不传 `tone` 时按文案判断语气。不要再写 SnackBar 或引入 toast 包。
+- `lib/widgets/AppDialogs.dart`：`AppAlertDialog`（参数与 `AlertDialog` 一致，另有 `subtitle`；全 App 对话框都用它，不要再写 `AlertDialog`，内容里的 ListTile、单选、复选和底部按钮样式都由它统一）、`AppDialogOption`（可点选项）、`AppDialogEmpty`（空状态）、`AppDialogCodeBlock`（路径等长文本）、`AppDialog` 和 `showAppNoticeDialog` / `showAppProgressDialog`。
+- `lib/widgets/ExportStatsUi.dart`：导出图片的统计区域（Best50 系列、牌子进度、个性化成绩查询），固定浅色，不跟随 App 主题。
 - `lib/widgets/Best50Ui.dart`：`Best50Hero`、`Best50Grid` / `Best50CoverCard`（三列曲绘卡）、`showBest50SongSheet`（推分面板）、`Best50AveragesCard`、`Best50IconAction` 等。
 
-新组件加在这两个文件里，别在页面里各写一份。Hub 页继续用 `HubComponents.dart`。
+新组件加在这些文件里，别在页面里各写一份。Hub 页继续用 `HubComponents.dart`。
 
 - `AnimatedChoiceBar`（老页面的等宽切换）与 `SegmentedTabs` 同一观感：凹槽底 + 白色滑块。选项放不下时缩小字号，不截断。
 
@@ -526,6 +534,7 @@ AppHeader(
 
 - 首页「常用」就是收藏列表：普通功能显示成图标网格；带进度 / 线路 / 统计的入口（同步、自动同步、缓存管理、新版本）放不进小图标，单独成组显示完整 `HubActionTile`。点「编辑」进入列表模式，可取消星标、上下移动、长按拖动。
 - 成绩 Hub 顶部是设计稿的概览卡片，下面的「全部功能」保留每个功能的星标。**以后改 Hub 页不能把带星标的入口去掉。**
+- 首页概览下面是自动同步和服务器状态两个小组件（`lib/widgets/HomeStatusWidgets.dart`，只在可见且前台时轮询，服务器状态每 3 分钟刷新）。搜索框常驻在小组件下方，右上角不再有搜索键；输入时概览和小组件收起，让搜索框升到结果上方。收起只换那一格的内容，搜索框在列表里的位置不变（§22.13）。
 - 曲库 Hub 只是功能列表；搜索和筛选在 `SongSearchPage` 里，进入功能后才出现。
 
 ### 22.7 设置页的个性化功能必须继续生效
@@ -569,7 +578,11 @@ Rating、达成率、歌名、说明文字这类重要内容不要用省略号�
 
 入场用 `EntranceAnimation`（列表项按 `index` 错开，换 Key 重播），按压用 `PressScale`，参数照设计稿：Best50 卡片 14px + 缩放 0.96 / 420ms，成绩列表 8px / 300ms，搜索结果横向 10px / 320ms，首页 12px / 500ms，歌曲详情面板 10px / 350ms。两者都尊重系统「减少动态效果」。
 
-### 22.12 输入框所在的布局树不能随键盘变化
+### 22.12 KALEIDXSCOPE 门详情页
+
+所有门共用 `lib/page/KaleidXScope/KaleidXScopeGatePage.dart`，门之间的差异写在文件顶部的 `_gateConfigs`（标题、门图、标记缓存键、接口缺字段时的兜底文案）和门接口的数据里，不要再为某个门单独写一份页面。
+
+### 22.13 输入框所在的布局树不能随键盘变化
 
 键盘弹出时不要切换页面结构，也不要把输入框放进会回收子项的 `ListView.builder`：输入框一旦被销毁就会丢焦点，键盘立刻收回。达成率计算器踩过这个坑。键盘只能影响留白和局部详略（§18）。
 
