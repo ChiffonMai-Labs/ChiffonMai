@@ -235,7 +235,7 @@ class NavigationControls extends StatelessWidget {
               onChanged: navigation.setBusyHintEnabled,
               title: const Text('任务进行中提示'),
               subtitle: const Text('同步、刷新等任务进行中时，'
-                  '在不可用入口下方用红字说明原因（默认关闭）'),
+                  '在不可用入口下方用红字说明原因'),
               secondary:
                   Icon(Icons.error_outline_rounded, color: scheme.primary),
             ),

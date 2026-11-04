@@ -110,6 +110,9 @@ class _GuessChartBySongExcerptPageState
 
   // 音频播放控制
   bool _isPlaying = false;
+
+  /// 中途暂停：播放器和进度都留着，再点播放从这里继续。
+  bool _isPaused = false;
   double _currentPosition = 0.0;
   double _totalDuration = 0.0;
   Timer? _playbackTimer;
@@ -301,6 +304,7 @@ class _GuessChartBySongExcerptPageState
       _isSearching = false;
       _hasPlayed = false;
       _isPlaying = false;
+      _isPaused = false;
       _currentPosition = 0.0;
       _totalDuration = 0.0;
       _audioStartTime = null; // 重置音频开始时间
@@ -638,11 +642,11 @@ class _GuessChartBySongExcerptPageState
                 const SizedBox(height: 8),
                 const Text('橙色 - 该属性与你猜的"接近"：'),
                 const SizedBox(height: 4),
-                const Text('灰色 - 该属性与你猜的"差距较大"：'),
-                const SizedBox(height: 8),
                 const Text('BPM 相差在 ±20 范围内；'),
                 const Text('MASTER 难度或 Re:MASTER 难度相差在 ±0.4范围内；'),
                 const Text('版本相差一个世代（例如 maimai ← maimai PLUS → maimai GreeN）。'),
+                const SizedBox(height: 8),
+                const Text('灰色 - 该属性与你猜的"差距较大"。'),
                 const SizedBox(height: 16),
                 const Text('箭头：'),
                 const SizedBox(height: 4),
@@ -666,7 +670,7 @@ class _GuessChartBySongExcerptPageState
                   child: Text(
                     'https://maimai.yukineko2233.top/',
                     style: TextStyle(
-                      color: AppColors.linkBlue(Theme.of(context).brightness),
+                      color: Theme.of(context).colorScheme.primary,
                       decoration: TextDecoration.underline,
                     ),
                   ),
@@ -883,7 +887,8 @@ class _GuessChartBySongExcerptPageState
 
                 if (!navigator.mounted) return;
                 navigator.pop();
-                AppToast.show('设置已保存，将在下局游戏生效');
+                AppToast.show('设置已保存，将在下局游戏生效',
+                    tone: AppToastTone.success);
 
                 _warnIfNoSongMatches(
                   selectedVersions: tempSelectedVersions,
@@ -903,6 +908,11 @@ class _GuessChartBySongExcerptPageState
   // 先得到完整可播放的题面，再启动片段进度；每局的起点和处理参数保持固定。
   Future<void> _playSongExcerpt() async {
     if (_luoXueSongId == null || _audioLoading || _isGameOver) return;
+    if (_isPaused && _audioPlayer != null) {
+      await _resumePausedPlayback();
+      return;
+    }
+    _isPaused = false;
     final generation = _audioGeneration;
     final watch = Stopwatch()..start();
     void log(String message) => debugPrint(
@@ -974,33 +984,11 @@ class _GuessChartBySongExcerptPageState
         _totalDuration = actualDuration;
         _currentPosition = 0;
       });
-      _completionSubscription = player.onPlayerComplete.listen((_) {
-        if (current() && _isPlaying) _handlePlaybackComplete();
-      });
-      _positionSubscription = player.onPositionChanged.listen((position) {
-        if (!current() || !_isPlaying) return;
-        final relative = (position.inMilliseconds / 1000 - _playbackOffset)
-            .clamp(0.0, _totalDuration);
-        setState(() {
-          _currentPosition = relative;
-        });
-        if (relative >= _totalDuration) _handlePlaybackComplete();
-      });
+      _listenToPlayback(player, current);
       await player.resume();
       if (!current()) return;
       log('开始播放，本轮实际时长 ${actualDuration.toStringAsFixed(3)}s');
-      _updatePlaybackDeadline();
-      _playbackTimer =
-          Timer.periodic(const Duration(milliseconds: 100), (timer) {
-        if (!current() || !_isPlaying) {
-          timer.cancel();
-          return;
-        }
-        if (_playbackDeadline != null &&
-            !DateTime.now().isBefore(_playbackDeadline!)) {
-          _handlePlaybackComplete();
-        }
-      });
+      _startPlaybackWatch(current);
     } catch (error) {
       log('播放准备失败：$error');
       if (current()) {
@@ -1014,6 +1002,56 @@ class _GuessChartBySongExcerptPageState
       }
       if (mounted && generation == _audioGeneration)
         setState(() => _audioLoading = false);
+    }
+  }
+
+  void _listenToPlayback(AudioPlayer player, bool Function() current) {
+    _completionSubscription = player.onPlayerComplete.listen((_) {
+      if (current() && _isPlaying) _handlePlaybackComplete();
+    });
+    _positionSubscription = player.onPositionChanged.listen((position) {
+      if (!current() || !_isPlaying) return;
+      final relative = (position.inMilliseconds / 1000 - _playbackOffset)
+          .clamp(0.0, _totalDuration);
+      setState(() {
+        _currentPosition = relative;
+      });
+      if (relative >= _totalDuration) _handlePlaybackComplete();
+    });
+  }
+
+  void _startPlaybackWatch(bool Function() current) {
+    _updatePlaybackDeadline();
+    _playbackTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
+      if (!current() || !_isPlaying) {
+        timer.cancel();
+        return;
+      }
+      if (_playbackDeadline != null &&
+          !DateTime.now().isBefore(_playbackDeadline!)) {
+        _handlePlaybackComplete();
+      }
+    });
+  }
+
+  /// 从暂停的位置继续，不重新装载音源。
+  Future<void> _resumePausedPlayback() async {
+    final player = _audioPlayer!;
+    final generation = _audioGeneration;
+    bool current() => mounted && generation == _audioGeneration && !_isGameOver;
+    setState(() {
+      _isPaused = false;
+      _isPlaying = true;
+    });
+    _listenToPlayback(player, current);
+    try {
+      await player.resume();
+      if (current()) _startPlaybackWatch(current);
+    } catch (error) {
+      if (current()) {
+        setState(() => _isPlaying = false);
+        AppToast.show('音频播放失败：$error');
+      }
     }
   }
 
@@ -1032,6 +1070,7 @@ class _GuessChartBySongExcerptPageState
     // 更新状态
     setState(() {
       _isPlaying = false;
+      _isPaused = false;
       _hasPlayed = true;
       _currentPosition = _totalDuration;
     });
@@ -1045,6 +1084,7 @@ class _GuessChartBySongExcerptPageState
     _audioPlayer?.pause();
     setState(() {
       _isPlaying = false;
+      _isPaused = true;
     });
   }
 
@@ -1056,6 +1096,7 @@ class _GuessChartBySongExcerptPageState
     _audioPlayer = null;
     unawaited(player?.dispose());
     _isPlaying = false;
+    _isPaused = false;
   }
 
   // 拖动进度条
@@ -1098,7 +1139,9 @@ class _GuessChartBySongExcerptPageState
         ? '正在准备音频…'
         : _isPlaying
             ? '暂停'
-            : (_hasPlayed ? '重新播放' : '播放歌曲片段');
+            : _isPaused
+                ? '继续播放'
+                : (_hasPlayed ? '重新播放' : '播放歌曲片段');
     final timeStyle =
         AppTheme.number(fontSize: 11.5, color: scheme.onSurfaceVariant);
     return AppCard(
@@ -1142,7 +1185,7 @@ class _GuessChartBySongExcerptPageState
                             child: Icon(
                               _isPlaying
                                   ? Icons.pause_rounded
-                                  : _hasPlayed
+                                  : _hasPlayed && !_isPaused
                                       ? Icons.replay_rounded
                                       : Icons.play_arrow_rounded,
                               key: ValueKey(label),

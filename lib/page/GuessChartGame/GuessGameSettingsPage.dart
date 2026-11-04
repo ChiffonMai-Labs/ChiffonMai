@@ -93,7 +93,9 @@ class _GuessGameSettingsPageState extends State<GuessGameSettingsPage> {
       _save();
       // 等写盘结束再提示，保存失败时只提示失败
       _writes.whenComplete(() {
-        if (!_saveFailed) AppToast.show('设置已保存到本地');
+        if (!_saveFailed) {
+          AppToast.show('设置已保存到本地', tone: AppToastTone.success);
+        }
       });
     }
     super.dispose();

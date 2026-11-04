@@ -1,8 +1,15 @@
 package com.example.my_first_flutter_app
 
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
+import android.media.MediaScannerConnection
+import android.content.ContentUris
+import android.content.ActivityNotFoundException
 import android.database.Cursor
 import android.net.Uri
 import android.os.Build
@@ -63,6 +70,9 @@ class MainActivity : AudioServiceActivity() {
 
     /** 只控制顶部状态栏；底部导航保持显示，避免沉浸全屏吃掉返回手势。 */
     private val SYSTEM_UI_CHANNEL = "com.example.app/system_ui"
+
+    /// 图片导出完成的系统通知。
+    private val EXPORT_NOTIFICATION_CHANNEL = "com.example.app/export_notification"
     private var statusBarHidden: Boolean? = null
 
     /**
@@ -102,6 +112,40 @@ class MainActivity : AudioServiceActivity() {
      */
     private var dartImportReady = false
 
+    /// 没有通知权限时系统会直接忽略，不影响导出结果。
+    private fun showExportNotification(title: String, text: String) {
+        val channelId = "com.example.my_first_flutter_app.channel.export"
+        val manager = getSystemService(NotificationManager::class.java) ?: return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            manager.createNotificationChannel(
+                NotificationChannel(channelId, "图片导出", NotificationManager.IMPORTANCE_DEFAULT)
+            )
+        }
+        val open = packageManager.getLaunchIntentForPackage(packageName)?.let {
+            PendingIntent.getActivity(
+                this,
+                0,
+                it,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+        }
+        @Suppress("DEPRECATION")
+        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Notification.Builder(this, channelId)
+        } else {
+            Notification.Builder(this)
+        }
+        val notification = builder
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setContentIntent(open)
+            .setAutoCancel(true)
+            .build()
+        // 每次导出一条，互不覆盖
+        manager.notify((System.currentTimeMillis() and 0x7FFFFFFF).toInt(), notification)
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
@@ -128,6 +172,19 @@ class MainActivity : AudioServiceActivity() {
             }
         }
         handleWidgetIntent(intent)
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, EXPORT_NOTIFICATION_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                if (call.method == "notifyExportDone") {
+                    showExportNotification(
+                        call.argument<String>("title") ?: "导出成功",
+                        call.argument<String>("text") ?: ""
+                    )
+                    result.success(null)
+                } else {
+                    result.notImplemented()
+                }
+            }
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SYSTEM_UI_CHANNEL)
             .setMethodCallHandler { call, result ->
@@ -181,7 +238,9 @@ class MainActivity : AudioServiceActivity() {
         }
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
-            if (call.method == "saveImage") {
+            if (call.method == "viewImage") {
+                viewImage(call.argument<String>("path"), result)
+            } else if (call.method == "saveImage") {
                 val imageBytes = call.argument<ByteArray>("imageBytes")
                 val fileName = call.argument<String>("fileName")
                 
@@ -584,6 +643,74 @@ class MainActivity : AudioServiceActivity() {
             null
         } finally {
             cursor?.close()
+        }
+    }
+
+    /** 用相册的大图界面打开图片；打不开就退回相册首页，都不行时返回 false。 */
+    private fun viewImage(path: String?, result: MethodChannel.Result) {
+        if (path == null) {
+            result.success(openGallery())
+            return
+        }
+        val uri = queryImageUri(path)
+        if (uri != null) {
+            result.success(startImageViewer(uri) || openGallery())
+            return
+        }
+        // 不是通过 MediaStore 保存的图片，扫描一次才有 content uri。
+        MediaScannerConnection.scanFile(applicationContext, arrayOf(path), null) { _, scanned ->
+            runOnUiThread {
+                result.success((scanned != null && startImageViewer(scanned)) || openGallery())
+            }
+        }
+    }
+
+    private fun queryImageUri(path: String): Uri? {
+        return try {
+            contentResolver.query(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                arrayOf(MediaStore.Images.Media._ID),
+                "${MediaStore.Images.Media.DATA}=?",
+                arrayOf(path),
+                null,
+            )?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    ContentUris.withAppendedId(
+                        MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                        cursor.getLong(0),
+                    )
+                } else {
+                    null
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    // 不加 NEW_TASK：看图界面留在本任务里，返回时直接回到 App。
+    private fun startImageViewer(uri: Uri): Boolean {
+        val intent = Intent(Intent.ACTION_VIEW)
+            .setDataAndType(uri, contentResolver.getType(uri) ?: "image/*")
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        return tryStartActivity(intent)
+    }
+
+    private fun openGallery(): Boolean {
+        return tryStartActivity(
+            Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_GALLERY),
+        ) || tryStartActivity(
+            Intent(Intent.ACTION_VIEW, MediaStore.Images.Media.EXTERNAL_CONTENT_URI),
+        )
+    }
+
+    private fun tryStartActivity(intent: Intent): Boolean {
+        return try {
+            startActivity(intent)
+            true
+        } catch (_: ActivityNotFoundException) {
+            false
         }
     }
 

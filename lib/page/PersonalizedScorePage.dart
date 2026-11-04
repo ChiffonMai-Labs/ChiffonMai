@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
-import '../widgets/SmoothLinearProgressIndicator.dart';
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:my_first_flutter_app/service/PersonalizedScoreService.dart';
 import 'package:my_first_flutter_app/service/PersonalizedScoreConvertToImgService.dart';
-import 'package:my_first_flutter_app/constant/LoadingTipsConstant.dart';
 import 'package:my_first_flutter_app/entity/DivingFish/Song.dart';
 import 'package:my_first_flutter_app/utils/StringUtil.dart';
 import 'package:my_first_flutter_app/page/SongInfoPage.dart';
@@ -20,7 +18,8 @@ import '../utils/AppDesignTokens.dart';
 import '../widgets/AppUi.dart';
 import '../widgets/ProgressUi.dart';
 import '../widgets/AppDialogs.dart';
-import '../widgets/ExportSuccessDialog.dart';
+import 'package:my_first_flutter_app/service/BackgroundExportService.dart';
+import 'package:my_first_flutter_app/widgets/AppToast.dart';
 
 class PersonalizedScorePage extends StatefulWidget {
   const PersonalizedScorePage({super.key});
@@ -1123,11 +1122,13 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
     final diffIndex = item['difficulty'] as int;
     final songDs = song.ds != null && song.ds.length > diffIndex
         ? song.ds[diffIndex].toStringAsFixed(1)
-        : '-';
+        : '';
     return ProgressSongRow(
       songId: song.id,
       title: song.title,
-      subtitle: '${StringUtil.formatSongType(song.type)} / $songDs',
+      songType: song.type,
+      levelIndex: diffIndex,
+      constant: songDs,
       completed: item['completed'] as bool,
       showDivider: showDivider,
       onTap: () => _openSong(song.id, diffIndex),
@@ -1194,7 +1195,6 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
   }
 
   Future<void> _exportToImage() async {
-    StreamSubscription<String>? _tipSubscription;
     try {
       debugPrint('=== PERSONALIZED SCORE EXPORT TO IMAGE STARTED ===');
       debugPrint('Current context: $context');
@@ -1208,11 +1208,6 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
         return;
       }
 
-      String _progressMessage = '正在准备导出...';
-      double _progressValue = 0.0;
-      String _currentLoadingTip = LoadingTipsConstant.getRandomLoadingTip();
-      bool _isFirstBuild = true;
-      void Function(void Function())? _updateDialog;
 
       final songCount = _cachedSongsWithStatus?.length ?? 0;
       final quality = await ExportQualitySelector.show(
@@ -1220,9 +1215,10 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
         estimatedPngSize: ImageEncodeUtil.estimatePngSize(
             songCount: songCount, cardsPerRow: 12),
         exportingLabel: '个性化成绩',
-        previewBuilder: (previewContext, _) =>
+        previewBuilder: (previewContext, previewQuality) =>
             PersonalizedScoreConvertToImg.buildPreviewWidget(
           previewContext,
+          theme: previewQuality.theme,
           selectedLevel: _selectedLevel,
           selectedCharter: _selectedCharter,
           selectedVersion: _selectedVersion,
@@ -1241,70 +1237,10 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
       );
       if (quality == null) return;
 
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) {
-          return StatefulBuilder(
-            builder: (context, setDialogState) {
-              _updateDialog = setDialogState;
-              if (_isFirstBuild) {
-                _isFirstBuild = false;
-                LoadingTipsConstant.startAutoSwitch(3);
-                _tipSubscription = LoadingTipsConstant.tipStream.listen((tip) {
-                  try {
-                    _updateDialog?.call(() {
-                      _currentLoadingTip = tip;
-                    });
-                  } catch (_) {}
-                });
-              }
-              return AppAlertDialog(
-                title: Text('导出中'),
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        SizedBox(
-                          width: 28,
-                          height: 28,
-                          child: CircularProgressIndicator(),
-                        ),
-                        SizedBox(width: 16),
-                        Expanded(
-                          child: Text(_progressMessage),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 16.0),
-                    SmoothLinearProgressIndicator(
-                      value: _progressValue > 0 ? _progressValue : null,
-                      backgroundColor:
-                          Theme.of(context).colorScheme.surfaceContainerHighest,
-                      valueColor: AlwaysStoppedAnimation(
-                          Theme.of(context).colorScheme.primary),
-                    ),
-                    SizedBox(height: 12.0),
-                    Text(
-                      _currentLoadingTip,
-                      style: TextStyle(
-                          fontSize: 12,
-                          color:
-                              Theme.of(context).colorScheme.onSurfaceVariant),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
-              );
-            },
-          );
-        },
-      );
-
-      final file = await PersonalizedScoreConvertToImg.convertToImage(
-        context,
+      BackgroundExport.run(
+        label: '个性化成绩',
+        task: (exportContext) => PersonalizedScoreConvertToImg.convertToImage(
+          exportContext,
         selectedLevel: _selectedLevel,
         selectedCharter: _selectedCharter,
         selectedVersion: _selectedVersion,
@@ -1319,30 +1255,12 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
         getLevelDisplay: _getLevelDisplay,
         useLevelDisplay: _useLevelDisplay,
         jpegQuality: quality.jpegQuality,
+        theme: quality.theme,
         getSongAchievement: _service.getSongAchievement,
-        onProgress: (message, progress) {
-          _progressMessage = message;
-          _progressValue = progress;
-          _updateDialog?.call(() {});
-        },
+      ),
       );
-
-      _tipSubscription?.cancel();
-      LoadingTipsConstant.stopAutoSwitch();
-      Navigator.of(context, rootNavigator: true).pop();
-
-      if (file != null) {
-        showExportSuccessDialog(context, filePath: file.path, fileName: file.path.split('/').last);
-      } else {
-        showAppNoticeDialog(context, title: '导出失败', message: '图片导出失败，请重试', tone: AppDialogTone.error);
-      }
     } catch (e) {
-      _tipSubscription?.cancel();
-      LoadingTipsConstant.stopAutoSwitch();
-      try {
-        Navigator.of(context, rootNavigator: true).pop();
-      } catch (_) {}
-      showAppNoticeDialog(context, title: '导出失败', message: '图片导出失败：${e.toString()}', tone: AppDialogTone.error);
+      AppToast.show('导出失败：$e');
     }
   }
 }

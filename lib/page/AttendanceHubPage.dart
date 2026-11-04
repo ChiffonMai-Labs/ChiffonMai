@@ -17,18 +17,17 @@ import '../widgets/AppToast.dart';
 import '../widgets/FriendLinkUi.dart';
 
 class AttendanceHubPage extends StatefulWidget {
-  /// 页头标题 / 说明。嵌在「游玩」页里时由外层传入（见 PlayZoneHubPage）。
   final String title;
   final String subtitle;
 
-  /// 页头下方的附加区域（「游玩」页的出勤 / 休闲切换）。
-  final Widget? headerBottom;
+  /// 嵌在「游玩」页里时为 false，页头由外层固定显示（见 PlayZoneHubPage）。
+  final bool showHeader;
 
   const AttendanceHubPage({
     super.key,
     this.title = '出勤',
     this.subtitle = '选曲、安排练习与查找机厅',
-    this.headerBottom,
+    this.showHeader = true,
   });
   @override
   State<AttendanceHubPage> createState() => _AttendanceHubPageState();
@@ -163,7 +162,7 @@ class _AttendanceHubPageState extends State<AttendanceHubPage> {
           return HubPageScaffold(
             title: widget.title,
             subtitle: widget.subtitle,
-            headerBottom: widget.headerBottom,
+            showHeader: widget.showHeader,
             hero: const FriendLinkCarousel(),
             icon: Icons.explore_rounded,
             children: [

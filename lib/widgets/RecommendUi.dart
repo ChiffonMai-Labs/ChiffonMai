@@ -15,7 +15,7 @@ InputDecoration recommendInputDecoration(BuildContext context,
     borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
     borderSide: BorderSide.none,
   );
-  return InputDecoration(
+  final decoration = InputDecoration(
     labelText: label,
     hintText: hint,
     isDense: true,
@@ -25,6 +25,7 @@ InputDecoration recommendInputDecoration(BuildContext context,
     border: border,
     enabledBorder: border,
   );
+  return label == null ? decoration : decoration.insetLabel(context);
 }
 
 /// 一条推荐结果：曲绘 + 曲名 + 类型 / 难度 / 定数 + 说明行，右边是这条推荐的主要数值。

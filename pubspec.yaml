@@ -18,7 +18,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # of the product and file versions while build-number is used as the build suffix.
 
 # version: 1.12.2+35
-version: 3.0.0-alpha+53
+version: 3.0.0-beta+54
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -157,10 +157,13 @@ flutter:
     - assets/guide/awmcbot-maibind.webp
     - assets/guide/awmcbot-mymai.webp
     - assets/guide/awmcbot-qrcode.webp
+    - assets/guide/awmcnet-settings.webp
     - assets/guide/divingfish-homepage.webp
     - assets/guide/divingfish-register.webp
+    - assets/guide/divingfish-settings.webp
     - assets/guide/lxns-homepage.webp
     - assets/guide/lxns-register.webp
+    - assets/guide/lxns-settings.webp
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg

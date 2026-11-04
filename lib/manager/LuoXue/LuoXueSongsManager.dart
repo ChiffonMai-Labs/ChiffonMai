@@ -209,6 +209,7 @@ class LuoXueSongsManager {
       'levelValue': difficulty.levelValue,
       'noteDesigner': difficulty.noteDesigner,
       'version': difficulty.version,
+      'release_date': difficulty.releaseDate,
       'notes': difficulty.notes != null ? _notesToJson(difficulty.notes!) : null,
     };
   }
@@ -218,6 +219,8 @@ class LuoXueSongsManager {
       'kanji': utage.kanji,
       'description': utage.description,
       'isBuddy': utage.isBuddy,
+      'level': utage.level,
+      'release_date': utage.releaseDate,
       'notes': utage.notes != null ? _anyNotesToJson(utage.notes!) : null,
     };
   }

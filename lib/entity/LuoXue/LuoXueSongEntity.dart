@@ -159,6 +159,7 @@ class LuoXueSongDifficulty {
   final num levelValue; // 谱面定数
   final String noteDesigner; // 谱师
   final int version; // 谱面首次出现版本
+  final String? releaseDate; // 谱面国服上线日期（yyyy-MM-dd）
   final LuoXueSongNotes? notes; // 值可空，谱面物量
 
   LuoXueSongDifficulty({
@@ -168,6 +169,7 @@ class LuoXueSongDifficulty {
     required this.levelValue,
     required this.noteDesigner,
     required this.version,
+    this.releaseDate,
     this.notes,
   });
 
@@ -179,6 +181,7 @@ class LuoXueSongDifficulty {
       levelValue: json['level_value'] as num,
       noteDesigner: json['note_designer'] as String,
       version: json['version'] as int,
+      releaseDate: json['release_date'] as String?,
       notes: json['notes'] != null
           ? LuoXueSongNotes.fromJson(json['notes'] as Map<String, dynamic>)
           : null,
@@ -193,13 +196,17 @@ class LuoXueSongDifficulty {
 class LuoXueSongDifficultyUtage {
   final String kanji; // 谱面属性
   final String description; // 谱面描述
+  final String? level; // 难度标级（如 14+?），接口的 level_value 对宴谱恒为 0
   final bool isBuddy; // 是否为BUDDY谱面
+  final String? releaseDate; // 谱面国服上线日期（yyyy-MM-dd）
   final Object? notes; // 值可空，谱面物量，可以是LuoXueSongNotes或LuoXueBuddyNotes
 
   LuoXueSongDifficultyUtage({
     required this.kanji,
     required this.description,
     required this.isBuddy,
+    this.level,
+    this.releaseDate,
     this.notes,
   });
 
@@ -208,6 +215,8 @@ class LuoXueSongDifficultyUtage {
       kanji: json['kanji'] as String,
       description: json['description'] as String,
       isBuddy: json['is_buddy'] as bool,
+      level: json['level'] as String?,
+      releaseDate: json['release_date'] as String?,
       notes: json['notes'] != null
           ? (() {
               final notesMap = json['notes'] as Map<String, dynamic>;

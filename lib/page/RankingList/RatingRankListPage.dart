@@ -443,11 +443,7 @@ class _RatingRankListPageState extends State<RatingRankListPage> {
                 ),
               ),
               // 免责声明
-              const RankingNotice(
-                summary: '数据仅供参考和娱乐，不代表官方立场或权威排名',
-                detail:
-                    '本排行榜数据仅供参考和娱乐使用，不代表任何官方立场或权威性排名。排名数据基于玩家自愿上传的游戏数据，可能存在误差或延迟。请理性看待排名结果，享受游戏乐趣。',
-              ),
+              const RankingNotice(),
 
               // 排行榜列表
               Expanded(

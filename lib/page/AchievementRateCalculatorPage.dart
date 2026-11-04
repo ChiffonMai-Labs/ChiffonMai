@@ -304,7 +304,7 @@ class _AchievementRateCalculatorState extends State<AchievementRateCalculator> {
     // 「跟列表一起滚」之间切换，切换时输入框被销毁 → 丢焦点 → 键盘立刻收回，
     // 表现就是一点输入框键盘就闪退。键盘只影响结果卡的详略和下方留白。
     return BackgroundPageScaffold(
-      title: '达成率计算器',
+      title: '达成率计算',
       resizeToAvoidBottomInset: false,
       actions: [
         TextButton(

@@ -588,11 +588,11 @@ class _GuessChartByTileRevealPageState
                 const SizedBox(height: 8),
                 const Text('橙色 - 该属性与你猜的"接近"：'),
                 const SizedBox(height: 4),
-                const Text('灰色 - 该属性与你猜的"差距较大"：'),
-                const SizedBox(height: 8),
                 const Text('BPM 相差在 ±20 范围内；'),
                 const Text('MASTER 难度或 Re:MASTER 难度相差在 ±0.4范围内；'),
                 const Text('版本相差一个世代（例如 maimai ← maimai PLUS → maimai GreeN）。'),
+                const SizedBox(height: 8),
+                const Text('灰色 - 该属性与你猜的"差距较大"。'),
                 const SizedBox(height: 16),
                 const Text('箭头：'),
                 const SizedBox(height: 4),
@@ -621,7 +621,7 @@ class _GuessChartByTileRevealPageState
                   child: Text(
                     'https://maimai.yukineko2233.top/',
                     style: TextStyle(
-                      color: AppColors.linkBlue(Theme.of(context).brightness),
+                      color: Theme.of(context).colorScheme.primary,
                       decoration: TextDecoration.underline,
                     ),
                   ),
@@ -826,7 +826,8 @@ class _GuessChartByTileRevealPageState
 
                 if (!navigator.mounted) return;
                 navigator.pop();
-                AppToast.show('设置已保存，将在下局游戏生效');
+                AppToast.show('设置已保存，将在下局游戏生效',
+                    tone: AppToastTone.success);
 
                 _warnIfNoSongMatches(
                   selectedVersions: tempSelectedVersions,
@@ -869,7 +870,7 @@ class _GuessChartByTileRevealPageState
           onPressed: _startNewGame,
         ),
       ],
-      title: '猜歌（曲绘拼图）',
+      title: '曲绘拼图猜歌',
       resizeToAvoidBottomInset: false,
       child: GestureDetector(
         onTap: () {

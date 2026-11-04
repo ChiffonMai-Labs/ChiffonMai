@@ -1,10 +1,76 @@
 import 'package:flutter/material.dart';
 import '../utils/AppDesignTokens.dart';
 import '../utils/CoverUtil.dart';
+import '../utils/ExportImageTheme.dart';
+import '../utils/ThemeManager.dart';
 
-/// Best50 系列卡片通用 widget。
-/// 采用两段式布局：上方 73% 卡色背景（曲绘 + 歌名 + 达成率 + 定数→RA | 分数/满分），
-/// 下方 27% 白底（谱面 ID + 类型 chip + 评级 + FC + FS + 星数）。
+/// [B50GameCardWidget] 的配色。
+class B50CardPalette {
+  final Color card;
+  final Color strip;
+  final Color ink;
+  final Color muted;
+  final Color border;
+
+  /// 没有连击 / 同步时的灰章不透明度。灰章是浅色图，在深色卡片上要压暗。
+  final double emptyGradeOpacity;
+
+  const B50CardPalette({
+    required this.card,
+    required this.strip,
+    required this.ink,
+    required this.muted,
+    required this.border,
+    this.emptyGradeOpacity = 1,
+  });
+
+  /// 浅色白卡片。
+  static const B50CardPalette light = B50CardPalette(
+    card: Colors.white,
+    strip: Color(0xFFF0F4F3),
+    ink: Color(0xFF16201F),
+    muted: Color(0xFF5F6B6A),
+    border: Color(0x14000000),
+  );
+
+  /// 导出图片用：跟随导出抽屉里选的主题，不跟随 App。
+  factory B50CardPalette.forExport(ExportPalette c) {
+    if (c.isLight) return light;
+    return B50CardPalette(
+      card: c.panel,
+      strip: c.inset,
+      ink: c.ink,
+      muted: c.muted,
+      border: c.cardBorder,
+      emptyGradeOpacity: 0.4,
+    );
+  }
+
+  /// 页面上用：跟随 App 当前的浅色 / 深色 / 纯黑设置。
+  factory B50CardPalette.of(BuildContext context) {
+    final theme = Theme.of(context);
+    if (theme.brightness != Brightness.dark) return light;
+    return B50CardPalette.dark(theme.colorScheme,
+        pureBlack: ThemeManager().pureBlackEnabled);
+  }
+
+  /// 深色取主题的容器色，带一点用户的主题色；
+  /// 纯黑的卡片本身就是黑色，靠细描边和凹槽勾出边界。
+  factory B50CardPalette.dark(ColorScheme scheme, {bool pureBlack = false}) {
+    return B50CardPalette(
+      card: pureBlack ? Colors.black : scheme.surfaceContainer,
+      strip: pureBlack ? const Color(0xFF161616) : scheme.surfaceContainerHigh,
+      ink: pureBlack ? Colors.white : scheme.onSurface,
+      muted: pureBlack ? const Color(0xFFA6A6A6) : scheme.onSurfaceVariant,
+      border: pureBlack ? const Color(0x33FFFFFF) : const Color(0x14FFFFFF),
+      emptyGradeOpacity: 0.4,
+    );
+  }
+}
+
+/// Best50 系列卡片通用 widget，用于导出图片和页面的双列显示模式。
+/// 卡片结构：上方是带难度色描边的曲绘 + 歌名 + 达成率 + 定数和 RA + DX 分，
+/// 下方凹槽放谱面 ID + 类型 + 评级 + FC + FS + 星数。
 ///
 /// 字号常量的标定基准是「导出图片单卡实际可见宽度」[refCardWidth] = 335，
 /// 通过 [scale] 适配不同使用场景：
@@ -29,10 +95,7 @@ class B50GameCardWidget extends StatelessWidget {
   /// 360 屏估 178.2、真实格子 163.4（1.09 倍）。换成真实宽度后卡片内容
   /// 整体小了 ~9%，这里在**屏幕口径**上把这一截还回来。
   ///
-  /// 旧尺寸**装得下**（原 7:3 分区 + 现有内边距实测还有 ~4% 余量）：
-  /// `test/b50_card_scale_test.dart` 按格子宽 145~335 × dpr 2.75/3.0 逐个核对
-  /// 「上半区装得下 + 后代不出卡片」；320~480 屏的「真实格子 / 旧估算」实测
-  /// 落在 1.082~1.097，取中值 1.088。
+  /// 320~480 屏的「真实格子 / 旧估算」实测落在 1.082~1.097，取中值 1.088。
   ///
   /// ⚠️ **导出图片（`scale: 1.0` 的离屏渲染）不走这里**，仍按 [refCardWidth]
   /// 标定；反过来说，页面口径下也别再把 [refCardWidth] 当分母。
@@ -70,6 +133,9 @@ class B50GameCardWidget extends StatelessWidget {
   /// 页面摆放时**高度要按这个比例跟着宽度走**：卡片内部是定高分区 + 按宽度
   /// 缩放的字号，高度给错了会挤到溢出。
   static const double designAspectRatio = 1.75;
+
+  /// 导出图（`scale = 1`）里刚好放下内容的卡片高度，雷霆长图直接用它。
+  static const double exportCardHeight = 172;
 
   /// 单卡宽度：`可用宽` 里放 [columns] 张、扣掉 [columnGap] 间隙。
   static double cardWidthFor(
@@ -128,6 +194,9 @@ class B50GameCardWidget extends StatelessWidget {
   final double scale;
   final bool isFitDiff;
 
+  /// 配色。页面传 [B50CardPalette.of]；导出图片不传，取 [ExportThemeScope] 的主题。
+  final B50CardPalette? palette;
+
   const B50GameCardWidget({
     super.key,
     required this.cardColor,
@@ -148,25 +217,22 @@ class B50GameCardWidget extends StatelessWidget {
     required this.maxIdLength,
     this.scale = autoScale,
     this.isFitDiff = false,
+    this.palette,
   });
 
-  // ---- 字号常量（基于 refCardWidth=335，与导出图片同源）----
-  static const double _kSongName = 20.4;
-  static const double _kDecimalMain = 34.0;
-  static const double _kDecimalSmall = 25.5;
+  // ---- 尺寸常量（基于 refCardWidth=335，与导出图片同源）----
+  static const double _kSongName = 15.5;
+  static const double _kDecimalMain = 30.0;
+  static const double _kDecimalSmall = 21.0;
   static const double _kOther = 13.6;
-  static const double _kGrade = 11.9;
-  static const double _kType = 23.8;
-  static const double _kCover = 100.0;
-  static const double _kSpacing = 10.2;
-  static const double _kSmallSpacing = 5.1;
+  static const double _kCover = 104.0;
+  static const double _kSpacing = 10.0;
+  static const double _kStripHeight = 38.0;
 
   /// 在卡片上**叠**一枚角标（PC50 的 `PC 1234` 就是它）。
   ///
-  /// 刻意做成叠层、而不是往卡里塞一个格子：卡片上下两块按比例定高，
-  /// 加内容会把里面挤到溢出（调试期就是黄黑条）。位置用本组件的设计稿常量 ——
-  /// 内边距 [10.2] + 曲绘 [100] 高的正下方，那块区域是空的，
-  /// 不压歌名 / 达成率 / `定数 → RA  DX分`，也碰不到下方白色信息条。
+  /// 刻意做成叠层、而不是往卡里塞一个格子：卡片按比例定高，加内容会挤到溢出。
+  /// 位置用本组件的设计稿常量，贴在曲绘左下角，不压右边的文字和下方的凹槽。
   static Widget withBadgeOverlay({
     required Widget card,
     required String text,
@@ -181,8 +247,8 @@ class B50GameCardWidget extends StatelessWidget {
           children: [
             card,
             Positioned(
-              left: _kSpacing * resolved,
-              top: (_kSpacing + _kCover + 2.8) * resolved,
+              left: (_kSpacing + 4) * resolved,
+              top: (_kSpacing + _kCover - 22) * resolved,
               child: Container(
                 padding: EdgeInsets.symmetric(
                     horizontal: 6 * resolved, vertical: 2 * resolved),
@@ -244,11 +310,13 @@ class B50GameCardWidget extends StatelessWidget {
     required double achievementRate,
     required double mainFontSize,
     required double subFontSize,
+    required Color color,
   }) {
     final text = achievementRate.toStringAsFixed(4);
     final parts = text.split('.');
     final intPart = parts[0];
     final decPart = parts.length > 1 ? '.${parts[1]}%' : '%';
+    const tabular = [FontFeature.tabularFigures()];
 
     return Text.rich(
       TextSpan(
@@ -257,16 +325,20 @@ class B50GameCardWidget extends StatelessWidget {
             text: intPart,
             style: TextStyle(
               fontSize: mainFontSize,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
+              height: 1.1,
+              fontWeight: FontWeight.w800,
+              color: color,
+              fontFeatures: tabular,
             ),
           ),
           TextSpan(
             text: decPart,
             style: TextStyle(
               fontSize: subFontSize,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
+              height: 1.1,
+              fontWeight: FontWeight.w800,
+              color: color,
+              fontFeatures: tabular,
             ),
           ),
         ],
@@ -288,305 +360,270 @@ class B50GameCardWidget extends StatelessWidget {
 
   /// [scale] 是**已经解析过**的缩放值（见 [resolveScale]）。
   Widget _buildCard(BuildContext context, double scale) {
-    final double songNameFontSize = _kSongName * scale;
-    final double decimalMainFontSize = _kDecimalMain * scale;
-    final double decimalSmallFontSize = _kDecimalSmall * scale;
-    final double otherFontSize = _kOther * scale;
-    final double gradeFontSize = _kGrade * scale;
-    final double typeFontSize = _kType * scale;
-    final double coverSize = _kCover * scale;
+    final palette =
+        this.palette ?? B50CardPalette.forExport(ExportPalette.of(context));
     final double spacing = _kSpacing * scale;
-    final double smallSpacing = _kSmallSpacing * scale;
+    final double coverSize = _kCover * scale;
+    final double otherFontSize = _kOther * scale;
 
-    // 定数（整数 + 小数部分）：常规定数保留 1 位小数（如 15.0、13.9），
-    // 拟合定数（fit_diff）保留 2 位小数（如 13.57）以避免丢失精度。
-    final int diffDecimalPlaces = isFitDiff ? 2 : 1;
-    final String diffStr = difficulty.toStringAsFixed(diffDecimalPlaces);
-    final List<String> diffParts = diffStr.split('.');
-    final String diffMain = diffParts[0];
-    final String diffDecimal = '.${diffParts[1]}';
+    // 常规定数保留 1 位小数，拟合定数（fit_diff）保留 2 位以避免丢失精度。
+    final String diffText = difficulty.toStringAsFixed(isFitDiff ? 2 : 1);
+    final Color pillForeground =
+        ThemeData.estimateBrightnessForColor(cardColor) == Brightness.dark
+            ? Colors.white
+            // 底色是浅色难度色，深色卡片上也要用深色字。
+            : B50CardPalette.light.ink;
 
-    // 卡片下方 27% 区域固定使用浅色背景 + 深色文字，
-    // 避免深色 / 浅色模式影响屏幕显示与导出图片效果，保证导出一致性。
-    const Color cardBottomBg = Color(0xFFF7F8FA);
-    const Color cardBottomText = Color(0xFF1F2328);
-
-    // B 方案：圆角取 `radiusSmall`（12），小卡（页面里 scale < 1）不再跟着缩，
-    // 否则 160dp 宽的卡片只剩 6dp 圆角，和周围的白卡片对不齐。
+    // 小卡（页面里 scale < 1）的圆角不跟着缩，否则和周围的卡片对不齐。
     final double radius =
         AppDesignTokens.radiusSmall * (scale < 1 ? 1.0 : scale);
-    final Radius r = Radius.circular(radius);
+    final double innerRadius = radius * 0.75;
+    const tabular = [FontFeature.tabularFigures()];
 
-    return Container(
+    final Widget cover = Container(
+      width: coverSize,
+      height: coverSize,
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        // 外层填色：上半 cardColor / 下半白色，73% 处硬切换。
-        // 同时充当 border 缝隙（ClipRRect 因 border 内缩 2px 留出的几像素环）
-        // 的兜底，让圆角四周都能被正确颜色覆盖。
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            cardColor,
-            cardColor,
-            cardBottomBg,
-            cardBottomBg,
-          ],
-          stops: const [0.0, 0.73, 0.73, 1.0],
-        ),
-        // 细描边只用来在白色页面底 / 导出图白底上勾出下半白条的边界。
-        border: Border.all(
-            color: Colors.black.withValues(alpha: 0.12), width: 1.0),
-        borderRadius: BorderRadius.all(r),
+        color: palette.strip,
+        borderRadius: BorderRadius.circular(innerRadius),
+        border: Border.all(color: cardColor, width: 3 * scale),
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.all(r),
+      child: songId != 0
+          ? CoverUtil.buildCoverWidgetWithContext(
+              context, songId.toString(), coverSize)
+          : Center(
+              child: Text('曲绘',
+                  style: TextStyle(
+                      fontSize: coverSize * 0.22, color: palette.muted)),
+            ),
+    );
+
+    // 三个数字按同一条基线对齐，字号不同也不会错位。
+    final Widget ratingRow = Row(
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
+      children: [
+        Container(
+          padding:
+              EdgeInsets.symmetric(horizontal: 7 * scale, vertical: 2 * scale),
+          decoration: BoxDecoration(
+            color: cardColor,
+            borderRadius: BorderRadius.circular(6 * scale),
+          ),
+          child: Text(
+            diffText,
+            maxLines: 1,
+            style: TextStyle(
+              fontSize: otherFontSize,
+              height: 1.15,
+              fontWeight: FontWeight.w800,
+              color: pillForeground,
+              fontFeatures: tabular,
+            ),
+          ),
+        ),
+        SizedBox(width: 6 * scale),
+        // RA 字号略大，同基线时看起来偏高，往下挪一点和左右对齐。
+        Transform.translate(
+          offset: Offset(0, 1.2 * scale),
+          child: Text(
+            'RA $rating',
+            maxLines: 1,
+            style: TextStyle(
+              fontSize: otherFontSize * 1.1,
+              height: 1.15,
+              fontWeight: FontWeight.w800,
+              color: palette.ink,
+              fontFeatures: tabular,
+            ),
+          ),
+        ),
+        SizedBox(width: 6 * scale),
+        Expanded(
+          child: Text(
+            '$score/$maxScore',
+            maxLines: 1,
+            softWrap: false,
+            textAlign: TextAlign.end,
+            style: TextStyle(
+              fontSize: otherFontSize * 0.85,
+              height: 1.15,
+              fontWeight: FontWeight.w600,
+              color: palette.muted,
+              fontFeatures: tabular,
+            ),
+          ),
+        ),
+      ],
+    );
+
+    // 歌名最多两行。三段信息撑满曲绘的高度，间距自动均分，
+    // 歌名只有一行时上下也不会留出一截空白。
+    final Widget info = Column(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          songName,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: _kSongName * scale,
+            height: 1.22,
+            fontWeight: FontWeight.w700,
+            color: palette.ink,
+          ),
+        ),
+        SizedBox(
+          width: double.infinity,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: _buildAchievement(
+              achievementRate: achievementRate,
+              mainFontSize: _kDecimalMain * scale,
+              subFontSize: _kDecimalSmall * scale,
+              color: palette.ink,
+            ),
+          ),
+        ),
+        ratingRow,
+      ],
+    );
+
+    final idStyle = TextStyle(
+      fontSize: otherFontSize,
+      height: 1.0,
+      fontWeight: FontWeight.w700,
+      color: palette.muted,
+      fontFeatures: tabular,
+    );
+    final Widget strip = Container(
+      height: _kStripHeight * scale,
+      padding: EdgeInsets.symmetric(horizontal: 8 * scale),
+      decoration: BoxDecoration(
+        color: palette.strip,
+        borderRadius: BorderRadius.circular(innerRadius),
+      ),
+      child: Row(
+        children: [
+          // 谱面 ID（不可见占位保证同一张图里等宽对齐）
+          Stack(
+            alignment: Alignment.centerLeft,
+            children: [
+              Opacity(
+                opacity: 0,
+                child: Text('#${'0' * maxIdLength}', style: idStyle),
+              ),
+              Text(songId != 0 ? '#$songId' : '', style: idStyle),
+            ],
+          ),
+          SizedBox(width: 5 * scale),
+          buildTypeChip(isUtage, dxMode, otherFontSize * 1.05),
+          // 六位歌曲 ID 会挤占宽度；右侧信息只在空间不足时等比缩小。
+          Expanded(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerRight,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (rate.isNotEmpty)
+                    SizedBox(
+                      width: 22 * scale * 110 / 44,
+                      height: 22 * scale,
+                      child: Image.asset(
+                        'assets/gamrank/$rate.png',
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) =>
+                            const SizedBox.shrink(),
+                      ),
+                    ),
+                  for (final grade in [fc, fs])
+                    Opacity(
+                      opacity: grade.isEmpty ? palette.emptyGradeOpacity : 1,
+                      child: Image.asset(
+                        'assets/grade/${grade.isNotEmpty ? grade : 'empty'}.png',
+                        height: 32 * scale,
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) =>
+                            const SizedBox.shrink(),
+                      ),
+                    ),
+                  // 没有星级时是白色，放在浅色凹槽上看不见，统一用次要文字色
+                  buildStarsWidget(
+                      stars,
+                      starsColor == Colors.white ? palette.muted : starsColor,
+                      otherFontSize,
+                      heightMultiplier: 1.8),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    // 卡片内部全部按宽度缩放，系统字号再叠一层就放不下了。
+    return MediaQuery.withNoTextScaling(
+      child: Container(
+        padding: EdgeInsets.all(spacing),
+        decoration: BoxDecoration(
+          color: palette.card,
+          // 细描边用来在页面底和导出图的底色上勾出卡片的边界。
+          border: Border.all(color: palette.border, width: 1.0),
+          borderRadius: BorderRadius.circular(radius),
+        ),
         child: Column(
-          mainAxisSize: MainAxisSize.max,
           children: [
-            // ★ 上方 73%（卡色）：曲绘顶对齐 + 三行信息
             Expanded(
-              flex: 73,
-              child: Container(
-                decoration: BoxDecoration(
-                  // 自上而下轻微加深，白字在浅难度色（BASIC 绿）上也压得住。
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Color.lerp(cardColor, Colors.white, 0.08)!,
-                      Color.lerp(cardColor, Colors.black, 0.14)!,
-                    ],
-                  ),
-                  borderRadius: BorderRadius.only(topLeft: r, topRight: r),
-                ),
-                padding: EdgeInsets.fromLTRB(
-                    spacing, spacing, spacing, smallSpacing * 0.5),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // 左侧：曲绘（顶部对齐）
-                    Container(
-                      width: coverSize,
-                      height: coverSize,
-                      clipBehavior: Clip.antiAlias,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(radius * 0.6),
-                        border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.7),
-                            width: 1.0),
-                      ),
-                      child: songId != 0
-                          ? CoverUtil.buildCoverWidgetWithContext(
-                              context, songId.toString(), coverSize)
-                          : Center(
-                              child: Text('曲绘',
-                                  style: TextStyle(fontSize: coverSize * 0.24)),
-                            ),
-                    ),
-                    SizedBox(width: spacing),
-                    // 右侧：歌名 / 达成率 / 定数→RA | 分数/满分
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            songName,
-                            style: TextStyle(
-                              fontSize: songNameFontSize,
-                              fontWeight: FontWeight.w900,
-                              color: Colors.white,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 1,
-                          ),
-                          SizedBox(height: 1.5 * scale),
-                          SizedBox(
-                            width: double.infinity,
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              alignment: Alignment.centerLeft,
-                              child: _buildAchievement(
-                                achievementRate: achievementRate,
-                                mainFontSize: decimalMainFontSize,
-                                subFontSize: decimalSmallFontSize,
-                              ),
-                            ),
-                          ),
-                          SizedBox(height: 4 * scale),
-                          SizedBox(
-                            width: double.infinity,
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              alignment: Alignment.centerLeft,
-                              child: Text(
-                                '$diffMain$diffDecimal → $rating  $score / $maxScore',
-                                maxLines: 1,
-                                softWrap: false,
-                                overflow: TextOverflow.visible,
-                                style: TextStyle(
-                                  fontSize: otherFontSize,
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  cover,
+                  SizedBox(width: spacing),
+                  Expanded(child: SizedBox(height: coverSize, child: info)),
+                ],
               ),
             ),
-            // ★ 下方 27%：固定白色背景 + 深色文字，导出图片与屏幕显示一致
-            Expanded(
-              flex: 27,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: cardBottomBg,
-                  borderRadius:
-                      BorderRadius.only(bottomLeft: r, bottomRight: r),
-                ),
-                padding: EdgeInsets.symmetric(horizontal: smallSpacing),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  mainAxisSize: MainAxisSize.max,
-                  children: [
-                    // 谱面 ID（Stack + 不可见占位保证等宽对齐）
-                    Stack(
-                      alignment: Alignment.centerLeft,
-                      children: [
-                        Opacity(
-                          opacity: 0.0,
-                          child: Text(
-                            '#${'0' * maxIdLength}',
-                            style: TextStyle(
-                              fontSize: otherFontSize * 1.5,
-                              color: Colors.black,
-                              fontWeight: FontWeight.bold,
-                              height: 1.0,
-                            ),
-                          ),
-                        ),
-                        Text(
-                          songId != 0 ? '#${songId.toString()}' : '',
-                          style: TextStyle(
-                            fontSize: otherFontSize * 1.5,
-                            color: cardBottomText,
-                            fontWeight: FontWeight.bold,
-                            height: 1.0,
-                          ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(width: smallSpacing),
-                    // 类型 chip（Stack + 不可见 'UT' 占位保证等宽对齐）
-                    Stack(
-                      alignment: Alignment.centerLeft,
-                      children: [
-                        Opacity(
-                          opacity: 0.0,
-                          child: Text(
-                            'UT',
-                            style: TextStyle(
-                              fontSize: typeFontSize,
-                              color: Colors.transparent,
-                              fontWeight: FontWeight.w900,
-                              height: 1.0,
-                            ),
-                          ),
-                        ),
-                        buildTypeChip(isUtage, dxMode, typeFontSize),
-                      ],
-                    ),
-                    // 六位歌曲 ID 会挤占底栏宽度；右侧信息只在空间不足时等比缩小。
-                    Expanded(
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerRight,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            // 评级图
-                            if (rate.isNotEmpty)
-                              Transform.translate(
-                                offset: Offset(2 * scale, -1 * scale),
-                                child: Padding(
-                                  padding: EdgeInsets.only(top: 3 * scale),
-                                  child: SizedBox(
-                                    width: gradeFontSize * 2.0 * 110 / 44,
-                                    height: gradeFontSize * 2.0,
-                                    child: Image.asset(
-                                      'assets/gamrank/$rate.png',
-                                      fit: BoxFit.contain,
-                                      alignment: Alignment.center,
-                                      errorBuilder:
-                                          (context, error, stackTrace) =>
-                                              const SizedBox.shrink(),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            SizedBox(width: 0.5 * scale),
-                            // FC 图
-                            Image.asset(
-                              'assets/grade/${fc.isNotEmpty ? fc : 'empty'}.png',
-                              height: gradeFontSize * 3.0,
-                              fit: BoxFit.contain,
-                              errorBuilder: (context, error, stackTrace) =>
-                                  const SizedBox.shrink(),
-                            ),
-                            SizedBox(width: 0.5 * scale),
-                            // FS 图
-                            Image.asset(
-                              'assets/grade/${fs.isNotEmpty ? fs : 'empty'}.png',
-                              height: gradeFontSize * 3.0,
-                              fit: BoxFit.contain,
-                              errorBuilder: (context, error, stackTrace) =>
-                                  const SizedBox.shrink(),
-                            ),
-                            SizedBox(width: 0.5 * scale),
-                            // 星数
-                            buildStarsWidget(stars, starsColor, otherFontSize,
-                                heightMultiplier: 2.0),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+            SizedBox(height: 6 * scale),
+            strip,
           ],
         ),
       ),
     );
   }
 
-  /// 类型标签（带颜色文字，无背景）
+  /// 类型标签：实心胶囊 + 白字。
   static Widget buildTypeChip(bool isUtage, bool dxMode, double fontSize) {
-    Color textColor;
-    String text;
+    final Color background;
+    final String text;
     if (isUtage) {
-      textColor = const Color(0xFFE60012); // 红色
+      background = const Color(0xFFD81B3C);
       text = 'UT';
     } else if (dxMode) {
-      textColor = const Color(0xFFC95A12); // 加深后的橙色
+      background = const Color(0xFFC95A12);
       text = 'DX';
     } else {
-      textColor = const Color(0xFF1F4FA5); // 蓝色
+      background = const Color(0xFF1F4FA5);
       text = 'ST';
     }
-    return Text(
-      text,
-      style: TextStyle(
-        fontSize: fontSize,
-        color: textColor,
-        fontWeight: FontWeight.w900,
-        height: 1.0,
+    return Container(
+      padding: EdgeInsets.symmetric(
+          horizontal: fontSize * 0.4, vertical: fontSize * 0.14),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(fontSize * 0.35),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: fontSize,
+          color: Colors.white,
+          fontWeight: FontWeight.w800,
+          height: 1.1,
+        ),
       ),
     );
   }
@@ -650,51 +687,39 @@ class B50GameCardWidget extends StatelessWidget {
     // ✦0 / ✦5.5 / ✦6 等情况：用占位 SizedBox 保持与有星卡片对齐；
     // Text 用 FittedBox + 大字号自动缩放到与图片星等高，加粗加深可读性。
     // 5.5 / 6 字号比图片星略小一点（1.5x vs 2.0x），避免视觉过重。
-    // 5.5 / 6 走细描边（8 方向 Shadow 偏移 1.0）让数字更"立"起来。
-    // 只描上下左右 4 个方向时，字形的斜角会露出缝隙，补上 4 个对角方向才是完整一圈。
+    // 5.5 / 6 带深色描边让数字更"立"起来：下层用描边画笔画轮廓，上层画星级色。
+    // 不要用多份偏移的 Shadow 拼：字形拐角处会断开，半透明色叠加还会深浅不一。
     // ✦ 与数字拆成 Row 用 baseline 对齐，避免 ✦ 与数字上下错位。
     final bool needsStroke = stars == '✦6' || stars == '✦5.5';
     final String digits = stars.startsWith('✦') ? stars.substring(1) : stars;
-    final TextStyle starStyle = TextStyle(
-      fontSize: fontSize * 1.5,
-      color: starsColor,
+    final double textSize = fontSize * 1.5;
+    // height=1.0 会把 5.5 / 6 的上下字形和描边压进紧边界，
+    // 在部分 dpr 下看起来像上下各缺了一小段黑边。
+    final TextStyle baseStyle = TextStyle(
+      fontSize: textSize,
       fontWeight: FontWeight.w900,
-      // height=1.0 会把 5.5 / 6 的上下字形和描边压进紧边界，
-      // 在部分 dpr 下看起来像上下各缺了一小段黑边。
       height: 1.12,
-      shadows: needsStroke
-          ? const [
-              Shadow(
-                  color: Colors.black87,
-                  offset: Offset(-1.0, 0),
-                  blurRadius: 0),
-              Shadow(
-                  color: Colors.black87, offset: Offset(1.0, 0), blurRadius: 0),
-              Shadow(
-                  color: Colors.black87,
-                  offset: Offset(0, -1.0),
-                  blurRadius: 0),
-              Shadow(
-                  color: Colors.black87, offset: Offset(0, 1.0), blurRadius: 0),
-              Shadow(
-                  color: Colors.black87,
-                  offset: Offset(-1.0, -1.0),
-                  blurRadius: 0),
-              Shadow(
-                  color: Colors.black87,
-                  offset: Offset(1.0, -1.0),
-                  blurRadius: 0),
-              Shadow(
-                  color: Colors.black87,
-                  offset: Offset(-1.0, 1.0),
-                  blurRadius: 0),
-              Shadow(
-                  color: Colors.black87,
-                  offset: Offset(1.0, 1.0),
-                  blurRadius: 0),
-            ]
-          : null,
     );
+    Widget starText(String text) {
+      final fill = Text(text, style: baseStyle.copyWith(color: starsColor));
+      if (!needsStroke) return fill;
+      return Stack(
+        children: [
+          Text(
+            text,
+            style: baseStyle.copyWith(
+              foreground: Paint()
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = textSize * 0.16
+                ..strokeJoin = StrokeJoin.round
+                ..color = const Color(0xFF1F1F1F),
+            ),
+          ),
+          fill,
+        ],
+      );
+    }
+
     // 给描边留出与字号成比例的上下安全区；固定高度刚好等于图片高度时，
     // 5.5 / 6 的上下阴影会在小卡片和高 dpr 下被父级裁掉。
     final double textBoxHeight = fontSize * (heightMultiplier + 0.35);
@@ -721,10 +746,10 @@ class B50GameCardWidget extends StatelessWidget {
                   // ✦ 在很多字体里视觉重心偏低，按字号比例轻微上移。
                   Transform.translate(
                     offset: Offset(0, -fontSize * 0.08),
-                    child: Text('✦', style: starStyle),
+                    child: starText('✦'),
                   ),
                   const SizedBox(width: 1.5),
-                  Text(digits, style: starStyle),
+                  starText(digits),
                 ],
               ),
             ),

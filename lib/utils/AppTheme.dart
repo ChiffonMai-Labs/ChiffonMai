@@ -1312,42 +1312,45 @@ class AppColors {
   // ========== 标签分组颜色 ==========
 
   /// 标签分组颜色
-  static Color tagGroupBackground(String group) {
+  static Color tagGroupBackground(String group, Brightness brightness) {
+    final dark = brightness == Brightness.dark;
     switch (group) {
       case '配置':
-        return const Color(0xFFE8F4F8);
+        return Color(dark ? 0xFF17312B : 0xFFE8F4F8);
       case '评价':
-        return const Color(0xFFFFF3E0);
+        return Color(dark ? 0xFF302414 : 0xFFFFF3E0);
       case '难度':
-        return const Color(0xFFFCE4EC);
+        return Color(dark ? 0xFF351A26 : 0xFFFCE4EC);
       default:
-        return const Color(0xFFF0E6FF);
+        return Color(dark ? 0xFF261E3B : 0xFFF0E6FF);
     }
   }
 
-  static Color tagGroupBorder(String group) {
+  static Color tagGroupBorder(String group, Brightness brightness) {
+    final dark = brightness == Brightness.dark;
     switch (group) {
       case '配置':
-        return const Color(0xFFD1E7DD);
+        return Color(dark ? 0xFF2C5A4E : 0xFFD1E7DD);
       case '评价':
-        return const Color(0xFFFFE0B2);
+        return Color(dark ? 0xFF5C4420 : 0xFFFFE0B2);
       case '难度':
-        return const Color(0xFFF8BBD0);
+        return Color(dark ? 0xFF66304A : 0xFFF8BBD0);
       default:
-        return const Color(0xFFE0D0FF);
+        return Color(dark ? 0xFF4A3A72 : 0xFFE0D0FF);
     }
   }
 
-  static Color tagGroupText(String group) {
+  static Color tagGroupText(String group, Brightness brightness) {
+    final dark = brightness == Brightness.dark;
     switch (group) {
       case '配置':
-        return const Color(0xFF388E3C);
+        return Color(dark ? 0xFF8FD6A8 : 0xFF388E3C);
       case '评价':
-        return const Color(0xFFF57C00);
+        return Color(dark ? 0xFFFFC078 : 0xFFF57C00);
       case '难度':
-        return const Color(0xFFD81B60);
+        return Color(dark ? 0xFFF8A0C0 : 0xFFD81B60);
       default:
-        return const Color(0xFF664499);
+        return Color(dark ? 0xFFC9B3FF : 0xFF664499);
     }
   }
 

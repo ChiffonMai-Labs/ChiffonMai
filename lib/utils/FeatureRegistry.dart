@@ -30,7 +30,7 @@ class FeatureRegistry {
           title: '版本与曲库分析',
           subtitle: '版本资料、更新对照与谱面定数',
           icon: Icons.library_books_outlined,
-          titles: ['国服更新对照', '版本对照', '定数分布']),
+          titles: ['国服更新对照', '更新日历', '版本对照', '定数分布']),
       FeatureSection(
           title: '图像识别',
           subtitle: '通过曲绘找歌，识别结算成绩',
@@ -236,6 +236,10 @@ class FeatureRegistry {
           icon: Icons.flag_rounded,
           title: '国服更新对照',
           subtitle: '看日服已上、国服还没上的曲目'),
+      '更新日历': const ButtonItem(
+          icon: Icons.calendar_month_rounded,
+          title: '更新日历',
+          subtitle: '按日期查看国服每次更新的谱面'),
       '版本对照': const ButtonItem(
           icon: Icons.compare_arrows, title: '版本对照', subtitle: '按版本整理可游玩曲目'),
       '定数分布': const ButtonItem(

@@ -10,13 +10,17 @@ class SearchInteractionPreferences extends ChangeNotifier {
   SearchInteractionPreferences._();
   static final instance = SearchInteractionPreferences._();
 
-  SearchInteractionMode _mode = SearchInteractionMode.overlay;
+  SearchInteractionMode _mode = SearchInteractionMode.inline;
+  bool _showMatchInfo = false;
   bool _loaded = false;
   Future<void>? _loading;
   Future<void> _writes = Future<void>.value();
   SearchInteractionMode get mode => _mode;
   bool get usesOverlay => _mode == SearchInteractionMode.overlay;
   bool get loaded => _loaded;
+
+  /// 歌曲搜索结果是否显示匹配字段，默认关闭。
+  bool get showMatchInfo => _showMatchInfo;
 
   Future<void> load() {
     if (_loaded) return Future<void>.value();
@@ -37,15 +41,31 @@ class SearchInteractionPreferences extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       _mode =
-          prefs.getString(CacheKeyConstant.searchInteractionMode) == 'inline'
-              ? SearchInteractionMode.inline
-              : SearchInteractionMode.overlay;
+          prefs.getString(CacheKeyConstant.searchInteractionMode) == 'overlay'
+              ? SearchInteractionMode.overlay
+              : SearchInteractionMode.inline;
+      _showMatchInfo =
+          prefs.getBool(CacheKeyConstant.searchShowMatchInfo) ?? false;
     } catch (error) {
       debugPrint('读取搜索框交互偏好失败: $error');
     } finally {
       _loaded = true;
       notifyListeners();
     }
+  }
+
+  Future<void> setShowMatchInfo(bool value) async {
+    await load();
+    if (_showMatchInfo == value) return;
+    _showMatchInfo = value;
+    notifyListeners();
+    _writes = _writes.then((_) async {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(CacheKeyConstant.searchShowMatchInfo, value);
+    }).catchError((Object error) {
+      debugPrint('保存匹配字段显示偏好失败: $error');
+    });
+    await _writes;
   }
 
   Future<void> setMode(SearchInteractionMode mode) async {

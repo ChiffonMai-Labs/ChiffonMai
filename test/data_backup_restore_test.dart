@@ -306,7 +306,7 @@ void main() {
       await service.reloadAfterRestore();
       expect(
           NavigationPreferences.instance.barStyle, NavigationBarStyle.standard);
-      expect(SearchInteractionPreferences.instance.usesOverlay, isTrue);
+      expect(SearchInteractionPreferences.instance.usesOverlay, isFalse);
 
       expect(FavoriteFeaturesNotifier.titles, {'新收藏'},
           reason: '不重读的话，用户下一次点星标就会用旧集合整体覆盖恢复结果');

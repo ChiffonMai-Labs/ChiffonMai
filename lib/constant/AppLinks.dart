@@ -13,6 +13,9 @@ class AppLinks {
   static const String divingFishRegistrationUrl =
       'https://maimai.diving-fish.com/';
   static const String luoXueRegistrationUrl = 'https://maimai.lxns.net/';
+  static const String michaelwucocGitHubUrl = 'https://github.com/Michaelwucoc';
+  static const String awmcNetUrl = 'https://net.wmc.pub/';
+  static const String awmcNetSettingsUrl = 'https://net.wmc.pub/settings';
 
   /// AWMC 注册引导：群名按展示约定，跳转使用官方群分享链接。
   static const String awmcGroupOneName = 'AWMC 交流 1 群';
@@ -35,6 +38,14 @@ class AppLinks {
 
   /// 问卷。
   static const String surveyUrl = 'https://wj.qq.com/s2/26540572/7828/';
+
+  /// iOS 无签名 IPA 的下载页。
+  static const String iosDownloadUrl =
+      'https://wward.lanzn.com/chiffonmai-unsigned-ipa';
+
+  /// 最新的 GitHub Releases。
+  static const String latestReleaseUrl =
+      'https://github.com/ChiffonMai-Labs/ChiffonMai/releases/latest';
 
   /// 问题反馈。
   static const String feedbackUrl = 'https://wj.qq.com/s2/28237817/wmfe/';

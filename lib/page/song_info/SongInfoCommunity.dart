@@ -1117,9 +1117,25 @@ extension _SongInfoCommunity on _SongInfoPageState {
   }
 
   // 构建评论区域
+  /// 评论换页：回到评论区开头，开头正好在顶部栏下面。
+  void _changeCommentPage(int page) {
+    _update(() => _commentPage = page);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_songScrollController.hasClients) return;
+      final box =
+          _commentsSectionKey.currentContext?.findRenderObject() as RenderBox?;
+      if (box == null || !box.hasSize) return;
+      final top = MediaQuery.paddingOf(context).top + AppHeader.toolbarHeight + 8;
+      final position = _songScrollController.position;
+      final target = position.pixels + box.localToGlobal(Offset.zero).dy - top;
+      _songScrollController.jumpTo(target.clamp(0.0, position.maxScrollExtent));
+    });
+  }
+
   Widget _buildCommentsSection() {
     final brightness = Theme.of(context).brightness;
     return Container(
+      key: _commentsSectionKey,
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       // 2026-11：与新版白卡片一致（无投影、20 圆角）
@@ -1468,7 +1484,7 @@ extension _SongInfoCommunity on _SongInfoPageState {
                     _buildPageButton(
                       icon: Icons.chevron_left,
                       onTap: _commentPage > 0
-                          ? () => _update(() => _commentPage--)
+                          ? () => _changeCommentPage(_commentPage - 1)
                           : null,
                     ),
                     Container(
@@ -1490,7 +1506,7 @@ extension _SongInfoCommunity on _SongInfoPageState {
                     _buildPageButton(
                       icon: Icons.chevron_right,
                       onTap: _commentPage < _totalPages - 1
-                          ? () => _update(() => _commentPage++)
+                          ? () => _changeCommentPage(_commentPage + 1)
                           : null,
                     ),
                   ],

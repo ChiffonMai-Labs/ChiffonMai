@@ -1,9 +1,7 @@
 import 'dart:async';
 import 'ThunderBest50Export.dart';
 import 'dart:io';
-import 'package:my_first_flutter_app/utils/ExportUserInfoWidget.dart';
 import 'dart:typed_data';
-import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -14,8 +12,8 @@ import 'package:my_first_flutter_app/utils/ColorUtil.dart';
 import 'package:my_first_flutter_app/utils/StringUtil.dart';
 import 'package:my_first_flutter_app/utils/ImageEncodeUtil.dart';
 import 'package:my_first_flutter_app/widgets/B50GameCardWidget.dart';
-import 'package:my_first_flutter_app/widgets/MetaRowWidget.dart';
 import 'package:my_first_flutter_app/widgets/ExportStatsUi.dart';
+import '../../utils/MusicDataIndex.dart';
 
 class PersonalizedB50ConvertToImg {
   // 全局Key，用于获取widget的渲染对象
@@ -34,7 +32,8 @@ class PersonalizedB50ConvertToImg {
       String? warningText,
       String? sortLabel,
       bool thunderMode = false,
-      bool thunderVertical = true}) async {
+      bool thunderVertical = true,
+      ExportImageTheme theme = ExportImageTheme.light}) async {
     OverlayEntry? overlayEntry;
     try {
       debugPrint('=== STARTING PERSONALIZED B50 IMAGE CONVERSION ===');
@@ -55,7 +54,8 @@ class PersonalizedB50ConvertToImg {
         key: globalKey,
         child: await _buildExportImageWidget(context, title, personalizedSongs,
             maimaiMusicData, warningText, sortLabel,
-            thunderMode: thunderMode, thunderVertical: thunderVertical),
+            thunderMode: thunderMode, thunderVertical: thunderVertical,
+            theme: theme),
       );
 
       final exportWidth = thunderMode
@@ -103,50 +103,10 @@ class PersonalizedB50ConvertToImg {
 
       // 获取图片数据（异步执行，避免阻塞主线程）
       debugPrint('Starting image capture...');
-      ui.Image image;
-      try {
-        // 尝试直接捕获图片，使用更高的pixelRatio提高清晰度
-        image = await boundary.toImage(
-            pixelRatio: ImageEncodeUtil.safeCapturePixelRatio(
-                boundary.size.width, boundary.size.height));
-        debugPrint('Image captured successfully');
-      } catch (e) {
-        debugPrint('First capture failed: $e');
-        // 重试一次
-        await Future.delayed(Duration(milliseconds: 200));
-        image = await boundary.toImage(
-            pixelRatio: ImageEncodeUtil.safeCapturePixelRatio(
-                boundary.size.width, boundary.size.height));
-        debugPrint('Image captured on retry');
-      }
-
-      ByteData? byteData =
-          await image.toByteData(format: ui.ImageByteFormat.png);
-      if (byteData == null) {
-        debugPrint('Error: ByteData is null');
-        overlayEntry.remove();
-        image.dispose();
-        return null;
-      }
-
-      Uint8List pngBytes = byteData.buffer
-          .asUint8List(byteData.offsetInBytes, byteData.lengthInBytes);
-      // 立刻释放 ui.Image：它本身也是上百 MB 的原生位图，而下面的 JPEG
-      // 转码还要再分配上百 MB（decodePng + copyResize）。等转码完再释放，
-      // 峰值内存会白白多一份 —— 低内存机就是这样被 OOM 掉的。
-      // 转码只用得到 pngBytes，用不到这个 image。
-      image.dispose();
-      // 根据质量参数决定最终格式
-      Uint8List finalBytes;
-      String extension;
-      if (jpegQuality != null) {
-        finalBytes = await ImageEncodeUtil.pngToJpegAsync(pngBytes,
-            quality: jpegQuality);
-        extension = 'jpg';
-      } else {
-        finalBytes = pngBytes;
-        extension = 'png';
-      }
+      final encoded =
+          await ImageEncodeUtil.encodeBoundary(boundary, jpegQuality: jpegQuality);
+      final Uint8List finalBytes = encoded.bytes;
+      final String extension = encoded.extension;
 
       // 立即移除Overlay，避免占用资源
       overlayEntry.remove();
@@ -264,6 +224,7 @@ class PersonalizedB50ConvertToImg {
     String? sortLabel, {
     bool thunderMode = false,
     bool thunderVertical = true,
+    ExportImageTheme theme = ExportImageTheme.light,
   }) =>
       _buildExportImageWidget(
         context,
@@ -274,6 +235,7 @@ class PersonalizedB50ConvertToImg {
         sortLabel,
         thunderMode: thunderMode,
         thunderVertical: thunderVertical,
+        theme: theme,
       );
 
   // 构建用于导出的Widget
@@ -285,7 +247,8 @@ class PersonalizedB50ConvertToImg {
       String? warningText,
       String? sortLabel,
       {bool thunderMode = false,
-      bool thunderVertical = true}) async {
+      bool thunderVertical = true,
+      ExportImageTheme theme = ExportImageTheme.light}) async {
     if (thunderMode) {
       final sum = personalizedSongs.fold<int>(
           0, (sum, song) => sum + ((song['ra'] as num?)?.toInt() ?? 0));
@@ -306,6 +269,7 @@ class PersonalizedB50ConvertToImg {
               ? 6
               : 5;
       return ThunderBest50Export.build(
+        theme: theme,
         title: title,
         vertical: thunderVertical,
         count: personalizedSongs.length,
@@ -322,16 +286,11 @@ class PersonalizedB50ConvertToImg {
       );
     }
     double containerWidth = thunderMode && !thunderVertical ? 17000 : 1700;
+    final c = ExportPalette.forTheme(theme);
 
-    return Container(
+    return ExportPage(
+      theme: theme,
       width: containerWidth,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        image: DecorationImage(
-          image: AssetImage('assets/bg/b50_bg.png'),
-          fit: BoxFit.cover,
-        ),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -340,22 +299,7 @@ class PersonalizedB50ConvertToImg {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // 用户信息区域 + metaRow 横排：严格参考 Best50ConvertToImgService。
-                // 姓名框 1150 + gap 16 + metaRow 494 = 1660 = 1700 容器 - 20*2 padding。
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    ExportUserInfoWidget.buildUserInfoSection(context),
-                    const SizedBox(width: 16),
-                    SizedBox(
-                      height: 215,
-                      child: Align(
-                        alignment: Alignment.center,
-                        child: MetaRowWidget(width: 494, height: 215),
-                      ),
-                    ),
-                  ],
-                ),
+                ExportPosterHeader(title: title),
                 SizedBox(height: 16.0),
 
                 // 标题区域
@@ -367,18 +311,17 @@ class PersonalizedB50ConvertToImg {
                   Center(
                     child: Container(
                       decoration: BoxDecoration(
-                        color: Colors.white,
-                        border: Border.all(color: Colors.black, width: 2.0),
-                        borderRadius: BorderRadius.circular(8.0),
+                        color: c.panel,
+                        borderRadius: BorderRadius.circular(999),
                       ),
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 20.0, vertical: 8.0),
+                          horizontal: 24.0, vertical: 8.0),
                       child: Text(
                         '当前排序：$sortLabel',
-                        style: const TextStyle(
-                          color: Colors.black,
+                        style: TextStyle(
+                          color: c.ink,
                           fontSize: 28.0,
-                          fontWeight: FontWeight.bold,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ),
@@ -391,8 +334,8 @@ class PersonalizedB50ConvertToImg {
                   Text(
                     warningText,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Color(0xFFD32F2F),
+                    style: TextStyle(
+                      color: c.negative,
                       fontSize: 30.0,
                       fontWeight: FontWeight.bold,
                     ),
@@ -409,7 +352,7 @@ class PersonalizedB50ConvertToImg {
                 _buildDataCardGrid(
                     context,
                     personalizedSongs,
-                    thunderMode ? 1.25 : 1.85,
+                    thunderMode ? 1.25 : 1.9,
                     thunderMode ? (thunderVertical ? 1 : 50) : 5,
                     maimaiMusicData),
               ],
@@ -421,29 +364,8 @@ class PersonalizedB50ConvertToImg {
   }
 
   // 构建区域标题
-  static Widget _buildSectionTitle(BuildContext context, String title) {
-    const double containerWidth = 1200.0;
-    double fontSize = containerWidth * 0.03; // 约36px
-
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.black, width: 2.0),
-        borderRadius: BorderRadius.circular(8.0),
-        color: Colors.grey[200],
-      ),
-      padding: EdgeInsets.all(14.0),
-      child: Center(
-        child: Text(
-          title,
-          style: TextStyle(
-            fontSize: fontSize,
-            fontWeight: FontWeight.bold,
-            color: Colors.black,
-          ),
-        ),
-      ),
-    );
-  }
+  static Widget _buildSectionTitle(BuildContext context, String title) =>
+      ExportSectionTitle(title);
 
   // 构建统计区域
   static Widget _buildStatsSection(
@@ -613,8 +535,7 @@ class PersonalizedB50ConvertToImg {
 
       dynamic songData;
       try {
-        songData = maimaiMusicData
-            .firstWhere((song) => song['id'] == songId.toString());
+        songData = maimaiMusicData[MusicDataIndex.indexOf(maimaiMusicData, songId)];
       } catch (_) {
         return 0;
       }
@@ -644,8 +565,7 @@ class PersonalizedB50ConvertToImg {
 
       dynamic songData;
       try {
-        songData = maimaiMusicData
-            .firstWhere((item) => item['id'] == songId.toString());
+        songData = maimaiMusicData[MusicDataIndex.indexOf(maimaiMusicData, songId)];
       } catch (e) {
         return 0.0;
       }

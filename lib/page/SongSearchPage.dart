@@ -60,6 +60,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
   bool _searchByTitleOnly = false;
 
   // 分页相关
+  final ScrollController _scrollController = ScrollController();
   int _currentPage = 1;
   int _pageSize = 15;
   int _totalItems = 0;
@@ -344,6 +345,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
 
   @override
   void dispose() {
+    _scrollController.dispose();
     SearchInteractionPreferences.instance
         .removeListener(_onSearchInteractionChanged);
     _inlineSearchFocus.removeListener(_onSearchInteractionChanged);
@@ -460,10 +462,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                     ],
                   ),
                 ),
-                Icon(
-                  _showDifficultyFilter ? Icons.expand_less : Icons.expand_more,
-                  size: screenWidth * 0.04,
-                ),
+                _filterArrow(_showDifficultyFilter, screenWidth),
               ],
             ),
           ),
@@ -878,6 +877,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
       _currentPage = page;
       _updateCurrentPageResults();
     });
+    if (_scrollController.hasClients) _scrollController.jumpTo(0);
   }
 
   // 防抖搜索
@@ -1018,15 +1018,22 @@ class _SongSearchPageState extends State<SongSearchPage> {
         onSubmitted: _submitSearch,
       );
 
+  Widget _filterArrow(bool open, double screenWidth) => AnimatedRotation(
+        turns: open ? 0.5 : 0,
+        duration: AppDesignTokens.motion(context, AppDesignTokens.fastMotion),
+        curve: Curves.easeOut,
+        child: Icon(Icons.expand_more, size: screenWidth * 0.04),
+      );
+
   Widget _buildFilterExpansion({
     required bool visible,
     required Widget child,
   }) {
     return AnimatedSize(
-      duration: const Duration(milliseconds: 240),
-      curve: Curves.easeInOutCubic,
+      duration: AppDesignTokens.motion(context, AppDesignTokens.mediumMotion),
+      curve: AppDesignTokens.emphasizedCurve,
       alignment: Alignment.topCenter,
-      child: visible ? child : const SizedBox.shrink(),
+      child: visible ? child : const SizedBox(width: double.infinity),
     );
   }
 
@@ -1090,99 +1097,161 @@ class _SongSearchPageState extends State<SongSearchPage> {
     _performFilteredSearch();
   }
 
+  /// 按难度组合：每个难度一行，左边是带难度色的标签，右边填定数。
   Widget _buildDifficultyConstantFields() {
     final scheme = Theme.of(context).colorScheme;
     final utageActive = _difficultyConstantFilter.hasUtageInput;
     final standardActive = _difficultyConstantFilter.hasStandardInput;
+    final hintStyle = TextStyle(
+        fontSize: 12, height: 1.4, color: scheme.onSurfaceVariant);
+    final motion = AppDesignTokens.motion(context, AppDesignTokens.fastMotion);
+
+    Widget row(int index) {
+      final enabled = index == ChartDifficulty.utage
+          ? !standardActive
+          : !utageActive;
+      final controller = _difficultyLevelControllers[index]!;
+      final error = _difficultyConstantFilter.errors[index];
+      final color = index == ChartDifficulty.utage
+          ? AppColors.utageAccent(brightness: Theme.of(context).brightness)
+          : ColorUtil.getCardColor(index);
+      final foreground =
+          ThemeData.estimateBrightnessForColor(color) == Brightness.dark
+              ? Colors.white
+              : Colors.black87;
+      final label = ChartDifficulty.labelOf(index);
+      return Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            AnimatedOpacity(
+              duration: motion,
+              opacity: enabled ? 1 : 0.42,
+              child: AnimatedContainer(
+                duration: motion,
+                height: 46,
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  color: AppSurfaces.inset(context),
+                  borderRadius:
+                      BorderRadius.circular(AppDesignTokens.radiusSmall),
+                  border: Border.all(
+                    color: error != null
+                        ? scheme.error
+                        : controller.text.isNotEmpty
+                            ? color
+                            : Colors.transparent,
+                    width: 1.5,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 92,
+                      alignment: Alignment.center,
+                      color: color,
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          label,
+                          maxLines: 1,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w800,
+                            color: foreground,
+                          ),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: TextField(
+                        key: ValueKey('difficulty-constant-$index'),
+                        controller: controller,
+                        enabled: enabled,
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true, signed: true),
+                        textInputAction: TextInputAction.search,
+                        scrollPadding: EdgeInsets.fromLTRB(24, 24, 24,
+                            MediaQuery.viewInsetsOf(context).bottom + 24),
+                        onChanged: (_) => _onDifficultyConstantChanged(),
+                        onSubmitted: (_) => _performFilteredSearch(),
+                        style: AppTheme.number(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w600,
+                          color: scheme.onSurface,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: '如 13.7 或 13.4-14',
+                          isDense: true,
+                          filled: false,
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          disabledBorder: InputBorder.none,
+                          contentPadding:
+                              const EdgeInsets.symmetric(horizontal: 12),
+                        ),
+                      ),
+                    ),
+                    if (controller.text.isNotEmpty)
+                      IconButton(
+                        tooltip: '清空$label定数',
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () {
+                          controller.clear();
+                          _onDifficultyConstantChanged();
+                        },
+                        icon: const Icon(Icons.close_rounded, size: 18),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            AnimatedSize(
+              duration: motion,
+              alignment: Alignment.topCenter,
+              child: error == null
+                  ? const SizedBox(width: double.infinity)
+                  : Padding(
+                      padding: const EdgeInsets.fromLTRB(4, 4, 4, 0),
+                      child: Text(error,
+                          style: TextStyle(
+                              fontSize: 12, height: 1.35, color: scheme.error)),
+                    ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('填写的普通难度须全部满足，留空不限制。支持单值 13.7 或闭区间 13.4-14。',
-            style: Theme.of(context)
-                .textTheme
-                .bodySmall
-                ?.copyWith(color: scheme.onSurfaceVariant)),
-        Text('与上方「难度」及其它筛选条件取交集。',
-            style: Theme.of(context)
-                .textTheme
-                .bodySmall
-                ?.copyWith(color: scheme.onSurfaceVariant)),
-        const SizedBox(height: 8),
-        if (utageActive || standardActive) ...[
-          Text(
-              utageActive
-                  ? '已填写 UTAGE，普通难度暂不可用；清空后恢复。'
-                  : '已填写普通难度，UTAGE 暂不可用；全部清空后恢复。',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(color: scheme.primary)),
-          const SizedBox(height: 12),
+        Text('填写的难度须全部满足，留空不限制。与上方「难度」及其它筛选条件取交集。',
+            style: hintStyle),
+        for (final index in ChartDifficulty.indices)
+          if (index != ChartDifficulty.utage) row(index),
+        if (ChartDifficulty.indices.contains(ChartDifficulty.utage)) ...[
+          const SizedBox(height: 6),
+          AnimatedSize(
+            duration: motion,
+            alignment: Alignment.topCenter,
+            child: utageActive || standardActive
+                ? Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      utageActive
+                          ? '已填写 UTAGE，普通难度暂不可用；清空后恢复。'
+                          : '已填写普通难度，UTAGE 暂不可用；全部清空后恢复。',
+                      style: hintStyle.copyWith(color: scheme.primary),
+                    ),
+                  )
+                : const SizedBox(width: double.infinity),
+          ),
+          row(ChartDifficulty.utage),
         ],
-        LayoutBuilder(builder: (context, constraints) {
-          final columns = constraints.maxWidth >= 340 ? 2 : 1;
-          final width = (constraints.maxWidth - (columns - 1) * 12) / columns;
-          return Wrap(
-            spacing: 12,
-            runSpacing: 16,
-            children: [
-              for (final index in ChartDifficulty.indices)
-                SizedBox(
-                  width: width,
-                  child: Builder(builder: (context) {
-                    final enabled = index == ChartDifficulty.utage
-                        ? !standardActive
-                        : !utageActive;
-                    final controller = _difficultyLevelControllers[index]!;
-                    final color = index == ChartDifficulty.utage
-                        ? AppColors.utageAccent(
-                            brightness: Theme.of(context).brightness)
-                        : ColorUtil.getCardColor(index);
-                    final border = OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-                      borderSide: BorderSide(color: scheme.outlineVariant),
-                    );
-                    return TextField(
-                      key: ValueKey('difficulty-constant-$index'),
-                      controller: controller,
-                      enabled: enabled,
-                      keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true, signed: true),
-                      textInputAction: TextInputAction.search,
-                      scrollPadding: EdgeInsets.fromLTRB(24, 24, 24,
-                          MediaQuery.viewInsetsOf(context).bottom + 24),
-                      onChanged: (_) => _onDifficultyConstantChanged(),
-                      onSubmitted: (_) => _performFilteredSearch(),
-                      decoration: InputDecoration(
-                        labelText: ChartDifficulty.labelOf(index),
-                        labelStyle: TextStyle(
-                            color: enabled ? color : scheme.onSurfaceVariant),
-                        hintText: '如 13.4-14',
-                        errorText: _difficultyConstantFilter.errors[index],
-                        errorMaxLines: 3,
-                        border: border,
-                        enabledBorder: border,
-                        disabledBorder: border,
-                        filled: !enabled,
-                        fillColor: scheme.surfaceContainerLow,
-                        suffixIcon: controller.text.isEmpty
-                            ? null
-                            : IconButton(
-                                tooltip:
-                                    '清空${ChartDifficulty.labelOf(index)}定数',
-                                onPressed: () {
-                                  controller.clear();
-                                  _onDifficultyConstantChanged();
-                                },
-                                icon: const Icon(Icons.clear, size: 18),
-                              ),
-                      ),
-                    );
-                  }),
-                ),
-            ],
-          );
-        }),
       ],
     );
   }
@@ -1246,10 +1315,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                     ],
                   ),
                 ),
-                Icon(
-                  _showLevelFilter ? Icons.expand_less : Icons.expand_more,
-                  size: screenWidth * 0.04,
-                ),
+                _filterArrow(_showLevelFilter, screenWidth),
               ],
             ),
           ),
@@ -1281,10 +1347,18 @@ class _SongSearchPageState extends State<SongSearchPage> {
                       icon: const Icon(Icons.clear, size: 16),
                       label: const Text('清空定数'),
                     )),
-                if (_constantFilterMode == _ConstantFilterMode.perDifficulty)
-                  _buildDifficultyConstantFields()
-                else
-                  Row(
+                AnimatedSize(
+                  duration: AppDesignTokens.motion(
+                      context, AppDesignTokens.mediumMotion),
+                  curve: AppDesignTokens.emphasizedCurve,
+                  alignment: Alignment.topCenter,
+                  child: FadeSwitcher(
+                  value: _constantFilterMode,
+                  sizeFollowsCurrent: true,
+                  alignment: Alignment.topCenter,
+                  child: _constantFilterMode == _ConstantFilterMode.perDifficulty
+                  ? _buildDifficultyConstantFields()
+                  : Row(
                     children: [
                       Expanded(
                         child: TextField(
@@ -1323,6 +1397,8 @@ class _SongSearchPageState extends State<SongSearchPage> {
                       ),
                     ],
                   ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -1386,10 +1462,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                     ],
                   ),
                 ),
-                Icon(
-                  _showNotesFilter ? Icons.expand_less : Icons.expand_more,
-                  size: screenWidth * 0.04,
-                ),
+                _filterArrow(_showNotesFilter, screenWidth),
               ],
             ),
           ),
@@ -1498,10 +1571,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                     ],
                   ),
                 ),
-                Icon(
-                  _showBpmFilter ? Icons.expand_less : Icons.expand_more,
-                  size: screenWidth * 0.04,
-                ),
+                _filterArrow(_showBpmFilter, screenWidth),
               ],
             ),
           ),
@@ -1607,10 +1677,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                     ],
                   ),
                 ),
-                Icon(
-                  _showVersionFilter ? Icons.expand_less : Icons.expand_more,
-                  size: screenWidth * 0.04,
-                ),
+                _filterArrow(_showVersionFilter, screenWidth),
               ],
             ),
           ),
@@ -1700,10 +1767,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                     ],
                   ),
                 ),
-                Icon(
-                  _showGenreFilter ? Icons.expand_less : Icons.expand_more,
-                  size: screenWidth * 0.04,
-                ),
+                _filterArrow(_showGenreFilter, screenWidth),
               ],
             ),
           ),
@@ -1794,10 +1858,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                     ],
                   ),
                 ),
-                Icon(
-                  _showTagFilter ? Icons.expand_less : Icons.expand_more,
-                  size: screenWidth * 0.04,
-                ),
+                _filterArrow(_showTagFilter, screenWidth),
               ],
             ),
           ),
@@ -2141,7 +2202,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
   @override
   Widget build(BuildContext context) {
     return BackgroundPageScaffold(
-      title: widget.extraOnly ? '非国服乐曲查询' : '歌曲搜索',
+      title: widget.extraOnly ? '非国服乐曲查询' : '乐曲查询',
       resizeToAvoidBottomInset: false,
       child: GestureDetector(
         behavior: HitTestBehavior.translucent,
@@ -2166,18 +2227,34 @@ class _SongSearchPageState extends State<SongSearchPage> {
         const SizedBox(height: 12),
         Expanded(
           child: SingleChildScrollView(
+            controller: _scrollController,
             padding: EdgeInsets.fromLTRB(gutter, 0, gutter,
                 gutter + bottomInset + media.viewInsets.bottom),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (_activeFilter != null && _filterShown) ...[
-                  AppCard(
-                    padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
-                    child: _buildActiveFilter(),
-                  ),
-                  const SizedBox(height: AppDesignTokens.cardGap),
-                ],
+                // 展开、收起和切换筛选都带过渡。
+                AnimatedSize(
+                  duration: AppDesignTokens.motion(
+                      context, AppDesignTokens.mediumMotion),
+                  curve: AppDesignTokens.emphasizedCurve,
+                  alignment: Alignment.topCenter,
+                  child: _activeFilter != null && _filterShown
+                      ? Padding(
+                          padding: const EdgeInsets.only(
+                              bottom: AppDesignTokens.cardGap),
+                          child: AppCard(
+                            padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
+                            child: FadeSwitcher(
+                              value: _activeFilter!,
+                              sizeFollowsCurrent: true,
+                              alignment: Alignment.topCenter,
+                              child: _buildActiveFilter(),
+                            ),
+                          ),
+                        )
+                      : const SizedBox(width: double.infinity),
+                ),
                 _buildInlineSearchHistory(),
                 _buildResults(),
               ],
@@ -2222,29 +2299,39 @@ class _SongSearchPageState extends State<SongSearchPage> {
               button: true,
               selected: selected,
               label: '等级 $level',
+              onTap: () => _toggleQuickLevel(level),
               excludeSemantics: true,
-              child: Material(
-                color: selected ? selectedBg : AppSurfaces.inset(context),
-                shape: const StadiumBorder(),
-                clipBehavior: Clip.antiAlias,
-                child: InkWell(
-                  splashFactory: NoSplash.splashFactory,
-                  highlightColor: Colors.transparent,
+              child: PressScale(
+                scale: 0.92,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
                   onTap: () => _toggleQuickLevel(level),
-                  child: Container(
+                  child: AnimatedContainer(
+                    duration: AppDesignTokens.motion(
+                        context, AppDesignTokens.fastMotion),
+                    curve: Curves.easeOut,
                     constraints:
                         const BoxConstraints(minWidth: 48, minHeight: 36),
                     padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: selected ? selectedBg : AppSurfaces.inset(context),
+                      borderRadius:
+                          BorderRadius.circular(AppDesignTokens.radiusPill),
+                    ),
                     child: Center(
                       widthFactor: 1,
                       heightFactor: 1,
-                      child: Text(level,
-                          style: AppTheme.number(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                              color: selected
-                                  ? scheme.onInverseSurface
-                                  : scheme.onSurface)),
+                      child: AnimatedDefaultTextStyle(
+                        duration: AppDesignTokens.motion(
+                            context, AppDesignTokens.fastMotion),
+                        style: AppTheme.number(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: selected
+                                ? scheme.onInverseSurface
+                                : scheme.onSurface),
+                        child: Text(level),
+                      ),
                     ),
                   ),
                 ),
@@ -2269,6 +2356,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
           child: FilterPill(
             label: label,
             value: value,
+            expanded: _activeFilter == key && _filterShown,
             onTap: () => _toggleFilter(key),
           ),
         );
@@ -2462,7 +2550,9 @@ class _SongSearchPageState extends State<SongSearchPage> {
             : AppColors.difficultyBadge(1, brightness));
 
     // 生成匹配信息
-    List<Map<String, String>> matchInfo = _getMatchInfo(song);
+    final showMatchInfo = SearchInteractionPreferences.instance.showMatchInfo;
+    List<Map<String, String>> matchInfo =
+        showMatchInfo ? _getMatchInfo(song) : const [];
 
     // 获取标签信息
     List<String> tagInfoList = _getTagInfoForSong(song);
@@ -2541,7 +2631,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                   // 匹配信息
                   for (final line in _mergeMatchInfo(matchInfo))
                     Text(line, style: highlight),
-                  if (tagInfoList.isNotEmpty)
+                  if (showMatchInfo && tagInfoList.isNotEmpty)
                     Text(
                       tagInfoList
                           .map((info) => info.replaceFirst('：', ' '))

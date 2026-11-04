@@ -72,6 +72,15 @@ class LuoXueToDivingFishUtil {
       return result;
     }
 
+    // 先建索引：几百首条件曲目逐个遍历全曲库并解码，会卡住主线程。
+    // putIfAbsent 保证同名同类型时仍取曲库里靠前的那首。
+    final songsByTitleAndType = <String, Song>{};
+    for (final song in songs) {
+      final key =
+          '${decodeUnicode(song.title)}|${decodeUnicode(song.type).toLowerCase()}';
+      songsByTitleAndType.putIfAbsent(key, () => song);
+    }
+
     // 遍历 required 列表
     for (final requiredItem in collection.required!) {
       // 检查是否有 songs 列表
@@ -79,39 +88,15 @@ class LuoXueToDivingFishUtil {
         continue;
       }
 
-      // 遍历 songs 列表
+      // 根据 title 和 type 查找对应的歌曲：
+      // Collections 中的 standard 对应缓存中的 SD，dx 对应 DX
       for (final requiredSong in requiredItem.songs!) {
-        Song? matchedSong;
-        try {
-          // 根据 title 和 type 查找对应的歌曲
-          matchedSong = songs.firstWhere(
-            (song) {
-              final decodedTitle = decodeUnicode(song.title);
-              final decodedType = decodeUnicode(song.type).toLowerCase();
-              final targetTitle = requiredSong.title;
-              final targetType = requiredSong.type.toLowerCase();
-
-              // 处理类型匹配：
-              // - Collections中的 standard 对应 缓存中的 SD
-              // - Collections中的 dx 对应 缓存中的 DX
-              bool typeMatch = false;
-              if (targetType == 'standard' && decodedType == 'sd') {
-                typeMatch = true;
-              } else if (targetType == 'dx' && decodedType == 'dx') {
-                typeMatch = true;
-              } else if (targetType == decodedType) {
-                typeMatch = true;
-              }
-
-              return decodedTitle == targetTitle && typeMatch;
-            },
-          );
-        } catch (e) {
-          matchedSong = null;
-        }
-
-        // 添加到结果映射中
-        result[requiredSong] = matchedSong;
+        final targetType = requiredSong.type.toLowerCase();
+        final title = requiredSong.title;
+        result[requiredSong] = (targetType == 'standard'
+                ? songsByTitleAndType['$title|sd']
+                : null) ??
+            songsByTitleAndType['$title|$targetType'];
       }
     }
 

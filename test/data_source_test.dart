@@ -11,7 +11,7 @@ import 'package:my_first_flutter_app/widgets/DataSourceTag.dart';
 import 'package:my_first_flutter_app/widgets/DivingFishAccountSection.dart'
     show DivingFishQqState, resolveDivingFishQqState;
 
-/// AWMC NET.（net.wmc.pub）接入相关：数据源枚举 + records 归一化。
+/// AWMC NET（net.wmc.pub）接入相关：数据源枚举 + records 归一化。
 ///
 /// 这些是纯函数，不需要设备就能验证，所以覆盖掉——它们正是最容易悄悄错的地方：
 /// 归一化少过滤一条未游玩谱面，单曲排行榜就会多传一条 0% 成绩；
@@ -215,7 +215,7 @@ void main() {
     });
 
     test('超过纹理上限时按边长压下 pixelRatio', () {
-      // 高 10000 × 3.0 = 30000 > 16000 → 压到 1.6
+      // 高 10000 × 3.0 = 30000 > 8192 → 压到约 0.82
       final r = ImageEncodeUtil.safeCapturePixelRatio(1200, 10000);
       expect(r, lessThan(3.0));
       expect(1200 * r, lessThanOrEqualTo(kMaxCaptureTextureSize));

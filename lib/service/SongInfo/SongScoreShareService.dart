@@ -1,7 +1,6 @@
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'dart:async';
 import 'dart:io';
-import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -15,6 +14,7 @@ import 'package:my_first_flutter_app/utils/ColorUtil.dart';
 import 'package:my_first_flutter_app/utils/ImageEncodeUtil.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../widgets/LxnsAssetImage.dart';
+import 'package:my_first_flutter_app/widgets/ExportStatsUi.dart';
 
 /// 徽章颜色数据
 class _BadgeColors {
@@ -47,6 +47,7 @@ class SongScoreShareService {
     required String fs,
     required String rawRate,
     int? jpegQuality,
+    ExportImageTheme theme = ExportImageTheme.light,
   }) async {
     OverlayEntry? overlayEntry;
     try {
@@ -72,6 +73,7 @@ class SongScoreShareService {
       Widget imageWidget = RepaintBoundary(
         key: globalKey,
         child: _buildShareCard(
+      theme: theme,
           context: context,
           songId: songId,
           songTitle: songTitle,
@@ -121,49 +123,11 @@ class SongScoreShareService {
         return null;
       }
 
-      ui.Image image;
-      try {
-        image = await boundary.toImage(
-            pixelRatio: ImageEncodeUtil.safeCapturePixelRatio(
-                boundary.size.width, boundary.size.height));
-      } catch (e) {
-        debugPrint('SongScoreShare: First capture failed: $e');
-        await Future.delayed(Duration(milliseconds: 200));
-        image = await boundary.toImage(
-            pixelRatio: ImageEncodeUtil.safeCapturePixelRatio(
-                boundary.size.width, boundary.size.height));
-      }
-
-      ByteData? byteData =
-          await image.toByteData(format: ui.ImageByteFormat.png);
-      if (byteData == null) {
-        debugPrint('SongScoreShare: ByteData is null');
-        overlayEntry.remove();
-        image.dispose();
-        return null;
-      }
-
-      Uint8List pngBytes = byteData.buffer
-          .asUint8List(byteData.offsetInBytes, byteData.lengthInBytes);
-      // 立刻释放 ui.Image：它本身也是上百 MB 的原生位图，而下面的 JPEG
-      // 转码还要再分配上百 MB（decodePng + copyResize）。等转码完再释放，
-      // 峰值内存会白白多一份 —— 低内存机就是这样被 OOM 掉的。
-      // 转码只用得到 pngBytes，用不到这个 image。
-      image.dispose();
-
+      final encoded =
+          await ImageEncodeUtil.encodeBoundary(boundary, jpegQuality: jpegQuality);
+      final Uint8List finalBytes = encoded.bytes;
+      final String extension = encoded.extension;
       overlayEntry.remove();
-
-      // 根据质量参数决定最终格式
-      Uint8List finalBytes;
-      String extension;
-      if (jpegQuality != null) {
-        finalBytes = await ImageEncodeUtil.pngToJpegAsync(pngBytes,
-            quality: jpegQuality);
-        extension = 'jpg';
-      } else {
-        finalBytes = pngBytes;
-        extension = 'png';
-      }
 
       // 保存图片
       return await _saveImage(finalBytes, songTitle, status.isGranted,
@@ -194,10 +158,12 @@ class SongScoreShareService {
     required String fc,
     required String fs,
     required String rawRate,
+    ExportImageTheme theme = ExportImageTheme.light,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     final avatarId = prefs.getInt('selectedAvatarId') ?? 1;
     return _buildShareCard(
+      theme: theme,
       context: context,
       songId: songId,
       songTitle: songTitle,
@@ -245,6 +211,7 @@ class SongScoreShareService {
     required String userNickname,
     required int totalRating,
     String? avatarUrl,
+    ExportImageTheme theme = ExportImageTheme.light,
   }) {
     // UTAGE 宴会場检测（6位数ID的歌曲使用粉色主题）
     final bool isUtage = songId.length == 6;
@@ -252,10 +219,6 @@ class SongScoreShareService {
     // 获取主题色（与 SongInfoPage 保持一致）
     final accentColor =
         isUtage ? Color(0xFFFF69B4) : ColorUtil.getCardColor(levelIndex);
-    final bgGradientStart =
-        isUtage ? Color(0xFFFFF0F5) : _getBgStartColor(levelIndex);
-    final bgGradientEnd =
-        isUtage ? Color(0xFFFFD6E8) : _getBgEndColor(levelIndex);
 
     // 达成率百分比
     final achievementPercent = achievements;
@@ -281,281 +244,242 @@ class SongScoreShareService {
     final fcColors = _getBadgeColors(fc);
     final fsColors = _getBadgeColors(fs);
 
-    return Container(
+    final hasUser = userNickname.isNotEmpty || totalRating > 0;
+    final c = ExportPalette.forTheme(theme);
+    // 连击、同步的前景色是配浅色底的，深色下提亮一些。
+    Color onPanel(Color fg) =>
+        c.isLight ? fg : Color.lerp(fg, Colors.white, 0.35)!;
+    final heroForeground = Colors.white;
+    Widget heroChip(String text) => Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.2),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Text(text,
+              style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  color: heroForeground)),
+        );
+
+    return ExportPage(
+      theme: theme,
       width: 1200,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [bgGradientStart, bgGradientEnd],
-        ),
-      ),
-      child: Stack(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // 装饰性背景元素
-          ..._buildDecorativeElements(accentColor),
-
-          // 主内容
-          Padding(
-            padding: const EdgeInsets.all(48),
-            child: Column(
+          // 头部：难度色渐变 + 曲绘 + 歌曲信息
+          ExportHeroSurface(
+            colors: [Color.lerp(accentColor, Colors.black, 0.5)!, accentColor],
+            radius: 0,
+            padding: const EdgeInsets.fromLTRB(44, 48, 44, 44),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // 顶部：封面 + 歌曲信息
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // 曲绘封面
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(20),
-                      child: Container(
-                        width: 260,
-                        height: 260,
-                        decoration: BoxDecoration(
-                          border: Border.all(color: accentColor, width: 4),
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                                color: accentColor.withAlpha(80),
-                                blurRadius: 20,
-                                offset: Offset(0, 8)),
-                          ],
-                        ),
-                        child: CoverUtil.buildCoverWidgetWithContext(
-                            context, songId, 260),
-                      ),
-                    ),
-                    SizedBox(width: 40),
-
-                    // 歌曲信息
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                Container(
+                  width: 280,
+                  height: 280,
+                  clipBehavior: Clip.antiAlias,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    border: Border.all(color: Colors.white, width: 7),
+                    borderRadius: BorderRadius.circular(32),
+                  ),
+                  child: CoverUtil.buildCoverWidgetWithContext(
+                      context, songId, 280),
+                ),
+                const SizedBox(width: 36),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(songTitle,
+                          style: TextStyle(
+                              fontSize: 52,
+                              fontWeight: FontWeight.w900,
+                              color: heroForeground,
+                              height: 1.18),
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis),
+                      const SizedBox(height: 10),
+                      Text(artist,
+                          style: TextStyle(
+                              fontSize: 28,
+                              color: Colors.white.withValues(alpha: 0.88),
+                              fontWeight: FontWeight.w500)),
+                      const SizedBox(height: 20),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
                         children: [
-                          SizedBox(height: 16),
-                          // 歌曲标题
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                child: Text(songTitle,
-                                    style: TextStyle(
-                                        fontSize: 48,
-                                        fontWeight: FontWeight.bold,
-                                        color: Color(0xFF2C3E50),
-                                        height: 1.2),
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis),
-                              ),
-                            ],
-                          ),
-                          SizedBox(height: 12),
-                          // 艺术家
-                          Text(artist,
-                              style: TextStyle(
-                                  fontSize: 28,
-                                  color: Color(0xFF546161).withAlpha(200),
-                                  fontWeight: FontWeight.w500)),
-                          SizedBox(height: 16),
-                          // 歌曲元信息标签行（ST/DX/UTAGE 类型放在第一个）
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: [
-                              _buildInfoChip(
-                                  isUtage ? ChartDifficulty.utageLabel : typeLabel,
-                                  isUtage
-                                      ? Color(0xFFFF6B8B)
-                                      : (songType == 'SD'
-                                          ? Colors.blue
-                                          : Colors.orange),
-                                  filled: true),
-                              _buildInfoChip('$diffName $levelStr', accentColor,
-                                  filled: true),
-                              _buildInfoChip(
-                                  '定数 ${ds.toStringAsFixed(1)}', accentColor),
-                              _buildInfoChip('BPM $bpm', Color(0xFF546161)),
-                              _buildInfoChip(genre, Color(0xFF546161)),
-                            ],
-                          ),
+                          heroChip(isUtage
+                              ? ChartDifficulty.utageLabel
+                              : typeLabel),
+                          heroChip('$diffName $levelStr'),
+                          heroChip('定数 ${ds.toStringAsFixed(1)}'),
+                          heroChip('BPM $bpm'),
+                          heroChip(genre),
                         ],
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
+              ],
+            ),
+          ),
 
-                SizedBox(height: 36),
-
-                // 中部：用户信息 + 达成率（并排）
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    // 左侧：用户信息
-                    if (userNickname.isNotEmpty || totalRating > 0)
-                      Container(
-                        padding: EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withAlpha(140),
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                                color: Colors.black.withAlpha(15),
-                                blurRadius: 15,
-                                offset: Offset(0, 4)),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (avatarUrl != null)
-                              Container(
-                                width: 72,
-                                height: 72,
-                                margin: EdgeInsets.only(right: 14),
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(12),
-                                  border:
-                                      Border.all(color: accentColor, width: 3),
-                                  image: DecorationImage(
-                                    image: CachedNetworkImageProvider(avatarUrl,
-                                        cacheManager: lxnsAssetCacheManager),
-                                    fit: BoxFit.cover,
+          Padding(
+            padding: const EdgeInsets.all(28),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // 达成率：核心数据，大字突出
+                      Expanded(
+                        flex: 5,
+                        child: ExportStatsPanel(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text('单曲达成率',
+                                        style: TextStyle(
+                                            fontSize: 26,
+                                            fontWeight: FontWeight.w600,
+                                            color: c.muted)),
                                   ),
-                                ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 24, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: accentColor,
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    child: Text(rateDisplay,
+                                        style: const TextStyle(
+                                            fontSize: 32,
+                                            fontWeight: FontWeight.w800,
+                                            color: Colors.white)),
+                                  ),
+                                ],
                               ),
-                            Column(
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                    '${achievementPercent.toStringAsFixed(4)}%',
+                                    maxLines: 1,
+                                    style: TextStyle(
+                                        fontSize: 96,
+                                        height: 1.2,
+                                        fontWeight: FontWeight.w900,
+                                        color: c.ink,
+                                        fontFeatures: [
+                                          FontFeature.tabularFigures()
+                                        ])),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      if (hasUser) ...[
+                        const SizedBox(width: 14),
+                        // 玩家
+                        Expanded(
+                          flex: 3,
+                          child: ExportStatsPanel(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
                               crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
                               children: [
+                                if (avatarUrl != null) ...[
+                                  Container(
+                                    width: 76,
+                                    height: 76,
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(18),
+                                      image: DecorationImage(
+                                        image: CachedNetworkImageProvider(
+                                            avatarUrl,
+                                            cacheManager:
+                                                lxnsAssetCacheManager),
+                                        fit: BoxFit.cover,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                ],
                                 if (userNickname.isNotEmpty)
                                   Text(userNickname,
                                       style: TextStyle(
-                                          fontSize: 28,
-                                          fontWeight: FontWeight.bold,
-                                          color: Color(0xFF2C3E50))),
+                                          fontSize: 30,
+                                          fontWeight: FontWeight.w800,
+                                          color: c.ink)),
                                 if (totalRating > 0)
-                                  Text('总 Rating: $totalRating',
+                                  Text('总 Rating $totalRating',
                                       style: TextStyle(
-                                          fontSize: 22,
-                                          color: accentColor,
+                                          fontSize: 24,
+                                          color: c.muted,
                                           fontWeight: FontWeight.w600)),
                               ],
                             ),
-                          ],
+                          ),
                         ),
-                      ),
-
-                    if (userNickname.isNotEmpty || totalRating > 0)
-                      SizedBox(width: 28),
-
-                    // 右侧：达成率（核心数据，大字体突出）
-                    Expanded(
-                      child: Container(
-                        padding:
-                            EdgeInsets.symmetric(vertical: 28, horizontal: 40),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withAlpha(180),
-                          borderRadius: BorderRadius.circular(24),
-                          boxShadow: [
-                            BoxShadow(
-                                color: Colors.black.withAlpha(15),
-                                blurRadius: 15,
-                                offset: Offset(0, 4)),
-                          ],
-                        ),
-                        child: Column(
-                          children: [
-                            Text('单曲达成率',
-                                style: TextStyle(
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFF546161).withAlpha(180),
-                                    letterSpacing: 4)),
-                            SizedBox(height: 6),
-                            Text('${achievementPercent.toStringAsFixed(4)}%',
-                                style: TextStyle(
-                                    fontSize: 72,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF2C3E50),
-                                    letterSpacing: 2)),
-                            SizedBox(height: 6),
-                            Container(
-                              padding: EdgeInsets.symmetric(
-                                  horizontal: 28, vertical: 6),
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(colors: [
-                                  accentColor,
-                                  accentColor.withAlpha(200)
-                                ]),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(rateDisplay,
-                                  style: TextStyle(
-                                      fontSize: 34,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white)),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-
-                SizedBox(height: 28),
-
-                // 底部：统计数据网格
-                Container(
-                  padding: EdgeInsets.all(28),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withAlpha(180),
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: [
-                      BoxShadow(
-                          color: Colors.black.withAlpha(15),
-                          blurRadius: 15,
-                          offset: Offset(0, 4)),
+                      ],
                     ],
                   ),
+                ),
+                const SizedBox(height: 14),
+                // 统计
+                ExportStatsPanel(
                   child: Row(
                     children: [
-                      // Rating
                       _buildStatItem(
-                        icon: Icons.star,
+                        c: c,
+                        icon: Icons.star_rounded,
                         label: 'Rating',
                         value: ra.toString(),
                         accentColor: accentColor,
                       ),
-                      _buildStatDivider(),
-                      // DX Score
+                      _buildStatDivider(c),
                       _buildStatItem(
-                        icon: Icons.score,
+                        c: c,
+                        icon: Icons.score_rounded,
                         label: 'DX分数',
                         value: '$dxScore / $maxDxScore',
                         subtitle: '$dxScorePercent%',
                         accentColor: accentColor,
                       ),
-                      _buildStatDivider(),
-                      // 连击
+                      _buildStatDivider(c),
                       _buildStatItem(
-                        icon: Icons.music_note,
+                        c: c,
+                        icon: Icons.music_note_rounded,
                         label: '连击',
                         value: fcColors.label,
                         accentColor: accentColor,
-                        valueColor: fcColors.fg,
+                        valueColor: onPanel(fcColors.fg),
                       ),
-                      _buildStatDivider(),
-                      // 同步
+                      _buildStatDivider(c),
                       _buildStatItem(
-                        icon: Icons.auto_awesome,
+                        c: c,
+                        icon: Icons.auto_awesome_rounded,
                         label: '同步',
                         value: fsColors.label,
                         accentColor: accentColor,
-                        valueColor: fsColors.fg,
+                        valueColor: onPanel(fsColors.fg),
                       ),
-                      _buildStatDivider(),
+                      _buildStatDivider(c),
                       // 星数（带 bonus 差值）
                       _buildStatItem(
-                        icon: Icons.stars,
+                        c: c,
+                        icon: Icons.stars_rounded,
                         label: '星数',
                         value: starDisplay,
                         subtitle: starBonus,
@@ -565,26 +489,16 @@ class SongScoreShareService {
                     ],
                   ),
                 ),
-
-                SizedBox(height: 40),
-
-                // 底部署名
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.music_note_rounded,
-                        size: 22, color: accentColor.withAlpha(150)),
-                    SizedBox(width: 8),
-                    Text(
-                      'ChiffonMai',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w600,
-                        color: accentColor.withAlpha(150),
-                        letterSpacing: 2,
-                      ),
+                const SizedBox(height: 20),
+                Center(
+                  child: Text(
+                    'Generated by ChiffonMai',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                      color: c.muted,
                     ),
-                  ],
+                  ),
                 ),
               ],
             ),
@@ -619,6 +533,7 @@ class SongScoreShareService {
     required String value,
     String? subtitle,
     required Color accentColor,
+    required ExportPalette c,
     Color? valueColor,
   }) {
     return Expanded(
@@ -631,7 +546,7 @@ class SongScoreShareService {
             label,
             style: TextStyle(
               fontSize: 20,
-              color: Color(0xFF546161).withAlpha(180),
+              color: c.muted,
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -641,7 +556,7 @@ class SongScoreShareService {
             style: TextStyle(
               fontSize: 32,
               fontWeight: FontWeight.bold,
-              color: valueColor ?? Color(0xFF2C3E50),
+              color: valueColor ?? c.ink,
             ),
           ),
           if (subtitle != null) ...[
@@ -650,7 +565,7 @@ class SongScoreShareService {
               subtitle,
               style: TextStyle(
                 fontSize: 18,
-                color: Color(0xFF546161).withAlpha(150),
+                color: c.muted,
               ),
             ),
           ],
@@ -660,78 +575,12 @@ class SongScoreShareService {
   }
 
   /// 统计项分隔线
-  static Widget _buildStatDivider() {
+  static Widget _buildStatDivider(ExportPalette c) {
     return Container(
       width: 2,
       height: 80,
-      color: Color(0xFF546161).withAlpha(30),
+      color: c.track,
     );
-  }
-
-  /// 构建装饰性背景元素
-  static List<Widget> _buildDecorativeElements(Color accentColor) {
-    return [
-      // 右上角大圆
-      Positioned(
-        right: -80,
-        top: -80,
-        child: Container(
-          width: 400,
-          height: 400,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: accentColor.withAlpha(15),
-          ),
-        ),
-      ),
-      // 左下角大圆
-      Positioned(
-        left: -60,
-        bottom: -60,
-        child: Container(
-          width: 300,
-          height: 300,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: accentColor.withAlpha(12),
-          ),
-        ),
-      ),
-      // 左上角装饰线
-      Positioned(
-        left: 0,
-        top: 0,
-        child: Container(
-          width: 1200,
-          height: 4,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                accentColor.withAlpha(80),
-                accentColor.withAlpha(10),
-              ],
-            ),
-          ),
-        ),
-      ),
-      // 右下角装饰线
-      Positioned(
-        left: 0,
-        bottom: 0,
-        child: Container(
-          width: 1200,
-          height: 3,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                accentColor.withAlpha(10),
-                accentColor.withAlpha(60),
-              ],
-            ),
-          ),
-        ),
-      ),
-    ];
   }
 
   // --- 星星和徽章颜色（与 SongInfoPage 保持一致）---
@@ -843,42 +692,6 @@ class SongScoreShareService {
   }
 
   // --- 颜色辅助（与 SongInfoPage 一致）---
-
-  /// 获取背景渐变起始色
-  static Color _getBgStartColor(int levelIndex) {
-    switch (levelIndex) {
-      case ChartDifficulty.basic:
-        return Color(0xFFF0F8F0);
-      case ChartDifficulty.advanced:
-        return Color(0xFFFFF8F0);
-      case ChartDifficulty.expert:
-        return Color(0xFFFFF0F4);
-      case ChartDifficulty.master:
-        return Color(0xFFF8F0FF);
-      case ChartDifficulty.reMaster:
-        return Color(0xFFFCF0FF);
-      default:
-        return Color(0xFFF8F0FF);
-    }
-  }
-
-  /// 获取背景渐变结束色
-  static Color _getBgEndColor(int levelIndex) {
-    switch (levelIndex) {
-      case ChartDifficulty.basic:
-        return Color(0xFFE0F0E0);
-      case ChartDifficulty.advanced:
-        return Color(0xFFFFE8D0);
-      case ChartDifficulty.expert:
-        return Color(0xFFFFE0E8);
-      case ChartDifficulty.master:
-        return Color(0xFFEDE0FF);
-      case ChartDifficulty.reMaster:
-        return Color(0xFFF8E0FF);
-      default:
-        return Color(0xFFEDE0FF);
-    }
-  }
 
   // --- 权限和保存逻辑（复用现有模式）---
 

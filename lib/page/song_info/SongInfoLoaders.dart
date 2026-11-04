@@ -33,39 +33,151 @@ extension _SongInfoLoaders on _SongInfoPageState {
     });
   }
 
+  /// 抽屉完全拉开时的滚动距离：信息区域的顶边正好贴在顶部栏下面。
+  double get _songDrawerOpenOffset {
+    final hero = _songHeroKey.currentContext?.findRenderObject() as RenderBox?;
+    if (hero == null || !hero.hasSize) return 0;
+    final top = MediaQuery.paddingOf(context).top + AppHeader.toolbarHeight;
+    return (hero.size.height - _songDrawerOverlap - top)
+        .clamp(0.0, double.infinity);
+  }
+
   void _updateSongTitleVisibility() {
     if (!mounted || !_songScrollController.hasClients) return;
-    final titleBox =
-        _songTitleKey.currentContext?.findRenderObject() as RenderBox?;
-    final scrollBox =
-        _songScrollKey.currentContext?.findRenderObject() as RenderBox?;
-    if (titleBox == null || scrollBox == null || !titleBox.hasSize) return;
-
-    final viewportTop = scrollBox.localToGlobal(Offset.zero).dy;
-    final titleBottom = titleBox
-        .localToGlobal(
-          Offset(0, titleBox.size.height),
-        )
-        .dy;
-    // 头图铺到状态栏下面，歌名要算上状态栏 + 顶部栏才算「滚出去了」。
-    final shouldShow = titleBottom <=
-        viewportTop + MediaQuery.paddingOf(context).top + kToolbarHeight;
+    final open = _songDrawerOpenOffset;
+    // 头图固定在抽屉后面，抽屉拉到顶部栏下面时才换成带歌名的顶部栏。
+    final shouldShow = open > 0 && _songScrollController.offset >= open - 0.5;
     if (shouldShow != _showSongTitleInAppBar) {
       _update(() => _showSongTitleInAppBar = shouldShow);
     }
+  }
+
+  void _animateSongDrawer(double offset) {
+    if (!_songScrollController.hasClients) return;
+    _songScrollController.animateTo(
+      offset,
+      duration: AppDesignTokens.motion(context, AppDesignTokens.mediumMotion),
+      curve: AppDesignTokens.emphasizedCurve,
+    );
+  }
+
+  void _toggleSongDrawer() {
+    if (!_songScrollController.hasClients) return;
+    _animateSongDrawer(_songScrollController.offset > 0.5
+        ? 0
+        : _songDrawerOpenOffset);
+  }
+
+  /// 松手时抽屉停在半路就吸附到收起或拉开；拉开之后是正常的内容滚动。
+  bool _snapSongDrawer(ScrollEndNotification notification) {
+    if (notification.depth != 0 || !_songScrollController.hasClients) {
+      return false;
+    }
+    final open = _songDrawerOpenOffset;
+    final offset = _songScrollController.offset;
+    if (offset > 0.5 && offset < open - 0.5) {
+      final target = offset < open / 2 ? 0.0 : open;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _animateSongDrawer(target);
+      });
+    }
+    return false;
+  }
+
+  /// 这次加载是否属于已经切走的歌（见 [_update]）。
+  bool get _isStaleSongLoad {
+    final generation = Zone.current[_songLoadZoneKey];
+    return generation != null && generation != _songGeneration;
+  }
+
+  /// 在同一个页面里切换 ST / DX：先把新数据读好，旧内容留在屏幕上，
+  /// 读好后同一帧换上，数字滚动、文字淡入，不会闪加载圈或黑屏。
+  Future<void> _switchSong(String songId, int levelIndex) async {
+    if (_songSwitching) return;
+    _update(() => _songSwitching = true);
+    try {
+      _preloadedSong = await SongInfoService().loadData(songId);
+    } catch (error) {
+      debugPrint('预读另一种谱面失败: $error');
+      _preloadedSong = null;
+    }
+    if (!mounted) return;
+    _update(() => _songSwitching = false);
+    widget.onSwitchSong(songId, levelIndex);
+  }
+
+  void _applySongResult(Map<String, dynamic> result) {
+    _songData = result['songData'];
+    _diffData = result['diffData'];
+    _userData = result['userData'];
+    _tagData = result['tagData'];
+    _tagSongsData = result['tagSongsData'];
+  }
+
+  /// 歌曲已换：清掉只属于旧歌的结果，再按新歌重新加载。
+  void _onSongChanged(String previousSongId) {
+    _songGeneration++;
+    BiliSearchService().cancel();
+    final preloaded = _preloadedSong;
+    if (preloaded != null) _applySongResult(preloaded);
+    final levels = _songData?['level'];
+    final count = levels is List ? levels.length : 0;
+    final target = widget.initialLevelIndex;
+    _currentDiffIndex = count == 0 ? 0 : target.clamp(0, count - 1).toInt();
+    _alternativeSongId = previousSongId;
+    _maidataNoteCounts = {};
+    _maidataBreakCounts = {};
+    _maidataBpmByDiffIndex = {};
+    _maidataBpmChangesByDiffIndex = {};
+    _maidataDecodedSuccessfully = false;
+    _referenceDurationSeconds = null;
+    _referenceDurationLoading = false;
+    _biliPlayCount = null;
+    _biliPlayCountLoading = false;
+    _biliLoadedDiffIndex = null;
+    _biliBvid = null;
+    _biliFromRedis = false;
+    _biliFromUser = false;
+    _comments = [];
+    _commentPage = 0;
+    _chartAverageScore = null;
+    _chartTotalVotes = 0;
+    _chartUserScore = null;
+    _chartUserRatingData = null;
+    _chartRatingDistribution = null;
+    _best50OpportunityText = null;
+    _best50OpportunityGain = null;
+    _best50OpportunityTiers = const [];
+    _best50OpportunityNote = '';
+    _unionFrom = null;
+    _unionDxFrom = null;
+    _cnReleaseDate = null;
+    // didUpdateWidget 在构建阶段调用，加载里的 setState 要等这一帧结束。
+    scheduleMicrotask(() {
+      if (mounted) _startSongLoaders();
+    });
+  }
+
+  /// 启动当前歌曲的加载。放进带代数的 Zone：切走之后，
+  /// 旧歌还没回来的结果到了 [_update] 会被丢弃，不会盖掉新歌。
+  void _startSongLoaders() {
+    runZoned(() {
+      _loadData();
+      _loadDxData();
+      _loadAwmcPlayCounts();
+    }, zoneValues: {_songLoadZoneKey: _songGeneration});
   }
 
   // 加载所有数据
   Future<void> _loadData() async {
     try {
       // 使用SongInfoService加载数据
-      final result = await SongInfoService().loadData(widget.songId);
-      if (!mounted) return;
-      _songData = result['songData'];
-      _diffData = result['diffData'];
-      _userData = result['userData'];
-      _tagData = result['tagData'];
-      _tagSongsData = result['tagSongsData'];
+      final preloaded = _preloadedSong;
+      _preloadedSong = null;
+      final result =
+          preloaded ?? await SongInfoService().loadData(widget.songId);
+      if (!mounted || _isStaleSongLoad) return;
+      _applySongResult(result);
 
       // 单曲缺失时后台补齐，网络请求不阻塞详情页；解析完成后即时刷新统计。
       unawaited(_loadMaidataNoteCounts());
@@ -104,6 +216,7 @@ extension _SongInfoLoaders on _SongInfoPageState {
 
       // 加载 union uni 元数据（cn/jp 可游玩地区）
       _loadUniInfo();
+      _loadCnReleaseDate();
 
       // 加载谱面评分数据
       _loadChartRating();
@@ -113,7 +226,7 @@ extension _SongInfoLoaders on _SongInfoPageState {
     } catch (e) {
       debugPrint('加载数据失败: $e');
     } finally {
-      if (!mounted) return;
+      if (!mounted || _isStaleSongLoad) return;
       // 调整_currentDiffIndex，确保不超过实际难度数量
       if (_songData != null) {
         final levels = _songData!['level'];
@@ -160,18 +273,24 @@ extension _SongInfoLoaders on _SongInfoPageState {
       // 检查当前谱面是否有笔记
       _checkNoteStatus();
       _loadBest50Opportunity();
-      widget.onLoaded();
     }
   }
 
   /// 判断当前谱面在理论上能否挤进对应的 Best35 / Best15。
   /// 使用推荐页同一套 Rating 权重和最低达成率算法，避免两个页面给出不同结论。
   Future<void> _loadBest50Opportunity() async {
-    void publish(String? text, [int? gain]) {
+    void publish(
+      String? text, [
+      int? gain,
+      List<Best50OpportunityTier> tiers = const [],
+      String note = '',
+    ]) {
       if (!mounted) return;
       _update(() {
         _best50OpportunityText = text;
         _best50OpportunityGain = gain;
+        _best50OpportunityTiers = tiers;
+        _best50OpportunityNote = note;
       });
     }
 
@@ -264,11 +383,42 @@ extension _SongInfoLoaders on _SongInfoPageState {
     }
     final targetRa = _calculateSingleRating(ds, targetAchievement);
     // 区间外谱面替换的是末位成绩，区间内谱面提升的是自己的成绩。
-    final increase = targetRa - (alreadyInBest ? currentRa : cutoff);
+    final baseline = alreadyInBest ? currentRa : cutoff;
+    final increase = targetRa - baseline;
     publish(
       '推到 ${targetAchievement.toStringAsFixed(4)}% 可${alreadyInBest ? '提升' : '进入'} $bestLabel',
       increase < 0 ? 0 : increase,
+      increase > 0
+          ? _buildOpportunityTiers(ds, targetAchievement, baseline)
+          : const [],
+      alreadyInBest
+          ? '这张谱面当前 RA $currentRa，推到下面的达成率时 $bestLabel 总分能加：'
+          : '这张谱面还不在 $bestLabel，末位是 RA $cutoff。推到下面的达成率替换末位后，总分能加：',
     );
+  }
+
+  /// 从 [start] 起，Rating 每多 1 分一档，一直到 100.5%；按达成率从高到低排列。
+  List<Best50OpportunityTier> _buildOpportunityTiers(
+      double ds, double start, int baseline) {
+    Best50OpportunityTier tierAt(double achievement) {
+      final rating = _calculateSingleRating(ds, achievement);
+      return Best50OpportunityTier(
+        achievement: achievement,
+        rank: _rankLabelFor(achievement),
+        rating: rating,
+        gain: rating - baseline,
+      );
+    }
+
+    final tiers = <Best50OpportunityTier>[tierAt(start)];
+    while (true) {
+      final next = _findMinimumAchievementForRating(
+          ds, tiers.last.rating + 1, tiers.last.achievement);
+      if (next == null) break;
+      tiers.add(tierAt(next));
+    }
+    if (tiers.last.achievement < 100.5) tiers.add(tierAt(100.5));
+    return tiers.reversed.toList();
   }
 
   /// 按下方「达成率 - Rating」表中的全部倍率区间，寻找达到目标 Rating 的最小达成率。
@@ -665,7 +815,7 @@ extension _SongInfoLoaders on _SongInfoPageState {
     final defaultBpm = _defaultBpm(basicInfo);
     return _hasBpmChanges
         ? '$_bpmRangeLabel：${_displayBpm(basicInfo)}\n$_defaultBpmLabel：$defaultBpm'
-        : defaultBpm;
+        : _displayBpmWithBase(basicInfo);
   }
 
   String? _parseMaidataBpmForChart(MaidataData maidata, ChartData chart) {
@@ -716,10 +866,13 @@ extension _SongInfoLoaders on _SongInfoPageState {
         basicInfo['bpm'].toString();
   }
 
-  /// 基础信息里的 BPM：有变速时写成「最小值-最大值(基准值)」，例如 90-163(163)。
+  /// 基础信息里的 BPM：只有一个且和基准不同时写成「谱面值(基准 基准值)」；
+  /// 有变速时写成「最小值-最大值(基准值)」，例如 90-163(163)。
   String _displayBpmWithBase(dynamic basicInfo) {
     final bpm = _displayBpm(basicInfo);
-    return _hasBpmChanges ? '$bpm(${_defaultBpm(basicInfo)})' : bpm;
+    final base = _defaultBpm(basicInfo);
+    if (_hasBpmChanges) return '$bpm($base)';
+    return bpm == base ? bpm : '$bpm(基准 $base)';
   }
 
   // 加载参考时长（从落雪音频获取；落雪失败时尝试 wmc 兜底）
@@ -857,6 +1010,37 @@ extension _SongInfoLoaders on _SongInfoPageState {
     return '$minutes:${seconds.toString().padLeft(2, '0')}';
   }
 
+  /// 国服首次上线日期。落雪的日期按谱面记录：同一首歌的 ST、DX 谱上线时间不同，
+  /// 取当前谱面类型里最早的一个（Re:MASTER 可能晚于其它难度上线）。
+  Future<void> _loadCnReleaseDate() async {
+    try {
+      final rawId = int.tryParse(widget.songId);
+      if (rawId == null) return;
+      final entity = await LuoXueSongsManager().getLuoXueSongs();
+      if (entity == null) return;
+      // 水鱼 DX 谱的 ID 是 1xxxx，落雪同一首歌不加这个前缀。
+      final lxnsId = rawId >= 10000 && rawId < 100000 ? rawId - 10000 : rawId;
+      for (final song in entity.songs) {
+        if (song.id != lxnsId) continue;
+        final difficulties = song.difficulties;
+        final Iterable<String?> dates = widget.songId.length == 6
+            ? (difficulties.utage ?? const []).map((d) => d.releaseDate)
+            : (_songData?['type'] == 'DX'
+                    ? difficulties.dx ?? const []
+                    : difficulties.standard ?? const [])
+                .map((d) => d.releaseDate);
+        final sorted = dates.whereType<String>().where((d) => d.isNotEmpty).toList()
+          ..sort();
+        if (mounted && sorted.isNotEmpty) {
+          _update(() => _cnReleaseDate = sorted.first);
+        }
+        return;
+      }
+    } catch (e) {
+      debugPrint('[SongInfoPage] 读取国服上线日期失败: $e');
+    }
+  }
+
   // 格式化首次上线日期显示（"20190711" → "2019-07-11"）
   Future<void> _loadUniInfo() async {
     try {
@@ -890,6 +1074,15 @@ extension _SongInfoLoaders on _SongInfoPageState {
 
       if (foundId != null) {
         final info = lookup[foundId]!;
+        if (mounted) {
+          _update(() {
+            _unionFrom = info.from;
+            final dxFrom = info.dxFrom;
+            _unionDxFrom = dxFrom != null && dxFrom.isNotEmpty
+                ? dxFrom
+                : (info.hasSd ? null : info.from);
+          });
+        }
         debugPrint(
             '[SongInfoPage] 通过 $foundId 找到 union 数据 (cn=${info.cn}, jp=${info.jp})');
 
@@ -1551,13 +1744,16 @@ extension _SongInfoLoaders on _SongInfoPageState {
   }
 
   // 获取标签颜色
-  Color _getTagColor(String group) => AppColors.tagGroupBackground(group);
+  Color _getTagColor(String group) =>
+      AppColors.tagGroupBackground(group, Theme.of(context).brightness);
 
   // 获取标签边框颜色
-  Color _getTagBorderColor(String group) => AppColors.tagGroupBorder(group);
+  Color _getTagBorderColor(String group) =>
+      AppColors.tagGroupBorder(group, Theme.of(context).brightness);
 
   // 获取标签文本颜色
-  Color _getTagTextColor(String group) => AppColors.tagGroupText(group);
+  Color _getTagTextColor(String group) =>
+      AppColors.tagGroupText(group, Theme.of(context).brightness);
 
   /// 本曲是否 extra（宴会场 / maidata 追加 / union 独有）。
   ///

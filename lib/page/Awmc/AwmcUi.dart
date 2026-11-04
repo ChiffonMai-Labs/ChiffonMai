@@ -7,6 +7,7 @@ import '../../widgets/QrQuickFillButtons.dart';
 import '../../utils/AppDesignTokens.dart';
 import '../../widgets/AppDialogs.dart';
 import '../../widgets/AppToast.dart';
+import '../../widgets/AppUi.dart';
 
 /// AWMC 控制台的公共 UI 组件（结果展示 / 凭据输入 / 写入二次确认）。
 ///
@@ -712,7 +713,7 @@ class _AwmcSecretDialogState extends State<_AwmcSecretDialog> {
                       Icon(_obscure ? Icons.visibility_off : Icons.visibility),
                   onPressed: () => setState(() => _obscure = !_obscure),
                 ),
-              ),
+              ).insetLabel(context),
             ),
             if (widget.footer != null) ...[
               const SizedBox(height: 8),

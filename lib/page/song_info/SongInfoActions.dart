@@ -342,6 +342,7 @@ extension _SongInfoActions on _SongInfoPageState {
   }
 
   Future<Widget> _buildScoreSharePreview({
+    required ExportImageTheme theme,
     required Map<String, dynamic> userRecord,
     required Map<String, dynamic> basicInfo,
     required List<dynamic> levels,
@@ -354,6 +355,7 @@ extension _SongInfoActions on _SongInfoPageState {
     final ra = _safeToInt(userRecord['ra']);
     final dxScore = _safeToInt(userRecord['dxScore']);
     return SongScoreShareService.buildPreviewWidget(
+      theme: theme,
       context: context,
       songId: songId,
       songTitle: basicInfo['title']?.toString() ?? '',
@@ -387,7 +389,8 @@ extension _SongInfoActions on _SongInfoPageState {
         estimatedPngSize: ImageEncodeUtil.estimatePngSize(
             songCount: 1, hasHeader: false, cardsPerRow: 1),
         exportingLabel: '谱面成绩卡',
-        previewBuilder: (previewContext, _) => _buildScoreSharePreview(
+        previewBuilder: (previewContext, previewQuality) => _buildScoreSharePreview(
+              theme: previewQuality.theme,
               context: previewContext,
               userRecord: userRecord,
               basicInfo: basicInfo,
@@ -395,21 +398,6 @@ extension _SongInfoActions on _SongInfoPageState {
             ));
     if (quality == null) return;
 
-    // 显示加载对话框
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AppAlertDialog(
-        content: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(width: 16),
-            Text('正在生成分享卡片...'),
-          ],
-        ),
-      ),
-    );
 
     try {
       // 获取数据（安全类型转换，处理API可能返回String的情况）
@@ -436,13 +424,16 @@ extension _SongInfoActions on _SongInfoPageState {
           : 0.0);
 
       // 调用导出服务
-      final file = await SongScoreShareService.convertToImage(
-        context,
+      final levelIndex = _currentDiffIndex;
+      BackgroundExport.run(
+        label: '成绩分享卡片',
+        task: (exportContext) => SongScoreShareService.convertToImage(
+          exportContext,
         songId: songId,
         songTitle: songTitle,
         artist: artist,
         songType: songType,
-        levelIndex: _currentDiffIndex,
+        levelIndex: levelIndex,
         levelStr: levelStr,
         ds: ds,
         genre: genre,
@@ -455,94 +446,21 @@ extension _SongInfoActions on _SongInfoPageState {
         fs: fs,
         rawRate: rawRate,
         jpegQuality: quality.jpegQuality,
+        theme: quality.theme,
+      ),
       );
-
-      // 关闭加载对话框
-      if (Navigator.of(context).canPop()) {
-        Navigator.of(context).pop();
-      }
-
-      // 显示结果
-      if (file != null) {
-        showDialog(
-          context: context,
-          builder: (ctx) => AppAlertDialog(
-            title: Row(
-              children: [
-                Icon(Icons.check_circle, color: AppColors.successGreen(Theme.of(context).brightness), size: 28),
-                SizedBox(width: 8),
-                Text('导出成功'),
-              ],
-            ),
-            content: Text(
-              '成绩分享卡片已保存到相册\n\n'
-              '歌曲: $songTitle\n'
-              '达成率: ${achievements.toStringAsFixed(4)}%\n'
-              'Rating: $ra',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(),
-                child: Text('确定'),
-              ),
-            ],
-          ),
-        );
-      } else {
-        showDialog(
-          context: context,
-          builder: (ctx) => AppAlertDialog(
-            title: Row(
-              children: [
-                Icon(Icons.error, color: Theme.of(context).colorScheme.error, size: 28),
-                SizedBox(width: 8),
-                Text('导出失败'),
-              ],
-            ),
-            content: Text('成绩分享卡片生成失败，请检查存储权限后重试。'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(),
-                child: Text('确定'),
-              ),
-            ],
-          ),
-        );
-      }
     } catch (e) {
-      // 关闭加载对话框
-      if (Navigator.of(context).canPop()) {
-        Navigator.of(context).pop();
-      }
-
-      debugPrint('分享卡片生成失败: $e');
-      showDialog(
-        context: context,
-        builder: (ctx) => AppAlertDialog(
-          title: Row(
-            children: [
-              Icon(Icons.error, color: Theme.of(context).colorScheme.error, size: 28),
-              SizedBox(width: 8),
-              Text('导出失败'),
-            ],
-          ),
-          content: Text('生成分享卡片时发生错误：$e'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: Text('确定'),
-            ),
-          ],
-        ),
-      );
+      AppToast.show('导出失败：$e');
     }
   }
 
-  Widget _buildSongInfoExportPreview(BuildContext previewContext) {
+  Widget _buildSongInfoExportPreview(
+      BuildContext previewContext, ExportImageTheme theme) {
     final data = _songData;
     if (data == null) return const SizedBox.shrink();
     final basicInfo = data['basic_info'] as Map<String, dynamic>;
     return SongInfoExportToImgService.buildPreviewWidget(
+      theme: theme,
       context: previewContext,
       songId: widget.songId,
       basicInfo: basicInfo,
@@ -568,25 +486,10 @@ extension _SongInfoActions on _SongInfoPageState {
         estimatedPngSize: ImageEncodeUtil.estimatePngSize(
             songCount: 1, hasHeader: false, cardsPerRow: 1),
         exportingLabel: '歌曲信息',
-        previewBuilder: (previewContext, _) =>
-            _buildSongInfoExportPreview(previewContext));
+        previewBuilder: (previewContext, previewQuality) =>
+            _buildSongInfoExportPreview(previewContext, previewQuality.theme));
     if (quality == null) return;
 
-    // 显示加载对话框
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AppAlertDialog(
-        content: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(width: 16),
-            Text('正在生成曲目信息图片...'),
-          ],
-        ),
-      ),
-    );
 
     try {
       final basicInfo = _songData!['basic_info'];
@@ -595,101 +498,37 @@ extension _SongInfoActions on _SongInfoPageState {
       final ds = _songData!['ds'];
       final songType = _songData!['type'] ?? 'SD';
 
-      final file = await SongInfoExportToImgService.convertToImage(
-        context,
-        songId: widget.songId,
+      final songId = widget.songId;
+      final bpm = _exportBpm(basicInfo);
+      final referenceDuration = _formatReferenceDuration();
+      final diffData = _diffData;
+      final noteCounts = _maidataNoteCounts;
+      final breakCounts = _maidataBreakCounts;
+      final decoded = _maidataDecodedSuccessfully;
+      final isExtra = _isExtraSong;
+      BackgroundExport.run(
+        label: '曲目信息图片',
+        task: (exportContext) => SongInfoExportToImgService.convertToImage(
+          exportContext,
+        songId: songId,
         basicInfo: basicInfo,
         charts: charts,
         levels: levels,
         ds: ds,
         songType: songType,
-        diffData: _diffData,
-        bpm: _exportBpm(basicInfo),
-        maidataNoteCounts: _maidataNoteCounts,
-        maidataBreakCounts: _maidataBreakCounts,
-        maidataDecodedSuccessfully: _maidataDecodedSuccessfully,
-        isExtra: _isExtraSong,
-        referenceDuration: _formatReferenceDuration(),
+        diffData: diffData,
+        bpm: bpm,
+        maidataNoteCounts: noteCounts,
+        maidataBreakCounts: breakCounts,
+        maidataDecodedSuccessfully: decoded,
+        isExtra: isExtra,
+        referenceDuration: referenceDuration,
         jpegQuality: quality.jpegQuality,
+        theme: quality.theme,
+      ),
       );
-
-      // 关闭加载对话框
-      if (Navigator.of(context).canPop()) {
-        Navigator.of(context).pop();
-      }
-
-      // 显示结果
-      final songTitle = basicInfo['title'] ?? '';
-      if (file != null) {
-        showDialog(
-          context: context,
-          builder: (ctx) => AppAlertDialog(
-            title: Row(
-              children: [
-                Icon(Icons.check_circle, color: AppColors.successGreen(Theme.of(context).brightness), size: 28),
-                SizedBox(width: 8),
-                Text('导出成功'),
-              ],
-            ),
-            content: Text(
-              '曲目信息图片已保存到相册\n\n'
-              '歌曲: $songTitle',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(),
-                child: Text('确定'),
-              ),
-            ],
-          ),
-        );
-      } else {
-        showDialog(
-          context: context,
-          builder: (ctx) => AppAlertDialog(
-            title: Row(
-              children: [
-                Icon(Icons.error, color: Theme.of(context).colorScheme.error, size: 28),
-                SizedBox(width: 8),
-                Text('导出失败'),
-              ],
-            ),
-            content: Text('曲目信息图片生成失败，请检查存储权限后重试。'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(),
-                child: Text('确定'),
-              ),
-            ],
-          ),
-        );
-      }
     } catch (e) {
-      // 关闭加载对话框
-      if (Navigator.of(context).canPop()) {
-        Navigator.of(context).pop();
-      }
-
-      debugPrint('曲目信息导出失败: $e');
-      showDialog(
-        context: context,
-        builder: (ctx) => AppAlertDialog(
-          title: Row(
-            children: [
-              Icon(Icons.error, color: Theme.of(context).colorScheme.error, size: 28),
-              SizedBox(width: 8),
-              Text('导出失败'),
-            ],
-          ),
-          content: Text('生成图片时发生错误：$e'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: Text('确定'),
-            ),
-          ],
-        ),
-      );
+      AppToast.show('导出失败：$e');
     }
   }
 

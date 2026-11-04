@@ -19,18 +19,17 @@ import 'Portable/PortablePlayerPage.dart';
 import 'PersonalizedChartPlayConfigure.dart';
 
 class PlayHubPage extends StatefulWidget {
-  /// 页头标题 / 说明。嵌在「游玩」页里时由外层传入（见 PlayZoneHubPage）。
   final String title;
   final String subtitle;
 
-  /// 页头下方的附加区域（「游玩」页的出勤 / 休闲切换）。
-  final Widget? headerBottom;
+  /// 嵌在「游玩」页里时为 false，页头由外层固定显示（见 PlayZoneHubPage）。
+  final bool showHeader;
 
   const PlayHubPage({
     super.key,
     this.title = '休闲',
     this.subtitle = '猜歌挑战、听歌与自定义谱面播放',
-    this.headerBottom,
+    this.showHeader = true,
   });
   @override
   State<PlayHubPage> createState() => _PlayHubPageState();
@@ -189,7 +188,7 @@ class _PlayHubPageState extends State<PlayHubPage> {
           return HubPageScaffold(
             title: widget.title,
             subtitle: widget.subtitle,
-            headerBottom: widget.headerBottom,
+            showHeader: widget.showHeader,
             icon: Icons.sports_esports_rounded,
             children: [
               for (final section in sections) ...[

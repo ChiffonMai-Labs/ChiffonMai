@@ -12,6 +12,7 @@ import '../../utils/QuotaRetryHint.dart';
 import '../../service/AccountSwitchService.dart';
 import 'MaimaiMusicDataManager.dart';
 import 'UserBest50Manager.dart';
+import '../../utils/JsonIsolate.dart';
 
 class UserPlayDataManager {
   // 单例模式
@@ -40,7 +41,7 @@ class UserPlayDataManager {
         // 水鱼 /player/records 的返回结构不固定：可能是直接数组，也可能是
         // 代理包装的 { records, additional_rating } 或 { success, data: ... }。
         // 统一归一化为 { records: [...], additional_rating }，避免下游读到空 records。
-        final dynamic decoded = json.decode(response.body);
+        final dynamic decoded = await decodeJsonInBackground(response.body);
         final data = _normalizeRecords(decoded);
         if (data == null) {
           if (decoded is Map<String, dynamic>) {
@@ -136,7 +137,7 @@ class UserPlayDataManager {
       final jsonString = prefs.getString(CacheKeyConstant.userPlayData);
 
       if (jsonString != null) {
-        return json.decode(jsonString);
+        return await decodeJsonInBackground(jsonString);
       }
       return null;
     } catch (e) {

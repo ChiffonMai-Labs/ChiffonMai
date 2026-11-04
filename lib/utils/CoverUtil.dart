@@ -26,6 +26,7 @@ import 'package:flutter/services.dart' show rootBundle;
 
 import '../service/DxRatingCoverService.dart';
 import '../widgets/DxRatingCoverImage.dart';
+import '../widgets/ImageLoadingIndicator.dart';
 
 class CoverUtil {
   // ===========================================================================
@@ -219,26 +220,39 @@ class CoverUtil {
   /// 多级 fallback 链（两个公开方法共用一份，别再各抄一份嵌套 errorBuilder）。
   ///
   /// 顺序：原始路径 → 主路径 → 备用1 → 备用2 → diving-fish → dxrating → 默认曲绘。
-  static Widget _buildFallbackChain(String songId) {
+  static Widget _buildFallbackChain(String songId, double size) {
+    // 原图 256×256。按导出用的 3 倍清晰度解码，小曲绘的列表省下大半解码量，
+    // 导出图和高分屏也不会变糊；放大显示时仍用原图。
+    final target = size.isFinite ? (size * 3).ceil() : 256;
+    final int? cacheWidth = target > 0 && target < 256 ? target : null;
     return Image.asset(
       buildCoverPath(songId),
       fit: BoxFit.cover,
+      cacheWidth: cacheWidth,
       errorBuilder: (context, error, stackTrace) {
         return Image.asset(
           getLocalCoverPath(songId),
           fit: BoxFit.cover,
+          cacheWidth: cacheWidth,
           errorBuilder: (context, error, stackTrace) {
             return Image.asset(
               getLocalCoverPathRetry1(songId),
               fit: BoxFit.cover,
+              cacheWidth: cacheWidth,
               errorBuilder: (context, error, stackTrace) {
                 return Image.asset(
                   getLocalCoverPathRetry2(songId),
                   fit: BoxFit.cover,
+                  cacheWidth: cacheWidth,
                   errorBuilder: (context, error, stackTrace) {
                     return Image.network(
                       getNetworkCoverUrl(songId),
                       fit: BoxFit.cover,
+                      cacheWidth: cacheWidth,
+                      loadingBuilder: (context, child, progress) =>
+                          progress == null
+                              ? child
+                              : const ImageLoadingIndicator(),
                       errorBuilder: (context, error, stackTrace) {
                         // 新增：dxrating 兜底（自带磁盘缓存 + 默认曲绘兜底）
                         return DxRatingCoverImage(songId: songId);
@@ -269,7 +283,7 @@ class CoverUtil {
       width: size,
       height: size,
       decoration: const BoxDecoration(color: Colors.white),
-      child: _buildFallbackChain(songId),
+      child: _buildFallbackChain(songId, size),
     );
   }
 
@@ -282,7 +296,7 @@ class CoverUtil {
       width: size,
       height: size,
       decoration: const BoxDecoration(color: Colors.white),
-      child: _buildFallbackChain(songId),
+      child: _buildFallbackChain(songId, size),
     );
   }
 

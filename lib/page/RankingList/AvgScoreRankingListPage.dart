@@ -368,11 +368,7 @@ class _AvgScoreRankingListPageState extends State<AvgScoreRankingListPage> {
                 ],
               ),
               // 免责声明
-              const RankingNotice(
-                summary: '数据仅供参考和娱乐，不代表官方立场或权威排名',
-                detail:
-                    '本排行榜数据仅供参考和娱乐使用，不代表任何官方立场或权威性排名。平均达成率 / 平均DX分数达成率基于玩家自愿上传的全量成绩记录计算，服务端每 6 小时更新一次，可能存在误差或延迟。请理性看待排名结果，享受游戏乐趣。',
-              ),
+              const RankingNotice(),
 
               // 排行榜列表
               Expanded(

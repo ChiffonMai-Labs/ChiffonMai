@@ -1,4 +1,3 @@
-import 'package:my_first_flutter_app/widgets/NoRipple.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
@@ -14,6 +13,7 @@ import '../../utils/ScoreInputValidator.dart';
 import '../../utils/UserProfileNotifier.dart';
 import '../../widgets/HistoryLineChart.dart';
 import '../../widgets/HistoryPointDelete.dart';
+import '../../widgets/AppUi.dart';
 import '../../widgets/AppHeader.dart';
 import '../../widgets/HistoryDateTimeDialog.dart';
 import '../../utils/AppDesignTokens.dart';
@@ -270,6 +270,8 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
   @override
   Widget build(BuildContext context) {
     final brightness = Theme.of(context).brightness;
+    final showAwmcSync =
+        CurrentDataSourceNotifier.instance.value == RefreshDataSource.awmc;
     return Scaffold(
       resizeToAvoidBottomInset: false,
       backgroundColor: Colors.transparent,
@@ -279,10 +281,38 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
           CommonWidgetUtil.buildCommonChiffonBgWidget(context),
           Column(
             children: [
-              const AppHeader(title: 'Rating 历史'),
+              AppHeader(
+                title: 'Rating 历史',
+                actions: [
+                  // 仅 AWMC NET 数据源出现：拉取该 QQ 的 Rating 趋势并并入本地缓存。
+                  if (showAwmcSync)
+                    IconButton(
+                      tooltip: '从 AWMC NET 同步 Rating 趋势',
+                      icon: _awmcSyncing
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.cloud_sync_outlined),
+                      onPressed: _awmcSyncing ? null : _syncFromAwmcNet,
+                    ),
+                  IconButton(
+                    tooltip: '添加历史记录',
+                    icon: const Icon(Icons.add_chart_outlined),
+                    onPressed: _addManualPoint,
+                  ),
+                ],
+              ),
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
+                  padding: EdgeInsets.fromLTRB(
+                    AppDesignTokens.gutter,
+                    4,
+                    AppDesignTokens.gutter,
+                    AppDesignTokens.gutter +
+                        MediaQuery.paddingOf(context).bottom,
+                  ),
                   child: _loading
                       ? const Padding(
                           padding: EdgeInsets.symmetric(vertical: 80),
@@ -291,19 +321,17 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
                       : Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            _buildSourceBar(brightness),
-                            const SizedBox(height: 12),
                             if (_all.isEmpty)
                               _buildEmpty(brightness)
                             else ...[
-                              _buildRangeSelector(),
-                              const SizedBox(height: 12),
-                              _buildStatsRow(brightness),
-                              const SizedBox(height: 12),
+                              _buildOverviewCard(brightness),
+                              const SizedBox(height: AppDesignTokens.cardGap),
                               _buildChartCard(brightness),
-                              const SizedBox(height: 12),
+                              const SizedBox(height: AppDesignTokens.cardGap),
                               _buildPointList(brightness),
                             ],
+                            const SizedBox(height: AppDesignTokens.cardGap),
+                            _buildRecordNote(),
                           ],
                         ),
                 ),
@@ -315,145 +343,141 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
     );
   }
 
-  Widget _buildSourceBar(Brightness brightness) {
+  /// 如实说明记录范围：曲线只能从首次记录那天算起，别让用户以为数据丢了。
+  Widget _buildRecordNote() {
+    final scheme = Theme.of(context).colorScheme;
     final source = CurrentDataSourceNotifier.instance.value;
     final summary = _summary;
-    final showAwmcSync = source == RefreshDataSource.awmc;
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppSurfaces.card(context),
-        borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
-      ),
+    final style = TextStyle(
+        fontSize: 12, height: 1.45, color: scheme.onSurfaceVariant);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              Icon(Icons.timeline_rounded,
-                  size: 16, color: AppColors.primaryText(brightness)),
-              const SizedBox(width: 6),
-              Text(
-                '当前数据源：${source.displayName}',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.primaryText(brightness),
-                ),
-              ),
-              const Spacer(),
-              // 仅 AWMC NET 数据源出现：拉取该 QQ 的 Rating 趋势并并入本地缓存。
-              if (showAwmcSync)
-                IconButton(
-                  tooltip: '从 AWMC NET 同步 Rating 趋势',
-                  icon: _awmcSyncing
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.cloud_sync_outlined),
-                  onPressed: _awmcSyncing ? null : _syncFromAwmcNet,
-                ),
-              IconButton(
-                tooltip: '添加历史记录',
-                icon: const Icon(Icons.add_chart_outlined),
-                onPressed: _addManualPoint,
-              ),
-            ],
+          Text(
+            '当前数据源：${source.displayName}',
+            style: style.copyWith(
+                fontWeight: FontWeight.w700, color: scheme.onSurface),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 2),
           if (summary != null && summary.chartCount > 0)
             Text(
               '已记录 ${summary.chartCount} 张谱面的成绩基线'
               ' · ${summary.eventCount} 次成绩变化'
               '（曲目详情页里，单谱的达成率 / DX分数曲线就画在这些变化上）',
-              style: TextStyle(
-                fontSize: 11.5,
-                color: AppColors.secondaryText(brightness),
-              ),
+              style: style,
             ),
-          const SizedBox(height: 4),
           Text(
             // 文案根据数据源动态化：AWMC 有趋势接口，可以回填；其他源只能从今天起攒。
-            showAwmcSync
+            source == RefreshDataSource.awmc
                 ? '水鱼 / 落雪 / AWMC NET 按账号分别记录历史。'
                     '${summary?.firstRecordedText ?? ''}'
                     '（AWMC NET 数据源下可点右上角「云同步」按钮回填历史趋势）'
                 : '水鱼 / 落雪 / AWMC NET 按账号分别记录历史。'
                     '${summary?.firstRecordedText ?? ''}'
                     '（历史只能从现在开始攒：水鱼与落雪都不提供历史成绩接口）',
-            style: TextStyle(
-              fontSize: 11.5,
-              color: AppColors.secondaryText(brightness),
-            ),
+            style: style,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildRangeSelector() {
-    const options = <int, String>{30: '近 30 天', 90: '近 90 天', 0: '全部'};
-    return Row(
-      children: [
-        for (final entry in options.entries)
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: NoRipple(
-              child: ChoiceChip(
-                label: Text(entry.value, style: const TextStyle(fontSize: 12)),
-                selected: _rangeDays == entry.key,
-                onSelected: (_) => setState(() => _rangeDays = entry.key),
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildStatsRow(Brightness brightness) {
+  /// 当前 Rating、所选范围内的变化、时间范围和最高值。
+  Widget _buildOverviewCard(Brightness brightness) {
+    const ranges = [30, 90, 0];
+    const labels = ['近 30 天', '近 90 天', '全部'];
+    final scheme = Theme.of(context).colorScheme;
     final visible = _visible;
-    if (visible.isEmpty) return const SizedBox.shrink();
     final current = visible.last;
     final best = visible.reduce((a, b) => a.rating >= b.rating ? a : b);
     final delta =
         visible.length >= 2 ? visible.last.rating - visible.first.rating : 0;
-
-    Widget cell(String label, String value, {Color? color}) => Expanded(
-          child: Column(
+    final deltaColor = delta > 0
+        ? AppColors.successGreen(brightness)
+        : (delta < 0 ? AppColors.errorRed(brightness) : scheme.onSurfaceVariant);
+    return AppCard(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            '当前',
+            style: TextStyle(fontSize: 12.5, color: scheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: 2),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Text(label,
-                  style: TextStyle(
-                      fontSize: 11,
-                      color: AppColors.secondaryText(brightness))),
-              const SizedBox(height: 2),
-              Text(value,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: color ?? AppColors.primaryText(brightness),
-                  )),
+              Expanded(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    '${current.rating}',
+                    maxLines: 1,
+                    style: AppTheme.number(
+                      fontSize: 40,
+                      height: 1.1,
+                      fontWeight: FontWeight.w800,
+                      color: scheme.onSurface,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: deltaColor.withValues(alpha: 0.14),
+                  borderRadius:
+                      BorderRadius.circular(AppDesignTokens.radiusPill),
+                ),
+                child: Text(
+                  '${delta >= 0 ? '+' : ''}$delta',
+                  style: AppTheme.number(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: deltaColor,
+                  ),
+                ),
+              ),
             ],
           ),
-        );
-
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: BoxDecoration(
-        color: AppSurfaces.card(context),
-        borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
-      ),
-      child: Row(
-        children: [
-          cell('当前', '${current.rating}'),
-          cell('最高', '${best.rating}'),
-          cell(
-            _rangeDays == 0 ? '总变化' : '近 $_rangeDays 天',
-            '${delta >= 0 ? '+' : ''}$delta',
-            color: delta > 0
-                ? AppColors.successGreen(brightness)
-                : (delta < 0 ? AppColors.errorRed(brightness) : null),
+          const SizedBox(height: 12),
+          SegmentedTabs(
+            height: 38,
+            items: [for (final label in labels) SegmentedTabItem(label)],
+            selectedIndex: ranges.indexOf(_rangeDays),
+            onChanged: (index) => setState(() => _rangeDays = ranges[index]),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: StatTile(
+                  centered: true,
+                  label: '最高',
+                  value: '${best.rating}',
+                ),
+              ),
+              Expanded(
+                child: StatTile(
+                  centered: true,
+                  label: 'Best35',
+                  value: current.best35 > 0 ? '${current.best35}' : '-',
+                ),
+              ),
+              Expanded(
+                child: StatTile(
+                  centered: true,
+                  label: 'Best15',
+                  value: current.best15 > 0 ? '${current.best15}' : '-',
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -481,12 +505,8 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
     final bestIdx = visible
         .indexWhere((p) => p.rating == ratings.reduce((a, b) => a > b ? a : b));
 
-    return Container(
+    return AppCard(
       padding: const EdgeInsets.fromLTRB(8, 16, 16, 8),
-      decoration: BoxDecoration(
-        color: AppSurfaces.card(context),
-        borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
-      ),
       child: HistoryLineChart(
         spots: spots,
         height: 220,
@@ -520,96 +540,89 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
   }
 
   Widget _buildPointList(Brightness brightness) {
+    final scheme = Theme.of(context).colorScheme;
     final visible = _visible.reversed.toList(growable: false);
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppSurfaces.card(context),
-        borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('记录点',
-              style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.primaryText(brightness))),
-          const SizedBox(height: 8),
-          for (final p in visible.take(30))
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Row(
-                children: [
-                  // 日期：定宽 118px 就能完整放下 `2026/09/03 10:00:00`
-                  // （真实字体实测 116.8px）；外面再套一层 FittedBox，
-                  // 系统字体放大时整段等比缩小，而不是换行或截断。
-                  SizedBox(
-                    width: 118,
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        _formatDate(p.tMs),
-                        maxLines: 1,
-                        style: TextStyle(
-                            fontSize: 12,
-                            color: AppColors.secondaryText(brightness)),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AppSectionHeader(
+          title: '记录点',
+          subtitle: visible.length > 30
+              ? '共 ${visible.length} 条，显示最近 30 条'
+              : '共 ${visible.length} 条',
+        ),
+        AppCard(
+          padding: EdgeInsets.zero,
+          child: Column(
+            children: [
+              for (final (index, p) in visible.take(30).indexed)
+                Container(
+                  padding: const EdgeInsets.fromLTRB(14, 8, 4, 8),
+                  decoration: BoxDecoration(
+                    border: index == 0
+                        ? null
+                        : Border(
+                            top: BorderSide(
+                                color: AppSurfaces.hairline(context))),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // 系统字体放大时整段等比缩小，而不是换行或截断。
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                _formatDate(p.tMs),
+                                maxLines: 1,
+                                style: TextStyle(
+                                    fontSize: 12.5, color: scheme.onSurface),
+                              ),
+                            ),
+                            if (p.best35 > 0)
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  'B35 ${p.best35} / B15 ${p.best15}',
+                                  maxLines: 1,
+                                  style: TextStyle(
+                                      fontSize: 11.5,
+                                      color: scheme.onSurfaceVariant),
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  SizedBox(
-                    width: 40,
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerLeft,
-                      child: Text('${p.rating}',
-                          maxLines: 1,
-                          style: TextStyle(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.primaryText(brightness))),
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  // B35 / B15 **必须完整显示**（实测 117.9px）。
-                  // 这里以前是 `Expanded + ellipsis`，而左边两列是写死的 150 + 56
-                  // —— 比实际需要宽了近 50px，Expanded 只分到 106px，
-                  // 于是永远是「B35 12345 / B15 …」。现在两列按实测宽度收紧，
-                  // 放到 360dp 屏上正好放得下；再挤就整体等比缩小，不省略。
-                  Expanded(
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerRight,
-                      child: Text(
-                        p.best35 > 0 ? 'B35 ${p.best35} / B15 ${p.best15}' : '',
+                      const SizedBox(width: 8),
+                      Text(
+                        '${p.rating}',
                         maxLines: 1,
-                        textAlign: TextAlign.right,
-                        style: TextStyle(
-                            fontSize: 11.5,
-                            color: AppColors.secondaryText(brightness)),
+                        style: AppTheme.number(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: scheme.onSurface,
+                        ),
                       ),
-                    ),
+                      HistoryPointDeleteButton(
+                        onPressed: () => _deletePoint(p),
+                      ),
+                    ],
                   ),
-                  HistoryPointDeleteButton(
-                    onPressed: () => _deletePoint(p),
-                  ),
-                ],
-              ),
-            ),
-        ],
-      ),
+                ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
   Widget _buildEmpty(Brightness brightness) {
-    return Container(
+    return AppCard(
       padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: AppSurfaces.card(context),
-        borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
-      ),
       child: Column(
         children: [
           Icon(Icons.insights_rounded,
@@ -789,7 +802,7 @@ class _ManualRatingDialogState extends State<_ManualRatingDialog> {
                 helperStyle: const TextStyle(fontSize: 11),
                 errorText: _ratingError,
                 errorStyle: const TextStyle(fontSize: 11),
-              ),
+              ).insetLabel(context),
             ),
             const SizedBox(height: 10),
             TextField(
@@ -803,7 +816,7 @@ class _ManualRatingDialogState extends State<_ManualRatingDialog> {
                 helperStyle: const TextStyle(fontSize: 11),
                 errorText: _best35Error,
                 errorStyle: const TextStyle(fontSize: 11),
-              ),
+              ).insetLabel(context),
             ),
             const SizedBox(height: 10),
             TextField(
@@ -817,7 +830,7 @@ class _ManualRatingDialogState extends State<_ManualRatingDialog> {
                 helperStyle: const TextStyle(fontSize: 11),
                 errorText: _best15Error,
                 errorStyle: const TextStyle(fontSize: 11),
-              ),
+              ).insetLabel(context),
             ),
             const SizedBox(height: 10),
             SizedBox(

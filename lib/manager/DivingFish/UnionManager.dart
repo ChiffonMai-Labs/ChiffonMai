@@ -33,9 +33,13 @@ class UnionManager {
     final timestamp = prefs.getInt(CacheKeyConstant.unionCacheTimestamp);
     final cached = prefs.getString(CacheKeyConstant.unionCache);
     if (timestamp == null || cached == null || cached.isEmpty) return false;
+    if (!_hasDxFrom(cached)) return false;
     return DateTime.now().millisecondsSinceEpoch - timestamp <=
         maxAge.inMilliseconds;
   }
+
+  /// 旧版缓存存的是解析后的字段，没有 dxfrom，DX 谱的版本要重新拉取才有。
+  static bool _hasDxFrom(String cached) => cached.contains('"dxfrom"');
 
   /// 从 API 获取并缓存
   Future<bool> fetchAndCache({bool forceNetwork = false}) async {
@@ -73,6 +77,11 @@ class UnionManager {
       final prefs = await SharedPreferences.getInstance();
       final cached = prefs.getString(CacheKeyConstant.unionCache);
       if (cached != null && cached.isNotEmpty) {
+        if (!_hasDxFrom(cached)) {
+          await fetchAndCache(forceNetwork: true);
+          // 拉取失败时继续用旧缓存，只是 DX 谱没有日服版本。
+          if (_lookupById != null) return;
+        }
         final list = await compute((String jsonStr) {
           final List<dynamic> jsonList = json.decode(jsonStr);
           return jsonList
@@ -98,6 +107,7 @@ class UnionManager {
         CacheKeyConstant.unionCacheTimestamp,
         DateTime.now().millisecondsSinceEpoch,
       );
+      _lookupById = {for (final s in list) s.id.toString(): s};
       debugPrint('[UnionManager] 缓存已保存');
     } catch (e) {
       debugPrint('[UnionManager] 保存缓存时异常: $e');

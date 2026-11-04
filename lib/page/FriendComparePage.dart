@@ -167,7 +167,7 @@ class _FriendComparePageState extends State<FriendComparePage> {
     final scheme = Theme.of(context).colorScheme;
     final result = _result;
     return BackgroundPageScaffold(
-      title: '好友成绩对比',
+      title: '好友对比',
       resizeToAvoidBottomInset: false,
       child: SingleChildScrollView(
         padding: EdgeInsets.fromLTRB(

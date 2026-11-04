@@ -1,18 +1,15 @@
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
-import '../widgets/SmoothLinearProgressIndicator.dart';
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:my_first_flutter_app/service/PaiziProgressService.dart';
 import 'package:my_first_flutter_app/service/PaiziProgressConvertToImgService.dart';
-import 'package:my_first_flutter_app/constant/LoadingTipsConstant.dart';
 import 'package:my_first_flutter_app/entity/LuoXue/Collection.dart';
 import 'package:my_first_flutter_app/entity/DivingFish/Song.dart';
 import 'package:my_first_flutter_app/manager/LuoXue/CollectionsManager.dart';
 import 'package:my_first_flutter_app/utils/CollectionsImageUtil.dart';
-import 'package:my_first_flutter_app/utils/StringUtil.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import 'package:my_first_flutter_app/page/SongInfoPage.dart';
 import 'package:my_first_flutter_app/page/Collection/CollectionInfoPage.dart';
@@ -24,7 +21,8 @@ import '../utils/AppDesignTokens.dart';
 import '../widgets/AppUi.dart';
 import '../widgets/ProgressUi.dart';
 import '../widgets/AppDialogs.dart';
-import '../widgets/ExportSuccessDialog.dart';
+import 'package:my_first_flutter_app/service/BackgroundExportService.dart';
+import 'package:my_first_flutter_app/widgets/AppToast.dart';
 
 // 根据 formatVersion2 的顺序定义首字顺序
 const List<String> _firstCharOrder = [
@@ -582,8 +580,9 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
     return ProgressSongRow(
       songId: songId,
       title: songTitle,
-      subtitle:
-          '${StringUtil.formatSongType(songType)} / ${songDs.isNotEmpty ? songDs : '-'}',
+      songType: songType,
+      levelIndex: initialLevelIndex,
+      constant: songDs,
       completed: isCompleted,
       excluded: excluded,
       showDivider: showDivider,
@@ -909,7 +908,6 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
   }
 
   Future<void> _exportToImage() async {
-    StreamSubscription<String>? _tipSubscription;
     try {
       debugPrint('=== PAIZI EXPORT TO IMAGE STARTED ===');
       debugPrint('Current context: $context');
@@ -929,9 +927,10 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
         estimatedPngSize: ImageEncodeUtil.estimatePngSize(
             songCount: songCount, cardsPerRow: 12),
         exportingLabel: '牌子进度',
-        previewBuilder: (previewContext, _) =>
+        previewBuilder: (previewContext, previewQuality) =>
             PaiziProgressConvertToImg.buildPreviewWidget(
           previewContext,
+          theme: previewQuality.theme,
           currentPlate: _currentPlate,
           cachedSongsWithStatus: _cachedSongsWithStatus,
           selectedFirstChar: _selectedFirstChar,
@@ -946,76 +945,10 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
       );
       if (quality == null) return;
 
-      String _progressMessage = '正在准备导出...';
-      double _progressValue = 0.0;
-      String _currentLoadingTip = LoadingTipsConstant.getRandomLoadingTip();
-      bool _isFirstBuild = true;
-      void Function(void Function())? _updateDialog;
-
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) {
-          return StatefulBuilder(
-            builder: (context, setDialogState) {
-              _updateDialog = setDialogState;
-              if (_isFirstBuild) {
-                _isFirstBuild = false;
-                LoadingTipsConstant.startAutoSwitch(3);
-                _tipSubscription = LoadingTipsConstant.tipStream.listen((tip) {
-                  try {
-                    _updateDialog?.call(() {
-                      _currentLoadingTip = tip;
-                    });
-                  } catch (_) {}
-                });
-              }
-              return AppAlertDialog(
-                title: Text('导出中'),
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        SizedBox(
-                          width: 28,
-                          height: 28,
-                          child: CircularProgressIndicator(),
-                        ),
-                        SizedBox(width: 16),
-                        Expanded(
-                          child: Text(_progressMessage),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 16.0),
-                    SmoothLinearProgressIndicator(
-                      value: _progressValue > 0 ? _progressValue : null,
-                      backgroundColor:
-                          Theme.of(context).colorScheme.surfaceContainerHighest,
-                      valueColor: AlwaysStoppedAnimation(
-                          Theme.of(context).colorScheme.primary),
-                    ),
-                    SizedBox(height: 12.0),
-                    Text(
-                      _currentLoadingTip,
-                      style: TextStyle(
-                          fontSize: 12,
-                          color:
-                              Theme.of(context).colorScheme.onSurfaceVariant),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
-              );
-            },
-          );
-        },
-      );
-
-      final file = await PaiziProgressConvertToImg.convertToImage(
-        context,
+      BackgroundExport.run(
+        label: '牌子进度',
+        task: (exportContext) => PaiziProgressConvertToImg.convertToImage(
+          exportContext,
         currentPlate: _currentPlate,
         cachedSongsWithStatus: _cachedSongsWithStatus,
         selectedFirstChar: _selectedFirstChar,
@@ -1027,29 +960,11 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
         getLevelDisplay: _getLevelDisplay,
         getSongAchievement: _service.getSongAchievement,
         jpegQuality: quality.jpegQuality,
-        onProgress: (message, progress) {
-          _progressMessage = message;
-          _progressValue = progress;
-          _updateDialog?.call(() {});
-        },
+        theme: quality.theme,
+      ),
       );
-
-      _tipSubscription?.cancel();
-      LoadingTipsConstant.stopAutoSwitch();
-      Navigator.of(context, rootNavigator: true).pop();
-
-      if (file != null) {
-        showExportSuccessDialog(context, filePath: file.path, fileName: file.path.split('/').last);
-      } else {
-        showAppNoticeDialog(context, title: '导出失败', message: '图片导出失败，请重试', tone: AppDialogTone.error);
-      }
     } catch (e) {
-      _tipSubscription?.cancel();
-      LoadingTipsConstant.stopAutoSwitch();
-      try {
-        Navigator.of(context, rootNavigator: true).pop();
-      } catch (_) {}
-      showAppNoticeDialog(context, title: '导出失败', message: '图片导出失败：${e.toString()}', tone: AppDialogTone.error);
+      AppToast.show('导出失败：$e');
     }
   }
 }

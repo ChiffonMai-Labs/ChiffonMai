@@ -84,10 +84,10 @@
 
 以下服务按您使用的功能接收相应信息。直接网络访问中，服务提供方还会接收建立通信所需的网络信息。您可通过其官网查阅服务规则、隐私说明及联系方式。
 
-- **[水鱼查分器](https://www.diving-fish.com/maimaidx/prober/)、[落雪咖啡屋](https://maimai.lxns.net/)、[AWMC NET.](https://net.wmc.pub/)：** 处理您选择的账号标识、授权或导入凭据、查询条件及待上传成绩，提供账号验证、成绩查询与同步。
+- **[水鱼查分器](https://www.diving-fish.com/maimaidx/prober/)、[落雪咖啡屋](https://maimai.lxns.net/)、[AWMC NET](https://net.wmc.pub/)：** 处理您选择的账号标识、授权或导入凭据、查询条件及待上传成绩，提供账号验证、成绩查询与同步。
 - **[maimai Score Hub](https://maimai.bakapiano.com/)：** 处理扫码登录和同步所需的账号信息、游戏玩家标识、登录令牌，以及您提交的成绩照片，提供相应的授权、成绩读取或图片识别服务。
 - **[DXRating.net](https://dxrating.net/)、[Union](https://union.godserver.cn/)、[Yuri-YuzuChaN 的别名数据](https://github.com/Yuri-YuzuChaN/maimaiDX)：** 接收曲库、标签、别名或曲绘等公开资料的资源请求。本应用不为获取这些公开资料而向其提交您的成绩同步凭据。
-- **落雪咖啡屋的资源服务及 AWMC NET. 的谱面资源服务：** 接收曲绘、音源、装扮或谱面的资源标识，用于下载和播放相关资料。
+- **落雪咖啡屋的资源服务及 AWMC NET 的谱面资源服务：** 接收曲绘、音源、装扮或谱面的资源标识，用于下载和播放相关资料。
 - **[NearCade](https://nearcade.cn/) 与[高德地图](https://www.amap.com/)的地图资源服务：** 接收机厅资料查询或所浏览区域的地图资源请求，提供机厅资料及地图显示。外部导航由您选择的地图应用提供。
 - **[百度翻译](https://fanyi-api.baidu.com/)：** 经本应用服务端接收待翻译文本、来源语言及目标语言，提供文本翻译。
 - **[哔哩哔哩](https://www.bilibili.com/)：** 在您使用视频搜索或打开相关内容时接收搜索词、视频标识及对应网络请求；跳转后的信息处理适用其规则。

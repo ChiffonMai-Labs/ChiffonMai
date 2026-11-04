@@ -3,6 +3,7 @@ import '../service/RankTable/RankCompletionStore.dart';
 import '../utils/AppTheme.dart';
 import '../widgets/AppDialogs.dart';
 import '../utils/AppDesignTokens.dart';
+import 'AppUi.dart';
 
 /// 段位完成情况的文字标签，同时作为编辑入口。
 class RankCompletionButton extends StatelessWidget {
@@ -162,7 +163,7 @@ class _RankCompletionDialogState extends State<_RankCompletionDialog> {
               labelText: '总达成率（最高 404.0000%）',
               suffixText: '%',
               errorText: canInput ? _achievementError : null,
-              errorMaxLines: 2),
+              errorMaxLines: 2).insetLabel(context),
         ),
       ])),
       actions: [

@@ -80,6 +80,7 @@ import 'RecommendByTagsPage.dart';
 import 'SingleRatingCalculatorPage.dart';
 import 'SongSearchPage.dart';
 import 'UnionUpdateComparePage.dart';
+import 'UpdateCalendarPage.dart';
 import 'UserScoreSearchPage.dart';
 import 'AboutAppPage.dart';
 import 'SupportDeveloperPage.dart';
@@ -133,6 +134,7 @@ import '../widgets/AppDialogs.dart';
 import '../widgets/AppToast.dart';
 import '../widgets/HomeStatusWidgets.dart';
 import '../service/HomeWidgetService.dart';
+import 'package:my_first_flutter_app/widgets/FavoriteEditGrid.dart';
 
 // ds值与歌曲对应关系数据类已随 _calculateRatingLimits 一起抽离到
 // lib/widgets/RefreshDataDialog.dart，不再需要此处的定义。
@@ -292,7 +294,7 @@ class _AwmcNetTokenSectionState extends State<_AwmcNetTokenSection> {
                       text: 'https://net.wmc.pub/settings/',
                       style: TextStyle(
                         fontSize: 12,
-                        color: AppColors.linkBlue(brightness),
+                        color: Theme.of(context).colorScheme.primary,
                         decoration: TextDecoration.underline,
                       ),
                     ),
@@ -929,7 +931,9 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
         _headerIconButton(
           context,
           tooltip: '主题与导航设置',
-          icon: Icons.brightness_6_outlined,
+          icon: Theme.of(context).brightness == Brightness.dark
+              ? Icons.dark_mode_outlined
+              : Icons.light_mode_outlined,
           onPressed: _showThemeDialog,
         ),
       ],
@@ -1654,14 +1658,11 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                           decoration: InputDecoration(
                             labelText: '水鱼用户名',
                             hintText: '输入 Diving-Fish 用户名',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-                            ),
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 12,
                               vertical: 10,
                             ),
-                          ),
+                          ).insetLabel(context),
                         ),
                         const SizedBox(height: 10),
                         TextField(
@@ -1670,14 +1671,11 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                           decoration: InputDecoration(
                             labelText: '水鱼密码',
                             hintText: '输入 Diving-Fish 密码',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-                            ),
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 12,
                               vertical: 10,
                             ),
-                          ),
+                          ).insetLabel(context),
                         ),
                         if (bindingError != null) ...[
                           const SizedBox(height: 8),
@@ -2155,14 +2153,11 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                         decoration: InputDecoration(
                           labelText: '用户名',
                           hintText: 'Diving-Fish 用户名',
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-                          ),
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 12,
                             vertical: 10,
                           ),
-                        ),
+                        ).insetLabel(context),
                       ),
                       const SizedBox(height: 10),
                       TextField(
@@ -2171,14 +2166,11 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                         decoration: InputDecoration(
                           labelText: '密码',
                           hintText: 'Diving-Fish 密码',
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-                          ),
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 12,
                             vertical: 10,
                           ),
-                        ),
+                        ).insetLabel(context),
                       ),
                       if (errorMsg != null) ...[
                         const SizedBox(height: 8),
@@ -2720,7 +2712,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                           style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w500,
-                              color: AppColors.linkBlue(brightness),
+                              color: Theme.of(context).colorScheme.primary,
                               decoration: TextDecoration.underline),
                         ),
                         const TextSpan(
@@ -3160,6 +3152,12 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
         MaterialPageRoute(builder: (context) => const UnionUpdateComparePage()),
       );
     }
+    if (item.title == '更新日历') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const UpdateCalendarPage()),
+      );
+    }
     if (item.title == '刷新数据') {
       await _openRefreshData();
     }
@@ -3591,17 +3589,20 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
             builder: (BuildContext context) {
               return AppAlertDialog(
                 title: Text('检查更新失败'),
+                // 单列按原顺序排，确定在最下面。
+                actionColumns: 1,
                 content: Text('请检查网络连接后重试'),
                 actions: [
                   TextButton(
                     onPressed: () {
-                      Clipboard.setData(const ClipboardData(
-                          text: LZYCheckUpdateManager.defaultDownloadUrl));
+                      Clipboard.setData(ClipboardData(
+                          text: LZYCheckUpdateManager.platformDownloadUrl));
                       Navigator.of(context).pop();
                       AppToast.show('下载链接已复制到剪贴板', duration: Duration(seconds: 2));
                     },
                     child: Text('复制下载链接'),
                   ),
+                  LZYCheckUpdateManager().buildReleasesButton(context),
                   TextButton(
                     onPressed: () {
                       Navigator.of(context).pop();
@@ -3715,17 +3716,6 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
         if (available.containsKey(title)) available[title]!,
     ];
 
-    void move(int from, int to) {
-      if (from == to || to < 0 || to >= items.length) return;
-      final reordered = items.toList();
-      final item = reordered.removeAt(from);
-      reordered.insert(to, item);
-      unawaited(FavoriteFeaturesNotifier.moveBefore(
-        item.title,
-        to + 1 < reordered.length ? reordered[to + 1].title : null,
-      ));
-    }
-
     Widget buildItem(int index) {
       final item = items[index];
       return ValueListenableBuilder<UpdateAvailability?>(
@@ -3743,30 +3733,11 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
             isFavorited: true,
             onToggleFavorite: () => _toggleFavorite(item.title),
             onTap: () => _handleFeatureTap(item),
-            sorting: _sortingFavorites,
-            trailingOverride: _sortingFavorites
-                ? Row(mainAxisSize: MainAxisSize.min, children: [
-                    IconButton(
-                      tooltip: '上移',
-                      onPressed:
-                          index == 0 ? null : () => move(index, index - 1),
-                      icon: const Icon(Icons.arrow_upward_rounded),
-                    ),
-                    IconButton(
-                      tooltip: '下移',
-                      onPressed: index == items.length - 1
-                          ? null
-                          : () => move(index, index + 1),
-                      icon: const Icon(Icons.arrow_downward_rounded),
-                    ),
-                  ])
-                : null,
-            loading: !_sortingFavorites && _syncBusyFor(item.title),
+            loading: _syncBusyFor(item.title),
             loadingText: _syncTextFor(item.title),
             showProgress: true,
             progressValue: _syncProgressFor(item.title),
-            disabled: !_sortingFavorites &&
-                _isSyncBlockedFeature(item.title) &&
+            disabled: _isSyncBlockedFeature(item.title) &&
                 anyBusy &&
                 !_syncBusyFor(item.title),
             footerLift: item.title == '同步成绩到 AWMC NET' || item.title == '自动同步'
@@ -3818,7 +3789,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
         if (_sortingFavorites)
           Padding(
             padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
-            child: Text('点星标取消收藏，点箭头或长按拖动调整顺序',
+            child: Text('拖动图标调整顺序；点叉号或拖到删除区域可移除收藏',
                 style:
                     TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
           ),
@@ -3832,31 +3803,18 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
             ),
           )
         else if (_sortingFavorites)
-          AppCard(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: ReorderableListView.builder(
-              shrinkWrap: true,
-              primary: false,
-              padding: EdgeInsets.zero,
-              physics: const NeverScrollableScrollPhysics(),
-              buildDefaultDragHandles: false,
-              itemCount: items.length,
-              onReorder: (oldIndex, newIndex) {
-                move(oldIndex, newIndex > oldIndex ? newIndex - 1 : newIndex);
-              },
-              proxyDecorator: (child, index, animation) => Material(
-                color: AppSurfaces.card(context),
-                borderRadius:
-                    BorderRadius.circular(AppDesignTokens.radiusMedium),
-                child: child,
-              ),
-              itemBuilder: (context, index) =>
-                  ReorderableDelayedDragStartListener(
-                key: ValueKey(items[index].title),
-                index: index,
-                child: buildItem(index),
-              ),
-            ),
+          FavoriteEditGrid(
+            items: [
+              for (final item in items)
+                FavoriteEditItem(title: item.title, icon: item.icon),
+            ],
+            onReorder: (ordered) {
+              // 当前不可用的收藏不显示，但要留在原来的集合里。
+              final hidden = titles.where((t) => !ordered.contains(t));
+              unawaited(FavoriteFeaturesNotifier.replaceAll(
+                  {...ordered, ...hidden}));
+            },
+            onRemove: _toggleFavorite,
           )
         else ...[
           if (gridItems.isNotEmpty)

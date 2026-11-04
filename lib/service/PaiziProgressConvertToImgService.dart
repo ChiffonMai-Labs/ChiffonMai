@@ -2,7 +2,6 @@ import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
-import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -11,11 +10,9 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:media_scanner/media_scanner.dart';
 import 'package:my_first_flutter_app/utils/CoverUtil.dart';
 import 'package:my_first_flutter_app/utils/ColorUtil.dart';
-import 'package:my_first_flutter_app/utils/ExportUserInfoWidget.dart';
 import 'package:my_first_flutter_app/utils/ImageEncodeUtil.dart';
 import 'package:my_first_flutter_app/entity/LuoXue/Collection.dart';
 import 'package:my_first_flutter_app/entity/DivingFish/Song.dart';
-import 'package:my_first_flutter_app/widgets/MetaRowWidget.dart';
 import '../widgets/ExportStatsUi.dart';
 
 class PaiziProgressConvertToImg {
@@ -35,6 +32,7 @@ class PaiziProgressConvertToImg {
     required double Function(int, int) getSongAchievement,
     void Function(String message, double progress)? onProgress,
     int? jpegQuality,
+    ExportImageTheme theme = ExportImageTheme.light,
   }) async {
     OverlayEntry? overlayEntry;
     try {
@@ -49,6 +47,7 @@ class PaiziProgressConvertToImg {
       debugPrint('Is granted: ${status.isGranted}');
 
       GlobalKey globalKey = GlobalKey();
+      final mountedAll = Completer<void>();
 
       onProgress?.call('正在构建导出内容...', 0.1);
 
@@ -56,6 +55,9 @@ class PaiziProgressConvertToImg {
         key: globalKey,
         child: _buildExportImageWidget(
           context,
+          onMounted: () {
+            if (!mountedAll.isCompleted) mountedAll.complete();
+          },
           currentPlate: currentPlate,
           cachedSongsWithStatus: cachedSongsWithStatus,
           selectedFirstChar: selectedFirstChar,
@@ -66,6 +68,7 @@ class PaiziProgressConvertToImg {
           getDifficultyName: getDifficultyName,
           getLevelDisplay: getLevelDisplay,
           getSongAchievement: getSongAchievement,
+          theme: theme,
         ),
       );
 
@@ -91,6 +94,9 @@ class PaiziProgressConvertToImg {
 
       onProgress?.call('正在渲染导出内容...', 0.3);
 
+      // 曲绘分批挂载，全部挂完才能截图。
+      await mountedAll.future
+          .timeout(const Duration(seconds: 30), onTimeout: () {});
       await _waitForRender();
       debugPrint('Render wait completed');
 
@@ -116,46 +122,10 @@ class PaiziProgressConvertToImg {
       debugPrint(
           'Widget size: ${boundary.size.width}x${boundary.size.height}, calculated pixelRatio: $pixelRatio');
 
-      ui.Image image;
-      try {
-        image = await boundary.toImage(pixelRatio: pixelRatio);
-        debugPrint('Image captured successfully at pixelRatio: $pixelRatio');
-      } catch (e) {
-        debugPrint('First capture failed: $e');
-        await Future.delayed(Duration(milliseconds: 200));
-        image = await boundary.toImage(pixelRatio: pixelRatio);
-        debugPrint('Image captured on retry');
-      }
-
-      ByteData? byteData =
-          await image.toByteData(format: ui.ImageByteFormat.png);
-      if (byteData == null) {
-        debugPrint('Error: ByteData is null');
-        overlayEntry.remove();
-        image.dispose();
-        return null;
-      }
-      debugPrint('ByteData conversion successful');
-
-      Uint8List pngBytes = byteData.buffer
-          .asUint8List(byteData.offsetInBytes, byteData.lengthInBytes);
-      // 立刻释放 ui.Image：它本身也是上百 MB 的原生位图，而下面的 JPEG
-      // 转码还要再分配上百 MB（decodePng + copyResize）。等转码完再释放，
-      // 峰值内存会白白多一份 —— 低内存机就是这样被 OOM 掉的。
-      // 转码只用得到 pngBytes，用不到这个 image。
-      image.dispose();
-
-      // 根据质量参数决定最终格式
-      Uint8List finalBytes;
-      String extension;
-      if (jpegQuality != null) {
-        finalBytes = await ImageEncodeUtil.pngToJpegAsync(pngBytes,
-            quality: jpegQuality);
-        extension = 'jpg';
-      } else {
-        finalBytes = pngBytes;
-        extension = 'png';
-      }
+      final encoded =
+          await ImageEncodeUtil.encodeBoundary(boundary, jpegQuality: jpegQuality);
+      final Uint8List finalBytes = encoded.bytes;
+      final String extension = encoded.extension;
 
       overlayEntry.remove();
 
@@ -269,6 +239,7 @@ class PaiziProgressConvertToImg {
     required String Function(int) getDifficultyName,
     required String Function(double) getLevelDisplay,
     required double Function(int, int) getSongAchievement,
+    ExportImageTheme theme = ExportImageTheme.light,
   }) =>
       _buildExportImageWidget(
         context,
@@ -282,10 +253,12 @@ class PaiziProgressConvertToImg {
         getDifficultyName: getDifficultyName,
         getLevelDisplay: getLevelDisplay,
         getSongAchievement: getSongAchievement,
+          theme: theme,
       );
 
   static Widget _buildExportImageWidget(
     BuildContext context, {
+    VoidCallback? onMounted,
     required Collection? currentPlate,
     required List<Map<String, dynamic>>? cachedSongsWithStatus,
     required String? selectedFirstChar,
@@ -296,16 +269,19 @@ class PaiziProgressConvertToImg {
     required String Function(int) getDifficultyName,
     required String Function(double) getLevelDisplay,
     required double Function(int, int) getSongAchievement,
+    ExportImageTheme theme = ExportImageTheme.light,
   }) {
     const double containerWidth = 1200.0;
+    final c = ExportPalette.forTheme(theme);
 
     if (currentPlate == null ||
         cachedSongsWithStatus == null ||
         cachedSongsWithStatus.isEmpty) {
-      return Container(
+      onMounted?.call();
+      return ExportPage(
+        theme: theme,
         width: containerWidth,
         height: 400,
-        color: Colors.white,
         child: Center(
           child: Text(
             '暂无数据',
@@ -401,21 +377,15 @@ class PaiziProgressConvertToImg {
     double coverSize = containerWidth * 0.083;
     double sectionNameFontSize = containerWidth * 0.022;
 
-    return Container(
+    return ExportPage(
+      theme: theme,
       width: containerWidth,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        image: DecorationImage(
-          image: AssetImage('assets/bg/b50_bg.png'),
-          fit: BoxFit.cover,
-        ),
-      ),
       child: Padding(
         padding: EdgeInsets.all(20.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _buildUserInfoAndMetaRow(context),
+            const ExportPosterHeader(title: '牌子进度', scale: 0.7),
             SizedBox(height: 16.0),
 
             // 统计区域
@@ -441,45 +411,32 @@ class PaiziProgressConvertToImg {
             SizedBox(height: 16.0),
 
             // 歌曲列表
-            ...sortedLevelKeys.map((levelKey) {
-              final levelSongs = groupedSongs[levelKey]!;
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
+            ExportProgressiveColumn(
+              onComplete: onMounted,
+              children: [
+                for (final levelKey in sortedLevelKeys) ...[
                   // 定数分隔线
                   Container(
                     decoration: BoxDecoration(
-                      color: Colors.grey[200]!,
-                      border: Border.all(color: Colors.black, width: 1.0),
-                      borderRadius: BorderRadius.circular(8.0),
+                      color: c.panel,
+                      borderRadius: BorderRadius.circular(16.0),
                     ),
                     padding:
                         EdgeInsets.symmetric(vertical: 8.0, horizontal: 14.0),
                     margin: EdgeInsets.only(bottom: 8.0),
                     child: Text(
-                      '${useLevelDisplay ? 'Lv.' : ''}${levelKey} | 共 ${levelSongs.length} 首歌曲',
+                      '${useLevelDisplay ? 'Lv.' : ''}${levelKey} | 共 ${groupedSongs[levelKey]!.length} 首歌曲',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: sectionNameFontSize,
-                        color: Colors.black,
+                        color: c.ink,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
-                  // 歌曲网格
-                  GridView.builder(
-                    shrinkWrap: true,
-                    physics: NeverScrollableScrollPhysics(),
-                    padding: EdgeInsets.zero,
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 12,
-                      crossAxisSpacing: 8.0,
-                      mainAxisSpacing: 8.0,
-                      childAspectRatio: 1.0,
-                    ),
-                    itemCount: levelSongs.length,
-                    itemBuilder: (context, index) {
-                      final item = levelSongs[index];
+                  ...exportCoverRows(groupedSongs[levelKey]!.length,
+                      (context, index) {
+                      final item = groupedSongs[levelKey]![index];
                       final dynamic song = item['song'];
                       final isCompleted = item['completed'] as bool;
                       final diffIndex = item['difficulty'] as int;
@@ -533,51 +490,14 @@ class PaiziProgressConvertToImg {
                           ),
                         ),
                       );
-                    },
-                  ),
+                  }),
                   SizedBox(height: 16.0),
                 ],
-              );
-            }),
+              ],
+            ),
           ],
         ),
       ),
-    );
-  }
-
-  static Widget _buildUserInfoAndMetaRow(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final userInfoWidth = constraints.maxWidth * 2 / 3;
-        final userInfoHeight = 230 * userInfoWidth / 1150;
-        const metaHeight = 150.0;
-        final metaWidth = constraints.maxWidth - userInfoWidth - 12;
-
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              width: userInfoWidth,
-              height: userInfoHeight,
-              child: FittedBox(
-                fit: BoxFit.contain,
-                alignment: Alignment.centerLeft,
-                child: SizedBox(
-                  width: 1150,
-                  height: 230,
-                  child: ExportUserInfoWidget.buildUserInfoSection(context),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            SizedBox(
-              width: metaWidth,
-              height: metaHeight,
-              child: MetaRowWidget(width: metaWidth, height: metaHeight),
-            ),
-          ],
-        );
-      },
     );
   }
 

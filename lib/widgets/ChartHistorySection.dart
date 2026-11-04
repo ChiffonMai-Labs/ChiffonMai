@@ -14,6 +14,7 @@ import 'HistoryPointDelete.dart';
 import '../utils/AppDesignTokens.dart';
 import '../widgets/AppDialogs.dart';
 import '../widgets/AppToast.dart';
+import 'AppUi.dart';
 
 /// 曲目详情页里的「这张谱面的成绩历史」区块（达成率曲线 + DX 曲线）。
 ///
@@ -679,7 +680,7 @@ class _ManualChartPointDialogState extends State<_ManualChartPointDialog> {
                 helperStyle: const TextStyle(fontSize: 11),
                 errorText: _achievementError,
                 errorStyle: const TextStyle(fontSize: 11),
-              ),
+              ).insetLabel(context),
             ),
             const SizedBox(height: 10),
             TextField(
@@ -694,7 +695,7 @@ class _ManualChartPointDialogState extends State<_ManualChartPointDialog> {
                 helperStyle: const TextStyle(fontSize: 11),
                 errorText: _dxError,
                 errorStyle: const TextStyle(fontSize: 11),
-              ),
+              ).insetLabel(context),
             ),
             const SizedBox(height: 10),
             SizedBox(

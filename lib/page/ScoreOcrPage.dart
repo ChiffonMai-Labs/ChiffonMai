@@ -170,8 +170,7 @@ class _ValidatedNumberFieldState extends State<_ValidatedNumberField> {
         errorText: _error,
         errorStyle: const TextStyle(fontSize: 11),
         isDense: true,
-        border: const OutlineInputBorder(),
-      ),
+      ).insetLabel(context),
       onChanged: _handleChanged,
     );
   }
@@ -2121,7 +2120,7 @@ class _OcrHubLoginPanelState extends State<_OcrHubLoginPanel> {
                   const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               errorText: _error,
               errorMaxLines: 3,
-            ),
+            ).insetLabel(context),
             onChanged: (_) {
               if (_error != null) setState(() => _error = null);
             },

@@ -1,5 +1,9 @@
-import 'package:flutter/material.dart';
+import 'dart:math' as math;
 
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../constant/CacheKeyConstant.dart';
 import '../utils/AppDesignTokens.dart';
 import '../utils/AppTheme.dart';
 import '../utils/ChartDifficulty.dart';
@@ -8,14 +12,15 @@ import '../utils/CoverUtil.dart';
 import '../utils/StringUtil.dart';
 import 'AppUi.dart';
 import 'AppDialogs.dart';
+import 'B50GameCardWidget.dart';
 import 'MarqueeText.dart';
 
 /// Best50 系列页共用的界面组件。
 ///
 /// 页面结构：[Best50Hero]（大数字 + 构成条）→ B35 / B15 分段 → 一行摘要 →
-/// [Best50Grid]（三列曲绘卡）；点卡片弹 [showBest50SongSheet]。
+/// [Best50Grid]（三种显示模式）；点卡片弹 [showBest50SongSheet]。
 ///
-/// 卡片只用于屏幕显示。导出图片仍由 `B50GameCardWidget` 绘制，两者互不影响。
+/// 曲绘卡和单列长条卡只用于屏幕显示；双列模式和导出图片用 `B50GameCardWidget`。
 
 /// 一张曲绘卡需要的全部数据（各页面从自己的数据结构换算过来）。
 class Best50CardData {
@@ -72,6 +77,74 @@ class Best50CardData {
 
   String get dsText => ds.toStringAsFixed(isFitDiff ? 2 : 1);
   String get achievementText => '${achievement.toStringAsFixed(4)}%';
+}
+
+// ---------------------------------------------------------------------------
+// 显示模式
+// ---------------------------------------------------------------------------
+
+/// Best50 系列页的显示模式。
+enum Best50DisplayMode {
+  cover('曲绘', Icons.grid_view_rounded),
+  twoColumns('双列', Icons.view_module_rounded),
+  oneColumn('单列', Icons.view_agenda_rounded);
+
+  final String label;
+  final IconData icon;
+
+  const Best50DisplayMode(this.label, this.icon);
+}
+
+/// 当前显示模式。六个页面共用同一份，改一处其它页面同步，并记在本地。
+class Best50DisplayPreference extends ValueNotifier<Best50DisplayMode> {
+  Best50DisplayPreference._() : super(Best50DisplayMode.cover);
+
+  static final Best50DisplayPreference instance = Best50DisplayPreference._();
+
+  static Future<void> load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final name = prefs.getString(CacheKeyConstant.best50DisplayMode);
+    instance.value = Best50DisplayMode.values.firstWhere(
+      (mode) => mode.name == name,
+      orElse: () => Best50DisplayMode.cover,
+    );
+  }
+
+  Future<void> set(Best50DisplayMode mode) async {
+    if (mode == value) return;
+    value = mode;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(CacheKeyConstant.best50DisplayMode, mode.name);
+  }
+}
+
+/// 网格上方的显示模式切换。
+class Best50DisplayModeBar extends StatelessWidget {
+  const Best50DisplayModeBar({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final preference = Best50DisplayPreference.instance;
+    return ValueListenableBuilder<Best50DisplayMode>(
+      valueListenable: preference,
+      builder: (context, current, _) => Align(
+        alignment: Alignment.centerRight,
+        child: SizedBox(
+          width: 204,
+          child: SegmentedTabs(
+            height: 36,
+            items: [
+              for (final mode in Best50DisplayMode.values)
+                SegmentedTabItem(mode.label),
+            ],
+            selectedIndex: current.index,
+            onChanged: (index) =>
+                preference.set(Best50DisplayMode.values[index]),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -558,7 +631,7 @@ class Best50ActionButton extends StatelessWidget {
 // 曲绘网格
 // ---------------------------------------------------------------------------
 
-/// 三列曲绘卡网格。卡片高度按宽度和系统字号算，不会被压扁。
+/// Best50 网格：上方切换显示模式，下方是三列曲绘卡或双列、单列的成绩卡。
 ///
 /// [remaining] 是榜单截断后和最后一首并列的谱面，非空时最后一格显示「剩余 N 首」，
 /// [remainingLabel] 写明并列的依据（RA 或定数）。
@@ -574,11 +647,32 @@ class Best50Grid extends StatelessWidget {
     this.remainingLabel,
   });
 
-  /// 单元格高度（自定义 Best50 的网格也用它）。
-  static SliverGridDelegate delegate(
-      BuildContext context, double maxWidth) {
+  /// 网格布局（自定义 Best50 的网格也用它）。曲绘卡的高度按宽度和系统字号算，
+  /// 不会被压扁；成绩卡按固定宽高比。
+  static SliverGridDelegate delegate(BuildContext context, double maxWidth,
+      {Best50DisplayMode mode = Best50DisplayMode.cover}) {
     const gap = 10.0;
-    final columns = maxWidth >= 600 ? 5 : 3;
+    final wide = maxWidth >= 600;
+    if (mode == Best50DisplayMode.oneColumn) {
+      return SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: wide ? 2 : 1,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 6,
+        mainAxisExtent: Best50StripCard.heightFor(context),
+      );
+    }
+    if (mode == Best50DisplayMode.twoColumns) {
+      const cardGap = 5.0;
+      final columns = wide ? 3 : 2;
+      final w = (maxWidth - cardGap * (columns - 1)) / columns;
+      return SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: columns,
+        crossAxisSpacing: cardGap,
+        mainAxisSpacing: cardGap,
+        mainAxisExtent: w / B50GameCardWidget.designAspectRatio,
+      );
+    }
+    final columns = wide ? 5 : 3;
     final w = (maxWidth - gap * (columns - 1)) / columns;
     final textScale = MediaQuery.textScalerOf(context).scale(1.0);
     return SliverGridDelegateWithFixedCrossAxisCount(
@@ -592,36 +686,366 @@ class Best50Grid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final count = items.length + (remaining.isEmpty ? 0 : 1);
-    return LayoutBuilder(
-      builder: (context, constraints) => GridView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        padding: EdgeInsets.zero,
-        gridDelegate: delegate(context, constraints.maxWidth),
-        itemCount: count,
-        itemBuilder: (context, index) {
-          if (index >= items.length) {
-            return EntranceAnimation(
-              index: index,
-              child: _Best50RemainingCell(
-                count: remaining.length,
-                label: remainingLabel ?? '',
-                onTap: () => showBest50RemainingDialog(
-                  context,
-                  items: remaining,
-                  label: remainingLabel ?? '',
-                ),
+    return ValueListenableBuilder<Best50DisplayMode>(
+      valueListenable: Best50DisplayPreference.instance,
+      builder: (context, mode, _) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Best50DisplayModeBar(),
+          const SizedBox(height: 10),
+          LayoutBuilder(
+            builder: (context, constraints) => GridView.builder(
+              // 换模式时重新入场，不复用上一种模式的格子。
+              key: ValueKey(mode),
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              padding: EdgeInsets.zero,
+              gridDelegate:
+                  delegate(context, constraints.maxWidth, mode: mode),
+              itemCount: count,
+              itemBuilder: (context, index) {
+                if (index >= items.length) {
+                  return EntranceAnimation(
+                    index: index,
+                    child: _Best50RemainingCell(
+                      compact: mode == Best50DisplayMode.oneColumn,
+                      count: remaining.length,
+                      label: remainingLabel ?? '',
+                      onTap: () => showBest50RemainingDialog(
+                        context,
+                        items: remaining,
+                        label: remainingLabel ?? '',
+                      ),
+                    ),
+                  );
+                }
+                final data = items[index];
+                void open() => showBest50SongSheet(context, data);
+                return switch (mode) {
+                  Best50DisplayMode.cover => Best50CoverCard(
+                      data: data,
+                      rank: index + 1,
+                      entranceIndex: index,
+                      onTap: open,
+                    ),
+                  Best50DisplayMode.twoColumns => Best50ScoreCard(
+                      data: data,
+                      rank: index + 1,
+                      entranceIndex: index,
+                      maxIdLength: items.any(
+                              (item) => item.songId.toString().length == 6)
+                          ? 6
+                          : 5,
+                      onTap: open,
+                    ),
+                  Best50DisplayMode.oneColumn => Best50StripCard(
+                      data: data,
+                      rank: index + 1,
+                      entranceIndex: index,
+                      onTap: open,
+                    ),
+                };
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 单列模式的长条卡：左边曲绘，中间类型 + 歌名和达成率 + 徽章，右边 RA 和定数。
+class Best50StripCard extends StatelessWidget {
+  final Best50CardData data;
+  final int rank;
+  final VoidCallback onTap;
+
+  /// 自定义 Best50 用来标出不合法的条目。
+  final Color? outlineColor;
+  final int entranceIndex;
+
+  const Best50StripCard({
+    super.key,
+    required this.data,
+    required this.rank,
+    required this.onTap,
+    this.outlineColor,
+    this.entranceIndex = 0,
+  });
+
+  static const double _coverSize = 52;
+
+  /// 行高跟系统字号走，文字放大时不会被压住。
+  static double heightFor(BuildContext context) =>
+      16 + _coverSize * MediaQuery.textScalerOf(context).scale(1.0);
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final songId = data.songId.toString();
+    final pillColor = data.difficultyColor;
+    final pillForeground =
+        ThemeData.estimateBrightnessForColor(pillColor) == Brightness.dark
+            ? Colors.white
+            : Colors.black87;
+    return EntranceAnimation(
+      index: entranceIndex,
+      offset: const Offset(0, 8),
+      duration: const Duration(milliseconds: 300),
+      child: PressScale(
+        scale: 0.98,
+        child: Semantics(
+          button: true,
+          label: '第 $rank 名，${data.title}，Rating ${data.rating}',
+          excludeSemantics: true,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onTap,
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppSurfaces.card(context),
+                borderRadius:
+                    BorderRadius.circular(AppDesignTokens.radiusMedium),
+                border: outlineColor == null
+                    ? null
+                    : Border.all(color: outlineColor!, width: 2.5),
               ),
-            );
-          }
-          final data = items[index];
-          return Best50CoverCard(
-            data: data,
-            rank: index + 1,
-            entranceIndex: index,
-            onTap: () => showBest50SongSheet(context, data),
-          );
-        },
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: _coverSize,
+                    height: _coverSize,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(
+                              AppDesignTokens.radiusSmall),
+                          child: CoverUtil.buildCoverWidgetWithContext(
+                              context, songId, _coverSize),
+                        ),
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(
+                                AppDesignTokens.radiusSmall),
+                            border: Border.all(color: pillColor, width: 2),
+                          ),
+                        ),
+                        Positioned(
+                          left: 3,
+                          top: 3,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 3),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.6),
+                              borderRadius: BorderRadius.circular(5),
+                            ),
+                            child: Text(
+                              '$rank',
+                              style: AppTheme.number(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            SongTypeBadge(
+                                songId: songId, type: data.type, fontSize: 9.5),
+                            const SizedBox(width: 5),
+                            Expanded(
+                              child: MarqueeText(
+                                text: data.title,
+                                style: TextStyle(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: scheme.onSurface,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                data.achievementText,
+                                maxLines: 1,
+                                style: AppTheme.number(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                  color: scheme.onSurface,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              RankBadge(
+                                rank: StringUtil.formatRate(
+                                    StringUtil.rateCodeFromAchievement(
+                                        data.achievement)),
+                                fontSize: 10,
+                              ),
+                              if (data.fc.isNotEmpty) ...[
+                                const SizedBox(width: 3),
+                                ComboLabelBadge(raw: data.fc, fontSize: 10),
+                              ],
+                              if (data.fs.isNotEmpty) ...[
+                                const SizedBox(width: 3),
+                                ComboLabelBadge(raw: data.fs, fontSize: 10),
+                              ],
+                              if (data.stars.isNotEmpty) ...[
+                                const SizedBox(width: 3),
+                                StarBadge(stars: data.stars, fontSize: 10),
+                              ],
+                              if (data.badge != null) ...[
+                                const SizedBox(width: 3),
+                                _CoverPill(text: data.badge!),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        '${data.rating}',
+                        maxLines: 1,
+                        style: AppTheme.number(
+                          fontSize: 18,
+                          height: 1.1,
+                          fontWeight: FontWeight.w800,
+                          color: scheme.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Transform.translate(
+                        offset: const Offset(1.5, 0),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: pillColor,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            data.dsText,
+                            maxLines: 1,
+                            style: AppTheme.number(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: pillForeground,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 双列模式的成绩卡：和导出图片同一张 [B50GameCardWidget]。
+class Best50ScoreCard extends StatelessWidget {
+  final Best50CardData data;
+  final int rank;
+  final VoidCallback onTap;
+  final int maxIdLength;
+
+  /// 自定义 Best50 用来标出不合法的条目。
+  final Color? outlineColor;
+  final int entranceIndex;
+
+  const Best50ScoreCard({
+    super.key,
+    required this.data,
+    required this.rank,
+    required this.onTap,
+    this.maxIdLength = 5,
+    this.outlineColor,
+    this.entranceIndex = 0,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final Widget card = B50GameCardWidget(
+      cardColor: data.difficultyColor,
+      songName: data.title,
+      achievementRate: data.achievement,
+      difficulty: data.ds,
+      dxMode: data.type == 'DX',
+      isUtage: data.isUtage,
+      score: data.dxScore,
+      maxScore: data.maxDxScore,
+      rating: data.rating,
+      stars: data.stars,
+      fc: data.fc,
+      fs: data.fs,
+      rate: StringUtil.rateCodeFromAchievement(data.achievement),
+      songId: data.songId,
+      starsColor: ColorUtil.getStarsColor(data.stars),
+      maxIdLength: maxIdLength,
+      isFitDiff: data.isFitDiff,
+      palette: B50CardPalette.of(context),
+    );
+    final badge = data.badge;
+    return EntranceAnimation(
+      index: entranceIndex,
+      scaleFrom: 0.96,
+      child: PressScale(
+        child: Semantics(
+          button: true,
+          label: '第 $rank 名，${data.title}，Rating ${data.rating}',
+          excludeSemantics: true,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onTap,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                badge == null
+                    ? card
+                    : B50GameCardWidget.withBadgeOverlay(
+                        card: card, text: badge),
+                if (outlineColor != null)
+                  IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(
+                            AppDesignTokens.radiusSmall),
+                        border: Border.all(color: outlineColor!, width: 2.5),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -968,51 +1392,68 @@ class _Best50RemainingCell extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
 
+  /// 单列模式的格子很矮，图标和文字改成横排。
+  final bool compact;
+
   const _Best50RemainingCell({
     required this.count,
     required this.label,
     required this.onTap,
+    this.compact = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final icon =
+        Icon(Icons.queue_music_rounded, size: 26, color: scheme.primary);
+    final countText = Text(
+      '剩余 $count 首',
+      maxLines: 1,
+      style: TextStyle(
+        fontSize: 13.5,
+        fontWeight: FontWeight.w700,
+        color: scheme.onSurface,
+      ),
+    );
+    final labelText = Text(
+      label,
+      maxLines: 1,
+      style: AppTheme.number(
+        fontSize: 13,
+        fontWeight: FontWeight.w700,
+        color: scheme.primary,
+      ),
+    );
     return AppCard(
       radius: AppDesignTokens.radiusMedium,
       padding: const EdgeInsets.all(8),
       onTap: onTap,
       child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.queue_music_rounded, size: 26, color: scheme.primary),
-            const SizedBox(height: 8),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                '剩余 $count 首',
-                maxLines: 1,
-                style: TextStyle(
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w700,
-                  color: scheme.onSurface,
+        // 格子再小也只缩小内容，不出界。
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: compact
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    icon,
+                    const SizedBox(width: 8),
+                    countText,
+                    const SizedBox(width: 8),
+                    labelText,
+                  ],
+                )
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    icon,
+                    const SizedBox(height: 8),
+                    countText,
+                    const SizedBox(height: 2),
+                    labelText,
+                  ],
                 ),
-              ),
-            ),
-            const SizedBox(height: 2),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                label,
-                maxLines: 1,
-                style: AppTheme.number(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: scheme.primary,
-                ),
-              ),
-            ),
-          ],
         ),
       ),
     );
@@ -1086,5 +1527,111 @@ Future<void> showBest50RemainingDialog(
         ),
       ],
     ),
+  );
+}
+
+/// 上分潜力的一档：推到 [achievement] 时 Rating 是 [rating]，能加 [gain] 分。
+class Best50OpportunityTier {
+  final double achievement;
+  final String rank;
+  final int rating;
+  final int gain;
+
+  const Best50OpportunityTier({
+    required this.achievement,
+    required this.rank,
+    required this.rating,
+    required this.gain,
+  });
+}
+
+/// 分档展示从 100.5% 到最低可推分的达成率每一档的提升，[tiers] 按传入顺序显示。
+Future<void> showBest50OpportunityDialog(
+  BuildContext context, {
+  required String note,
+  required List<Best50OpportunityTier> tiers,
+}) {
+  const rowHeight = 44.0;
+  return showDialog<void>(
+    context: context,
+    builder: (dialogContext) {
+      final scheme = Theme.of(dialogContext).colorScheme;
+      final green = AppColors.successGreen(scheme.brightness);
+      return AppDialog(
+        title: '上分潜力',
+        icon: Icons.trending_up_rounded,
+        tone: AppDialogTone.success,
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(note),
+            const SizedBox(height: 10),
+            // 档数可能上百，按需构建；高度固定，列表自己滚动。
+            SizedBox(
+              height: math.min(tiers.length * rowHeight, rowHeight * 7.5),
+              child: ListView.separated(
+                padding: EdgeInsets.zero,
+                itemCount: tiers.length,
+                separatorBuilder: (_, __) =>
+                    Divider(height: 1, color: AppSurfaces.hairline(dialogContext)),
+                itemBuilder: (_, index) {
+                  final tier = tiers[index];
+                  return SizedBox(
+                    height: rowHeight - 1,
+                    child: Row(
+                      children: [
+                        RankBadge(rank: tier.rank, uniformWidth: true),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              '${tier.achievement.toStringAsFixed(4)}%',
+                              style: AppTheme.number(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: scheme.onSurface,
+                              ),
+                            ),
+                          ),
+                        ),
+                        Text(
+                          'RA ${tier.rating}',
+                          style: AppTheme.number(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                        SizedBox(
+                          width: 52,
+                          child: Text(
+                            '+${tier.gain}',
+                            textAlign: TextAlign.end,
+                            style: AppTheme.number(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: green,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('关闭'),
+          ),
+        ],
+      );
+    },
   );
 }

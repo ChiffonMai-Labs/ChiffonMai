@@ -1,9 +1,7 @@
 import 'dart:async';
 import 'ThunderBest50Export.dart';
-import 'package:my_first_flutter_app/utils/ExportUserInfoWidget.dart';
 import 'dart:io';
 import 'dart:typed_data';
-import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -14,8 +12,8 @@ import 'package:my_first_flutter_app/utils/ColorUtil.dart';
 import 'package:my_first_flutter_app/utils/StringUtil.dart';
 import 'package:my_first_flutter_app/utils/ImageEncodeUtil.dart';
 import 'package:my_first_flutter_app/widgets/B50GameCardWidget.dart';
-import 'package:my_first_flutter_app/widgets/MetaRowWidget.dart';
 import 'package:my_first_flutter_app/widgets/ExportStatsUi.dart';
+import '../../utils/MusicDataIndex.dart';
 
 class PersonalizedDiffBest50ConvertToImg {
   // 导出为图片的方法
@@ -27,7 +25,8 @@ class PersonalizedDiffBest50ConvertToImg {
       List<dynamic>? maimaiMusicData,
       {int? jpegQuality,
       bool thunderMode = false,
-      bool thunderVertical = true}) async {
+      bool thunderVertical = true,
+      ExportImageTheme theme = ExportImageTheme.light}) async {
     OverlayEntry? overlayEntry;
     try {
       debugPrint('=== STARTING PERSONALIZED DIFF B50 IMAGE CONVERSION ===');
@@ -43,7 +42,8 @@ class PersonalizedDiffBest50ConvertToImg {
         key: globalKey,
         child: await _buildExportImageWidget(
             context, title, diffBest50Data, diffSongs, maimaiMusicData,
-            thunderMode: thunderMode, thunderVertical: thunderVertical),
+            thunderMode: thunderMode, thunderVertical: thunderVertical,
+            theme: theme),
       );
       final exportWidth = thunderMode
           ? ThunderBest50Export.widthFor(diffSongs.length, thunderVertical)
@@ -82,49 +82,10 @@ class PersonalizedDiffBest50ConvertToImg {
       await Future.delayed(Duration(milliseconds: 100));
 
       debugPrint('Starting image capture...');
-      ui.Image image;
-      try {
-        image = await boundary.toImage(
-            pixelRatio: ImageEncodeUtil.safeCapturePixelRatio(
-                boundary.size.width, boundary.size.height));
-        debugPrint('Image captured successfully');
-      } catch (e) {
-        debugPrint('First capture failed: $e');
-        await Future.delayed(Duration(milliseconds: 200));
-        image = await boundary.toImage(
-            pixelRatio: ImageEncodeUtil.safeCapturePixelRatio(
-                boundary.size.width, boundary.size.height));
-        debugPrint('Image captured on retry');
-      }
-
-      ByteData? byteData =
-          await image.toByteData(format: ui.ImageByteFormat.png);
-      if (byteData == null) {
-        debugPrint('Error: ByteData is null');
-        overlayEntry.remove();
-        image.dispose();
-        return null;
-      }
-      debugPrint('ByteData conversion successful');
-
-      Uint8List pngBytes = byteData.buffer
-          .asUint8List(byteData.offsetInBytes, byteData.lengthInBytes);
-      // 立刻释放 ui.Image：它本身也是上百 MB 的原生位图，而下面的 JPEG
-      // 转码还要再分配上百 MB（decodePng + copyResize）。等转码完再释放，
-      // 峰值内存会白白多一份 —— 低内存机就是这样被 OOM 掉的。
-      // 转码只用得到 pngBytes，用不到这个 image。
-      image.dispose();
-
-      Uint8List finalBytes;
-      String extension;
-      if (jpegQuality != null) {
-        finalBytes = await ImageEncodeUtil.pngToJpegAsync(pngBytes,
-            quality: jpegQuality);
-        extension = 'jpg';
-      } else {
-        finalBytes = pngBytes;
-        extension = 'png';
-      }
+      final encoded =
+          await ImageEncodeUtil.encodeBoundary(boundary, jpegQuality: jpegQuality);
+      final Uint8List finalBytes = encoded.bytes;
+      final String extension = encoded.extension;
 
       overlayEntry.remove();
 
@@ -225,6 +186,7 @@ class PersonalizedDiffBest50ConvertToImg {
     List<dynamic>? maimaiMusicData, {
     bool thunderMode = false,
     bool thunderVertical = true,
+    ExportImageTheme theme = ExportImageTheme.light,
   }) =>
       _buildExportImageWidget(
         context,
@@ -234,6 +196,7 @@ class PersonalizedDiffBest50ConvertToImg {
         maimaiMusicData,
         thunderMode: thunderMode,
         thunderVertical: thunderVertical,
+        theme: theme,
       );
 
   // 构建用于导出的Widget
@@ -244,7 +207,8 @@ class PersonalizedDiffBest50ConvertToImg {
       List<Map<String, dynamic>> diffSongs,
       List<dynamic>? maimaiMusicData,
       {bool thunderMode = false,
-      bool thunderVertical = true}) async {
+      bool thunderVertical = true,
+      ExportImageTheme theme = ExportImageTheme.light}) async {
     int diffRatingSum = diffBest50Data?['diffRatingSum'] ?? 0;
     int best50Diff = (diffBest50Data?['best50Diff'] as num?)?.toInt() ?? 0;
     double diffRatingAverage =
@@ -271,6 +235,7 @@ class PersonalizedDiffBest50ConvertToImg {
       final maxIdLength =
           diffSongs.any((song) => '${song['song_id']}'.length == 6) ? 6 : 5;
       return ThunderBest50Export.build(
+        theme: theme,
         title: title,
         vertical: thunderVertical,
         count: diffSongs.length,
@@ -284,15 +249,9 @@ class PersonalizedDiffBest50ConvertToImg {
     }
     const double containerWidth = 1700.0;
 
-    return Container(
+    return ExportPage(
+      theme: theme,
       width: containerWidth,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        image: DecorationImage(
-          image: AssetImage('assets/bg/b50_bg.png'),
-          fit: BoxFit.cover,
-        ),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -301,22 +260,7 @@ class PersonalizedDiffBest50ConvertToImg {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // 用户信息区域 + metaRow 横排：严格参考 Best50ConvertToImgService。
-                // 姓名框 1150 + gap 16 + metaRow 494 = 1660 = 1700 容器 - 20*2 padding。
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    ExportUserInfoWidget.buildUserInfoSection(context),
-                    const SizedBox(width: 16),
-                    SizedBox(
-                      height: 215,
-                      child: Align(
-                        alignment: Alignment.center,
-                        child: MetaRowWidget(width: 494, height: 215),
-                      ),
-                    ),
-                  ],
-                ),
+                ExportPosterHeader(title: title),
                 SizedBox(height: 16.0),
 
                 _buildRatingSection(
@@ -335,7 +279,7 @@ class PersonalizedDiffBest50ConvertToImg {
                 _buildDataCardGrid(
                     context,
                     diffSongs,
-                    thunderMode ? 1.25 : 1.85,
+                    thunderMode ? 1.25 : 1.9,
                     thunderMode ? (thunderVertical ? 1 : 50) : 5,
                     maimaiMusicData),
                 SizedBox(height: 20.0),
@@ -375,9 +319,7 @@ class PersonalizedDiffBest50ConvertToImg {
               child: ExportStatBlock(
                 label: '较该标签 Best50',
                 value: '${best50Diff > 0 ? '+' : ''}$best50Diff',
-                valueColor: best50Diff >= 0
-                    ? ExportStatsColors.positive
-                    : ExportStatsColors.negative,
+                positive: best50Diff >= 0,
               ),
             ),
             const SizedBox(width: 10),
@@ -396,29 +338,8 @@ class PersonalizedDiffBest50ConvertToImg {
   }
 
   // 构建区域标题
-  static Widget _buildSectionTitle(BuildContext context, String title) {
-    const double containerWidth = 1200.0;
-    double fontSize = containerWidth * 0.03;
-
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.black, width: 2.0),
-        borderRadius: BorderRadius.circular(8.0),
-        color: Colors.grey[200],
-      ),
-      padding: EdgeInsets.all(14.0),
-      child: Center(
-        child: Text(
-          title,
-          style: TextStyle(
-            fontSize: fontSize,
-            fontWeight: FontWeight.bold,
-            color: Colors.black,
-          ),
-        ),
-      ),
-    );
-  }
+  static Widget _buildSectionTitle(BuildContext context, String title) =>
+      ExportSectionTitle(title);
 
   // 构建游戏卡片（导出版）：委托至通用 B50GameCardWidget，
   // 与 Best50ConvertToImgService 一致采用 scale=1.0，导出图片单卡字号统一。
@@ -486,8 +407,8 @@ class PersonalizedDiffBest50ConvertToImg {
         padding: EdgeInsets.zero,
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: crossAxisCount,
-          crossAxisSpacing: 6.0,
-          mainAxisSpacing: 6.0,
+          crossAxisSpacing: 8.0,
+          mainAxisSpacing: 8.0,
           childAspectRatio: childAspectRatio,
         ),
         itemCount: songs.length,
@@ -563,9 +484,7 @@ class PersonalizedDiffBest50ConvertToImg {
 
       dynamic songData;
       try {
-        songData = maimaiMusicData.firstWhere(
-          (song) => song['id'] == songId.toString(),
-        );
+        songData = maimaiMusicData[MusicDataIndex.indexOf(maimaiMusicData, songId)];
       } catch (_) {
         return 0;
       }
@@ -594,9 +513,7 @@ class PersonalizedDiffBest50ConvertToImg {
 
       dynamic songData;
       try {
-        songData = maimaiMusicData.firstWhere(
-          (item) => item['id'] == songId.toString(),
-        );
+        songData = maimaiMusicData[MusicDataIndex.indexOf(maimaiMusicData, songId)];
       } catch (e) {
         return 0.0;
       }

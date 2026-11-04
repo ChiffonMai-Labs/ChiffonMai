@@ -21,6 +21,7 @@ import 'RefreshDataDialog.dart'
 import 'DivingFishAccountSection.dart';
 import '../widgets/AppDialogs.dart';
 import '../widgets/AppToast.dart';
+import 'AppUi.dart';
 
 /// 高级模式"刷新数据"对话框的入口。
 ///
@@ -485,7 +486,7 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
     );
   }
 
-  /// AWMC NET.（net.wmc.pub）面板 —— 无需登录，只填 QQ 号。
+  /// AWMC NET（net.wmc.pub）面板 —— 无需登录，只填 QQ 号。
   Widget _buildAwmcPanel(Brightness brightness) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -493,10 +494,10 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
         TextField(
           controller: _awmcQqController,
           keyboardType: TextInputType.number,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             labelText: 'QQ 号',
             hintText: '输入已在 AWMC NET 绑定过的 QQ 号',
-          ),
+          ).insetLabel(context),
         ),
         const SizedBox(height: 8),
         Text(
@@ -560,10 +561,10 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
         const SizedBox(height: 8),
         TextField(
           controller: _authCodeController,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             labelText: '请输入授权码',
             hintText: '粘贴授权码',
-          ),
+          ).insetLabel(context),
         ),
       ],
     );

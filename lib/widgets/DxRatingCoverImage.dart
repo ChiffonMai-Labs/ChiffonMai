@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 
 import '../service/DxRatingCoverService.dart';
+import 'ImageLoadingIndicator.dart';
 
 /// dxrating（shama）曲绘图专用的磁盘缓存。
 ///
@@ -97,10 +98,7 @@ class _DxRatingCoverImageState extends State<DxRatingCoverImage> {
       cacheManager: dxRatingCoverCacheManager,
       fit: widget.fit,
       fadeInDuration: const Duration(milliseconds: 120),
-      placeholder: (context, _) => Image.asset(
-        DxRatingCoverImage.defaultCoverAsset,
-        fit: widget.fit,
-      ),
+      placeholder: (context, _) => const ImageLoadingIndicator(),
       errorWidget: (context, _, __) => Image.asset(
         DxRatingCoverImage.defaultCoverAsset,
         fit: widget.fit,

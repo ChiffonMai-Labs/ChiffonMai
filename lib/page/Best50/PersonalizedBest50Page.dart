@@ -23,8 +23,9 @@ import '../../widgets/AppUi.dart';
 import '../../utils/AppDesignTokens.dart';
 import '../../widgets/Best50Ui.dart';
 import '../../widgets/AppDialogs.dart';
-import '../../widgets/ExportSuccessDialog.dart';
 import '../../widgets/AppToast.dart';
+import 'package:my_first_flutter_app/service/BackgroundExportService.dart';
+import '../../utils/MusicDataIndex.dart';
 
 class PersonalizedBest50Page extends StatefulWidget {
   const PersonalizedBest50Page({super.key});
@@ -522,14 +523,13 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
           null,
           thunderMode: previewQuality.thunderMode,
           thunderVertical: previewQuality.thunderVertical,
+          theme: previewQuality.theme,
         ),
       );
       if (quality == null) {
         return; // 用户取消
       }
 
-      // 显示加载指示器
-      showAppProgressDialog(context, title: '导出中', message: '正在生成图片...');
 
       String title = _selectedType == 'charter_50' && _selectedCharter != null
           ? '谱师50 - ${_selectedCharter!}'
@@ -543,31 +543,21 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
                           ? '标签50 - ${_selectedTagName!}'
                           : '个性化Best50 - ${_options.firstWhere((option) => option['value'] == _selectedType)['label']!}';
 
-      final file = await PersonalizedB50ConvertToImg.convertToImage(
-        context,
+      BackgroundExport.run(
+        label: '个性化 Best50',
+        task: (exportContext) => PersonalizedB50ConvertToImg.convertToImage(
+          exportContext,
         title,
         _personalizedSongs,
         _maimaiMusicData,
         jpegQuality: quality.jpegQuality,
+        theme: quality.theme,
         thunderMode: quality.thunderMode,
         thunderVertical: quality.thunderVertical,
+      ),
       );
-
-      // 关闭加载指示器
-      Navigator.pop(context);
-
-      // 显示导出结果
-      if (file != null) {
-        showExportSuccessDialog(context, filePath: file.path, fileName: file.path.split('/').last);
-      } else {
-        showAppNoticeDialog(context, title: '导出失败', message: '图片导出失败，请重试', tone: AppDialogTone.error);
-      }
     } catch (e) {
-      // 关闭加载指示器
-      Navigator.pop(context);
-
-      // 显示错误信息
-      showAppNoticeDialog(context, title: '导出失败', message: '导出过程中出现错误：\n$e', tone: AppDialogTone.error);
+      AppToast.show('导出失败：$e');
     }
   }
 
@@ -575,7 +565,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
   Widget build(BuildContext context) {
     if (_isLoading) {
       return const BackgroundPageScaffold(
-        title: '个性化Best50',
+        title: '个性化 Best50',
         resizeToAvoidBottomInset: false,
         child: Center(child: CircularProgressIndicator()),
       );
@@ -1312,8 +1302,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
     // 沿用 _calculateScoreRate 的查表逻辑算满分。
     final songIndex = _maimaiMusicData == null
         ? -1
-        : _maimaiMusicData!
-            .indexWhere((item) => item['id'] == songId.toString());
+        : MusicDataIndex.indexOf(_maimaiMusicData!, songId);
     final dynamic matchedSong =
         songIndex >= 0 ? _maimaiMusicData![songIndex] : null;
     // PC50：卡片上挂一枚游玩次数角标 —— 这个模式的排序依据就是它，
@@ -1362,9 +1351,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
     if (_maimaiMusicData == null) return 0.0;
 
     // 查找对应的歌曲
-    int songIndex = _maimaiMusicData!.indexWhere(
-      (item) => item['id'] == songId.toString(),
-    );
+    int songIndex = MusicDataIndex.indexOf(_maimaiMusicData!, songId);
 
     if (songIndex == -1) return 0.0;
     dynamic songData = _maimaiMusicData![songIndex];

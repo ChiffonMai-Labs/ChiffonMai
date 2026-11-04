@@ -83,7 +83,7 @@ class _FriendLinksPageState extends State<FriendLinksPage> {
     final Color textSecondaryColor =
         Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7);
     return BackgroundPageScaffold(
-      title: '友情链接',
+      title: '查看友情链接',
       resizeToAvoidBottomInset: false,
       contentPadding: EdgeInsets.only(bottom: safeBottom + 10),
       child: SingleChildScrollView(

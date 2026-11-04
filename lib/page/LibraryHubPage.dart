@@ -5,6 +5,7 @@ import '../utils/FeatureRegistry.dart';
 import '../service/CoverRecognitionService.dart';
 import 'SongSearchPage.dart';
 import 'UnionUpdateComparePage.dart';
+import 'UpdateCalendarPage.dart';
 import 'Collection/CollectionSearchPage.dart';
 import 'VersionViewPage.dart';
 import 'DifficultyDistributionPage.dart';
@@ -119,6 +120,14 @@ class _LibraryHubPageState extends State<LibraryHubPage> {
               isFavorited: _isFavorited('国服更新对照'),
               onToggleFavorite: () => _toggleFavorite('国服更新对照'),
               onTap: () => _open(context, const UnionUpdateComparePage()),
+            ),
+            '更新日历': HubActionTile(
+              title: '更新日历',
+              subtitle: '按日期查看国服每次更新的谱面',
+              icon: Icons.calendar_month_rounded,
+              isFavorited: _isFavorited('更新日历'),
+              onToggleFavorite: () => _toggleFavorite('更新日历'),
+              onTap: () => _open(context, const UpdateCalendarPage()),
             ),
             '版本对照': HubActionTile(
               title: '版本对照',

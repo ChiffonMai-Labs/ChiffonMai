@@ -48,6 +48,7 @@ import '../utils/ExternalLaunchUtil.dart';
 import 'DivingFishAccountSection.dart';
 import '../widgets/AppDialogs.dart';
 import '../widgets/AppToast.dart';
+import 'AppUi.dart';
 
 // 数据源枚举 / 当前数据源 Notifier 已抽到 utils，这里 re-export，
 // 让既有 `import 'RefreshDataDialog.dart' show RefreshDataSource, ...` 继续可用。
@@ -656,16 +657,16 @@ class _RefreshDataDialogState extends State<_RefreshDataDialog> {
         const SizedBox(height: 8),
         TextField(
           controller: authCodeController,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             labelText: '请输入授权码',
             hintText: '粘贴授权码',
-          ),
+          ).insetLabel(context),
         ),
       ],
     );
   }
 
-  /// AWMC NET.（net.wmc.pub）面板。
+  /// AWMC NET（net.wmc.pub）面板。
   ///
   /// 与水鱼 / 落雪最大的差别：**不需要任何登录或授权**，只填 QQ 号即可。
   /// 凭据由服务端安全环境注入，用户侧无可配置项。
@@ -676,10 +677,10 @@ class _RefreshDataDialogState extends State<_RefreshDataDialog> {
         TextField(
           controller: awmcQqController,
           keyboardType: TextInputType.number,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             labelText: 'QQ 号',
             hintText: '输入已在 AWMC NET 绑定过的 QQ 号',
-          ),
+          ).insetLabel(context),
         ),
         const SizedBox(height: 8),
         Container(
@@ -1140,7 +1141,7 @@ Future<void> _refreshBest50DataWithProgressImpl(
   }
 }
 
-/// 刷新 AWMC NET.（net.wmc.pub）成绩 —— 第三个数据源。
+/// 刷新 AWMC NET（net.wmc.pub）成绩 —— 第三个数据源。
 ///
 /// 与 [refreshBest50DataWithProgress]（水鱼）**共用同一套下游**：
 /// AWMC NET 的 `/dev/player/records` 返回的结构与水鱼 `/player/records` 逐字段一致，

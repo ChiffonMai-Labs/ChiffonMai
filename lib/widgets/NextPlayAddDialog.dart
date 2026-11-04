@@ -5,6 +5,7 @@ import '../service/NextPlayQueueStore.dart';
 import '../utils/AppTheme.dart';
 import '../widgets/AppDialogs.dart';
 import '../utils/AppDesignTokens.dart';
+import 'AppUi.dart';
 
 /// 下次想玩的难度选项。索引与歌曲详情页、随身听保持一致。
 class NextPlayDifficultyOption {
@@ -222,10 +223,10 @@ class _NextPlayAddFormState extends State<_NextPlayAddForm> {
               controller: _noteController,
               maxLines: 2,
               maxLength: 100,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: '备注（可选）',
                 hintText: '例如：和朋友一起玩',
-              ),
+              ).insetLabel(context),
             ),
           ],
         ),

@@ -18,6 +18,7 @@ import 'package:my_first_flutter_app/manager/SongAliasManager.dart';
 import 'package:my_first_flutter_app/manager/DivingFish/MaimaiMusicDataManager.dart';
 import 'package:my_first_flutter_app/entity/DivingFish/DiffSong.dart';
 import 'package:my_first_flutter_app/entity/LuoXue/Collection.dart';
+import 'package:my_first_flutter_app/manager/LuoXue/LuoXueSongsManager.dart';
 import 'package:my_first_flutter_app/entity/DivingFish/Song.dart';
 import 'package:my_first_flutter_app/page/SongMaidataPage.dart';
 import 'package:my_first_flutter_app/service/SongInfoService.dart';
@@ -62,7 +63,9 @@ import 'package:my_first_flutter_app/widgets/ChartHistorySection.dart';
 import 'package:my_first_flutter_app/widgets/CommunityAvatar.dart';
 import '../widgets/MarqueeText.dart';
 import '../widgets/AppDialogs.dart';
+import '../widgets/Best50Ui.dart';
 import '../widgets/AppToast.dart';
+import 'package:my_first_flutter_app/service/BackgroundExportService.dart';
 
 
 part 'song_info/SongInfoLoaders.dart';
@@ -108,82 +111,28 @@ class SongInfoPage extends StatefulWidget {
   State<SongInfoPage> createState() => _SongInfoSwitcherState();
 }
 
-/// 一首歌的一个版本（ST 或 DX）。
-class _SongVersionEntry {
-  final String songId;
-  final int levelIndex;
-  final bool isDefaultLevelIndex;
-  bool revealed;
-
-  _SongVersionEntry({
-    required this.songId,
-    required this.levelIndex,
-    required this.isDefaultLevelIndex,
-    required this.revealed,
-  });
-}
-
-/// 在同一个路由里切换 ST / DX：新版本先在底下加载，好了再淡入盖住旧版本。
-/// 这样切换时不会闪加载圈，返回键也直接回到进入歌曲详情之前的页面。
+/// 在同一个路由里切换 ST / DX：页面状态不换，新歌的数据到了就地过渡，
+/// 返回键也直接回到进入歌曲详情前的页面。
 class _SongInfoSwitcherState extends State<SongInfoPage> {
-  static const Duration _fade = Duration(milliseconds: 280);
-
-  late final List<_SongVersionEntry> _entries = [
-    _SongVersionEntry(
-      songId: widget.songId,
-      levelIndex: widget.initialLevelIndex,
-      isDefaultLevelIndex: widget.isDefaultLevelIndex,
-      revealed: true,
-    ),
-  ];
+  late String _songId = widget.songId;
+  late int _levelIndex = widget.initialLevelIndex;
+  late bool _isDefaultLevelIndex = widget.isDefaultLevelIndex;
 
   void _switchTo(String songId, int levelIndex) {
-    // 上一次切换还没完成时不叠加
-    if (_entries.length > 1) return;
     setState(() {
-      _entries.add(_SongVersionEntry(
-        songId: songId,
-        levelIndex: levelIndex,
-        isDefaultLevelIndex: false,
-        revealed: false,
-      ));
-    });
-  }
-
-  void _onLoaded(_SongVersionEntry entry) {
-    if (!mounted || entry.revealed) return;
-    setState(() => entry.revealed = true);
-    final fade = AppDesignTokens.motion(context, _fade);
-    Future<void>.delayed(fade, () {
-      if (!mounted) return;
-      setState(() => _entries.removeWhere((e) => e != entry));
+      _songId = songId;
+      _levelIndex = levelIndex;
+      _isDefaultLevelIndex = false;
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final fade = AppDesignTokens.motion(context, _fade);
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        for (final entry in _entries)
-          AnimatedOpacity(
-            key: ValueKey(entry.songId),
-            opacity: entry.revealed ? 1 : 0,
-            duration: fade,
-            curve: Curves.easeOut,
-            child: IgnorePointer(
-              ignoring: !entry.revealed,
-              child: _SongInfoView(
-                songId: entry.songId,
-                initialLevelIndex: entry.levelIndex,
-                isDefaultLevelIndex: entry.isDefaultLevelIndex,
-                onSwitchSong: _switchTo,
-                onLoaded: () => _onLoaded(entry),
-              ),
-            ),
-          ),
-      ],
+    return _SongInfoView(
+      songId: _songId,
+      initialLevelIndex: _levelIndex,
+      isDefaultLevelIndex: _isDefaultLevelIndex,
+      onSwitchSong: _switchTo,
     );
   }
 }
@@ -193,29 +142,46 @@ class _SongInfoView extends StatefulWidget {
   final int initialLevelIndex;
   final bool isDefaultLevelIndex;
   final void Function(String songId, int levelIndex) onSwitchSong;
-  final VoidCallback onLoaded;
 
   const _SongInfoView({
     required this.songId,
     required this.initialLevelIndex,
     required this.isDefaultLevelIndex,
     required this.onSwitchSong,
-    required this.onLoaded,
   });
 
   @override
   State<_SongInfoView> createState() => _SongInfoPageState();
 }
 
+/// 信息抽屉压住头图的高度。
+const double _songDrawerOverlap = 24;
+
+/// 加载任务所属歌曲代数的 Zone 键。
+const Object _songLoadZoneKey = #songLoadGeneration;
+
 class _SongInfoPageState extends State<_SongInfoView> {
   final ScrollController _songScrollController = ScrollController();
-  final GlobalKey _songScrollKey = GlobalKey();
-  final GlobalKey _songTitleKey = GlobalKey();
+  final GlobalKey _songHeroKey = GlobalKey();
   bool _showSongTitleInAppBar = false;
   bool _titleVisibilityCheckScheduled = false;
 
   // 数据加载状态
   bool _isLoading = true;
+
+  /// 切换 ST / DX 的状态：见 [_switchSong]、[_onSongChanged]。
+  int _songGeneration = 0;
+  bool _songSwitching = false;
+  Map<String, dynamic>? _preloadedSong;
+
+  /// union 全量歌曲里的版本字段（日服版本）。
+  String? _unionFrom;
+
+  /// 同上，DX 谱的版本；取不到时为空，不拿 ST 谱的版本顶替。
+  String? _unionDxFrom;
+
+  /// 当前谱面类型的国服首次上线日期，来自落雪曲目列表；没上国服时为空。
+  String? _cnReleaseDate;
   Map<String, dynamic>? _songData;
   List<dynamic>? _diffData; // 保持为dynamic类型，兼容Map和DiffData
   Map<String, dynamic>? _userData;
@@ -320,6 +286,7 @@ class _SongInfoPageState extends State<_SongInfoView> {
   List<CommentItem> _comments = [];
   bool _commentsLoading = false;
   int _commentPage = 0;
+  final GlobalKey _commentsSectionKey = GlobalKey();
   final TextEditingController _commentInputController = TextEditingController();
   String? _commentError;
   bool _commentSubmitting = false;
@@ -345,6 +312,10 @@ class _SongInfoPageState extends State<_SongInfoView> {
   /// 上分潜力能加多少分；null 表示没有可加的分（只显示说明）。
   int? _best50OpportunityGain;
 
+  /// 上分潜力的分档和说明；没有可加的分时为空，横幅不能点。
+  List<Best50OpportunityTier> _best50OpportunityTiers = const [];
+  String _best50OpportunityNote = '';
+
   /// 详情区当前标签：0 谱面 / 1 数据 / 2 社区 / 3 工具（2026-11 新布局）。
   int _detailTab = 0;
 
@@ -354,9 +325,13 @@ class _SongInfoPageState extends State<_SongInfoView> {
     _currentDiffIndex = widget.initialLevelIndex;
     _songScrollController.addListener(_updateSongTitleVisibility);
     _commentInputController.addListener(_onCommentInputChanged);
-    _loadData();
-    _loadDxData();
-    _loadAwmcPlayCounts();
+    _startSongLoaders();
+  }
+
+  @override
+  void didUpdateWidget(_SongInfoView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.songId != widget.songId) _onSongChanged(oldWidget.songId);
   }
 
   @override
@@ -421,27 +396,62 @@ class _SongInfoPageState extends State<_SongInfoView> {
                     Brightness.dark,
                     navigationBarColor: surface,
                   ),
-                  child: SingleChildScrollView(
-                    key: _songScrollKey,
+                  child: NotificationListener<ScrollEndNotification>(
+                    onNotification: _snapSongDrawer,
+                    child: LayoutBuilder(
+                      builder: (context, viewport) => SingleChildScrollView(
                     controller: _songScrollController,
+                    physics: const ClampingScrollPhysics(),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        _buildSongHero(
-                            basicInfo, levels, accentColor, userRecord),
-                        // 向上压住头图 24dp。只有圆角那一条是实色，下面的内容区保持
-                        // 透明，用户自定义背景图不会被盖住。
+                        // 头图固定在抽屉后面；拖头图也能拉动抽屉。
+                        _SongDrawerHero(
+                          controller: _songScrollController,
+                          child: KeyedSubtree(
+                            key: _songHeroKey,
+                            child: _buildSongHero(
+                                basicInfo, levels, accentColor, userRecord),
+                          ),
+                        ),
+                        // 信息抽屉：向上压住头图 24dp。内容少时也撑够高度，
+                        // 保证抽屉能拉到顶。
                         Transform.translate(
-                          offset: const Offset(0, -24),
-                          child: Column(
+                          offset: const Offset(0, -_songDrawerOverlap),
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              minHeight: viewport.maxHeight -
+                                  MediaQuery.paddingOf(context).top -
+                                  AppHeader.toolbarHeight,
+                            ),
+                            child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              Container(
-                                height: 28,
-                                decoration: BoxDecoration(
-                                  color: surface,
-                                  borderRadius: const BorderRadius.vertical(
-                                      top: Radius.circular(28)),
+                              // 抽屉把手：点一下收起或拉开，也可以直接拖。
+                              Semantics(
+                                button: true,
+                                label: '展开或收起歌曲信息',
+                                onTap: _toggleSongDrawer,
+                                excludeSemantics: true,
+                                child: GestureDetector(
+                                  behavior: HitTestBehavior.opaque,
+                                  onTap: _toggleSongDrawer,
+                                  child: SizedBox(
+                                    height: 28,
+                                    child: Center(
+                                      child: Container(
+                                        width: 36,
+                                        height: 4,
+                                        decoration: BoxDecoration(
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .outlineVariant,
+                                          borderRadius: BorderRadius.circular(
+                                              AppDesignTokens.radiusPill),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               ),
                               Padding(
@@ -474,13 +484,16 @@ class _SongInfoPageState extends State<_SongInfoView> {
                                 ),
                               ),
                             ],
+                            ),
                           ),
                         ),
                       ],
                     ),
                   ),
+                    ),
+                  ),
                 ),
-                // 歌名滚出屏幕后出现的顶部栏（标题换成歌名）。
+                // 抽屉拉到顶后出现的顶部栏（标题换成歌名）。
                 Positioned(
                   top: 0,
                   left: 0,
@@ -521,7 +534,12 @@ class _SongInfoPageState extends State<_SongInfoView> {
   ///
   /// `setState` 是 State 的 protected 成员，扩展方法里直接调用会触发
   /// `invalid_use_of_protected_member`，所以统一转发到这里。
-  void _update(VoidCallback fn) => setState(fn);
+  void _update(VoidCallback fn) {
+    // 已经切走的歌，迟到的结果直接丢弃。
+    final generation = Zone.current[_songLoadZoneKey];
+    if (generation != null && generation != _songGeneration) return;
+    setState(fn);
+  }
 
 }
 

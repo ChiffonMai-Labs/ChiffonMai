@@ -5,6 +5,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 
+import 'ImageLoadingIndicator.dart';
+
 /// 收藏品专属缓存：Flutter ImageCache 复用内存中的解码结果，磁盘副本用于
 /// 进程重启或内存淘汰后的读取。文件在应用缓存目录，卸载时随应用清除。
 /// 保留旧缓存标识以复用已下载的素材；只在本地文件缺失时联网。
@@ -75,8 +77,8 @@ String lxnsFrameUrl(int id) => '$lxnsAssetBaseUrl/frame/$id.png';
 ///    `frame == null`，于是先出 placeholder、再花 500ms 淡入 —— 哪怕这张图早
 ///    就躺在本地、一个字节都不用下。头像 / 姓名框这类**每次打开都重新建一遍
 ///    Widget 树**的场景（如 `CollectionPickerSheet`）尤其明显。
-/// 2. **placeholder 不能是转圈。** 转圈在观感上就等于「正在上网」，而绝大多数
-///    情况下读的是本地磁盘。这里统一用主题浅底 + 失败时一个小图标。
+/// 2. **placeholder 不能一上来就转圈。** 转圈在观感上就等于「正在上网」，而绝大多数
+///    情况下读的是本地磁盘。所以用延迟淡入的 [ImageLoadingIndicator]，本地命中时看不到它。
 /// 3. **不传解码尺寸会白白占内存。** `memCacheWidth` 让引擎按实际显示尺寸解码
 ///    （`allowUpscaling = false`，小图不会被放大），密集网格 / 小头像时能省下
 ///    大半的 `ImageCache` 占用 —— `ImageCache` 一旦被挤爆，解码结果要重新从
@@ -101,8 +103,7 @@ class LxnsAssetImage extends StatelessWidget {
   final double? width;
   final double? height;
 
-  /// 加载中的静态占位（**不要传 `CircularProgressIndicator`**）。
-  /// 不传则用主题浅底。
+  /// 加载中的占位，不传则用 [ImageLoadingIndicator]。
   final Widget? placeholder;
 
   /// 加载失败的静态占位。不传则用主题浅底 + 一个提示图标。
@@ -125,7 +126,6 @@ class LxnsAssetImage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final neutral = ColoredBox(color: scheme.surfaceContainerHighest);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -156,7 +156,7 @@ class LxnsAssetImage extends StatelessWidget {
           // 零淡入零淡出：本地命中也要经过一次异步读，但不需要动画来「掩饰」它。
           fadeInDuration: Duration.zero,
           fadeOutDuration: Duration.zero,
-          placeholder: (_, __) => placeholder ?? neutral,
+          placeholder: (_, __) => placeholder ?? const ImageLoadingIndicator(),
           errorWidget: (_, __, ___) =>
               errorWidget ??
               ColoredBox(

@@ -22,6 +22,7 @@ import 'package:my_first_flutter_app/widgets/ProgressUi.dart';
 import 'package:my_first_flutter_app/widgets/SmoothLinearProgressIndicator.dart';
 import '../../utils/AppDesignTokens.dart';
 import '../../utils/KaleidDateUtil.dart';
+import '../../widgets/ImageLoadingIndicator.dart';
 
 /// 各门的固定配置：接口缺字段时的兜底文案、门图、能否标记曲目。
 class _GateConfig {
@@ -541,6 +542,8 @@ class _KaleidXScopeGatePageState extends State<KaleidXScopeGatePage> {
             imageUrl: url,
             height: 100,
             fit: BoxFit.contain,
+            placeholder: (_, __) => const ImageLoadingIndicator(
+                background: Colors.transparent),
             errorWidget: (_, __, ___) =>
                 const Center(child: Icon(Icons.image_not_supported_outlined)),
           ),
@@ -665,10 +668,16 @@ class _KaleidXScopeGatePageState extends State<KaleidXScopeGatePage> {
       fontWeight: FontWeight.w700,
       color: scheme.onSurface,
     );
+    // 接口格式是 `P -1|Gr -5|Gd -10|M -20`，显示成 `小P-1 GREAT-5 GOOD-10 MISS-20`。
+    const penaltyNames = {'P': '小P', 'Gr': 'GREAT', 'Gd': 'GOOD', 'M': 'MISS'};
     final penalties = (phase.penalties ?? '')
         .split('|')
         .map((item) => item.trim())
-        .where((item) => item.isNotEmpty);
+        .where((item) => item.isNotEmpty)
+        .map((item) {
+      final parts = item.split(RegExp(r'\s+'));
+      return '${penaltyNames[parts.first] ?? parts.first}${parts.skip(1).join()}';
+    }).toList();
     return Container(
       margin: const EdgeInsets.only(top: 2),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
@@ -713,9 +722,24 @@ class _KaleidXScopeGatePageState extends State<KaleidXScopeGatePage> {
               children: [
                 Text('一阶段 ${phase.lifeTarget}', style: lifeStyle),
                 Text('二阶段 ${phase.target ?? '-'}', style: lifeStyle),
-                for (final item in penalties) Text(item, style: dateStyle),
               ],
             ),
+            if (penalties.isNotEmpty) ...[
+              const SizedBox(height: 2),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (var i = 0; i < penalties.length; i++) ...[
+                      if (i > 0) const SizedBox(width: 10),
+                      Text(penalties[i], maxLines: 1, style: dateStyle),
+                    ],
+                  ],
+                ),
+              ),
+            ],
           ],
         ],
       ),

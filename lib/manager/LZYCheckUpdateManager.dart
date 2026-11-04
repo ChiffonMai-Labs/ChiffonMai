@@ -4,12 +4,14 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:my_first_flutter_app/api/ApiUrls.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:my_first_flutter_app/utils/UpdateNotifier.dart';
 import 'package:my_first_flutter_app/utils/ExternalLaunchUtil.dart';
+import '../constant/AppLinks.dart';
 import '../utils/AppDesignTokens.dart';
 import '../widgets/AppDialogs.dart';
 import '../widgets/AppToast.dart';
@@ -31,6 +33,12 @@ class LZYCheckUpdateManager {
   /// 兜底下载地址（检查更新失败时仍可复制）
   static const String defaultDownloadUrl =
       'https://wward.lanzouw.com/chiffonmai';
+
+  /// 当前系统的兜底下载地址：iOS 下载无签名 IPA。
+  static String get platformDownloadUrl =>
+      defaultTargetPlatform == TargetPlatform.iOS
+          ? AppLinks.iosDownloadUrl
+          : defaultDownloadUrl;
   // ======================================================
 
   /// 从 pastebin 获取在线配置
@@ -175,11 +183,22 @@ class LZYCheckUpdateManager {
     }
   }
 
+  /// 实际使用的下载地址：云端配置的是安卓包，iOS 固定用无签名 IPA。
+  String downloadUrlFor(String? cloudUrl) {
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      return AppLinks.iosDownloadUrl;
+    }
+    return cloudUrl == null || cloudUrl.isEmpty
+        ? defaultDownloadUrl
+        : cloudUrl;
+  }
+
   /// 打开下载页
   Future<void> openDownloadPage(String url) async {
     final uri = Uri.parse(url);
     if (uri.scheme == 'https' &&
-        (uri.host == 'wward.lanzouw.com' || uri.host == 'chiffonmai.cloud') &&
+        const {'wward.lanzouw.com', 'wward.lanzn.com', 'chiffonmai.cloud'}
+            .contains(uri.host) &&
         await ExternalLaunchUtil.open(uri)) {
       return;
     }
@@ -199,6 +218,22 @@ class LZYCheckUpdateManager {
         AppToast.show('下载链接已复制到剪贴板', duration: Duration(seconds: 2));
       },
       child: const Text('复制下载链接'),
+    );
+  }
+
+  /// 跳转到最新 GitHub Releases 的按钮。
+  Widget buildReleasesButton(BuildContext c) {
+    return TextButton.icon(
+      onPressed: () {
+        Navigator.pop(c);
+        ExternalLaunchUtil.open(Uri.parse(AppLinks.latestReleaseUrl));
+      },
+      icon: const FaIcon(FontAwesomeIcons.github, size: 16),
+      // 两列排布时放不下，等比缩小，不换行。
+      label: const FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text('GitHub Releases', maxLines: 1, softWrap: false),
+      ),
     );
   }
 
@@ -249,9 +284,12 @@ class LZYCheckUpdateManager {
         barrierDismissible: true,
         builder: (c) => AppAlertDialog(
           title: Text("检查更新失败"),
+          // 单列按原顺序排，确定在最下面。
+          actionColumns: 1,
           content: Text(info["message"] ?? "无法连接到服务器，请检查网络后重试"),
           actions: [
-            _buildCopyDownloadButton(c, defaultDownloadUrl),
+            _buildCopyDownloadButton(c, platformDownloadUrl),
+            buildReleasesButton(c),
             TextButton(
               onPressed: () {
                 Navigator.pop(c);
@@ -273,6 +311,8 @@ class LZYCheckUpdateManager {
         barrierDismissible: true,
         builder: (c) => AppAlertDialog(
           title: Text("检查更新"),
+          // 单列按原顺序排，确定在最下面。
+          actionColumns: 1,
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -293,8 +333,8 @@ class LZYCheckUpdateManager {
             ],
           ),
           actions: [
-            _buildCopyDownloadButton(
-                c, info["downloadUrl"] ?? defaultDownloadUrl),
+            _buildCopyDownloadButton(c, downloadUrlFor(info["downloadUrl"])),
+            buildReleasesButton(c),
             TextButton(
               onPressed: () {
                 Navigator.pop(c);
@@ -346,12 +386,13 @@ class LZYCheckUpdateManager {
                 },
                 child: Text("3天内不提示"),
               ),
-            _buildCopyDownloadButton(
-                c, info["downloadUrl"] ?? defaultDownloadUrl),
+            _buildCopyDownloadButton(c, downloadUrlFor(info["downloadUrl"])),
+            // 立即下载放最后：它是主按钮，单独占满一行。
+            buildReleasesButton(c),
             TextButton(
               onPressed: () {
                 Navigator.pop(c);
-                openDownloadPage(info["downloadUrl"]);
+                openDownloadPage(downloadUrlFor(info["downloadUrl"]));
               },
               child: Text("立即下载"),
             ),

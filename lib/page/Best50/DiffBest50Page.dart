@@ -18,7 +18,9 @@ import '../../widgets/AppUi.dart';
 import '../../utils/AppDesignTokens.dart';
 import '../../widgets/Best50Ui.dart';
 import '../../widgets/AppDialogs.dart';
-import '../../widgets/ExportSuccessDialog.dart';
+import 'package:my_first_flutter_app/service/BackgroundExportService.dart';
+import 'package:my_first_flutter_app/widgets/AppToast.dart';
+import '../../utils/MusicDataIndex.dart';
 
 class DiffBest50Page extends StatefulWidget {
   const DiffBest50Page({super.key});
@@ -408,9 +410,7 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
     if (_maimaiMusicData == null) return 0.0;
 
     // 查找对应的歌曲
-    int songIndex = _maimaiMusicData!.indexWhere(
-      (item) => item['id'] == songId.toString(),
-    );
+    int songIndex = MusicDataIndex.indexOf(_maimaiMusicData!, songId);
 
     if (songIndex == -1) return 0.0;
     dynamic songData = _maimaiMusicData![songIndex];
@@ -436,9 +436,7 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
   // 计算指定歌曲/难度的满分（notes * 3），供通用卡片展示 分数/满分
   int _calculateMaxScore(int songId, int levelIndex) {
     if (_maimaiMusicData == null) return 0;
-    final songIndex = _maimaiMusicData!.indexWhere(
-      (item) => item['id'] == songId.toString(),
-    );
+    final songIndex = MusicDataIndex.indexOf(_maimaiMusicData!, songId);
     if (songIndex == -1) return 0;
     final songData = _maimaiMusicData![songIndex];
     if (songData['charts'] == null) return 0;
@@ -566,40 +564,29 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
           currentMode: _currentMode,
           thunderMode: previewQuality.thunderMode,
           thunderVertical: previewQuality.thunderVertical,
+          theme: previewQuality.theme,
         ),
       );
       if (quality == null) return;
 
-      // 显示加载指示器
-      showAppProgressDialog(context, title: '导出中', message: '正在生成图片...');
 
       // 调用导出方法
-      final file = await DiffBest50ConvertToImg.convertToImage(
-        context,
+      BackgroundExport.run(
+        label: '拟合 Best50',
+        task: (exportContext) => DiffBest50ConvertToImg.convertToImage(
+          exportContext,
         _diffBest50Data,
         _diffSongs,
         _maimaiMusicData,
         currentMode: _currentMode,
         jpegQuality: quality.jpegQuality,
+        theme: quality.theme,
         thunderMode: quality.thunderMode,
         thunderVertical: quality.thunderVertical,
+      ),
       );
-
-      // 关闭加载指示器
-      Navigator.pop(context);
-
-      // 显示导出结果
-      if (file != null) {
-        showExportSuccessDialog(context, filePath: file.path, fileName: file.path.split('/').last);
-      } else {
-        showAppNoticeDialog(context, title: '导出失败', message: '图片导出失败，请重试', tone: AppDialogTone.error);
-      }
     } catch (e) {
-      // 关闭加载指示器
-      Navigator.pop(context);
-
-      // 显示错误信息
-      showAppNoticeDialog(context, title: '导出失败', message: '导出过程中出现错误：\n$e', tone: AppDialogTone.error);
+      AppToast.show('导出失败：$e');
     }
   }
 }

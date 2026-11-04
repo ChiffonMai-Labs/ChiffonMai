@@ -168,90 +168,39 @@ class RankingSelfBar extends StatelessWidget {
   }
 }
 
-/// 排行榜说明：默认只露一句要点，点开看完整说明，给列表多留出位置。
-class RankingNotice extends StatefulWidget {
-  final String summary;
-  final String detail;
-
-  const RankingNotice({super.key, required this.summary, required this.detail});
-
-  @override
-  State<RankingNotice> createState() => _RankingNoticeState();
-}
-
-class _RankingNoticeState extends State<RankingNotice> {
-  bool _expanded = false;
+/// 排行榜顶部说明：四个榜共用同一句话，固定一行，放不下时等比缩小。
+class RankingNotice extends StatelessWidget {
+  const RankingNotice({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final accent = AppColors.warningOrange(Theme.of(context).brightness);
     return Padding(
       padding: const EdgeInsets.fromLTRB(
           AppDesignTokens.gutter, 0, AppDesignTokens.gutter, 8),
-      child: Material(
-        color: accent.withValues(alpha: 0.1),
-        clipBehavior: Clip.antiAlias,
-        borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-        child: Semantics(
-          button: true,
-          expanded: _expanded,
-          child: InkWell(
-            onTap: () => setState(() => _expanded = !_expanded),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(top: 1),
-                    child: Icon(Icons.info_outline, size: 16, color: accent),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          widget.summary,
-                          style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: accent),
-                        ),
-                        AnimatedSize(
-                          duration: AppDesignTokens.motion(
-                              context, AppDesignTokens.mediumMotion),
-                          curve: AppDesignTokens.emphasizedCurve,
-                          alignment: Alignment.topCenter,
-                          child: _expanded
-                              ? Padding(
-                                  padding: const EdgeInsets.only(top: 4),
-                                  child: Text(
-                                    widget.detail,
-                                    style: TextStyle(
-                                        fontSize: 12,
-                                        height: 1.4,
-                                        color: scheme.onSurfaceVariant),
-                                  ),
-                                )
-                              : const SizedBox(width: double.infinity),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  AnimatedRotation(
-                    turns: _expanded ? 0.5 : 0,
-                    duration: AppDesignTokens.motion(
-                        context, AppDesignTokens.fastMotion),
-                    child: Icon(Icons.expand_more_rounded,
-                        size: 18, color: accent),
-                  ),
-                ],
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: accent.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.info_outline, size: 15, color: accent),
+            const SizedBox(width: 6),
+            Expanded(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '数据来自玩家自愿上传，仅供参考和娱乐',
+                  maxLines: 1,
+                  style: TextStyle(
+                      fontSize: 12, fontWeight: FontWeight.w600, color: accent),
+                ),
               ),
             ),
-          ),
+          ],
         ),
       ),
     );

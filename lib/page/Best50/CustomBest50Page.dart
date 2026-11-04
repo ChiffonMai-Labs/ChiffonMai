@@ -25,7 +25,7 @@ import '../../widgets/AppUi.dart';
 import '../../utils/AppDesignTokens.dart';
 import '../../widgets/Best50Ui.dart';
 import '../../widgets/AppDialogs.dart';
-import '../../widgets/ExportSuccessDialog.dart';
+import 'package:my_first_flutter_app/service/BackgroundExportService.dart';
 
 /// 自定义 Best50 的一键排序方式。
 enum _SortMode { raDesc, raAsc, dsDesc, dsAsc }
@@ -852,39 +852,26 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
         _sortLabel,
         thunderMode: previewQuality.thunderMode,
         thunderVertical: previewQuality.thunderVertical,
+        theme: previewQuality.theme,
       ),
     );
     if (!mounted || quality == null) return;
 
-    showAppProgressDialog(context, title: '导出中', message: '正在生成图片...');
-
-    try {
-      final file = await PersonalizedB50ConvertToImg.convertToImage(
-        context,
-        '自定义 Best50',
-        _buildExportMaps(),
-        _maimaiMusicData,
-        jpegQuality: quality.jpegQuality,
-        warningText: _warningText,
-        sortLabel: _sortLabel,
-        thunderMode: quality.thunderMode,
-        thunderVertical: quality.thunderVertical,
-      );
-
-      if (!mounted) return;
-      Navigator.pop(context); // 关闭进度弹窗
-
-      if (file != null) {
-        showExportSuccessDialog(context, filePath: file.path, fileName: file.path.split('/').last);
-      } else {
-        _showMessage('导出失败', '图片导出失败，请重试');
-      }
-    } catch (e) {
-      if (mounted) {
-        Navigator.pop(context);
-        _showMessage('导出失败', '导出过程中出现错误：\n$e');
-      }
-    }
+    BackgroundExport.run(
+      label: '自定义 Best50',
+      task: (exportContext) => PersonalizedB50ConvertToImg.convertToImage(
+        exportContext,
+      '自定义 Best50',
+      _buildExportMaps(),
+      _maimaiMusicData,
+      jpegQuality: quality.jpegQuality,
+      theme: quality.theme,
+      warningText: _warningText,
+      sortLabel: _sortLabel,
+      thunderMode: quality.thunderMode,
+      thunderVertical: quality.thunderVertical,
+    ),
+    );
   }
 
   void _showMessage(String title, String content) {
@@ -1056,18 +1043,30 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
   }
 
   Widget _buildGrid() {
-    return LayoutBuilder(
-      builder: (context, constraints) => GridView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        padding: EdgeInsets.zero,
-        gridDelegate: Best50Grid.delegate(context, constraints.maxWidth),
-        itemCount: CustomBest50Store.slotCount,
-        itemBuilder: (context, index) {
-          final entry = _entries[index];
-          if (entry == null) return _buildEmptySlot(index);
-          return _buildEntryCard(entry, index);
-        },
+    return ValueListenableBuilder<Best50DisplayMode>(
+      valueListenable: Best50DisplayPreference.instance,
+      builder: (context, mode, _) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Best50DisplayModeBar(),
+          const SizedBox(height: 10),
+          LayoutBuilder(
+            builder: (context, constraints) => GridView.builder(
+              key: ValueKey(mode),
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              padding: EdgeInsets.zero,
+              gridDelegate:
+                  Best50Grid.delegate(context, constraints.maxWidth, mode: mode),
+              itemCount: CustomBest50Store.slotCount,
+              itemBuilder: (context, index) {
+                final entry = _entries[index];
+                if (entry == null) return _buildEmptySlot(index);
+                return _buildEntryCard(entry, index, mode);
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1096,18 +1095,14 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
     );
   }
 
-  Widget _buildEntryCard(CustomBest50Entry entry, int index) {
+  Widget _buildEntryCard(
+      CustomBest50Entry entry, int index, Best50DisplayMode mode) {
     final maxDx = _maxDxScore(entry);
     final scoreRate = maxDx > 0 ? entry.dxScore / maxDx : 0.0;
-    return Best50CoverCard(
-      rank: index + 1,
-      entranceIndex: index,
-      // 点卡片是编辑这一格，不走详情面板。
-      onTap: () => _showEditSheet(index),
-      // 非法条目：红色描边便于定位（统计区 / 导出图另有红字告警）
-      outlineColor:
-          _isIllegal(entry) ? Theme.of(context).colorScheme.error : null,
-      data: Best50CardData(
+    // 非法条目：红色描边便于定位（统计区 / 导出图另有红字告警）
+    final outlineColor =
+        _isIllegal(entry) ? Theme.of(context).colorScheme.error : null;
+    final data = Best50CardData(
         songId: entry.songId,
         title: _effectiveTitle(entry),
         levelIndex: entry.levelIndex,
@@ -1121,8 +1116,31 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
         dxScore: entry.dxScore,
         maxDxScore: _cardMaxScore(entry),
         onOpenSong: () => _showEditSheet(index),
-      ),
     );
+    // 点卡片是编辑这一格，不走详情面板。
+    return mode == Best50DisplayMode.cover
+        ? Best50CoverCard(
+            rank: index + 1,
+            entranceIndex: index,
+            onTap: () => _showEditSheet(index),
+            outlineColor: outlineColor,
+            data: data,
+          )
+        : mode == Best50DisplayMode.twoColumns
+            ? Best50ScoreCard(
+                rank: index + 1,
+                entranceIndex: index,
+                onTap: () => _showEditSheet(index),
+                outlineColor: outlineColor,
+                data: data,
+              )
+            : Best50StripCard(
+                rank: index + 1,
+                entranceIndex: index,
+                onTap: () => _showEditSheet(index),
+                outlineColor: outlineColor,
+                data: data,
+              );
   }
 }
 
@@ -1205,8 +1223,7 @@ class _NumberInputFieldState extends State<_NumberInputField> {
         errorText: _error,
         errorStyle: const TextStyle(fontSize: 11),
         isDense: true,
-        border: const OutlineInputBorder(),
-      ),
+      ).insetLabel(context),
       onChanged: _handleChanged,
     );
   }

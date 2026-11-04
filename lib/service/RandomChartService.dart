@@ -192,9 +192,10 @@ class RandomChartService {
       return [];
     }
 
-    // 只洗牌一次：轮播与最终结果共用这次筛选和抽取，不在动画中重抽。
+    // 只洗牌一次：结果在此确定，不在动画中重抽。轮播取整个筛选范围，不能只给
+    // 结果的前几首，否则轮播里反复出现的就是答案。
     filteredSongs.shuffle(Random());
-    onPreviewCandidates?.call(List<Song>.unmodifiable(filteredSongs.take(8)));
+    onPreviewCandidates?.call(List<Song>.unmodifiable(filteredSongs));
     return List<Song>.unmodifiable(filteredSongs.take(count));
   }
 

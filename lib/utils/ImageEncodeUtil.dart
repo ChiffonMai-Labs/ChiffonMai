@@ -1,47 +1,101 @@
+import 'dart:isolate';
+import 'dart:math' as math;
 import 'dart:typed_data';
-import 'package:flutter/foundation.dart' show compute;
+import 'dart:ui' as ui;
+import 'package:flutter/foundation.dart' show compute, debugPrint;
+import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:image/image.dart' as img;
 
 /// GPU 单边纹理尺寸的安全上限。
 ///
-/// 各机型实际值常见为 4096 / 8192 / 16384，取 16000 是在 16384 上留余量。
-/// 超过它的 `toImage` 会给出**空白/黑图**，正是「导出图片黑屏」的成因。
-const double kMaxCaptureTextureSize = 16000.0;
+/// 各机型实际值常见为 8192 / 16384，Dart 侧查不到，只能按较低的一档取。
+/// 超过设备上限时，Impeller 只把画布缩小、不缩放内容（引擎的
+/// `snapshot_controller_impeller.cc`），于是图片只剩左上角：nova 14 反馈 Best50
+/// （约 3000 逻辑高，3 倍约 9000 像素）右侧和下侧被截断约 10%，比例正好对应
+/// 8192 的上限。预览走的是屏幕渲染，不受影响。
+const double kMaxCaptureTextureSize = 8192.0;
 
 /// 允许压到的最小 pixelRatio。
 ///
 /// **不是 1.0**：如果下限取 1.0，那张「逻辑高度本身就超过上限」的图会被
 /// clamp 顶回超限值，保护等于失效（原来的三份内联实现都是这个毛病）。
 /// 宁可出一张略缩的图，也不要黑屏。实际导出（宽 1200/1700、高几千）远够不到
-/// 这个下限，只有病态尺寸才会碰到。
-const double kMinCapturePixelRatio = 0.5;
+/// 这个下限，雷霆模式的单行 50 列（宽约 17500）会压到 0.47，仍在下限之上。
+const double kMinCapturePixelRatio = 0.4;
+
+/// 编码好的导出图片。
+class EncodedImage {
+  final Uint8List bytes;
+  final String extension;
+
+  const EncodedImage(this.bytes, this.extension);
+}
+
+class _JpegJob {
+  final TransferableTypedData pixels;
+  final int width;
+  final int height;
+  final int quality;
+
+  const _JpegJob(this.pixels, this.width, this.height, this.quality);
+}
 
 /// [compute] 的 worker。**必须是顶层函数**（闭包不能跨 isolate 传递）。
-Uint8List _pngToJpegWorker(Map<String, dynamic> args) {
-  return ImageEncodeUtil.pngToJpeg(
-    args['bytes'] as Uint8List,
-    quality: args['quality'] as int,
+Uint8List _rgbaToJpegWorker(_JpegJob job) {
+  final image = img.Image.fromBytes(
+    width: job.width,
+    height: job.height,
+    bytes: job.pixels.materialize(),
+    numChannels: 4,
+    order: img.ChannelOrder.rgba,
   );
+  return img.encodeJpg(image, quality: job.quality);
 }
 
 /// 图片编码工具类
-/// 提供 PNG ↔ JPEG 转码、文件大小预估等功能
+/// 提供导出截图的编码、文件大小预估等功能
 class ImageEncodeUtil {
-  /// 把 [pngToJpeg] 挪到后台 isolate 执行。
+  /// 把导出画布截成图片并编码。
   ///
-  /// 为什么必须挪：`package:image` 的 `decodePng` / `copyResize` / `encodeJpg`
-  /// 都是**纯 Dart 同步**实现。B50 导出图约 3600×7400（≈27 MP），三个步骤
-  /// 串起来要十几秒，全跑在 UI isolate 上就是**界面完全冻住** ——
-  /// 用户报的「导出卡死」就是它（只有选了 JPEG 的用户会中，所以他们
-  /// 反馈两极分化）。输入输出都是 `Uint8List`，可以安全跨 isolate 传递。
-  static Future<Uint8List> pngToJpegAsync(
-    Uint8List pngBytes, {
-    required int quality,
-  }) {
-    return compute(_pngToJpegWorker, <String, dynamic>{
-      'bytes': pngBytes,
-      'quality': quality,
-    });
+  /// PNG 由引擎在后台线程编码。JPEG 直接按目标尺寸截图，再把原始像素转交给
+  /// 后台 isolate 编码：不再经过「编 PNG → 解 PNG → 缩放」这三步，既快得多，
+  /// 也比事后缩放更清晰（文字是按目标尺寸重新光栅化的）。
+  static Future<EncodedImage> encodeBoundary(
+    RenderRepaintBoundary boundary, {
+    int? jpegQuality,
+  }) async {
+    var ratio = safeCapturePixelRatio(boundary.size.width, boundary.size.height);
+    if (jpegQuality != null) {
+      ratio = math.max(
+          ratio * _scaleForQuality(jpegQuality), kMinCapturePixelRatio);
+    }
+    ui.Image image;
+    try {
+      image = await boundary.toImage(pixelRatio: ratio);
+    } catch (e) {
+      debugPrint('导出截图失败，重试一次: $e');
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      image = await boundary.toImage(pixelRatio: ratio);
+    }
+    try {
+      final data = await image.toByteData(
+          format: jpegQuality == null
+              ? ui.ImageByteFormat.png
+              : ui.ImageByteFormat.rawRgba);
+      if (data == null) throw Exception('无法读取图片数据');
+      final bytes =
+          data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+      if (jpegQuality == null) return EncodedImage(bytes, 'png');
+      // 转交而不是复制：上百 MB 的像素复制一次也会让界面顿一下。
+      final jpeg = await compute(
+        _rgbaToJpegWorker,
+        _JpegJob(TransferableTypedData.fromList([bytes]), image.width,
+            image.height, jpegQuality),
+      );
+      return EncodedImage(jpeg, 'jpg');
+    } finally {
+      image.dispose();
+    }
   }
 
   /// 导出截图该用的 pixelRatio：优先 [preferred]，但**保证物理尺寸不超过
@@ -85,24 +139,6 @@ class ImageEncodeUtil {
     if (quality >= 80) return 0.58;
     if (quality >= 70) return 0.50;
     return 0.42;
-  }
-
-  /// 将 PNG 字节转为 JPEG 字节，并根据质量自动缩放以减小文件体积。
-  /// [pngBytes] 原始 PNG 数据
-  /// [quality] JPEG 质量 (0-100)，同时决定缩放程度
-  static Uint8List pngToJpeg(Uint8List pngBytes, {required int quality}) {
-    final decoded = img.decodePng(pngBytes);
-    if (decoded == null) {
-      throw Exception('无法解码 PNG 数据');
-    }
-
-    // 根据质量缩放图片，这是减小 UI 截图文件体积的关键手段
-    final scale = _scaleForQuality(quality);
-    final targetWidth = (decoded.width * scale).round();
-    final resized = img.copyResize(decoded, width: targetWidth);
-
-    final jpegBytes = img.encodeJpg(resized, quality: quality);
-    return Uint8List.fromList(jpegBytes);
   }
 
   /// 根据 PNG 预估大小和 JPEG quality 估算 JPEG 文件大小。

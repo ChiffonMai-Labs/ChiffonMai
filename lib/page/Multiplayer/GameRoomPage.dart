@@ -108,6 +108,9 @@ class _GameRoomPageState extends State<GameRoomPage> {
   // 音频播放相关 (audio 模式)
   bool _isPlaying = false;
   bool _hasPlayed = false;
+
+  /// 中途暂停：播放器和进度都留着，再点播放从这里继续。
+  bool _isPaused = false;
   int? _audioStartTime;
   double _currentPosition = 0.0;
   double _totalDuration = 0.0;
@@ -3249,7 +3252,9 @@ class _GameRoomPageState extends State<GameRoomPage> {
                         ? '正在加载音频…'
                         : _isPlaying
                             ? '暂停'
-                            : (_hasPlayed ? '重新播放' : '播放歌曲片段')),
+                            : _isPaused
+                                ? '继续播放'
+                                : (_hasPlayed ? '重新播放' : '播放歌曲片段')),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.white,
@@ -3272,6 +3277,11 @@ class _GameRoomPageState extends State<GameRoomPage> {
       String roomId, int roundNumber, String targetSongId) async {
     if (_targetSong == null || _audioLoading || !_canAct || _hasSurrendered)
       return;
+    if (_isPaused && _audioPlayer != null) {
+      await _resumePausedPlayback();
+      return;
+    }
+    _isPaused = false;
     final generation = _modeGeneration;
     bool current() =>
         mounted &&
@@ -3338,19 +3348,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
         _totalDuration = playDuration.toDouble();
         _currentPosition = 0;
       });
-      final started = DateTime.now();
-      _playbackTimer =
-          Timer.periodic(const Duration(milliseconds: 100), (timer) {
-        if (!current() || !_isPlaying) {
-          timer.cancel();
-          return;
-        }
-        final elapsed =
-            DateTime.now().difference(started).inMilliseconds / 1000;
-        setState(
-            () => _currentPosition = min(elapsed, playDuration.toDouble()));
-        if (elapsed >= playDuration) _handlePlaybackComplete();
-      });
+      _startPlaybackTimer(current);
     } catch (error) {
       if (current()) {
         setState(() => _isPlaying = false);
@@ -3366,12 +3364,55 @@ class _GameRoomPageState extends State<GameRoomPage> {
     }
   }
 
+  /// 从 [_currentPosition] 开始计时，继续播放时不会把进度算回开头。
+  void _startPlaybackTimer(bool Function() current) {
+    final total = _totalDuration;
+    final base = _currentPosition;
+    final started = DateTime.now();
+    _playbackTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
+      if (!current() || !_isPlaying) {
+        timer.cancel();
+        return;
+      }
+      final elapsed =
+          base + DateTime.now().difference(started).inMilliseconds / 1000;
+      setState(() => _currentPosition = min(elapsed, total));
+      if (elapsed >= total) _handlePlaybackComplete();
+    });
+  }
+
+  /// 从暂停的位置继续，不重新装载音源。
+  Future<void> _resumePausedPlayback() async {
+    final player = _audioPlayer!;
+    final generation = _modeGeneration;
+    bool current() =>
+        mounted &&
+        !_isLeaving &&
+        generation == _modeGeneration &&
+        _gameState?.isRoundOver == false &&
+        !_hasSurrendered;
+    setState(() {
+      _isPaused = false;
+      _isPlaying = true;
+    });
+    try {
+      await player.resume();
+      if (current()) _startPlaybackTimer(current);
+    } catch (error) {
+      if (current()) {
+        setState(() => _isPlaying = false);
+        AppToast.show('音频播放失败：$error');
+      }
+    }
+  }
+
   void _handlePlaybackComplete() {
     _playbackTimer?.cancel();
     _positionSubscription?.cancel();
     _audioPlayer?.stop();
     setState(() {
       _isPlaying = false;
+      _isPaused = false;
       _hasPlayed = true;
       _currentPosition = _totalDuration;
     });
@@ -3383,6 +3424,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
     _audioPlayer?.pause();
     setState(() {
       _isPlaying = false;
+      _isPaused = true;
     });
   }
 
@@ -3413,6 +3455,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
     _audioStartTime = null;
     _isPlaying = false;
     _hasPlayed = false;
+    _isPaused = false;
     _currentPosition = 0.0;
     _totalDuration = 0.0;
     _playbackTimer?.cancel();

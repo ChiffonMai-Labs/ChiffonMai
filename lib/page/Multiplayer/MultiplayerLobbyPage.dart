@@ -237,7 +237,7 @@ class _MultiplayerLobbyPageState extends State<MultiplayerLobbyPage> {
     final paddingM = 12.0 * scaleFactor;
 
     return BackgroundPageScaffold(
-      title: '多人游戏',
+      title: '多人猜歌游戏',
       contentPadding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom + 10),
       child: SingleChildScrollView(
                     padding: EdgeInsets.fromLTRB(AppDesignTokens.gutter, 4, AppDesignTokens.gutter, paddingM),

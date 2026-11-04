@@ -68,7 +68,7 @@ class AwmcNetQrImportResult {
       '新增 $imported 条 · 更新 $updated 条 · 跳过 $skipped 条（机台共 $totalRecords 条）';
 }
 
-/// AWMC NET.（https://net.wmc.pub）「同步成绩到 AWMC NET」。
+/// AWMC NET（https://net.wmc.pub）「同步成绩到 AWMC NET」。
 ///
 /// 本类负责让 AWMC NET 使用二维码拉取完整机台成绩。
 /// 快速同步由 AwmcQuickSyncService 读取机台成绩、补齐该 AWMC NET 账号的标记，

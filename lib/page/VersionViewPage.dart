@@ -388,7 +388,7 @@ class _VersionViewState extends State<VersionView> {
     final versions = _versions;
 
     return BackgroundPageScaffold(
-      title: 'maimai 版本对照',
+      title: '版本对照',
       contentPadding: EdgeInsets.only(
         bottom: MediaQuery.paddingOf(context).bottom,
       ),

@@ -16,6 +16,7 @@ class ApiUrls {
   static const String FriendLinksUrl = '$BackendBaseUrl/api/friend-links';
   static const String AnnouncementUrl =
       '$BackendBaseUrl/api/announcements/current';
+  static const String UpdateCalendarUrl = '$BackendBaseUrl/api/update-calendar';
   static const String MaintainerAvatarUrl =
       '$BackendBaseUrl/api/about/maintainer-avatar';
 
@@ -76,7 +77,7 @@ class ApiUrls {
   static const String LuoXueSongsApi =
       'https://maimai.lxns.net/api/v0/maimai/song/list';
 
-  // ── AWMC NET. 查分器（直连） ───────────────────────────────────────────
+  // ── AWMC NET 查分器（直连） ───────────────────────────────────────────
   // 官网 https://net.wmc.pub/ ，API 文档 https://net.wmc.pub/docs
   //
   // ⚠️ 与「AWMC 网关」是两个不同的服务，别搞混：

@@ -91,7 +91,7 @@ class _RatingRecommendPageState extends State<RatingRecommendPage> {
     final paginatedResults = _results.sublist(startIndex, endIndex);
 
     return BackgroundPageScaffold(
-      title: '基于目标Rating推荐',
+      title: '基于目标 Rating 推荐',
       resizeToAvoidBottomInset: false,
       contentPadding: EdgeInsets.only(
         bottom: MediaQuery.paddingOf(context).bottom,

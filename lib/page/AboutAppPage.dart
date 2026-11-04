@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../api/ApiUrls.dart';
+import '../constant/AppLinks.dart';
 import '../utils/CommonWidgetUtil.dart';
 import '../utils/ExternalLaunchUtil.dart';
 import '../widgets/AppHeader.dart';
@@ -11,6 +12,7 @@ import '../widgets/AppLauncherIcon.dart';
 import 'LegalDocumentPage.dart';
 import '../utils/AppDesignTokens.dart';
 import '../widgets/AppToast.dart';
+import '../widgets/ImageLoadingIndicator.dart';
 
 /// 关于页：品牌介绍、维护者与致谢分组直接布局在主题背景上。
 class AboutAppPage extends StatefulWidget {
@@ -62,7 +64,7 @@ class _AboutAppPageState extends State<AboutAppPage> {
     _Credit('迪拉熊重度依赖', '为本项目在前端细节与交互体验上提供了诸多宝贵建议',
         'https://github.com/Timome-Sudo', 'dilaxiong'),
     _Credit('Michaelwucoc', '为本项目的开发提供了技术支持和经济支持，为项目的推进提供了极大的帮助',
-        'https://github.com/Michaelwucoc'),
+        AppLinks.michaelwucocGitHubUrl),
     _Credit('ChiffonMai交流群的全体群友', '为本项目开发提供了诸多宝贵建议和反馈'),
   ];
 
@@ -80,7 +82,7 @@ class _AboutAppPageState extends State<AboutAppPage> {
     _Credit('status.awmc.cc', '提供舞萌服务器状态信息',
         'https://status.awmc.cc/status/maimai'),
     _Credit('mai.chongxi.us', '提供舞萌服务器状态信息', 'https://mai.chongxi.us/'),
-    _Credit('AWMC NET.', '提供水鱼查分器同步支持、落雪查分器同步支持和对本项目开发的经济支持',
+    _Credit('AWMC NET', '提供水鱼查分器同步支持、落雪查分器同步支持和对本项目开发的经济支持',
         'https://net.wmc.pub/'),
     _Credit('Bakapiano', '提供水鱼查分器和落雪查分器成绩同步支持',
         'https://github.com/bakapiano/maimai-score-hub'),
@@ -107,12 +109,15 @@ class _AboutAppPageState extends State<AboutAppPage> {
   static const List<_Credit> _donationCredits = [
     _Credit('Pokcet', '感谢对本项目的捐献支持'),
     _Credit('ListaQwQ', '感谢对本项目的捐献支持'),
-    _Credit('迪拉熊重度依赖', '感谢对本项目的捐献支持', null, 'dilaxiong'),
+    _Credit('迪拉熊重度依赖', '感谢对本项目的捐献支持',
+        'https://github.com/Timome-Sudo', 'dilaxiong'),
     _Credit('白嫖万岁', '感谢对本项目的捐献支持'),
     _Credit('鱼好呆', '感谢对本项目的捐献支持'),
-    _Credit('Rinviolet', '感谢对本项目的捐献支持', null, 'rinviolet'),
+    _Credit('Rinviolet', '感谢对本项目的捐献支持', 'https://b23.tv/hIpEBUO',
+        'rinviolet'),
     _Credit('Redapple_one', '感谢对本项目的捐献支持', 'https://me.redapple.one',
         'redapple_one'),
+    _Credit('苏洛依', '感谢对本项目的捐献支持', null, 'suluoyi'),
   ];
 
   String _version = '';
@@ -182,7 +187,7 @@ class _AboutAppPageState extends State<AboutAppPage> {
           Column(
             children: [
               const AppHeader(
-                title: '关于',
+                title: '关于 APP',
                 barBackground: Colors.transparent,
               ),
               Expanded(
@@ -383,10 +388,8 @@ class _AboutAppPageState extends State<AboutAppPage> {
                       (50 * MediaQuery.devicePixelRatioOf(context)).round(),
                   fadeInDuration: Duration.zero,
                   fadeOutDuration: Duration.zero,
-                  placeholder: (context, url) => Icon(
-                      Icons.person_outline_rounded,
-                      size: 28,
-                      color: scheme.onPrimaryContainer),
+                  placeholder: (context, url) => const ImageLoadingIndicator(
+                      background: Colors.transparent),
                   errorWidget: (context, url, error) => Icon(
                       Icons.person_outline_rounded,
                       size: 28,
@@ -551,7 +554,8 @@ class _AboutAppPageState extends State<AboutAppPage> {
         memCacheWidth: (size * MediaQuery.devicePixelRatioOf(context)).round(),
         fadeInDuration: Duration.zero,
         fadeOutDuration: Duration.zero,
-        placeholder: (context, url) => icon,
+        placeholder: (context, url) =>
+            const ImageLoadingIndicator(background: Colors.transparent),
         errorWidget: (context, url, error) => icon,
       ),
     );

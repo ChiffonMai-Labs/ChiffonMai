@@ -1105,12 +1105,11 @@ extension _SongInfoTables on _SongInfoPageState {
                                           isDense: true,
                                           contentPadding: EdgeInsets.symmetric(
                                               horizontal: 8, vertical: 8),
-                                          border: OutlineInputBorder(),
                                           errorText: _break50Count < 0 ||
                                                   totalInputCount > totalBreak
                                               ? '无效'
                                               : null,
-                                        ),
+                                        ).insetLabel(context),
                                         onChanged: (value) {
                                           _update(() {
                                             _break50Count =
@@ -1130,12 +1129,11 @@ extension _SongInfoTables on _SongInfoPageState {
                                           isDense: true,
                                           contentPadding: EdgeInsets.symmetric(
                                               horizontal: 8, vertical: 8),
-                                          border: OutlineInputBorder(),
                                           errorText: _break100Count < 0 ||
                                                   totalInputCount > totalBreak
                                               ? '无效'
                                               : null,
-                                        ),
+                                        ).insetLabel(context),
                                         onChanged: (value) {
                                           _update(() {
                                             _break100Count =
@@ -1159,12 +1157,11 @@ extension _SongInfoTables on _SongInfoPageState {
                                           isDense: true,
                                           contentPadding: EdgeInsets.symmetric(
                                               horizontal: 8, vertical: 8),
-                                          border: OutlineInputBorder(),
                                           errorText: _break80Count < 0 ||
                                                   totalInputCount > totalBreak
                                               ? '无效'
                                               : null,
-                                        ),
+                                        ).insetLabel(context),
                                         onChanged: (value) {
                                           _update(() {
                                             _break80Count =
@@ -1184,12 +1181,11 @@ extension _SongInfoTables on _SongInfoPageState {
                                           isDense: true,
                                           contentPadding: EdgeInsets.symmetric(
                                               horizontal: 8, vertical: 8),
-                                          border: OutlineInputBorder(),
                                           errorText: _break60Count < 0 ||
                                                   totalInputCount > totalBreak
                                               ? '无效'
                                               : null,
-                                        ),
+                                        ).insetLabel(context),
                                         onChanged: (value) {
                                           _update(() {
                                             _break60Count =
@@ -1209,12 +1205,11 @@ extension _SongInfoTables on _SongInfoPageState {
                                           isDense: true,
                                           contentPadding: EdgeInsets.symmetric(
                                               horizontal: 8, vertical: 8),
-                                          border: OutlineInputBorder(),
                                           errorText: _break50gCount < 0 ||
                                                   totalInputCount > totalBreak
                                               ? '无效'
                                               : null,
-                                        ),
+                                        ).insetLabel(context),
                                         onChanged: (value) {
                                           _update(() {
                                             _break50gCount =
@@ -1238,12 +1233,11 @@ extension _SongInfoTables on _SongInfoPageState {
                                           isDense: true,
                                           contentPadding: EdgeInsets.symmetric(
                                               horizontal: 8, vertical: 8),
-                                          border: OutlineInputBorder(),
                                           errorText: _breakGoodCount < 0 ||
                                                   totalInputCount > totalBreak
                                               ? '无效'
                                               : null,
-                                        ),
+                                        ).insetLabel(context),
                                         onChanged: (value) {
                                           _update(() {
                                             _breakGoodCount =
@@ -1263,12 +1257,11 @@ extension _SongInfoTables on _SongInfoPageState {
                                           isDense: true,
                                           contentPadding: EdgeInsets.symmetric(
                                               horizontal: 8, vertical: 8),
-                                          border: OutlineInputBorder(),
                                           errorText: _breakMissCount < 0 ||
                                                   totalInputCount > totalBreak
                                               ? '无效'
                                               : null,
-                                        ),
+                                        ).insetLabel(context),
                                         onChanged: (value) {
                                           _update(() {
                                             _breakMissCount =

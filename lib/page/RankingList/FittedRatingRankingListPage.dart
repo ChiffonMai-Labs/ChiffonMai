@@ -386,11 +386,7 @@ class _FittedRatingRankingListPageState
               ),
 
               // 免责声明
-              const RankingNotice(
-                summary: '基于自愿上传的成绩计算，仅供娱乐参考，不代表官方立场',
-                detail:
-                    '拟合总Rating排行榜基于玩家自愿上传的全量成绩与最新拟合定数计算，每 6 小时更新一次，仅供娱乐参考，不代表任何官方立场。',
-              ),
+              const RankingNotice(),
 
               // 排行榜列表
               Expanded(

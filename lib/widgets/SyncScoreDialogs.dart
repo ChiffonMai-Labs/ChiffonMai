@@ -22,6 +22,7 @@ import 'RefreshDataDialog.dart' show RefreshDataRequest, RefreshDataSource;
 import '../widgets/AppDialogs.dart';
 import '../widgets/AppToast.dart';
 import '../utils/AppDesignTokens.dart';
+import 'AppUi.dart';
 
 export 'MultiScoreSyncDialog.dart'
     show MultiScoreSyncInput, showMultiScoreSyncInputDialog;
@@ -466,7 +467,7 @@ Widget _buildLuoXueKeyGuide(BuildContext context, Brightness brightness) {
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w500,
-              color: AppColors.linkBlue(brightness),
+              color: Theme.of(context).colorScheme.primary,
               decoration: TextDecoration.underline,
             ),
           ),
@@ -886,9 +887,7 @@ class SyncScoreDialogs {
                           controller: dfUserController,
                           decoration: InputDecoration(
                             labelText: '水鱼用户名',
-                            border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall)),
-                          ),
+                          ).insetLabel(context),
                         ),
                         const SizedBox(height: 10),
                         TextField(
@@ -896,9 +895,7 @@ class SyncScoreDialogs {
                           obscureText: true,
                           decoration: InputDecoration(
                             labelText: '水鱼密码',
-                            border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall)),
-                          ),
+                          ).insetLabel(context),
                         ),
                         if (bindingError != null) ...[
                           const SizedBox(height: 8),
@@ -1180,11 +1177,9 @@ class SyncScoreDialogs {
                         decoration: InputDecoration(
                           labelText: '用户名',
                           hintText: 'Diving-Fish 用户名',
-                          border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall)),
                           contentPadding: const EdgeInsets.symmetric(
                               horizontal: 12, vertical: 10),
-                        ),
+                        ).insetLabel(context),
                       ),
                       const SizedBox(height: 10),
                       TextField(
@@ -1193,11 +1188,9 @@ class SyncScoreDialogs {
                         decoration: InputDecoration(
                           labelText: '密码',
                           hintText: 'Diving-Fish 密码',
-                          border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall)),
                           contentPadding: const EdgeInsets.symmetric(
                               horizontal: 12, vertical: 10),
-                        ),
+                        ).insetLabel(context),
                       ),
                       if (errorMsg != null) ...[
                         const SizedBox(height: 8),

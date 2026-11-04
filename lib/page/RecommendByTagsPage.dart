@@ -182,15 +182,7 @@ class _RecommendByTagsState extends State<RecommendByTags> {
       filled: true,
       fillColor: AppSurfaces.inset(context),
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-        borderSide: BorderSide.none,
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-        borderSide: BorderSide.none,
-      ),
-    );
+    ).insetLabel(context);
 
     return Container(
       margin: const EdgeInsets.fromLTRB(
@@ -393,7 +385,7 @@ class _RecommendByTagsState extends State<RecommendByTags> {
     final screenHeight = MediaQuery.of(context).size.height;
 
     return BackgroundPageScaffold(
-      title: '根据标签推荐',
+      title: '基于标签推荐',
       resizeToAvoidBottomInset: false,
       contentPadding: EdgeInsets.only(
         bottom: MediaQuery.paddingOf(context).bottom,

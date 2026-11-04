@@ -2,6 +2,9 @@
 class CacheKeyConstant {
   static const String searchInteractionMode = 'search_interaction_mode';
 
+  /// 歌曲搜索结果是否显示匹配字段。
+  static const String searchShowMatchInfo = 'search_show_match_info';
+
   /// 三个数据源共用的快速同步凭据，仅存入系统安全存储；兼容旧的逐源映射。
   static const String awmcQuickIdentities = 'awmc_quick_identities_v1';
 
@@ -68,6 +71,9 @@ class CacheKeyConstant {
 
   // 自定义 Best50 手动录入数据（50 个固定卡位）
   static const String customBest50Data = 'custom_best50_data_v1';
+
+  /// Best50 系列页的显示模式。
+  static const String best50DisplayMode = 'best50_display_mode';
 
   // ===== 三账号系统（水鱼 / 落雪 / AWMC NET 各一套缓存）=====
   // 账号元信息（昵称 / Rating / id / 是否有缓存），一个 JSON map
@@ -151,7 +157,7 @@ class CacheKeyConstant {
   static const String luoxueRankingsCache = 'luoxue_rankings_cache';
   static const String luoxueRankingsCacheTimestamp =
       'luoxue_rankings_cache_timestamp';
-  // AWMC NET.（net.wmc.pub）总 Rating 榜
+  // AWMC NET（net.wmc.pub）总 Rating 榜
   static const String awmcRankingsCache = 'awmc_rankings_cache';
   static const String awmcRankingsCacheTimestamp =
       'awmc_rankings_cache_timestamp';
@@ -242,7 +248,7 @@ class CacheKeyConstant {
   /// 任何地方都不要再往里写。
   static const String awmcPlayCountsLegacy = 'awmc_play_counts_v1';
 
-  // ===== AWMC NET. 查分器（net.wmc.pub）=====
+  // ===== AWMC NET 查分器（net.wmc.pub）=====
   // 按源区分的身份标记（`awmc:<QQ>`），与 shuiyuUserId / luoxueUserId 对等。
   // 作用见 AccountStore._resolveActiveId：共用的 cachedQQ 在异常路径下会被别的源串号。
   static const String awmcUserId = 'awmc_user_id';
@@ -276,4 +282,7 @@ class CacheKeyConstant {
       'probe_diving_fish_import_token';
   static const String probeDivingFishBindQQ = 'probe_diving_fish_bind_qq';
   static const String probeLxnsImportToken = 'probe_lxns_import_token';
+
+  /// 导出图片选的主题（浅色 / 深色 / 纯黑）。
+  static const String exportImageTheme = 'export_image_theme';
 }

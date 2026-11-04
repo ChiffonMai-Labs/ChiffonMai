@@ -962,7 +962,7 @@ class _IdentityBindCardState extends State<_IdentityBindCard> {
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               errorText: _error,
-            ),
+            ).insetLabel(context),
             onSubmitted: (_) => _bind(),
           ),
           const SizedBox(height: 8),
@@ -1092,7 +1092,7 @@ class _PersonalKeyFormState extends State<_PersonalKeyForm> {
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           errorText: _error,
-        ),
+        ).insetLabel(context),
         onSubmitted: (_) => _save(),
       ),
       const SizedBox(height: 8),

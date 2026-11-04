@@ -1,10 +1,9 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
-import '../utils/AppTheme.dart';
 import '../utils/ExternalLaunchUtil.dart';
 
-/// 在引导段落内显示可换行的蓝色下划线链接，仅链接文字响应点击。
+/// 在引导段落内显示可换行的主题色下划线链接，仅链接文字响应点击。
 class GuideLinkText extends StatefulWidget {
   final String before;
   final String label;
@@ -70,16 +69,16 @@ class _GuideLinkTextState extends State<GuideLinkText> {
 
   @override
   Widget build(BuildContext context) {
-    final blue = AppColors.linkBlue(Theme.of(context).brightness);
+    final link = Theme.of(context).colorScheme.primary;
     return Text.rich(
       TextSpan(children: [
         TextSpan(text: widget.before),
         TextSpan(
           text: widget.label,
           style: TextStyle(
-            color: blue,
+            color: link,
             decoration: TextDecoration.underline,
-            decorationColor: blue,
+            decorationColor: link,
           ),
           recognizer: _tap,
           mouseCursor: SystemMouseCursors.click,

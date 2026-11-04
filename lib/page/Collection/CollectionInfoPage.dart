@@ -23,6 +23,7 @@ import '../../entity/DivingFish/Song.dart';
 import '../../utils/AppDesignTokens.dart';
 import '../../widgets/AppUi.dart';
 import '../../widgets/MarqueeText.dart';
+import '../../widgets/ProgressUi.dart';
 import '../../widgets/AppDialogs.dart';
 import '../../widgets/AppToast.dart';
 
@@ -457,95 +458,67 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
     );
   }
 
-  Widget _buildExcludedSongSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const SizedBox(height: 4),
-        AppSectionHeader(
-          title: '条件外排除曲目',
-          subtitle: '共 ${_excludedSongs.length} 首，不计入所需条件',
-        ),
-        AppCard(
-          padding: EdgeInsets.zero,
-          radius: AppDesignTokens.radiusMedium,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (var i = 0; i < _excludedSongs.length; i++)
-                _buildCollectionSongCard(
-                  CollectionRequiredSong(
-                      id: int.tryParse(_excludedSongs[i].id) ?? 0,
-                      title: _excludedSongs[i].title,
-                      type: _excludedSongs[i].type),
-                  _excludedSongs[i],
-                  showDivider: i > 0,
-                ),
-            ],
-          ),
-        ),
-      ],
-    );
+  /// 把一组歌曲摊成列表项。歌曲可能有几百首，每行单独按需构建，不能放回 Column。
+  void _addSongRows(
+    List<Widget Function(BuildContext)> entries,
+    List<(CollectionRequiredSong, Song?)> songs,
+  ) {
+    for (var i = 0; i < songs.length; i++) {
+      final (requiredSong, song) = songs[i];
+      entries.add((_) => GroupedRowShell(
+            first: i == 0,
+            last: i == songs.length - 1,
+            child: _buildCollectionSongCard(requiredSong, song,
+                showDivider: i > 0),
+          ));
+    }
   }
 
-  // 获取唯一的歌曲列表
-  List<Widget> _getUniqueSongLists(List<CollectionRequired> requiredList) {
-    final Set<String> seenSongLists = {};
-    final Set<String> seenSongs = {}; // 用于统计唯一歌曲数量
-    final List<Widget> uniqueSongLists = [];
+  void _addExcludedSongEntries(List<Widget Function(BuildContext)> entries) {
+    entries.add((_) => Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: AppSectionHeader(
+            title: '条件外排除曲目',
+            subtitle: '共 ${_excludedSongs.length} 首，不计入所需条件',
+          ),
+        ));
+    _addSongRows(entries, [
+      for (final song in _excludedSongs)
+        (
+          CollectionRequiredSong(
+              id: int.tryParse(song.id) ?? 0,
+              title: song.title,
+              type: song.type),
+          song,
+        ),
+    ]);
+  }
 
+  /// 去重后的歌曲列表：相同曲目组成的条件只显示一次，标题带歌曲总数。
+  void _addSongListEntries(List<Widget Function(BuildContext)> entries,
+      List<CollectionRequired> requiredList) {
+    final seenSongLists = <String>{};
+    final seenSongs = <String>{};
+    final lists = <List<CollectionRequiredSong>>[];
     for (final requiredItem in requiredList) {
-      if (requiredItem.songs != null && requiredItem.songs!.isNotEmpty) {
-        // 将歌曲列表转换为唯一字符串，用于去重
-        final songListKey = requiredItem.songs!
-            .map((song) => '${song.id}:${song.title}:${song.type}')
-            .join(',');
-
-        if (!seenSongLists.contains(songListKey)) {
-          seenSongLists.add(songListKey);
-
-          // 统计唯一歌曲数量
-          for (final song in requiredItem.songs!) {
-            seenSongs.add('${song.id}:${song.title}:${song.type}');
-          }
-
-          final songs = requiredItem.songs!;
-          uniqueSongLists.add(
-            Padding(
-              padding: const EdgeInsets.only(bottom: AppDesignTokens.cardGap),
-              child: AppCard(
-                padding: EdgeInsets.zero,
-                radius: AppDesignTokens.radiusMedium,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    for (var i = 0; i < songs.length; i++)
-                      _buildCollectionSongCard(
-                        songs[i],
-                        _songMap?[songs[i]],
-                        showDivider: i > 0,
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        }
-      }
+      final songs = requiredItem.songs;
+      if (songs == null || songs.isEmpty) continue;
+      final keys = songs.map((s) => '${s.id}:${s.title}:${s.type}');
+      if (!seenSongLists.add(keys.join(','))) continue;
+      seenSongs.addAll(keys);
+      lists.add(songs);
     }
-
-    // 标题带歌曲总数
-    if (seenSongs.isNotEmpty) {
-      uniqueSongLists.insert(
-        0,
-        AppSectionHeader(
+    if (seenSongs.isEmpty) return;
+    entries.add((_) => AppSectionHeader(
           title: '歌曲列表',
           subtitle: '总计 ${seenSongs.length} 首歌曲',
-        ),
-      );
+        ));
+    for (final songs in lists) {
+      _addSongRows(entries, [
+        for (final song in songs) (song, _songMap?[song]),
+      ]);
+      entries.add((_) => const SizedBox(height: AppDesignTokens.cardGap));
     }
-
-    return uniqueSongLists;
   }
 
   /// 所需条件的一行：左边条件名，右边徽章。
@@ -942,20 +915,33 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
             ),
           ),
           const SizedBox(height: 16),
-          ..._getUniqueSongLists(collection.required!),
-          if (!_isLoadingSongs &&
-              widget.collectionType == 'plates' &&
-              _collection != null &&
-              PaiziProgressService().isProgressPlate(_collection!))
-            _buildExcludedSongSection(),
         ],
-        if (_isLoadingSongs)
-          const Padding(
-            padding: EdgeInsets.only(top: 20),
-            child: Center(child: CircularProgressIndicator()),
-          ),
       ],
     );
+  }
+
+  /// 页面内容：头部一项，之后每首歌一项。
+  List<Widget Function(BuildContext)> _buildEntries() {
+    final collection = _collection!;
+    final entries = <Widget Function(BuildContext)>[
+      _buildCollectionDetails,
+    ];
+    final requiredList = collection.required;
+    if (requiredList != null && requiredList.isNotEmpty) {
+      _addSongListEntries(entries, requiredList);
+      if (!_isLoadingSongs &&
+          widget.collectionType == 'plates' &&
+          PaiziProgressService().isProgressPlate(collection)) {
+        _addExcludedSongEntries(entries);
+      }
+    }
+    if (_isLoadingSongs) {
+      entries.add((_) => const Padding(
+            padding: EdgeInsets.only(top: 20),
+            child: Center(child: CircularProgressIndicator()),
+          ));
+    }
+    return entries;
   }
 
   @override
@@ -982,15 +968,17 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
                     ],
                   ),
                 )
-              : ListView(
-                  key: ValueKey(
-                      'collection_${widget.collectionId}_${widget.collectionType}'),
-                  padding: const EdgeInsets.fromLTRB(AppDesignTokens.gutter, 4,
-                      AppDesignTokens.gutter, AppDesignTokens.gutter),
-                  children: [
-                    _buildCollectionDetails(context),
-                  ],
-                ),
+              : Builder(builder: (context) {
+                  final entries = _buildEntries();
+                  return ListView.builder(
+                    key: ValueKey(
+                        'collection_${widget.collectionId}_${widget.collectionType}'),
+                    padding: const EdgeInsets.fromLTRB(AppDesignTokens.gutter,
+                        4, AppDesignTokens.gutter, AppDesignTokens.gutter),
+                    itemCount: entries.length,
+                    itemBuilder: (context, index) => entries[index](context),
+                  );
+                }),
     );
   }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../widgets/AppDialogs.dart';
+import 'AppUi.dart';
 
 /// 历史点共用的日期、时分和秒选择器。
 Future<DateTime?> showHistoryDateTimeDialog(
@@ -154,9 +155,9 @@ class _HistoryDateTimeDialogState extends State<_HistoryDateTimeDialog> {
           TextField(
             controller: _secondsController,
             keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: '秒（0-59）',
-            ),
+            ).insetLabel(context),
             onChanged: _onSecondsChanged,
           ),
         ],

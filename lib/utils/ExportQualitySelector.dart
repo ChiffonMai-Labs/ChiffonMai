@@ -3,11 +3,16 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../widgets/AnimatedChoiceBar.dart';
+import '../widgets/AppUi.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:my_first_flutter_app/utils/ImageEncodeUtil.dart';
+import '../constant/CacheKeyConstant.dart';
 import 'AppDesignTokens.dart';
+import 'AppTheme.dart';
+import 'ExportImageTheme.dart';
+
+export 'ExportImageTheme.dart';
 
 /// 导出质量选择结果
 class ExportQualityResult {
@@ -17,23 +22,40 @@ class ExportQualityResult {
   /// 显示标签
   final String label;
 
+  /// 抽屉里选项的名称和说明
+  final String name;
+  final String hint;
+
   /// Best50 导出时是否采用雷霆模式（单列 50 行或单行 50 列）。
   final bool thunderMode;
   final bool thunderVertical;
 
+  /// 导出图片的主题。
+  final ExportImageTheme theme;
+
   const ExportQualityResult({
     required this.jpegQuality,
     required this.label,
+    this.name = '',
+    this.hint = '',
     this.thunderMode = false,
     this.thunderVertical = true,
+    this.theme = ExportImageTheme.light,
   });
 
   /// 预设选项列表
   static const List<ExportQualityResult> presets = [
-    ExportQualityResult(jpegQuality: null, label: 'PNG 无损（原始画质）'),
-    ExportQualityResult(jpegQuality: 95, label: 'JPEG 高质量'),
-    ExportQualityResult(jpegQuality: 85, label: 'JPEG 标准'),
-    ExportQualityResult(jpegQuality: 70, label: 'JPEG 压缩'),
+    ExportQualityResult(
+        jpegQuality: null,
+        label: 'PNG 无损（原始画质）',
+        name: 'PNG 无损',
+        hint: '原始画质'),
+    ExportQualityResult(
+        jpegQuality: 95, label: 'JPEG 高质量', name: 'JPEG 高质量', hint: '清晰，体积较小'),
+    ExportQualityResult(
+        jpegQuality: 85, label: 'JPEG 标准', name: 'JPEG 标准', hint: '适合发送和分享'),
+    ExportQualityResult(
+        jpegQuality: 70, label: 'JPEG 压缩', name: 'JPEG 压缩', hint: '体积最小'),
   ];
 
   /// 获取文件扩展名
@@ -77,216 +99,217 @@ class ExportQualitySelector {
         .clamp(0, ExportQualityResult.presets.length - 1);
     var thunderMode = initialThunderMode;
     var thunderVertical = initialThunderVertical;
+    // 不跟随 App 和系统：第一次是浅色，之后记住上次选的。
+    var theme = ExportImageTheme.fromIndex(
+        preferences.getInt(CacheKeyConstant.exportImageTheme));
 
     final result = await showModalBottomSheet<_ExportSelection>(
       context: context,
-      backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (ctx) {
         return StatefulBuilder(
           builder: (context, setState) {
+            final scheme = Theme.of(context).colorScheme;
             final selectedPreset =
                 ExportQualityResult.presets[selectedIndex ?? 0];
-            return Theme(
-              data: Theme.of(context)
-                  .copyWith(splashFactory: NoSplash.splashFactory),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: AppSurfaces.card(context),
-                  borderRadius:
-                      const BorderRadius.vertical(top: Radius.circular(28)),
+
+            Widget option(int i) {
+              final preset = ExportQualityResult.presets[i];
+              return Expanded(
+                child: _QualityOption(
+                  name: preset.name,
+                  hint: preset.hint,
+                  size: _getEstimatedSize(estimatedPngSize, preset.jpegQuality),
+                  selected: selectedIndex == i,
+                  onTap: () {
+                    if (selectedIndex == i) return;
+                    setState(() => selectedIndex = i);
+                    // 选择即记忆；关闭弹窗或取消导出也保留本次偏好。
+                    unawaited(
+                        preferences.setInt('export_image_quality_index', i));
+                  },
                 ),
-                padding: EdgeInsets.only(
-                  bottom: MediaQuery.of(context).padding.bottom + 16,
-                ),
+              );
+            }
+
+            return ConstrainedBox(
+              constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(context).height * 0.88),
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                    AppDesignTokens.gutter,
+                    20,
+                    AppDesignTokens.gutter,
+                    MediaQuery.paddingOf(context).bottom + 16),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // 拖拽手柄
-                    Center(
-                      child: Container(
-                        margin: const EdgeInsets.only(top: 12, bottom: 8),
-                        width: 40,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.outlineVariant,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                    ),
-                    // 标题
-                    const Padding(
-                      padding:
-                          EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                      child: Text(
-                        '选择导出质量',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
+                    Text(
+                      '选择导出质量',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: scheme.onSurface,
                       ),
                     ),
                     if (exportingLabel != null &&
                         exportingLabel.trim().isNotEmpty)
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+                        padding: const EdgeInsets.only(top: 2),
                         child: Text(
                           '当前正在导出：$exportingLabel',
                           style: TextStyle(
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
-                            fontSize: 14,
+                            color: scheme.onSurfaceVariant,
+                            fontSize: 13,
                           ),
                         ),
                       ),
-                    const Divider(),
-                    // 选项列表
-                    ...List.generate(
-                      ExportQualityResult.presets.length,
-                      (i) {
-                        final preset = ExportQualityResult.presets[i];
-                        final estimatedSize = _getEstimatedSize(
-                            estimatedPngSize, preset.jpegQuality);
-                        final isSelected = selectedIndex == i;
-
-                        return AnimatedContainer(
-                            duration: const Duration(milliseconds: 240),
-                            decoration: BoxDecoration(
-                                color: isSelected
-                                    ? Theme.of(context)
-                                        .colorScheme
-                                        .primaryContainer
-                                    : Colors.transparent,
-                                borderRadius: BorderRadius.circular(8)),
-                            child: ListTile(
-                              selected: isSelected,
-                              selectedTileColor: Colors.transparent,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              leading: FadeContent(
-                                  child: Icon(
-                                key: ValueKey(isSelected),
-                                isSelected
-                                    ? Icons.radio_button_checked
-                                    : Icons.radio_button_unchecked,
-                                color: isSelected
-                                    ? Theme.of(context).colorScheme.primary
-                                    : Theme.of(context)
-                                        .colorScheme
-                                        .onSurfaceVariant,
-                              )),
-                              title: Text(
-                                preset.label,
-                                style: TextStyle(
-                                  fontWeight: isSelected
-                                      ? FontWeight.bold
-                                      : FontWeight.normal,
-                                  fontSize: 16,
-                                ),
-                              ),
-                              subtitle: Text(
-                                '预计大小: $estimatedSize',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: isSelected
-                                      ? Theme.of(context).colorScheme.primary
-                                      : Theme.of(context)
-                                          .colorScheme
-                                          .onSurfaceVariant,
-                                ),
-                              ),
-                              trailing: isSelected
-                                  ? Icon(
-                                      Icons.check_circle,
-                                      color:
-                                          Theme.of(context).colorScheme.primary,
-                                    )
-                                  : null,
-                              onTap: () {
-                                if (selectedIndex == i) return;
-                                setState(() => selectedIndex = i);
-                                // 选择即记忆；关闭弹窗或取消导出也保留本次偏好。
-                                unawaited(preferences.setInt(
-                                    'export_image_quality_index', i));
-                              },
-                            ));
-                      },
-                    ),
-                    if (previewBuilder != null) ...[
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 24, vertical: 4),
-                        child: OutlinedButton.icon(
-                          onPressed: () {
-                            final q = ExportQualityResult(
-                              jpegQuality: selectedPreset.jpegQuality,
-                              label: selectedPreset.label,
-                              thunderMode: thunderMode,
-                              thunderVertical: thunderVertical,
-                            );
-                            // 对话框重建时复用同一次预览生成，避免反复构建长图。
-                            final preview = previewBuilder(context, q);
-                            showDialog<void>(
-                              context: context,
-                              builder: (previewContext) => _ExportPreviewDialog(
-                                preview: preview,
-                              ),
-                            );
-                          },
-                          icon: const Icon(Icons.preview_outlined),
-                          label: const Text('导出效果图'),
-                        ),
-                      ),
-                    ],
-                    if (enableThunderMode) ...[
-                      const Divider(),
-                      AppSwitchListTile(
-                        value: thunderMode,
-                        onChanged: (value) =>
-                            setState(() => thunderMode = value),
-                        title: const Text('雷霆模式'),
-                        subtitle: const Text('将歌曲卡片改为单列 50 行或单行 50 列，适合超长图片'),
-                      ),
-                      if (thunderMode)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 24),
-                          child: SegmentedButton<bool>(
-                            segments: const [
-                              ButtonSegment<bool>(
-                                  value: true, label: Text('单列 50 行')),
-                              ButtonSegment<bool>(
-                                  value: false, label: Text('单行 50 列')),
-                            ],
-                            selected: {thunderVertical},
-                            onSelectionChanged: (values) =>
-                                setState(() => thunderVertical = values.first),
-                          ),
-                        ),
-                    ],
-                    const Divider(),
-                    // 底部按钮
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 24, vertical: 8),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: () => Navigator.pop(ctx, null),
-                              style: OutlinedButton.styleFrom(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 14),
-                              ),
-                              child: const Text(
-                                '取消',
-                                style: TextStyle(fontSize: 16),
+                    const SizedBox(height: 14),
+                    Flexible(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              '图片主题',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: scheme.onSurfaceVariant,
                               ),
                             ),
+                            const SizedBox(height: 6),
+                            SegmentedTabs(
+                              height: 38,
+                              items: [
+                                for (final item in ExportImageTheme.values)
+                                  SegmentedTabItem(item.label),
+                              ],
+                              selectedIndex: theme.index,
+                              onChanged: (index) {
+                                if (index == theme.index) return;
+                                setState(() =>
+                                    theme = ExportImageTheme.values[index]);
+                                // 选择即记忆，和导出质量一样。
+                                unawaited(preferences.setInt(
+                                    CacheKeyConstant.exportImageTheme, index));
+                              },
+                            ),
+                            const SizedBox(height: 12),
+                            IntrinsicHeight(
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  option(0),
+                                  const SizedBox(width: 8),
+                                  option(1),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            IntrinsicHeight(
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  option(2),
+                                  const SizedBox(width: 8),
+                                  option(3),
+                                ],
+                              ),
+                            ),
+                            if (enableThunderMode) ...[
+                              const SizedBox(height: 12),
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: AppSurfaces.inset(context),
+                                  borderRadius: BorderRadius.circular(
+                                      AppDesignTokens.radiusMedium),
+                                ),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 2),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    AppSwitchListTile(
+                                      value: thunderMode,
+                                      onChanged: (value) =>
+                                          setState(() => thunderMode = value),
+                                      title: const Text('雷霆模式'),
+                                      subtitle: const Text(
+                                          '将歌曲卡片改为单列 50 行或单行 50 列，适合超长图片'),
+                                    ),
+                                    if (thunderMode)
+                                      Padding(
+                                        padding: const EdgeInsets.fromLTRB(
+                                            12, 0, 12, 10),
+                                        child: SegmentedTabs(
+                                          height: 38,
+                                          items: const [
+                                            SegmentedTabItem('单列 50 行'),
+                                            SegmentedTabItem('单行 50 列'),
+                                          ],
+                                          selectedIndex:
+                                              thunderVertical ? 0 : 1,
+                                          onChanged: (index) => setState(() =>
+                                              thunderVertical = index == 0),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                            if (previewBuilder != null) ...[
+                              const SizedBox(height: 12),
+                              SizedBox(
+                                height: 46,
+                                child: FilledButton.tonalIcon(
+                                  onPressed: () {
+                                    final q = ExportQualityResult(
+                                      jpegQuality: selectedPreset.jpegQuality,
+                                      label: selectedPreset.label,
+                                      thunderMode: thunderMode,
+                                      thunderVertical: thunderVertical,
+                                      theme: theme,
+                                    );
+                                    // 对话框重建时复用同一次预览生成，避免反复构建长图。
+                                    final preview = previewBuilder(context, q);
+                                    showDialog<void>(
+                                      context: context,
+                                      builder: (previewContext) =>
+                                          _ExportPreviewDialog(
+                                        preview: preview,
+                                      ),
+                                    );
+                                  },
+                                  icon: const Icon(Icons.preview_rounded,
+                                      size: 20),
+                                  label: const Text('导出效果图'),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: SizedBox(
+                            height: 48,
+                            child: OutlinedButton(
+                              onPressed: () => Navigator.pop(ctx, null),
+                              child: const Text('取消'),
+                            ),
                           ),
-                          const SizedBox(width: 16),
-                          Expanded(
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          flex: 2,
+                          child: SizedBox(
+                            height: 48,
                             child: FilledButton(
                               onPressed: () => Navigator.pop(
                                 ctx,
@@ -294,20 +317,14 @@ class ExportQualitySelector {
                                   selectedIndex: selectedIndex!,
                                   thunderMode: thunderMode,
                                   thunderVertical: thunderVertical,
+                                  theme: theme,
                                 ),
                               ),
-                              style: FilledButton.styleFrom(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 14),
-                              ),
-                              child: const Text(
-                                '确认导出',
-                                style: TextStyle(fontSize: 16),
-                              ),
+                              child: const Text('确认导出'),
                             ),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -328,6 +345,7 @@ class ExportQualitySelector {
       label: preset.label,
       thunderMode: result.thunderMode,
       thunderVertical: result.thunderVertical,
+      theme: result.theme,
     );
   }
 
@@ -439,9 +457,22 @@ class _ExportPreviewDialogState extends State<_ExportPreviewDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    Widget tool(String tooltip, IconData icon, VoidCallback onPressed) =>
+        IconButton(
+          tooltip: tooltip,
+          onPressed: onPressed,
+          visualDensity: VisualDensity.compact,
+          style: IconButton.styleFrom(
+            backgroundColor: AppSurfaces.inset(context),
+            foregroundColor: scheme.onSurface,
+          ),
+          icon: Icon(icon, size: 20),
+        );
     return Dialog(
       clipBehavior: Clip.antiAlias,
-      insetPadding: const EdgeInsets.all(16),
+      backgroundColor: AppSurfaces.card(context),
+      insetPadding: const EdgeInsets.all(AppDesignTokens.gutter),
       child: ConstrainedBox(
         constraints: const BoxConstraints(
           minWidth: 280,
@@ -452,39 +483,45 @@ class _ExportPreviewDialogState extends State<_ExportPreviewDialog> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 8, 4),
+              padding: const EdgeInsets.fromLTRB(16, 10, 10, 10),
               child: Row(
                 children: [
-                  const Expanded(
-                    child: Text(
-                      '导出效果图',
-                      style: TextStyle(fontWeight: FontWeight.bold),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '导出效果图',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: scheme.onSurface,
+                          ),
+                        ),
+                        AnimatedBuilder(
+                          animation: _transformationController,
+                          builder: (context, _) => Text(
+                            '${(_transformationController.value.getMaxScaleOnAxis() * 100).round()}%',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  IconButton(
-                    tooltip: '缩小',
-                    onPressed: () => _scaleBy(0.8),
-                    icon: const Icon(Icons.zoom_out),
-                  ),
-                  IconButton(
-                    tooltip: '放大',
-                    onPressed: () => _scaleBy(1.25),
-                    icon: const Icon(Icons.zoom_in),
-                  ),
-                  IconButton(
-                    tooltip: '适应窗口',
-                    onPressed: _fitContent,
-                    icon: const Icon(Icons.fit_screen),
-                  ),
-                  IconButton(
-                    tooltip: '关闭',
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close),
-                  ),
+                  tool('缩小', Icons.remove_rounded, () => _scaleBy(0.8)),
+                  const SizedBox(width: 4),
+                  tool('放大', Icons.add_rounded, () => _scaleBy(1.25)),
+                  const SizedBox(width: 4),
+                  tool('适应窗口', Icons.fit_screen_rounded, _fitContent),
+                  const SizedBox(width: 4),
+                  tool('关闭', Icons.close_rounded,
+                      () => Navigator.of(context).pop()),
                 ],
               ),
             ),
-            const Divider(height: 1),
             Flexible(
               child: LayoutBuilder(builder: (context, constraints) {
                 final width = constraints.maxWidth;
@@ -561,14 +598,108 @@ class _PreviewSizeRenderBox extends RenderProxyBox {
   }
 }
 
+/// 抽屉里的一个质量选项：选中时主题色描边 + 对钩，没有波纹。
+class _QualityOption extends StatelessWidget {
+  final String name;
+  final String hint;
+  final String size;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _QualityOption({
+    required this.name,
+    required this.hint,
+    required this.size,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final duration =
+        AppDesignTokens.motion(context, AppDesignTokens.fastMotion);
+    return PressScale(
+      scale: 0.98,
+      child: Semantics(
+        button: true,
+        selected: selected,
+        label: '$name，$hint，预计 $size',
+        excludeSemantics: true,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: AnimatedContainer(
+            duration: duration,
+            padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
+            decoration: BoxDecoration(
+              color: selected
+                  ? scheme.primary.withValues(alpha: 0.1)
+                  : AppSurfaces.inset(context),
+              borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
+              border: Border.all(
+                color: selected ? scheme.primary : Colors.transparent,
+                width: 1.5,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        name,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: scheme.onSurface,
+                        ),
+                      ),
+                    ),
+                    AnimatedOpacity(
+                      duration: duration,
+                      opacity: selected ? 1 : 0,
+                      child: Icon(Icons.check_circle_rounded,
+                          size: 18, color: scheme.primary),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  hint,
+                  style:
+                      TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '约 $size',
+                  style: AppTheme.number(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: selected ? scheme.primary : scheme.onSurface,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ExportSelection {
   final int selectedIndex;
   final bool thunderMode;
   final bool thunderVertical;
+  final ExportImageTheme theme;
 
   const _ExportSelection({
     required this.selectedIndex,
     required this.thunderMode,
     required this.thunderVertical,
+    required this.theme,
   });
 }

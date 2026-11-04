@@ -37,8 +37,8 @@ class StringUtil {
   /// 返回 null 表示「这条输入不该走缩写路径」，交给常规查表。设计要点：
   ///   * 先做 ` PLUS`→`+`：`maimai PLUS` 要靠前导空格才能变成 `maimai+`；
   ///   * 再去前缀：`maimai ` → `でらっくす `，于是
-  ///     `maimai でらっくす` → `でらっくす`、
-  ///     `maimai でらっくす PLUS` → `でらっくす+`、
+  ///     `maimai でらっくす` → `DX`、
+  ///     `maimai でらっくす PLUS` → `DX+`、
   ///     `maimai でらっくす Splash` → `Splash`、
   ///     `maimai GreeN` → `GreeN`（旧代也一视同仁地去掉前缀，与 DX 代保持一致）。
   ///
@@ -53,6 +53,7 @@ class StringUtil {
     s = s.replaceFirst('maimai DX ', '');
     s = s.replaceFirst('maimai ', '');
     s = s.replaceFirst('でらっくす ', '');
+    s = s.replaceFirst('でらっくす', 'DX');
     if (s.isEmpty) return null;
     return s;
   }
@@ -144,7 +145,7 @@ class StringUtil {
   ///     `MAGiCAL`）。
   static const Map<String, String> _dxSimple = {
     '': 'DX 2020',
-    'PLUS': 'でらっくす+',
+    'PLUS': 'DX+',
     'Splash': 'DX 2021',
     'Splash PLUS': 'Splash+',
     'UNiVERSE': 'DX 2022',
@@ -167,7 +168,7 @@ class StringUtil {
   /// 保持与基础世代可区分（基础世代的 `DX 20xx X/Y` 里的 Y 是 PLUS 的汉字）。
   static const Map<String, String> _dxDetailed = {
     '': 'DX 2020 熊/華',
-    'PLUS': 'でらっくす+ 華',
+    'PLUS': 'DX+ 華',
     'Splash': 'DX 2021 爽/煌',
     'Splash PLUS': 'Splash+ 煌',
     'UNiVERSE': 'DX 2022 宙/星',
@@ -229,6 +230,7 @@ class StringUtil {
     }
     if (version.contains('でらっくす')) {
       version = version.replaceFirst('でらっくす ', '');
+      version = version.replaceFirst('でらっくす', 'DX');
     }
     return version;
   }

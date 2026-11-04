@@ -12,7 +12,7 @@ import '../../utils/CurrentDataSourceNotifier.dart';
 import '../../utils/QuotaRetryHint.dart';
 import 'AwmcNetException.dart';
 
-/// AWMC NET.（https://net.wmc.pub）用户成绩管理器 —— 第三个查分数据源。
+/// AWMC NET（https://net.wmc.pub）用户成绩管理器 —— 第三个查分数据源。
 ///
 /// ── 它和另外两个源的关系 ──
 ///   * **水鱼**：走后端 OAuth 代理，按绑定 QQ 读 `/player/records`；

@@ -498,7 +498,7 @@ class _RandomChartPageState extends State<RandomChartPage> {
         MediaQuery.accessibleNavigationOf(context);
 
     return BackgroundPageScaffold(
-      title: '随机抽歌',
+      title: '随机乐曲',
       resizeToAvoidBottomInset: false, // 解决输入法挤压背景的问题
       contentPadding: EdgeInsets.only(
         bottom: MediaQuery.paddingOf(context).bottom,

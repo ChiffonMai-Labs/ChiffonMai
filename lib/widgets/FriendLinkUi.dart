@@ -10,6 +10,7 @@ import '../utils/AppDesignTokens.dart';
 import '../utils/ExternalLaunchUtil.dart';
 import 'AppUi.dart';
 import 'MarqueeText.dart';
+import 'ImageLoadingIndicator.dart';
 
 /// 友链可用的图标类型枚举
 ///
@@ -79,7 +80,13 @@ class FriendLinkCover extends StatelessWidget {
       fit: BoxFit.cover,
       fadeInDuration:
           AppDesignTokens.motion(context, const Duration(milliseconds: 240)),
-      placeholder: (_, __) => generated,
+      placeholder: (_, __) => Stack(
+        fit: StackFit.expand,
+        children: [
+          generated,
+          const ImageLoadingIndicator(background: Colors.transparent),
+        ],
+      ),
       errorWidget: (_, __, ___) => generated,
     );
   }

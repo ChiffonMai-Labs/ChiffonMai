@@ -589,6 +589,29 @@ class _MarqueeSubtitle extends StatelessWidget {
 }
 
 /// Hub 页面顶层 Scaffold：标题 + 副标题 + 可选 hero + 区块列表
+/// Hub 页顶部大标题（B 方案：只保留大标题）。
+class HubPageTitle extends StatelessWidget {
+  final String title;
+
+  const HubPageTitle({super.key, required this.title});
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Semantics(
+          header: true,
+          child: Text(
+            title,
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontSize: 30,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.2,
+                ),
+          ),
+        ),
+      );
+}
+
 class HubPageScaffold extends StatelessWidget {
   final String title;
   final String subtitle;
@@ -598,8 +621,8 @@ class HubPageScaffold extends StatelessWidget {
   final List<Widget> children;
   final Widget? hero;
 
-  /// 紧贴在标题下方的附加区域（例如「游玩」页的出勤 / 休闲切换）。
-  final Widget? headerBottom;
+  /// 为 false 时不画页头，由外层固定显示（「游玩」页，见 PlayZoneHubPage）。
+  final bool showHeader;
 
   const HubPageScaffold({
     super.key,
@@ -608,7 +631,7 @@ class HubPageScaffold extends StatelessWidget {
     required this.icon,
     required this.children,
     this.hero,
-    this.headerBottom,
+    this.showHeader = true,
   });
 
   @override
@@ -620,39 +643,25 @@ class HubPageScaffold extends StatelessWidget {
       body: SafeArea(
         bottom: false,
         child: ListView(
-          padding: AppDesignTokens.pagePadding.add(
-            EdgeInsets.only(bottom: MainNavigationInsets.bottomOf(context)),
-          ),
-          children: [
-            // ===== 顶部标题栏（B 方案：大标题 + 一行说明） =====
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Semantics(
-                    header: true,
-                    child: Text(
-                      title,
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            fontSize: 30,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.2,
-                          ),
-                    ),
-                  ),
-                ],
+          padding: AppDesignTokens.pagePadding
+              .copyWith(
+                top: showHeader
+                    ? null
+                    : hero != null
+                        ? 4
+                        : AppDesignTokens.sectionGap - 8,
+              )
+              .add(
+                EdgeInsets.only(bottom: MainNavigationInsets.bottomOf(context)),
               ),
-            ),
-            if (headerBottom != null) ...[
-              const SizedBox(height: 12),
-              headerBottom!,
+          children: [
+            if (showHeader) ...[
+              HubPageTitle(title: title),
+              if (hero != null) const SizedBox(height: 12),
             ],
-            if (hero != null) ...[
-              const SizedBox(height: 12),
-              hero!,
-            ],
-            const SizedBox(height: AppDesignTokens.sectionGap),
+            if (hero != null) hero!,
+            if (showHeader || hero != null)
+              const SizedBox(height: AppDesignTokens.sectionGap),
             ...children,
           ],
         ),

@@ -1,11 +1,8 @@
-import 'package:my_first_flutter_app/widgets/MetaRowWidget.dart';
 import 'dart:async';
 import 'ThunderBest50Export.dart';
-import 'package:my_first_flutter_app/utils/ExportUserInfoWidget.dart';
 import 'package:my_first_flutter_app/widgets/B50GameCardWidget.dart';
 import 'dart:io';
 import 'dart:typed_data';
-import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -16,6 +13,7 @@ import 'package:my_first_flutter_app/utils/ColorUtil.dart';
 import 'package:my_first_flutter_app/utils/StringUtil.dart';
 import 'package:my_first_flutter_app/utils/ImageEncodeUtil.dart';
 import 'package:my_first_flutter_app/widgets/ExportStatsUi.dart';
+import '../../utils/MusicDataIndex.dart';
 
 class B50ConvertToImg {
   // 全局Key，用于获取widget的渲染对象
@@ -33,7 +31,8 @@ class B50ConvertToImg {
       int? jpegQuality,
       int? selectedPlateId,
       bool thunderMode = false,
-      bool thunderVertical = true}) async {
+      bool thunderVertical = true,
+      ExportImageTheme theme = ExportImageTheme.light}) async {
     OverlayEntry? overlayEntry;
     try {
       debugPrint('=== STARTING IMAGE CONVERSION ===');
@@ -57,7 +56,8 @@ class B50ConvertToImg {
             isTheoreticalMode: isTheoreticalMode,
             selectedPlateId: selectedPlateId,
             thunderMode: thunderMode,
-            thunderVertical: thunderVertical),
+            thunderVertical: thunderVertical,
+            theme: theme),
       );
       final exportWidth = thunderMode
           ? ThunderBest50Export.widthFor(
@@ -105,53 +105,10 @@ class B50ConvertToImg {
 
       // 获取图片数据（异步执行，避免阻塞主线程）
       debugPrint('Starting image capture...');
-      ui.Image image;
-      try {
-        // 尝试直接捕获图片，使用更高的pixelRatio提高清晰度
-        image = await boundary.toImage(
-            pixelRatio: ImageEncodeUtil.safeCapturePixelRatio(
-                boundary.size.width, boundary.size.height));
-        debugPrint('Image captured successfully');
-      } catch (e) {
-        debugPrint('First capture failed: $e');
-        // 重试一次
-        await Future.delayed(Duration(milliseconds: 200));
-        image = await boundary.toImage(
-            pixelRatio: ImageEncodeUtil.safeCapturePixelRatio(
-                boundary.size.width, boundary.size.height));
-        debugPrint('Image captured on retry');
-      }
-
-      ByteData? byteData =
-          await image.toByteData(format: ui.ImageByteFormat.png);
-      if (byteData == null) {
-        debugPrint('Error: ByteData is null');
-        overlayEntry.remove();
-        image.dispose();
-        return null;
-      }
-      debugPrint('ByteData conversion successful');
-
-      // 将图片数据写入文件
-      Uint8List pngBytes = byteData.buffer
-          .asUint8List(byteData.offsetInBytes, byteData.lengthInBytes);
-      // 立刻释放 ui.Image：它本身也是上百 MB 的原生位图，而下面的 JPEG
-      // 转码还要再分配上百 MB（decodePng + copyResize）。等转码完再释放，
-      // 峰值内存会白白多一份 —— 低内存机就是这样被 OOM 掉的。
-      // 转码只用得到 pngBytes，用不到这个 image。
-      image.dispose();
-
-      // 根据质量参数决定最终格式
-      Uint8List finalBytes;
-      String extension;
-      if (jpegQuality != null) {
-        finalBytes = await ImageEncodeUtil.pngToJpegAsync(pngBytes,
-            quality: jpegQuality);
-        extension = 'jpg';
-      } else {
-        finalBytes = pngBytes;
-        extension = 'png';
-      }
+      final encoded =
+          await ImageEncodeUtil.encodeBoundary(boundary, jpegQuality: jpegQuality);
+      final Uint8List finalBytes = encoded.bytes;
+      final String extension = encoded.extension;
 
       // 释放图片资源
 
@@ -273,6 +230,7 @@ class B50ConvertToImg {
     int? selectedPlateId,
     bool thunderMode = false,
     bool thunderVertical = true,
+    ExportImageTheme theme = ExportImageTheme.light,
   }) =>
       _buildExportImageWidget(
         context,
@@ -284,6 +242,7 @@ class B50ConvertToImg {
         selectedPlateId: selectedPlateId,
         thunderMode: thunderMode,
         thunderVertical: thunderVertical,
+        theme: theme,
       );
 
   // 构建用于导出的Widget
@@ -296,7 +255,8 @@ class B50ConvertToImg {
       {bool isTheoreticalMode = false,
       int? selectedPlateId,
       bool thunderMode = false,
-      bool thunderVertical = true}) async {
+      bool thunderVertical = true,
+      ExportImageTheme theme = ExportImageTheme.light}) async {
     // 计算各项指标
     // 计算Best35相关指标
     int best35Sum =
@@ -385,6 +345,7 @@ class B50ConvertToImg {
     if (thunderMode) {
       final songs = [...sdSongs, ...dxSongs];
       return ThunderBest50Export.build(
+        theme: theme,
         title: isTheoreticalMode ? '理论 Best50' : 'Best50',
         vertical: thunderVertical,
         count: songs.length,
@@ -397,15 +358,9 @@ class B50ConvertToImg {
       );
     }
 
-    return Container(
+    return ExportPage(
+      theme: theme,
       width: containerWidth,
-      decoration: BoxDecoration(
-        color: Colors.white, // 添加白色背景作为兜底
-        image: DecorationImage(
-          image: AssetImage('assets/bg/b50_bg.png'),
-          fit: BoxFit.cover,
-        ),
-      ),
       // 用 Stack 让元信息（数据源 / 导出时间 / Generated by / 交流群）作为悬浮卡片
       // 固定在图片右上角，不再挤占统计区空间
       child: Stack(
@@ -415,36 +370,12 @@ class B50ConvertToImg {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // 姓名框保持 1150×230，右侧元数据块固定为 494×215。
-                // 显式限制高度，避免纵向滚动容器传入无限高度。
-                if (!isTheoreticalMode) ...[
-                  thunderMode
-                      ? Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            ExportUserInfoWidget.buildUserInfoSection(context,
-                                selectedPlateId: selectedPlateId),
-                            const SizedBox(height: 12),
-                            _buildMetaRow(),
-                          ],
-                        )
-                      : Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            ExportUserInfoWidget.buildUserInfoSection(context,
-                                selectedPlateId: selectedPlateId),
-                            const SizedBox(width: 16),
-                            SizedBox(
-                              height: 215,
-                              child: Align(
-                                alignment: Alignment.center,
-                                child: _buildMetaRow(),
-                              ),
-                            ),
-                          ],
-                        ),
-                  SizedBox(height: 16.0),
-                ],
+                ExportPosterHeader(
+                  title: isTheoreticalMode ? '理论 Best50' : 'Best50',
+                  showUser: !isTheoreticalMode,
+                  selectedPlateId: selectedPlateId,
+                ),
+                const SizedBox(height: 16.0),
 
                 // 评分区域
                 _buildRatingSection(
@@ -477,7 +408,7 @@ class B50ConvertToImg {
                 _buildDataCardGrid(
                     context,
                     sdSongs,
-                    thunderMode ? 1.25 : 1.85,
+                    thunderMode ? 1.25 : 1.9,
                     thunderMode ? (thunderVertical ? 1 : 50) : 5,
                     b50Data,
                     maimaiMusicData,
@@ -496,7 +427,7 @@ class B50ConvertToImg {
                 _buildDataCardGrid(
                     context,
                     dxSongs,
-                    thunderMode ? 1.25 : 1.85,
+                    thunderMode ? 1.25 : 1.9,
                     thunderMode ? (thunderVertical ? 1 : 50) : 5,
                     b50Data,
                     maimaiMusicData,
@@ -509,9 +440,6 @@ class B50ConvertToImg {
       ),
     );
   }
-
-  // 元数据块统一复用共享组件，固定为 215px 高。
-  static Widget _buildMetaRow() => const MetaRowWidget();
 
   // 计算给定歌曲集合的定数区间，格式为 "max ~ min"（保留 1 位小数）。
   // 空集合或无有效 ds 字段时返回 "-"。
@@ -674,7 +602,10 @@ class B50ConvertToImg {
             // 第三栏：可提升定数 RA 对照表
             Expanded(
               flex: 5,
-              child: _buildImprovableRatingTable(context, sdSongs, dxSongs),
+              child: Builder(
+                builder: (context) =>
+                    _buildImprovableRatingTable(context, sdSongs, dxSongs),
+              ),
             ),
           ],
         ),
@@ -705,7 +636,7 @@ class B50ConvertToImg {
           style: TextStyle(
             fontSize: titleFontSize,
             fontWeight: FontWeight.bold,
-            color: Colors.black,
+            color: ExportPalette.of(context).ink,
           ),
         ),
         const SizedBox(height: 6),
@@ -764,15 +695,15 @@ class B50ConvertToImg {
           style: TextStyle(
             fontSize: subTitleFontSize,
             fontWeight: FontWeight.bold,
-            color: Colors.black,
+            color: ExportPalette.of(context).ink,
           ),
         ),
         const SizedBox(height: 4),
         Expanded(
           child: Table(
-            border: const TableBorder(
+            border: TableBorder(
               horizontalInside:
-                  BorderSide(color: ExportStatsColors.track, width: 1),
+                  BorderSide(color: ExportPalette.of(context).track, width: 1),
             ),
             columnWidths: const {
               0: FlexColumnWidth(2.0),
@@ -785,9 +716,9 @@ class B50ConvertToImg {
             children: [
               // 表头：定数 + 5 个评级图标
               TableRow(
-                decoration: const BoxDecoration(color: ExportStatsColors.inset),
+                decoration: BoxDecoration(color: ExportPalette.of(context).inset),
                 children: [
-                  _buildHeaderCell('定数', cellFontSize, bold: true),
+                  _buildHeaderCell(context, '定数', cellFontSize, bold: true),
                   for (final t in tiers) _buildTierIconCell(t, headerIconSize),
                 ],
               ),
@@ -795,10 +726,11 @@ class B50ConvertToImg {
               for (int i = 0; i < diffList.length; i++)
                 TableRow(
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: ExportPalette.of(context).panel,
                   ),
                   children: [
                     _buildHeaderCell(
+                        context,
                         diffList[i].toStringAsFixed(1), cellFontSize,
                         bold: true),
                     for (int t = 0; t < tiers.length; t++)
@@ -807,6 +739,7 @@ class B50ConvertToImg {
                         final ra = _raAt(diffList[i], completions[t]);
                         final showRa = minRa == null || ra > minRa;
                         return _buildDataCell(
+                          context,
                           showRa ? ra.toString() : '',
                           cellFontSize,
                           // 提升值 = RA - 池子最低 RA（仅在有数据时显示）
@@ -837,7 +770,7 @@ class B50ConvertToImg {
   }
 
   // 表头文字 cell
-  static Widget _buildHeaderCell(String text, double fontSize,
+  static Widget _buildHeaderCell(BuildContext context, String text, double fontSize,
       {bool bold = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
@@ -847,7 +780,7 @@ class B50ConvertToImg {
         style: TextStyle(
           fontSize: fontSize,
           fontWeight: bold ? FontWeight.bold : FontWeight.w600,
-          color: Colors.black,
+          color: ExportPalette.of(context).ink,
         ),
       ),
     );
@@ -862,13 +795,13 @@ class B50ConvertToImg {
         width: size,
         height: size,
         fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) => Text(
+        errorBuilder: (context, __, ___) => Text(
           tier.toUpperCase(),
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: size * 0.35,
             fontWeight: FontWeight.bold,
-            color: Colors.black,
+            color: ExportPalette.of(context).ink,
           ),
         ),
       ),
@@ -878,12 +811,12 @@ class B50ConvertToImg {
   // 数据 cell（RA 数字 + 可选提升值）
   // [improvement] 若非空，在 RA 数字右侧追加绿色小字「▲xx」表示该 RA 相对池子最低 RA 的提升量。
   // 用 Row + baseline 对齐：RA 主字号，提升值小一号、绿色（▲ 实心三角），整行不换行。
-  static Widget _buildDataCell(String text, double fontSize,
+  static Widget _buildDataCell(BuildContext context, String text, double fontSize,
       {int? improvement}) {
     final mainStyle = TextStyle(
       fontSize: fontSize,
       fontWeight: FontWeight.bold,
-      color: Colors.black,
+      color: ExportPalette.of(context).ink,
     );
     final gainStyle = TextStyle(
       fontSize: fontSize * 0.7,
@@ -1009,32 +942,8 @@ class B50ConvertToImg {
   }
 
   // 构建区域标题
-  static Widget _buildSectionTitle(BuildContext context, String title) {
-    // 图片容器固定宽度为1200，以此为基准计算字体大小
-    const double containerWidth = 1200.0;
-
-    // 根据容器宽度计算字体大小
-    double fontSize = containerWidth * 0.03; // 约36px
-
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.black, width: 2.0),
-        borderRadius: BorderRadius.circular(8.0),
-        color: Colors.grey[200],
-      ),
-      padding: EdgeInsets.all(14.0),
-      child: Center(
-        child: Text(
-          title,
-          style: TextStyle(
-            fontSize: fontSize,
-            fontWeight: FontWeight.bold,
-            color: Colors.black,
-          ),
-        ),
-      ),
-    );
-  }
+  static Widget _buildSectionTitle(BuildContext context, String title) =>
+      ExportSectionTitle(title);
 
   // 构建游戏卡片（导出版）：scale=1.0，与导出图片同源。
   // 实际渲染委托给通用 B50GameCardWidget。
@@ -1095,8 +1004,8 @@ class B50ConvertToImg {
         padding: EdgeInsets.zero,
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: crossAxisCount,
-          crossAxisSpacing: 6.0,
-          mainAxisSpacing: 6.0,
+          crossAxisSpacing: 8.0,
+          mainAxisSpacing: 8.0,
           childAspectRatio: childAspectRatio,
         ),
         itemCount: songs.length,
@@ -1194,9 +1103,7 @@ class B50ConvertToImg {
       // 查找对应的歌曲数据
       dynamic songData;
       try {
-        songData = maimaiMusicData.firstWhere(
-          (song) => song['id'] == songId.toString(),
-        );
+        songData = maimaiMusicData[MusicDataIndex.indexOf(maimaiMusicData, songId)];
       } catch (_) {
         // 如果找不到歌曲，返回0
         return 0;
@@ -1230,9 +1137,7 @@ class B50ConvertToImg {
       // 查找对应的歌曲
       dynamic songData;
       try {
-        songData = maimaiMusicData.firstWhere(
-          (item) => item['id'] == songId.toString(),
-        );
+        songData = maimaiMusicData[MusicDataIndex.indexOf(maimaiMusicData, songId)];
       } catch (e) {
         // 如果找不到歌曲，返回0.0
         return 0.0;

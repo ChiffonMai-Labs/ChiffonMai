@@ -7,6 +7,7 @@ import '../../constant/CacheKeyConstant.dart';
 import '../../utils/CurrentDataSourceNotifier.dart';
 import '../../utils/ExportUserInfoWidget.dart';
 import '../../widgets/B50GameCardWidget.dart';
+import '../../widgets/ExportStatsUi.dart';
 
 /// 雷霆长图：保持单卡的导出尺寸，个人信息、统计和元信息合并成紧凑的说明卡。
 /// 横版说明卡放在队首，竖版放在顶部，全部谱面连续排列而不再分成两个网格。
@@ -20,6 +21,7 @@ class ThunderBest50Export {
       : 40 + verticalWidth + gap + count * (cardWidth + gap);
 
   static Future<Widget> build({
+    required ExportImageTheme theme,
     required String title,
     required bool vertical,
     required int count,
@@ -40,68 +42,67 @@ class ThunderBest50Export {
         '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')} '
         '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
     final avatar = user['avatarUrl'] as String? ?? '';
-    final info = Container(
+    final info = SizedBox(
       width: vertical ? cardWidth : verticalWidth,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: const Color(0xFF6750A4)),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: DefaultTextStyle(
-        style: const TextStyle(color: Color(0xFF252033), fontSize: 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title,
-                style:
-                    const TextStyle(fontSize: 23, fontWeight: FontWeight.bold)),
-            const Text('雷霆模式',
-                style: TextStyle(fontSize: 13, color: Color(0xFF6750A4))),
-            if (showUserInfo) ...[
+      child: ExportHeroSurface(
+        radius: 16,
+        padding: const EdgeInsets.all(18),
+        child: DefaultTextStyle(
+          style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.45),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title,
+                  style: const TextStyle(
+                      fontSize: 28, height: 1.15, fontWeight: FontWeight.w900)),
+              Text('雷霆模式',
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white.withValues(alpha: 0.8))),
+              if (showUserInfo) ...[
+                const SizedBox(height: 12),
+                Row(children: [
+                  Container(
+                    width: 56,
+                    height: 56,
+                    clipBehavior: Clip.antiAlias,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: avatar.isEmpty
+                        ? Icon(Icons.person_rounded,
+                            size: 40, color: ExportPalette.light.muted)
+                        : CachedNetworkImage(
+                            imageUrl: avatar, fit: BoxFit.cover),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                      child: Text('${user['nickname'] ?? ''}',
+                          style: const TextStyle(
+                              fontSize: 20, fontWeight: FontWeight.w700))),
+                ]),
+              ],
               const SizedBox(height: 12),
-              Row(children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: avatar.isEmpty
-                      ? const SizedBox(
-                          width: 56,
-                          height: 56,
-                          child: Icon(Icons.person, size: 40))
-                      : CachedNetworkImage(
-                          imageUrl: avatar,
-                          width: 56,
-                          height: 56,
-                          fit: BoxFit.cover),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                    child: Text('${user['nickname'] ?? ''}',
-                        style: const TextStyle(
-                            fontSize: 20, fontWeight: FontWeight.w600))),
-              ]),
-            ],
-            const SizedBox(height: 12),
-            Text(statistics),
-            if (sortLabel != null && sortLabel.isNotEmpty)
-              Text('排序：$sortLabel'),
-            if (warning != null && warning.isNotEmpty)
-              Text(warning, style: const TextStyle(color: Color(0xFFB3261E))),
-            const Padding(
-                padding: EdgeInsets.symmetric(vertical: 8), child: Divider()),
-            SizedBox(
-              height: 215,
-              width: double.infinity,
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  '数据源：$source\n导出时间：$time\nGenerated by ChiffonMai\n交流群：${AppLinks.qqGroupNumber}',
-                  style: const TextStyle(fontSize: 12, height: 1.5),
-                ),
+              Text(statistics),
+              if (sortLabel != null && sortLabel.isNotEmpty)
+                Text('排序：$sortLabel'),
+              if (warning != null && warning.isNotEmpty)
+                Text(warning, style: const TextStyle(color: Color(0xFFFFB4AB))),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Container(
+                    height: 1, color: Colors.white.withValues(alpha: 0.25)),
               ),
-            ),
-          ],
+              Text(
+                '数据源：$source\n导出时间：$time\nGenerated by ChiffonMai\n交流群：${AppLinks.qqGroupNumber}',
+                style: TextStyle(
+                    fontSize: 12, color: Colors.white.withValues(alpha: 0.8)),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -109,13 +110,13 @@ class ThunderBest50Export {
         count,
         (index) => SizedBox(
               width: cardWidth,
-              height: cardWidth / B50GameCardWidget.designAspectRatio,
+              height: B50GameCardWidget.exportCardHeight,
               child: cardBuilder(index),
             ));
-    return Container(
+    return ExportPage(
+      theme: theme,
       width: widthFor(count, vertical),
       padding: const EdgeInsets.all(20),
-      color: const Color(0xFFF2ECFA),
       child: vertical
           ? Column(mainAxisSize: MainAxisSize.min, children: [
               info,

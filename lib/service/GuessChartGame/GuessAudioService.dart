@@ -12,7 +12,7 @@ enum GuessAudioMode { normal, reverseAudio, pitchAudio }
 
 extension GuessAudioModeLabel on GuessAudioMode {
   String get title => switch (this) {
-        GuessAudioMode.normal => '歌曲片段猜歌',
+        GuessAudioMode.normal => '根据歌曲片段猜歌',
         GuessAudioMode.reverseAudio => '倒放音频猜歌',
         GuessAudioMode.pitchAudio => '变速变调猜歌',
       };

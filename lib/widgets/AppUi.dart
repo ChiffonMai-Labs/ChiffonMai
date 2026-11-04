@@ -145,6 +145,12 @@ class AppBadge extends StatelessWidget {
   final bool numeric;
   final double fontSize;
 
+  /// 宽度至少能放下这段文字，[text] 在其中居中。
+  final String? minWidthText;
+
+  /// 中文短标签在徽章里显式水平、垂直居中：按字形中线摆放，不依赖字体的行高。
+  final bool centered;
+
   const AppBadge({
     super.key,
     required this.text,
@@ -152,12 +158,45 @@ class AppBadge extends StatelessWidget {
     required this.foreground,
     this.numeric = true,
     this.fontSize = 12,
+    this.minWidthText,
+    this.centered = false,
   });
 
   @override
   Widget build(BuildContext context) {
     // 列表里的小徽章贴着文字；结果卡上的大徽章（字号 ≥ 14）撑开一些。
     final large = fontSize >= 14;
+    final minWidth = minWidthText;
+    final textStyle = numeric
+        ? AppTheme.number(
+            fontSize: fontSize,
+            fontWeight: FontWeight.w800,
+            color: foreground,
+          )
+        : TextStyle(
+            fontSize: fontSize,
+            fontWeight: FontWeight.w700,
+            color: foreground,
+          );
+    Widget label(String value) => Text(
+          value,
+          maxLines: 1,
+          style: textStyle,
+        );
+    // 中文字形的中线在基线上方约 0.33 个字号（实测），让它正好落在徽章中线上。
+    Widget centeredLabel() {
+      final size = MediaQuery.textScalerOf(context).scale(fontSize);
+      final height = size * 1.3;
+      return SizedBox(
+        height: height,
+        child: Baseline(
+          baseline: height / 2 + size * 0.33,
+          baselineType: TextBaseline.alphabetic,
+          child: label(text),
+        ),
+      );
+    }
+
     return Container(
       padding: EdgeInsets.symmetric(
           horizontal: large ? 10 : 5, vertical: large ? 3 : 0),
@@ -165,21 +204,18 @@ class AppBadge extends StatelessWidget {
         color: background,
         borderRadius: BorderRadius.circular(large ? 10 : 5),
       ),
-      child: Text(
-        text,
-        maxLines: 1,
-        style: numeric
-            ? AppTheme.number(
-                fontSize: fontSize,
-                fontWeight: FontWeight.w800,
-                color: foreground,
-              )
-            : TextStyle(
-                fontSize: fontSize,
-                fontWeight: FontWeight.w700,
-                color: foreground,
-              ),
-      ),
+      child: centered
+          ? centeredLabel()
+          : minWidth == null
+          ? label(text)
+          : Stack(
+              alignment: Alignment.center,
+              children: [
+                ExcludeSemantics(
+                    child: Opacity(opacity: 0, child: label(minWidth))),
+                label(text),
+              ],
+            ),
     );
   }
 }
@@ -189,7 +225,15 @@ class RankBadge extends StatelessWidget {
   final String rank;
   final double fontSize;
 
-  const RankBadge({super.key, required this.rank, this.fontSize = 12});
+  /// 短评级（S、SS…）也撑到 SSS 的宽度，切难度时标签大小不跳。
+  final bool uniformWidth;
+
+  const RankBadge({
+    super.key,
+    required this.rank,
+    this.fontSize = 12,
+    this.uniformWidth = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -199,6 +243,7 @@ class RankBadge extends StatelessWidget {
       background: c.background,
       foreground: c.foreground,
       fontSize: fontSize,
+      minWidthText: uniformWidth ? 'SSS' : null,
     );
   }
 }
@@ -289,17 +334,19 @@ class StatTile extends StatelessWidget {
           centered ? CrossAxisAlignment.center : CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        fit(FadeSwitcher(
-          value: label,
-          alignment: centered
-              ? AlignmentDirectional.center
-              : AlignmentDirectional.centerStart,
-          child: Text(
-            label,
-            maxLines: 1,
-            style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
-          ),
-        ), 11),
+        fit(
+            FadeSwitcher(
+              value: label,
+              alignment: centered
+                  ? AlignmentDirectional.center
+                  : AlignmentDirectional.centerStart,
+              child: Text(
+                label,
+                maxLines: 1,
+                style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
+              ),
+            ),
+            11),
         const SizedBox(height: 2),
         fit(
             trailing == null
@@ -347,7 +394,8 @@ class SplitBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final target = fraction.isFinite ? fraction.clamp(0.0, 1.0).toDouble() : 0.0;
+    final target =
+        fraction.isFinite ? fraction.clamp(0.0, 1.0).toDouble() : 0.0;
     return ExcludeSemantics(
       child: TweenAnimationBuilder<double>(
         tween: Tween<double>(begin: 0, end: target),
@@ -672,8 +720,8 @@ class _CountFieldState extends State<CountField> {
       if (widget.value == 0) {
         _controller.clear();
       } else {
-        _controller.selection = TextSelection(
-            baseOffset: 0, extentOffset: _controller.text.length);
+        _controller.selection =
+            TextSelection(baseOffset: 0, extentOffset: _controller.text.length);
       }
     } else if (_controller.text.isEmpty) {
       _controller.text = '0';
@@ -1109,8 +1157,8 @@ class UnderlineTabs extends StatelessWidget {
                 left: 0,
                 right: 0,
                 bottom: 0,
-                child: Container(
-                    height: 1, color: AppSurfaces.hairline(context)),
+                child:
+                    Container(height: 1, color: AppSurfaces.hairline(context)),
               ),
               AnimatedPositioned(
                 duration: AppDesignTokens.motion(
@@ -1374,14 +1422,86 @@ class _CollapsibleCardState extends State<CollapsibleCard> {
   }
 }
 
+/// 框内标签用的边框：外观仍是圆角描边，只是让框架把标签排在框内。
+///
+/// 框架靠 [isOutline] 决定标签骑在边框上还是排在框内，同时一直给边框传标签宽度的
+/// 缺口，所以绘制时要忽略缺口，过渡中也要保持这个类型。
+class InsetLabelInputBorder extends OutlineInputBorder {
+  const InsetLabelInputBorder({super.borderSide, super.borderRadius});
+
+  @override
+  bool get isOutline => false;
+
+  @override
+  InsetLabelInputBorder copyWith({
+    BorderSide? borderSide,
+    BorderRadius? borderRadius,
+    double? gapPadding,
+  }) =>
+      InsetLabelInputBorder(
+        borderSide: borderSide ?? this.borderSide,
+        borderRadius: borderRadius ?? this.borderRadius,
+      );
+
+  @override
+  ShapeBorder? lerpFrom(ShapeBorder? a, double t) => a is OutlineInputBorder
+      ? InsetLabelInputBorder(
+          borderSide: BorderSide.lerp(a.borderSide, borderSide, t),
+          borderRadius: BorderRadius.lerp(a.borderRadius, borderRadius, t)!,
+        )
+      : super.lerpFrom(a, t);
+
+  @override
+  ShapeBorder? lerpTo(ShapeBorder? b, double t) => b is OutlineInputBorder
+      ? InsetLabelInputBorder(
+          borderSide: BorderSide.lerp(borderSide, b.borderSide, t),
+          borderRadius: BorderRadius.lerp(borderRadius, b.borderRadius, t)!,
+        )
+      : super.lerpTo(b, t);
+
+  @override
+  void paint(
+    Canvas canvas,
+    Rect rect, {
+    double? gapStart,
+    double gapExtent = 0.0,
+    double gapPercentage = 0.0,
+    TextDirection? textDirection,
+  }) =>
+      super.paint(canvas, rect, textDirection: textDirection);
+}
+
+extension InsetLabelDecoration on InputDecoration {
+  /// 标签固定在框内、不再上浮，占位提示也一直显示。带 `labelText` 的输入框都用它。
+  InputDecoration insetLabel(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    InsetLabelInputBorder border(BorderSide side) => InsetLabelInputBorder(
+          borderSide: side,
+          borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+        );
+    return copyWith(
+      floatingLabelBehavior: FloatingLabelBehavior.always,
+      border: border(BorderSide.none),
+      enabledBorder: border(BorderSide.none),
+      disabledBorder: border(BorderSide.none),
+      focusedBorder: border(BorderSide(color: scheme.primary, width: 2)),
+      errorBorder: border(BorderSide(color: scheme.error)),
+      focusedErrorBorder: border(BorderSide(color: scheme.error, width: 2)),
+    );
+  }
+}
+
 /// 筛选胶囊：名称 + 下拉箭头；有筛选值时高亮并显示当前值。
 class FilterPill extends StatelessWidget {
   final String label;
   final String? value;
   final VoidCallback onTap;
 
-  /// 开关型胶囊（仅 DX、只搜歌名）：直接给选中状态，不显示箭头。
+  /// 开关型胶囊（仅 DX、只搜歌名）：直接给选中状态，不显示下拉箭头。
   final bool? selected;
+
+  /// 下面的筛选面板是否展开，箭头跟着转。
+  final bool expanded;
 
   /// 选中时的底色和文字色，不传时用次级容器色。
   final Color? selectedColor;
@@ -1393,6 +1513,7 @@ class FilterPill extends StatelessWidget {
     required this.onTap,
     this.value,
     this.selected,
+    this.expanded = false,
     this.selectedColor,
     this.selectedForeground,
   });
@@ -1401,38 +1522,61 @@ class FilterPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final hasValue = value != null && value!.isNotEmpty;
-    final active = selected ?? hasValue;
+    final active = selected ?? (hasValue || expanded);
     final fg = active
         ? (selectedForeground ?? scheme.onSecondaryContainer)
         : scheme.onSurfaceVariant;
-    return Material(
-      color: active
-          ? (selectedColor ?? scheme.secondaryContainer)
-          : AppSurfaces.track(context),
-      borderRadius: BorderRadius.circular(10),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        splashFactory: NoSplash.splashFactory,
-        highlightColor: Colors.transparent,
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 7, 10, 7),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // 胶囊排在横向滚动里，已选条件再长也完整显示。
-              Text(
-                hasValue ? '$label：$value' : label,
-                maxLines: 1,
-                softWrap: false,
-                style: TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w600, color: fg),
+    final duration =
+        AppDesignTokens.motion(context, AppDesignTokens.fastMotion);
+    final text = hasValue ? '$label：$value' : label;
+    return Semantics(
+      button: true,
+      selected: active,
+      label: text,
+      onTap: onTap,
+      excludeSemantics: true,
+      child: PressScale(
+        scale: 0.95,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: AnimatedContainer(
+            duration: duration,
+            curve: Curves.easeOut,
+            padding: const EdgeInsets.fromLTRB(12, 7, 10, 7),
+            decoration: BoxDecoration(
+              color: active
+                  ? (selectedColor ?? scheme.secondaryContainer)
+                  : AppSurfaces.track(context),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: AnimatedSize(
+              duration: duration,
+              curve: Curves.easeOut,
+              alignment: Alignment.centerLeft,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 胶囊排在横向滚动里，已选条件再长也完整显示
+                  AnimatedDefaultTextStyle(
+                    duration: duration,
+                    style: AppTheme.font(
+                        fontSize: 13, fontWeight: FontWeight.w600, color: fg),
+                    child: Text(text, maxLines: 1, softWrap: false),
+                  ),
+                  if (selected == null) ...[
+                    const SizedBox(width: 4),
+                    AnimatedRotation(
+                      turns: expanded ? 0.5 : 0,
+                      duration: duration,
+                      curve: Curves.easeOut,
+                      child: Icon(Icons.keyboard_arrow_down_rounded,
+                          size: 16, color: fg),
+                    ),
+                  ],
+                ],
               ),
-              if (selected == null) ...[
-                const SizedBox(width: 4),
-                Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: fg),
-              ],
-            ],
+            ),
           ),
         ),
       ),
@@ -1939,8 +2083,8 @@ class _PressScaleState extends State<PressScale> {
       onPointerCancel: (_) => _set(false),
       child: AnimatedScale(
         scale: _pressed ? widget.scale : 1,
-        duration: AppDesignTokens.motion(
-            context, const Duration(milliseconds: 150)),
+        duration:
+            AppDesignTokens.motion(context, const Duration(milliseconds: 150)),
         curve: Curves.easeOut,
         child: widget.child,
       ),

@@ -19,6 +19,7 @@ import 'PostSyncRefreshOptions.dart';
 import 'RefreshDataDialog.dart' show RefreshDataRequest;
 import '../service/AWMC/AwmcQuickSyncService.dart';
 import '../widgets/AppDialogs.dart';
+import 'AppUi.dart';
 
 /// 已确认具备凭据的同步目标；顺序由执行器固定为水鱼 → 落雪 → AWMC NET。
 class MultiScoreSyncInput {
@@ -426,9 +427,8 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
                     enabled: _saving == null,
                     keyboardType: TextInputType.number,
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    decoration: const InputDecoration(
-                        labelText: 'AWMC NET QQ 号',
-                        border: OutlineInputBorder()),
+                    decoration: InputDecoration(
+                        labelText: 'AWMC NET QQ 号',).insetLabel(context),
                   ),
                   const SizedBox(height: 12),
                 ],
@@ -441,8 +441,7 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
                     autocorrect: false,
                     enableSuggestions: false,
                     decoration: InputDecoration(
-                        labelText: tokenLabel,
-                        border: const OutlineInputBorder()),
+                        labelText: tokenLabel,).insetLabel(context),
                   ),
                 if (_errors[platform] != null)
                   Text(_errors[platform]!,

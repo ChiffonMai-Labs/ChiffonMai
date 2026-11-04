@@ -87,10 +87,27 @@ class _AccountRegistrationGuideDialogState
           ),
           const _GuideStep(
             index: 2,
-            isLast: true,
             body: Text('随页面引导填写信息，即可注册水鱼账号。'),
             image: _GuideImage(
                 'assets/guide/divingfish-register.webp', 1400 / 752),
+          ),
+          const _GuideStep(
+            index: 3,
+            isLast: true,
+            body: _GuideDetails(
+              intro: '登录后点页面右上角的“编辑个人资料”，按下面的说明设置：',
+              items: [
+                '成绩导入 Token：必须轮换！点 Token 右边的刷新图标即可，否则无法在 App 内登录。',
+                '绑定 QQ 号：必须填写。如果有小号，尽量不要和小号重复。',
+                '昵称：建议填写。不填的话，App 内会默认以“shuiyu:QQ 号”的形式保存。',
+                '绑定频道 ID 和段位：没有特别要求。',
+                '“禁止公开接口使用我的成绩”：必须关闭。',
+                '“对非网页查询的成绩使用掩码”：建议关闭，开启掩码会影响排行榜排名。',
+                '全部改好后，记得点“保存”。',
+              ],
+            ),
+            image: _GuideImage(
+                'assets/guide/divingfish-settings.webp', 1400 / 752),
           ),
         ],
       );
@@ -116,9 +133,21 @@ class _AccountRegistrationGuideDialogState
           ),
           const _GuideStep(
             index: 2,
-            isLast: true,
             body: Text('随页面引导填写信息，即可注册落雪咖啡屋账号。'),
             image: _GuideImage('assets/guide/lxns-register.webp', 1400 / 752),
+          ),
+          const _GuideStep(
+            index: 3,
+            isLast: true,
+            body: _GuideDetails(
+              intro: '登录后在侧边栏点“账号详情”，再点页面上方的“第三方应用”：',
+              items: [
+                'OAuth 授权：在 App 的“我的 → 数据刷新 → 刷新数据 / 刷新数据（高级）”对话框里把数据源切换到落雪，按引导完成授权。授权后，这里的 OAuth 应用列表会出现 ChiffonMai。',
+                '个人 API 密钥：点“重置 API 密钥”，然后到 App 的“我的 → 账号管理”，下滑找到“落雪 API 密钥”并填入。',
+                '也欢迎支持一下中二查歌，在“首页游玩 → 出勤”的轮播图里可以跳转过去。',
+              ],
+            ),
+            image: _GuideImage('assets/guide/lxns-settings.webp', 1400 / 752),
           ),
         ],
       );
@@ -149,9 +178,32 @@ class _AccountRegistrationGuideDialogState
           ),
           const _GuideStep(
             index: 3,
-            isLast: true,
             body: Text('按提示发送 SGWCMAID 字符串或舞萌二维码，等机器人回复上传完成就好了。'),
             image: _GuideImage('assets/guide/awmcbot-qrcode.webp', 620 / 578),
+          ),
+          _GuideStep(
+            index: 4,
+            isLast: true,
+            body: const _GuideDetails(
+              introWidget: GuideLinkText(
+                before: '访问 ',
+                label: AppLinks.awmcNetSettingsUrl,
+                url: AppLinks.awmcNetSettingsUrl,
+                after: '，按下面的说明设置：',
+              ),
+              items: [
+                '“公开我的成绩”：必须开启，否则无法获取成绩。',
+                'Import-Token：点“重新生成”轮换，然后到 App 的“我的 → 账号与授权 → 账号管理”，在对话框里下滑到“AWMC 成绩导入 Token”并填入。',
+                '注意：已有 Token 时，轮换会覆盖之前的 Token。轮换后请在 App 内手动更新，否则无法同步成绩。',
+              ],
+            ),
+            image:
+                const _GuideImage('assets/guide/awmcnet-settings.webp', 1400 / 752),
+            action: FilledButton.tonalIcon(
+              onPressed: () => _openSite(AppLinks.awmcNetUrl),
+              icon: const Icon(Icons.open_in_new, size: 16),
+              label: const Text('打开 AWMC NET'),
+            ),
           ),
           const SizedBox(height: 4),
           const GuideLinkText(
@@ -295,6 +347,49 @@ class _GuideStep extends StatelessWidget {
             ),
           ],
         ),
+      ],
+    );
+  }
+}
+
+/// 步骤说明：一句引导 + 逐条要点，长步骤比一整段话好读。
+class _GuideDetails extends StatelessWidget {
+  final String? intro;
+
+  /// 引导句里要放链接时用它，优先于 [intro]。
+  final Widget? introWidget;
+  final List<String> items;
+
+  const _GuideDetails({this.intro, this.introWidget, required this.items});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        introWidget ?? Text(intro ?? ''),
+        for (final item in items)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 7, right: 8),
+                  child: Container(
+                    width: 5,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: scheme.primary,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+                Expanded(child: Text(item)),
+              ],
+            ),
+          ),
       ],
     );
   }

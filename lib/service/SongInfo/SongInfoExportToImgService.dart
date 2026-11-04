@@ -1,7 +1,6 @@
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'dart:async';
 import 'dart:io';
-import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -13,6 +12,7 @@ import 'package:my_first_flutter_app/utils/StringUtil.dart';
 import 'package:my_first_flutter_app/utils/ColorUtil.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import 'package:my_first_flutter_app/utils/ImageEncodeUtil.dart';
+import 'package:my_first_flutter_app/widgets/ExportStatsUi.dart';
 
 /// 歌曲信息导出为图片服务
 /// 将歌曲的完整信息（曲绘、歌名、所有难度的物量和绝赞统计）渲染为图片
@@ -35,6 +35,7 @@ class SongInfoExportToImgService {
     /// 该曲是否 extra（宴会场 / maidata 追加 / union 独有）：只影响「版本」一栏的显示
     bool isExtra = false,
     String referenceDuration = '-',
+    ExportImageTheme theme = ExportImageTheme.light,
     int? jpegQuality,
   }) async {
     OverlayEntry? overlayEntry;
@@ -66,6 +67,7 @@ class SongInfoExportToImgService {
           maidataDecodedSuccessfully: maidataDecodedSuccessfully,
           isExtra: isExtra,
           referenceDuration: referenceDuration,
+        theme: theme,
         ),
       );
 
@@ -101,45 +103,11 @@ class SongInfoExportToImgService {
       debugPrint(
           'SongInfoExport: Widget size: ${boundary.size.width}x${boundary.size.height}, pixelRatio: $pixelRatio');
 
-      ui.Image image;
-      try {
-        image = await boundary.toImage(pixelRatio: pixelRatio);
-      } catch (e) {
-        debugPrint('SongInfoExport: First capture failed: $e');
-        await Future.delayed(Duration(milliseconds: 200));
-        image = await boundary.toImage(pixelRatio: pixelRatio);
-      }
-
-      ByteData? byteData =
-          await image.toByteData(format: ui.ImageByteFormat.png);
-      if (byteData == null) {
-        debugPrint('SongInfoExport: ByteData is null');
-        overlayEntry.remove();
-        image.dispose();
-        return null;
-      }
-
-      Uint8List pngBytes = byteData.buffer
-          .asUint8List(byteData.offsetInBytes, byteData.lengthInBytes);
-      // 立刻释放 ui.Image：它本身也是上百 MB 的原生位图，而下面的 JPEG
-      // 转码还要再分配上百 MB（decodePng + copyResize）。等转码完再释放，
-      // 峰值内存会白白多一份 —— 低内存机就是这样被 OOM 掉的。
-      // 转码只用得到 pngBytes，用不到这个 image。
-      image.dispose();
-
+      final encoded =
+          await ImageEncodeUtil.encodeBoundary(boundary, jpegQuality: jpegQuality);
+      final Uint8List finalBytes = encoded.bytes;
+      final String extension = encoded.extension;
       overlayEntry.remove();
-
-      // 根据质量参数决定最终格式
-      Uint8List finalBytes;
-      String extension;
-      if (jpegQuality != null) {
-        finalBytes = await ImageEncodeUtil.pngToJpegAsync(pngBytes,
-            quality: jpegQuality);
-        extension = 'jpg';
-      } else {
-        finalBytes = pngBytes;
-        extension = 'png';
-      }
 
       // 保存图片
       final songTitle = basicInfo['title'] ?? '';
@@ -169,6 +137,7 @@ class SongInfoExportToImgService {
     required bool maidataDecodedSuccessfully,
     bool isExtra = false,
     String referenceDuration = '-',
+    ExportImageTheme theme = ExportImageTheme.light,
   }) =>
       _buildExportWidget(
         context: context,
@@ -185,6 +154,7 @@ class SongInfoExportToImgService {
         maidataDecodedSuccessfully: maidataDecodedSuccessfully,
         isExtra: isExtra,
         referenceDuration: referenceDuration,
+        theme: theme,
       );
 
   static Widget _buildExportWidget({
@@ -202,6 +172,7 @@ class SongInfoExportToImgService {
     required bool maidataDecodedSuccessfully,
     bool isExtra = false,
     String referenceDuration = '-',
+    ExportImageTheme theme = ExportImageTheme.light,
   }) {
     final isUtage = songId.length == 6;
     final title = basicInfo['title']?.toString() ?? '';
@@ -245,94 +216,113 @@ class SongInfoExportToImgService {
         'charter': chart?['charter']?.toString() ?? '-',
       });
     }
-    // 导出画布始终为白底，表格线固定采用默认浅色配色，不跟随当前主题。
+    final c = ExportPalette.forTheme(theme);
+    // 表格线跟随导出主题，不跟随 App 主题。
     final border = BorderSide(
-        color: AppTheme.buildLightColorScheme().outlineVariant, width: 1.2);
-    return Container(
+        color: c.isLight
+            ? AppTheme.buildLightColorScheme().outlineVariant
+            : c.track,
+        width: 1.2);
+    Widget section(String title, Widget table) => Padding(
+          padding: const EdgeInsets.only(top: 14),
+          child: ExportStatsPanel(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildExportSectionTitle(title, accent, c),
+                table,
+              ],
+            ),
+          ),
+        );
+
+    return ExportPage(
+      theme: theme,
       width: 1200,
-      color: Colors.white,
-      padding: const EdgeInsets.all(36),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: Container(
-                width: 240,
-                height: 240,
-                decoration: BoxDecoration(
-                    border: Border.all(color: accent, width: 4),
-                    borderRadius: BorderRadius.circular(16)),
-                child:
-                    CoverUtil.buildCoverWidgetWithContext(context, songId, 240),
-              )),
-          const SizedBox(width: 28),
-          Expanded(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                Text(title,
-                    style: const TextStyle(
-                        fontSize: 44,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF2C3E50),
-                        height: 1.2),
-                    maxLines: 3),
-                const SizedBox(height: 12),
-                Text(artist,
-                    style: const TextStyle(
-                        fontSize: 26,
-                        color: Color(0xFF546161),
-                        fontWeight: FontWeight.w500),
-                    maxLines: 3),
-                const SizedBox(height: 16),
-                Text(
-                  'ID: $songId',
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF546161),
+      padding: const EdgeInsets.all(24),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        ExportHeroSurface(
+          colors: [Color.lerp(accent, Colors.black, 0.45)!, accent],
+          radius: 32,
+          padding: const EdgeInsets.all(32),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+            Container(
+              width: 240,
+              height: 240,
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border.all(color: Colors.white, width: 6),
+                  borderRadius: BorderRadius.circular(28)),
+              child:
+                  CoverUtil.buildCoverWidgetWithContext(context, songId, 240),
+            ),
+            const SizedBox(width: 32),
+            Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                  Text(title,
+                      style: const TextStyle(
+                          fontSize: 46,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          height: 1.2),
+                      maxLines: 3),
+                  const SizedBox(height: 10),
+                  Text(artist,
+                      style: TextStyle(
+                          fontSize: 26,
+                          color: Colors.white.withValues(alpha: 0.88),
+                          fontWeight: FontWeight.w500),
+                      maxLines: 3),
+                  const SizedBox(height: 14),
+                  Text(
+                    'ID $songId',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white.withValues(alpha: 0.88),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                _buildVersionImage(from),
-              ])),
-        ]),
-        const SizedBox(height: 30),
-        _buildExportSectionTitle('基础信息', accent),
-        _buildInfoTable([
-          ['类别', 'BPM', '曲师', '谱面类型', '版本', '参考时长'],
-          [genre, bpm, artist, typeLabel, versionLabel, referenceDuration],
-        ],
-        border,
-        accent,
-        typeColor: isUtage
-            ? AppColors.utageAccent()
-            : (songType == 'SD'
-                ? AppColors.linkBlue(Brightness.light)
-                : AppColors.warningOrange(Brightness.light)),
-      ),
-        const SizedBox(height: 26),
-        _buildExportSectionTitle('NOTE 数量与总物量', accent),
-        _buildNoteTable(rows, border, accent),
-        const SizedBox(height: 26),
-        _buildExportSectionTitle('绝赞数量', accent),
-        _buildBreakTable(rows, border, accent),
-        const SizedBox(height: 26),
-        _buildExportSectionTitle('谱师', accent),
-        _buildCharterTable(rows, border, accent),
-        const SizedBox(height: 28),
+                  const SizedBox(height: 12),
+                  _buildVersionImage(from),
+                ])),
+          ]),
+        ),
+        section(
+          '基础信息',
+          _buildInfoTable(
+            [
+              ['类别', 'BPM', '曲师', '谱面类型', '版本', '参考时长'],
+              [genre, bpm, artist, typeLabel, versionLabel, referenceDuration],
+            ],
+            border,
+            accent,
+            typeColor: isUtage
+                ? AppColors.utageAccent()
+                : (songType == 'SD'
+                    ? AppColors.linkBlue(c.brightness)
+                    : AppColors.warningOrange(c.brightness)),
+          ),
+        ),
+        section('NOTE 数量与总物量', _buildNoteTable(rows, border, accent)),
+        section('绝赞数量', _buildBreakTable(rows, border, accent)),
+        section('谱师', _buildCharterTable(rows, border, accent)),
+        const SizedBox(height: 20),
         Center(
-            child: Text('ChiffonMai',
+            child: Text('Generated by ChiffonMai',
                 style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w600,
-                    color: accent.withAlpha(170),
-                    letterSpacing: 2))),
+                    color: c.muted))),
       ]),
     );
   }
 
-  static Widget _buildExportSectionTitle(String text, Color accent) => Padding(
+  static Widget _buildExportSectionTitle(
+          String text, Color accent, ExportPalette c) =>
+      Padding(
         padding: const EdgeInsets.only(bottom: 10),
         child: Row(children: [
           Container(
@@ -342,10 +332,10 @@ class SongInfoExportToImgService {
                   color: accent, borderRadius: BorderRadius.circular(4))),
           const SizedBox(width: 10),
           Text(text,
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 25,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF2C3E50)))
+                  fontWeight: FontWeight.w800,
+                  color: c.ink))
         ]),
       );
 
@@ -507,14 +497,17 @@ class SongInfoExportToImgService {
           bool center = false,
           bool softWrap = true,
           bool fitContent = false}) {
-    final text = Text(value,
-        textAlign: center ? TextAlign.center : align,
-        softWrap: fitContent ? false : softWrap,
-        style: TextStyle(
-            fontSize: 20,
-            fontWeight: bold ? FontWeight.bold : FontWeight.normal,
-            color: color ?? const Color(0xFF2C3E50),
-            height: 1.25));
+    final text = Builder(builder: (context) {
+      final c = ExportPalette.of(context);
+      return Text(value,
+          textAlign: center ? TextAlign.center : align,
+          softWrap: fitContent ? false : softWrap,
+          style: TextStyle(
+              fontSize: 20,
+              fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+              color: color ?? (c.isLight ? const Color(0xFF2C3E50) : c.ink),
+              height: 1.25));
+    });
     return TableCell(
       verticalAlignment: TableCellVerticalAlignment.middle,
       child: Container(

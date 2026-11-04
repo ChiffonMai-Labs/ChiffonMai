@@ -953,7 +953,8 @@ class _GuessSongByOpenLettersPageState
 
                 if (!navigator.mounted) return;
                 navigator.pop();
-                AppToast.show('设置已保存，将在下局游戏生效');
+                AppToast.show('设置已保存，将在下局游戏生效',
+                    tone: AppToastTone.success);
 
                 _warnIfNoSongMatches(
                   songCount: tempSongCount,
@@ -981,7 +982,7 @@ class _GuessSongByOpenLettersPageState
     // 自定义常量
 
     return BackgroundPageScaffold(
-      title: '猜歌（开字母）',
+      title: '舞萌开字母',
       resizeToAvoidBottomInset: false,
       contentPadding:
           EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom + 10),

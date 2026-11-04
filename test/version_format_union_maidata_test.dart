@@ -41,7 +41,7 @@ void main() {
     ['maimai MiLK PLUS', 55, 'MiLK+', 'MiLK+ 雪', 'MiLK+ 雪'],
     ['maimai FiNALE', 63, 'FiNALE', 'FiNALE 輝', 'FiNALE 輝'],
     ['maimai でらっくす', 97, 'DX', 'DX 熊', 'DX 2020 熊/華'],
-    ['maimai でらっくす PLUS', 67, 'DX+', 'DX+ 華', 'でらっくす+ 華'],
+    ['maimai でらっくす PLUS', 67, 'DX+', 'DX+ 華', 'DX+ 華'],
     ['maimai でらっくす Splash', 67, 'Splash', 'Splash 爽', 'DX 2021 爽/煌'],
     ['maimai でらっくす Splash PLUS', 72, 'Splash+', 'Splash+ 煌', 'Splash+ 煌'],
     ['maimai でらっくす UNiVERSE', 76, 'UNiVERSE', 'UNiVERSE 宙', 'DX 2022 宙/星'],

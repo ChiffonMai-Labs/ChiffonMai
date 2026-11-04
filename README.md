@@ -13,7 +13,7 @@ ChiffonMai 是一款面向舞萌 DX 玩家的移动端工具应用。它把曲�
 
 ## 当前版本与导航
 
-当前源码版本为 **3.0.0-alpha+53**。底部导航按用途分为 **首页、曲库、成绩、出勤、休闲、我的**；首页提供功能搜索和可排序的收藏入口。其余五页进一步按业务分组，成绩页直接显示全部分组。
+当前源码版本为 **3.0.0-beta+54**。底部导航按用途分为 **首页、曲库、成绩、出勤、休闲、我的**；首页提供功能搜索和可排序的收藏入口。其余五页进一步按业务分组，成绩页直接显示全部分组。
 
 - **账号与授权**：支持水鱼、落雪和 AWMC NET 账号资料管理，提供注册引导、个人 key 获取说明与来源隔离的成绩数据。
 - **同步与刷新**：支持单平台、多端与自动同步；成绩同步成功后自动执行所选数据刷新，刷新失败单独提示。自动同步需配置各数据源凭据与机台身份。
@@ -137,7 +137,7 @@ iOS 版本目前尚未正式发布；仓库提供客户端构建工作流，见 
 - [水鱼查分器](https://maimai.diving-fish.com/)
 - [DXRating.net](https://dxrating.net/)
 - [落雪咖啡屋](https://maimai.lxns.net/)
-- [AWMC NET.](https://net.wmc.pub/)
+- [AWMC NET](https://net.wmc.pub/)
 - [Union](https://union.godserver.cn/)
 - [Yuri-YuzuChaN/maimaiDX](https://github.com/Yuri-YuzuChaN/maimaiDX)
 - [NearCade](https://nearcade.cn/)
@@ -178,7 +178,7 @@ iOS 版本目前尚未正式发布；仓库提供客户端构建工作流，见 
 - **Neskol**：提供谱面转换支持。[项目地址](https://github.com/Neskol/Maichart-Converts/tree/master)
 - **status.awmc.cc**：提供舞萌服务器状态信息。[服务地址](https://status.awmc.cc/status/maimai)
 - **mai.chongxi.us**：提供舞萌服务器状态信息。[服务地址](https://mai.chongxi.us/)
-- **AWMC NET.**：提供水鱼查分器同步支持、落雪查分器同步支持和对本项目开发的经济支持。[官网](https://net.wmc.pub/)
+- **AWMC NET**：提供水鱼查分器同步支持、落雪查分器同步支持和对本项目开发的经济支持。[官网](https://net.wmc.pub/)
 - **Bakapiano**：提供水鱼查分器和落雪查分器成绩同步支持。[项目地址](https://github.com/bakapiano/maimai-score-hub)
 - **k4641321**：提供落雪查分器成绩同步支持。[项目地址](https://github.com/k4641321/chusearchsong_flutter/tree/master)
 - **Union**：提供曲目数据库。[官网](https://union.godserver.cn/)

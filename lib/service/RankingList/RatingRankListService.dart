@@ -75,7 +75,7 @@ class RatingRankListService {
     return [];
   }
 
-  // 获取指定数据源的排行榜（水鱼 / 落雪 / AWMC NET.）
+  // 获取指定数据源的排行榜（水鱼 / 落雪 / AWMC NET）
   //
   // 原来 `getShuiyuRankings` 与 `getLuoxueRankings` 是两段**只差一个字面量与
   // 两个缓存键**的复制粘贴，加第三个源时必然漏改一处（AWMC 差点就漏了）。

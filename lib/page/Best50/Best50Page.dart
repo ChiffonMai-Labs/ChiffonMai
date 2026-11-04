@@ -29,8 +29,10 @@ import '../../widgets/AppUi.dart';
 import '../../utils/AppDesignTokens.dart';
 import '../../widgets/Best50Ui.dart';
 import '../../widgets/AppDialogs.dart';
-import '../../widgets/ExportSuccessDialog.dart';
 import '../../widgets/AppToast.dart';
+import 'package:my_first_flutter_app/service/BackgroundExportService.dart';
+import '../../utils/MusicDataIndex.dart';
+import '../../utils/JsonIsolate.dart';
 
 class B50Page extends StatefulWidget {
   final Map<String, dynamic>? b50Data;
@@ -123,8 +125,9 @@ class _B50PageState extends State<B50Page> {
       } else {
         final maimaiContents =
             await rootBundle.loadString('assets/maimai_music_data.json');
-        final maimaiJsonData = json.decode(maimaiContents);
+        final maimaiJsonData = await decodeJsonInBackground(maimaiContents);
 
+        if (!mounted) return;
         setState(() {
           _maimaiMusicData = maimaiJsonData;
         });
@@ -290,9 +293,7 @@ class _B50PageState extends State<B50Page> {
 
     try {
       // 使用 where() 和 firstWhereOrNull 替代 orElse 返回 null
-      var song = _maimaiMusicData!.firstWhere(
-        (item) => item['id'] == songId.toString(),
-      );
+      var song = _maimaiMusicData![MusicDataIndex.indexOf(_maimaiMusicData!, songId)];
 
       if (song['basic_info'] != null) {
         return song['basic_info']['is_new'] == true;
@@ -495,7 +496,7 @@ class _B50PageState extends State<B50Page> {
       int levelIndex = song['level_index'];
 
       int index =
-          _maimaiMusicData!.indexWhere((m) => int.parse(m['id']) == songId);
+          MusicDataIndex.indexOf(_maimaiMusicData!, songId);
       Map<String, dynamic> songData =
           index >= 0 ? _maimaiMusicData![index] : {};
 
@@ -540,7 +541,7 @@ class _B50PageState extends State<B50Page> {
 
     if (_isLoading) {
       return const BackgroundPageScaffold(
-        title: 'Best50 查询',
+        title: 'Best50',
         resizeToAvoidBottomInset: false,
         child: Center(child: CircularProgressIndicator()),
       );
@@ -549,7 +550,7 @@ class _B50PageState extends State<B50Page> {
     if (_b50Data == null || (_dxSongs.isEmpty && _sdSongs.isEmpty)) {
       // 空状态与正常内容共用背景和顶部栏。
       return BackgroundPageScaffold(
-        title: 'Best50 查询',
+        title: 'Best50',
         resizeToAvoidBottomInset: false,
         contentPadding:
             EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
@@ -1193,9 +1194,7 @@ class _B50PageState extends State<B50Page> {
 
   int _calculateMaxScore(int songId, int levelIndex) {
     if (_maimaiMusicData == null) return 0;
-    int songIndex = _maimaiMusicData!.indexWhere(
-      (item) => item['id'] == songId.toString(),
-    );
+    int songIndex = MusicDataIndex.indexOf(_maimaiMusicData!, songId);
     if (songIndex == -1) return 0;
     dynamic songData = _maimaiMusicData![songIndex];
     if (songData['charts'] == null) return 0;
@@ -1211,9 +1210,7 @@ class _B50PageState extends State<B50Page> {
   double _calculateScoreRate(int songId, int levelIndex, int score) {
     if (_maimaiMusicData == null) return 0.0;
 
-    int songIndex = _maimaiMusicData!.indexWhere(
-      (item) => item['id'] == songId.toString(),
-    );
+    int songIndex = MusicDataIndex.indexOf(_maimaiMusicData!, songId);
 
     if (songIndex == -1) return 0.0;
     dynamic songData = _maimaiMusicData![songIndex];
@@ -1310,7 +1307,7 @@ class _B50PageState extends State<B50Page> {
       final quality = await ExportQualitySelector.show(
         context,
         estimatedPngSize: estimatedPngSize,
-        exportingLabel: _isTheoreticalMode ? '拟合 Best50' : 'Best50',
+        exportingLabel: _isTheoreticalMode ? '理论 Best50' : 'Best50',
         enableThunderMode: true,
         previewBuilder: (previewContext, previewQuality) =>
             B50ConvertToImg.buildPreviewWidget(
@@ -1322,38 +1319,35 @@ class _B50PageState extends State<B50Page> {
           isTheoreticalMode: _isTheoreticalMode,
           thunderMode: previewQuality.thunderMode,
           thunderVertical: previewQuality.thunderVertical,
+          theme: previewQuality.theme,
         ),
       );
       if (quality == null) return; // user cancelled
 
-      showAppProgressDialog(context, title: '导出中', message: '正在生成图片...');
 
-      final file = await B50ConvertToImg.convertToImage(
-        context,
-        _b50Data,
-        _isTheoreticalMode ? _theoreticalSdSongs : _sdSongs,
-        _isTheoreticalMode ? _theoreticalDxSongs : _dxSongs,
-        _maimaiMusicData,
-        isTheoreticalMode: _isTheoreticalMode,
-        jpegQuality: quality.jpegQuality,
-        thunderMode: quality.thunderMode,
-        thunderVertical: quality.thunderVertical,
+      // 导出期间可以继续操作，先把当前模式的数据取好。
+      final isTheoretical = _isTheoreticalMode;
+      final sdSongs = isTheoretical ? _theoreticalSdSongs : _sdSongs;
+      final dxSongs = isTheoretical ? _theoreticalDxSongs : _dxSongs;
+      final b50Data = _b50Data;
+      final musicData = _maimaiMusicData;
+      BackgroundExport.run(
+        label: isTheoretical ? '理论 Best50' : 'Best50',
+        task: (exportContext) => B50ConvertToImg.convertToImage(
+          exportContext,
+          b50Data,
+          sdSongs,
+          dxSongs,
+          musicData,
+          isTheoreticalMode: isTheoretical,
+          jpegQuality: quality.jpegQuality,
+          theme: quality.theme,
+          thunderMode: quality.thunderMode,
+          thunderVertical: quality.thunderVertical,
+        ),
       );
-
-      // 先关闭"导出中"对话框
-      Navigator.of(context, rootNavigator: true).pop();
-
-      if (file != null) {
-        showExportSuccessDialog(context, filePath: file.path, fileName: file.path.split('/').last);
-      } else {
-        showAppNoticeDialog(context, title: '导出失败', message: '图片导出失败，请重试', tone: AppDialogTone.error);
-      }
     } catch (e) {
-      // 确保关闭任何打开的对话框
-      try {
-        Navigator.of(context, rootNavigator: true).pop();
-      } catch (_) {}
-      showAppNoticeDialog(context, title: '导出失败', message: '图片导出失败：${e.toString()}', tone: AppDialogTone.error);
+      AppToast.show('导出失败：$e');
     }
   }
 }

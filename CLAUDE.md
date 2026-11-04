@@ -10,6 +10,7 @@
 - 优先复用已有组件和工具，避免无关重构、额外依赖和过度工程；完成需求后及时停止。
 - Git 仅追踪 Flutter 客户端相关内容；服务端源码及配置、数据、测试、部署资料一律保留在本地并忽略，详见 § 21。
 - 普通页面布局先看 § 7、§ 11、§ 14、§ 17；输入框与切换控件再看 § 18、§ 19。
+- 几百上千条数据的列表要保证交互丝滑，见 § 22.14。
 - 长文本复用 `MarqueeText`（§ 8），进度指示复用 `SmoothLinearProgressIndicator`（§ 15）；不要重复实现已有机制。
 - 异步回调保留 `mounted` / 离页防护；旧请求不得覆盖新选项。设置先加载再建控制器，防抖只推迟写盘，不推迟内存更新。
 - 导入导出先看 § 2–4；播放器与 Android 改动先看 § 5、§ 6、§ 10、§ 16，不随意恢复模板配置或解除依赖锁定。
@@ -173,9 +174,10 @@ android:launchMode="singleTask"   <!-- 全局单实例，后续启动走 onNewIn
 
 | 通道 | 用途 |
 |---|---|
-| `com.example.app/media_store` | 保存图片到相册 |
+| `com.example.app/media_store` | 保存图片到相册（`saveImage`）、用相册大图界面查看图片（`viewImage`） |
 | `com.example.app/open_file` | 收藏夹文件「一键导入」（`getInitialImportPath` / `onFileOpened`） |
 | `com.example.app/display` | 屏幕刷新率（`setHighRefreshRate` / `restoreRefreshRate` / `queryRefreshRate`） |
+| `com.example.app/export_notification` | 图片导出完成的系统通知（`notifyExportDone`），见 `lib/service/BackgroundExportService.dart` |
 | `com.example.app/home_widget` | 桌面小组件（`update` 推数据，`takePendingAction` / `onAction` 传点击），见 `HomeWidgets.kt` 与 `lib/service/HomeWidgetService.dart` |
 
 `on_file` 通道的投递规则：**只有 Dart 已注册监听（`dartImportReady`）时才实时投递并清空 pending**，否则保留 pending 等 Dart 来取。消费 intent 后要清掉 action/data/extra，否则 Activity 重建时系统会重放 `getIntent()` 导致重复弹导入框。
@@ -511,14 +513,17 @@ AppHeader(
 
 ### 22.4 组件
 
-- `lib/widgets/AppUi.dart`：`AppCard`、`AppSectionHeader`、`AppBadge` / `RankBadge` / `ComboBadge` / `StarBadge`、`RatingTierChip`、`StatTile`、`SplitBar`、`StackedBar`（多段比例条，极小的段保留最小宽度）、`SegmentedTabs`（`inlineCaption` 数值横排）、`PillTabs`（音符类型）、`UnderlineTabs`（歌曲详情）、`CountField`、`JudgeCountRow`、`EmphasisCard`、`BottomActionBar`、`FeatureIconTile`（首页常用）、`CollapsibleCard`、`FilterPill`、`LinkPill`、`SongTypeBadge`、`ChartDifficultyBadge`、`PagerBar`、`RecognitionGuideCard`（识别功能准备页）。
+- `lib/widgets/AppUi.dart`：`AppCard`、`AppSectionHeader`、`AppBadge` / `RankBadge` / `ComboBadge` / `StarBadge`、`RatingTierChip`、`StatTile`、`SplitBar`、`StackedBar`（多段比例条，极小的段保留最小宽度）、`SegmentedTabs`（`inlineCaption` 数值横排）、`PillTabs`（音符类型）、`UnderlineTabs`（歌曲详情）、`CountField`、`InputDecoration.insetLabel(context)`（带 `labelText` 的输入框都用它，标签固定在框内）、`JudgeCountRow`、`EmphasisCard`、`BottomActionBar`、`FeatureIconTile`（首页常用）、`CollapsibleCard`、`FilterPill`、`LinkPill`、`SongTypeBadge`、`ChartDifficultyBadge`、`PagerBar`、`RecognitionGuideCard`（识别功能准备页）。
 - `lib/widgets/GuessUi.dart`：`GuessCell`（比对色块，翻转进场）、`GuessHistoryCard`、`GuessHistoryHeader`（含图例）、`GuessInputBar`（贴底输入栏）、`GuessSearchIcon`（搜索中图标原地转圈），单人猜歌和多人房间共用。`lib/widgets/GuessSettingsUi.dart`：猜歌设置的分组、滑条行、多选入口（底部面板）和选项胶囊，设置页、建房页和局内对话框共用。`lib/widgets/ChartPeekPlaybackUi.dart`：谱面片段的流速、镜像、难度随机池设置与播放区角标。`lib/widgets/FriendLinkUi.dart`：友链封面（`image_url` 优先，没有时按主题色和图标生成）与 Hub 轮播 `FriendLinkCarousel`。
 - `lib/widgets/RankingUi.dart`：`RankingMedal`、`RankingRow`、`RankingSelfBar`、`RankingNotice`，各玩家排行榜共用。⚠️ 这些榜用 `prototypeItem` 等高排布，行里所有文字都要固定行高（`CommunityPlayerIdentity` 已处理），否则字形回退会让个别行溢出。
-- `lib/widgets/ProgressUi.dart`：完成度总览、展示切换、分组标题、歌曲行、曲绘格、`ProgressSongSliver`、`ProgressListSkeleton`，个性化成绩查询和牌子进度共用。⚠️ 歌曲可能有上千首，列表必须用 `ProgressSongSliver` 按需构建，不要放回 `Column`；服务层的长循环要定期让出事件循环（`_yieldToUi`），只 `await` 已完成的 Future 插不进帧。
+- `lib/widgets/ProgressUi.dart`：完成度总览、展示切换、分组标题、歌曲行、曲绘格、`GroupedRowShell`（按需构建时把多行连成一张卡片）、`ProgressSongSliver`、`ProgressListSkeleton`，个性化成绩查询和牌子进度共用。⚠️ 歌曲可能有上千首，列表必须用 `ProgressSongSliver` 按需构建，不要放回 `Column`；服务层的长循环要定期让出事件循环（`_yieldToUi`），只 `await` 已完成的 Future 插不进帧。
 - `lib/widgets/RecommendUi.dart`：推荐结果卡片和输入框，目标 Rating / 定数区间 / 标签三个推荐页共用。
 - `lib/widgets/AppToast.dart`：全 App 唯一的轻提示 `AppToast.show(文案, {tone, actionLabel, onAction, duration})`，不需要 context；不传 `tone` 时按文案判断语气。不要再写 SnackBar 或引入 toast 包。
 - `lib/widgets/AppDialogs.dart`：`AppAlertDialog`（参数与 `AlertDialog` 一致，另有 `subtitle`；全 App 对话框都用它，不要再写 `AlertDialog`，内容里的 ListTile、单选、复选和底部按钮样式都由它统一）、`AppDialogOption`（可点选项）、`AppDialogEmpty`（空状态）、`AppDialogCodeBlock`（路径等长文本）、`AppDialog` 和 `showAppNoticeDialog` / `showAppProgressDialog`。
-- `lib/widgets/ExportStatsUi.dart`：导出图片的统计区域（Best50 系列、牌子进度、个性化成绩查询），固定浅色，不跟随 App 主题。
+- `lib/widgets/ExportStatsUi.dart`：导出图片共用的根（`ExportPage`）、头部（`ExportPosterHeader`、`ExportHeroSurface`）、分区标题（`ExportSectionTitle`）、面板和统计区域。导出图片的主题在导出抽屉里选（浅色 / 深色 / 纯黑，默认浅色，记住上次选的），不跟随 App 和系统：颜色从 `ExportPalette`（`lib/utils/ExportImageTheme.dart`）取，根部用 `ExportPage` 传主题，新导出图不要写死颜色。
+- `lib/service/BackgroundExportService.dart`：导出图片一律走 `BackgroundExport.run`，不弹阻塞对话框，用户可以继续操作或离开页面，结束后顶部提示。任务里不能再读页面的 `widget`，需要的值在调用前取好。
+- `lib/page/UpdateCalendarPage.dart`：更新日历，按落雪谱面级 `release_date` 把国服更新整理到月历上，落雪的 DX 谱 ID 要加 10000 才是项目内 ID。
+- `lib/widgets/ImageLoadingIndicator.dart`：网络图片的加载占位（延迟淡入的小转圈，本地命中时看不到），新的网络图片都用它。
 - `lib/widgets/Best50Ui.dart`：`Best50Hero`、`Best50Grid` / `Best50CoverCard`（三列曲绘卡）、`showBest50SongSheet`（推分面板）、`Best50AveragesCard`、`Best50IconAction` 等。
 
 新组件加在这些文件里，别在页面里各写一份。Hub 页继续用 `HubComponents.dart`。
@@ -527,12 +532,12 @@ AppHeader(
 
 ### 22.5 主导航：5 个标签
 
-首页 / 曲库 / 成绩 / **游玩** / 我的。「游玩」是 `PlayZoneHubPage`：顶部分段切换「出勤 | 休闲」，两边就是原来的 `AttendanceHubPage` / `PlayHubPage`。
+首页 / 曲库 / 成绩 / **游玩** / 我的。「游玩」是 `PlayZoneHubPage`：顶部分段切换「出勤 | 休闲」，两边就是原来的 `AttendanceHubPage` / `PlayHubPage`。标题和分段切换固定在外层不随内容滚动，切换时只有内容区过渡，转场复用 `MainNavigationViewport`。
 `FeatureRegistry` 的分类（`'出勤'`、`'休闲'`）和收藏键**没有改**，首页搜索结果路径也照旧。三种导航栏样式（经典 / 液态玻璃 / 伸缩胶囊）都保留。
 
 ### 22.6 收藏（星标）
 
-- 首页「常用」就是收藏列表：普通功能显示成图标网格；带进度 / 线路 / 统计的入口（同步、自动同步、缓存管理、新版本）放不进小图标，单独成组显示完整 `HubActionTile`。点「编辑」进入列表模式，可取消星标、上下移动、长按拖动。
+- 首页「常用」就是收藏列表：普通功能显示成图标网格；带进度 / 线路 / 统计的入口（同步、自动同步、缓存管理、新版本）放不进小图标，单独成组显示完整 `HubActionTile`。点「编辑」后所有收藏显示成图标网格（`FavoriteEditGrid`）：直接拖动换位置，点叉号或拖到下方删除区域移除。
 - 成绩 Hub 顶部是设计稿的概览卡片，下面的「全部功能」保留每个功能的星标。**以后改 Hub 页不能把带星标的入口去掉。**
 - 首页概览下面是自动同步和服务器状态两个小组件（`lib/widgets/HomeStatusWidgets.dart`，只在可见且前台时轮询，服务器状态每 3 分钟刷新）。搜索框常驻在小组件下方，右上角不再有搜索键；输入时概览和小组件收起，让搜索框升到结果上方。收起只换那一格的内容，搜索框在列表里的位置不变（§22.13）。
 - 曲库 Hub 只是功能列表；搜索和筛选在 `SongSearchPage` 里，进入功能后才出现。
@@ -543,7 +548,7 @@ AppHeader(
 
 ### 22.8 Best50 系列
 
-- 页面显示用 `Best50CoverCard`；**导出图片仍由 `B50GameCardWidget` 绘制**，两者互不影响。改页面卡片不会改变导出图。
+- 页面有曲绘、双列、单列三种显示模式（`Best50DisplayPreference`，本地记忆，六个页面共用）。曲绘模式用 `Best50CoverCard`，单列用瘦长的 `Best50StripCard`；双列（`Best50ScoreCard`）和导出图片都用 `B50GameCardWidget`，改它会同时影响这两处。配色走 `B50CardPalette`：页面上跟随 App 的浅色 / 深色 / 纯黑，导出图片跟随导出抽屉里选的主题。
 - 六个页面（Best50 / 拟合 / 个性化 / 个性化拟合 / 理想 / 自定义）都把数据换算成 `Best50CardData`，不要再各写一份卡片。
 
 ### 22.9 `SongInfoPage` 的拆分方式
@@ -564,7 +569,13 @@ AppHeader(
 1. **扩展方法里不能直接调 `setState`**（protected，会报 `invalid_use_of_protected_member`），统一用 `_update(() { ... })`。
 2. 扩展方法里**不能不带类名访问 static 成员**，所以原来的 `static` 常量（`_tapWeight` 等）已经提升为库级私有常量；新增常量也放在库级。
 
-信息分类：时长在关键数值；版本、BPM、谱师在基础信息；物量、基础信息、定数历史、谱面标签直接铺在页面上；成绩历史单独一个标签页；分布图、对照表在「数据」；评分和评论在「社区」；容错和计算器在「工具」。
+信息区域是盖在头图上的抽屉：头图固定不动，抽屉就是页面的滚动内容，松手时停在半路会吸附到收起或拉开（`_SongDrawerHero` 把头图裁到抽屉顶边以上，抽屉本身不铺底色，用户背景图能透出来）。
+
+切换 ST / DX 在同一个页面状态里进行（`_switchSong` 预读 → `_onSongChanged` 同一帧换数据），数字滚动、文字淡入，不再叠两个页面。加载任务跑在带歌曲代数的 Zone 里，切走后迟到的结果由 `_update` 丢弃；新增的异步加载要走 `_update` 写状态。
+
+版本和首次上线分国服、日服显示（`_buildRegionStat`）：日服来自 union；国服版本来自水鱼曲库，国服上线日期来自落雪曲目列表谱面级的 `release_date`，按当前谱面类型取。
+
+信息分类：时长在关键数值；版本、BPM、谱师在基础信息；基础信息、物量、定数历史、谱面标签直接铺在页面上；成绩历史单独一个标签页；分布图、对照表在「数据」；评分和评论在「社区」；容错和计算器在「工具」。
 
 切难度时成绩卡不重新入场：成绩、定数 / 拟合 / 平均达成、物量和绝赞数量用 `RollingNumber` 滚动，文字和徽章用 `FadeSwitcher` 淡入淡出。
 
@@ -586,3 +597,12 @@ Rating、达成率、歌名、说明文字这类重要内容不要用省略号�
 
 键盘弹出时不要切换页面结构，也不要把输入框放进会回收子项的 `ListView.builder`：输入框一旦被销毁就会丢焦点，键盘立刻收回。达成率计算器踩过这个坑。键盘只能影响留白和局部详略（§18）。
 
+### 22.14 大数据量渲染不能阻塞交互
+
+渲染几百上千条数据（如歌曲列表）时，要尽可能保证交互丝滑，不要阻塞 UI。
+
+- 列表按需构建（`ListView.builder` / `SliverList.builder` / `SliverGrid`），不要放进 `Column`，也不要用 `shrinkWrap`。
+- 耗时计算放到后台 isolate，或定期让出事件循环；大 JSON 用 `decodeJsonInBackground`；曲库查找用 `MusicDataIndex`，不要逐首遍历。
+- 一次要构建很多行的离屏内容（导出图）用 `ExportProgressiveColumn` 分批挂载。
+- 等待时用骨架屏、加载动画或过渡效果，已有内容尽量留在屏幕上；具体用哪种按场景决定。
+- 只给首屏的列表项加入场动画，滚动时不要反复播放。

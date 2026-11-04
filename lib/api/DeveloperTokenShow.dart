@@ -9,7 +9,7 @@ class DeveloperTokenShow {
   // 落雪 OAuth Client Secret
   static const String LuoXueClientSecret = '';
 
-  // AWMC NET.（https://net.wmc.pub）查分器开发者密钥。
+  // AWMC NET（https://net.wmc.pub）查分器开发者密钥。
   //
   // 用途：App 直连 `GET /dev/player/records?qq=<QQ>` 查成绩，请求头 `Developer-Token`。
   // 申请：登录 net.wmc.pub 后在开发者页面申请，密钥形如 `awmc_sk_...`，

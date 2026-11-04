@@ -29,6 +29,8 @@ import 'service/AccountSwitchService.dart';
 import 'service/LogExportService.dart';
 import 'utils/WindowDiagnostics.dart';
 import 'widgets/AppToast.dart';
+import 'package:my_first_flutter_app/widgets/Best50Ui.dart';
+import 'package:my_first_flutter_app/service/BackgroundExportService.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -46,6 +48,7 @@ Future<void> _initStartupServices() async {
     await SecureCredentialStore.migrateLegacy();
     await AccountSwitchService.ensureMigrated();
     await CurrentDataSourceNotifier.load();
+    await Best50DisplayPreference.load();
     unawaited(PlayerExperienceService.instance.start());
     await _initBackgroundAudio();
   } catch (e) {
@@ -90,7 +93,7 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
-  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
+  final GlobalKey<NavigatorState> _navigatorKey = BackgroundExport.navigatorKey;
   bool _fontsLoaded = false;
   bool _themeLoaded = false;
   Size? _lastWindowPhysicalSize;

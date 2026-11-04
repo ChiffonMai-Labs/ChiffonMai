@@ -83,7 +83,7 @@ void main() {
     const cases = <String, List<String>>{
       // DX 基础两代：extra 短名 DX / DX+（不带年号），详名带一文字
       'maimai でらっくす': ['DX 2020', 'DX 2020 熊/華', 'DX', 'DX 熊'],
-      'maimai でらっくす PLUS': ['でらっくす+', 'でらっくす+ 華', 'DX+', 'DX+ 華'],
+      'maimai でらっくす PLUS': ['DX+', 'DX+ 華', 'DX+', 'DX+ 華'],
       'maimai でらっくす Splash': ['DX 2021', 'DX 2021 爽/煌', 'Splash', 'Splash 爽'],
       'maimai でらっくす Splash PLUS': [
         'Splash+',
@@ -230,7 +230,7 @@ void main() {
       expect(StringUtil.formatVersion2WithFlag('maimaiでらっくす', false),
           'DX 2020 熊/華');
       expect(StringUtil.formatVersion2('maimaiでらっくす PLUS'),
-          'でらっくす+ 華');
+          'DX+ 華');
     });
 
     test('#5 maimai DX 前缀与日文前缀粒度一致（都返回详名）', () {

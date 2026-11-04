@@ -373,7 +373,7 @@ class _UpdateLuoXueScorePageState extends State<UpdateLuoXueScorePage> {
                                   style: TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.w500,
-                                      color: AppColors.linkBlue(brightness),
+                                      color: Theme.of(context).colorScheme.primary,
                                       decoration: TextDecoration.underline),
                                 ),
                                 const TextSpan(

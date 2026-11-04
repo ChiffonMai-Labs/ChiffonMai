@@ -43,7 +43,7 @@ flutter build ipa \
 
 Windows 开发机无法执行 Xcode 归档。修改 workflow 后可在本机检查 YAML、脚本语法、参数转义及源码依赖是否齐全；首次真正打包仍须由 GitHub 的 macOS runner 验证。
 
-先前工作流调整的验证记录：actionlint、YAML/Bash 语法、凭据转义及应用入口的源码引用检查通过；功能注册表、AWMC NET. 响应解析、自动同步、游玩次数以及快速更新的增量比较和身份缓存共 52 项针对性用例通过。部分既有快速同步网络模拟用例仍超时，不能据此声称完整同步流程或 iOS 真机行为已验证。
+先前工作流调整的验证记录：actionlint、YAML/Bash 语法、凭据转义及应用入口的源码引用检查通过；功能注册表、AWMC NET 响应解析、自动同步、游玩次数以及快速更新的增量比较和身份缓存共 52 项针对性用例通过。部分既有快速同步网络模拟用例仍超时，不能据此声称完整同步流程或 iOS 真机行为已验证。
 
 谱面评分代理迁移复核：三个数据源的身份参数、单次接口读取、分数字符串兼容、未评分与接口失败处理共 6 项针对性检查通过；线上评分接口只读检查返回 HTTP 200，包含个人评分字段；移除旧凭据注入后的工作流通过 actionlint。本次没有触发 GitHub Actions 或执行 iOS 归档、真机测试。
 
@@ -53,6 +53,6 @@ Windows 开发机无法执行 Xcode 归档。修改 workflow 后可在本机检�
 
 旧「AWMC 网关」控制台及其成绩写入、审计页面已经移除，首页、系统页、功能注册表和旧收藏也不再提供该入口。
 
-同步线路 1、快速更新、自动同步、AWMC NET. 和独立游玩次数读取仍使用部分 AWMC 服务。这些客户端依赖保留原实现，并取消目录级 Git 忽略，避免全新检出时缺少编译源码。旧 `AwmcToken*.dart` 凭据文件继续忽略；保留的服务通过后端代理访问，不依赖客户端网关令牌。
+同步线路 1、快速更新、自动同步、AWMC NET 和独立游玩次数读取仍使用部分 AWMC 服务。这些客户端依赖保留原实现，并取消目录级 Git 忽略，避免全新检出时缺少编译源码。旧 `AwmcToken*.dart` 凭据文件继续忽略；保留的服务通过后端代理访问，不依赖客户端网关令牌。
 
 参考：[Flutter iOS 发布文档](https://docs.flutter.dev/deployment/ios)、[Flutter 混淆与符号文件](https://docs.flutter.dev/deployment/obfuscate)、[GitHub Secrets 配置](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets)。

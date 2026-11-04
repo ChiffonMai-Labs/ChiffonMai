@@ -10,6 +10,7 @@ import 'HubComponents.dart';
 import '../widgets/ErrorMessageDialog.dart';
 import '../widgets/AppDialogs.dart';
 import '../widgets/AppToast.dart';
+import '../widgets/AppUi.dart';
 
 class AccountSyncPage extends StatefulWidget {
   const AccountSyncPage({super.key});
@@ -172,7 +173,7 @@ class _AccountSyncPageState extends State<AccountSyncPage> {
                               icon: const Icon(Icons.clear),
                               onPressed: _clearAwmcToken,
                             ),
-                    ),
+                    ).insetLabel(context),
                   ),
                 ),
                 Padding(
@@ -276,13 +277,13 @@ class _LoginDialogState extends State<_LoginDialog> {
         children: [
           TextField(
             controller: _usernameController,
-            decoration: const InputDecoration(labelText: '用户名'),
+            decoration: InputDecoration(labelText: '用户名').insetLabel(context),
           ),
           const SizedBox(height: 12),
           TextField(
             controller: _passwordController,
             obscureText: true,
-            decoration: const InputDecoration(labelText: '密码'),
+            decoration: InputDecoration(labelText: '密码').insetLabel(context),
           ),
           if (_errorMessage != null) ...[
             const SizedBox(height: 8),

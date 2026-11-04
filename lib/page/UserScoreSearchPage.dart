@@ -136,6 +136,7 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
 
   List<dynamic>? _visibleCache;
 
+  final ScrollController _scrollController = ScrollController();
   int _currentPage = 1;
   int _pageSize = 50;
   final TextEditingController _pageSizeController = TextEditingController(text: '50');
@@ -514,6 +515,13 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
       _currentPage = page;
       _updatePagedSongs();
     });
+    if (_scrollController.hasClients) _scrollController.jumpTo(0);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
   
   void _changePageSize() {
@@ -589,6 +597,7 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
                   children: [
                     Expanded(
                       child: SingleChildScrollView(
+                        controller: _scrollController,
                         padding: const EdgeInsets.fromLTRB(
                             AppDesignTokens.gutter,
                             4,
@@ -1351,12 +1360,25 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  MarqueeText(
-                    text: song['title']?.toString() ?? '未知歌曲',
-                    style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: scheme.onSurface),
+                  Row(
+                    children: [
+                      SongTypeBadge(
+                        songId: songId.toString(),
+                        type: song['type']?.toString().toUpperCase() == 'DX'
+                            ? 'DX'
+                            : 'SD',
+                      ),
+                      const SizedBox(width: 5),
+                      Expanded(
+                        child: MarqueeText(
+                          text: song['title']?.toString() ?? '未知歌曲',
+                          style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: scheme.onSurface),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 2),
                   FittedBox(
@@ -1587,7 +1609,7 @@ class _RangeFilterDialogState extends State<_RangeFilterDialog> {
                 icon: const Icon(Icons.clear),
                 onPressed: () => setState(controller.clear),
               ),
-      ),
+      ).insetLabel(context),
     );
   }
 

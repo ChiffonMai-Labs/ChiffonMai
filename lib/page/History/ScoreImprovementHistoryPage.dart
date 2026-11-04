@@ -6,10 +6,12 @@ import '../../service/AccountStore.dart';
 import '../../service/History/ChartHistoryStore.dart';
 import '../../service/History/ScoreImprovementCore.dart';
 import '../../service/SongSearchService.dart';
+import '../../utils/AppDesignTokens.dart';
+import '../../utils/AppTheme.dart';
 import '../../utils/CurrentDataSourceNotifier.dart';
 import '../../utils/UserProfileNotifier.dart';
+import '../../widgets/AppUi.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
-import '../../widgets/NoRipple.dart';
 import '../../widgets/ScoreImprovementCard.dart';
 import '../../widgets/SongSearchEntry.dart';
 import '../SongInfoPage.dart';
@@ -198,30 +200,148 @@ class _ScoreImprovementHistoryPageState
             ));
   }
 
+  /// 所选日期的概况：账号、记录起点和当天的变化数量。
+  Widget _buildOverview(List<DailyScoreImprovement> dayEntries) {
+    final colors = Theme.of(context).colorScheme;
+    final brightness = Theme.of(context).brightness;
+    final improved = dayEntries
+        .where((entry) => entry.status == ScoreChangeStatus.improvement)
+        .length;
+    return AppCard(
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            _accountLabel.isEmpty ? '当前账号的本地成绩历史' : _accountLabel,
+            style: TextStyle(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w700,
+              color: colors.primary,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            _startedAtMs == 0
+                ? '刷新数据后开始记录；首次无旧成绩时仅建立基线。'
+                : '${_date(DateTime.fromMillisecondsSinceEpoch(_startedAtMs))} 起记录 · 同日同谱面自动合并',
+            style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant),
+          ),
+          if (dayEntries.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: StatTile(
+                    centered: true,
+                    label: '谱面',
+                    value: '${dayEntries.length}',
+                  ),
+                ),
+                Expanded(
+                  child: StatTile(
+                    centered: true,
+                    label: '提升',
+                    value: '$improved',
+                    valueColor: AppColors.successGreen(brightness),
+                  ),
+                ),
+                Expanded(
+                  child: StatTile(
+                    centered: true,
+                    label: '变化次数',
+                    value:
+                        '${dayEntries.fold<int>(0, (n, e) => n + e.changeCount)}',
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDayPills(List<String> days) {
+    return SingleChildScrollView(
+      key: ValueKey(_historyKey),
+      scrollDirection: Axis.horizontal,
+      clipBehavior: Clip.none,
+      child: Row(children: [
+        for (var i = 0; i < days.length; i++) ...[
+          if (i > 0) const SizedBox(width: 6),
+          FilterPill(
+            label: days[i],
+            selected: days[i] == _selectedDay,
+            onTap: () {
+              if (days[i] == _selectedDay) return;
+              FocusManager.instance.primaryFocus?.unfocus();
+              setState(() {
+                _selectedDay = days[i];
+                _limit = 60;
+              });
+            },
+          ),
+        ],
+      ]),
+    );
+  }
+
+  Widget _buildStateMessage(IconData? icon, String title, String? detail,
+      {VoidCallback? onRetry}) {
+    final colors = Theme.of(context).colorScheme;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: 42, color: colors.onSurfaceVariant),
+              const SizedBox(height: 12),
+            ],
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: colors.onSurface,
+              ),
+            ),
+            if (detail != null) ...[
+              const SizedBox(height: 6),
+              Text(
+                detail,
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12.5, color: colors.onSurfaceVariant),
+              ),
+            ],
+            if (onRetry != null) ...[
+              const SizedBox(height: 12),
+              TextButton(onPressed: onRetry, child: const Text('重试')),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
     final days = _entries.map((entry) => entry.day).toSet().toList()
       ..sort((a, b) => b.compareTo(a));
     final query = _search.text.trim().toLowerCase();
-    final filtered = _entries.where((entry) {
-      if (entry.day != _selectedDay) return false;
+    final dayEntries =
+        _entries.where((entry) => entry.day == _selectedDay).toList();
+    final filtered = dayEntries.where((entry) {
       return query.isEmpty ||
           (_searchMatchIds?.contains(entry.after.songId) ?? false) ||
           // 曲库移除或改名后的历史仍可按快照曲名、完整 ID 找到。
           entry.after.title.toLowerCase().contains(query) ||
           entry.after.songId.toString() == query;
     }).toList();
-    final rows = <Object>[];
-    String? previousDay;
-    for (final entry in filtered.take(_limit)) {
-      if (entry.day != previousDay) {
-        rows.add(entry.day);
-        previousDay = entry.day;
-      }
-      rows.add(entry);
-    }
+    final shown = filtered.take(_limit).toList();
     return BackgroundPageScaffold(
       title: '成绩提升历史',
       actions: [
@@ -234,50 +354,20 @@ class _ScoreImprovementHistoryPageState
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 760),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                padding: const EdgeInsets.fromLTRB(AppDesignTokens.gutter, 4,
+                    AppDesignTokens.gutter, AppDesignTokens.cardGap),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(_accountLabel.isEmpty ? '当前账号的本地成绩历史' : _accountLabel,
-                        style: theme.textTheme.labelLarge
-                            ?.copyWith(color: colors.primary)),
-                    const SizedBox(height: 4),
-                    Text(
-                        _startedAtMs == 0
-                            ? '刷新数据后开始记录；首次无旧成绩时仅建立基线。'
-                            : '${_date(DateTime.fromMillisecondsSinceEpoch(_startedAtMs))} 起记录 · 同日同谱面自动合并',
-                        style: theme.textTheme.bodySmall
-                            ?.copyWith(color: colors.onSurfaceVariant)),
+                    _buildOverview(dayEntries),
                     if (days.isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      SingleChildScrollView(
-                        key: ValueKey(_historyKey),
-                        scrollDirection: Axis.horizontal,
-                        child: NoRipple(
-                          child: Row(children: [
-                            for (var i = 0; i < days.length; i++) ...[
-                              if (i > 0) const SizedBox(width: 8),
-                              ChoiceChip(
-                                label: Text(days[i]),
-                                selected: days[i] == _selectedDay,
-                                onSelected: (selected) {
-                                  if (!selected || days[i] == _selectedDay)
-                                    return;
-                                  FocusManager.instance.primaryFocus?.unfocus();
-                                  setState(() {
-                                    _selectedDay = days[i];
-                                    _limit = 60;
-                                  });
-                                },
-                              ),
-                            ],
-                          ]),
-                        ),
-                      ),
+                      const SizedBox(height: 10),
+                      _buildDayPills(days),
                     ],
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 10),
                     _buildSearchEntry(),
                   ],
                 ),
@@ -286,109 +376,67 @@ class _ScoreImprovementHistoryPageState
                 child: _loading || _searchLoading
                     ? const Center(child: CircularProgressIndicator())
                     : _error != null || _searchError != null
-                        ? Center(
-                            child: Padding(
-                                padding: const EdgeInsets.all(24),
-                                child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text((_error ?? _searchError)!,
-                                          textAlign: TextAlign.center),
-                                      const SizedBox(height: 12),
-                                      TextButton(
-                                          onPressed: _error != null
-                                              ? _load
-                                              : () =>
-                                                  _submitSearch(_search.text),
-                                          child: const Text('重试')),
-                                    ])))
+                        ? _buildStateMessage(null, (_error ?? _searchError)!,
+                            null,
+                            onRetry: _error != null
+                                ? _load
+                                : () => _submitSearch(_search.text))
                         : filtered.isEmpty
-                            ? Center(
-                                child: Padding(
-                                    padding: const EdgeInsets.all(24),
-                                    child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(Icons.auto_graph_rounded,
-                                              size: 42,
-                                              color: colors.onSurfaceVariant),
-                                          const SizedBox(height: 12),
-                                          Text(
-                                              _entries.isEmpty
-                                                  ? '还没有成绩提升记录'
-                                                  : '没有符合条件的记录',
-                                              style:
-                                                  theme.textTheme.titleMedium),
-                                          const SizedBox(height: 8),
-                                          Text(
-                                              _entries.isEmpty
-                                                  ? '成功刷新后，发生变化的最佳成绩会出现在这里。'
-                                                  : '试试其他关键词或日期。',
-                                              textAlign: TextAlign.center,
-                                              style: theme.textTheme.bodySmall
-                                                  ?.copyWith(
-                                                      color: colors
-                                                          .onSurfaceVariant)),
-                                        ])))
+                            ? _buildStateMessage(
+                                Icons.auto_graph_rounded,
+                                _entries.isEmpty ? '还没有成绩提升记录' : '没有符合条件的记录',
+                                _entries.isEmpty
+                                    ? '成功刷新后，发生变化的最佳成绩会出现在这里。'
+                                    : '试试其他关键词或日期。')
                             : ListView.builder(
                                 key: ValueKey(_selectedDay),
                                 keyboardDismissBehavior:
                                     ScrollViewKeyboardDismissBehavior.onDrag,
-                                padding: EdgeInsets.fromLTRB(16, 0, 16,
-                                    16 + MediaQuery.paddingOf(context).bottom),
-                                itemCount: rows.length +
+                                padding: EdgeInsets.fromLTRB(
+                                    AppDesignTokens.gutter,
+                                    0,
+                                    AppDesignTokens.gutter,
+                                    AppDesignTokens.gutter +
+                                        MediaQuery.paddingOf(context).bottom),
+                                itemCount: shown.length +
                                     (filtered.length > _limit ? 1 : 0),
                                 itemBuilder: (context, index) {
-                                  if (index == rows.length)
+                                  if (index == shown.length) {
                                     return TextButton(
                                         onPressed: () =>
                                             setState(() => _limit += 60),
                                         child: Text(
                                             '加载当天更多记录（剩余 ${filtered.length - _limit} 张）'));
-                                  final row = rows[index];
-                                  if (row is String) {
-                                    final dayEntries = filtered
-                                        .where((e) => e.day == row)
-                                        .toList();
-                                    return Padding(
-                                      padding: const EdgeInsets.only(
-                                          top: 8, bottom: 12),
-                                      child: Row(children: [
-                                        Expanded(
-                                            child: Text(row,
-                                                style: theme
-                                                    .textTheme.titleMedium
-                                                    ?.copyWith(
-                                                        fontWeight:
-                                                            FontWeight.w700))),
-                                        Text(
-                                            '${dayEntries.length} 张谱面 · ${dayEntries.fold<int>(0, (n, e) => n + e.changeCount)} 次变化',
-                                            style: theme.textTheme.bodySmall
-                                                ?.copyWith(
-                                                    color: colors
-                                                        .onSurfaceVariant)),
-                                      ]),
-                                    );
                                   }
-                                  final entry = row as DailyScoreImprovement;
+                                  final entry = shown[index];
                                   return Padding(
-                                    padding: const EdgeInsets.only(bottom: 16),
-                                    child: ScoreImprovementCard(
-                                        entry: entry,
-                                        onOpen: () {
-                                          FocusManager.instance.primaryFocus
-                                              ?.unfocus();
-                                          Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                  builder: (_) => SongInfoPage(
-                                                      songId: entry.after.songId
-                                                          .toString(),
-                                                      initialLevelIndex: entry
-                                                          .after.levelIndex,
-                                                      isDefaultLevelIndex:
-                                                          false)));
-                                        }),
+                                    padding: const EdgeInsets.only(
+                                        bottom: AppDesignTokens.cardGap),
+                                    child: EntranceAnimation(
+                                      index: index % 8,
+                                      offset: const Offset(0, 8),
+                                      duration:
+                                          const Duration(milliseconds: 300),
+                                      child: ScoreImprovementCard(
+                                          entry: entry,
+                                          onOpen: () {
+                                            FocusManager.instance.primaryFocus
+                                                ?.unfocus();
+                                            Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                    builder: (_) =>
+                                                        SongInfoPage(
+                                                            songId: entry
+                                                                .after.songId
+                                                                .toString(),
+                                                            initialLevelIndex:
+                                                                entry.after
+                                                                    .levelIndex,
+                                                            isDefaultLevelIndex:
+                                                                false)));
+                                          }),
+                                    ),
                                   );
                                 },
                               ),

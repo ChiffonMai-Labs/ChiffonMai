@@ -14,6 +14,10 @@ class SongInfo {
   final int bpm;
   final String releaseDate;
   final String from;
+
+  /// DX 谱的版本。同时有 ST、DX 谱时 [from] 是 ST 谱的版本，DX 谱要看这里；
+  /// 只有一种谱面的歌大多没有这个字段。
+  final String? dxFrom;
   final bool cn;
   final bool jp;
   final bool m2l;
@@ -46,6 +50,7 @@ class SongInfo {
     required this.m2l,
     required this.firstRomVersion,
     required this.dxRomVersion,
+    this.dxFrom,
     required this.sdRomVersion,
     required this.utRomVersion,
     this.dx,
@@ -78,6 +83,7 @@ class SongInfo {
       m2l: json['m2l'] as bool? ?? false,
       firstRomVersion: json['firstRomVersion'] as int? ?? 0,
       dxRomVersion: json['dxRomVersion'] as int? ?? 0,
+      dxFrom: json['dxfrom'] as String?,
       sdRomVersion: json['sdRomVersion'] as int? ?? 0,
       utRomVersion: json['utRomVersion'] as int? ?? 0,
       dx: _parseDifficultyMap(json['dx'] as Map<String, dynamic>?),
@@ -109,6 +115,7 @@ class SongInfo {
       'm2l': m2l,
       'firstRomVersion': firstRomVersion,
       'dxRomVersion': dxRomVersion,
+      'dxfrom': dxFrom,
       'sdRomVersion': sdRomVersion,
       'utRomVersion': utRomVersion,
       'dx': _serializeDifficultyMap(dx),

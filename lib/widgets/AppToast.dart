@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter/scheduler.dart';
@@ -107,6 +109,9 @@ class _AppToastHostState extends State<AppToastHost>
   _ToastData? _shown;
   double _drag = 0;
 
+  /// 正在退场。这时来了新提示要重新进场，否则退场动画会把新提示一起带走。
+  bool _leaving = false;
+
   bool get _reduceMotion => MediaQuery.disableAnimationsOf(context);
 
   @override
@@ -154,7 +159,8 @@ class _AppToastHostState extends State<AppToastHost>
       _shown = next;
       if (wasShown == null) _drag = 0;
     });
-    if (wasShown == null || _motion.value < 0.5) {
+    if (wasShown == null || _motion.value < 0.5 || _leaving) {
+      _leaving = false;
       _enter();
     } else if (wasShown.id == next.id && !_reduceMotion) {
       _pulse.forward(from: 0);
@@ -186,6 +192,7 @@ class _AppToastHostState extends State<AppToastHost>
     _countdown.stop();
     if (_shown == null) return;
     final leaving = _shown;
+    _leaving = true;
     await _motion.animateTo(0,
         duration: AppDesignTokens.motion(
             context, const Duration(milliseconds: 190)),
@@ -194,6 +201,7 @@ class _AppToastHostState extends State<AppToastHost>
     if (!mounted || AppToast._current.value != null || _shown != leaving) {
       return;
     }
+    _leaving = false;
     setState(() => _shown = null);
   }
 
@@ -366,12 +374,6 @@ class _ToastBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final icon = switch (data.tone) {
-      AppToastTone.info => Icons.notifications_none_rounded,
-      AppToastTone.success => Icons.check_rounded,
-      AppToastTone.warning => Icons.priority_high_rounded,
-      AppToastTone.error => Icons.close_rounded,
-    };
     return Padding(
       padding: const EdgeInsets.fromLTRB(10, 10, 12, 12.5),
       child: Row(
@@ -393,7 +395,7 @@ class _ToastBody extends StatelessWidget {
                 borderRadius:
                     BorderRadius.circular(AppDesignTokens.radiusSmall),
               ),
-              child: Icon(icon, size: 20, color: accent),
+              child: _ToastIcon(tone: data.tone, color: accent),
             ),
           ),
           const SizedBox(width: 10),
@@ -453,4 +455,116 @@ class _ToastBody extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 提示图标的进场动画：对号和叉号一笔一笔画出来，感叹号先画竖线再落点，通知铃铛摇一下。
+class _ToastIcon extends StatelessWidget {
+  final AppToastTone tone;
+  final Color color;
+
+  const _ToastIcon({required this.tone, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    final duration = AppDesignTokens.motion(
+        context, const Duration(milliseconds: 560));
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: duration,
+      curve: const Interval(0.12, 1, curve: Curves.easeOutCubic),
+      builder: (context, value, _) {
+        if (tone == AppToastTone.info) {
+          // 幅度随进度衰减，摇两下停住。
+          final angle = math.sin(value * math.pi * 4) * (1 - value) * 0.45;
+          return Transform.rotate(
+            angle: angle,
+            alignment: Alignment.topCenter,
+            child: Icon(Icons.notifications_none_rounded,
+                size: 20, color: color),
+          );
+        }
+        return CustomPaint(
+          size: const Size.square(20),
+          painter: _ToastStrokePainter(
+              tone: tone, color: color, progress: value),
+        );
+      },
+    );
+  }
+}
+
+class _ToastStrokePainter extends CustomPainter {
+  final AppToastTone tone;
+  final Color color;
+  final double progress;
+
+  const _ToastStrokePainter({
+    required this.tone,
+    required this.color,
+    required this.progress,
+  });
+
+  /// 按总长度的进度依次画出 [strokes]，上一笔画完才开始下一笔。
+  void _drawStrokes(Canvas canvas, Paint paint, List<Path> strokes) {
+    final metrics = [
+      for (final stroke in strokes) ...stroke.computeMetrics(),
+    ];
+    final total = metrics.fold<double>(0, (sum, m) => sum + m.length);
+    var remaining = total * progress;
+    for (final metric in metrics) {
+      if (remaining <= 0) break;
+      canvas.drawPath(
+          metric.extractPath(0, math.min(remaining, metric.length)), paint);
+      remaining -= metric.length;
+    }
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final s = size.width / 20;
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.4 * s
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    switch (tone) {
+      case AppToastTone.success:
+        _drawStrokes(canvas, paint, [
+          Path()
+            ..moveTo(4 * s, 10.5 * s)
+            ..lineTo(8.5 * s, 15 * s)
+            ..lineTo(16 * s, 5.5 * s),
+        ]);
+      case AppToastTone.error:
+        _drawStrokes(canvas, paint, [
+          Path()
+            ..moveTo(5 * s, 5 * s)
+            ..lineTo(15 * s, 15 * s),
+          Path()
+            ..moveTo(15 * s, 5 * s)
+            ..lineTo(5 * s, 15 * s),
+        ]);
+      case AppToastTone.warning:
+        final line = (progress / 0.7).clamp(0.0, 1.0);
+        canvas.drawLine(Offset(10 * s, 3.5 * s),
+            Offset(10 * s, (3.5 + 8 * line) * s), paint);
+        final dot = ((progress - 0.7) / 0.3).clamp(0.0, 1.0);
+        if (dot > 0) {
+          canvas.drawCircle(
+            Offset(10 * s, 16 * s),
+            1.5 * s * Curves.easeOutBack.transform(dot),
+            Paint()..color = color,
+          );
+        }
+      case AppToastTone.info:
+        break;
+    }
+  }
+
+  @override
+  bool shouldRepaint(_ToastStrokePainter oldDelegate) =>
+      oldDelegate.progress != progress ||
+      oldDelegate.color != color ||
+      oldDelegate.tone != tone;
 }

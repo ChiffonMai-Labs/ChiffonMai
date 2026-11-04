@@ -337,12 +337,18 @@ class ProgressGroupHeader extends StatelessWidget {
   }
 }
 
-/// 列表模式的一行：曲绘 + 曲名 + 类型 / 定数 + 完成状态。放在同一张白卡片里，
-/// 除第一行外带分隔线（[showDivider]）。
+/// 列表模式的一行：曲绘 + 类型标签和曲名 + 难度标签和定数 + 完成状态。
+/// 放在同一张白卡片里，除第一行外带分隔线（[showDivider]）。
 class ProgressSongRow extends StatelessWidget {
   final String songId;
   final String title;
-  final String subtitle;
+
+  /// 曲库的 `DX` / `SD`，或落雪的 `dx` / `standard`。
+  final String songType;
+  final int levelIndex;
+
+  /// 已格式化的定数，没有时为空串。
+  final String constant;
   final bool completed;
 
   /// 条件外曲目：不计入完成度，状态显示成「不计入条件」。
@@ -354,7 +360,9 @@ class ProgressSongRow extends StatelessWidget {
     super.key,
     required this.songId,
     required this.title,
-    required this.subtitle,
+    required this.songType,
+    required this.levelIndex,
+    required this.constant,
     required this.completed,
     required this.onTap,
     this.excluded = false,
@@ -387,22 +395,42 @@ class ProgressSongRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  MarqueeText(
-                    text: title,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: scheme.onSurface,
-                    ),
+                  Row(
+                    children: [
+                      SongTypeBadge(
+                        songId: songId,
+                        type: songType.toUpperCase() == 'DX' ? 'DX' : 'SD',
+                      ),
+                      const SizedBox(width: 5),
+                      Expanded(
+                        child: MarqueeText(
+                          text: title,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: scheme.onSurface,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: AppTheme.number(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                      color: scheme.onSurfaceVariant,
-                    ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      ChartDifficultyBadge(
+                          levelIndex: levelIndex, songId: songId),
+                      if (constant.isNotEmpty) ...[
+                        const SizedBox(width: 6),
+                        Text(
+                          constant,
+                          style: AppTheme.number(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: scheme.onSurface,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ],
               ),
@@ -506,6 +534,36 @@ class ProgressCoverGrid extends StatelessWidget {
   }
 }
 
+/// 按需构建的列表里，同一组的行各画一段白底，首尾带圆角，连起来就是一张卡片。
+class GroupedRowShell extends StatelessWidget {
+  final bool first;
+  final bool last;
+  final Widget child;
+
+  const GroupedRowShell({
+    super.key,
+    required this.first,
+    required this.last,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const radius = Radius.circular(AppDesignTokens.radiusMedium);
+    return Material(
+      color: AppSurfaces.card(context),
+      clipBehavior: first || last ? Clip.antiAlias : Clip.none,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: first ? radius : Radius.zero,
+          bottom: last ? radius : Radius.zero,
+        ),
+      ),
+      child: child,
+    );
+  }
+}
+
 /// 一个等级 / 定数分组。
 class ProgressSongGroup {
   final String title;
@@ -534,23 +592,6 @@ class ProgressSongSliver extends StatelessWidget {
     required this.coverBuilder,
   });
 
-  /// 同一组的行各画一段白底，首尾带圆角，连起来就是一张卡片。
-  Widget _shell(BuildContext context,
-      {required bool first, required bool last, required Widget child}) {
-    const radius = Radius.circular(AppDesignTokens.radiusMedium);
-    return Material(
-      color: AppSurfaces.card(context),
-      clipBehavior: first || last ? Clip.antiAlias : Clip.none,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: first ? radius : Radius.zero,
-          bottom: last ? radius : Radius.zero,
-        ),
-      ),
-      child: child,
-    );
-  }
-
   Widget _coverRow(BuildContext context, List<Map<String, dynamic>> items,
       {required bool first, required bool last}) {
     const spacing = 6.0;
@@ -562,8 +603,7 @@ class ProgressSongSliver extends StatelessWidget {
           _coversPerRow;
       final top = first ? edge : 0.0;
       final bottom = last ? edge : spacing;
-      return _shell(
-        context,
+      return GroupedRowShell(
         first: first,
         last: last,
         // 行高取整，相邻两段白底之间不会露出一条细缝。
@@ -600,8 +640,7 @@ class ProgressSongSliver extends StatelessWidget {
       final items = group.items;
       if (showListMode) {
         for (var i = 0; i < items.length; i++) {
-          entries.add((context) => _shell(
-                context,
+          entries.add((context) => GroupedRowShell(
                 first: i == 0,
                 last: i == items.length - 1,
                 child: rowBuilder(items[i], i > 0),

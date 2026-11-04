@@ -7,7 +7,7 @@ part of '../SongInfoPage.dart';
 ///    类型 / 编号 / DX·ST 切换、别名、难度切换；
 /// 2. [_buildBestScoreCard]：玩家最佳成绩（达成率 + 评级 + 连击同步 + 四项数值）；
 /// 3. [_buildKeyStatsRow]：定数 / 拟合（含差值）/ 平均达成 / 时长；
-/// 4. [_buildChartInfo]：物量分布与绝赞、基础信息、定数历史、谱面标签；
+/// 4. [_buildChartInfo]：基础信息、物量分布与绝赞、定数历史、谱面标签；
 /// 5. [_buildDetailTabBar] + [_buildDetailTabContent]：成绩历史 / 数据 / 社区 / 工具；
 /// 6. [_buildSongActionBar]：贴底操作栏（原两列十个按钮，常用三个 + 更多 + 主按钮）。
 ///
@@ -262,13 +262,19 @@ extension _SongInfoLayout on _SongInfoPageState {
             Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                _buildHeroCover(basicInfo, accentColor),
+                FadeSwitcher(
+                  value: 'cover-${widget.songId}',
+                  child: _buildHeroCover(basicInfo, accentColor),
+                ),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildHeroTitle(title),
+                      FadeSwitcher(
+                        value: 'title-${widget.songId}',
+                        child: _buildHeroTitle(title),
+                      ),
                       if (artist.isNotEmpty) ...[
                         const SizedBox(height: 4),
                         GestureDetector(
@@ -283,7 +289,10 @@ extension _SongInfoLayout on _SongInfoPageState {
                         ),
                       ],
                       const SizedBox(height: 6),
-                      _buildHeroTypeRow(),
+                      FadeSwitcher(
+                        value: 'type-${widget.songId}',
+                        child: _buildHeroTypeRow(),
+                      ),
                       const SizedBox(height: 6),
                       _buildAliasSection(title),
                     ],
@@ -352,10 +361,8 @@ extension _SongInfoLayout on _SongInfoPageState {
   }
 
   /// 歌名：放得下就静态显示，放不下才横向滚动；点按查看完整标题。
-  /// [_songTitleKey] 用于判断标题是否滚出屏幕（滚出后标题栏显示歌名）。
   Widget _buildHeroTitle(String title) {
     return GestureDetector(
-      key: _songTitleKey,
       onTap: () => showDialog<void>(
         context: context,
         builder: (_) => SongTitleDialog(title: title),
@@ -448,16 +455,23 @@ extension _SongInfoLayout on _SongInfoPageState {
             shape: const StadiumBorder(),
             clipBehavior: Clip.antiAlias,
             child: InkWell(
-              onTap: () => widget.onSwitchSong(
-                  _alternativeSongId!, _currentDiffIndex),
+              onTap: () =>
+                  _switchSong(_alternativeSongId!, _currentDiffIndex),
               child: Padding(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.swap_horiz_rounded,
-                        size: 14, color: Colors.white),
+                    _songSwitching
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 1.8, color: Colors.white),
+                          )
+                        : const Icon(Icons.swap_horiz_rounded,
+                            size: 14, color: Colors.white),
                     const SizedBox(width: 4),
                     Text(
                       type == 'SD' ? '切换 DX' : '切换 ST',
@@ -756,7 +770,7 @@ extension _SongInfoLayout on _SongInfoPageState {
             spacing: 6,
             runSpacing: 6,
             children: [
-              RankBadge(rank: rank),
+              RankBadge(rank: rank, uniformWidth: true),
               if (fc.isNotEmpty) _buildBadge(fc),
               if (fs.isNotEmpty) _buildBadge(fs),
             ],
@@ -828,7 +842,8 @@ extension _SongInfoLayout on _SongInfoPageState {
     final text = _best50OpportunityText!;
     final gain = _best50OpportunityGain;
     final positive = gain != null && gain > 0;
-    return Container(
+    final tiers = _best50OpportunityTiers;
+    final banner = Container(
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
       decoration: BoxDecoration(
         color: AppSurfaces.inset(context),
@@ -878,7 +893,30 @@ extension _SongInfoLayout on _SongInfoPageState {
               ),
             ),
           ],
+          if (tiers.isNotEmpty) ...[
+            const SizedBox(width: 4),
+            Icon(
+              Icons.chevron_right_rounded,
+              size: 20,
+              color: scheme.onSurfaceVariant,
+            ),
+          ],
         ],
+      ),
+    );
+    if (tiers.isEmpty) return banner;
+    return PressScale(
+      child: Semantics(
+        button: true,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => showBest50OpportunityDialog(
+            context,
+            note: _best50OpportunityNote,
+            tiers: tiers,
+          ),
+          child: banner,
+        ),
       ),
     );
   }
@@ -1051,6 +1089,44 @@ extension _SongInfoLayout on _SongInfoPageState {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            const AppSectionHeader(
+              title: '基础信息',
+              padding: EdgeInsets.only(bottom: 12),
+            ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildStatItem('类别', basicInfo['genre']),
+                _buildVersionStat(basicInfo),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildBpmStat(basicInfo),
+                _buildReleaseDateStat(basicInfo),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildStatItem(
+                    '谱师', currentChart['charter']?.toString() ?? '-'),
+                _buildBiliPlayCountStat(),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(children: [_buildPlayableRegionStat(context)]),
+          ],
+        ),
+      ),
+      const SizedBox(height: 12),
+      AppCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
             AppSectionHeader(
               title: '物量分布',
               padding: const EdgeInsets.only(bottom: 10),
@@ -1094,48 +1170,6 @@ extension _SongInfoLayout on _SongInfoPageState {
               breakCounts,
               AppColors.breakDistribution,
             ),
-          ],
-        ),
-      ),
-      const SizedBox(height: 12),
-      AppCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const AppSectionHeader(
-              title: '基础信息',
-              padding: EdgeInsets.only(bottom: 12),
-            ),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildStatItem('类别', basicInfo['genre']),
-                _buildStatItem(
-                    '版本',
-                    StringUtil.formatVersion2WithFlag(
-                        basicInfo['from'], _usesExtraVersionName)),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildStatItem('BPM', _displayBpmWithBase(basicInfo)),
-                _buildStatItem('首次上线',
-                    _formatReleaseDate(basicInfo['release_date'] ?? '')),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildStatItem(
-                    '谱师', currentChart['charter']?.toString() ?? '-'),
-                _buildBiliPlayCountStat(),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(children: [_buildPlayableRegionStat(context)]),
           ],
         ),
       ),
@@ -1359,7 +1393,7 @@ extension _SongInfoLayout on _SongInfoPageState {
                       TextSpan(
                         text: 'https://dxrating.net/',
                         style: TextStyle(
-                          color: AppColors.linkBlue(brightness),
+                          color: Theme.of(context).colorScheme.primary,
                           decoration: TextDecoration.underline,
                         ),
                         recognizer: TapGestureRecognizer()

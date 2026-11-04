@@ -104,6 +104,130 @@ extension _SongInfoWidgets on _SongInfoPageState {
     );
   }
 
+  /// 版本：国服曲目同时显示国服和日服版本；日服版本来自 union 全量歌曲。
+  Widget _buildVersionStat(dynamic basicInfo) {
+    final cnVersion = StringUtil.formatVersion2WithFlag(
+        basicInfo['from'], _usesExtraVersionName);
+    final jpFrom = _songData?['type'] == 'DX' ? _unionDxFrom : _unionFrom;
+    if (_isExtraSong || jpFrom == null || jpFrom.isEmpty) {
+      return _buildStatItem('版本', cnVersion, scrollable: false);
+    }
+    // 年号是国服的叫法，日服版本用世代名。
+    final jpVersion = StringUtil.formatVersion2WithFlag(jpFrom, true);
+    return _buildRegionStat('版本', [('国服', cnVersion), ('日服', jpVersion)]);
+  }
+
+  /// 首次上线：国服来自落雪，日服来自 union；没上国服的歌只有日服一行。
+  Widget _buildReleaseDateStat(dynamic basicInfo) {
+    final cnDate = _cnReleaseDate;
+    final jpDate = _formatReleaseDate(basicInfo['release_date'] ?? '');
+    final cnTime = cnDate == null ? null : DateTime.tryParse(cnDate);
+    final jpTime = DateTime.tryParse(jpDate);
+    final gap = cnTime == null || jpTime == null
+        ? ''
+        : '(相差${cnTime.difference(jpTime).inDays.abs()}天)';
+    return _buildRegionStat('首次上线$gap', [
+      if (cnDate != null) ('国服', cnDate),
+      ('日服', jpDate),
+    ]);
+  }
+
+  /// BPM：谱面 BPM 和基准固定分两行。
+  Widget _buildBpmStat(dynamic basicInfo) {
+    return _buildRegionStat('BPM', [
+      ('谱面', _displayBpm(basicInfo)),
+      ('基准', _defaultBpm(basicInfo)),
+    ]);
+  }
+
+  /// 分行显示的统计项：每行一个小标签（国服 / 日服、谱面 / 基准）加内容。
+  Widget _buildRegionStat(String label, List<(String, String)> rows) {
+    final scheme = Theme.of(context).colorScheme;
+    // 内容不滚动也不换行，放不下时缩小字号。小标签和文字都按中线摆放：
+    // 标签在固定行高里居中，文字的字形中线（基线上方约 0.36 个字号，实测）落在同一高度，
+    // 不依赖字体的行高；按基线对齐时标签底块会偏下。
+    const valueSize = 15.0;
+    final scaledSize = MediaQuery.textScalerOf(context).scale(valueSize);
+    final lineHeight = scaledSize * 1.3;
+    Widget line(String region, String value) => Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              height: lineHeight,
+              child: Center(
+                child: AppBadge(
+                  text: region,
+                  numeric: false,
+                  fontSize: 10,
+                  centered: true,
+                  background: AppSurfaces.inset(context),
+                  foreground: scheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final style = AppTheme.number(
+                    fontSize: valueSize,
+                    height: 1.3,
+                    fontWeight: FontWeight.w700,
+                    color: scheme.onSurface,
+                  );
+                  final painter = TextPainter(
+                    text: TextSpan(
+                      text: value,
+                      style: DefaultTextStyle.of(context).style.merge(style),
+                    ),
+                    maxLines: 1,
+                    textDirection: Directionality.of(context),
+                    textScaler: MediaQuery.textScalerOf(context),
+                  )..layout();
+                  final width = painter.width;
+                  painter.dispose();
+                  final fit = width > constraints.maxWidth
+                      ? constraints.maxWidth / width
+                      : 1.0;
+                  return Baseline(
+                    baseline: lineHeight / 2 + scaledSize * fit * 0.36,
+                    baselineType: TextBaseline.alphabetic,
+                    child: Text(
+                      value,
+                      maxLines: 1,
+                      softWrap: false,
+                      style: style.copyWith(fontSize: valueSize * fit),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        );
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.only(right: 12),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => _showStatDialog(
+              label, rows.map((row) => '${row.$1}：${row.$2}').join('\n')),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label,
+                  style:
+                      TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
+              for (final row in rows) ...[
+                const SizedBox(height: 4),
+                line(row.$1, row.$2),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   // 构建统计项
   // 可游玩地区：使用 dxdata 的 serverIds（cn/jp/intl/usa），命中则点亮
   Widget _buildPlayableRegionStat(BuildContext context) {
@@ -204,7 +328,8 @@ extension _SongInfoWidgets on _SongInfoPageState {
     );
   }
 
-  Widget _buildStatItem(String label, String value, {Color? valueColor}) {
+  Widget _buildStatItem(String label, String value,
+      {Color? valueColor, bool scrollable = true}) {
     // 2026-11：数值放在白卡片上，统一用正文色；标签用次要文字色。
     // （难度色只留给头图和难度切换，避免浅色难度色在白底上看不清）
     final scheme = Theme.of(context).colorScheme;
@@ -231,7 +356,14 @@ extension _SongInfoWidgets on _SongInfoPageState {
                 ),
               ),
               const SizedBox(height: 4),
-              // 放不下时横向滚动
+              // 放不下时横向滚动；不能滚动的内容缩小字号，保持一行显示完整
+              if (!scrollable)
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(value, style: textStyle, maxLines: 1),
+                )
+              else
               LayoutBuilder(
                 builder: (context, constraints) {
                   final painter = TextPainter(
@@ -458,4 +590,61 @@ extension _SongInfoWidgets on _SongInfoPageState {
       ),
     );
   }
+}
+
+/// 抽屉后面的头图：滚动时固定在原位，只露出抽屉顶边以上的部分。
+///
+/// 抽屉本身不铺底色，用户的自定义背景图从抽屉里透出来；
+/// 头图裁掉的那一块才是抽屉，顶边的圆角也是裁出来的。
+class _SongDrawerHero extends StatelessWidget {
+  final ScrollController controller;
+  final Widget child;
+
+  const _SongDrawerHero({required this.controller, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, child) => Transform.translate(
+        offset: Offset(
+            0, controller.hasClients ? controller.offset.clamp(0.0, 1e6) : 0),
+        child: child,
+      ),
+      child: ClipPath(
+        clipper: _SongDrawerHeroClipper(controller),
+        child: child,
+      ),
+    );
+  }
+}
+
+class _SongDrawerHeroClipper extends CustomClipper<Path> {
+  final ScrollController controller;
+
+  _SongDrawerHeroClipper(this.controller) : super(reclip: controller);
+
+  @override
+  Path getClip(Size size) {
+    final offset = controller.hasClients ? controller.offset.clamp(0.0, 1e6) : 0.0;
+    final top = size.height - _songDrawerOverlap - offset;
+    const radius = AppDesignTokens.radiusLarge + 4;
+    // 抽屉顶边已经滑过头图顶端，头图完全不用露出来。
+    if (top + radius <= 0) return Path();
+    return Path.combine(
+      PathOperation.difference,
+      Path()..addRect(Offset.zero & size),
+      Path()
+        // 下边固定在头图之外：抽屉滑得再远，这块也要盖住头图下半部分。
+        ..addRRect(RRect.fromRectAndCorners(
+          Rect.fromLTRB(0, top, size.width, size.height + _songDrawerOverlap),
+          topLeft: const Radius.circular(radius),
+          topRight: const Radius.circular(radius),
+        )),
+    );
+  }
+
+  @override
+  bool shouldReclip(_SongDrawerHeroClipper oldClipper) =>
+      oldClipper.controller != controller;
 }

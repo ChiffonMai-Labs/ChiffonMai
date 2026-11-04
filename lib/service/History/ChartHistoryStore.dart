@@ -9,6 +9,7 @@ import '../AccountStore.dart';
 import '../../utils/CurrentDataSourceNotifier.dart';
 import 'ChartHistoryCore.dart';
 import 'ScoreImprovementCore.dart';
+import '../../utils/JsonIsolate.dart';
 
 /// 成绩历史（Rating / 单谱达成率 / DX）持久化。
 ///
@@ -640,7 +641,8 @@ class ChartHistoryStore {
         return empty;
       }
       final text = await file.readAsString();
-      final doc = _HistoryDoc.fromJson(json.decode(text), source);
+      final doc =
+          _HistoryDoc.fromJson(await decodeJsonInBackground(text), source);
       _cache[source] = doc;
       return doc;
     } catch (e) {

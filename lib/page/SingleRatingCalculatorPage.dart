@@ -140,7 +140,7 @@ class _SingleRatingCalculatorState extends State<SingleRatingCalculator> {
     final bottomInset = MediaQuery.paddingOf(context).bottom;
 
     return BackgroundPageScaffold(
-      title: '单曲Rating计算',
+      title: '单曲 Rating 计算',
       resizeToAvoidBottomInset: true,
       child: GestureDetector(
         behavior: HitTestBehavior.translucent,

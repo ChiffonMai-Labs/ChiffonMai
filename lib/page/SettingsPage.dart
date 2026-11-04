@@ -24,6 +24,7 @@ import '../utils/AppDesignTokens.dart';
 import '../widgets/AppUi.dart';
 import '../widgets/AppDialogs.dart';
 import '../widgets/AppToast.dart';
+import '../widgets/AppSwitch.dart';
 
 /// 设置页（独立页面，从首页主题弹窗"更多设置"进入）
 ///
@@ -222,6 +223,16 @@ class _SettingsPageState extends State<SettingsPage> {
                 ? '首页功能和歌曲搜索使用展开搜索界面（当前默认）'
                 : '直接在原搜索框输入，歌曲搜索历史显示在搜索框下方',
             style: _hintStyle(),
+          ),
+          const SizedBox(height: 8),
+          AppSwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            value: preferences.showMatchInfo,
+            onChanged: preferences.loaded ? preferences.setShowMatchInfo : null,
+            secondary: Icon(Icons.manage_search_rounded,
+                color: Theme.of(context).colorScheme.primary),
+            title: const Text('显示匹配字段'),
+            subtitle: const Text('在歌曲搜索结果里显示命中的定数、BPM、标签等信息'),
           ),
         ],
       ),
@@ -889,7 +900,7 @@ class _AwmcProbeTimeoutDialogState extends State<_AwmcProbeTimeoutDialog> {
                   '允许 ${AwmcGatewaySettings.minProbeTimeoutSeconds}–'
                   '${AwmcGatewaySettings.maxProbeTimeoutSeconds} 秒',
               errorText: _error,
-            ),
+            ).insetLabel(context),
             onSubmitted: (_) => _submit(),
           ),
         ],

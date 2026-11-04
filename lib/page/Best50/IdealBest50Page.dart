@@ -17,7 +17,7 @@ import '../../widgets/AppUi.dart';
 import '../../utils/AppDesignTokens.dart';
 import '../../widgets/Best50Ui.dart';
 import '../../widgets/AppDialogs.dart';
-import '../../widgets/ExportSuccessDialog.dart';
+import 'package:my_first_flutter_app/service/BackgroundExportService.dart';
 
 /// 理想 Best50：把全部游玩记录里非 SSS+ 的成绩升一档（100.4 → 100.5），
 /// 重算 RA 后重新取 B35 + B15，并列出相对原榜的新进榜歌曲。
@@ -146,7 +146,7 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
       estimatedPngSize: ImageEncodeUtil.estimatePngSize(
         songCount: _sdSongs.length + _dxSongs.length,
       ),
-      exportingLabel: '拟合 Best50',
+      exportingLabel: '理想 Best50',
       enableThunderMode: true,
       previewBuilder: (previewContext, previewQuality) =>
           B50ConvertToImg.buildPreviewWidget(
@@ -161,43 +161,30 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
         _maimaiMusicData,
         thunderMode: previewQuality.thunderMode,
         thunderVertical: previewQuality.thunderVertical,
+        theme: previewQuality.theme,
       ),
     );
     if (!mounted || quality == null) return;
 
-    showAppProgressDialog(context, title: '导出中', message: '正在生成图片...');
-
-    try {
-      final b50Data = {
-        'rating': _data!['rating'],
-        'additional_rating': 0,
-        'charts': {'sd': _sdSongs, 'dx': _dxSongs},
-      };
-      final file = await B50ConvertToImg.convertToImage(
-        context,
-        b50Data,
-        _sdSongs,
-        _dxSongs,
-        _maimaiMusicData,
-        jpegQuality: quality.jpegQuality,
-        thunderMode: quality.thunderMode,
-        thunderVertical: quality.thunderVertical,
-      );
-
-      if (!mounted) return;
-      Navigator.pop(context);
-
-      if (file != null) {
-        showExportSuccessDialog(context, filePath: file.path, fileName: file.path.split('/').last);
-      } else {
-        _showMessage('导出失败', '图片导出失败，请重试');
-      }
-    } catch (e) {
-      if (mounted) {
-        Navigator.pop(context);
-        _showMessage('导出失败', '导出过程中出现错误：\n$e');
-      }
-    }
+    final b50Data = {
+      'rating': _data!['rating'],
+      'additional_rating': 0,
+      'charts': {'sd': _sdSongs, 'dx': _dxSongs},
+    };
+    BackgroundExport.run(
+      label: '理想 Best50',
+      task: (exportContext) => B50ConvertToImg.convertToImage(
+        exportContext,
+      b50Data,
+      _sdSongs,
+      _dxSongs,
+      _maimaiMusicData,
+      jpegQuality: quality.jpegQuality,
+      theme: quality.theme,
+      thunderMode: quality.thunderMode,
+      thunderVertical: quality.thunderVertical,
+    ),
+    );
   }
 
   // ───────────────────────── 构建 ─────────────────────────
