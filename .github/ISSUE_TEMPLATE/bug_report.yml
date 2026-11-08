@@ -1,0 +1,107 @@
+name: "🐞 问题反馈"
+description: "反馈 ChiffonMai 的异常、卡顿、卡死、闪退或其他使用问题。"
+title: "[问题反馈] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢你帮助改进 ChiffonMai！不确定的信息填写“不清楚”即可，暂时无法复现也可以反馈。
+        这里的内容会公开展示。提交前请遮挡不想公开的个人信息，勿附上密码、Token、授权码或机台登录二维码原文。
+  - type: input
+    id: app_version
+    attributes:
+      label: App 版本
+      description: 请填写版本号及构建号，可在“关于”页面查看。
+      placeholder: 版本号 / 构建号；无法查看时填写“不清楚”
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: 使用平台
+      options:
+        - Android
+        - iOS
+        - Windows
+        - 其他或不清楚
+    validations:
+      required: true
+  - type: input
+    id: device_system
+    attributes:
+      label: 设备与系统
+      description: 请填写设备型号及系统版本。
+      placeholder: 例如：设备型号，Android 版本；不确定时填写“不清楚”
+    validations:
+      required: true
+  - type: input
+    id: occurred_at
+    attributes:
+      label: 发生时间（选填）
+      description: 尽量提供具体日期、时间及所在时区，便于排查日志。
+    validations:
+      required: false
+  - type: input
+    id: location
+    attributes:
+      label: 出现位置
+      description: 从哪个入口进入？在哪个页面或功能中出现？
+      placeholder: 例如：歌曲详情 → 社区 → 谱面评分
+    validations:
+      required: true
+  - type: textarea
+    id: actual_behavior
+    attributes:
+      label: 问题描述
+      description: 实际发生了什么？有没有报错？请尽量保留报错原文。
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 请按操作顺序描述；暂时无法复现时填写“暂不确定”，并描述发生前做过的操作。
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    id: expected_behavior
+    attributes:
+      label: 预期表现
+      description: 正常情况下，你认为应该出现什么结果？
+    validations:
+      required: true
+  - type: dropdown
+    id: frequency
+    attributes:
+      label: 出现频率
+      options:
+        - 每次出现
+        - 经常出现
+        - 偶尔出现
+        - 只出现过一次
+        - 不清楚
+    validations:
+      required: true
+  - type: textarea
+    id: attachments
+    attributes:
+      label: 截图、录屏或日志（选填）
+      description: |
+        有报错弹窗时，请尽量提供完整截图；卡顿、卡死或闪退时，可附上 App 导出的日志。
+        文件可以直接拖入输入框或通过附件上传。请先检查附件中是否包含不想公开的信息。
+    validations:
+      required: false
+  - type: textarea
+    id: additional_context
+    attributes:
+      label: 补充信息（选填）
+      description: |
+        例如：是否刚冷启动、是否切换过账号或语言、使用的网络。
+        涉及成绩同步时，请补充目标平台、普通/快速同步及所选线路。
+    validations:
+      required: false

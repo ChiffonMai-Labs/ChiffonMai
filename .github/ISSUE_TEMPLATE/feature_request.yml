@@ -1,0 +1,61 @@
+name: "💡 新增功能提议"
+description: "分享你希望 ChiffonMai 新增或改进的功能。"
+title: "[功能提议] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢你为 ChiffonMai 提出建议！请描述实际使用场景，不确定的信息填写“不清楚”即可，选填项可以留空。
+        这里的内容会公开展示，请勿填写密码、Token、授权码或机台登录二维码原文。
+  - type: input
+    id: feature_name
+    attributes:
+      label: 功能名称
+      description: 用一句话概括想新增或改进的功能。
+      placeholder: 例如：为收藏夹增加自定义排序
+    validations:
+      required: true
+  - type: textarea
+    id: use_case
+    attributes:
+      label: 使用场景
+      description: 你在什么情况下需要它？目前遇到了什么不便？
+    validations:
+      required: true
+  - type: textarea
+    id: expected_feature
+    attributes:
+      label: 期望的功能
+      description: 希望它能够完成什么？可以举一个具体例子。
+    validations:
+      required: true
+  - type: textarea
+    id: proposed_entry
+    attributes:
+      label: 建议的入口或操作方式（选填）
+      description: 希望放在哪个页面？大概怎样使用？
+    validations:
+      required: false
+  - type: textarea
+    id: workaround
+    attributes:
+      label: 目前的替代办法（选填）
+      description: 现在是如何完成这件事的？
+    validations:
+      required: false
+  - type: textarea
+    id: reference_projects
+    attributes:
+      label: 可供参考的项目地址（选填）
+      description: 如果有实现相似功能的项目，请提供 GitHub、Gitee 仓库或项目官网链接；多个地址可分行填写。
+      placeholder: 项目地址，以及希望参考的具体功能
+    validations:
+      required: false
+  - type: textarea
+    id: references
+    attributes:
+      label: 参考资料（选填）
+      description: 可附上其他应用的类似功能、截图、草图或链接；图片可以直接拖入输入框。
+    validations:
+      required: false
