@@ -203,9 +203,12 @@ iOS 版本可在 [GitHub Releases](https://github.com/ChiffonMai-Labs/ChiffonMai
 
 - **Pokcet**：感谢对本项目的捐献支持。
 - **ListaQwQ**：感谢对本项目的捐献支持。
-- **迪拉熊重度依赖**：感谢对本项目的捐献支持。
+- **迪拉熊重度依赖**：感谢对本项目的捐献支持。[GitHub](https://github.com/Timome-Sudo)
 - **白嫖万岁**：感谢对本项目的捐献支持。
 - **鱼好呆**：感谢对本项目的捐献支持。
+- **Rinviolet**：感谢对本项目的捐献支持。[bilibili](https://b23.tv/hIpEBUO)
+- **Redapple_one**：感谢对本项目的捐献支持。[个人主页](https://me.redapple.one)
+- **苏洛依**：感谢对本项目的捐献支持。
 
 ## 开源和参与
 
