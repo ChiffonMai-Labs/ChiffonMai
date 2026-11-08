@@ -53,9 +53,16 @@ extension _SongInfoLoaders on _SongInfoPageState {
 
   void _animateSongDrawer(double offset) {
     if (!_songScrollController.hasClients) return;
+    final duration =
+        AppDesignTokens.motion(context, AppDesignTokens.mediumMotion);
+    // 系统关闭动画时时长为零，而滚动动画不接受零时长，只能直接跳转。
+    if (duration == Duration.zero) {
+      _songScrollController.jumpTo(offset);
+      return;
+    }
     _songScrollController.animateTo(
       offset,
-      duration: AppDesignTokens.motion(context, AppDesignTokens.mediumMotion),
+      duration: duration,
       curve: AppDesignTokens.emphasizedCurve,
     );
   }

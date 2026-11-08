@@ -152,11 +152,14 @@ class _MarqueeTextState extends State<MarqueeText>
                   // ⚠️ 必须 OverflowBox 放开宽度：Row 的两份文本加起来比视口宽得多，
                   // 不放开就会被压缩/省略号截断，跑马灯就没内容可滚。
                   // 它自己的尺寸仍是外层给的（220 × 16.2），照旧被 ClipRect 裁掉溢出。
+                  // 父级给固定高度时静态 Text 贴顶绘制，这里也必须贴顶，
+                  // 否则滚动时文字会被垂直居中，比静态时偏下。
                   child: OverflowBox(
-                    alignment: Alignment.centerLeft,
+                    alignment: Alignment.topLeft,
                     maxWidth: double.infinity,
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         copy,
                         // 两轮之间的空隙：由 SizedBox 给，所以**不依赖量出来的宽度**，

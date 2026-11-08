@@ -171,11 +171,16 @@ class _OnboardingPageState extends State<OnboardingPage> {
       _changingPage = true;
       _lastBack = null;
     });
+    final duration =
+        AppDesignTokens.motion(context, const Duration(milliseconds: 380));
     try {
-      await _pageController.animateToPage(page,
-          duration: AppDesignTokens.motion(
-              context, const Duration(milliseconds: 380)),
-          curve: AppDesignTokens.emphasizedCurve);
+      // 系统关闭动画时时长为零，而滚动动画不接受零时长，页面根本不会移动，只能直接跳转。
+      if (duration == Duration.zero) {
+        _pageController.jumpToPage(page);
+      } else {
+        await _pageController.animateToPage(page,
+            duration: duration, curve: AppDesignTokens.emphasizedCurve);
+      }
     } finally {
       if (mounted) setState(() => _changingPage = false);
     }
