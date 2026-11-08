@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import '../service/LoadingTipsStore.dart';
 import '../utils/AppDesignTokens.dart';
@@ -46,7 +47,7 @@ class _LoadingTipsPageState extends State<LoadingTipsPage> {
     final text = await showDialog<String>(
       context: context,
       builder: (_) => _LoadingTipInputDialog(
-        title: cloud ? '上传语录到云端' : '本地新增语录',
+        title: cloud ? context.l10n.flowSubmitALoadingQuote : context.l10n.flowAddALocalQuote,
       ),
     );
     final value = text?.trim() ?? '';
@@ -54,11 +55,11 @@ class _LoadingTipsPageState extends State<LoadingTipsPage> {
     if (cloud) {
       final id = await _store.submitCloudTip(value);
       if (mounted)
-        AppToast.show(id == null ? '上传失败，请稍后重试' : '已提交审核（$id），审核通过后才会展示');
+        AppToast.show(id == null ? context.l10n.flowUploadFailedTryAgainLater : context.l10n.flowSubmittedForReviewP0ShownOnlyAfter((id).toString()), tone: AppToastTone.error);
     } else {
       await _store.addLocalTip(value);
       if (mounted) {
-        AppToast.show('本地语录添加成功');
+        AppToast.show(context.l10n.flowLocalQuoteAdded, tone: AppToastTone.success);
       }
     }
   }
@@ -69,7 +70,7 @@ class _LoadingTipsPageState extends State<LoadingTipsPage> {
     if (mounted) {
       setState(() => _busy = false);
       if (!ok) {
-        AppToast.show('获取加载语录失败，已保留本地缓存');
+        AppToast.show(context.l10n.flowCouldNotFetchLoadingQuotesKeptThe, tone: AppToastTone.error);
       }
     }
   }
@@ -82,12 +83,12 @@ class _LoadingTipsPageState extends State<LoadingTipsPage> {
     final current = _tab == 0 ? localTips : tips;
     final total = _store.totalCount;
     return BackgroundPageScaffold(
-      title: '加载语录管理',
+      title: context.l10n.featureLoadingQuotes,
       actions: [
         IconButton(
             onPressed: _busy ? null : _refresh,
             icon: const Icon(Icons.refresh),
-            tooltip: '刷新语录'),
+            tooltip: context.l10n.flowRefreshQuotes),
       ],
       contentPadding:
           EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
@@ -120,17 +121,17 @@ class _LoadingTipsPageState extends State<LoadingTipsPage> {
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              '/ $total 条已启用',
+                              context.l10n.flowP0QuotesEnabled((total).toString()),
                               style: TextStyle(
                                   fontSize: 13, color: scheme.onSurfaceVariant),
                             ),
                             const Spacer(),
                             TextButton(
                                 onPressed: () => _store.setAllEnabled(true),
-                                child: const Text('全选')),
+                                child:  Text(context.l10n.flowSelectAll)),
                             TextButton(
                                 onPressed: () => _store.setAllEnabled(false),
-                                child: const Text('全不选')),
+                                child:  Text(context.l10n.flowDeselectAll)),
                           ],
                         ),
                         Padding(
@@ -150,8 +151,8 @@ class _LoadingTipsPageState extends State<LoadingTipsPage> {
                 ],
                 SegmentedTabs(
                   items: [
-                    SegmentedTabItem('本地语录 ${localTips.length}'),
-                    SegmentedTabItem('云端语录 ${tips.length}'),
+                    SegmentedTabItem(context.l10n.flowLocalQuotesP0((localTips.length).toString())),
+                    SegmentedTabItem(context.l10n.flowCloudQuotesP0((tips.length).toString())),
                   ],
                   selectedIndex: _tab,
                   onChanged: (index) => setState(() => _tab = index),
@@ -186,7 +187,7 @@ class _LoadingTipsPageState extends State<LoadingTipsPage> {
                 child: OutlinedButton.icon(
                   onPressed: () => _addTip(cloud: false),
                   icon: const Icon(Icons.add, size: 18),
-                  label: const Text('本地新增'),
+                  label:  Text(context.l10n.flowAddLocally),
                 ),
               ),
               const SizedBox(width: 10),
@@ -194,7 +195,7 @@ class _LoadingTipsPageState extends State<LoadingTipsPage> {
                 child: FilledButton.icon(
                   onPressed: () => _addTip(cloud: true),
                   icon: const Icon(Icons.cloud_upload_outlined, size: 18),
-                  label: const Text('上传到云端'),
+                  label:  Text(context.l10n.flowUploadToCloud),
                 ),
               ),
             ],
@@ -228,7 +229,7 @@ class _LoadingTipsPageState extends State<LoadingTipsPage> {
             ),
             if (tip.id.startsWith('local_'))
               IconButton(
-                tooltip: '删除本地语录',
+                tooltip: context.l10n.flowDeleteLocalQuote,
                 visualDensity: VisualDensity.compact,
                 icon: Icon(Icons.delete_outline,
                     size: 20, color: scheme.onSurfaceVariant),
@@ -280,29 +281,29 @@ class _LoadingTipInputDialogState extends State<_LoadingTipInputDialog> {
           autofocus: true,
           maxLines: 3,
           onChanged: (value) {
-            final error = value.trim().isEmpty ? '语录内容不能为空' : null;
+            final error = value.trim().isEmpty ? context.l10n.flowQuoteCannotBeEmpty : null;
             if (error != _error) setState(() => _error = error);
           },
           decoration: InputDecoration(
-            hintText: '输入加载语录',
+            hintText: context.l10n.flowEnterALoadingQuote,
             errorText: _error,
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('取消'),
+            child:  Text(context.l10n.featureCancel),
           ),
           FilledButton(
             onPressed: () {
               final value = _controller.text.trim();
               if (value.isEmpty) {
-                setState(() => _error = '语录内容不能为空');
+                setState(() => _error = context.l10n.flowQuoteCannotBeEmpty);
                 return;
               }
               Navigator.of(context).pop(value);
             },
-            child: const Text('保存'),
+            child:  Text(context.l10n.save),
           ),
         ],
       );

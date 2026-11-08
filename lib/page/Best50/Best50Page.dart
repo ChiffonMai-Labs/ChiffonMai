@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/FeatureLocalizations.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert';
@@ -293,7 +295,8 @@ class _B50PageState extends State<B50Page> {
 
     try {
       // 使用 where() 和 firstWhereOrNull 替代 orElse 返回 null
-      var song = _maimaiMusicData![MusicDataIndex.indexOf(_maimaiMusicData!, songId)];
+      var song =
+          _maimaiMusicData![MusicDataIndex.indexOf(_maimaiMusicData!, songId)];
 
       if (song['basic_info'] != null) {
         return song['basic_info']['is_new'] == true;
@@ -470,7 +473,7 @@ class _B50PageState extends State<B50Page> {
     // 构建标签ID → 分组名称 的映射
     Map<int, String> tagIdToGroupName = {};
     for (var tag in _tagsEntity!.tags) {
-      tagIdToGroupName[tag.id] = groupIdToNameMap[tag.groupId] ?? '未分类';
+      tagIdToGroupName[tag.id] = groupIdToNameMap[tag.groupId] ?? context.l10n.flowUncategorized;
     }
 
     // 获取所有歌曲标题到标签的映射
@@ -495,8 +498,7 @@ class _B50PageState extends State<B50Page> {
       int songId = song['song_id'];
       int levelIndex = song['level_index'];
 
-      int index =
-          MusicDataIndex.indexOf(_maimaiMusicData!, songId);
+      int index = MusicDataIndex.indexOf(_maimaiMusicData!, songId);
       Map<String, dynamic> songData =
           index >= 0 ? _maimaiMusicData![index] : {};
 
@@ -511,8 +513,8 @@ class _B50PageState extends State<B50Page> {
 
       if (tagIds != null && tagIds.isNotEmpty) {
         for (int tagId in tagIds) {
-          String tagName = tagIdToNameMap[tagId] ?? '未知标签';
-          String groupName = tagIdToGroupName[tagId] ?? '未分类';
+          String tagName = tagIdToNameMap[tagId] ?? context.l10n.flowUnknownTag;
+          String groupName = tagIdToGroupName[tagId] ?? context.l10n.flowUncategorized;
 
           if (!stats.containsKey(groupName)) {
             stats[groupName] = {};
@@ -565,7 +567,7 @@ class _B50PageState extends State<B50Page> {
               ),
               const SizedBox(height: 16),
               Text(
-                '暂无Best50数据',
+                context.l10n.flowNoBest50DataYet,
                 style: TextStyle(
                   fontSize: 18,
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -573,7 +575,7 @@ class _B50PageState extends State<B50Page> {
               ),
               const SizedBox(height: 8),
               Text(
-                '请返回首页点击"刷新数据"按钮获取',
+                context.l10n.flowReturnHomeAndTapRefreshData,
                 style: TextStyle(
                   fontSize: 14,
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -595,23 +597,28 @@ class _B50PageState extends State<B50Page> {
         ? List<Map<String, dynamic>>.from(theoreticalRemaining?['songs'] ?? [])
         : _tiedRecords(songs, _segment == 0 ? _oldRecords : _newRecords);
     final remainingLabel = _isTheoreticalMode
-        ? '定数 ${((theoreticalRemaining?['ds'] ?? 0.0) as double).toStringAsFixed(1)}'
+        ? context.l10n.flowConstantP0(
+            (((theoreticalRemaining?['ds'] ?? 0.0) as double)
+                    .toStringAsFixed(1))
+                .toString())
         : (songs.isEmpty ? null : 'RA ${songs.last['ra']}');
 
     return BackgroundPageScaffold(
-      title: _isTheoreticalMode ? '理论Rating Best50' : 'Best50',
+      title: _isTheoreticalMode
+          ? context.l10n.flowTheoreticalRatingBest50
+          : 'Best50',
       resizeToAvoidBottomInset: false,
       contentPadding:
           EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
       actionsEndInset: 4,
       actions: [
         Best50IconAction(
-          tooltip: '保存当前记录',
+          tooltip: context.l10n.flowSaveCurrentRecord,
           icon: Icons.bookmark_add_outlined,
           onPressed: _saveSnapshot,
         ),
         Best50IconAction(
-          tooltip: '历史记录',
+          tooltip: context.l10n.flowHistory,
           icon: Icons.history_rounded,
           onPressed: () async {
             await _loadSnapshots();
@@ -619,7 +626,7 @@ class _B50PageState extends State<B50Page> {
           },
         ),
         Best50IconAction(
-          tooltip: '导出为图片',
+          tooltip: context.l10n.flowExportAsImage,
           icon: Icons.image_outlined,
           onPressed: () async {
             debugPrint('=== EXPORT BUTTON CLICKED ===');
@@ -679,7 +686,9 @@ class _B50PageState extends State<B50Page> {
     if (AccountSwitchService.isBusy ||
         _snapshotRevision != AccountSwitchService.revision) {
       if (mounted) {
-        AppToast.show('账号数据已更新，请重新打开 Best50 后保存');
+        AppToast.show(
+            context.l10n.flowAccountDataChangedReopenBest50BeforeSaving,
+            tone: AppToastTone.warning);
       }
       return;
     }
@@ -701,7 +710,9 @@ class _B50PageState extends State<B50Page> {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_snapshotKey!, json.encode(_snapshots));
       if (mounted) {
-        AppToast.show('Best50 记录已保存 ($dateStr)', duration: Duration(seconds: 1));
+        AppToast.show(
+            context.l10n.flowBest50RecordSavedP0((dateStr).toString()),
+            duration: Duration(seconds: 1));
       }
     } catch (e) {
       debugPrint('保存快照失败: $e');
@@ -728,7 +739,7 @@ class _B50PageState extends State<B50Page> {
                 Icon(Icons.history,
                     size: 22, color: Theme.of(ctx).colorScheme.onSurface),
                 SizedBox(width: 8),
-                Text('Best50 历史记录'),
+                Text(context.l10n.flowBest50History),
               ],
             ),
             content: SizedBox(
@@ -736,7 +747,8 @@ class _B50PageState extends State<B50Page> {
               child: _snapshots.isEmpty
                   ? Padding(
                       padding: EdgeInsets.all(24),
-                      child: Text('暂无保存的记录，点击"保存当前记录"按钮保存',
+                      child: Text(
+                          context.l10n.flowNoSavedRecordsTapSaveCurrentRecord,
                           style: TextStyle(
                               color:
                                   Theme.of(ctx).colorScheme.onSurfaceVariant)),
@@ -753,7 +765,8 @@ class _B50PageState extends State<B50Page> {
                           decoration: BoxDecoration(
                             border: Border.all(
                                 color: AppColors.tableBorder(dialogBrightness)),
-                            borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+                            borderRadius: BorderRadius.circular(
+                                AppDesignTokens.radiusSmall),
                           ),
                           child: Row(
                             children: [
@@ -823,7 +836,8 @@ class _B50PageState extends State<B50Page> {
             ),
             actions: [
               TextButton(
-                  onPressed: () => Navigator.pop(ctx), child: Text('关闭')),
+                  onPressed: () => Navigator.pop(ctx),
+                  child: Text(context.l10n.featureClose)),
             ],
           );
         },
@@ -909,20 +923,26 @@ class _B50PageState extends State<B50Page> {
 
     final segmentSongs = _segment == 0 ? currentSdSongs : currentDxSongs;
     final segmentName = _segment == 0
-        ? (_isTheoreticalMode ? '非当前版本最高定数' : '非当前版本最好成绩')
-        : (_isTheoreticalMode ? '当前版本最高定数' : '当前版本最好成绩');
+        ? (_isTheoreticalMode
+            ? context.l10n.flowHighestConstantsFromOlderVersions
+            : context.l10n.flowBestScoresFromOlderVersions)
+        : (_isTheoreticalMode
+            ? context.l10n.flowHighestConstantsFromThisVersion
+            : context.l10n.flowBestScoresFromThisVersion);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Best50Hero(
           total: rating,
           label: _isTheoreticalMode
-              ? '理论 Rating（平均 ${ratingAverage.toStringAsFixed(1)}）'
-              : '当前 Rating（平均 ${ratingAverage.toStringAsFixed(1)}）',
+              ? context.l10n.flowTheoreticalRatingAverageP0(
+                  (ratingAverage.toStringAsFixed(1)).toString())
+              : context.l10n.flowCurrentRatingAverageP0(
+                  (ratingAverage.toStringAsFixed(1)).toString()),
           best35Sum: best35Sum,
           best15Sum: best15Sum,
           trailing: Best50SwitchPill(
-            label: '理论值',
+            label: context.l10n.flowTheoretical,
             value: _isTheoreticalMode,
             onChanged: (_) => _toggleTheoreticalMode(),
           ),
@@ -938,12 +958,12 @@ class _B50PageState extends State<B50Page> {
           onChanged: (i) => setState(() => _segment = i),
         ),
         const SizedBox(height: 8),
-        Best50MetaLine(best50MetaText(segmentName,
-            segmentSongs.map((s) => (s['ra'] ?? 0) as int))),
+        Best50MetaLine(best50MetaText(
+            segmentName, segmentSongs.map((s) => (s['ra'] ?? 0) as int))),
         if (!_isTheoreticalMode) ...[
           const SizedBox(height: AppDesignTokens.cardGap),
           Best50AveragesCard(
-            title: '平均达成率 / DX 分数达成率',
+            title: context.l10n.flowAverageAchievementDXScoreRate,
             rows: [
               Best50AverageRow(
                   'B50', best50AchievementAverage, best50ScoreRateAverage),
@@ -979,7 +999,7 @@ class _B50PageState extends State<B50Page> {
           Semantics(
             button: canExpand,
             expanded: canExpand ? _isTagStatsExpanded : null,
-            label: '标签统计',
+            label: context.l10n.flowTagStatistics,
             child: InkWell(
               onTap: canExpand
                   ? () => setState(() {
@@ -994,7 +1014,7 @@ class _B50PageState extends State<B50Page> {
                   children: [
                     Expanded(
                       child: Text(
-                        '标签统计',
+                        context.l10n.flowTagStatistics,
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
@@ -1013,7 +1033,7 @@ class _B50PageState extends State<B50Page> {
                       )
                     else if (_tagStats.isEmpty)
                       Text(
-                        '暂无标签数据',
+                        context.l10n.flowNoTagData,
                         style: TextStyle(
                           fontSize: 12,
                           color: colorScheme.onSurfaceVariant,
@@ -1046,91 +1066,91 @@ class _B50PageState extends State<B50Page> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: _tagStats.entries.map((groupEntry) {
-                        String groupName = groupEntry.key;
-                        Map<String, int> tagCounts = groupEntry.value;
-                        Color groupColor = groupColors[groupName] ??
-                            colorScheme.onSurfaceVariant;
+                          String groupName = groupEntry.key;
+                          Map<String, int> tagCounts = groupEntry.value;
+                          Color groupColor = groupColors[groupName] ??
+                              colorScheme.onSurfaceVariant;
 
-                        // 对组内标签按数量降序排序
-                        List<MapEntry<String, int>> sortedTags =
-                            tagCounts.entries.toList()
-                              ..sort((a, b) => b.value.compareTo(a.value));
+                          // 对组内标签按数量降序排序
+                          List<MapEntry<String, int>> sortedTags =
+                              tagCounts.entries.toList()
+                                ..sort((a, b) => b.value.compareTo(a.value));
 
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(
-                              padding: EdgeInsets.symmetric(
-                                  horizontal: 8.0, vertical: 4.0),
-                              margin: EdgeInsets.only(top: 8.0),
-                              decoration: BoxDecoration(
-                                color: groupColor.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(
-                                    AppDesignTokens.radiusPill),
-                              ),
-                              child: Text(
-                                groupName,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: groupColor,
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                padding: EdgeInsets.symmetric(
+                                    horizontal: 8.0, vertical: 4.0),
+                                margin: EdgeInsets.only(top: 8.0),
+                                decoration: BoxDecoration(
+                                  color: groupColor.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(
+                                      AppDesignTokens.radiusPill),
+                                ),
+                                child: Text(
+                                  context.featureText(groupName),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: groupColor,
+                                  ),
                                 ),
                               ),
-                            ),
-                            SizedBox(height: 6.0),
-                            ...sortedTags.map((tagEntry) {
-                              double percentage = (tagEntry.value / 50) * 100;
-                              Color barColor =
-                                  groupColor.withValues(alpha: 0.7);
+                              SizedBox(height: 6.0),
+                              ...sortedTags.map((tagEntry) {
+                                double percentage = (tagEntry.value / 50) * 100;
+                                Color barColor =
+                                    groupColor.withValues(alpha: 0.7);
 
-                              return Padding(
-                                padding: EdgeInsets.only(bottom: 4.0),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      flex: 2,
-                                      child: Text(
-                                        tagEntry.key,
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: colorScheme.onSurface,
+                                return Padding(
+                                  padding: EdgeInsets.only(bottom: 4.0),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        flex: 2,
+                                        child: Text(
+                                          context.featureText(tagEntry.key),
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: colorScheme.onSurface,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
                                         ),
-                                        overflow: TextOverflow.ellipsis,
                                       ),
-                                    ),
-                                    SizedBox(width: 8.0),
-                                    Expanded(
-                                      flex: 6,
-                                      child: SmoothLinearProgressIndicator(
-                                        value: (percentage / 100)
-                                            .clamp(0.0, 1.0),
-                                        minHeight: 14.0,
-                                        color: barColor,
-                                        backgroundColor:
-                                            AppSurfaces.inset(context),
-                                        borderRadius: BorderRadius.circular(
-                                            AppDesignTokens.radiusPill),
-                                      ),
-                                    ),
-                                    SizedBox(width: 8.0),
-                                    Expanded(
-                                      flex: 2,
-                                      child: Text(
-                                        '${tagEntry.value}(${percentage.toStringAsFixed(0)}%)',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: colorScheme.onSurface,
+                                      SizedBox(width: 8.0),
+                                      Expanded(
+                                        flex: 6,
+                                        child: SmoothLinearProgressIndicator(
+                                          value: (percentage / 100)
+                                              .clamp(0.0, 1.0),
+                                          minHeight: 14.0,
+                                          color: barColor,
+                                          backgroundColor:
+                                              AppSurfaces.inset(context),
+                                          borderRadius: BorderRadius.circular(
+                                              AppDesignTokens.radiusPill),
                                         ),
-                                        textAlign: TextAlign.right,
                                       ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }).toList(),
-                            SizedBox(height: 4.0),
-                          ],
-                        );
+                                      SizedBox(width: 8.0),
+                                      Expanded(
+                                        flex: 2,
+                                        child: Text(
+                                          '${tagEntry.value}(${percentage.toStringAsFixed(0)}%)',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: colorScheme.onSurface,
+                                          ),
+                                          textAlign: TextAlign.right,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
+                              SizedBox(height: 4.0),
+                            ],
+                          );
                         }).toList(),
                       ),
                     )
@@ -1141,7 +1161,6 @@ class _B50PageState extends State<B50Page> {
       ),
     );
   }
-
 
   Best50CardData _cardData(Map<String, dynamic> songData) {
     final achievementRate = double.parse(songData['achievements'].toString());
@@ -1175,7 +1194,6 @@ class _B50PageState extends State<B50Page> {
           builder: (context) => SongInfoPage(
             songId: songId.toString(),
             initialLevelIndex: levelIndex,
-            isDefaultLevelIndex: false,
           ),
         ),
       ),
@@ -1189,8 +1207,6 @@ class _B50PageState extends State<B50Page> {
         ? labels[levelIndex]
         : 'Unknown';
   }
-
-
 
   int _calculateMaxScore(int songId, int levelIndex) {
     if (_maimaiMusicData == null) return 0;
@@ -1229,7 +1245,6 @@ class _B50PageState extends State<B50Page> {
 
     return maxScore > 0 ? score / maxScore : 0.0;
   }
-
 
   // 请求存储权限
   Future<bool> _requestStoragePermission() async {
@@ -1297,7 +1312,10 @@ class _B50PageState extends State<B50Page> {
       debugPrint('Step 1 completed: hasPermission = $hasPermission');
 
       if (!hasPermission) {
-        showAppNoticeDialog(context, title: '权限不足', message: '需要存储权限才能导出图片到相册，请在设置中开启权限', tone: AppDialogTone.warning);
+        showAppNoticeDialog(context,
+            title: context.l10n.flowPermissionRequired,
+            message: context.l10n.flowStoragePermissionIsRequiredToExportImages,
+            tone: AppDialogTone.warning);
         return;
       }
 
@@ -1307,7 +1325,8 @@ class _B50PageState extends State<B50Page> {
       final quality = await ExportQualitySelector.show(
         context,
         estimatedPngSize: estimatedPngSize,
-        exportingLabel: _isTheoreticalMode ? '理论 Best50' : 'Best50',
+        exportingLabel:
+            _isTheoreticalMode ? context.l10n.flowTheoreticalBest50 : 'Best50',
         enableThunderMode: true,
         previewBuilder: (previewContext, previewQuality) =>
             B50ConvertToImg.buildPreviewWidget(
@@ -1324,7 +1343,6 @@ class _B50PageState extends State<B50Page> {
       );
       if (quality == null) return; // user cancelled
 
-
       // 导出期间可以继续操作，先把当前模式的数据取好。
       final isTheoretical = _isTheoreticalMode;
       final sdSongs = isTheoretical ? _theoreticalSdSongs : _sdSongs;
@@ -1332,7 +1350,7 @@ class _B50PageState extends State<B50Page> {
       final b50Data = _b50Data;
       final musicData = _maimaiMusicData;
       BackgroundExport.run(
-        label: isTheoretical ? '理论 Best50' : 'Best50',
+        label: isTheoretical ? context.l10n.flowTheoreticalBest50 : 'Best50',
         task: (exportContext) => B50ConvertToImg.convertToImage(
           exportContext,
           b50Data,
@@ -1347,7 +1365,8 @@ class _B50PageState extends State<B50Page> {
         ),
       );
     } catch (e) {
-      AppToast.show('导出失败：$e');
+      AppToast.show(context.l10n.flowExportFailedP02((e).toString()),
+          tone: AppToastTone.error);
     }
   }
 }

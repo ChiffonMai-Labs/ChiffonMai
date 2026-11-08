@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import '../service/GuessChartGame/GuessChartCommonSettingsService.dart';
 import 'GuessSettingsUi.dart';
@@ -20,14 +21,14 @@ class GuessAudioRateSlider extends StatelessWidget {
   Widget build(BuildContext context) {
     final rate = GuessChartCommonSettingsService.normalizeAudioRate(value);
     return GuessSliderTile(
-      label: '变速变调倍率',
+      label: context.l10n.flowSpeedPitchMultiplier,
       valueText: labelOf(rate),
       value: rate,
       min: GuessChartCommonSettingsService.minAudioRate,
       max: GuessChartCommonSettingsService.maxAudioRate,
       divisions: 98,
       onChanged: (value) => onChanged((value * 100).round() / 100),
-      hint: '可选 0.1× 至 5×，速度与音高联动改变；音源不足设置时长时，按实际时长播放。',
+      hint: context.l10n.flowChoose015SpeedAndPitch,
     );
   }
 }

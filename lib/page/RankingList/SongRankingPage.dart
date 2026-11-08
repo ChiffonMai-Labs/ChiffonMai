@@ -1,3 +1,6 @@
+import 'package:my_first_flutter_app/l10n/FeatureLocalizations.dart';
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import '../../service/CommunityAvatarStore.dart';
 import '../../widgets/RankingPlayerBriefSheet.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
@@ -153,7 +156,7 @@ class _SongRankingPageState extends State<SongRankingPage> {
                   ),
                   SizedBox(width: 8),
                   Text(
-                    '免责声明',
+                    context.l10n.flowDisclaimer,
                     style: TextStyle(
                       color: AppColors.warningOrange(dialogBrightness),
                       fontWeight: FontWeight.bold,
@@ -166,7 +169,8 @@ class _SongRankingPageState extends State<SongRankingPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '本排行榜数据仅供参考和娱乐使用，不代表任何官方立场或权威性排名。排名数据基于玩家自愿上传的游戏数据，可能存在误差或延迟。请理性看待排名结果，享受游戏乐趣。',
+                      context.l10n
+                          .flowThisLeaderboardIsForReferenceAndEntertainment,
                       style: TextStyle(
                         fontSize: 14,
                         color: AppColors.greyHint(dialogBrightness),
@@ -186,7 +190,7 @@ class _SongRankingPageState extends State<SongRankingPage> {
                               _dontShowAgain = value ?? false;
                             },
                           ),
-                          Text('不再提示'),
+                          Text(context.l10n.flowDoNotShowAgain),
                         ],
                       ),
                     ],
@@ -200,12 +204,13 @@ class _SongRankingPageState extends State<SongRankingPage> {
                         dontShowAgain:
                             showCheckbox ? localDontShowAgain : false);
                   },
-                  child: Text('知道了'),
+                  child: Text(context.l10n.featureGotIt),
                 ),
               ],
               backgroundColor: Theme.of(context).colorScheme.surface,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+                borderRadius:
+                    BorderRadius.circular(AppDesignTokens.radiusSmall),
               ),
             );
           },
@@ -326,7 +331,7 @@ class _SongRankingPageState extends State<SongRankingPage> {
         return '\u2726 ${stars[i]} -$difference';
       }
     }
-    return '\u2726 6 已满';
+    return context.l10n.flow6MaximumReached;
   }
 
   String _dxScoreDisplayText(int score) {
@@ -365,7 +370,8 @@ class _SongRankingPageState extends State<SongRankingPage> {
 
   Widget _buildDxScoreDisplaySwitcher() {
     return Tooltip(
-      message: 'DX分数显示方式：${_dxScoreDisplayMode.label}（点击切换）',
+      message: context.l10n.flowDXScoreDisplayP0TapToSwitch(
+          context.featureText(_dxScoreDisplayMode.label)),
       child: TextButton.icon(
         onPressed: () {
           setState(() {
@@ -386,7 +392,7 @@ class _SongRankingPageState extends State<SongRankingPage> {
           duration: MediaQuery.disableAnimationsOf(context)
               ? Duration.zero
               : const Duration(milliseconds: 200),
-          child: Text(_dxScoreDisplayMode.label,
+          child: Text(context.featureText(_dxScoreDisplayMode.label),
               style: const TextStyle(fontSize: 12)),
         ),
       ),
@@ -470,7 +476,7 @@ class _SongRankingPageState extends State<SongRankingPage> {
       context: context,
       builder: (BuildContext dialogContext) {
         return AppAlertDialog(
-          title: const Text('选择难度'),
+          title: Text(dialogContext.l10n.flowSelectDifficulty),
           content: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -514,7 +520,7 @@ class _SongRankingPageState extends State<SongRankingPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('取消'),
+              child: Text(dialogContext.l10n.featureCancel),
             ),
           ],
         );
@@ -582,13 +588,13 @@ class _SongRankingPageState extends State<SongRankingPage> {
     if (difference.inDays >= 7) {
       return '${dateTime.year}-${_padZero(dateTime.month)}-${_padZero(dateTime.day)} ${_padZero(dateTime.hour)}:${_padZero(dateTime.minute)}';
     } else if (difference.inDays > 0) {
-      return '${difference.inDays}天前';
+      return context.l10n.flowP0DaysAgo2((difference.inDays).toString());
     } else if (difference.inHours > 0) {
-      return '${difference.inHours}小时前';
+      return context.l10n.flowP0HoursAgo2((difference.inHours).toString());
     } else if (difference.inMinutes > 0) {
-      return '${difference.inMinutes}分钟前';
+      return context.l10n.flowP0MinutesAgo2((difference.inMinutes).toString());
     } else {
-      return '刚刚';
+      return context.l10n.flowJustNow;
     }
   }
 
@@ -658,7 +664,7 @@ class _SongRankingPageState extends State<SongRankingPage> {
       debugPrint('[SongRankingPage] Error loading ranking data: $e');
       setState(() {
         _isLoading = false;
-        _errorMessage = '加载排行榜数据失败';
+        _errorMessage = appL10n.flowCouldNotLoadLeaderboardData;
       });
     }
   }
@@ -667,14 +673,14 @@ class _SongRankingPageState extends State<SongRankingPage> {
     final entry = _currentUserEntry;
     if (entry == null) return;
     if (entry.rank > 100) {
-      AppToast.show('抱歉，您不在前100名内');
+      AppToast.show(context.l10n.flowYouAreOutsideTheTop100);
       return;
     }
     final index = _rankingList.indexWhere(
       (item) => item.playerId == entry.playerId,
     );
     if (index == -1) {
-      AppToast.show('抱歉，您不在前100名内');
+      AppToast.show(context.l10n.flowYouAreOutsideTheTop100);
       return;
     }
     _rowExtent.scrollRowToTop(_scrollController, index);
@@ -789,8 +795,8 @@ class _SongRankingPageState extends State<SongRankingPage> {
   Widget build(BuildContext context) {
     final brightness = Theme.of(context).brightness;
     final title = _rankingType == RankingType.achievementRate
-        ? '达成率排行榜'
-        : 'DX分数排行榜';
+        ? context.l10n.flowAchievementRanking2
+        : context.l10n.flowDXScoreRanking2;
 
     return BackgroundPageScaffold(
       title: title,
@@ -804,7 +810,7 @@ class _SongRankingPageState extends State<SongRankingPage> {
           IconButton(
             icon: const Icon(Icons.location_searching),
             onPressed: _scrollToCurrentUser,
-            tooltip: '跳转到我的排名',
+            tooltip: context.l10n.flowGoToMyRank,
           ),
       ],
       contentPadding:
@@ -849,125 +855,129 @@ class _SongRankingPageState extends State<SongRankingPage> {
                         ],
                       ),
                       // 第二行：版本与紧凑的显示切换，避免挤压难度标签。
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              StringUtil.formatVersion2WithFlag(
-                                  widget.from,
-                                  widget.isExtra &&
-                                      !ChartDifficulty.isUtageSong(
-                                          widget.songId,
-                                          type: widget.songType)),
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .onSurfaceVariant,
+                      // 高度与切换按钮的最小高度一致，两种榜单的三行间距才相同。
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(minHeight: 40),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                StringUtil.formatVersion2WithFlag(
+                                    widget.from,
+                                    widget.isExtra &&
+                                        !ChartDifficulty.isUtageSong(
+                                            widget.songId,
+                                            type: widget.songType)),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
+                                ),
                               ),
                             ),
-                          ),
-                          if (_rankingType == RankingType.dxScore) ...[
-                            const SizedBox(width: 4),
-                            _buildDxScoreDisplaySwitcher(),
+                            if (_rankingType == RankingType.dxScore) ...[
+                              const SizedBox(width: 4),
+                              _buildDxScoreDisplaySwitcher(),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
                       const SizedBox(height: 4),
                       // 第三行：难度和定数（可点击切换难度）+ 切到另一个榜
                       Row(
                         children: [
-                      Material(
-                        color: _getDifficultyBackgroundColor(
-                            _difficultyIndex),
-                        clipBehavior: Clip.antiAlias,
-                        borderRadius:
-                            BorderRadius.circular(AppDesignTokens.radiusSmall),
-                        child: InkWell(
-                          onTap: _showDifficultySelector,
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(10, 4, 6, 4),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  _formatDifficultyLabel(
-                                      _difficultyLabel),
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                    color: _getDifficultyColor(
-                                        _difficultyIndex),
-                                  ),
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  _difficultyDs.toStringAsFixed(1),
-                                  style: AppTheme.number(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w700,
-                                    color: _getDifficultyColor(
-                                        _difficultyIndex),
-                                  ),
-                                ),
-                                Icon(
-                                  Icons.arrow_drop_down,
-                                  size: 18,
-                                  color: _getDifficultyColor(
-                                      _difficultyIndex),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Flexible(
-                        child: PressScale(
-                          child: GestureDetector(
-                            onTap: _switchRankingType,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: AppSurfaces.inset(context),
-                                borderRadius: BorderRadius.circular(
-                                    AppDesignTokens.radiusSmall),
-                              ),
-                              child: FittedBox(
-                                fit: BoxFit.scaleDown,
+                          Material(
+                            color:
+                                _getDifficultyBackgroundColor(_difficultyIndex),
+                            clipBehavior: Clip.antiAlias,
+                            borderRadius: BorderRadius.circular(
+                                AppDesignTokens.radiusSmall),
+                            child: InkWell(
+                              onTap: _showDifficultySelector,
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(10, 4, 6, 4),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(
-                                      Icons.swap_horiz_rounded,
-                                      size: 15,
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .primary,
-                                    ),
-                                    const SizedBox(width: 3),
                                     Text(
-                                      _rankingType ==
-                                              RankingType.achievementRate
-                                          ? 'DX分数榜'
-                                          : '达成率榜',
-                                      maxLines: 1,
+                                      _formatDifficultyLabel(_difficultyLabel),
                                       style: TextStyle(
                                         fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .primary,
+                                        fontWeight: FontWeight.bold,
+                                        color: _getDifficultyColor(
+                                            _difficultyIndex),
                                       ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      _difficultyDs.toStringAsFixed(1),
+                                      style: AppTheme.number(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w700,
+                                        color: _getDifficultyColor(
+                                            _difficultyIndex),
+                                      ),
+                                    ),
+                                    Icon(
+                                      Icons.arrow_drop_down,
+                                      size: 18,
+                                      color:
+                                          _getDifficultyColor(_difficultyIndex),
                                     ),
                                   ],
                                 ),
                               ),
                             ),
                           ),
-                        ),
-                      ),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: PressScale(
+                              child: GestureDetector(
+                                onTap: _switchRankingType,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 10, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: AppSurfaces.inset(context),
+                                    borderRadius: BorderRadius.circular(
+                                        AppDesignTokens.radiusSmall),
+                                  ),
+                                  child: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.swap_horiz_rounded,
+                                          size: 15,
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .primary,
+                                        ),
+                                        const SizedBox(width: 3),
+                                        Text(
+                                          _rankingType ==
+                                                  RankingType.achievementRate
+                                              ? context.l10n.flowDXScoreRanking
+                                              : context
+                                                  .l10n.flowAchievementRanking,
+                                          maxLines: 1,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .primary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ],
@@ -994,7 +1004,7 @@ class _SongRankingPageState extends State<SongRankingPage> {
                                 ),
                                 SizedBox(height: 16),
                                 Text(
-                                  '榜上无人哦，快来抢沙发！',
+                                  context.l10n.flowNoOneIsRankedYetBeThe,
                                   style: TextStyle(
                                     fontSize: 18,
                                     color: AppColors.greyHint(brightness),
@@ -1016,8 +1026,11 @@ class _SongRankingPageState extends State<SongRankingPage> {
                                     RankingEntry entry = _rankingList[index];
                                     bool isCurrentUser =
                                         entry.playerId == _currentPlayerId;
-                                    return _entrance.wrap(_rankingList, index, _buildRankingItem(
-                                        entry, isCurrentUser, brightness));
+                                    return _entrance.wrap(
+                                        _rankingList,
+                                        index,
+                                        _buildRankingItem(
+                                            entry, isCurrentUser, brightness));
                                   },
                                 ),
                               ),
@@ -1034,7 +1047,8 @@ class _SongRankingPageState extends State<SongRankingPage> {
                                               maxWidth:
                                                   _currentUserValueColumnMaxWidth),
                                           child: Text(
-                                            '您的此谱面游玩数据存在异常，请检查!',
+                                            context.l10n
+                                                .flowYourPlayDataForThisChartAppears,
                                             textAlign: TextAlign.right,
                                             style: TextStyle(
                                               fontSize: 10,

@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'package:flutter/foundation.dart';
 import 'package:my_first_flutter_app/manager/SongAliasManager.dart';
 import 'package:my_first_flutter_app/manager/DivingFish/MaimaiMusicDataManager.dart';
@@ -50,26 +51,26 @@ class HomeService {
       return HomeInitResult(
         success: true,
         duration: duration,
-        durationStr: '${duration.inMilliseconds}ms（离线模式）',
+        durationStr: appL10n.svcP0MsOfflineMode(duration.inMilliseconds.toString()),
       );
     }
 
     try {
       // 第一阶段：初始化基础管理器（必须串行）
-      onProgress('正在加载歌曲别名数据库...');
+      onProgress(appL10n.svcLoadingTheSongAliasDatabase);
       await SongAliasManager.instance.init();
       
-      onProgress('正在初始化Maidata管理器...');
+      onProgress(appL10n.svcInitializingTheMaidataManager);
       final maidataManager = MaidataManager();
       await maidataManager.initialize();
       
       // 如果缓存未就绪或过期，获取全量maidata
       if (!maidataManager.isFullCacheReady) {
         debugPrint('Maidata缓存未就绪，开始获取全量maidata...');
-        onProgress('正在获取全量Maidata数据...\n（首次加载可能较慢，请耐心等待）');
+        onProgress(appL10n.svcFetchingAllMaidataTheFirstLoadMay);
         await maidataManager.fetchAndCacheFullMaidata();
       } else {
-        onProgress('从缓存加载Maidata数据...');
+        onProgress(appL10n.svcLoadingMaidataFromCache);
       }
       
       // 获取maidata文本列表用于追加
@@ -77,7 +78,7 @@ class HomeService {
       debugPrint('已获取 ${maidataTexts.length} 首歌曲的maidata');
       
       // 第二阶段：并行获取音乐数据和难度数据
-      onProgress('正在同步歌曲信息与难度数据...');
+      onProgress(appL10n.svcSyncingSongInfoAndDifficultyData);
       final maimaiMusicManager = MaimaiMusicDataManager();
       final diffMusicManager = DiffMusicDataManager();
       
@@ -87,7 +88,7 @@ class HomeService {
       ]);
       
       // 第三阶段：并行初始化收藏品、标签、落雪歌曲、知识库等数据
-      onProgress('正在加载收藏品、标签、歌曲、知识库等数据...');
+      onProgress(appL10n.svcLoadingCollectiblesTagsSongsKnowledgeBaseAnd);
       final collectionsManager = CollectionsManager();
       final luoXueSongsManager = LuoXueSongsManager();
 
@@ -102,7 +103,7 @@ class HomeService {
       ]);
       
       // 建立落雪歌曲与缓存歌曲的映射
-      onProgress('正在建立歌曲关联映射...');
+      onProgress(appL10n.svcBuildingSongMappings);
       if (await maimaiMusicManager.hasCachedData()) {
         final cachedSongs = await maimaiMusicManager.getCachedSongs();
         luoXueSongsManager.mapLuoXueSongsToCachedSongs(cachedSongs ?? []);

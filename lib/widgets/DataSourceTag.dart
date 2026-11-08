@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'package:flutter/material.dart';
 
 import '../utils/AppTheme.dart';
@@ -32,7 +33,7 @@ class DataSourceStyle {
   static DataSourceStyle unknown(Brightness brightness) {
     final isDark = brightness == Brightness.dark;
     return DataSourceStyle(
-      label: '未知',
+      label: appL10n.flowUnknown,
       foreground: AppColors.greyHint(brightness),
       background: (isDark ? Colors.grey : Colors.grey[300])!
           .withValues(alpha: isDark ? 0.25 : 0.5),

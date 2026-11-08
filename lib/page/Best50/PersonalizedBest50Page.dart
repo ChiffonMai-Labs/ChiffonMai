@@ -1,3 +1,6 @@
+import 'package:my_first_flutter_app/l10n/FeatureLocalizations.dart';
+import 'package:my_first_flutter_app/service/CustomTagStore.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:my_first_flutter_app/widgets/AppSwitch.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'dart:convert';
@@ -225,7 +228,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
   // 难度 level → 人类可读标签
   String _difficultyLabel(int level) {
     const labels = ChartDifficulty.labels;
-    return (level >= 0 && level < labels.length) ? labels[level] : '未知';
+    return (level >= 0 && level < labels.length) ? labels[level] : context.l10n.flowUnknown;
   }
 
   // 包容关系模式下显示的标签
@@ -237,7 +240,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
       final startIndex = hierarchy.indexOf(base);
       final included =
           hierarchy.sublist(startIndex).map((v) => labels[v]!).join('/');
-      return '包含: $included';
+      return context.l10n.flowIncludesP0((included).toString());
     } else if (_isSyncType()) {
       const labels = {'fs': 'FS', 'fsp': 'FS+', 'fsd': 'FDX', 'fsdp': 'FDX+'};
       const hierarchy = ['fs', 'fsp', 'fsd', 'fsdp'];
@@ -245,7 +248,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
       final startIndex = hierarchy.indexOf(base);
       final included =
           hierarchy.sublist(startIndex).map((v) => labels[v]!).join('/');
-      return '包含: $included';
+      return context.l10n.flowIncludesP0((included).toString());
     }
     return '';
   }
@@ -483,13 +486,18 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
   Future<void> _exportToImage() async {
     try {
       if (_personalizedSongs.isEmpty) {
-        showAppNoticeDialog(context, title: '提示', message: '没有数据可导出');
+        showAppNoticeDialog(context,
+            title: context.l10n.featureNotice,
+            message: context.l10n.flowNoDataToExport);
         return;
       }
 
       bool hasPermission = await _requestStoragePermission();
       if (!hasPermission) {
-        showAppNoticeDialog(context, title: '权限不足', message: '需要存储权限才能导出图片到相册，请在设置中开启权限', tone: AppDialogTone.warning);
+        showAppNoticeDialog(context,
+            title: context.l10n.flowPermissionRequired,
+            message: context.l10n.flowStoragePermissionIsRequiredToExportImages,
+            tone: AppDialogTone.warning);
         return;
       }
 
@@ -500,23 +508,30 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
           songCount:
               _personalizedSongs.isNotEmpty ? _personalizedSongs.length : 50,
         ),
-        exportingLabel: '个性化 Best50',
+        exportingLabel: context.l10n.featureCustomBest50Analysis,
         enableThunderMode: true,
         previewBuilder: (previewContext, previewQuality) =>
             PersonalizedB50ConvertToImg.buildPreviewWidget(
           previewContext,
           _selectedType == 'charter_50' && _selectedCharter != null
-              ? '谱师50 - ${_selectedCharter!}'
+              ? context.l10n
+                  .flowChartDesigner50P0((_selectedCharter!).toString())
               : _selectedType == 'version_50' && _selectedVersion != null
-                  ? '版本50 - ${StringUtil.formatVersion2(_selectedVersion!)}'
+                  ? context.l10n.flowVersion50P0(
+                      (StringUtil.formatVersion2(_selectedVersion!)).toString())
                   : _selectedType == 'genre_50' && _selectedGenre != null
-                      ? '流派50 - ${_selectedGenre!}'
+                      ? context.l10n.flowGenre50P0((_selectedGenre!).toString())
                       : _selectedType == 'star_50' && _selectedStar != null
-                          ? '星数50 - ${_selectedStar!}'
+                          ? context.l10n
+                              .flowStar50P0((_selectedStar!).toString())
                           : _selectedType == 'tag_50' &&
                                   _selectedTagName != null
-                              ? '标签50 - ${_selectedTagName!}'
-                              : '个性化Best50 - ${_options.firstWhere((option) => option['value'] == _selectedType)['label']!}',
+                              ? context.l10n
+                                  .flowTag50P0((_selectedTagName!).toString())
+                              : context.l10n.flowPersonalizedBest50P0(context
+                                  .featureText(_options.firstWhere((option) =>
+                                      option['value'] ==
+                                      _selectedType)['label']!)),
           _personalizedSongs,
           _maimaiMusicData,
           null,
@@ -530,54 +545,58 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
         return; // 用户取消
       }
 
-
       String title = _selectedType == 'charter_50' && _selectedCharter != null
-          ? '谱师50 - ${_selectedCharter!}'
+          ? context.l10n.flowChartDesigner50P0((_selectedCharter!).toString())
           : _selectedType == 'version_50' && _selectedVersion != null
-              ? '版本50 - ${StringUtil.formatVersion2(_selectedVersion!)}'
+              ? context.l10n.flowVersion50P0(
+                  (StringUtil.formatVersion2(_selectedVersion!)).toString())
               : _selectedType == 'genre_50' && _selectedGenre != null
-                  ? '流派50 - ${_selectedGenre!}'
+                  ? context.l10n.flowGenre50P0((_selectedGenre!).toString())
                   : _selectedType == 'star_50' && _selectedStar != null
-                      ? '星数50 - ${_selectedStar!}'
+                      ? context.l10n.flowStar50P0((_selectedStar!).toString())
                       : _selectedType == 'tag_50' && _selectedTagName != null
-                          ? '标签50 - ${_selectedTagName!}'
-                          : '个性化Best50 - ${_options.firstWhere((option) => option['value'] == _selectedType)['label']!}';
+                          ? context.l10n
+                              .flowTag50P0((_selectedTagName!).toString())
+                          : context.l10n.flowPersonalizedBest50P0(context
+                              .featureText(_options.firstWhere((option) =>
+                                  option['value'] == _selectedType)['label']!));
 
       BackgroundExport.run(
-        label: '个性化 Best50',
+        label: context.l10n.featureCustomBest50Analysis,
         task: (exportContext) => PersonalizedB50ConvertToImg.convertToImage(
           exportContext,
-        title,
-        _personalizedSongs,
-        _maimaiMusicData,
-        jpegQuality: quality.jpegQuality,
-        theme: quality.theme,
-        thunderMode: quality.thunderMode,
-        thunderVertical: quality.thunderVertical,
-      ),
+          title,
+          _personalizedSongs,
+          _maimaiMusicData,
+          jpegQuality: quality.jpegQuality,
+          theme: quality.theme,
+          thunderMode: quality.thunderMode,
+          thunderVertical: quality.thunderVertical,
+        ),
       );
     } catch (e) {
-      AppToast.show('导出失败：$e');
+      AppToast.show(context.l10n.flowExportFailedP02((e).toString()),
+          tone: AppToastTone.error);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const BackgroundPageScaffold(
-        title: '个性化 Best50',
+      return BackgroundPageScaffold(
+        title: context.l10n.featureCustomBest50Analysis,
         resizeToAvoidBottomInset: false,
         child: Center(child: CircularProgressIndicator()),
       );
     }
 
     return BackgroundPageScaffold(
-      title: '个性化 Best50',
+      title: context.l10n.featureCustomBest50Analysis,
       resizeToAvoidBottomInset: false,
       actionsEndInset: 4,
       actions: [
         Best50IconAction(
-          tooltip: '导出为图片',
+          tooltip: context.l10n.flowExportAsImage,
           icon: Icons.image_outlined,
           onPressed: () async {
             try {
@@ -600,31 +619,39 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
             Best50ActionButton(
               icon: Icons.tune_rounded,
               onPressed: _showTypeSelectionDialog,
-              label: (
-                _selectedType == 'charter_50' && _selectedCharter != null
-                    ? '选择类型: 谱师50 - ${_selectedCharter!}'
-                    : _selectedType == 'version_50' && _selectedVersion != null
-                        ? '选择类型: 版本50 - ${StringUtil.formatVersion2(_selectedVersion!)}'
-                        : _selectedType == 'genre_50' && _selectedGenre != null
-                            ? '选择类型: 流派50 - ${_selectedGenre!}'
-                            : _selectedType == 'star_50' &&
-                                    _selectedStar != null
-                                ? '选择类型: 星数50 - ${_selectedStar!}'
-                                : _selectedType == 'tag_50' &&
-                                        _selectedTagName != null
-                                    ? '选择类型: 标签50 - ${_selectedTagName!}'
-                                    : _selectedType == 'random_50'
-                                        ? '选择类型: 随机50'
-                                        : _selectedType == 'beyond_50'
-                                            ? '选择类型: 越级50'
-                                            : _selectedType ==
-                                                        'difficulty_50' &&
-                                                    _selectedDifficultyLevel !=
-                                                        null
-                                                ? '选择类型: 难度50 - ${_difficultyLabel(_selectedDifficultyLevel!)}'
-                                                : _selectedType == 'best_n'
-                                                    ? '选择类型: Best $_selectedN'
-                                                    : '选择类型: ${_options.firstWhere((option) => option['value'] == _selectedType)['label']!}'),
+              label: (_selectedType == 'charter_50' && _selectedCharter != null
+                  ? context.l10n.flowCategoryChartDesigner50P0(
+                      (_selectedCharter!).toString())
+                  : _selectedType == 'version_50' && _selectedVersion != null
+                      ? context.l10n.flowCategoryVersion50P0(
+                          (StringUtil.formatVersion2(_selectedVersion!))
+                              .toString())
+                      : _selectedType == 'genre_50' && _selectedGenre != null
+                          ? context.l10n.flowCategoryGenre50P0(
+                              (_selectedGenre!).toString())
+                          : _selectedType == 'star_50' && _selectedStar != null
+                              ? context.l10n.flowCategoryStar50P0(
+                                  (_selectedStar!).toString())
+                              : _selectedType == 'tag_50' &&
+                                      _selectedTagName != null
+                                  ? context.l10n.flowCategoryTag50P0(
+                                      (_selectedTagName!).toString())
+                                  : _selectedType == 'random_50'
+                                      ? context.l10n.flowCategoryRandom50
+                                      : _selectedType == 'beyond_50'
+                                          ? context.l10n.flowCategoryOverreach50
+                                          : _selectedType == 'difficulty_50' &&
+                                                  _selectedDifficultyLevel !=
+                                                      null
+                                              ? context.l10n.flowCategoryDifficulty50P0(
+                                                  (_difficultyLabel(_selectedDifficultyLevel!))
+                                                      .toString())
+                                              : _selectedType == 'best_n'
+                                                  ? context.l10n.flowCategoryBestP0(
+                                                      (_selectedN).toString())
+                                                  : context.l10n.flowCategoryP0(
+                                                      context.featureText(
+                                                          _options.firstWhere((option) => option['value'] == _selectedType)['label']!))),
             ),
             SizedBox(height: 12.0),
 
@@ -658,12 +685,12 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
       context: context,
       builder: (BuildContext context) {
         return AppAlertDialog(
-          title: Text('选择类型'),
+          title: Text(context.l10n.flowChooseCategory),
           content: SingleChildScrollView(
             child: ListBody(
               children: _options.map((option) {
                 return ListTile(
-                  title: Text(option['label']!),
+                  title: Text(context.featureText(option['label']!)),
                   selected: _selectedType == option['value'],
                   onTap: () {
                     if (option['value'] == 'charter_50') {
@@ -716,7 +743,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
           ),
           actions: [
             TextButton(
-              child: Text('取消'),
+              child: Text(context.l10n.featureCancel),
               onPressed: () {
                 Navigator.of(context).pop();
               },
@@ -731,7 +758,9 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
   void _showVersionSelectionDialog() {
     if (_versionCounts == null || _versionCounts!.isEmpty) {
       // 没有版本数据
-      showAppNoticeDialog(context, title: '提示', message: '没有找到版本数据');
+      showAppNoticeDialog(context,
+          title: context.l10n.featureNotice,
+          message: context.l10n.flowNoVersionDataFound);
       return;
     }
 
@@ -757,13 +786,14 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
       context: context,
       builder: (BuildContext context) {
         return AppAlertDialog(
-          title: Text('选择版本'),
+          title: Text(context.l10n.flowSelectVersion),
           content: SingleChildScrollView(
             child: ListBody(
               children: sortedVersions.map((entry) {
                 return ListTile(
-                  title: Text(
-                      '${StringUtil.formatVersion2(entry.key)} (${entry.value}首)'),
+                  title: Text(context.l10n.flowP0P1Songs2(
+                      (StringUtil.formatVersion2(entry.key)).toString(),
+                      (entry.value).toString())),
                   selected: _selectedVersion == entry.key,
                   onTap: () {
                     setState(() {
@@ -779,7 +809,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
           ),
           actions: [
             TextButton(
-              child: Text('取消'),
+              child: Text(context.l10n.featureCancel),
               onPressed: () {
                 Navigator.of(context).pop();
               },
@@ -794,7 +824,9 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
   void _showGenreSelectionDialog() {
     if (_genreCounts == null || _genreCounts!.isEmpty) {
       // 没有流派数据
-      showAppNoticeDialog(context, title: '提示', message: '没有找到流派数据');
+      showAppNoticeDialog(context,
+          title: context.l10n.featureNotice,
+          message: context.l10n.flowNoGenreDataFound);
       return;
     }
 
@@ -806,12 +838,13 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
       context: context,
       builder: (BuildContext context) {
         return AppAlertDialog(
-          title: Text('选择流派'),
+          title: Text(context.l10n.flowSelectGenre),
           content: SingleChildScrollView(
             child: ListBody(
               children: sortedGenres.map((entry) {
                 return ListTile(
-                  title: Text('${entry.key} (${entry.value}首)'),
+                  title: Text(context.l10n.flowP0P1Songs2(
+                      (entry.key).toString(), (entry.value).toString())),
                   selected: _selectedGenre == entry.key,
                   onTap: () {
                     setState(() {
@@ -827,7 +860,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
           ),
           actions: [
             TextButton(
-              child: Text('取消'),
+              child: Text(context.l10n.featureCancel),
               onPressed: () {
                 Navigator.of(context).pop();
               },
@@ -844,12 +877,12 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
       context: context,
       builder: (BuildContext context) {
         return AppAlertDialog(
-          title: Text('选择星数'),
+          title: Text(context.l10n.flowSelectStars),
           content: SingleChildScrollView(
             child: ListBody(
               children: _starOptions.map((option) {
                 return ListTile(
-                  title: Text(option['label']!),
+                  title: Text(context.featureText(option['label']!)),
                   selected: _selectedStar == option['label'],
                   onTap: () {
                     setState(() {
@@ -865,7 +898,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
           ),
           actions: [
             TextButton(
-              child: Text('取消'),
+              child: Text(context.l10n.featureCancel),
               onPressed: () {
                 Navigator.of(context).pop();
               },
@@ -911,7 +944,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
           Expanded(
             child: Best50ActionButton(
               icon: Icons.search_rounded,
-              label: '生成 Best N',
+              label: context.l10n.flowGenerateBestN,
               primary: true,
               onPressed: _triggerBestN,
             ),
@@ -925,7 +958,8 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
   void _triggerBestN() {
     final v = int.tryParse(_bestNController.text.trim());
     if (v == null || v < 1) {
-      AppToast.show('请输入 ≥ 1 的整数');
+      AppToast.show(context.l10n.flowEnterAnIntegerOf1OrMore,
+          tone: AppToastTone.warning);
       return;
     }
     setState(() {
@@ -953,7 +987,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
       context: context,
       builder: (BuildContext context) {
         return AppAlertDialog(
-          title: Text('选择难度'),
+          title: Text(context.l10n.flowSelectDifficulty),
           content: SingleChildScrollView(
             child: ListBody(
               children: options.map((opt) {
@@ -973,7 +1007,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
           ),
           actions: [
             TextButton(
-              child: Text('取消'),
+              child: Text(context.l10n.featureCancel),
               onPressed: () => Navigator.of(context).pop(),
             ),
           ],
@@ -992,11 +1026,11 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
         context: context,
         builder: (BuildContext context) {
           return AppAlertDialog(
-            title: Text('提示'),
-            content: Text('没有找到标签数据'),
+            title: Text(context.l10n.featureNotice),
+            content: Text(context.l10n.flowNoTagDataFound),
             actions: [
               TextButton(
-                child: Text('确定'),
+                child: Text(context.l10n.featureOK),
                 onPressed: () => Navigator.of(context).pop(),
               ),
             ],
@@ -1025,7 +1059,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
       context: context,
       builder: (BuildContext context) {
         return AppAlertDialog(
-          title: Text('选择标签'),
+          title: Text(context.l10n.flowSelectTag),
           content: SizedBox(
             width: double.maxFinite,
             child: SingleChildScrollView(
@@ -1056,7 +1090,12 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
                             setState(() {
                               _selectedType = 'tag_50';
                               _selectedTagId = tag.id;
-                              _selectedTagName = tag.localizedName.zhHans;
+                              // 自定义标签可能与 DXRating 标签同名，显示时加标记区分。
+                              _selectedTagName = CustomTagStore.instance
+                                      .isCustomTagId(tag.id)
+                                  ? context.l10n.customTagMarked(
+                                      tag.localizedName.zhHans)
+                                  : tag.localizedName.zhHans;
                             });
                             Navigator.of(context).pop();
                             _fetchPersonalizedData();
@@ -1071,7 +1110,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
           ),
           actions: [
             TextButton(
-              child: Text('取消'),
+              child: Text(context.l10n.featureCancel),
               onPressed: () => Navigator.of(context).pop(),
             ),
           ],
@@ -1084,7 +1123,9 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
   void _showCharterSelectionDialog() {
     if (_charterCounts == null || _charterCounts!.isEmpty) {
       // 没有charter数据
-      showAppNoticeDialog(context, title: '提示', message: '没有找到符合条件的谱师数据');
+      showAppNoticeDialog(context,
+          title: context.l10n.featureNotice,
+          message: context.l10n.flowNoMatchingChartDesigners);
       return;
     }
 
@@ -1097,12 +1138,13 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
       context: context,
       builder: (BuildContext context) {
         return AppAlertDialog(
-          title: Text('选择谱师'),
+          title: Text(context.l10n.flowSelectCharter),
           content: SingleChildScrollView(
             child: ListBody(
               children: sortedCharters.map((entry) {
                 return ListTile(
-                  title: Text('${entry.key} (${entry.value}谱面)'),
+                  title: Text(context.l10n.flowP0P1Charts(
+                      (entry.key).toString(), (entry.value).toString())),
                   selected: _selectedCharter == entry.key,
                   onTap: () {
                     setState(() {
@@ -1118,7 +1160,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
           ),
           actions: [
             TextButton(
-              child: Text('取消'),
+              child: Text(context.l10n.featureCancel),
               onPressed: () {
                 Navigator.of(context).pop();
               },
@@ -1143,19 +1185,24 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
     double averageAchievement =
         totalSongs > 0 ? totalAchievement / totalSongs : 0.0;
 
-    final title =
-            _selectedType == 'charter_50' && _selectedCharter != null
-                ? '谱师50 - ${_selectedCharter!} 统计'
-                : _selectedType == 'version_50' && _selectedVersion != null
-                    ? '版本50 - ${StringUtil.formatVersion2(_selectedVersion!)} 统计'
-                    : _selectedType == 'genre_50' && _selectedGenre != null
-                        ? '流派50 - ${_selectedGenre!} 统计'
-                        : _selectedType == 'star_50' && _selectedStar != null
-                            ? '星数50 - ${_selectedStar!} 统计'
-                            : _selectedType == 'tag_50' &&
-                                    _selectedTagName != null
-                                ? '标签50 - ${_selectedTagName!} 统计'
-                                : '${_options.firstWhere((option) => option['value'] == _selectedType)['label']!} 统计';
+    final title = _selectedType == 'charter_50' && _selectedCharter != null
+        ? context.l10n
+            .flowChartDesigner50P0Statistics((_selectedCharter!).toString())
+        : _selectedType == 'version_50' && _selectedVersion != null
+            ? context.l10n.flowVersion50P0Statistics(
+                (StringUtil.formatVersion2(_selectedVersion!)).toString())
+            : _selectedType == 'genre_50' && _selectedGenre != null
+                ? context.l10n
+                    .flowGenre50P0Statistics((_selectedGenre!).toString())
+                : _selectedType == 'star_50' && _selectedStar != null
+                    ? context.l10n
+                        .flowStar50P0Statistics((_selectedStar!).toString())
+                    : _selectedType == 'tag_50' && _selectedTagName != null
+                        ? context.l10n.flowTag50P0Statistics(
+                            (_selectedTagName!).toString())
+                        : context.l10n.flowP0Statistics(context.featureText(
+                            _options.firstWhere((option) =>
+                                option['value'] == _selectedType)['label']!));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1164,13 +1211,17 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
         AppCard(
           child: Row(
             children: [
-              Expanded(child: StatTile(label: '总谱面数', value: '$totalSongs')),
               Expanded(
                   child: StatTile(
-                      label: '平均RA值', value: averageRa.toStringAsFixed(1))),
+                      label: context.l10n.flowTotalCharts,
+                      value: '$totalSongs')),
               Expanded(
                   child: StatTile(
-                      label: '平均达成率',
+                      label: context.l10n.flowAverageRA,
+                      value: averageRa.toStringAsFixed(1))),
+              Expanded(
+                  child: StatTile(
+                      label: context.l10n.featureAverageAchievement,
                       value: '${averageAchievement.toStringAsFixed(2)}%')),
             ],
           ),
@@ -1194,7 +1245,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  '包含关系模式',
+                  context.l10n.flowInclusionMode,
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
@@ -1231,13 +1282,12 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
   Widget _buildRerollButton() {
     return Best50ActionButton(
       icon: Icons.casino_outlined,
-      label: '再抽一次',
+      label: context.l10n.flowDrawAgain,
       onPressed: _fetchPersonalizedData,
     );
   }
 
   // 构建导出按钮
-
 
   // 构建歌曲列表
   Widget _buildSongList() {
@@ -1256,14 +1306,22 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
             SizedBox(height: 16),
             Text(
               _selectedType == 'charter_50' && _selectedCharter != null
-                  ? '暂无谱师50 - ${_selectedCharter!} 数据'
+                  ? context.l10n.flowNoChartDesigner50DataForP0(
+                      (_selectedCharter!).toString())
                   : _selectedType == 'version_50' && _selectedVersion != null
-                      ? '暂无版本50 - ${StringUtil.formatVersion2(_selectedVersion!)} 数据'
+                      ? context.l10n.flowNoVersion50DataForP0(
+                          (StringUtil.formatVersion2(_selectedVersion!))
+                              .toString())
                       : _selectedType == 'genre_50' && _selectedGenre != null
-                          ? '暂无流派50 - ${_selectedGenre!} 数据'
+                          ? context.l10n.flowNoGenre50DataForP0(
+                              (_selectedGenre!).toString())
                           : _selectedType == 'star_50' && _selectedStar != null
-                              ? '暂无星数50 - ${_selectedStar!} 数据'
-                              : '暂无${_options.firstWhere((option) => option['value'] == _selectedType)['label']!}数据',
+                              ? context.l10n.flowNoStar50DataForP0(
+                                  (_selectedStar!).toString())
+                              : context.l10n.flowNoP0DataYet(context
+                                  .featureText(_options.firstWhere((option) =>
+                                      option['value'] ==
+                                      _selectedType)['label']!)),
               style: TextStyle(
                 fontSize: 18,
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -1272,10 +1330,10 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
             ),
             SizedBox(height: 8),
             Text(
-              // PC50 的次数由系统页的独立功能读取，缺数据时给出明确入口。
+              // PC50 的次数由「我的」页的独立功能读取，缺数据时给出明确入口。
               _selectedType == 'pc_50'
-                  ? '请先在系统页「刷新机台游玩次数」，再查看 PC50'
-                  : '请返回首页点击"刷新数据"按钮获取',
+                  ? context.l10n.flowRefreshArcadePlayCountsFromMeBefore
+                  : context.l10n.flowReturnHomeAndTapRefreshData,
               style: TextStyle(
                 fontSize: 14,
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -1310,7 +1368,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
     final int? playCount = (songData['playCount'] as num?)?.toInt();
     return Best50CardData(
       songId: songId,
-      title: songData['title'] ?? '未知歌曲',
+      title: songData['title'] ?? context.l10n.flowUnknownSong,
       levelIndex: levelIndex,
       type: songData['type'] ?? '',
       rating: songData['ra'] ?? 0,
@@ -1334,8 +1392,8 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
         MaterialPageRoute(
           builder: (context) => SongInfoPage(
             songId: songId.toString(),
-            initialLevelIndex: levelIndex,
-            isDefaultLevelIndex: false, // 防止默认跳转到Master难度
+            initialLevelIndex:
+                ChartDifficulty.parseStandardIndex(songData['level_index']),
           ),
         ),
       ),
@@ -1344,7 +1402,6 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
 
   // 构建游戏卡片（委托至通用 widget B50GameCardWidget，
   // 字号按卡片**实际**宽度自适应（`scale: autoScale`）。
-
 
   // 计算scoreRate
   double _calculateScoreRate(int songId, int levelIndex, int score) {

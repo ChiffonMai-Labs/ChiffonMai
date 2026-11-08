@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -142,6 +143,7 @@ class GuessChartByCoverService {
     double masterMinDx = 1.0,
     double masterMaxDx = 15.0,
     List<String> selectedGenres = const [],
+    Set<String> excludedSongIds = const {},
   }) async {
     try {
       final songs = await loadAllSongs();
@@ -150,10 +152,12 @@ class GuessChartByCoverService {
       }
 
       // 过滤掉宴会场谱面（id为六位数的谱面）和从maidata追加的歌曲（cids全为0）
-      var filteredSongs = songs.where((song) => 
-        song.id.length != 6 && 
-        !_isMaidataSong(song)
-      ).toList();
+      var filteredSongs = songs
+          .where((song) =>
+              song.id.length != 6 &&
+              !_isMaidataSong(song) &&
+              !excludedSongIds.contains(song.id))
+          .toList();
       
       // 应用过滤条件
       if (selectedVersions.isNotEmpty) {
@@ -182,7 +186,7 @@ class GuessChartByCoverService {
       }
 
       // 随机选择一首歌曲
-      final randomIndex = DateTime.now().millisecondsSinceEpoch % filteredSongs.length;
+      final randomIndex = Random().nextInt(filteredSongs.length);
       return filteredSongs[randomIndex];
     } catch (e) {
       debugPrint('随机选择歌曲失败: $e');

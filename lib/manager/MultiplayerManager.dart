@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:my_first_flutter_app/entity/Multiplayer/RoomEntity.dart';
@@ -51,6 +52,7 @@ class MultiplayerManager {
         _gameStateReceivedAt == null ||
         state.timeLimit <= 0 ||
         state.isRoundOver ||
+        state.coverPreparing ||
         state.isGameOver) return state;
     final elapsed =
         DateTime.now().difference(_gameStateReceivedAt!).inMilliseconds;
@@ -247,6 +249,7 @@ class MultiplayerManager {
     double masterMaxDx = 15.0,
     List<String> selectedGenres = const [],
     int blurLevel = 50,
+    int pixelationLevel = 50,
     int playDuration = 5,
     double audioRate = 1.25,
     int songCount = 3,
@@ -306,6 +309,7 @@ class MultiplayerManager {
       masterMaxDx: masterMaxDx,
       selectedGenres: selectedGenres,
       blurLevel: blurLevel,
+      pixelationLevel: pixelationLevel,
       playDuration: playDuration,
       audioRate: audioRate,
       songCount: songCount,
@@ -321,7 +325,7 @@ class MultiplayerManager {
 
     debugPrint('[DEBUG][Manager] 等待房间创建结果...');
     return completer.future.timeout(const Duration(seconds: 12), onTimeout: () {
-      throw TimeoutException('创建房间超时，请检查连接后重试');
+      throw TimeoutException(appL10n.svcCreatingTheRoomTimedOutCheckYour);
     }).whenComplete(() => sub?.cancel());
   }
 
@@ -360,7 +364,7 @@ class MultiplayerManager {
 
     debugPrint('[DEBUG][Manager] Waiting for join result...');
     return completer.future.timeout(const Duration(seconds: 12), onTimeout: () {
-      throw TimeoutException('加入房间超时，请检查房间码与网络');
+      throw TimeoutException(appL10n.svcJoiningTheRoomTimedOutCheckThe);
     }).whenComplete(() => sub?.cancel());
   }
 
@@ -397,6 +401,11 @@ class MultiplayerManager {
   Future<void> startNextRound() async {
     await _cloudService.startNextRound();
   }
+
+  Future<void> sendCoverPreparation(String action, String roomId, String roundId,
+          {Map<String, double>? crop, bool failed = false}) =>
+      _cloudService.sendCoverPreparation(action, roomId, roundId,
+          crop: crop, failed: failed);
 
   Future<void> submitGuess(String songId, String songName) async {
     await _cloudService.submitGuess(songId, songName);

@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import '../../service/CommunityAvatarStore.dart';
 import '../../widgets/RankingPlayerBriefSheet.dart';
 import 'package:flutter/material.dart';
@@ -124,7 +126,7 @@ class _AvgScoreRankingListPageState extends State<AvgScoreRankingListPage> {
       return;
     }
     if (_currentUserRankItem!.rank > 100) {
-      AppToast.show('抱歉，您不在前100名内');
+      AppToast.show(context.l10n.flowYouAreOutsideTheTop100);
       return;
     }
     final userIndex =
@@ -134,7 +136,7 @@ class _AvgScoreRankingListPageState extends State<AvgScoreRankingListPage> {
       // （真实行高只有 64，估高每行多 8dp，到第 40 名就滑过头 320dp）。
       _rowExtent.scrollRowToTop(_scrollController, userIndex);
     } else {
-      AppToast.show('抱歉，您不在前100名内');
+      AppToast.show(context.l10n.flowYouAreOutsideTheTop100);
     }
   }
 
@@ -176,7 +178,7 @@ class _AvgScoreRankingListPageState extends State<AvgScoreRankingListPage> {
     } catch (e) {
       if (mounted && generation == _requestGeneration) {
         setState(() {
-          _errorMessage = '加载失败: $e';
+          _errorMessage = appL10n.flowCouldNotLoadP0((e).toString());
         });
       }
     } finally {
@@ -197,8 +199,9 @@ class _AvgScoreRankingListPageState extends State<AvgScoreRankingListPage> {
   String _formatValue(double value) => '${value.toStringAsFixed(4)}%';
 
   // 指标名称
-  String _metricName() =>
-      _currentMetric == AvgMetric.achievement ? '平均达成率排行榜' : '平均DX分数达成率排行榜';
+  String _metricName() => _currentMetric == AvgMetric.achievement
+      ? context.l10n.featureAverageAchievementLeaderboard
+      : context.l10n.featureAverageDXScoreRateLeaderboard;
 
   // 记录条目数
   int _recordCountOf(AvgRankItem item) =>
@@ -240,7 +243,7 @@ class _AvgScoreRankingListPageState extends State<AvgScoreRankingListPage> {
             ),
           ),
           Text(
-            '${_recordCountOf(item)}条',
+            context.l10n.flowP0Entries2((_recordCountOf(item)).toString()),
             maxLines: 1,
             style: AppTheme.number(
               fontSize: 11,
@@ -259,7 +262,9 @@ class _AvgScoreRankingListPageState extends State<AvgScoreRankingListPage> {
       dataSource: item.dataSource,
       // 开发者白名单按 `<source>:<id>` 整串匹配，见 DataSourceTag
       playerId: item.playerId,
-      name: item.playerName.isEmpty ? '未知玩家' : item.playerName,
+      name: item.playerName.isEmpty
+          ? context.l10n.flowUnknownPlayer
+          : item.playerName,
       // 头像高度对齐「玩家名 + 数据源标签」两行文字的总高
       avatarMatchesTextHeight: true,
       nameStyle: TextStyle(
@@ -315,7 +320,9 @@ class _AvgScoreRankingListPageState extends State<AvgScoreRankingListPage> {
               size: 64, color: AppColors.greyHint(brightness)),
           const SizedBox(height: 16),
           Text(
-            _errorMessage.isNotEmpty ? _errorMessage : '暂无排行数据',
+            _errorMessage.isNotEmpty
+                ? _errorMessage
+                : context.l10n.flowNoRankingDataYet,
             style: TextStyle(
               fontSize: 16,
               color: AppColors.greyHint(brightness),
@@ -356,14 +363,14 @@ class _AvgScoreRankingListPageState extends State<AvgScoreRankingListPage> {
                             color: AppColors.primaryText(brightness)),
                     onPressed:
                         (_isLoading || _isButtonDisabled) ? null : _onRefresh,
-                    tooltip: '刷新',
+                    tooltip: context.l10n.flowRefresh,
                   ),
                   if (_currentUserRankItem != null)
                     IconButton(
                       icon: Icon(Icons.location_searching,
                           color: AppColors.primaryText(brightness)),
                       onPressed: _scrollToCurrentUser,
-                      tooltip: '跳转到我的排名',
+                      tooltip: context.l10n.flowGoToMyRank,
                     ),
                 ],
               ),
@@ -396,11 +403,14 @@ class _AvgScoreRankingListPageState extends State<AvgScoreRankingListPage> {
                               final item = _rankList[index];
                               final isCurrentUser = _currentUserId != null &&
                                   item.playerId == _currentUserId;
-                              return _entrance.wrap(_rankList, index, _buildRankItem(
-                                item,
-                                isCurrentUser: isCurrentUser,
-                                brightness: brightness,
-                              ));
+                              return _entrance.wrap(
+                                  _rankList,
+                                  index,
+                                  _buildRankItem(
+                                    item,
+                                    isCurrentUser: isCurrentUser,
+                                    brightness: brightness,
+                                  ));
                             },
                           ),
               ),
@@ -412,7 +422,8 @@ class _AvgScoreRankingListPageState extends State<AvgScoreRankingListPage> {
                   child: RankingSelfBar(
                     rank: _currentUserRankItem!.rank,
                     onTap: _scrollToCurrentUser,
-                    identity: _buildIdentity(_currentUserRankItem!, isCurrentUser: true),
+                    identity: _buildIdentity(_currentUserRankItem!,
+                        isCurrentUser: true),
                     value: _buildValueCell(_currentUserRankItem!),
                   ),
                 ),

@@ -1,11 +1,17 @@
 import 'GuessRecord.dart';
 import 'PlayerEntity.dart';
+import '../../utils/GameSeedUtil.dart';
 
 class GameStateEntity {
   final String? roomId;
   final String? roundId;
   final int? serverNow;
   final int? roundEndsAt;
+  final int coverProtocolVersion;
+  final bool coverPreparing;
+  final CropRect? coverCrop;
+  final String? coverPreparerId;
+  final String? coverError;
   final int currentRound;
   final int totalRounds;
   final dynamic targetSong;
@@ -55,6 +61,11 @@ class GameStateEntity {
     this.roundId,
     this.serverNow,
     this.roundEndsAt,
+    this.coverProtocolVersion = 0,
+    this.coverPreparing = false,
+    this.coverCrop,
+    this.coverPreparerId,
+    this.coverError,
     required this.currentRound,
     required this.totalRounds,
     this.targetSong,
@@ -139,6 +150,11 @@ class GameStateEntity {
       roundId: json['roundId']?.toString(),
       serverNow: (json['serverNow'] as num?)?.toInt(),
       roundEndsAt: (json['roundEndsAt'] as num?)?.toInt(),
+      coverProtocolVersion: (json['coverProtocolVersion'] as num?)?.toInt() ?? 0,
+      coverPreparing: json['coverPreparing'] == true,
+      coverCrop: CropRect.tryFromJson(json['coverCrop']),
+      coverPreparerId: json['coverPreparerId']?.toString(),
+      coverError: json['coverError']?.toString(),
       currentRound: json['currentRound'] ?? json['current_round'] ?? 1,
       totalRounds: json['totalRounds'] ??
           json['total_rounds'] ??
@@ -170,6 +186,11 @@ class GameStateEntity {
       'roundId': roundId,
       'serverNow': serverNow,
       'roundEndsAt': roundEndsAt,
+      'coverProtocolVersion': coverProtocolVersion,
+      'coverPreparing': coverPreparing,
+      'coverCrop': coverCrop?.toJson(),
+      'coverPreparerId': coverPreparerId,
+      'coverError': coverError,
       'current_round': currentRound,
       'total_rounds': totalRounds,
       'target_song': targetSong,
@@ -194,6 +215,11 @@ class GameStateEntity {
     String? roundId,
     int? serverNow,
     int? roundEndsAt,
+    int? coverProtocolVersion,
+    bool? coverPreparing,
+    CropRect? coverCrop,
+    String? coverPreparerId,
+    String? coverError,
     int? currentRound,
     int? totalRounds,
     dynamic targetSong,
@@ -216,6 +242,11 @@ class GameStateEntity {
       roundId: roundId ?? this.roundId,
       serverNow: serverNow ?? this.serverNow,
       roundEndsAt: roundEndsAt ?? this.roundEndsAt,
+      coverProtocolVersion: coverProtocolVersion ?? this.coverProtocolVersion,
+      coverPreparing: coverPreparing ?? this.coverPreparing,
+      coverCrop: coverCrop ?? this.coverCrop,
+      coverPreparerId: coverPreparerId ?? this.coverPreparerId,
+      coverError: coverError ?? this.coverError,
       currentRound: currentRound ?? this.currentRound,
       totalRounds: totalRounds ?? this.totalRounds,
       targetSong: targetSong ?? this.targetSong,

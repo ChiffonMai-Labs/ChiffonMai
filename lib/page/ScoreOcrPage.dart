@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:my_first_flutter_app/widgets/NoRipple.dart';
 import 'dart:async';
@@ -132,16 +134,17 @@ class _ValidatedNumberFieldState extends State<_ValidatedNumberField> {
 
     final v = double.tryParse(t);
     if (v == null) {
-      setState(() => _error = '请输入数字');
+      setState(() => _error = context.l10n.flowEnterANumber);
       return; // 不写回，保留上一次的合法值
     }
     if (v < 0) {
-      setState(() => _error = '不能为负数');
+      setState(() => _error = context.l10n.flowCannotBeNegative);
       return;
     }
     final max = widget.max;
     if (max != null && v > max) {
-      setState(() => _error = '不得超过 ${_f(max)}');
+      setState(() =>
+          _error = context.l10n.flowMustNotExceedP0((_f(max)).toString()));
       return;
     }
 
@@ -236,7 +239,8 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
   }
 
   /// 索引 → 玩家看到的难度名
-  static String _difficultyNameOf(int index) => ChartDifficulty.labelOf(index, fallback: '难度 $index');
+  static String _difficultyNameOf(int index) => ChartDifficulty.labelOf(index,
+      fallback: appL10n.flowDifficultyP0((index).toString()));
 
   /// 该歌曲在 [index] 这个难度上的等级（没有则为 null）
   static String? _levelAtIndex(Song song, int index) {
@@ -360,22 +364,23 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
     if (_songOf(item) == null) {
       // 曲库为空时这条是通杀所有卡片的，单独给一句能直接照做的提示
       return _songLibraryEmpty
-          ? '本地曲库为空，无法定位曲目。请先到首页刷新曲库'
-          : '没匹配到曲目，点「编辑此项」手动指定';
+          ? context.l10n.flowLocalLibraryIsEmptyRefreshItFrom
+          : context.l10n.flowNoSongMatchedTapEditThisResult;
     }
     final idx = _difficultyIndexEffective(item);
     if (idx == null) {
-      return '难度识别不出来（宴会场谱面不支持同步）';
+      return context.l10n.flowDifficultyNotRecognizedUTAGESyncIsUnsupported;
     }
     final count = _chartCountOf(item);
     if (count == null) {
-      return '曲库里这首歌没有谱面信息';
+      return context.l10n.flowNoChartInformationForThisSongIn;
     }
     if (idx >= count) {
-      return '这首歌没有第 ${idx + 1} 个难度（只有 $count 个谱面）';
+      return context.l10n.flowDifficultyP0DoesNotExistOnlyP1(
+          (idx + 1).toString(), (count).toString());
     }
     if (_achievementOf(item) == null) {
-      return '缺少达成率，点「编辑此项」补上';
+      return context.l10n.flowAchievementMissingTapEditThisResultTo;
     }
     return null;
   }
@@ -392,7 +397,8 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
         await DivingFishProbeManager().getCachedDivingFishImportToken();
     if (!mounted) return;
     if (token == null || token.isEmpty) {
-      AppToast.show('还没有水鱼 Import-Token，请先到「登录水鱼」完成登录');
+      AppToast.show(context.l10n.flowNoDivingFishImportTokenSignIn,
+          tone: AppToastTone.warning);
       return;
     }
 
@@ -409,13 +415,19 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
         dxScore: _dxScoreOf(item),
       );
       if (!mounted) return;
-      AppToast.show(result.isNew
-            ? '已新增到水鱼：${song.basicInfo.title}'
-            : '已更新水鱼成绩：${song.basicInfo.title}');
+      AppToast.show(
+          result.isNew
+              ? context.l10n
+                  .flowAddedToDivingFishP0((song.basicInfo.title).toString())
+              : context.l10n.flowDivingFishScoreUpdatedP0(
+                  (song.basicInfo.title).toString()),
+          tone: AppToastTone.success);
     } on ScoreUploadException catch (e) {
       if (mounted) AppToast.show(e.message);
     } catch (e) {
-      if (mounted) AppToast.show('同步失败：$e');
+      if (mounted)
+        AppToast.show(context.l10n.flowSyncFailedP0((e).toString()),
+            tone: AppToastTone.error);
     } finally {
       if (mounted) setState(() => _uploadingIndex = null);
     }
@@ -429,7 +441,7 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
   /// 定位不到具体曲目，直接拒绝而不是硬传。
   ///
   /// 认证由 service 内部决定：OAuth Bearer 优先，个人 API 密钥回退。本页面
-  /// 只在「两条都拿不到」时提示去账号管理填写。
+  /// 只在「两条都拿不到」时提示去成绩导入凭据填写。
   Future<void> _syncToLuoXue(MaimaiHubOcrItem item) async {
     if (_uploadingLuoXueIndex != null) return;
 
@@ -440,17 +452,19 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
 
     final songId = int.tryParse(song.id);
     if (songId == null) {
-      AppToast.show('无法解析曲目 ID，不能同步到落雪');
+      AppToast.show(context.l10n.flowCannotParseSongIDForLXNSSync,
+          tone: AppToastTone.error);
       return;
     }
 
     // OAuth 和本地密钥都没有时传不上去，点同步时才检查。
     final hasOAuth = await LuoXueOAuthManager().getAccessToken() != null;
-    final localKey = await SecureCredentialStore.read(
-        CacheKeyConstant.probeLxnsImportToken);
+    final localKey =
+        await SecureCredentialStore.read(CacheKeyConstant.probeLxnsImportToken);
     if (!mounted) return;
     if (!hasOAuth && (localKey == null || localKey.isEmpty)) {
-      AppToast.show('还没有落雪个人 API 密钥，请先到「账号管理」填写');
+      AppToast.show(context.l10n.flowNoLXNSPersonalAPIKeySetIt,
+          tone: AppToastTone.warning);
       return;
     }
 
@@ -470,7 +484,9 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
     } on LuoXueUploadException catch (e) {
       if (mounted) AppToast.show(e.message);
     } catch (e) {
-      if (mounted) AppToast.show('同步失败：$e');
+      if (mounted)
+        AppToast.show(context.l10n.flowSyncFailedP0((e).toString()),
+            tone: AppToastTone.error);
     } finally {
       if (mounted) setState(() => _uploadingLuoXueIndex = null);
     }
@@ -485,20 +501,23 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
   String _composeLuoXueToast(String title, LuoXueUploadResult r) {
     final lines = <String>[];
     if (r.changed) {
-      lines.add('已更新到落雪：$title');
+      lines.add(context.l10n.flowUpdatedOnLXNSP0((title).toString()));
     } else {
-      lines.add('已同步到落雪（无变化）：$title');
+      lines.add(context.l10n.flowSyncedToLXNSUnchangedP0((title).toString()));
     }
     if (r.oldAchievement != null && r.newAchievement != null) {
-      lines.add(
-          '达成率 ${_formatAchievement(r.oldAchievement!)}% → ${_formatAchievement(r.newAchievement!)}%');
+      lines.add(context.l10n.flowAchievementP0P1(
+          (_formatAchievement(r.oldAchievement!)).toString(),
+          (_formatAchievement(r.newAchievement!)).toString()));
     } else if (r.newAchievement != null) {
-      lines.add('达成率 ${_formatAchievement(r.newAchievement!)}%');
+      lines.add(context.l10n.flowAchievementP0(
+          (_formatAchievement(r.newAchievement!)).toString()));
     }
     if (r.oldDxScore != null && r.newDxScore != null) {
-      lines.add('DX分数 ${r.oldDxScore} → ${r.newDxScore}');
+      lines.add(context.l10n.flowDXScoreP0P1(
+          (r.oldDxScore).toString(), (r.newDxScore).toString()));
     } else if (r.newDxScore != null) {
-      lines.add('DX分数 ${r.newDxScore}');
+      lines.add(context.l10n.flowDXScoreP0((r.newDxScore).toString()));
     }
     return lines.join('\n');
   }
@@ -532,13 +551,13 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('选择图片来源',
+            Text(context.l10n.flowChooseImageSource,
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
             ListTile(
               leading: const Icon(Icons.camera_alt, size: 28),
-              title: const Text('拍照'),
-              subtitle: const Text('对着机台结算页面拍一张'),
+              title: Text(context.l10n.flowTakePhoto),
+              subtitle: Text(context.l10n.flowPhotographTheCabinetResultScreen),
               onTap: () {
                 Navigator.pop(ctx);
                 _pickImage(ImageSource.camera);
@@ -546,8 +565,8 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
             ),
             ListTile(
               leading: const Icon(Icons.photo_library, size: 28),
-              title: const Text('从相册选择'),
-              subtitle: const Text('选取已经拍好的结算画面'),
+              title: Text(context.l10n.chooseFromGallery),
+              subtitle: Text(context.l10n.flowChooseAPhotographedResultScreen),
               onTap: () {
                 Navigator.pop(ctx);
                 _pickImage(ImageSource.gallery);
@@ -565,7 +584,7 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
       final status = await Permission.camera.request();
       if (!status.isGranted) {
         if (mounted) {
-          AppToast.show('需要相机权限');
+          AppToast.show(context.l10n.flowCameraPermissionRequired);
           await openAppSettings();
         }
         return;
@@ -602,7 +621,9 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
         }
       }
     } catch (e) {
-      if (mounted) AppToast.show('选取图片失败: $e');
+      if (mounted)
+        AppToast.show(context.l10n.flowCouldNotSelectImageP0((e).toString()),
+            tone: AppToastTone.error);
     }
   }
 
@@ -631,15 +652,16 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
       await _resolveMatchedSongs(result);
       if (!mounted) return;
       if (!result.hasAnySuccess) {
-        AppToast.show('没有识别出成绩，可裁剪得更贴近结算区域后重试');
+        AppToast.show(context.l10n.flowNoScoreRecognizedCropCloserToThe,
+            tone: AppToastTone.warning);
       }
     } on MaimaiHubOcrException catch (e) {
       if (!mounted) return;
       setState(() {
         _error = e.message;
         _isRecognizing = false;
-        // 401 会被翻译成「登录状态已失效」，顺手刷新登录态提示
-        if (e.message.contains('登录')) _loggedIn = false;
+        // 401 或本机未登录时顺手刷新登录态提示
+        if (e.loginRequired) _loggedIn = false;
       });
       AppToast.show(e.message);
     } catch (e) {
@@ -648,7 +670,8 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
         _error = e.toString();
         _isRecognizing = false;
       });
-      AppToast.show('识别出错: $e');
+      AppToast.show(context.l10n.flowRecognitionErrorP0((e).toString()),
+          tone: AppToastTone.error);
     }
   }
 
@@ -773,7 +796,7 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
           final diffIndex = _difficultyIndexEffective(item);
           final chartCount = _chartCountOf(item);
           final effectiveTitle =
-              edit?.titleOf(best?.title) ?? best?.title ?? '未识别出曲名';
+              edit?.titleOf(best?.title) ?? best?.title ?? context.l10n.flowSongTitleNotRecognized;
 
           return SafeArea(
             child: SingleChildScrollView(
@@ -782,13 +805,15 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('修正识别结果',
+                  Text(context.l10n.flowCorrectRecognitionResults,
                       style: TextStyle(
                           fontSize: 17,
                           fontWeight: FontWeight.bold,
                           color: scheme.onSurface)),
                   const SizedBox(height: 4),
-                  Text('识别不可能百分百准确，这里改过的值会直接替换卡片上的显示',
+                  Text(
+                      context
+                          .l10n.flowRecognitionIsNotAlwaysAccurateEditedValues,
                       style: TextStyle(
                           fontSize: 12, color: scheme.onSurfaceVariant)),
                   const SizedBox(height: 16),
@@ -813,13 +838,13 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
                   const SizedBox(height: 12),
 
                   // ── 难度：与自定义 Best50 一致，默认展开并直接列出真实难度 ──
-                  Text('难度',
+                  Text(context.l10n.flowDifficulty,
                       style: TextStyle(
                           fontSize: 13, color: scheme.onSurfaceVariant)),
                   const SizedBox(height: 6),
                   if (!_canPickDifficulty(item))
                     Text(
-                      '先选定一首歌曲，才能列出它实际有的难度',
+                      context.l10n.flowSelectASongFirstToListIts,
                       style: TextStyle(
                           fontSize: 12,
                           color: AppColors.warningOrange(
@@ -847,10 +872,14 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
                                       _levelAtIndex(song, i),
                                       _dsAtIndex(song, i) == null
                                           ? null
-                                          : '定数 ${_dsAtIndex(song, i)!.toStringAsFixed(1)}',
+                                          : context.l10n.flowConstantP0(
+                                              (_dsAtIndex(song, i)!
+                                                      .toStringAsFixed(1))
+                                                  .toString()),
                                     ].whereType<String>().join(' · '),
-                                    onSelected: (_) => apply((e) => e.difficulty =
-                                        _difficultyNameOf(i).toLowerCase()),
+                                    onSelected: (_) => apply((e) =>
+                                        e.difficulty =
+                                            _difficultyNameOf(i).toLowerCase()),
                                   ),
                                 ),
                             ],
@@ -864,7 +893,7 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
                               child: Text(
                                 '${_difficultyNameOf(diffIndex)}'
                                 '${_levelAtIndex(song, diffIndex) == null ? '' : ' · ${_levelAtIndex(song, diffIndex)}'}'
-                                '${_dsAtIndex(song, diffIndex) == null ? '' : ' · 定数 ${_dsAtIndex(song, diffIndex)!.toStringAsFixed(1)}'}',
+                                '${_dsAtIndex(song, diffIndex) == null ? '' : context.l10n.flowConstantP02((_dsAtIndex(song, diffIndex)!.toStringAsFixed(1)).toString())}',
                                 style: TextStyle(
                                     fontSize: 12,
                                     color: scheme.onSurfaceVariant),
@@ -881,26 +910,29 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
                       children: [
                         Expanded(
                           child: _sheetNumberField(
-                            label: '达成率 (%)',
+                            label: context.l10n.flowAchievement,
                             hint: item.achievement?.toStringAsFixed(4) ?? '—',
                             initial: edit?.achievement?.toString(),
                             max: _maxAchievementOf(item),
                             maxHint: _maxAchievementOf(item) == null
                                 ? null
-                                : '上限 ${_formatNumber(_maxAchievementOf(item)!)}%',
+                                : context.l10n.flowMaximumP0(
+                                    (_formatNumber(_maxAchievementOf(item)!))
+                                        .toString()),
                             onSubmit: (v) => apply((e) => e.achievement = v),
                           ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: _sheetNumberField(
-                            label: 'DX 分数',
+                            label: context.l10n.flowDXScore,
                             hint: item.dxScore?.toString() ?? '—',
                             initial: edit?.dxScore?.toString(),
                             max: _maxDxScoreOf(item)?.toDouble(),
                             maxHint: _maxDxScoreOf(item) == null
                                 ? null
-                                : '上限 ${_maxDxScoreOf(item)}',
+                                : context.l10n.flowMaximumP02(
+                                    (_maxDxScoreOf(item)).toString()),
                             onSubmit: (v) =>
                                 apply((e) => e.dxScore = v?.round()),
                           ),
@@ -935,7 +967,7 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
 
                   const SizedBox(height: 12),
                   _sheetChoiceRow(
-                    label: '连击',
+                    label: context.l10n.flowCombo,
                     options: _fcOptions,
                     current: _fcOf(item),
                     labelOf: (v) => StringUtil.formatFC(v),
@@ -946,7 +978,7 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
                   ),
                   const SizedBox(height: 12),
                   _sheetChoiceRow(
-                    label: '同步',
+                    label: context.l10n.flowSync,
                     options: _fsOptions,
                     current: _fsOf(item),
                     // 仅此处把 sync 显示成 SYNC（formatFS 的通用显示仍是 SC）
@@ -959,7 +991,7 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '「空」表示不设置该标记。同步标记会按水鱼的值域提交（FS / FS+ / FDX / FDX+ / SYNC）。',
+                    context.l10n.flowEmptyMeansNoMarkerSyncMarkersUse,
                     style:
                         TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
                   ),
@@ -969,7 +1001,7 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
                     width: double.infinity,
                     child: OutlinedButton.icon(
                       icon: const Icon(Icons.restart_alt, size: 18),
-                      label: const Text('恢复为识别结果'),
+                      label: Text(context.l10n.flowRestoreRecognizedValues),
                       onPressed: (edit == null)
                           ? null
                           : () {
@@ -983,7 +1015,7 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
                     width: double.infinity,
                     child: ElevatedButton(
                       onPressed: () => Navigator.pop(ctx),
-                      child: const Text('完成'),
+                      child: Text(context.l10n.featureDone),
                     ),
                   ),
                 ],
@@ -1042,7 +1074,7 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('歌曲',
+                  Text(context.l10n.featureSongs,
                       style: TextStyle(
                           fontSize: 12, color: scheme.onSurfaceVariant)),
                   Text(
@@ -1058,7 +1090,7 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
               IconButton(
                 icon:
                     Icon(Icons.close, size: 16, color: scheme.onSurfaceVariant),
-                tooltip: '恢复为识别结果',
+                tooltip: context.l10n.flowRestoreRecognizedValues,
                 onPressed: onClear,
                 visualDensity: VisualDensity.compact,
               ),
@@ -1115,7 +1147,8 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
             if (onClear != null)
               TextButton(
                 onPressed: onClear,
-                child: const Text('清除', style: TextStyle(fontSize: 12)),
+                child: Text(context.l10n.flowClear,
+                    style: TextStyle(fontSize: 12)),
               ),
           ],
         ),
@@ -1127,7 +1160,7 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
             // 空选项：选中表示这一项为空（不设置连击/同步标记）
             NoRipple(
               child: ChoiceChip(
-                label: const Text('空'),
+                label: Text(context.l10n.flowEmpty),
                 selected: current == null || current == _emptyOption,
                 onSelected: (_) => onPick(_emptyOption),
               ),
@@ -1193,8 +1226,9 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
                     child: TextField(
                       autofocus: false,
-                      decoration: const InputDecoration(
-                        hintText: '歌名/BPM/谱师/曲师/别名/歌曲ID/...',
+                      decoration: InputDecoration(
+                        hintText:
+                            context.l10n.featureTitleBPMCharterArtistAliasID,
                         prefixIcon: Icon(Icons.search),
                         isDense: true,
                         border: OutlineInputBorder(),
@@ -1251,7 +1285,9 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
                         : filtered.isEmpty
                             ? Center(
                                 child: Text(
-                                  q.isEmpty ? '暂无歌曲数据' : '未找到匹配的歌曲',
+                                  q.isEmpty
+                                      ? context.l10n.flowNoSongData
+                                      : context.l10n.flowNoMatchingSong,
                                   style:
                                       TextStyle(color: scheme.onSurfaceVariant),
                                 ),
@@ -1276,8 +1312,9 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
   /// 选曲结果行：曲目类型（ST/DX/UTAGE）放在歌名前，颜色/字号与其它页面一致。
   Widget _buildPickerRow(BuildContext ctx, Song song, Brightness brightness) {
     final bool isUtage = song.id.length == 6;
-    final String typeLabel =
-        isUtage ? ChartDifficulty.utageLabel : (song.type == 'SD' ? 'ST' : 'DX');
+    final String typeLabel = isUtage
+        ? ChartDifficulty.utageLabel
+        : (song.type == 'SD' ? 'ST' : 'DX');
     final Color typeColor = isUtage
         ? const Color(0xFFFF6B8B)
         : (song.type == 'SD'
@@ -1330,7 +1367,7 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
     final sw = MediaQuery.sizeOf(context).width;
     final c = Theme.of(context).colorScheme.onSurface;
     return BackgroundPageScaffold(
-      title: '结算画面识别',
+      title: context.l10n.featureResultScreenRecognition,
       resizeToAvoidBottomInset: false,
       contentPadding: EdgeInsets.only(
         bottom: MediaQuery.paddingOf(context).bottom + 10,
@@ -1353,7 +1390,8 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
                   _loggedIn = true;
                   _error = null;
                 });
-                AppToast.show('maimai Score Hub 登录成功');
+                AppToast.show(context.l10n.flowSignedInToMaimaiScoreHub,
+                    tone: AppToastTone.success);
               },
             ),
             const SizedBox(height: 16),
@@ -1392,27 +1430,31 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
           children: [
             const CircularProgressIndicator(),
             const SizedBox(height: 16),
-            Text('正在识别成绩',
+            Text(context.l10n.flowRecognizingScores,
                 style: TextStyle(
                     color: scheme.onSurface,
                     fontSize: 17,
                     fontWeight: FontWeight.w800)),
             const SizedBox(height: 6),
-            Text('曲绘 + 标题双路匹配，通常需要几秒',
+            Text(context.l10n.flowMatchingCoverArtAndTitlesUsuallyTakes,
                 textAlign: TextAlign.center,
-                style:
-                    TextStyle(color: scheme.onSurfaceVariant, fontSize: 13)),
+                style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13)),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildGuide(double sw, Color c) => const RecognitionGuideCard(
+  Widget _buildGuide(double sw, Color c) => RecognitionGuideCard(
         icon: Icons.document_scanner,
-        title: '对着机台结算页面拍一张照片',
-        description: '自动识别曲名、达成率、DX 分数、难度与 FC/FS',
-        steps: ['拍照或从相册选择结算画面', '尽量拍正、拍清，识别更准', '核对结果后可同步到水鱼或落雪'],
+        title: context.l10n.flowPhotographACabinetResultScreen,
+        description:
+            context.l10n.flowRecognizesTitleAchievementDXScoreDifficultyAnd,
+        steps: [
+          context.l10n.flowPhotographOrChooseAResultScreen,
+          context.l10n.flowPhotographStraightAndClearlyForBetterRecognition,
+          context.l10n.flowCheckResultsThenSyncToDivingFish
+        ],
       );
 
   Widget _buildPhotoPreview(double sw, Color c) {
@@ -1437,11 +1479,10 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.check_circle_outline,
-                  size: 16, color: scheme.primary),
+              Icon(Icons.check_circle_outline, size: 16, color: scheme.primary),
               const SizedBox(width: 6),
               Flexible(
-                child: Text('图片已就绪，点击下方「开始识别」',
+                child: Text(context.l10n.flowImageReadyTapStartRecognitionBelow,
                     style: TextStyle(
                         color: scheme.onSurfaceVariant, fontSize: 13)),
               ),
@@ -1514,8 +1555,10 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
               Expanded(
                 child: Text(
                   batch.hasAnySuccess
-                      ? '识别完成 · ${batch.okCount}/${batch.results.length} 张成功'
-                      : '未能识别出成绩',
+                      ? context.l10n.flowRecognitionCompleteP0P1Succeeded(
+                          (batch.okCount).toString(),
+                          (batch.results.length).toString())
+                      : context.l10n.flowCouldNotRecognizeAScore,
                   style: TextStyle(
                       color: c, fontSize: 15, fontWeight: FontWeight.w700),
                 ),
@@ -1571,7 +1614,9 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
                         children: [
                           _buildDifficultyBadge(item, brightness),
                           if (item.isDx != null)
-                            _buildChip(item.isDx! ? 'DX' : '标准', scheme.primary),
+                            _buildChip(
+                                item.isDx! ? 'DX' : context.l10n.flowStandard,
+                                scheme.primary),
                         ],
                       ),
                       const SizedBox(height: 6),
@@ -1585,7 +1630,7 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
                               height: 1.25),
                         )
                       else
-                        Text('未识别出曲名',
+                        Text(context.l10n.flowSongTitleNotRecognized,
                             style: TextStyle(
                                 color: AppColors.errorRed(brightness),
                                 fontSize: 16,
@@ -1620,7 +1665,7 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
                   Expanded(
                     flex: 3,
                     child: _buildHeroStat(
-                      label: '达成率',
+                      label: context.l10n.flowAchievement2,
                       value: achievement == null
                           ? '—'
                           : '${achievement.toStringAsFixed(4)}%',
@@ -1635,7 +1680,7 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
                   Expanded(
                     flex: 2,
                     child: _buildHeroStat(
-                      label: 'DX 分数',
+                      label: context.l10n.flowDXScore,
                       value: dxScore?.toString() ?? '—',
                     ),
                   ),
@@ -1674,18 +1719,24 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
                     diffIndex != null &&
                     _levelAtIndex(song, diffIndex) != null)
                   _buildChip(
-                      '等级 ${_levelAtIndex(song, diffIndex)}', scheme.secondary),
+                      context.l10n.flowLevelP0(
+                          (_levelAtIndex(song, diffIndex)).toString()),
+                      scheme.secondary),
                 if (song != null &&
                     diffIndex != null &&
                     _dsAtIndex(song, diffIndex) != null)
                   _buildChip(
-                      '定数 ${_dsAtIndex(song, diffIndex)!.toStringAsFixed(1)}',
+                      context.l10n.flowConstantP0(
+                          (_dsAtIndex(song, diffIndex)!.toStringAsFixed(1))
+                              .toString()),
                       scheme.secondary),
                 if (best != null)
                   _buildChip(
                     best.confidence == null
-                        ? '置信度 —'
-                        : '置信度 ${(best.confidence! * 100).toStringAsFixed(1)}%',
+                        ? context.l10n.flowConfidence
+                        : context.l10n.flowConfidenceP0(
+                            ((best.confidence! * 100).toStringAsFixed(1))
+                                .toString()),
                     _confidenceColor(best.confidence, brightness),
                   ),
               ],
@@ -1694,7 +1745,8 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
             if (best != null && best.sources.isNotEmpty) ...[
               const SizedBox(height: 6),
               Text(
-                '命中来源：${best.sources.map(_sourceLabel).join(' + ')}',
+                context.l10n.flowMatchSourceP0(
+                    (best.sources.map(_sourceLabel).join(' + ')).toString()),
                 style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 11),
               ),
             ],
@@ -1704,7 +1756,7 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
             OutlinedButton.icon(
               onPressed: () => _showEditSheet(item),
               icon: const Icon(Icons.edit_note, size: 18),
-              label: const Text('编辑此项'),
+              label: Text(context.l10n.flowEditThisResult),
             ),
             const SizedBox(height: 8),
             Row(
@@ -1723,8 +1775,9 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
                         : const Icon(Icons.cloud_upload_outlined, size: 18),
                     label: FittedBox(
                       fit: BoxFit.scaleDown,
-                      child: Text(
-                          _uploadingIndex == item.index ? '同步中...' : '同步到水鱼'),
+                      child: Text(_uploadingIndex == item.index
+                          ? context.l10n.flowSyncing
+                          : context.l10n.flowSyncToDivingFish),
                     ),
                   ),
                 ),
@@ -1747,8 +1800,8 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
                     label: FittedBox(
                       fit: BoxFit.scaleDown,
                       child: Text(_uploadingLuoXueIndex == item.index
-                          ? '同步中...'
-                          : '同步到落雪'),
+                          ? context.l10n.flowSyncing
+                          : context.l10n.flowSyncToLXNS),
                     ),
                   ),
                 ),
@@ -1770,7 +1823,8 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
-                        '暂不能同步：${_syncBlockReason(item)}',
+                        context.l10n.flowCannotSyncYetP0(
+                            (_syncBlockReason(item)).toString()),
                         style: TextStyle(
                           color: AppColors.warningOrange(brightness),
                           fontSize: 11,
@@ -1786,7 +1840,9 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
             if (item.candidates.length > 1) ...[
               const SizedBox(height: 10),
               Text(
-                '其它候选：${item.candidates.skip(1).map((x) => x.title).join(' · ')}',
+                context.l10n.flowOtherCandidatesP0(
+                    (item.candidates.skip(1).map((x) => x.title).join(' · '))
+                        .toString()),
                 style: TextStyle(
                     color: scheme.onSurfaceVariant, fontSize: 11, height: 1.4),
               ),
@@ -1890,9 +1946,9 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
   String _sourceLabel(String source) {
     switch (source) {
       case 'cover':
-        return '曲绘';
+        return context.l10n.flowCoverArt;
       case 'title':
-        return '标题';
+        return context.l10n.flowTitle;
       default:
         return source;
     }
@@ -1976,13 +2032,15 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
             FilledButton.icon(
               onPressed: _showSourcePicker,
               icon: const Icon(Icons.add_a_photo),
-              label: const Text('选择图片'),
+              label: Text(context.l10n.flowChooseImage),
             )
           else ...[
             FilledButton.icon(
               onPressed: _isRecognizing ? null : _recognize,
               icon: Icon(hasResult ? Icons.refresh : Icons.document_scanner),
-              label: Text(hasResult ? '再次识别' : '开始识别'),
+              label: Text(hasResult
+                  ? context.l10n.flowRecognizeAgain2
+                  : context.l10n.flowStartRecognition),
             ),
             const SizedBox(height: 8),
             Row(
@@ -1991,7 +2049,7 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
                   child: FilledButton.tonalIcon(
                     onPressed: _showSourcePicker,
                     icon: const Icon(Icons.add_a_photo),
-                    label: const Text('换一张'),
+                    label: Text(context.l10n.flowUseAnotherImage),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -1999,7 +2057,7 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
                   child: FilledButton.tonalIcon(
                     onPressed: _reset,
                     icon: const Icon(Icons.refresh),
-                    label: const Text('清除重选'),
+                    label: Text(context.l10n.flowClearAndChooseAgain),
                   ),
                 ),
               ],
@@ -2048,11 +2106,11 @@ class _OcrHubLoginPanelState extends State<_OcrHubLoginPanel> {
     if (_loggingIn) return;
     final qrCode = _controller.text.trim();
     if (qrCode.isEmpty) {
-      setState(() => _error = '请粘贴或扫描登入二维码');
+      setState(() => _error = context.l10n.flowPasteOrScanALoginQRCode);
       return;
     }
     if (!qrCode.startsWith('SGWCMAID')) {
-      setState(() => _error = '请使用舞萌|中二公众号生成的登入二维码');
+      setState(() => _error = context.l10n.flowUseALoginQRFromTheMaimai);
       return;
     }
     FocusManager.instance.primaryFocus?.unfocus();
@@ -2066,7 +2124,7 @@ class _OcrHubLoginPanelState extends State<_OcrHubLoginPanel> {
       if (result == null) {
         setState(() {
           _loggingIn = false;
-          _error = '登录失败，二维码可能已过期，请重新生成';
+          _error = context.l10n.flowSignInFailedTheQRMayHave;
         });
         return;
       }
@@ -2075,7 +2133,7 @@ class _OcrHubLoginPanelState extends State<_OcrHubLoginPanel> {
       if (!mounted) return;
       setState(() {
         _loggingIn = false;
-        _error = '登录失败：$e';
+        _error = context.l10n.flowSignInFailedP0((e).toString());
       });
     }
   }
@@ -2090,14 +2148,13 @@ class _OcrHubLoginPanelState extends State<_OcrHubLoginPanel> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            '先登录 maimai Score Hub',
-            style: theme.textTheme.titleSmall
-                ?.copyWith(fontWeight: FontWeight.w700, color: scheme.onSurface),
+            context.l10n.flowSignInToMaimaiScoreHubFirst,
+            style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w700, color: scheme.onSurface),
           ),
           const SizedBox(height: 4),
           Text(
-            '识别结算画面需要登录。在舞萌 | 中二公众号请求并打开登入二维码，扫描后把字符串填到下面。'
-            '只用来认证，不会抓取或同步成绩；登录状态保存在本机，之后不用重复登录。',
+            context.l10n.flowResultRecognitionRequiresSignInRequestA,
             style: TextStyle(
                 fontSize: 12.5, height: 1.5, color: scheme.onSurfaceVariant),
           ),
@@ -2113,7 +2170,7 @@ class _OcrHubLoginPanelState extends State<_OcrHubLoginPanel> {
             enableSuggestions: false,
             style: const TextStyle(fontSize: 13),
             decoration: InputDecoration(
-              labelText: '机台登入二维码',
+              labelText: context.l10n.flowCabinetLoginQRCode,
               hintText: 'SGWCMAID...',
               isDense: true,
               contentPadding:
@@ -2135,7 +2192,9 @@ class _OcrHubLoginPanelState extends State<_OcrHubLoginPanel> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.login, size: 18),
-            label: Text(_loggingIn ? '登录中…' : '登录'),
+            label: Text(_loggingIn
+                ? context.l10n.flowSigningIn2
+                : context.l10n.flowSignIn),
           ),
         ],
       ),
@@ -2180,30 +2239,34 @@ class _OcrImageCropPageState extends State<_OcrImageCropPage> {
 
   Future<void> _loadImage() async {
     try {
-      // 裁剪使用已经限制到 2048px 的预览图，避免再次把相机原图全尺寸解码。
-      final data = await _image!.toByteData(format: ui.ImageByteFormat.png);
-      if (data == null) {
-        AppToast.show('裁剪失败，将使用原图继续');
-        return;
+      // 首次进入还没有 _image，必须从选中的文件读取，限制解码宽度且不放大小图。
+      final bytes = await File(widget.imagePath).readAsBytes();
+      if (!mounted) return;
+      final codec = await ui.instantiateImageCodec(
+        bytes,
+        targetWidth: 2048,
+        allowUpscaling: false,
+      );
+      try {
+        final frame = await codec.getNextFrame();
+        if (!mounted) {
+          frame.image.dispose();
+          return;
+        }
+        setState(() {
+          _image?.dispose();
+          _image = frame.image;
+          _loading = false;
+        });
+      } finally {
+        codec.dispose();
       }
-      final bytes = data.buffer.asUint8List();
-      final codec = await ui.instantiateImageCodec(bytes, targetWidth: 2048);
-      final frame = await codec.getNextFrame();
-      codec.dispose();
-      if (!mounted) {
-        frame.image.dispose();
-        return;
-      }
-      setState(() {
-        _image?.dispose();
-        _image = frame.image;
-        _loading = false;
-      });
     } catch (e) {
       debugPrint('OCR 裁剪页加载图片失败: $e');
       if (!mounted) return;
       setState(() => _loading = false);
-      AppToast.show('图片无法读取，请换一张图片重试');
+      AppToast.show(context.l10n.flowCannotReadThisImageTryAnother,
+          tone: AppToastTone.error);
       Navigator.of(context).pop();
     }
   }
@@ -2408,7 +2471,8 @@ class _OcrImageCropPageState extends State<_OcrImageCropPage> {
         height: crop.height / _imageRect.height,
       );
       if (encoded == null) {
-        AppToast.show('裁剪失败，将使用原图继续');
+        AppToast.show(context.l10n.flowCropFailedContinuingWithTheOriginalImage,
+            tone: AppToastTone.error);
         return widget.imagePath;
       }
       final outPath =
@@ -2417,7 +2481,8 @@ class _OcrImageCropPageState extends State<_OcrImageCropPage> {
       return outPath;
     } catch (e) {
       debugPrint('OCR 裁剪出错: $e');
-      AppToast.show('裁剪失败，将使用原图继续');
+      AppToast.show(context.l10n.flowCropFailedContinuingWithTheOriginalImage,
+          tone: AppToastTone.error);
       return widget.imagePath;
     }
   }
@@ -2447,11 +2512,11 @@ class _OcrImageCropPageState extends State<_OcrImageCropPage> {
                     onPressed: () => Navigator.pop(context),
                     icon:
                         const Icon(Icons.close, color: Colors.white, size: 20),
-                    label:
-                        const Text('取消', style: TextStyle(color: Colors.white)),
+                    label: Text(context.l10n.featureCancel,
+                        style: TextStyle(color: Colors.white)),
                   ),
                   const Spacer(),
-                  const Text('拖动角点框选成绩区域',
+                  Text(context.l10n.flowDragCornersToSelectTheResultArea,
                       style: TextStyle(color: Colors.white70, fontSize: 14)),
                   const Spacer(),
                   TextButton.icon(
@@ -2468,7 +2533,10 @@ class _OcrImageCropPageState extends State<_OcrImageCropPage> {
                     },
                     icon:
                         const Icon(Icons.check, color: Colors.green, size: 20),
-                    label: Text(_cropping ? '处理中...' : '确认',
+                    label: Text(
+                        _cropping
+                            ? context.l10n.flowProcessing
+                            : context.l10n.flowConfirm,
                         style: const TextStyle(
                             color: Colors.green, fontWeight: FontWeight.bold)),
                   ),
@@ -2527,7 +2595,7 @@ class _OcrImageCropPageState extends State<_OcrImageCropPage> {
               color: Colors.black87,
               alignment: Alignment.center,
               child: Text(
-                '拖拽四角调整范围  |  拖拽框内移动位置',
+                context.l10n.flowDragCornersToResizeDragInsideTo,
                 style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.6), fontSize: 13),
               ),

@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 /*
  * 歌曲详情页的「播放音乐」页 —— **已经接管到随身听**。
  *
@@ -15,14 +17,14 @@
  * 保留原来的构造签名（songId / songTitle / songType），这样 `SongInfoPage`
  * 等调用点的改动最小。
  */
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../entity/Portable/PortableSong.dart';
 import '../service/Portable/PortablePlayerController.dart';
 import '../service/Portable/PortableSongLibrary.dart';
-import '../utils/CommonWidgetUtil.dart';
 import '../utils/PortablePlayerScope.dart';
-import '../widgets/AppHeader.dart';
 import 'Portable/PortableNowPlayingPage.dart';
 
 class SongPlayPage extends StatefulWidget {
@@ -54,121 +56,130 @@ class _SongPlayPageState extends State<SongPlayPage> {
   /// 才真的切过去。
   bool _handedOff = false;
   String? _message;
-  PortableSong? _resolved;
+  late PortableSong _resolved;
+  Animation<double>? _entrance;
+  int _request = 0;
+  bool _isLeaving = false;
 
   @override
   void initState() {
     super.initState();
+    // 详情页已提供显示所需信息，不等整份曲库加载就先呈现完整播放器。
+    _resolved = _resolveSong() ??
+        PortableSong(
+          lxnsId: 0,
+          divingFishId: widget.songId,
+          audioId: 0,
+          title: widget.songTitle,
+          artist: widget.songArtist ?? '',
+          genre: '',
+          bpm: 0,
+        );
     // 从 SongInfoPage 点「播放音乐」进来的：把随身听悬浮球压住，避免它突然冒出来。
     // 不影响播放、不影响通知栏、不影响切歌；页面一 pop 这层就撤掉，球回来。
     PortablePlayerScope.isSongInfoPlayback.value = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) => _resolveAndPlay());
+    // 退出时要按设置决定是否唤起悬浮球，没进过随身听时这里也要读到用户的设置。
+    unawaited(PortablePlayerScope.loadPreferences());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _isLeaving) return;
+      final entrance = ModalRoute.of(context)?.animation;
+      if (entrance == null || entrance.isCompleted) {
+        unawaited(_resolveAndPlay());
+      } else {
+        _entrance = entrance;
+        entrance.addStatusListener(_onEntranceStatus);
+      }
+    });
   }
 
-  @override
-  void dispose() {
-    // 撤掉悬浮球抑制：球按 `_player.currentSong != null` 自然显示（如果还在放）
-    PortablePlayerScope.isSongInfoPlayback.value = false;
-    super.dispose();
-  }
-
-  Future<void> _resolveAndPlay() async {
-    try {
-      // 曲库可能还没构建过（用户没进过随身听页），先确保加载
-      await _library.load();
-      final song = _library.resolveForPlayback(
+  PortableSong? _resolveSong() => _library.resolveForPlayback(
         songId: widget.songId,
         title: widget.songTitle,
         type: widget.songType,
         artist: widget.songArtist,
       );
-      if (!mounted) return;
+
+  void _onEntranceStatus(AnimationStatus status) {
+    if (status != AnimationStatus.completed) return;
+    _entrance?.removeStatusListener(_onEntranceStatus);
+    _entrance = null;
+    // 让入场动画的最后一帧也先完成，再开始曲库准备。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !_isLeaving) unawaited(_resolveAndPlay());
+    });
+  }
+
+  @override
+  void dispose() {
+    _request++;
+    _entrance?.removeStatusListener(_onEntranceStatus);
+    // 撤掉悬浮球抑制：球按 `_player.currentSong != null` 自然显示（如果还在放）
+    PortablePlayerScope.isSongInfoPlayback.value = false;
+    // 用户上次手动隐藏过悬浮球时，主动打开过播放页就算重新唤起，否则退出后球一直不回来。
+    if (PortablePlayerScope.showBallOnLibraryExit.value) {
+      PortablePlayerScope.wakeBall();
+    }
+    super.dispose();
+  }
+
+  Future<void> _resolveAndPlay() async {
+    if (!mounted || _isLeaving) return;
+    final request = ++_request;
+    setState(() => _message = null);
+    try {
+      final current = _player.currentSong;
+      if (_resolved.audioId > 0 && current?.lxnsId == _resolved.lxnsId) {
+        setState(() => _handedOff = true);
+        return;
+      }
+      // 曲库可能还没构建过（用户没进过随身听页），先确保加载
+      await _library.load();
+      if (!mounted || _isLeaving || request != _request) return;
+      final song = _resolveSong();
 
       if (song == null) {
         setState(() {
-          _message = '这首歌暂时没有可用的音源';
+          _message = appL10n.flowNoAudioIsAvailableForThisSong;
         });
         return;
       }
       setState(() => _resolved = song);
 
-      final current = _player.currentSong;
-      if (current != null && current.lxnsId == song.lxnsId) {
+      if (_player.currentSong?.lxnsId == song.lxnsId) {
         // 已经就是当前曲目：不动播放状态，只把界面换过来
         setState(() => _handedOff = true);
         return;
       }
 
-      // 播放器需要先下载/读取音频并建立 AudioSource。不能在这里提前切到
-      // PortableNowPlayingPage，否则它会在 currentSong 还是 null 时显示「还没有
-      // 在放的音乐」，随后页面退出了，后台下载完成后才真正开始播放。
+      // 播放器还要下载或读取音频，等它发布当前曲目后才退出准备态。
       await _player.playSong(song);
-      if (!mounted) return;
-      if (_player.currentSong == null) {
-        setState(() => _message = '音源加载失败，请稍后重试');
+      if (!mounted || _isLeaving || request != _request) return;
+      if (_player.currentSong?.lxnsId != song.lxnsId) {
+        setState(() => _message = appL10n.flowCouldNotLoadAudioTryAgainLater);
         return;
       }
       setState(() => _handedOff = true);
     } catch (e) {
-      if (!mounted) return;
-      setState(() => _message = '打开播放器失败：$e');
+      debugPrint('[SongPlay] 音源准备失败: $e');
+      if (!mounted || _isLeaving || request != _request) return;
+      setState(() => _message = appL10n.flowCouldNotLoadAudioTryAgainLater);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // 解析成功就直接用随身听的全屏播放页（同一套 UI，不维护两份）
-    if (_resolved != null && _handedOff) {
-      return const PortableNowPlayingPage();
-    }
-
-    final scheme = Theme.of(context).colorScheme;
-    return Scaffold(
-      resizeToAvoidBottomInset: false,
-      backgroundColor: Colors.transparent,
-      body: Stack(
-        children: [
-          Positioned.fill(child: ColoredBox(color: scheme.surface)),
-          CommonWidgetUtil.buildCommonBgWidget(),
-          CommonWidgetUtil.buildCommonChiffonBgWidget(context),
-          Column(
-            children: [
-              const AppHeader(title: '播放音乐'),
-              Expanded(
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (_message == null) ...[
-                        const CircularProgressIndicator(),
-                        const SizedBox(height: 16),
-                        Text(
-                          '正在准备音源…',
-                          style: TextStyle(color: scheme.onSurfaceVariant),
-                        ),
-                      ] else ...[
-                        Icon(
-                          Icons.music_off,
-                          size: 64,
-                          color: scheme.onSurfaceVariant,
-                        ),
-                        const SizedBox(height: 12),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 32),
-                          child: Text(
-                            _message!,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(color: scheme.onSurfaceVariant),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
+    // 第一帧就进入全屏播放页，音源准备期间也保留曲绘、歌名和控制区。
+    // 同一个页面从准备态过渡到播放态，曲绘和取色背景不会重新入场。
+    return PopScope(
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) return;
+        _isLeaving = true;
+        _request++;
+      },
+      child: PortableNowPlayingPage(
+        preparingSong: _handedOff ? null : _resolved,
+        preparationError: _message,
+        onRetryPreparation: () => unawaited(_resolveAndPlay()),
       ),
     );
   }

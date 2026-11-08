@@ -1,0 +1,4 @@
+"NSLocationWhenInUseUsageDescription" = "Your location is used to show local weather.";
+"NSCameraUsageDescription" = "The camera is used to capture cover art for recognition.";
+"NSPhotoLibraryUsageDescription" = "Photo library access is used to save exported images.";
+"NSPhotoLibraryAddUsageDescription" = "Photo library access is used to save exported images.";

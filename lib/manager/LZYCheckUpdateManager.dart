@@ -1,6 +1,9 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -15,6 +18,11 @@ import '../constant/AppLinks.dart';
 import '../utils/AppDesignTokens.dart';
 import '../widgets/AppDialogs.dart';
 import '../widgets/AppToast.dart';
+import '../widgets/AppUpdateAutoInstallControl.dart';
+import '../service/BackgroundAppUpdateService.dart';
+import '../service/AppUpdateDownloadService.dart';
+import '../utils/AppVersion.dart';
+import '../utils/ApkPublishedVersion.dart';
 
 void _updateLog(String message) {
   if (kDebugMode) debugPrint(message);
@@ -30,6 +38,13 @@ class LZYCheckUpdateManager {
   final String pastebinRawUrl = ApiUrls.checkUpdateApi;
   final bool forceUpdate = false;
 
+  /// 默认以 app_version.json 为准；仅显式启用测试参数时改用 GitHub。
+  /// 临时测试可通过 --dart-define=CHIFFONMAI_TEST_GITHUB_UPDATE=true 开启。
+  static const bool useGitHubForUpdateCheck = bool.fromEnvironment(
+    'CHIFFONMAI_TEST_GITHUB_UPDATE',
+    defaultValue: false,
+  );
+
   /// 兜底下载地址（检查更新失败时仍可复制）
   static const String defaultDownloadUrl =
       'https://wward.lanzouw.com/chiffonmai';
@@ -41,7 +56,7 @@ class LZYCheckUpdateManager {
           : defaultDownloadUrl;
   // ======================================================
 
-  /// 从 pastebin 获取在线配置
+  /// 正常发布从 app_version.json 读取版本、构建号、日志和下载配置。
   Future<Map<String, dynamic>?> _getCloudConfig() async {
     try {
       // 创建自定义客户端，添加超时和User-Agent
@@ -78,6 +93,119 @@ class LZYCheckUpdateManager {
       _updateLog("获取配置失败：$e");
     }
     return null;
+  }
+
+  Future<Map<String, dynamic>> _getGitHubConfig(PackageInfo installed) async {
+    final client = http.Client();
+    final proxies = AppUpdateDownloadService.proxyPrefixes(null);
+    const headers = {
+      'User-Agent': 'ChiffonMai-Updater',
+      'Accept': 'application/vnd.github+json',
+    };
+    try {
+      // 使用发布列表，测试版也参与检查；草稿和没有 APK 的发布不参与。
+      final api = Uri.https('api.github.com',
+          '/repos/${AppLinks.githubRepository}/releases', {'per_page': '20'});
+      List<Map<String, dynamic>>? releases;
+      for (final url
+          in AppUpdateDownloadService.downloadUrls(api.toString(), proxies)) {
+        try {
+          final response = await client
+              .get(Uri.parse(url), headers: headers)
+              .timeout(const Duration(seconds: 10));
+          if (response.statusCode != 200) continue;
+          final decoded = jsonDecode(response.body);
+          if (decoded is! List) continue;
+          releases = decoded
+              .whereType<Map>()
+              .map((r) => Map<String, dynamic>.from(r))
+              .where((r) =>
+                  r['draft'] != true &&
+                  AppVersion.compare('${r['tag_name']}', '0.0.0') != null &&
+                  (r['assets'] as List? ?? []).whereType<Map>().any(
+                      (a) => '${a['name']}'.toLowerCase().endsWith('.apk')))
+              .toList();
+          break;
+        } catch (error) {
+          _updateLog('GitHub 发布列表读取失败，尝试下一线路: $error');
+        }
+      }
+      if (releases == null || releases.isEmpty) {
+        throw FormatException(appL10n.svcCouldNotGetTheAPKVersionsPublished);
+      }
+      releases.sort((a, b) {
+        DateTime published(Map release) =>
+            DateTime.tryParse('${release['published_at']}') ??
+            DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+        final byDate = published(b).compareTo(published(a));
+        return byDate != 0
+            ? byDate
+            : AppVersion.compare('${b['tag_name']}', '${a['tag_name']}')!;
+      });
+      final release = releases.first;
+      final tag = release['tag_name'] as String;
+      final abis = defaultTargetPlatform == TargetPlatform.android
+          ? await AppUpdateDownloadService.channel
+                  .invokeListMethod<String>('supportedAbis') ??
+              []
+          : ['arm64-v8a', 'armeabi-v7a', 'x86_64', 'x86'];
+      final asset = AppUpdateDownloadService.selectAsset(release, abis);
+      if (Uri.parse(asset.url).pathSegments[4] != tag) {
+        throw const FormatException('GitHub 附件与发布标签不一致');
+      }
+      final version =
+          await ApkPublishedVersion.read(asset.size, (offset, length) async {
+        for (final url
+            in AppUpdateDownloadService.downloadUrls(asset.url, proxies)) {
+          try {
+            final request = http.Request('GET', Uri.parse(url))
+              ..headers.addAll({
+                'User-Agent': headers['User-Agent']!,
+                'Accept': 'application/octet-stream',
+                'Accept-Encoding': 'identity',
+                'Range': 'bytes=$offset-${offset + length - 1}',
+              });
+            final response =
+                await client.send(request).timeout(const Duration(seconds: 10));
+            if (response.statusCode != 206 ||
+                response.headers['content-range'] !=
+                    'bytes $offset-${offset + length - 1}/${asset.size}') {
+              // 不接受忽略 Range 的整包响应，检查阶段不得偷偷下载整个 APK。
+              await response.stream.listen(null).cancel();
+              continue;
+            }
+            final bytes = BytesBuilder(copy: false);
+            await for (final chunk
+                in response.stream.timeout(const Duration(seconds: 10))) {
+              if (bytes.length + chunk.length > length) {
+                throw const FormatException('APK 范围响应过大');
+              }
+              bytes.add(chunk);
+            }
+            if (bytes.length == length) return bytes.takeBytes();
+          } catch (error) {
+            _updateLog('GitHub APK 版本读取失败，尝试下一线路: $error');
+          }
+        }
+        throw FormatException(appL10n.svcCouldNotReadTheActualVersionOf);
+      });
+      if (version.packageName != installed.packageName ||
+          AppVersion.compare(version.version, tag) != 0) {
+        throw FormatException(appL10n.svcTheAppOrVersionOfTheGitHub);
+      }
+      return {
+        'version': version.version,
+        'buildNumber': version.build,
+        'updateLog': release['body'] ?? appL10n.svcExperienceImprovements,
+        'downloadUrl': Uri.https(
+                'github.com', '/${AppLinks.githubRepository}/releases/tag/$tag')
+            .toString(),
+        'githubReleaseTag': tag,
+        'githubProxyPrefixes': proxies,
+      };
+    } finally {
+      client.close();
+    }
   }
 
   /// 检查更新
@@ -130,26 +258,33 @@ class LZYCheckUpdateManager {
       int localBuild = int.tryParse(packageInfo.buildNumber) ?? 0;
       _updateLog("当前版本：${packageInfo.version} (build: $localBuild)");
 
-      final cloudConfig = await _getCloudConfig();
+      final cloudConfig = useGitHubForUpdateCheck
+          ? await _getGitHubConfig(packageInfo)
+          : await _getCloudConfig();
 
+      // 临时测试模式只认 GitHub；关闭开关后恢复配置为准，不混用两边的构建号。
       // 如果网络请求失败，返回网络错误状态
       if (cloudConfig == null) {
         _updateLog("无法获取云端配置，可能是网络问题");
         return {
           "hasUpdate": false,
           "networkError": true, // 标记网络错误
-          "message": "网络连接失败，请检查网络后重试",
+          "message": appL10n.svcNetworkConnectionFailedCheckYourNetworkAnd,
         };
       }
 
       String latestVersion = cloudConfig["version"] ?? "";
-      int latestBuild = cloudConfig["buildNumber"] ?? 0;
-      String updateLog = cloudConfig["updateLog"] ?? "优化体验";
+      int latestBuild = int.tryParse('${cloudConfig["buildNumber"]}') ?? 0;
+      String updateLog = cloudConfig["updateLog"] ?? appL10n.svcExperienceImprovements;
       String downloadUrl = cloudConfig["downloadUrl"] ?? "";
 
       _updateLog("最新版本：$latestVersion (build: $latestBuild)");
 
-      if (latestBuild > localBuild) {
+      if (AppVersion.isNewer(
+          remoteVersion: latestVersion,
+          remoteBuild: latestBuild,
+          localVersion: packageInfo.version,
+          localBuild: localBuild)) {
         _updateLog("发现新版本");
         return {
           "hasUpdate": true,
@@ -159,6 +294,9 @@ class LZYCheckUpdateManager {
           "latestBuild": latestBuild,
           "updateLog": updateLog,
           "downloadUrl": downloadUrl,
+          "githubProxyPrefixes": cloudConfig['githubProxyPrefixes'],
+          "githubReleaseTag": cloudConfig['githubReleaseTag'],
+          "updateSource": useGitHubForUpdateCheck ? 'github' : 'config',
         };
       } else {
         _updateLog("已是最新版本");
@@ -171,6 +309,9 @@ class LZYCheckUpdateManager {
           "latestBuild": latestBuild,
           "updateLog": updateLog,
           "downloadUrl": downloadUrl,
+          "githubProxyPrefixes": cloudConfig['githubProxyPrefixes'],
+          "githubReleaseTag": cloudConfig['githubReleaseTag'],
+          "updateSource": useGitHubForUpdateCheck ? 'github' : 'config',
         };
       }
     } catch (e) {
@@ -178,7 +319,7 @@ class LZYCheckUpdateManager {
       return {
         "hasUpdate": false,
         "networkError": true,
-        "message": "检查更新失败：$e",
+        "message": appL10n.svcUpdateCheckFailedP0(e.toString()),
       };
     }
   }
@@ -188,17 +329,18 @@ class LZYCheckUpdateManager {
     if (defaultTargetPlatform == TargetPlatform.iOS) {
       return AppLinks.iosDownloadUrl;
     }
-    return cloudUrl == null || cloudUrl.isEmpty
-        ? defaultDownloadUrl
-        : cloudUrl;
+    return cloudUrl == null || cloudUrl.isEmpty ? defaultDownloadUrl : cloudUrl;
   }
 
   /// 打开下载页
   Future<void> openDownloadPage(String url) async {
     final uri = Uri.parse(url);
     if (uri.scheme == 'https' &&
-        const {'wward.lanzouw.com', 'wward.lanzn.com', 'chiffonmai.cloud'}
-            .contains(uri.host) &&
+        (const {'wward.lanzouw.com', 'wward.lanzn.com', 'chiffonmai.cloud'}
+                .contains(uri.host) ||
+            (uri.host == 'github.com' &&
+                uri.path
+                    .startsWith('/${AppLinks.githubRepository}/releases/'))) &&
         await ExternalLaunchUtil.open(uri)) {
       return;
     }
@@ -215,9 +357,9 @@ class LZYCheckUpdateManager {
       onPressed: () {
         copyDownloadUrl(url);
         Navigator.pop(c);
-        AppToast.show('下载链接已复制到剪贴板', duration: Duration(seconds: 2));
+        AppToast.show(c.l10n.featureDownloadLinkCopied, duration: Duration(seconds: 2));
       },
-      child: const Text('复制下载链接'),
+      child:  Text(c.l10n.featureCopyDownloadLink),
     );
   }
 
@@ -254,10 +396,120 @@ class LZYCheckUpdateManager {
         'lastUpdateDismissTime', DateTime.now().millisecondsSinceEpoch);
   }
 
+  /// Android 每次下载前都让用户选择方式，不预选或记住上次选项。
+  Future<void> _chooseDownloadMethod(
+      BuildContext context, Map<String, dynamic> info) async {
+    final inApp = await showDialog<bool>(
+      context: context,
+      builder: (c) => AppAlertDialog(
+        title:  Text(context.l10n.flowChooseDownloadMethod),
+        scrollable: true,
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AppDialogOption(
+              title: context.l10n.flowDownloadInBrowser,
+              subtitle: context.l10n.flowOpenDownloadPage,
+              leading: const Icon(Icons.open_in_browser_rounded),
+              onTap: () => Navigator.pop(c, false),
+            ),
+            const SizedBox(height: 10),
+            AppDialogOption(
+              title: context.l10n.flowDownloadInApp,
+              subtitle: context.l10n.flowDownloadInTheBackgroundWhileYouKeep,
+              leading: const Icon(Icons.download_rounded),
+              onTap: () => Navigator.pop(c, true),
+            ),
+            const SizedBox(height: 20),
+            const AppUpdateAutoInstallControl(),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c),
+            child:  Text(context.l10n.featureCancel),
+          ),
+        ],
+      ),
+    );
+    if (!context.mounted || inApp == null) return;
+    if (!inApp) {
+      await openDownloadPage(downloadUrlFor(info['downloadUrl']));
+      return;
+    }
+    final proxies = await _chooseDownloadRoute(context, info);
+    if (!context.mounted || proxies == null) return;
+    await BackgroundAppUpdateService.instance.start({
+      ...info,
+      'githubDownloadProxyPrefixes': proxies,
+    });
+  }
+
+  /// 不预选线路；自动模式依次尝试已配置加速节点、备用节点和官方直连。
+  Future<List<String>?> _chooseDownloadRoute(
+      BuildContext context, Map<String, dynamic> info) {
+    final configured =
+        AppUpdateDownloadService.proxyPrefixes(info['githubProxyPrefixes']);
+    final automatic = configured.isEmpty
+        ? <String>[]
+        : {...configured, AppUpdateDownloadService.backupProxy}
+            .take(3)
+            .toList();
+    final routes = [
+      (appL10n.svcSwitchRoutesAutomatically, appL10n.svcTriesTheMirrorRoutesThenTheOfficial, Icons.swap_horiz_rounded, automatic),
+      (
+        'GH-Proxy',
+        appL10n.svcCommonMirrorRoute,
+        Icons.speed_rounded,
+        [AppUpdateDownloadService.defaultProxy]
+      ),
+      (
+        'GHfast',
+        appL10n.svcBackupMirrorRoute,
+        Icons.bolt_rounded,
+        [AppUpdateDownloadService.backupProxy]
+      ),
+      (appL10n.svcGitHubDirect, appL10n.svcDownloadDirectlyFromGitHub, Icons.public_rounded, <String>[]),
+    ];
+    return showDialog<List<String>>(
+      context: context,
+      builder: (c) => AppAlertDialog(
+        title:  Text(context.l10n.flowChooseDownloadRoute),
+        content: SingleChildScrollView(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            for (var i = 0; i < routes.length; i++) ...[
+              if (i > 0) const SizedBox(height: 10),
+              AppDialogOption(
+                title: routes[i].$1,
+                subtitle: routes[i].$2,
+                leading: Icon(routes[i].$3),
+                onTap: () => Navigator.pop(c, routes[i].$4),
+              ),
+            ],
+          ]),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child:  Text(context.l10n.featureCancel))
+        ],
+      ),
+    );
+  }
+
   /// 显示更新弹窗
   /// [force] 为 true 时强制显示，忽略3天内不提示的设置
   Future<void> showUpdateDialog(BuildContext context,
       {bool force = false}) async {
+    // 手动打开更新入口时直接查看现有任务，不再要求用户重复检查或选择下载方式。
+    if (force && defaultTargetPlatform == TargetPlatform.android) {
+      final task = BackgroundAppUpdateService.instance;
+      task.initialize();
+      await task.refresh();
+      if (!context.mounted) return;
+      if (task.active || task.phase == 'ready') {
+        task.showStatus();
+        return;
+      }
+    }
     if (!force && !await shouldShowUpdateDialog()) return;
 
     // force=true（用户点了「检查更新」/「发现新版本」）时强制走网络，
@@ -283,10 +535,10 @@ class LZYCheckUpdateManager {
         context: context,
         barrierDismissible: true,
         builder: (c) => AppAlertDialog(
-          title: Text("检查更新失败"),
+          title: Text(context.l10n.featureCouldNotCheckForUpdates),
           // 单列按原顺序排，确定在最下面。
           actionColumns: 1,
-          content: Text(info["message"] ?? "无法连接到服务器，请检查网络后重试"),
+          content: Text(info["message"] ?? context.l10n.flowCouldNotConnectToTheServerCheck),
           actions: [
             _buildCopyDownloadButton(c, platformDownloadUrl),
             buildReleasesButton(c),
@@ -294,7 +546,7 @@ class LZYCheckUpdateManager {
               onPressed: () {
                 Navigator.pop(c);
               },
-              child: Text("确定"),
+              child: Text(context.l10n.featureOK),
             ),
           ],
         ),
@@ -310,24 +562,24 @@ class LZYCheckUpdateManager {
         context: context,
         barrierDismissible: true,
         builder: (c) => AppAlertDialog(
-          title: Text("检查更新"),
+          title: Text(context.l10n.featureCheckForUpdates),
           // 单列按原顺序排，确定在最下面。
           actionColumns: 1,
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text("当前已是最新版本"),
+              Text(context.l10n.flowYouAreUpToDate),
               SizedBox(height: 10),
               Text(
-                  "当前版本：${info["currentVersion"]} (build: ${info["currentBuild"]})"),
+                  context.l10n.flowCurrentVersionP0BuildP1((info["currentVersion"]).toString(), (info["currentBuild"]).toString())),
               Text(
-                  "最新版本：${info["latestVersion"]} (build: ${info["latestBuild"]})"),
+                  context.l10n.flowLatestVersionP0BuildP1((info["latestVersion"]).toString(), (info["latestBuild"]).toString())),
               SizedBox(height: 10),
               Container(
                 constraints: BoxConstraints(maxHeight: 150),
                 child: SingleChildScrollView(
-                  child: Text("最近更新：\n${info["updateLog"]}"),
+                  child: Text(context.l10n.flowLatestChangesP0((info["updateLog"]).toString())),
                 ),
               ),
             ],
@@ -339,7 +591,7 @@ class LZYCheckUpdateManager {
               onPressed: () {
                 Navigator.pop(c);
               },
-              child: Text("确定"),
+              child: Text(context.l10n.featureOK),
             ),
           ],
         ),
@@ -355,7 +607,7 @@ class LZYCheckUpdateManager {
         context: context,
         barrierDismissible: !forceUpdate,
         builder: (c) => AppAlertDialog(
-          title: const Text("发现新版本"),
+          title:  Text(context.l10n.featureUpdateAvailable),
           subtitle: "${info["currentVersion"]} → ${info["latestVersion"]}",
           actionColumns: 2,
           // 更新内容占据按钮以外的全部高度，内容短时对话框也跟着变矮。
@@ -376,7 +628,7 @@ class LZYCheckUpdateManager {
                 onPressed: () {
                   Navigator.pop(c);
                 },
-                child: Text("稍后"),
+                child: Text(context.l10n.updateLater),
               ),
             if (!forceUpdate)
               TextButton(
@@ -384,7 +636,7 @@ class LZYCheckUpdateManager {
                   await recordDismissTime();
                   Navigator.pop(c);
                 },
-                child: Text("3天内不提示"),
+                child: Text(context.l10n.flowHideFor3Days),
               ),
             _buildCopyDownloadButton(c, downloadUrlFor(info["downloadUrl"])),
             // 立即下载放最后：它是主按钮，单独占满一行。
@@ -392,9 +644,13 @@ class LZYCheckUpdateManager {
             TextButton(
               onPressed: () {
                 Navigator.pop(c);
-                openDownloadPage(downloadUrlFor(info["downloadUrl"]));
+                if (defaultTargetPlatform == TargetPlatform.android) {
+                  _chooseDownloadMethod(context, info);
+                } else {
+                  openDownloadPage(downloadUrlFor(info["downloadUrl"]));
+                }
               },
-              child: Text("立即下载"),
+              child:  Text(context.l10n.flowDownloadNow),
             ),
           ],
         ),

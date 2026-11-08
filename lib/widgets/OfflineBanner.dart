@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../service/ConnectivityService.dart';
@@ -76,7 +77,7 @@ class _OfflineBannerState extends State<OfflineBanner>
             size: 24,
           ),
           content: Text(
-            _justReconnected ? '已恢复网络连接' : '当前离线 - 显示缓存数据',
+            _justReconnected ? context.l10n.flowConnectionRestored : context.l10n.flowOfflineShowingCachedData,
             style: const TextStyle(
               color: Colors.white,
               fontSize: 14,
@@ -87,8 +88,8 @@ class _OfflineBannerState extends State<OfflineBanner>
             if (_justReconnected && widget.onRefresh != null)
               TextButton(
                 onPressed: widget.onRefresh,
-                child: const Text(
-                  '刷新',
+                child:  Text(
+                  context.l10n.flowRefresh,
                   style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                 ),
               ),
@@ -97,8 +98,8 @@ class _OfflineBannerState extends State<OfflineBanner>
                 onPressed: () {
                   ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
                 },
-                child: const Text(
-                  '知道了',
+                child:  Text(
+                  context.l10n.featureGotIt,
                   style: TextStyle(color: Colors.white70),
                 ),
               ),

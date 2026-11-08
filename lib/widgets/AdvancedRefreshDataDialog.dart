@@ -1,13 +1,15 @@
+import '../service/AccountAuthorizationStore.dart';
+import '../l10n/AppMessages.dart';
+import '../l10n/FeatureLocalizations.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'RankingPrivacyOptions.dart';
 import '../widgets/AnimatedChoiceBar.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../constant/CacheKeyConstant.dart';
 import '../manager/DivingFishProbeManager.dart';
 import '../manager/DivingFish/DivingFishOAuthManager.dart';
-import '../manager/LuoXue/LuoXueUserPlayDataManager.dart';
 import '../manager/LuoXue/LuoXueOAuthManager.dart';
 import '../service/ConnectivityService.dart';
 import '../service/AccountStore.dart';
@@ -15,18 +17,16 @@ import '../utils/AppTheme.dart';
 import '../utils/ApiClient.dart';
 import '../utils/CacheSourceRegistry.dart';
 import '../utils/SecureCredentialStore.dart';
-import '../utils/ExternalLaunchUtil.dart';
 import 'RefreshDataDialog.dart'
     show CurrentDataSourceNotifier, RefreshDataRequest, RefreshDataSource;
 import 'DivingFishAccountSection.dart';
 import '../widgets/AppDialogs.dart';
 import '../widgets/AppToast.dart';
-import 'AppUi.dart';
 
-/// 高级模式"刷新数据"对话框的入口。
+/// 高级模式"拉取成绩并更新数据"对话框的入口。
 ///
 /// 与旧版 `_RefreshDataDialog` 的差别：
-///   - 同样的"当前数据源 / QQ 或授权码 / 排行榜选项"区
+///   - 同样的"当前数据源 / 已保存的账号授权 / 排行榜选项"区
 ///   - 用一组复选框替换"强制完整刷新"，每条对应一个缓存源（来自 [CacheSourceRegistry]）
 ///   - 每条旁边显示剩余有效期 + 一个测试连通性的按钮
 ///
@@ -44,8 +44,7 @@ Future<RefreshDataRequest?> showAdvancedRefreshDataDialog(
 
   // AWMC NET 的 QQ 取自它自己的账号存档，不用共用的 cachedQQ
   // （活动槽里的 cachedQQ 此刻可能是另一个账号的 QQ）。
-  final metas = await AccountStore.loadAll();
-  final awmcQQ = metas[RefreshDataSource.awmc.key]?.id ?? '';
+  final awmcQQ = await AccountAuthorizationStore.awmcQQ();
 
   if (!context.mounted) return null;
 
@@ -105,10 +104,6 @@ class AdvancedRefreshDataPanel extends StatefulWidget {
 
 class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
   late RefreshDataSource _currentDataSource;
-  final TextEditingController _authCodeController = TextEditingController();
-
-  /// AWMC NET 单独一个 QQ 输入框（不复用水鱼那个只读的「已绑定 QQ」框）。
-  final TextEditingController _awmcQqController = TextEditingController();
 
   /// 当前生效的水鱼 QQ（「我已填好，重新读取」后可变）。
   late String _bindQQ = widget.bindQQ;
@@ -150,8 +145,9 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
     super.initState();
     _currentDataSource =
         widget.initialSource ?? CurrentDataSourceNotifier.instance.value;
-    _awmcQqController.text = widget.awmcQQ;
-    _validities = {for (final s in CacheSourceRegistry.all) s.id: '加载中…'};
+    _validities = {
+      for (final s in CacheSourceRegistry.all) s.id: appL10n.flowLoading2
+    };
     _checkedIds = <String>{}; // 同步初始化，避免 late 在 build 之前未赋值
     _settingsReady = Future.wait([
       _loadRankingSettings(),
@@ -169,16 +165,9 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
     if (mounted) setState(() => _hasSavedLuoXueToken = loggedIn);
   }
 
-  @override
-  void dispose() {
-    _authCodeController.dispose();
-    _awmcQqController.dispose();
-    super.dispose();
-  }
-
-  /// 本次选中的数据源要用的 QQ（水鱼取水鱼的绑定 QQ，AWMC NET 取它自己的输入框）。
+  /// 本次选中的数据源要用的 QQ（水鱼取水鱼绑定 QQ，AWMC NET 取独立保存的查询 QQ）。
   String get _activeQq => _currentDataSource == RefreshDataSource.awmc
-      ? _awmcQqController.text.trim()
+      ? widget.awmcQQ.trim()
       : _bindQQ;
 
   Future<void> _checkAuthorization() async {
@@ -209,10 +198,12 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
     });
 
     if (qq == null || qq.isEmpty) {
-      AppToast.show('还是没读到 QQ 号。请确认已在水鱼官网保存，或重新登录一次水鱼账号');
+      AppToast.show(context.l10n.flowStillNoQQIDFoundCheckThat,
+          tone: AppToastTone.warning);
       return;
     }
-    AppToast.show('已读到绑定 QQ：$qq');
+    AppToast.show(context.l10n.flowLinkedQQFoundP0((qq).toString()),
+        tone: AppToastTone.success);
     await _checkAuthorization();
   }
 
@@ -220,7 +211,7 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
   Future<void> _startAuthorization() async {
     final qq = _bindQQ;
     if (qq.isEmpty) {
-      AppToast.show('未找到 QQ 号');
+      AppToast.show(context.l10n.flowNoQQIDFound, tone: AppToastTone.warning);
       return;
     }
     setState(() => _recheckingAuth = true);
@@ -230,14 +221,18 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
       _recheckingAuth = false;
       if (ok) _consentPending = true;
     });
-    AppToast.show(ok ? '已打开授权页，完成授权后回到这里点「我已授权，重新检测」' : '发起授权失败，请稍后重试');
+    AppToast.show(
+        ok
+            ? context.l10n.flowAuthorizationOpenedReturnAfterAuthorizingAndTap
+            : context.l10n.flowCouldNotStartAuthorizationTryAgain,
+        tone: AppToastTone.success);
   }
 
   /// 「我已授权，重新检测」：显式重查一次授权状态。
   Future<void> _recheckAuthorization() async {
     final qq = _bindQQ;
     if (qq.isEmpty) {
-      AppToast.show('未找到 QQ 号');
+      AppToast.show(context.l10n.flowNoQQIDFound, tone: AppToastTone.warning);
       return;
     }
     setState(() => _recheckingAuth = true);
@@ -249,11 +244,15 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
       if (result == true) _consentPending = false;
     });
     if (result == true) {
-      AppToast.show('授权成功，现在可以刷新数据了');
+      AppToast.show(context.l10n.flowAuthorizedYouCanNowRefreshData,
+          tone: AppToastTone.success);
     } else if (result == false) {
-      AppToast.show('还没检测到授权，请确认在浏览器里点了「同意」');
+      AppToast.show(
+          context.l10n.flowAuthorizationNotDetectedApproveAccessInYour,
+          tone: AppToastTone.warning);
     } else {
-      AppToast.show('检测失败，请检查网络后重试');
+      AppToast.show(context.l10n.flowCheckFailedVerifyYourConnectionAndTry,
+          tone: AppToastTone.error);
     }
   }
 
@@ -343,31 +342,34 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
           bindQq: _bindQQ,
         )) {
           case DivingFishQqState.notLoggedIn:
-            AppToast.show('请先在「系统 → 登录水鱼」登录水鱼账号');
+            AppToast.show(context.l10n.flowSignInThroughMeSignInTo,
+                tone: AppToastTone.warning);
             return null;
           case DivingFishQqState.noBindQq:
-            AppToast.show('你的水鱼账号还没绑定 QQ 号，请先到水鱼官网「编辑个人资料」里填上');
+            AppToast.show(context.l10n.flowYourDivingFishAccountHasNoQQ,
+                tone: AppToastTone.warning);
             return null;
           case DivingFishQqState.bound:
             break;
         }
       }
-      // 落雪：没填授权码就点确认，原来会静默地「什么都不做但报成功」
+      // 落雪必须先在独立授权入口保存令牌，刷新表单不处理授权码。
       if (_currentDataSource == RefreshDataSource.luoxue &&
-          _authCodeController.text.trim().isEmpty &&
           !_hasSavedLuoXueToken) {
-        AppToast.show('请先填写落雪授权码');
+        AppToast.show(context.l10n.accountAuthorizeLXNSFirst,
+            tone: AppToastTone.warning);
         return null;
       }
       // AWMC NET 无需登录，但必须有 QQ 号才查得到
       if (_currentDataSource == RefreshDataSource.awmc) {
-        final qq = _awmcQqController.text.trim();
+        final qq = widget.awmcQQ.trim();
         if (qq.isEmpty) {
-          AppToast.show('请输入 AWMC NET 的 QQ 号');
+          AppToast.show(context.l10n.accountLinkAWMCFirst,
+              tone: AppToastTone.warning);
           return null;
         }
         if (!RegExp(r'^\d{5,12}$').hasMatch(qq)) {
-          AppToast.show('QQ 号格式不对（应为 5–12 位数字）');
+          AppToast.show(context.l10n.flowInvalidQQID512DigitsRequired);
           return null;
         }
       }
@@ -375,7 +377,10 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
       final isOnline = await ConnectivityService().hasConnection();
       if (!isOnline) {
         if (mounted) {
-          AppToast.show('当前无网络连接，无法刷新数据。请联网后重试。', duration: Duration(seconds: 3));
+          AppToast.show(
+              context.l10n.flowCannotRefreshWithoutAConnectionConnectAnd,
+              duration: Duration(seconds: 3),
+              tone: AppToastTone.error);
         }
         return null;
       }
@@ -392,14 +397,13 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
     final request = RefreshDataRequest(
       dataSource: _currentDataSource,
       qq: _activeQq,
-      authCode: _authCodeController.text.trim(),
+      authCode: '',
       participateRankings: _participateRankings,
       showNickname: _showNickname,
       showBriefProfile: _showBriefProfile,
       forceFullRefresh: false, // 高级模式不依赖此字段
       forceSourceIds: Set<String>.from(_checkedIds),
       useSavedAuthorization: _currentDataSource == RefreshDataSource.luoxue &&
-          _authCodeController.text.trim().isEmpty &&
           _hasSavedLuoXueToken,
     );
     return request;
@@ -420,7 +424,7 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
       return _buildPanelContent(context);
     }
     return AppAlertDialog(
-      title: const Text('刷新数据（高级）'),
+      title: Text(context.l10n.featureAdvancedRefresh),
       content: SizedBox(
         width: 520,
         child: SingleChildScrollView(
@@ -430,11 +434,11 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('取消'),
+          child: Text(context.l10n.featureCancel),
         ),
         TextButton(
           onPressed: _onConfirm,
-          child: const Text('确认'),
+          child: Text(context.l10n.flowConfirm),
         ),
       ],
     );
@@ -466,18 +470,17 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('当前数据源：'),
+        Text(context.l10n.flowCurrentDataSource),
         const SizedBox(height: 6),
         AnimatedChoiceBar<RefreshDataSource>(
           values: RefreshDataSource.values,
           value: _currentDataSource,
-          label: (source) => source.shortDisplayName,
+          label: (source) => context.featureText(source.shortDisplayName),
           onChanged: (source) {
             // 只选「本次要刷新的数据源」；真正的切换由 executeAdvancedRefreshData
             // 里的 prepareForRefresh 完成，避免活动槽与数据源不一致。
             setState(() {
               _currentDataSource = source;
-              _authCodeController.clear();
             });
             _loadRankingSettings();
           },
@@ -486,28 +489,10 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
     );
   }
 
-  /// AWMC NET（net.wmc.pub）面板 —— 无需登录，只填 QQ 号。
-  Widget _buildAwmcPanel(Brightness brightness) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        TextField(
-          controller: _awmcQqController,
-          keyboardType: TextInputType.number,
-          decoration: InputDecoration(
-            labelText: 'QQ 号',
-            hintText: '输入已在 AWMC NET 绑定过的 QQ 号',
-          ).insetLabel(context),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'AWMC NET 按 QQ 号公开查询成绩，无需登录或授权。\n'
-          '前提是该 QQ 已在 net.wmc.pub 绑定并上传过成绩。',
-          style: TextStyle(fontSize: 12, color: AppColors.greyHint(brightness)),
-        ),
-      ],
-    );
-  }
+  /// AWMC NET（net.wmc.pub）面板：只显示独立绑定入口保存的 QQ。
+  Widget _buildAwmcPanel(Brightness brightness) => Text(widget.awmcQQ.isEmpty
+      ? context.l10n.accountLinkAWMCFirst
+      : '${context.l10n.flowQQID}：${widget.awmcQQ}');
 
   /// 水鱼面板：整个委托给共享的 [DivingFishAccountSection]（同 RefreshDataDialog）。
   Widget _buildShuiyuPanel(Brightness brightness) {
@@ -528,53 +513,9 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
     );
   }
 
-  Widget _buildLuoXuePanel(Brightness brightness) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (_hasSavedLuoXueToken)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Text('已保存落雪授权，将自动续期，无需再次输入授权码。',
-                style: TextStyle(color: AppColors.successGreen(brightness))),
-          ),
-        ElevatedButton(
-          onPressed: () async {
-            final url = LuoXueUserPlayDataManager().getAuthorizationUrl();
-            try {
-              if (await ExternalLaunchUtil.openString(url)) {
-                return;
-              } else if (mounted) {
-                _launchUrlFallback(url);
-              }
-            } catch (e) {
-              debugPrint('打开落雪授权链接失败: $e');
-              if (mounted) _launchUrlFallback(url);
-            }
-          },
-          child: const Text('点击授权'),
-        ),
-        const SizedBox(height: 8),
-        Text('授权后复制页面上显示的授权码，粘贴到下方输入框',
-            style:
-                TextStyle(fontSize: 12, color: AppColors.greyHint(brightness))),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _authCodeController,
-          decoration: InputDecoration(
-            labelText: '请输入授权码',
-            hintText: '粘贴授权码',
-          ).insetLabel(context),
-        ),
-      ],
-    );
-  }
-
-  void _launchUrlFallback(String url) {
-    Clipboard.setData(ClipboardData(text: url));
-    if (!mounted) return;
-    AppToast.show('无法打开浏览器，链接已复制到剪贴板，请手动粘贴到浏览器打开', duration: Duration(seconds: 3));
-  }
+  Widget _buildLuoXuePanel(Brightness brightness) => Text(_hasSavedLuoXueToken
+      ? context.l10n.flowLXNSAuthorizationSavedItRenewsAutomaticallyNo
+      : context.l10n.accountAuthorizeLXNSFirst);
 
   Widget _buildRankingOptions(Brightness brightness) {
     return Column(
@@ -602,9 +543,12 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
       children: [
         Row(
           children: [
-            const Text('强制刷新缓存数据',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-            const Spacer(),
+            Expanded(
+              child: Text(context.l10n.flowForceRefreshCachedData,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 13)),
+            ),
+            const SizedBox(width: 8),
             TextButton(
               onPressed: () {
                 setState(() {
@@ -624,8 +568,8 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
               ),
               child: Text(
                 _checkedIds.length == CacheSourceRegistry.all.length
-                    ? '全不选'
-                    : '全选',
+                    ? context.l10n.flowDeselectAll
+                    : context.l10n.flowSelectAll,
                 style: const TextStyle(fontSize: 12),
               ),
             ),
@@ -633,7 +577,7 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
         ),
         const SizedBox(height: 4),
         Text(
-          '勾选 = 在本次刷新中忽略该缓存，强制走网络；未勾选 = 命中缓存则跳过。',
+          context.l10n.flowSelectedCachesAreIgnoredAndFetchedFrom,
           style: TextStyle(fontSize: 11, color: mutedColor),
         ),
         const SizedBox(height: 8),
@@ -671,7 +615,7 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
       children: [
         Padding(
           padding: const EdgeInsets.only(top: 8, bottom: 4),
-          child: Text(title,
+          child: Text(context.featureText(title),
               style: TextStyle(
                 fontSize: 12,
                 color: mutedColor,
@@ -716,17 +660,18 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  source.displayName,
+                  context.featureText(source.displayName),
                   style: const TextStyle(
                       fontSize: 13, fontWeight: FontWeight.w500),
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  _validities[source.id] ?? '加载中…',
+                  _validities[source.id] ?? context.l10n.flowLoading2,
                   style: TextStyle(
                     fontSize: 11.5,
-                    color: (_validities[source.id] ?? '').startsWith('已过期')
+                    color: (_validities[source.id] ?? '')
+                            .startsWith(context.l10n.flowCacheExpiredPrefix)
                         ? Colors.orange
                         : mutedColor,
                     fontWeight: FontWeight.w500,
@@ -734,7 +679,7 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
                 ),
                 const SizedBox(height: 1),
                 Text(
-                  '${source.description}${result != null ? " · ${_formatTestResult(result)}" : ""}',
+                  '${context.featureText(source.description)}${result != null ? " · ${_formatTestResult(result)}" : ""}',
                   style: TextStyle(fontSize: 11, color: mutedColor),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -754,7 +699,7 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
     if (r.success) {
       return '✓ ${r.statusCode} ${r.latencyMs}ms';
     }
-    return '✗ ${r.error ?? '失败'} (${r.latencyMs}ms)';
+    return '✗ ${r.error ?? context.l10n.flowFailed} (${r.latencyMs}ms)';
   }
 
   Widget _buildTestButton(
@@ -775,7 +720,8 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
         onTap: () => _testSource(sourceId),
         borderRadius: BorderRadius.circular(6),
         child: Tooltip(
-          message: '连通：${result.statusCode} · ${result.latencyMs}ms',
+          message: context.l10n.flowConnectedP0P1Ms(
+              (result.statusCode).toString(), (result.latencyMs).toString()),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             child: Column(
@@ -796,7 +742,9 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
     if (result != null) {
       // 失败：保留错误图标（点击重测），延迟 tooltip 中可见
       return IconButton(
-        tooltip: '失败：${result.error ?? '未知错误'} (${result.latencyMs}ms)',
+        tooltip: context.l10n.flowFailedP0P1Ms(
+            (result.error ?? context.l10n.featureUnknownError).toString(),
+            (result.latencyMs).toString()),
         icon: const Icon(Icons.error, color: Colors.red, size: 20),
         onPressed: () => _testSource(sourceId),
         visualDensity: VisualDensity.compact,
@@ -811,7 +759,7 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
         minimumSize: const Size(0, 28),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),
-      child: const Text('测试', style: TextStyle(fontSize: 12)),
+      child: Text(context.l10n.flowTest, style: TextStyle(fontSize: 12)),
     );
   }
 }

@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 
 import '../../manager/DivingFish/MaimaiMusicDataManager.dart';
@@ -100,7 +101,7 @@ class _GuessChartLoadingViewState extends State<GuessChartLoadingView> {
     setState(() => _retrying = false);
 
     if (!solved) {
-      AppToast.show('重新拉取曲库失败，请检查网络后重试', duration: Duration(seconds: 3));
+      AppToast.show(context.l10n.flowCouldNotReloadSongsCheckYourConnection, duration: Duration(seconds: 3), tone: AppToastTone.error);
     }
   }
 
@@ -184,7 +185,7 @@ class _GuessChartLoadingViewState extends State<GuessChartLoadingView> {
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Icon(Icons.refresh, size: 18),
-                      label: Text(_retrying ? '正在拉取曲库...' : '重新拉取曲库'),
+                      label: Text(_retrying ? context.l10n.flowFetchingSongs : context.l10n.flowReloadSongs),
                     ),
                   if (canOpenSettings)
                     OutlinedButton.icon(
@@ -196,7 +197,7 @@ class _GuessChartLoadingViewState extends State<GuessChartLoadingView> {
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Icon(Icons.settings, size: 18),
-                      label: const Text('打开设置'),
+                      label:  Text(context.l10n.flowOpenSettings2),
                     ),
                 ],
               ),

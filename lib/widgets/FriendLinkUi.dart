@@ -11,6 +11,8 @@ import '../utils/ExternalLaunchUtil.dart';
 import 'AppUi.dart';
 import 'MarqueeText.dart';
 import 'ImageLoadingIndicator.dart';
+import '../l10n/LocalizationsExtension.dart';
+import '../l10n/FeatureLocalizations.dart';
 
 /// 友链可用的图标类型枚举
 ///
@@ -241,7 +243,7 @@ class _FriendLinkCarouselState extends State<FriendLinkCarousel>
   Widget _buildPage(FriendLinkRecord link) {
     return Semantics(
       button: true,
-      label: '打开友情链接：${link.name}',
+      label: context.l10n.hubOpenRelatedProject(link.name),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () => _open(link),
@@ -326,7 +328,7 @@ class _FriendLinkCarouselState extends State<FriendLinkCarousel>
               child: PressScale(
                 child: Semantics(
                   button: true,
-                  label: '查看全部友情链接',
+                  label: context.featureText('查看友情链接'),
                   child: GestureDetector(
                     onTap: () => Navigator.of(context).push(MaterialPageRoute(
                         builder: (_) => const FriendLinksPage())),
@@ -337,15 +339,15 @@ class _FriendLinkCarouselState extends State<FriendLinkCarousel>
                         borderRadius:
                             BorderRadius.circular(AppDesignTokens.radiusPill),
                       ),
-                      child: const Row(
+                      child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text('友情链接',
-                              style: TextStyle(
+                          Text(context.featureText('查看友情链接'),
+                              style: const TextStyle(
                                   fontSize: 11.5,
                                   fontWeight: FontWeight.w600,
                                   color: Colors.white)),
-                          Icon(Icons.chevron_right_rounded,
+                          const Icon(Icons.chevron_right_rounded,
                               size: 16, color: Colors.white),
                         ],
                       ),

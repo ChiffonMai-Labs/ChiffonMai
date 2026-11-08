@@ -163,7 +163,9 @@ class GainCandidate {
   final double target;
   final int netGain;
   final double need;
-  String reason;
+
+  /// 推分依据（稳妥 / 挑战路线）；探索路线为 null。文案由页面按当前语言拼。
+  final GainBasis? basis;
 
   /// 同谱更高的挑战目标（与稳妥目标不累加）。
   double? alternativeTarget;
@@ -176,7 +178,7 @@ class GainCandidate {
     required this.target,
     required this.netGain,
     required this.need,
-    required this.reason,
+    this.basis,
   });
 
   GainChartKey get key => record?.key ?? explore!.key;
@@ -417,30 +419,62 @@ const List<(double, String)> _gradeLadder = [
   (97.0, 'S'),
 ];
 
-String gainGradeOf(double achv) {
+/// 达成率对应的评级缩写；低于 S 时返回 null。
+String? gainGradeOf(double achv) {
   for (final (bound, label) in _gradeLadder) {
     if (achv >= bound - 1e-9) return label;
   }
-  return '未达 S';
+  return null;
 }
 
 /// 推分依据：目标评级、单曲 RA 变化与被顶替的分区最低谱。
-String gainBasis(GainChartRecord record, GainBaseline baseline, double target) {
+///
+/// 计算在后台 isolate 里进行，这里只存数据，不拼文案。
+class GainBasis {
+  /// 目标评级缩写；null 表示仍低于 S。
+  final String? targetGrade;
+
+  /// 是否跨过一个评级（否则是同档内提分）。
+  final bool raisesGrade;
+
+  /// 'B15' 或 'B35'。
+  final String zone;
+  final int targetRa;
+
+  /// 已在分区内时的当前单曲 RA。
+  final int? memberRa;
+
+  /// 分区已满时被顶替的最低谱。
+  final String? floorTitle;
+  final int? floorRa;
+
+  const GainBasis({
+    required this.targetGrade,
+    required this.raisesGrade,
+    required this.zone,
+    required this.targetRa,
+    this.memberRa,
+    this.floorTitle,
+    this.floorRa,
+  });
+}
+
+GainBasis gainBasis(
+    GainChartRecord record, GainBaseline baseline, double target) {
   final isNew = record.isNew ?? false;
-  final targetRa = gainRaOf(record.ds, target);
   final bucket = baseline.bucket(isNew);
-  final zone = isNew ? 'B15' : 'B35';
   final member = _findByKey(bucket, record.key);
   final targetGrade = gainGradeOf(target);
-  final grade = targetGrade != gainGradeOf(record.achievements)
-      ? '冲上 $targetGrade'
-      : '$targetGrade 档内提分';
-  if (member != null) return '$grade；$zone 内单曲 RA ${member.ra}→$targetRa';
-  if (bucket.length >= baseline.capacity(isNew)) {
-    final floor = bucket.last;
-    return '$grade；RA $targetRa 顶替 $zone 最低《${floor.title}》RA ${floor.ra}';
-  }
-  return '$grade；RA $targetRa 补入 $zone 空位';
+  final full = member == null && bucket.length >= baseline.capacity(isNew);
+  return GainBasis(
+    targetGrade: targetGrade,
+    raisesGrade: targetGrade != gainGradeOf(record.achievements),
+    zone: isNew ? 'B15' : 'B35',
+    targetRa: gainRaOf(record.ds, target),
+    memberRa: member?.ra,
+    floorTitle: full ? bucket.last.title : null,
+    floorRa: full ? bucket.last.ra : null,
+  );
 }
 
 List<GainCandidate> _targetRoutes(
@@ -457,7 +491,7 @@ List<GainCandidate> _targetRoutes(
       target: firstTarget,
       netGain: firstNet,
       need: firstTarget - record.achievements,
-      reason: '独立净收益+$firstNet（${gainBasis(record, baseline, firstTarget)}）',
+      basis: gainBasis(record, baseline, firstTarget),
     ));
   }
   // 挑战：≤ 0.80 内净收益最大，并列取提升最小。
@@ -478,7 +512,7 @@ List<GainCandidate> _targetRoutes(
       target: target,
       netGain: net,
       need: target - record.achievements,
-      reason: '独立净收益+$net（${gainBasis(record, baseline, target)}）',
+      basis: gainBasis(record, baseline, target),
     ));
   }
   return out;
@@ -569,8 +603,6 @@ GainBuildResult buildGainCandidates(GainInput input) {
         target: ceiling,
         netGain: net,
         need: 0,
-        reason: '个人同档最佳成绩中位参考 ${ceiling.toStringAsFixed(4)}% · '
-            '独立净收益+$net（条件估算；不是下次成功率）',
       );
     }
   }
@@ -587,8 +619,6 @@ GainBuildResult buildGainCandidates(GainInput input) {
           challenge.netGain > stable.netGain) {
         stable.alternativeTarget = challenge.target;
         stable.alternativeGain = challenge.netGain;
-        stable.reason += '；挑战可选 ${challenge.target.toStringAsFixed(4)}%'
-            '（独立净收益+${challenge.netGain}，不与稳妥目标累加）';
       }
       candidates.add(stable);
     } else if (challenge != null) {
@@ -648,13 +678,13 @@ Map<GainRoute, List<GainCandidate>> sortGainCandidates(
 class GainPage {
   final List<GainCandidate> items;
 
-  /// 不足一页时的说明；满页为空串。
-  final String fillNote;
+  /// 不足一页时选出的条数（页面据此提示）；满页为 null。
+  final int? partialCount;
 
   /// 本页之外仍可换批的合格候选数。
   final int remaining;
 
-  const GainPage(this.items, this.fillNote, this.remaining);
+  const GainPage(this.items, this.partialCount, this.remaining);
 }
 
 /// 确定性软配额选页：各路线先 4 条，剩余按 稳妥→挑战→探索 轮转补满。
@@ -739,11 +769,7 @@ GainPage selectGainPage(
       if (!picked.contains(c.key)) remaining++;
     }
   }
-  final note = page.length < pageSize
-      ? '合格未见候选 ${page.length} 条'
-          '${remaining == 0 ? '，已全部耗尽' : '，其余被反馈/资格过滤'}'
-      : '';
-  return GainPage(page, note, remaining);
+  return GainPage(page, page.length < pageSize ? page.length : null, remaining);
 }
 
 /// 本页正收益候选全部达成主目标后的 B50 总变化（逐步重算，已扣除互相

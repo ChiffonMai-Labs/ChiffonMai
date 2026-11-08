@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 
 import '../utils/AppDesignTokens.dart';
@@ -193,7 +194,7 @@ class RankingNotice extends StatelessWidget {
                 fit: BoxFit.scaleDown,
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  '数据来自玩家自愿上传，仅供参考和娱乐',
+                  context.l10n.flowDataVoluntarilyUploadedByPlayersForReference,
                   maxLines: 1,
                   style: TextStyle(
                       fontSize: 12, fontWeight: FontWeight.w600, color: accent),

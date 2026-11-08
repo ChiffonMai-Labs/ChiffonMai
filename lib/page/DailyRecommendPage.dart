@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import 'package:my_first_flutter_app/service/DailyRecommendService.dart';
@@ -31,11 +32,8 @@ class _DailyRecommendPageState extends State<DailyRecommendPage> {
     _loadRecommendations();
   }
 
-  String _getTodayDisplay() {
-    final now = DateTime.now();
-    final weekDays = ['一', '二', '三', '四', '五', '六', '日'];
-    return '${now.year}年${now.month}月${now.day}日 星期${weekDays[now.weekday - 1]}';
-  }
+  String _getTodayDisplay() =>
+      MaterialLocalizations.of(context).formatFullDate(DateTime.now());
 
   Future<void> _loadRecommendations({bool forceRefresh = false}) async {
     setState(() {
@@ -81,7 +79,7 @@ class _DailyRecommendPageState extends State<DailyRecommendPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '今日推荐',
+                  context.l10n.flowTodaySRecommendations,
                   style: TextStyle(
                     color: scheme.onPrimary.withValues(alpha: 0.8),
                     fontSize: 12,
@@ -90,7 +88,7 @@ class _DailyRecommendPageState extends State<DailyRecommendPage> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  _todayDate.isEmpty ? '正在准备今日推荐…' : _todayDate,
+                  _todayDate.isEmpty ? context.l10n.flowPreparingTodaySRecommendations : _todayDate,
                   style: TextStyle(
                     color: scheme.onPrimary,
                     fontSize: 18,
@@ -102,7 +100,7 @@ class _DailyRecommendPageState extends State<DailyRecommendPage> {
           ),
           const SizedBox(width: 12),
           Text(
-            '${_songs.length} 首',
+            context.l10n.flowP0Songs2((_songs.length).toString()),
             style: AppTheme.number(
               fontSize: 22,
               fontWeight: FontWeight.w800,
@@ -117,13 +115,6 @@ class _DailyRecommendPageState extends State<DailyRecommendPage> {
   Widget _buildSongCard(BuildContext context, _SongDisplay item) {
     final scheme = Theme.of(context).colorScheme;
     final song = item.song;
-    int highestIdx = 0;
-    for (int i = song.ds.length - 1; i >= 0; i--) {
-      if (song.ds[i] > 0) {
-        highestIdx = i;
-        break;
-      }
-    }
     final labels = <Widget>[];
     for (var i = 0; i < song.ds.length; i++) {
       if (song.ds[i] <= 0) continue;
@@ -137,16 +128,17 @@ class _DailyRecommendPageState extends State<DailyRecommendPage> {
     return AppCard(
       radius: AppDesignTokens.radiusMedium,
       padding: const EdgeInsets.all(10),
-      onTap: () => Navigator.push(
+      onTap: () {
+        FocusManager.instance.primaryFocus?.unfocus();
+        Navigator.push(
         context,
         MaterialPageRoute(
           builder: (_) => SongInfoPage(
             songId: song.id,
-            initialLevelIndex: highestIdx,
-            isDefaultLevelIndex: false,
           ),
         ),
-      ),
+        );
+      },
       child: Row(
         children: [
           ClipRRect(
@@ -177,7 +169,7 @@ class _DailyRecommendPageState extends State<DailyRecommendPage> {
                 const SizedBox(height: 3),
                 MarqueeText(
                   text: song.basicInfo.artist.isEmpty
-                      ? '未知艺术家'
+                      ? context.l10n.flowUnknownArtist
                       : song.basicInfo.artist,
                   style:
                       TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
@@ -212,11 +204,11 @@ class _DailyRecommendPageState extends State<DailyRecommendPage> {
     final brightness = Theme.of(context).brightness;
     final scheme = Theme.of(context).colorScheme;
     return BackgroundPageScaffold(
-      title: '每日推荐',
+      title: context.l10n.featureDailyRecommendations,
       actions: [
         IconButton(
           icon: const Icon(Icons.refresh_rounded),
-          tooltip: '换一批',
+          tooltip: context.l10n.flowAnotherBatch,
           onPressed: _isLoading
               ? null
               : () => _loadRecommendations(forceRefresh: true),
@@ -246,7 +238,7 @@ class _DailyRecommendPageState extends State<DailyRecommendPage> {
                   children: [
                     CircularProgressIndicator(color: scheme.primary),
                     const SizedBox(height: 16),
-                    Text('正在为你挑选今日推荐…',
+                    Text(context.l10n.flowPickingTodaySRecommendations,
                         style: TextStyle(color: scheme.onSurfaceVariant)),
                   ],
                 ),
@@ -260,7 +252,7 @@ class _DailyRecommendPageState extends State<DailyRecommendPage> {
                         Icon(Icons.music_off_rounded,
                             size: 56, color: AppColors.greyHint(brightness)),
                         const SizedBox(height: 14),
-                        Text('暂无可推荐的谱面\n请先在首页刷新数据',
+                        Text(context.l10n.flowNoChartsToRecommendYetRefreshData,
                             textAlign: TextAlign.center,
                             style: TextStyle(color: scheme.onSurfaceVariant)),
                         const SizedBox(height: 20),
@@ -268,7 +260,7 @@ class _DailyRecommendPageState extends State<DailyRecommendPage> {
                           onPressed: () =>
                               _loadRecommendations(forceRefresh: true),
                           icon: const Icon(Icons.refresh_rounded),
-                          label: const Text('重试'),
+                          label:  Text(context.l10n.flowRetry),
                         ),
                       ],
                     ),

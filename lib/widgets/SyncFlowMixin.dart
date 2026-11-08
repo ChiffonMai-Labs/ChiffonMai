@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -183,16 +185,16 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
     final goToLogin = await showDialog<bool>(
       context: context,
       builder: (ctx) => AppAlertDialog(
-        title: const Text('提示'),
-        content: const Text('请先登录你的水鱼账号，再使用同步功能。'),
+        title: Text(context.l10n.featureNotice),
+        content: Text(context.l10n.flowSignInToYourDivingFishAccount),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('取消'),
+            child: Text(context.l10n.featureCancel),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('去登录'),
+            child: Text(context.l10n.flowSignInFirst),
           ),
         ],
       ),
@@ -231,14 +233,15 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
       await showDialog<void>(
         context: context,
         builder: (ctx) => AppAlertDialog(
-          title: const Text('账号不匹配'),
+          title: Text(context.l10n.flowAccountMismatch),
           content: Text(
-            '当前登录水鱼账号绑定的 QQ（$bindQQ）与本机缓存的 QQ（$cachedQQ）不一致。\n\n请先登出当前水鱼账号，登录正确的账号后再同步。',
+            context.l10n.flowTheSignedInDivingFishQQP0(
+                (bindQQ).toString(), (cachedQQ).toString()),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('确定'),
+              child: Text(context.l10n.featureOK),
             ),
           ],
         ),
@@ -249,12 +252,14 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
     if (!mounted) return;
     // 线路2 复用 maimai Score Hub 已有登录态；本次二维码只用于机台抓取，
     // 不再拿它去登录（一张二维码只处理一个上游请求）。
-    if (!await ensureMaimaiHubLogin(context, reason: '水鱼线路2')) return;
+    if (!await ensureMaimaiHubLogin(context,
+        reason: context.l10n.flowDivingFishRoute2)) return;
     if (!mounted) return;
     final input = await showDivingFishSyncInputDialog(context);
     if (input == null || !mounted) return;
 
-    _updateSyncState(divingFish: true, divingFishText: '正在同步成绩...');
+    _updateSyncState(
+        divingFish: true, divingFishText: context.l10n.flowSyncingScores);
     // 记录本次同步耗时 / 成败（Redis，尽力而为）
     final stopwatch = Stopwatch()..start();
     int? syncDurationMs;
@@ -278,11 +283,14 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
       syncOk = true;
       if (!mounted) return;
       AppToast.show(outcome.localDataRefreshed
-              ? '同步完成！${outcome.exportedCount} 条成绩已同步，本地数据已刷新'
-              : '同步完成！${outcome.exportedCount} 条成绩已推送到水鱼');
+          ? context.l10n.flowSyncCompleteP0ScoresSyncedAndLocal(
+              (outcome.exportedCount).toString())
+          : context.l10n.flowSyncCompleteP0ScoresSentToDiving(
+              (outcome.exportedCount).toString()));
       if (outcome.refreshError != null && mounted) {
         await showErrorMessageDialog(context,
-            message: '同步成功，但刷新数据失败：${outcome.refreshError}');
+            message: context.l10n.flowSyncSucceededButDataRefreshFailedP0(
+                (outcome.refreshError).toString()));
       }
     } on SyncFlowException catch (e) {
       if (!mounted) return;
@@ -300,7 +308,8 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
       }
     } catch (e) {
       if (mounted) {
-        await showErrorMessageDialog(context, message: '同步失败：$e');
+        await showErrorMessageDialog(context,
+            message: context.l10n.flowSyncFailedP0((e).toString()));
       }
     } finally {
       stopwatch.stop();
@@ -333,11 +342,13 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
     if (!mounted || outcome.cancelled) return;
     if (outcome.ok) {
       ConfettiEffect.show(context);
-      AppToast.show(AwmcSyncFlow.successToast(AwmcSyncTarget.divingFish, outcome));
+      AppToast.show(
+          AwmcSyncFlow.successToast(AwmcSyncTarget.divingFish, outcome));
       if (outcome.refreshError != null && mounted) {
         await showErrorMessageDialog(
           context,
-          message: '同步成功，但刷新数据失败：${outcome.refreshError}',
+          message: context.l10n.flowSyncSucceededButDataRefreshFailedP0(
+              (outcome.refreshError).toString()),
         );
       }
     } else if (outcome.message != null) {
@@ -353,12 +364,13 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
   Future<void> syncToLuoXueWithButton() async {
     if (anyBusy) return;
     // 同水鱼线路2：先复用 Score Hub 登录态，本次二维码只用于抓取。
-    if (!await ensureMaimaiHubLogin(context, reason: '落雪线路2')) return;
+    if (!await ensureMaimaiHubLogin(context,
+        reason: context.l10n.flowLXNSRoute2)) return;
     if (!mounted) return;
     final input = await showLuoXueSyncInputDialog(context);
     if (input == null || !mounted) return;
 
-    _updateSyncState(luoXue: true, luoXueText: '正在同步成绩...');
+    _updateSyncState(luoXue: true, luoXueText: context.l10n.flowSyncingScores);
     final stopwatch = Stopwatch()..start();
     int? syncDurationMs;
     var syncOk = false;
@@ -378,10 +390,12 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
       );
       syncOk = true;
       if (!mounted) return;
-      AppToast.show('同步完成！共 $count 条成绩已导出到落雪');
+      AppToast.show(context.l10n
+          .flowSyncCompleteP0ScoresExportedToLXNS((count).toString()));
       if (refreshError != null && mounted) {
         await showErrorMessageDialog(context,
-            message: '同步成功，但刷新数据失败：$refreshError');
+            message: context.l10n.flowSyncSucceededButDataRefreshFailedP0(
+                (refreshError).toString()));
       }
     } on SyncFlowException catch (e) {
       if (mounted) {
@@ -389,7 +403,8 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
       }
     } catch (e) {
       if (mounted) {
-        await showErrorMessageDialog(context, message: '同步失败：$e');
+        await showErrorMessageDialog(context,
+            message: context.l10n.flowSyncFailedP0((e).toString()));
       }
     } finally {
       stopwatch.stop();
@@ -423,7 +438,8 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
       if (outcome.refreshError != null && mounted) {
         await showErrorMessageDialog(
           context,
-          message: '同步成功，但刷新数据失败：${outcome.refreshError}',
+          message: context.l10n.flowSyncSucceededButDataRefreshFailedP0(
+              (outcome.refreshError).toString()),
         );
       }
     } else if (outcome.message != null) {
@@ -454,7 +470,8 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
       if (outcome.refreshError != null && mounted) {
         await showErrorMessageDialog(
           context,
-          message: '同步成功，但刷新数据失败：${outcome.refreshError}',
+          message: context.l10n.flowSyncSucceededButDataRefreshFailedP0(
+              (outcome.refreshError).toString()),
         );
       }
     } else {
@@ -469,7 +486,7 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
     final input = await showMultiScoreSyncInputDialog(context);
     if (input == null || !mounted || anyBusy) return;
 
-    _updateSyncState(multi: true, multiText: '准备同步…');
+    _updateSyncState(multi: true, multiText: context.l10n.flowPreparingSync2);
     final successes = <String>[];
     final failures = <String>[];
     final refreshFailures = <String>[];
@@ -493,7 +510,8 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
         final hadSession = await DivingFishProbeManager().hasValidHubSession();
         if (!mounted) return;
         if (!hadSession) pendingQr = '';
-        if (!await ensureMaimaiHubLogin(context, reason: '多端同步的线路2')) {
+        if (!await ensureMaimaiHubLogin(context,
+            reason: context.l10n.flowMultiPlatformRoute2)) {
           return;
         }
         if (!mounted) return;
@@ -507,12 +525,14 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
           return qr;
         }
         if (!mounted) return null;
-        _updateSyncState(multiText: '请为$label（$routeLabel）输入新的二维码…');
+        _updateSyncState(
+            multiText: context.l10n.flowEnterANewQRForP0P1(
+                (label).toString(), (routeLabel).toString()));
         return AwmcUi.askQrcode(
           context,
-          title: '为$label输入新的二维码',
-          body: '这张二维码只用于$label（$routeLabel）的这一次请求；'
-              '不能和其它目标用过的二维码相同。',
+          title: context.l10n.flowEnterANewQRCodeForP0((label).toString()),
+          body: context.l10n.flowThisQRIsUsedOnlyForThis(
+              (label).toString(), (routeLabel).toString()),
         );
       }
 
@@ -520,14 +540,15 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
         platforms: input.platforms,
         execute: (platform) async {
           final routeLabel = input.quickUpdateFor(platform)
-              ? '快速同步'
+              ? context.l10n.flowQuickSync
               : platform == SyncPlatform.awmc
-                  ? '二维码直传'
+                  ? context.l10n.flowDirectQRUpload
                   : input.routeOf(platform) == SyncRouteStore.routeAwmc
-                      ? '线路1'
-                      : '线路2';
+                      ? context.l10n.flowRoute1
+                      : context.l10n.flowRoute2;
           _updateSyncState(
-              multiText: '正在同步到${platform.label}（$routeLabel）…',
+              multiText: context.l10n.flowSyncingToP0P1(
+                  appLocalizeLabel(platform.label), (routeLabel).toString()),
               multiProgress: completedPlatforms / input.platforms.length);
           try {
             if (input.quickUpdateFor(platform)) {
@@ -549,14 +570,18 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
               if (refreshError != null)
                 refreshFailures.add('${platform.label}：$refreshError');
               return result.submitted == 0
-                  ? '${platform.label}（成绩已是最新）'
-                  : '${platform.label}（快速同步，更新 ${result.submitted} 条）';
+                  ? context.l10n
+                      .flowP0UpToDate(appLocalizeLabel(platform.label))
+                  : context.l10n.flowP0QuickSyncUpdatedP1(
+                      appLocalizeLabel(platform.label),
+                      (result.submitted).toString());
             }
             if (platform != SyncPlatform.awmc &&
                 input.routeOf(platform) == SyncRouteStore.routeAwmc) {
-              final qrCode = await takeQr(platform.label, '线路1');
+              final qrCode =
+                  await takeQr(platform.label, context.l10n.flowRoute1);
               if (qrCode == null) {
-                throw const SyncFlowException('已取消输入二维码');
+                throw SyncFlowException(context.l10n.svcQRCodeEntryCancelled);
               }
               final target = platform == SyncPlatform.divingFish
                   ? AwmcSyncTarget.divingFish
@@ -565,32 +590,37 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
                 qrCode: qrCode,
                 target: target,
                 refreshRequest: input.refreshRequests[platform],
-                onBusy: (text) =>
-                    _updateSyncState(multiText: '${platform.label}（线路1）：$text'),
+                onBusy: (text) => _updateSyncState(
+                    multiText: context.l10n.flowP0Route1P1(
+                        appLocalizeLabel(platform.label), (text).toString())),
                 onProgress: (p, text) => _updateSyncState(
-                    multiText:
-                        '${platform.label}（线路1）：$text ${(p * 100).round()}%',
+                    multiText: context.l10n.flowP0Route1P1P2(
+                        appLocalizeLabel(platform.label),
+                        (text).toString(),
+                        ((p * 100).round()).toString()),
                     multiProgress:
                         (completedPlatforms + p) / input.platforms.length),
               );
               if (!outcome.ok) {
-                throw SyncFlowException(outcome.message ?? '线路1同步失败');
+                throw SyncFlowException(outcome.message ?? context.l10n.flowRoute1SyncFailed);
               }
               anySynchronized = true;
               if (outcome.refreshError != null)
                 refreshFailures
                     .add('${platform.label}：${outcome.refreshError}');
-              return '${platform.label}（线路1）';
+              return context.l10n
+                  .flowP0Route1(appLocalizeLabel(platform.label));
             }
             switch (platform) {
               case SyncPlatform.divingFish:
-                if (!await ensureMaimaiHubLogin(context, reason: '水鱼线路2')) {
-                  throw const SyncFlowException(
-                      '未登录 maimai Score Hub，已跳过水鱼线路2同步');
+                if (!await ensureMaimaiHubLogin(context,
+                    reason: context.l10n.flowDivingFishRoute2)) {
+                  throw SyncFlowException(
+                      context.l10n.flowNotSignedInToMaimaiScoreHub);
                 }
-                final qrCode = await takeQr('水鱼', '线路2');
+                final qrCode = await takeQr(context.l10n.featureFish, context.l10n.flowRoute2);
                 if (qrCode == null) {
-                  throw const SyncFlowException('已取消输入二维码');
+                  throw SyncFlowException(context.l10n.svcQRCodeEntryCancelled);
                 }
                 final result = await executeDivingFishSync(
                   syncCallbacks,
@@ -602,21 +632,25 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
                   ),
                   onSyncSucceeded: () => anySynchronized = true,
                   onProgress: (p, text) => _updateSyncState(
-                      multiText: '水鱼（线路2）：$text ${(p * 100).round()}%',
+                      multiText: context.l10n.flowDivingFishRoute2P0P1(
+                          (text).toString(), ((p * 100).round()).toString()),
                       multiProgress:
                           (completedPlatforms + p) / input.platforms.length),
                 );
                 if (result.refreshError != null)
-                  refreshFailures.add('水鱼：${result.refreshError}');
-                return '水鱼（线路2，${result.exportedCount} 条）';
+                  refreshFailures.add(context.l10n
+                      .flowDivingFishP0((result.refreshError).toString()));
+                return context.l10n.flowDivingFishRoute2P0Scores(
+                    (result.exportedCount).toString());
               case SyncPlatform.luoXue:
-                if (!await ensureMaimaiHubLogin(context, reason: '落雪线路2')) {
-                  throw const SyncFlowException(
-                      '未登录 maimai Score Hub，已跳过落雪线路2同步');
+                if (!await ensureMaimaiHubLogin(context,
+                    reason: context.l10n.flowLXNSRoute2)) {
+                  throw SyncFlowException(
+                      context.l10n.flowNotSignedInToMaimaiScoreHub2);
                 }
-                final qrCode = await takeQr('落雪', '线路2');
+                final qrCode = await takeQr(context.l10n.featureLxns, context.l10n.flowRoute2);
                 if (qrCode == null) {
-                  throw const SyncFlowException('已取消输入二维码');
+                  throw SyncFlowException(context.l10n.svcQRCodeEntryCancelled);
                 }
                 final token = await SecureCredentialStore.read(
                     CacheKeyConstant.probeLxnsImportToken);
@@ -625,23 +659,27 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
                       qrCode: qrCode,
                       lxnsImportToken: token,
                       refreshRequest: input.refreshRequests[platform]),
-                  onRefreshFailed: (error) => refreshFailures.add('落雪：$error'),
+                  onRefreshFailed: (error) => refreshFailures
+                      .add(context.l10n.flowLXNSP0((error).toString())),
                   onSyncSucceeded: () => anySynchronized = true,
                   onProgress: (p, text) => _updateSyncState(
-                      multiText: '落雪（线路2）：$text ${(p * 100).round()}%',
+                      multiText: context.l10n.flowLXNSRoute2P0P1(
+                          (text).toString(), ((p * 100).round()).toString()),
                       multiProgress:
                           (completedPlatforms + p) / input.platforms.length),
                 );
-                return '落雪（线路2，$count 条）';
+                return context.l10n.flowLXNSRoute2P0Scores((count).toString());
               case SyncPlatform.awmc:
-                final qrCode = await takeQr('AWMC NET', '二维码直传');
+                final qrCode =
+                    await takeQr('AWMC NET', context.l10n.flowDirectQRUpload);
                 if (qrCode == null) {
-                  throw const SyncFlowException('已取消输入二维码');
+                  throw SyncFlowException(context.l10n.svcQRCodeEntryCancelled);
                 }
                 final token = await SecureCredentialStore.read(
                     CacheKeyConstant.awmcNetImportToken);
                 if (token == null || token.isEmpty) {
-                  throw const SyncFlowException('未设置 AWMC NET 成绩导入 Token');
+                  throw SyncFlowException(
+                      context.l10n.flowAWMCNETScoreImportTokenNotSet);
                 }
                 final outcome = await AwmcNetSyncFlow.runWithInput(
                   AwmcNetSyncInput(
@@ -678,13 +716,24 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
       if (!mounted) return;
       if (anySynchronized) ConfettiEffect.show(context);
       if (failures.isEmpty && refreshFailures.isEmpty) {
-        AppToast.show('多端同步完成：${successes.join('、')}');
+        AppToast.show(context.l10n
+            .flowMultiPlatformSyncCompleteP0((successes.join('、')).toString()));
       } else {
         await showErrorMessageDialog(
           context,
-          message: '同步已完成：${successes.isEmpty ? '无' : successes.join('、')}'
-              '${failures.isEmpty ? '' : '\n\n同步失败：\n${failures.join('\n')}'}'
-              '${refreshFailures.isEmpty ? '' : '\n\n同步成功，但刷新数据失败：\n${refreshFailures.join('\n')}'}',
+          message: context.l10n.flowSyncCompleteP0P1P2(
+              (successes.isEmpty ? context.l10n.flowNone2 : successes.join('、'))
+                  .toString(),
+              (failures.isEmpty
+                      ? ''
+                      : context.l10n
+                          .flowSyncFailedP02((failures.join('\n')).toString()))
+                  .toString(),
+              (refreshFailures.isEmpty
+                      ? ''
+                      : context.l10n.flowSyncSucceededButRefreshFailedP0(
+                          (refreshFailures.join('\n')).toString()))
+                  .toString()),
         );
       }
     } finally {

@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import '../../widgets/GuessCoverImage.dart';
 import '../../widgets/GuessGameStatusPanel.dart';
 import 'dart:async';
@@ -21,6 +22,8 @@ import 'package:my_first_flutter_app/page/GuessChartGame/GuessChartLoadingView.d
 import '../../widgets/BackgroundPageScaffold.dart';
 import '../../widgets/GuessUi.dart';
 import '../../utils/AppDesignTokens.dart';
+import '../../utils/CoverUtil.dart';
+import '../../utils/GuessCoverCrop.dart';
 import '../../widgets/AppDialogs.dart';
 import '../../widgets/AppToast.dart';
 import '../../widgets/GuessSettingsUi.dart';
@@ -60,6 +63,8 @@ class _GuessChartByCoverPageState extends State<GuessChartByCoverPage> {
   double? _cropY1;
   double? _cropX2;
   double? _cropY2;
+  ImageProvider? _coverProvider;
+  int _roundGeneration = 0;
 
   // 搜索状态
   TextEditingController _searchController = TextEditingController();
@@ -155,6 +160,7 @@ class _GuessChartByCoverPageState extends State<GuessChartByCoverPage> {
 
   // 开始新游戏
   Future<void> _startNewGame() async {
+    final generation = ++_roundGeneration;
     _searchTimer?.cancel();
     _searchGeneration++;
     // 取消之前的倒计时
@@ -162,7 +168,7 @@ class _GuessChartByCoverPageState extends State<GuessChartByCoverPage> {
 
     // 加载最新的设置
     await _loadSettings();
-    if (!mounted) return;
+    if (!mounted || generation != _roundGeneration) return;
 
     setState(() {
       _isGameStarted = false;
@@ -177,34 +183,68 @@ class _GuessChartByCoverPageState extends State<GuessChartByCoverPage> {
       _isSearching = false;
       _remainingTime = _timeLimit; // 重置倒计时
       _resultRecorded = false;
-      _gameStartTime = DateTime.now(); // 记录游戏开始时间
-
-      // 生成新的随机截取位置
-      _generateRandomCropPosition();
+      _gameStartTime = null; // 曲绘准备好后才开始计时。
+      _targetSong = null;
+      _coverProvider = null;
+      _cropX1 = _cropY1 = _cropX2 = _cropY2 = null;
     });
 
-    // 随机选择目标歌曲（使用设置的筛选条件）
-    _targetSong = await GuessChartByCoverService.randomSelectSong(
-      selectedVersions: _selectedVersions,
-      masterMinDx: _masterMinDx,
-      masterMaxDx: _masterMaxDx,
-      selectedGenres: _selectedGenres,
-    );
-    if (_targetSong != null) {
+    // 同一张图优先重选裁剪块；整张图都没有有效线索时，再换一首歌。
+    final excludedSongIds = <String>{};
+    for (var attempt = 0; attempt < 6; attempt++) {
+      final targetSong = await GuessChartByCoverService.randomSelectSong(
+        selectedVersions: _selectedVersions,
+        masterMinDx: _masterMinDx,
+        masterMaxDx: _masterMaxDx,
+        selectedGenres: _selectedGenres,
+        excludedSongIds: excludedSongIds,
+      );
+      if (!mounted || generation != _roundGeneration) return;
+      if (targetSong == null) break;
+      excludedSongIds.add(targetSong.id);
+      try {
+        final provider = await CoverUtil.resolveCoverProvider(targetSong.id);
+        if (!mounted || generation != _roundGeneration) return;
+        final crop = await GuessCoverCrop.select(
+            provider, createLocalImageConfiguration(context));
+        if (!mounted || generation != _roundGeneration) return;
+        if (crop == null) continue;
+        setState(() {
+          _targetSong = targetSong;
+          _coverProvider = provider;
+          _cropX1 = crop.left;
+          _cropY1 = crop.top;
+          _cropX2 = crop.right;
+          _cropY2 = crop.bottom;
+          _isGameStarted = true;
+          _loadFailureMessage = '';
+          _gameStartTime = DateTime.now();
+        });
+        _startCountdown();
+        return;
+      } catch (e) {
+        if (!mounted || generation != _roundGeneration) return;
+        debugPrint('猜歌曲绘准备失败: $e');
+        setState(() {
+          _isGameStarted = true;
+          _loadFailureMessage = context.l10n.flowCouldNotLoadCoverArtPleaseRetry;
+        });
+        return;
+      }
+    }
+
+    if (excludedSongIds.isNotEmpty) {
       setState(() {
         _isGameStarted = true;
-        _loadFailureMessage = '';
+        _loadFailureMessage = context.l10n.flowNoRecognizableCropAreaInThisCover;
       });
-
-      // 启动倒计时
-      _startCountdown();
       return;
     }
 
     // 抽曲失败：**绝不能**就此留在加载态（详见 GuessChartLoadingView 注释）。
     // 原先这里没有 else 分支，曲库缓存为空时页面会永久转圈。
     final libraryEmpty = await GuessChartLoadingView.isSongLibraryEmpty();
-    if (!mounted) return;
+    if (!mounted || generation != _roundGeneration) return;
     setState(() {
       // 与谱面片段猜歌同一思路：照常进入游戏界面，只把题面区换成原因说明。
       // 停在 _isGameStarted == false 的话设置齿轮就点不到，用户只能退出去重进。
@@ -260,29 +300,6 @@ class _GuessChartByCoverPageState extends State<GuessChartByCoverPage> {
         }
       });
     });
-  }
-
-  // 生成随机截取位置
-  void _generateRandomCropPosition() {
-    // 随机生成起始点和终点
-    // 确保截取区域在0-1范围内
-    double x1 = (DateTime.now().millisecondsSinceEpoch % 80) / 100.0;
-    double y1 = ((DateTime.now().millisecondsSinceEpoch + 100) % 80) / 100.0;
-    double x2 = x1 +
-        (10 + (DateTime.now().millisecondsSinceEpoch % 30)) / 100.0; // 宽度随机
-    double y2 = y1 +
-        (10 + ((DateTime.now().millisecondsSinceEpoch + 200) % 30)) /
-            100.0; // 高度随机
-
-    // 确保x2和y2不超过1
-    x2 = x2 > 1 ? 1 : x2;
-    y2 = y2 > 1 ? 1 : y2;
-
-    // 保存截取参数，用于游戏结束时显示红框
-    _cropX1 = x1;
-    _cropY1 = y1;
-    _cropX2 = x2;
-    _cropY2 = y2;
   }
 
   // 处理搜索输入
@@ -343,7 +360,7 @@ class _GuessChartByCoverPageState extends State<GuessChartByCoverPage> {
         _guessHistory.any((guess) => guess.songId == int.parse(guessedSong.id));
     if (hasGuessed) {
       // 显示提示
-      AppToast.show('已经猜过这首歌了！', duration: Duration(seconds: 2));
+      AppToast.show(context.l10n.flowYouAlreadyGuessedThisSong, duration: Duration(seconds: 2), tone: AppToastTone.success);
       // 清空输入框
       _searchController.clear();
       _searchResults = [];
@@ -541,7 +558,7 @@ class _GuessChartByCoverPageState extends State<GuessChartByCoverPage> {
         selectedGenres: selectedGenres,
       );
       if (testSong != null || !mounted) return;
-      AppToast.show('当前筛选条件抽不到曲目，请放宽筛选条件', duration: Duration(seconds: 4));
+      AppToast.show(context.l10n.flowNoSongsMatchTheseFiltersBroadenYour, duration: Duration(seconds: 4), tone: AppToastTone.warning);
     } catch (e) {
       debugPrint('校验筛选条件失败: $e');
     }
@@ -588,8 +605,8 @@ class _GuessChartByCoverPageState extends State<GuessChartByCoverPage> {
       context: context,
       builder: (BuildContext context) {
         return AppAlertDialog(
-          title: const Text('游戏设置'),
-          subtitle: '保存后下局生效',
+          title:  Text(context.l10n.flowGameSettings),
+          subtitle: context.l10n.flowAppliesFromTheNextGame,
           contentPadding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
           content: StatefulBuilder(
             builder: (BuildContext context, StateSetter setState) {
@@ -647,7 +664,7 @@ class _GuessChartByCoverPageState extends State<GuessChartByCoverPage> {
               onPressed: () {
                 Navigator.of(context).pop();
               },
-              child: const Text('取消'),
+              child:  Text(context.l10n.featureCancel),
             ),
             TextButton(
               onPressed: () async {
@@ -670,7 +687,7 @@ class _GuessChartByCoverPageState extends State<GuessChartByCoverPage> {
 
                 if (!navigator.mounted) return;
                 navigator.pop();
-                AppToast.show('设置已保存，将在下局游戏生效',
+                AppToast.show(context.l10n.flowSettingsSavedTheyApplyFromTheNext,
                     tone: AppToastTone.success);
 
                 _warnIfNoSongMatches(
@@ -680,7 +697,7 @@ class _GuessChartByCoverPageState extends State<GuessChartByCoverPage> {
                   selectedGenres: tempSelectedGenres,
                 );
               },
-              child: const Text('确定'),
+              child:  Text(context.l10n.featureOK),
             ),
           ],
         );
@@ -694,27 +711,27 @@ class _GuessChartByCoverPageState extends State<GuessChartByCoverPage> {
       context: context,
       builder: (BuildContext context) {
         return AppAlertDialog(
-          title: const Text('规则说明'),
+          title:  Text(context.l10n.flowHowToPlay),
           content: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('绿色 - 该属性与你猜的完全一致。'),
+                 Text(context.l10n.flowGreenTheAttributeMatchesTheTargetExactly),
                 const SizedBox(height: 8),
-                const Text('橙色 - 该属性与你猜的"接近"：'),
+                 Text(context.l10n.flowOrangeTheAttributeIsCloseToThe),
                 const SizedBox(height: 4),
-                const Text('BPM 相差在 ±20 范围内；'),
-                const Text('MASTER 难度或 Re:MASTER 难度相差在 ±0.4范围内；'),
-                const Text('版本相差一个世代（例如 maimai ← maimai PLUS → maimai GreeN）。'),
+                 Text(context.l10n.flowBPMDiffersByNoMoreThan20),
+                 Text(context.l10n.flowMASTEROrReMASTERDifficultyDiffersBy),
+                 Text(context.l10n.flowVersionsAreOneGenerationApartEG),
                 const SizedBox(height: 8),
-                const Text('灰色 - 该属性与你猜的"差距较大"。'),
+                 Text(context.l10n.flowGrayTheAttributeIsFarFromThe),
                 const SizedBox(height: 16),
-                const Text('箭头：'),
+                 Text(context.l10n.flowArrows),
                 const SizedBox(height: 4),
-                const Text('↑ - 目标值比你猜的更高'),
-                const Text('↓ - 目标值比你猜的更低'),
+                 Text(context.l10n.flowTargetValueIsHigherThanYourGuess),
+                 Text(context.l10n.flowTargetValueIsLowerThanYourGuess),
                 const SizedBox(height: 16),
-                const Text('设计思路借鉴：'),
+                 Text(context.l10n.flowDesignInspiration2),
                 GestureDetector(
                   onTap: () async {
                     final url = Uri.parse('https://maimai.yukineko2233.top/');
@@ -724,7 +741,7 @@ class _GuessChartByCoverPageState extends State<GuessChartByCoverPage> {
                       await ExternalLaunchUtil.copyFallback(
                         context,
                         url.toString(),
-                        message: '无法打开该链接，链接已复制到剪贴板',
+                        message: context.l10n.flowCouldNotOpenThisLinkLinkCopied,
                       );
                     }
                   },
@@ -744,7 +761,7 @@ class _GuessChartByCoverPageState extends State<GuessChartByCoverPage> {
               onPressed: () {
                 Navigator.of(context).pop();
               },
-              child: const Text('确定'),
+              child:  Text(context.l10n.featureOK),
             ),
           ],
         );
@@ -754,14 +771,6 @@ class _GuessChartByCoverPageState extends State<GuessChartByCoverPage> {
 
   // 裁剪曲绘，随机显示曲绘的一部分
   Widget _buildCroppedCover(String songId) {
-    // 确保截取参数已生成
-    if (_cropX1 == null ||
-        _cropY1 == null ||
-        _cropX2 == null ||
-        _cropY2 == null) {
-      _generateRandomCropPosition();
-    }
-
     double x1 = _cropX1!;
     double y1 = _cropY1!;
     double x2 = _cropX2!;
@@ -786,7 +795,8 @@ class _GuessChartByCoverPageState extends State<GuessChartByCoverPage> {
           fit: StackFit.expand,
           children: [
             // 完整显示曲绘
-            GuessCoverImage(songId: songId, size: 200),
+            GuessCoverImage(
+                songId: songId, size: 200, provider: _coverProvider),
             // 顶部遮盖
             Positioned(
               top: 0,
@@ -836,22 +846,22 @@ class _GuessChartByCoverPageState extends State<GuessChartByCoverPage> {
     return BackgroundPageScaffold(
       actions: [
         IconButton(
-          tooltip: '规则',
+          tooltip: context.l10n.flowRules,
           icon: const Icon(Icons.info_outline_rounded, size: 20),
           onPressed: _showRulesDialog,
         ),
         IconButton(
-          tooltip: '设置',
+          tooltip: context.l10n.flowSettings,
           icon: const Icon(Icons.settings_outlined, size: 20),
           onPressed: _showSettingsDialog,
         ),
         IconButton(
-          tooltip: '换一题',
+          tooltip: context.l10n.flowNewQuestion,
           icon: const Icon(Icons.refresh_rounded, size: 20),
           onPressed: _startNewGame,
         ),
       ],
-      title: '根据部分曲绘猜歌',
+      title: context.l10n.featureCroppedCoverQuiz,
       resizeToAvoidBottomInset: false,
       child: GestureDetector(
         onTap: () {
@@ -879,7 +889,7 @@ class _GuessChartByCoverPageState extends State<GuessChartByCoverPage> {
                                 children: [
                                   // 本局状态与每日统计共用布局。
                                   GuessGameStatusPanel(
-                                    roundLabel: '剩余次数',
+                                    roundLabel: context.l10n.flowGuessesLeft,
                                     roundValue: _maxGuesses > 0
                                         ? (_maxGuesses - _guessCount)
                                             .clamp(0, _maxGuesses)
@@ -933,7 +943,8 @@ class _GuessChartByCoverPageState extends State<GuessChartByCoverPage> {
                                             children: [
                                               GuessCoverImage(
                                                   songId: _targetSong!.id,
-                                                  size: 200),
+                                                  size: 200,
+                                                  provider: _coverProvider),
                                               // 红框框选出本轮截取的区域
                                               if (_cropX1 != null &&
                                                   _cropY1 != null &&
@@ -993,7 +1004,7 @@ class _GuessChartByCoverPageState extends State<GuessChartByCoverPage> {
                                               CrossAxisAlignment.start,
                                           children: [
                                             Text(
-                                              _isWon ? '恭喜你猜对了！' : '本局答案',
+                                              _isWon ? context.l10n.flowYouGotIt : context.l10n.flowThisGameSAnswer,
                                               style: TextStyle(
                                                 fontSize: 16,
                                                 fontWeight: FontWeight.bold,
@@ -1164,7 +1175,7 @@ class _GuessChartByCoverPageState extends State<GuessChartByCoverPage> {
                   GuessInputBar(
                     controller: _searchController,
                     onChanged: _handleSearchInput,
-                    hintText: '搜索歌名、别名、编号等',
+                    hintText: context.l10n.flowSearchTitleAliasIDAndMore,
                     isGameOver: _isGameOver,
                     onSurrender: () async {
                                               // 投降时取消倒计时

@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 
 import '../service/CacheManagementService.dart';
@@ -37,7 +39,7 @@ class _CacheManagementDialogState extends State<_CacheManagementDialog> {
       final usage = await _service.inspect();
       if (mounted) setState(() => _usage = usage);
     } catch (e) {
-      if (mounted) setState(() => _error = '读取缓存占用失败：$e');
+      if (mounted) setState(() => _error = appL10n.flowCouldNotReadCacheUsageP0((e).toString()));
     }
   }
 
@@ -58,7 +60,7 @@ class _CacheManagementDialogState extends State<_CacheManagementDialog> {
       final usage = await _service.inspect();
       if (mounted) setState(() => _usage = usage);
     } catch (e) {
-      if (mounted) setState(() => _error = '清理缓存失败：$e');
+      if (mounted) setState(() => _error = context.l10n.flowCouldNotClearCacheP0((e).toString()));
     } finally {
       if (mounted) {
         setState(() {
@@ -73,7 +75,7 @@ class _CacheManagementDialogState extends State<_CacheManagementDialog> {
   Widget build(BuildContext context) {
     final usage = _usage;
     return AppAlertDialog(
-      title: const Text('缓存管理'),
+      title:  Text(context.l10n.featureCacheManagement),
       content: SizedBox(
         width: 420,
         child: SingleChildScrollView(
@@ -83,8 +85,8 @@ class _CacheManagementDialogState extends State<_CacheManagementDialog> {
             children: [
               Text(
                 usage == null
-                    ? '正在统计缓存占用…'
-                    : '总占用 ${_formatBytes(usage.bytesForAll)}',
+                    ? context.l10n.flowCalculatingCacheSize
+                    : context.l10n.flowTotalUsageP0((_formatBytes(usage.bytesForAll)).toString()),
                 style: TextStyle(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
@@ -93,26 +95,26 @@ class _CacheManagementDialogState extends State<_CacheManagementDialog> {
               _cacheRow(
                 kind: AppCacheKind.audio,
                 icon: Icons.audiotrack_outlined,
-                title: '音源缓存',
+                title: context.l10n.flowAudioCache,
                 subtitle: usage == null
-                    ? '统计中…'
-                    : '${usage.audioFiles} 个文件\n共计 ${_formatBytes(usage.audioBytes)}',
+                    ? context.l10n.flowCalculating3
+                    : context.l10n.flowP0FilesTotalP1((usage.audioFiles).toString(), (_formatBytes(usage.audioBytes)).toString()),
               ),
               _cacheRow(
                 kind: AppCacheKind.pv,
                 icon: Icons.movie_outlined,
-                title: 'PV缓存',
+                title: context.l10n.flowPVCache,
                 subtitle: usage == null
-                    ? '统计中…'
-                    : '${usage.pvFiles} 个文件\n共计 ${_formatBytes(usage.pvBytes)}',
+                    ? context.l10n.flowCalculating3
+                    : context.l10n.flowP0FilesTotalP1((usage.pvFiles).toString(), (_formatBytes(usage.pvBytes)).toString()),
               ),
               _cacheRow(
                 kind: AppCacheKind.maidata,
                 icon: Icons.data_object,
-                title: 'maidata缓存',
+                title: context.l10n.flowMaidataCache,
                 subtitle: usage == null
-                    ? '统计中…'
-                    : '${usage.maidataFiles} 个文件\n共计 ${_formatBytes(usage.maidataBytes)}',
+                    ? context.l10n.flowCalculating3
+                    : context.l10n.flowP0FilesTotalP1((usage.maidataFiles).toString(), (_formatBytes(usage.maidataBytes)).toString()),
               ),
               TextButton.icon(
                 onPressed: _clearing == null && usage != null && !_closing
@@ -122,7 +124,7 @@ class _CacheManagementDialogState extends State<_CacheManagementDialog> {
                       }
                     : null,
                 icon: const Icon(Icons.refresh),
-                label: const Text('重新拉取基础量maidata'),
+                label:  Text(context.l10n.flowReloadBaseMaidata),
               ),
               if (_clearing != null) ...[
                 const SizedBox(height: 8),
@@ -135,7 +137,7 @@ class _CacheManagementDialogState extends State<_CacheManagementDialog> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  '正在清理… ${(_clearProgress * 100).round()}%',
+                  context.l10n.flowCleaningP0(((_clearProgress * 100).round()).toString()),
                   style: TextStyle(
                     fontSize: 12,
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -160,7 +162,7 @@ class _CacheManagementDialogState extends State<_CacheManagementDialog> {
         TextButton(
           onPressed:
               _clearing == null ? () => Navigator.of(context).pop() : null,
-          child: const Text('关闭'),
+          child:  Text(context.l10n.featureClose),
         ),
       ],
     );
@@ -205,7 +207,7 @@ class _CacheManagementDialogState extends State<_CacheManagementDialog> {
             ),
             TextButton(
               onPressed: disabled ? null : () => _clear(kind),
-              child: Text(isClearing ? '清理中…' : '清理'),
+              child: Text(isClearing ? context.l10n.flowCleaning : context.l10n.flowClear2),
             ),
           ],
         ),

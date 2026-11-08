@@ -1,7 +1,9 @@
+import '../l10n/FeatureLocalizations.dart';
 import 'package:flutter/material.dart';
 import '../entity/FeatureModels.dart';
 import '../utils/AppConstants.dart';
 import 'FavoriteStarButton.dart';
+import 'MarqueeText.dart';
 
 /// 功能按钮组件：纯 UI，点击行为由父组件通过 onTap 控制
 class FeatureButton extends StatelessWidget {
@@ -105,28 +107,23 @@ class FeatureButton extends StatelessWidget {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(
-                        titleOverride ?? item.title,
+                      MarqueeText(
+                        text: context.featureText(titleOverride ?? item.title),
                         style: TextStyle(
                           color: titleColor ?? scheme.onSurface,
                           fontSize: screenWidth * 0.035,
                           fontWeight: FontWeight.bold,
                           fontStyle: FontStyle.normal,
                         ),
-                        textAlign: TextAlign.center,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
                       ),
                       SizedBox(height: screenHeight * 0.005),
-                      Text(
-                        item.subtitle,
+                      MarqueeText(
+                        text: context.featureText(item.subtitle),
                         style: TextStyle(
                           color: scheme.onSurface.withValues(alpha: 0.8),
                           fontSize: screenWidth * 0.025,
                           fontWeight: FontWeight.w300,
                         ),
-                        textAlign: TextAlign.center,
-                        softWrap: true,
                       ),
                     ],
                   ),

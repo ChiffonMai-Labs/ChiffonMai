@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 enum GameType {
   info, // 无提示猜歌
   cover, // 根据部分曲绘猜歌
@@ -10,16 +12,21 @@ enum GameType {
   flash, // 曲绘快闪
   tileReveal, // 曲绘拼图
   chartPeek, // 谱面片段
+  pixelated, // 像素马赛克曲绘
 }
 
 extension GameTypeExtension on GameType {
+  /// 仅用于界面显示，name 与 apiKey 保留原值以兼容旧房间。
+  String get localizedName => appLocalizeLabel(name);
+  String get localizedDescription => appLocalizeLabel(description);
+
   bool get isAudio =>
       this == GameType.audio ||
       this == GameType.reverseAudio ||
       this == GameType.pitchAudio;
 
   /// 用于 API 通信的英文字段名
-  /// (info, cover, blurred, audio, alia, letters, flash, tileReveal, chartPeek)
+  /// (info, cover, blurred, pixelated, audio, alia, letters, flash, tileReveal, chartPeek)
   ///
   /// 注意 flash / tileReveal / chartPeek 用的是 camelCase：服务端只做透传，
   /// 客户端 RoomEntity._parseGameType 同时认 camelCase 与中文显示名。
@@ -31,6 +38,8 @@ extension GameTypeExtension on GameType {
         return 'cover';
       case GameType.blurred:
         return 'blurred';
+      case GameType.pixelated:
+        return 'pixelated';
       case GameType.reverseAudio:
         return 'reverseAudio';
       case GameType.pitchAudio:
@@ -54,54 +63,58 @@ extension GameTypeExtension on GameType {
   String get name {
     switch (this) {
       case GameType.info:
-        return '无提示猜歌';
+        return appL10n.featureNoClueSongQuiz;
       case GameType.cover:
-        return '曲绘猜歌';
+        return appL10n.flowCoverGuessing;
       case GameType.blurred:
-        return '模糊曲绘';
+        return appL10n.flowBlurredCover;
+      case GameType.pixelated:
+        return appL10n.flowPixelCover;
       case GameType.reverseAudio:
-        return '倒放音频';
+        return appL10n.flowReverseAudio;
       case GameType.pitchAudio:
-        return '变速变调';
+        return appL10n.flowSpeedPitch;
       case GameType.audio:
-        return '歌曲片段';
+        return appL10n.flowSongExcerpt;
       case GameType.alia:
-        return '别名猜歌';
+        return appL10n.flowAliasGuessing;
       case GameType.letters:
-        return '开字母';
+        return appL10n.flowRevealLetters;
       case GameType.flash:
-        return '曲绘快闪';
+        return appL10n.flowFlashCover;
       case GameType.tileReveal:
-        return '曲绘拼图';
+        return appL10n.flowTileReveal;
       case GameType.chartPeek:
-        return '谱面片段';
+        return appL10n.flowChartExcerpt;
     }
   }
 
   String get description {
     switch (this) {
       case GameType.info:
-        return '根据歌曲信息猜歌名';
+        return appL10n.flowGuessTheSongFromItsInformation;
       case GameType.cover:
-        return '根据部分曲绘猜歌名';
+        return appL10n.flowGuessTheSongFromACoverFragment;
       case GameType.blurred:
-        return '根据模糊曲绘猜歌名';
+        return appL10n.flowGuessTheSongFromABlurredCover;
+      case GameType.pixelated:
+        return appL10n.flowGuessTheSongFromPixelBlocksAnd;
       case GameType.reverseAudio:
-        return '根据倒放的歌曲片段猜歌名';
+        return appL10n.flowGuessTheSongFromAReversedExcerpt;
       case GameType.pitchAudio:
-        return '根据速度和音高联动改变的片段猜歌名';
+        return appL10n.flowGuessFromAnExcerptWithLinkedSpeed;
       case GameType.audio:
-        return '根据歌曲片段猜歌名';
+        return appL10n.flowGuessTheSongFromAnAudioExcerpt;
       case GameType.alia:
-        return '根据别名猜歌名';
+        return appL10n.flowGuessTheSongFromAnAlias;
       case GameType.letters:
-        return '根据首字母猜歌名';
+        return appL10n.flowGuessTheSongFromInitialLetters;
       case GameType.flash:
-        return '曲绘一闪而过，凭记忆猜歌名';
+        return appL10n.flowRememberABrieflyFlashedCoverToGuess;
       case GameType.tileReveal:
-        return '曲绘被切成小块逐批揭示';
+        return appL10n.flowCoverTilesAreRevealedInBatches;
       case GameType.chartPeek:
-        return '看无声的谱面片段猜歌名';
+        return appL10n.flowGuessFromASilentChartExcerpt;
     }
   }
 }

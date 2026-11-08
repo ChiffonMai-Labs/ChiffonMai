@@ -110,6 +110,9 @@ class HistoryLineChart extends StatelessWidget {
           ),
           lineTouchData: LineTouchData(
             touchTooltipData: LineTouchTooltipData(
+              // 边缘记录点的详情框向图表内部避让，避免被外层卡片裁切。
+              fitInsideHorizontally: true,
+              fitInsideVertically: true,
               getTooltipColor: (_) => scheme.surfaceContainerHighest,
               getTooltipItems: (touched) => touched.map((spot) {
                 var idx = 0;

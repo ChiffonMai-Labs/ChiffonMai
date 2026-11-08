@@ -1,5 +1,7 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'dart:convert';
 import '../api/ApiUrls.dart';
 import '../constant/CacheKeyConstant.dart';
@@ -17,6 +19,8 @@ import 'package:my_first_flutter_app/utils/ExternalLaunchUtil.dart';
 import 'package:my_first_flutter_app/utils/CurrentDataSourceNotifier.dart';
 import 'package:my_first_flutter_app/utils/ScoreInputValidator.dart';
 import '../utils/CommunityProfileUtil.dart';
+import '../utils/LuoXueSongUtil.dart';
+import 'SongMediaCache.dart';
 
 // 评论数据模型
 class CommentItem {
@@ -92,6 +96,65 @@ class CommentIdentity {
 }
 
 class SongInfoService {
+  static Uri _referenceDurationUri(String songId) =>
+      Uri.parse('${ApiUrls.SongDurationUrl}/${Uri.encodeComponent(songId)}');
+
+  static Future<int?> fetchReferenceDuration(String songId) async {
+    final response = await ApiClient.get(
+      _referenceDurationUri(songId),
+      timeout: const Duration(seconds: 5),
+    );
+    if (response.statusCode != 200) {
+      throw StateError('参考时长读取失败 (${response.statusCode})');
+    }
+    final data = jsonDecode(response.body);
+    if (data is! Map || data['success'] != true) {
+      throw const FormatException('无效的参考时长响应');
+    }
+    if (data['found'] == false) return null;
+    final seconds = data['duration_seconds'];
+    if (data['found'] != true || seconds is! int || seconds <= 0) {
+      throw const FormatException('无效的参考时长');
+    }
+    return seconds;
+  }
+
+  static Future<int?> parseReferenceDuration(String songId) async {
+    final audioId = SongMediaCache.audioIdFor(songId);
+    final file = await SongMediaCache.instance.ensureAudio(songId, urls: [
+      if (audioId > 0) LuoXueSongUtil().getMusicUrl('$audioId'),
+      ApiUrls.wmcAudioUrl(songId),
+    ]);
+    final player = AudioPlayer();
+    try {
+      final durationEvent = player.onDurationChanged.first
+          .timeout(const Duration(seconds: 3))
+          .then<Duration?>((value) => value, onError: (_) => null);
+      await player.setSource(DeviceFileSource(file.path));
+      final duration = await player.getDuration() ?? await durationEvent;
+      final seconds = duration?.inSeconds ?? 0;
+      return seconds > 0 ? seconds : null;
+    } finally {
+      await player.dispose();
+    }
+  }
+
+  static Future<void> reportReferenceDuration(
+      String songId, int seconds) async {
+    try {
+      final response = await ApiClient.post(
+        _referenceDurationUri(songId),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'duration_seconds': seconds}),
+      );
+      if (response.statusCode != 200) {
+        throw StateError('参考时长上报失败 (${response.statusCode})');
+      }
+    } catch (error) {
+      debugPrint('上报参考时长失败: $error');
+    }
+  }
+
   // 单例实例
   static final SongInfoService _instance = SongInfoService._internal();
 
@@ -125,8 +188,9 @@ class SongInfoService {
     {"completion": 50.0, "rating": "C", "multiplier": 0.08},
   ];
 
-  // 加载所有数据
-  Future<Map<String, dynamic>> loadData(String songId) async {
+  /// 详情首屏可只读取本地歌曲和成绩，联网补齐的数据在页面显示后加载。
+  Future<Map<String, dynamic>> loadData(String songId,
+      {bool includeSupplementaryData = true}) async {
     Map<String, dynamic> result = {
       'songData': null,
       'diffData': null,
@@ -174,16 +238,32 @@ class SongInfoService {
         }
       }
 
-      // 加载难度数据
-      final diffManager = DiffMusicDataManager();
-      final diffSong = await diffManager.getCachedDiffData();
-      if (diffSong != null) {
-        result['diffData'] = diffSong.charts[songId];
-      }
-
       // 加载用户数据
       final userPlayDataManager = UserPlayDataManager();
       result['userData'] = await userPlayDataManager.getCachedUserPlayData();
+
+      if (includeSupplementaryData) {
+        result.addAll(await loadSupplementaryData(songId));
+      }
+    } catch (e) {
+      debugPrint('加载数据失败: $e');
+    }
+
+    return result;
+  }
+
+  /// 定数分布和标签在没有本地缓存时会联网，不应阻塞详情首屏。
+  Future<Map<String, dynamic>> loadSupplementaryData(String songId) async {
+    final result = <String, dynamic>{
+      'diffData': null,
+      'tagData': null,
+      'tagSongsData': null,
+    };
+    try {
+      final diffSong = await DiffMusicDataManager().getCachedDiffData();
+      if (diffSong != null) {
+        result['diffData'] = diffSong.charts[songId];
+      }
 
       // 加载标签数据
       final maiTagsManager = MaiTagsManager();
@@ -207,7 +287,7 @@ class SongInfoService {
             .toList();
       }
     } catch (e) {
-      debugPrint('加载数据失败: $e');
+      debugPrint('加载歌曲附加数据失败: $e');
     }
 
     return result;
@@ -657,7 +737,8 @@ class SongInfoService {
   // 获取难度标签
   String getDiffLabel(int index, Map<String, dynamic>? songData) {
     final difficultyCount = (songData?['level'] as List?)?.length ?? 0;
-    return ChartDifficulty.labelOf(index, isUtage: difficultyCount <= 2, fallback: '');
+    return ChartDifficulty.labelOf(index,
+        isUtage: difficultyCount <= 2, fallback: '');
   }
 
   // 获取收藏品类型名称
@@ -670,7 +751,7 @@ class SongInfoService {
       case 'plates':
         return '姓名框';
       case 'frames':
-        return '背景';
+        return appL10n.flowFrameCollectible;
       default:
         return '未知类型';
     }
@@ -743,13 +824,13 @@ class SongInfoService {
   String _getGroupName(int groupId) {
     switch (groupId) {
       case 1:
-        return '配置';
+        return appL10n.flowPattern;
       case 2:
-        return '难度';
+        return appL10n.flowDifficulty;
       case 3:
-        return '评价';
+        return appL10n.flowEvaluation;
       default:
-        return '配置';
+        return appL10n.flowPattern;
     }
   }
 
@@ -924,7 +1005,7 @@ class SongInfoService {
           debugPrint('SongInfoService: 评论创建成功');
           return {
             'success': true,
-            'message': result['message'] ?? '评论创建成功',
+            'message': result['message'] ?? appL10n.flowCommentPosted,
             'comment': result['comment'] != null
                 ? CommentItem.fromJson(result['comment'])
                 : null,
@@ -932,19 +1013,20 @@ class SongInfoService {
         }
         return {
           'success': false,
-          'message': result['error'] ?? '评论创建失败',
+          'message': result['error'] ?? appL10n.flowCouldNotPostComment,
         };
       }
       final errorResult = json.decode(response.body);
       return {
         'success': false,
-        'message': errorResult['error'] ?? '评论创建失败 (${response.statusCode})',
+        'message': errorResult['error'] ??
+            appL10n.commentPostHttpFailed(response.statusCode.toString()),
       };
     } catch (e) {
       debugPrint('SongInfoService: 创建评论异常: $e');
       return {
         'success': false,
-        'message': '网络连接异常: $e',
+        'message': appL10n.flowNetworkErrorP0(e.toString()),
       };
     }
   }
@@ -977,24 +1059,25 @@ class SongInfoService {
           await _clearCommentsCache(songId, levelIndex: levelIndex);
           return {
             'success': true,
-            'message': result['message'] ?? '评论删除成功',
+            'message': result['message'] ?? appL10n.flowCommentDeleted,
           };
         }
         return {
           'success': false,
-          'message': result['error'] ?? '评论删除失败',
+          'message': result['error'] ?? appL10n.flowCouldNotDeleteComment,
         };
       }
       final errorResult = json.decode(response.body);
       return {
         'success': false,
-        'message': errorResult['error'] ?? '评论删除失败 (${response.statusCode})',
+        'message': errorResult['error'] ??
+            appL10n.commentDeleteHttpFailed(response.statusCode.toString()),
       };
     } catch (e) {
       debugPrint('SongInfoService: 删除评论异常: $e');
       return {
         'success': false,
-        'message': '网络连接异常: $e',
+        'message': appL10n.flowNetworkErrorP0(e.toString()),
       };
     }
   }
@@ -1208,7 +1291,25 @@ class SongInfoService {
   }
 
   // 获取谱面评分信息（含加权平均分、用户自己的评分）
+  static const chartRatingTimeout = Duration(seconds: 8);
+
   static Future<Map<String, dynamic>> getChartRating({
+    required String songId,
+    required int levelIndex,
+  }) async {
+    final stopwatch = Stopwatch()..start();
+    // 整个读取流程都受限时约束，包含读取账号身份，超时后不等待迟到响应。
+    final result = await _fetchChartRating(songId: songId, levelIndex: levelIndex)
+        .timeout(chartRatingTimeout, onTimeout: () {
+      debugPrint('[ChartRating] 读取超时');
+      return {'success': false, 'error': appL10n.ratingFetchFailed};
+    });
+    debugPrint('[ChartRating] read: ${stopwatch.elapsedMilliseconds}ms, '
+        'success=${result['success'] == true}');
+    return result;
+  }
+
+  static Future<Map<String, dynamic>> _fetchChartRating({
     required String songId,
     required int levelIndex,
   }) async {
@@ -1220,7 +1321,7 @@ class SongInfoService {
         if (identity != null)
           'userId': '${identity.dataSource}:${identity.originalId}',
       });
-      final response = await ApiClient.get(url);
+      final response = await ApiClient.get(url, timeout: chartRatingTimeout);
       if (response.statusCode == 200) {
         final result = Map<String, dynamic>.from(
             json.decode(utf8.decode(response.bodyBytes)) as Map);
@@ -1240,7 +1341,7 @@ class SongInfoService {
             : null;
         return result;
       }
-      return {'success': false, 'error': '获取评分信息失败'};
+      return {'success': false, 'error': appL10n.ratingFetchFailed};
     } catch (e) {
       debugPrint('获取谱面评分失败: $e');
       return {'success': false, 'error': e.toString()};
@@ -1259,7 +1360,10 @@ class SongInfoService {
     try {
       final identity = await getCommentIdentity();
       if (identity == null) {
-        return {'success': false, 'message': '请先在首页刷新数据以获取用户身份'};
+        return {
+          'success': false,
+          'message': appL10n.flowRefreshDataOnTheHomePageTo
+        };
       }
 
       final url = Uri.parse(ApiUrls.RatingsCreateUrl);
@@ -1280,7 +1384,7 @@ class SongInfoService {
       if (response.statusCode == 200) {
         return json.decode(response.body);
       }
-      return {'success': false, 'message': '提交评分失败'};
+      return {'success': false, 'message': appL10n.flowCouldNotSubmitRating};
     } catch (e) {
       debugPrint('提交谱面评分失败: $e');
       return {'success': false, 'message': e.toString()};
@@ -1295,7 +1399,10 @@ class SongInfoService {
     try {
       final identity = await getCommentIdentity();
       if (identity == null) {
-        return {'success': false, 'message': '请先在首页刷新数据以获取用户身份'};
+        return {
+          'success': false,
+          'message': appL10n.flowRefreshDataOnTheHomePageTo
+        };
       }
 
       final url = Uri.parse('${ApiUrls.RatingsDeleteUrl}/$songId/$levelIndex')
@@ -1313,7 +1420,7 @@ class SongInfoService {
       if (response.statusCode == 200) {
         return json.decode(response.body);
       }
-      return {'success': false, 'message': '删除评分失败'};
+      return {'success': false, 'message': appL10n.flowCouldNotDeleteRating};
     } catch (e) {
       debugPrint('删除谱面评分失败: $e');
       return {'success': false, 'message': e.toString()};

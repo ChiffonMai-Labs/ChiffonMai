@@ -1,3 +1,4 @@
+import '../l10n/FeatureLocalizations.dart';
 import 'package:flutter/material.dart';
 import '../entity/FeatureModels.dart';
 import '../utils/AppTheme.dart';
@@ -57,7 +58,9 @@ class _FeatureCategoryPageState extends State<FeatureCategoryPage> {
     if (_searchQuery.isNotEmpty) {
       items = items.where((item) =>
         item.title.toLowerCase().contains(_searchQuery) ||
-        item.subtitle.toLowerCase().contains(_searchQuery)
+        item.subtitle.toLowerCase().contains(_searchQuery) ||
+        context.featureText(item.title).toLowerCase().contains(_searchQuery) ||
+        context.featureText(item.subtitle).toLowerCase().contains(_searchQuery)
       ).toList();
     }
 
@@ -74,7 +77,7 @@ class _FeatureCategoryPageState extends State<FeatureCategoryPage> {
       if (items.isEmpty) {
         return Center(
           child: Text(
-            '未找到匹配的功能',
+            context.featureText('未找到匹配的功能'),
             style: TextStyle(
               color: AppColors.greyHint(brightness),
               fontSize: 16,
@@ -128,7 +131,7 @@ class _FeatureCategoryPageState extends State<FeatureCategoryPage> {
     }
 
     return BackgroundPageScaffold(
-      title: widget.category.name,
+      title: context.featureText(widget.category.name),
       resizeToAvoidBottomInset: false,
       contentPadding: EdgeInsets.only(
         bottom: MediaQuery.paddingOf(context).bottom,

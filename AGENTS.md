@@ -177,8 +177,24 @@ android:launchMode="singleTask"   <!-- 全局单实例，后续启动走 onNewIn
 | `com.example.app/media_store` | 保存图片到相册（`saveImage`）、用相册大图界面查看图片（`viewImage`） |
 | `com.example.app/open_file` | 收藏夹文件「一键导入」（`getInitialImportPath` / `onFileOpened`） |
 | `com.example.app/display` | 屏幕刷新率（`setHighRefreshRate` / `restoreRefreshRate` / `queryRefreshRate`） |
+| `com.example.app/crash_report` | 上次崩溃的记录（`takePendingCrash`）和通知（`notifyCrashReport`），见 `CrashReporter.kt` 与 `lib/service/CrashReportService.dart` |
 | `com.example.app/export_notification` | 图片导出完成的系统通知（`notifyExportDone`），见 `lib/service/BackgroundExportService.dart` |
 | `com.example.app/home_widget` | 桌面小组件（`update` 推数据，`takePendingAction` / `onAction` 传点击），见 `HomeWidgets.kt` 与 `lib/service/HomeWidgetService.dart` |
+| `com.example.app/app_update` | App 内更新（发布信息、后台下载状态与安装），见 `AppUpdateInstaller.kt`、`AppUpdateDownloads.kt` 和 `BackgroundAppUpdateService.dart`；只允许更新私有目录中的同包名、同签名、指定版本 APK |
+
+所有平台的更新版本、构建号、更新日志和下载页以 `app_version.json` 的 `version` / `buildNumber` / `updateLog` / `downloadUrl` 为准；配置获取失败就报告检查失败，不用 GitHub 发布内容或 APK 清单覆盖。GitHub 只在用户选择 App 内下载后，根据配置的 `githubReleaseTag`（未配置时取 `v<version>`）提供对应 APK 附件和下载分流；安装时必须匹配配置中的构建号，不得自动套用 GitHub 包的版本号。版本先按语义比较，同版本才比较构建号；恢复后台任务时也会取消低于当前版本的过期任务。
+
+可选 `githubProxyPrefixes` 为 HTTPS 加速节点根地址数组：未配置时使用 `https://gh-proxy.com/`，空数组禁用加速，下载失败后回退 GitHub 直连。APK 附件必须带 GitHub 提供的 SHA-256 `digest`；缺少校验值或版本、签名不匹配时保留网页下载入口，不绕过校验。
+
+Android 选择 App 内下载后还需选择线路（自动切换 / GH-Proxy / GHfast / GitHub 直连），不预选、不保存偏好。选择只影响 APK 下载地址；附件信息查询仍使用支持 GitHub API 的原配置，避免文件代理不支持 API 导致开局失败。自动模式追加 GHfast 备用线路，最后回退 GitHub 直连。
+
+Android 的 APK 二进制由系统 `DownloadManager` 下载到应用私有的 `Download/app_updates/`，任务编号和校验信息持久化；完成广播的工作线程校验后只发低优先级通知，不自动弹安装器。关闭进度窗口不取消下载，只有明确点击「取消下载」才移除系统任务。`FileProvider` 只共享该更新子目录；后台完成、进程重建后恢复状态和安装权限跳转仍需真机验证。
+
+「自动安装更新」是 Android 12+ 默认关闭的测试功能，由用户在系统设置「其他 → 应用更新」或下载窗口中开启；开关和说明共用 `AppUpdateAutoInstallControl`，授权以原生偏好为准，不自动下载。`AppUpdateAutoInstall` 在本 App 退到后台且无长任务持续 **8 秒**后尝试 `PackageInstaller` 自更新，进程内计时器负责及时尝试，持久化 Job 负责进程重建后的后备调度，不要求锁屏或整机空闲。`AppTaskActivity` 覆盖刷新/账号操作、成绩同步、排队导出、备份导入导出、文件导入、下载与导出写盘；`BackgroundAppUpdateService` 将这些状态与首页刷新、随身听状态一并报告原生。新长任务须在开始时登记并在 `finally` 结束，任务开始或 App 回到前台要取消尚可撤回的会话并重新计时。提交前重新校验包、摘要、开关和空闲窗口，Android 14+ 保留应用不可见、无交互和无通话约束，不能再加回整机空闲条件。实际执行可能因系统调度延迟；系统要求确认、超时或失败时保留手动安装与低优先级通知，不能主动弹确认页面。完整 APK 覆盖安装可能结束旧进程，已开始执行的安装无法保证撤回，不能承诺所有机型无感安装。
+
+前台下载就绪且自动安装已开启时，通过 `AppUpdateInstallPrompt` 提示「稍后 / 退出并更新」；无安装权限、有长任务/播放或其它对话框时不自动弹出，同一下载任务仅自动提示一次。「稍后」保留后台 8 秒自动安装规则；用户明确确认后，原生 `requestForegroundInstall` 核对下载编号和构建号，先 `moveTaskToBack`，等待真实的 `onStop` 后立即尝试本次安装，复用包名、签名、摘要及任务保护。不得通过手动修改 foreground 标志绕过可见性检查；返回前台、开启新任务或关闭开关会撤销尚可取消的本次确认。
+
+Android 14+ 的安装约束接口还要求调用方是当前安装来源或更新所有者，不能把「允许安装未知应用」当作该接口的授权。从浏览器、文件管理器或 ADB 安装的版本可能不满足该身份：此时使用标准 `Session.commit` 请求自更新，仍检查后台窗口、任务、媒体/通话、用户开关、包名、签名和摘要；系统决定是否需要确认。具备身份时保留系统约束；仅约束接口抛出 `SecurityException` 时允许重新核对后走标准提交，不绕过实际安装权限或强行修改安装归属。
 
 `on_file` 通道的投递规则：**只有 Dart 已注册监听（`dartImportReady`）时才实时投递并清空 pending**，否则保留 pending 等 Dart 来取。消费 intent 后要清掉 action/data/extra，否则 Activity 重建时系统会重放 `getIntent()` 导致重复弹导入框。
 
@@ -358,7 +374,7 @@ AppHeader(
 
 | 文件 | 原因 |
 |---|---|
-| [lib/page/CoverRecognitionPage.dart](lib/page/CoverRecognitionPage.dart) 与 [lib/page/ScoreOcrPage.dart](lib/page/ScoreOcrPage.dart) 的裁剪工具栏 | **深色全屏图片裁剪 UI**，跟标准顶部区域观感完全不同 |
+| [lib/page/CoverRecognitionPage.dart](lib/page/CoverRecognitionPage.dart)、[lib/page/ScoreOcrPage.dart](lib/page/ScoreOcrPage.dart) 的裁剪工具栏和 [lib/page/WallpaperCropPage.dart](lib/page/WallpaperCropPage.dart) | **深色全屏图片裁剪 UI**，跟标准顶部区域观感完全不同 |
 | [lib/page/FavoriteFolderPage.dart](lib/page/FavoriteFolderPage.dart) 的 `_buildBatchAppBar()` | **批量操作工具栏**（取消 / 已选 N 项 / 移动 / 删除），不是标题栏 |
 
 > `HomePage` / `AppShell` / `HubComponents.HubPageScaffold` 是首页 / 主壳 / 枢纽布局，`SongInfoPage` 的头图自带返回键，都跟本约定无关。
@@ -462,6 +478,8 @@ AppHeader(
 
 ## 20. 谱面难度定义
 
+- 未指定难度的歌曲详情入口使用 `SongDetailPreferences`（首次默认 MASTER，只允许 BASIC～MASTER）；设置入口在系统设置「交互」，使用 `SongDetailDifficultySettings` 的四档索引色选项。`SongInfoPage` 明确传入 `initialLevelIndex`（包括 BASIC=0）时必须保留该难度，不受偏好影响。宴谱保留首个可用谱面，其他缺失难度按实际谱面数量限制；备份导入导出要同步 flush / reload 此偏好。
+
 - 难度索引、显示名称、名称解析及编号转换统一使用 `lib/utils/ChartDifficulty.dart`，不再复制 BASIC～Re:MASTER / UTAGE 列表和映射。
 - 页面显示用 `ChartDifficulty.labelOf`；已知宴谱要传 `isUtage: true`。普通成绩索引是 0–4，筛选项的 UTAGE=5 不代表宴谱成绩的 `level_index`，不能改写原始成绩索引。
 - maidata 的 inote 编号为 2–7，AWMC 宴谱编号为 10，使用公共类的对应映射；标签接口的小写名称和旧缓存键使用 `apiNames` / `legacyLabels`，不要直接改成显示名称。
@@ -490,7 +508,7 @@ AppHeader(
 | `radiusSmall` 12 | 输入框、图标底块、列表里的小曲绘 |
 | `radiusMedium` 16 | 分段切换、次级卡片、底部操作按钮、Best50 曲绘卡 |
 | `radiusCard` 22 | 主内容白卡片（`AppCard` 默认值） |
-| `radiusLarge` 24 | 反色结果卡（`EmphasisCard`） |
+| `radiusLarge` 24 | 计算结果卡（`EmphasisCard`，跟随明暗模式，不做反色） |
 
 - 表面层级：页面底（`colorScheme.surface`，浅灰绿，不是纯白）→ `AppSurfaces.card`（白卡片）→ `AppSurfaces.inset`（卡内凹槽）；`AppSurfaces.track` 是页面上的轨道（分段切换底、筛选胶囊）。
 - 默认 seed 色是 `0xFF006A6A`。`_canvasStyle`（`AppTheme.dart`）统一了三套主题的按钮、输入框、对话框、底部面板圆角，老页面靠它拿到同一套观感。
@@ -537,14 +555,15 @@ AppHeader(
 
 ### 22.6 收藏（星标）
 
-- 首页「常用」就是收藏列表：普通功能显示成图标网格；带进度 / 线路 / 统计的入口（同步、自动同步、缓存管理、新版本）放不进小图标，单独成组显示完整 `HubActionTile`。点「编辑」后所有收藏显示成图标网格（`FavoriteEditGrid`）：直接拖动换位置，点叉号或拖到下方删除区域移除。
+- 首页「常用」就是收藏列表：所有收藏都显示成图标（`FavoriteEditGrid`），任务进行中图标换成进度圈；线路和统计留在各自的 Hub 入口。正常态和编辑态共用一棵树，点「编辑」时图标不重新入场，只有叉号、提示和删除区域过渡；编辑态直接拖动换位置，点叉号或拖到下方删除区域移除。
 - 成绩 Hub 顶部是设计稿的概览卡片，下面的「全部功能」保留每个功能的星标。**以后改 Hub 页不能把带星标的入口去掉。**
 - 首页概览下面是自动同步和服务器状态两个小组件（`lib/widgets/HomeStatusWidgets.dart`，只在可见且前台时轮询，服务器状态每 3 分钟刷新）。搜索框常驻在小组件下方，右上角不再有搜索键；输入时概览和小组件收起，让搜索框升到结果上方。收起只换那一格的内容，搜索框在列表里的位置不变（§22.13）。
+- 首页搜索框的范围（功能 / 歌曲 / 功能+歌曲，默认功能）在系统设置里选，存在 `SearchInteractionPreferences`；原位和展开两种交互都生效。
 - 曲库 Hub 只是功能列表；搜索和筛选在 `SongSearchPage` 里，进入功能后才出现。
 
 ### 22.7 设置页的个性化功能必须继续生效
 
-自定义背景图、装饰图透明度、白色覆层、主题色、深色 / 纯黑模式、导航栏样式与动画开关——这些是 App 的特色，**新 UI 不能绕开它们**：颜色一律取 `ColorScheme` / `AppSurfaces`，背景交给 `ThemeAwareBackground` / `BackgroundPageScaffold`，不要在页面里铺死一个不透明底色把用户背景图盖掉。
+自定义背景图（选图后先进 `WallpaperCropPage` 裁剪，确认才替换旧壁纸，并用 `ColorScheme.fromImageProvider` 自动取色更新主题色）、装饰图透明度、白色覆层、主题色、深色 / 纯黑模式、导航栏样式与动画开关——这些是 App 的特色，**新 UI 不能绕开它们**：颜色一律取 `ColorScheme` / `AppSurfaces`，背景交给 `ThemeAwareBackground` / `BackgroundPageScaffold`，不要在页面里铺死一个不透明底色把用户背景图盖掉。
 
 ### 22.8 Best50 系列
 
@@ -605,4 +624,15 @@ Rating、达成率、歌名、说明文字这类重要内容不要用省略号�
 - 耗时计算放到后台 isolate，或定期让出事件循环；大 JSON 用 `decodeJsonInBackground`；曲库查找用 `MusicDataIndex`，不要逐首遍历。
 - 一次要构建很多行的离屏内容（导出图）用 `ExportProgressiveColumn` 分批挂载。
 - 等待时用骨架屏、加载动画或过渡效果，已有内容尽量留在屏幕上；具体用哪种按场景决定。
+
+### 22.15 多语言
+
+- 全 App 使用 `lib/l10n/` 的 ARB 和 Flutter `gen-l10n`，覆盖简体中文、繁体中文、英语、日语；不自动翻译歌曲资料、服务端原文或用户内容。
+- 文案通过 `context.l10n` 获取，带变量的文案使用 ARB 占位符；修改 ARB 后运行 `flutter gen-l10n`，不要手改生成的 Dart 文件。
+- 语言偏好统一由 `AppLanguagePreferences` 管理，默认跟随系统；繁体中文需识别 Hant 以及 TW/HK/MO 区域，未知语言回落简体中文。不要新增字库或翻译 SDK。
+- 界面、服务层提示（同步、上传、备份、导入导出、更新、OCR 等报错与进度）和系统通知均已迁移。服务层没有 BuildContext，用 `appL10n`；版本名、牌子汉字、流派、日志、匹配关键词等数据保持原文。比较或分支不得依赖提示文案（如 `用户取消同步` 这类哨兵值保持原文、OCR 用 `loginRequired` 判断登录失效），在后台 isolate（`compute`）里不要读 `appL10n`。断言中文提示的单元测试要先把 `platformDispatcher.localesTestValue` 固定为 `zh`。
+- 枚举名称、筛选值、接口状态和缓存键继续使用原值，只在展示位置本地化。含译文的静态选项或后备提示应使用 getter 按当前语言生成，不得用 `static final` 缓存首次读取时的语言。
+- 无 `BuildContext` 的客户端进度回调通过 `lib/l10n/AppMessages.dart` 读取当前语言；界面构建仍优先使用 `context.l10n`。不得在 `initState` 中依赖 `context.l10n`。
+- 功能目录的中文标题仍是收藏键、分类键及跳转标识。显示时通过 `FeatureLocalizations` 取 ARB 文案，搜索同时匹配原文与当前语言；不得把译文写回功能模型或用于路由判断、收藏持久化和功能配色。
+- 新增文案先查 ARB 有没有相同中文可复用；带变量的服务层文案用 `{p0}` 占位，修改后运行 `flutter gen-l10n`。
 - 只给首屏的列表项加入场动画，滚动时不要反复播放。

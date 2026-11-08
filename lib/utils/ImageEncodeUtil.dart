@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'dart:isolate';
 import 'dart:math' as math;
 import 'dart:typed_data';
@@ -5,6 +6,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart' show compute, debugPrint;
 import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:image/image.dart' as img;
+import 'ExportDiagnostics.dart';
 
 /// GPU 单边纹理尺寸的安全上限。
 ///
@@ -63,39 +65,82 @@ class ImageEncodeUtil {
   static Future<EncodedImage> encodeBoundary(
     RenderRepaintBoundary boundary, {
     int? jpegQuality,
-  }) async {
-    var ratio = safeCapturePixelRatio(boundary.size.width, boundary.size.height);
-    if (jpegQuality != null) {
-      ratio = math.max(
-          ratio * _scaleForQuality(jpegQuality), kMinCapturePixelRatio);
-    }
-    ui.Image image;
-    try {
-      image = await boundary.toImage(pixelRatio: ratio);
-    } catch (e) {
-      debugPrint('导出截图失败，重试一次: $e');
-      await Future<void>.delayed(const Duration(milliseconds: 200));
-      image = await boundary.toImage(pixelRatio: ratio);
-    }
-    try {
-      final data = await image.toByteData(
-          format: jpegQuality == null
-              ? ui.ImageByteFormat.png
-              : ui.ImageByteFormat.rawRgba);
-      if (data == null) throw Exception('无法读取图片数据');
-      final bytes =
-          data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
-      if (jpegQuality == null) return EncodedImage(bytes, 'png');
-      // 转交而不是复制：上百 MB 的像素复制一次也会让界面顿一下。
-      final jpeg = await compute(
-        _rgbaToJpegWorker,
-        _JpegJob(TransferableTypedData.fromList([bytes]), image.width,
-            image.height, jpegQuality),
-      );
-      return EncodedImage(jpeg, 'jpg');
-    } finally {
-      image.dispose();
-    }
+  }) =>
+      ExportDiagnostics.run('图片生成', (log) async {
+        var ratio =
+            safeCapturePixelRatio(boundary.size.width, boundary.size.height);
+        if (jpegQuality != null) {
+          ratio = math.max(
+              ratio * _scaleForQuality(jpegQuality), kMinCapturePixelRatio);
+        }
+        final expectedWidth = (boundary.size.width * ratio).ceil();
+        final expectedHeight = (boundary.size.height * ratio).ceil();
+        log.note('格式=${jpegQuality == null ? "PNG无损" : "JPEG Q$jpegQuality"} '
+            '逻辑尺寸=${boundary.size.width.toStringAsFixed(1)}x${boundary.size.height.toStringAsFixed(1)} '
+            'pixelRatio=${ratio.toStringAsFixed(4)} '
+            '预计像素=${expectedWidth}x$expectedHeight '
+            '预计RGBA=${(expectedWidth * expectedHeight * 4 / 1048576).toStringAsFixed(1)}MiB');
+        ui.Image image;
+        try {
+          image = await log.step(
+              '截图 toImage', () => boundary.toImage(pixelRatio: ratio));
+        } catch (e) {
+          debugPrint('导出截图失败，重试一次: $e');
+          await Future<void>.delayed(const Duration(milliseconds: 200));
+          image = await log.step(
+              '重试截图 toImage', () => boundary.toImage(pixelRatio: ratio));
+        }
+        try {
+          log.note('实际像素=${image.width}x${image.height} '
+              '像素数=${image.width * image.height} '
+              'RGBA占用估算=${(image.width * image.height * 4 / 1048576).toStringAsFixed(1)}MiB');
+          final data = await log.step(
+            jpegQuality == null ? 'PNG编码 toByteData' : 'RGBA读回 toByteData',
+            () => image.toByteData(
+                format: jpegQuality == null
+                    ? ui.ImageByteFormat.png
+                    : ui.ImageByteFormat.rawRgba),
+          );
+          if (data == null) throw Exception(appL10n.flowCouldNotReadImageData);
+          final bytes =
+              data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+          log.note('读回数据=${bytes.lengthInBytes}B');
+          if (jpegQuality == null) {
+            log.note('PNG编码结果=${bytes.lengthInBytes}B');
+            return EncodedImage(bytes, 'png');
+          }
+          // 创建传输数据也需要复制像素，单独计时，避免混入后台编码耗时。
+          final pixels = await log.step('准备JPEG像素传输',
+              () async => TransferableTypedData.fromList([bytes]));
+          final jpeg = await log.step(
+            'JPEG后台编码 compute',
+            () => compute(
+              _rgbaToJpegWorker,
+              _JpegJob(pixels, image.width, image.height, jpegQuality),
+              debugLabel: 'export-jpeg',
+            ),
+          );
+          log.note('JPEG编码结果=${jpeg.lengthInBytes}B');
+          return EncodedImage(jpeg, 'jpg');
+        } finally {
+          log.note('开始释放截图资源');
+          image.dispose();
+          log.note('截图资源已释放');
+        }
+      });
+
+  /// 把图片编码成 JPEG，编码放在后台 isolate。
+  static Future<Uint8List> encodeJpeg(ui.Image image,
+      {int quality = 92}) async {
+    final data = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+    if (data == null) throw Exception(appL10n.flowCouldNotReadImageData);
+    final bytes =
+        data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+    return compute(
+      _rgbaToJpegWorker,
+      _JpegJob(TransferableTypedData.fromList([bytes]), image.width,
+          image.height, quality),
+    );
   }
 
   /// 导出截图该用的 pixelRatio：优先 [preferred]，但**保证物理尺寸不超过
@@ -202,37 +247,47 @@ class ImageEncodeUtil {
     final cardPhysicalWidth = physicalWidth / cardsPerRow;
     // 卡片宽高比：单列详情页较高，多列卡片依布局而定
     // 12列曲绘网格为正方形(childAspectRatio:1.0)，5列列表含曲绘约0.85
-    final cardAspectRatio = cardsPerRow <= 1 ? 1.5 : (cardsPerRow <= 5 ? 0.85 : 1.0);
+    final cardAspectRatio =
+        cardsPerRow <= 1 ? 1.5 : (cardsPerRow <= 5 ? 0.85 : 1.0);
     final cardPhysicalHeight = cardPhysicalWidth * cardAspectRatio;
     // 单卡原始 RGBA 字节数
-    final rawBytesPerCard = (cardPhysicalWidth * cardPhysicalHeight * 4).round();
+    final rawBytesPerCard =
+        (cardPhysicalWidth * cardPhysicalHeight * 4).round();
     // 单卡 PNG 压缩后字节数
     final pngBytesPerCard = (rawBytesPerCard * pngCompressionRatio).round();
 
     // 基础开销：顶部/底部 padding + 背景（约 80 逻辑 px 高）
     final baseHeight = 80 * pixelRatio;
-    final baseBytes = (physicalWidth * baseHeight * 4 * pngCompressionRatio).round();
+    final baseBytes =
+        (physicalWidth * baseHeight * 4 * pngCompressionRatio).round();
 
     // Header 区域（标题 + 评分统计，约 350 逻辑 px 高）
     int headerBytes = 0;
     if (hasHeader) {
       final headerHeight = 350 * pixelRatio;
-      headerBytes = (physicalWidth * headerHeight * 4 * pngCompressionRatio).round();
+      headerBytes =
+          (physicalWidth * headerHeight * 4 * pngCompressionRatio).round();
     }
 
     // 用户信息区域（头像 + 昵称 + 元信息，约 80 逻辑 px 高）
     int userInfoBytes = 0;
     if (hasUserInfo) {
       final userInfoHeight = 80 * pixelRatio;
-      userInfoBytes = (physicalWidth * userInfoHeight * 4 * pngCompressionRatio).round();
+      userInfoBytes =
+          (physicalWidth * userInfoHeight * 4 * pngCompressionRatio).round();
     }
 
     // 行间距（每行约 12 逻辑 px 的间距）
     final rows = (songCount / cardsPerRow).ceil();
     final rowSpacingHeight = 12 * pixelRatio;
-    final spacingBytes = rows * (physicalWidth * rowSpacingHeight * 4 * pngCompressionRatio).round();
+    final spacingBytes = rows *
+        (physicalWidth * rowSpacingHeight * 4 * pngCompressionRatio).round();
 
-    return baseBytes + headerBytes + userInfoBytes + spacingBytes + (songCount * pngBytesPerCard);
+    return baseBytes +
+        headerBytes +
+        userInfoBytes +
+        spacingBytes +
+        (songCount * pngBytesPerCard);
   }
 
   /// 格式化文件大小为可读字符串

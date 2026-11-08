@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import '../widgets/EmptyState.dart';
 import '../widgets/NumberStepper.dart';
@@ -38,7 +40,7 @@ class _RandomChartPageState extends State<RandomChartPage> {
   int _drawRequest = 0;
   int _presetRequest = 0;
   int _resultRevision = 0;
-  String _emptyMessage = '选好条件后，开始抽歌吧';
+  String _emptyMessage = appL10n.flowChooseYourFiltersThenDrawSomeSongs;
   List<Song> _drawnSongs = [];
   List<List<Song>> _history = [];
 
@@ -85,10 +87,10 @@ class _RandomChartPageState extends State<RandomChartPage> {
     final count = int.tryParse(raw);
     setState(() {
       if (count == null) {
-        _drawCountError = '请输入 2–100 之间的整数';
+        _drawCountError = context.l10n.flowEnterAnIntegerFrom2To100;
       } else if (count < RandomChartService.minimumDrawCount ||
           count > RandomChartService.maximumDrawCount) {
-        _drawCountError = '抽取数量需在 2–100 之间';
+        _drawCountError = context.l10n.flowDrawCountMustBeBetween2And;
       } else {
         _drawCount = count;
         _drawCountError = null;
@@ -166,7 +168,7 @@ class _RandomChartPageState extends State<RandomChartPage> {
     if (_drawCountError != null ||
         _drawCount < RandomChartService.minimumDrawCount ||
         _drawCount > RandomChartService.maximumDrawCount) {
-      setState(() => _drawCountError = '抽取数量需在 2–100 之间');
+      setState(() => _drawCountError = context.l10n.flowDrawCountMustBeBetween2And);
       return;
     }
     FocusManager.instance.primaryFocus?.unfocus();
@@ -199,12 +201,12 @@ class _RandomChartPageState extends State<RandomChartPage> {
         _resultRevision++;
         if (songs.isEmpty) {
           _drawnSongs = const [];
-          _emptyMessage = '没有符合条件的歌曲，请调整筛选条件';
+          _emptyMessage = context.l10n.flowNoMatchingSongsAdjustTheFilters;
         }
       });
     } catch (error) {
       if (mounted && request == _drawRequest) {
-        AppToast.show('抽取失败：$error');
+        AppToast.show(context.l10n.flowDrawFailedP0((error).toString()), tone: AppToastTone.error);
       }
     } finally {
       if (mounted && request == _drawRequest && !_isRolling) {
@@ -249,7 +251,7 @@ class _RandomChartPageState extends State<RandomChartPage> {
         List<String> tempSelected = List.from(_selectedVersions);
 
         return AppAlertDialog(
-          title: Text('选择版本'),
+          title: Text(context.l10n.flowSelectVersion),
           content: StatefulBuilder(
             builder: (context, setState) {
               return Container(
@@ -273,7 +275,7 @@ class _RandomChartPageState extends State<RandomChartPage> {
                               });
                             },
                           ),
-                          Text('全选'),
+                          Text(context.l10n.flowSelectAll),
                         ],
                       ),
                       Divider(),
@@ -306,7 +308,7 @@ class _RandomChartPageState extends State<RandomChartPage> {
               onPressed: () {
                 Navigator.of(context).pop();
               },
-              child: Text('取消'),
+              child: Text(context.l10n.featureCancel),
             ),
             TextButton(
               onPressed: () {
@@ -315,7 +317,7 @@ class _RandomChartPageState extends State<RandomChartPage> {
                 });
                 Navigator.of(context).pop();
               },
-              child: Text('确定'),
+              child: Text(context.l10n.featureOK),
             ),
           ],
         );
@@ -333,7 +335,7 @@ class _RandomChartPageState extends State<RandomChartPage> {
         List<String> tempSelected = List.from(_selectedGenres);
 
         return AppAlertDialog(
-          title: Text('选择类型'),
+          title: Text(context.l10n.flowChooseCategory),
           content: StatefulBuilder(
             builder: (context, setState) {
               return Container(
@@ -357,7 +359,7 @@ class _RandomChartPageState extends State<RandomChartPage> {
                               });
                             },
                           ),
-                          Text('全选'),
+                          Text(context.l10n.flowSelectAll),
                         ],
                       ),
                       Divider(),
@@ -390,7 +392,7 @@ class _RandomChartPageState extends State<RandomChartPage> {
               onPressed: () {
                 Navigator.of(context).pop();
               },
-              child: Text('取消'),
+              child: Text(context.l10n.featureCancel),
             ),
             TextButton(
               onPressed: () {
@@ -399,7 +401,7 @@ class _RandomChartPageState extends State<RandomChartPage> {
                 });
                 Navigator.of(context).pop();
               },
-              child: Text('确定'),
+              child: Text(context.l10n.featureOK),
             ),
           ],
         );
@@ -420,7 +422,7 @@ class _RandomChartPageState extends State<RandomChartPage> {
                   context,
                   MaterialPageRoute(
                       builder: (_) =>
-                          SongInfoPage(songId: song.id, initialLevelIndex: 0)));
+                          SongInfoPage(songId: song.id)));
             },
       child: Row(children: [
         ClipRRect(
@@ -448,7 +450,7 @@ class _RandomChartPageState extends State<RandomChartPage> {
               const SizedBox(height: 3),
               MarqueeText(
                 text: song.basicInfo.artist.isEmpty
-                    ? '未知艺术家'
+                    ? context.l10n.flowUnknownArtist
                     : song.basicInfo.artist,
                 style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
               ),
@@ -498,7 +500,7 @@ class _RandomChartPageState extends State<RandomChartPage> {
         MediaQuery.accessibleNavigationOf(context);
 
     return BackgroundPageScaffold(
-      title: '随机乐曲',
+      title: context.l10n.featureRandomSongs,
       resizeToAvoidBottomInset: false, // 解决输入法挤压背景的问题
       contentPadding: EdgeInsets.only(
         bottom: MediaQuery.paddingOf(context).bottom,
@@ -518,7 +520,7 @@ class _RandomChartPageState extends State<RandomChartPage> {
                   Row(
                     children: [
                       Text(
-                        '抽取数量',
+                        context.l10n.flowNumberToDraw,
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
@@ -536,7 +538,7 @@ class _RandomChartPageState extends State<RandomChartPage> {
                         ),
                         child: NumberStepper(
                             value: _drawCount,
-                            suffix: ' 首',
+                            suffix: context.l10n.flowSongs3,
                             controller: _drawCountController,
                             errorText: _drawCountError,
                             onTextChanged: _onDrawCountChanged,
@@ -556,11 +558,12 @@ class _RandomChartPageState extends State<RandomChartPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            const ProgressFieldLabel('版本筛选'),
+                             ProgressFieldLabel(context.l10n.flowVersionFilter),
                             ProgressPickerField(
                               value: _selectedVersions.isEmpty
-                                  ? '全部版本'
-                                  : '已选 ${_selectedVersions.length} 个版本',
+                                  ? context.l10n.flowAllVersions
+                                  : context.l10n.flowP0VersionsSelected(
+                                      _selectedVersions.length.toString()),
                               onTap: () {
                                 if (!busy) _showVersionSelector();
                               },
@@ -573,11 +576,12 @@ class _RandomChartPageState extends State<RandomChartPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            const ProgressFieldLabel('类型筛选'),
+                             ProgressFieldLabel(context.l10n.flowTypeFilter),
                             ProgressPickerField(
                               value: _selectedGenres.isEmpty
-                                  ? '全部类型'
-                                  : '已选 ${_selectedGenres.length} 个类型',
+                                  ? context.l10n.flowAllTypes
+                                  : context.l10n.flowP0TypesSelected(
+                                      _selectedGenres.length.toString()),
                               onTap: () {
                                 if (!busy) _showGenreSelector();
                               },
@@ -590,22 +594,22 @@ class _RandomChartPageState extends State<RandomChartPage> {
                   const SizedBox(height: 12),
 
                   // 定数范围
-                  const ProgressFieldLabel('定数范围'),
+                   ProgressFieldLabel(context.l10n.flowConstantRange),
                   Row(
                     children: [
-                      Expanded(child: _dsField(_minDsController, '最小值', busy)),
+                      Expanded(child: _dsField(_minDsController, context.l10n.flowMinimum, busy)),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 8),
                         child: Text('~',
                             style: TextStyle(color: scheme.onSurfaceVariant)),
                       ),
-                      Expanded(child: _dsField(_maxDsController, '最大值', busy)),
+                      Expanded(child: _dsField(_maxDsController, context.l10n.flowMaximum, busy)),
                     ],
                   ),
                   const SizedBox(height: 12),
 
                   // 快捷选项
-                  const ProgressFieldLabel('快捷选项'),
+                   ProgressFieldLabel(context.l10n.flowQuickOptions),
                   Row(
                     children: [
                       Expanded(
@@ -613,9 +617,9 @@ class _RandomChartPageState extends State<RandomChartPage> {
                           onPressed: busy
                               ? null
                               : () => _applyMasterPreset(advanced: false),
-                          child: const FittedBox(
+                          child:  FittedBox(
                               fit: BoxFit.scaleDown,
-                              child: Text('MASTER 上级')),
+                              child: Text(context.l10n.flowAdvancedMASTER)),
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -624,9 +628,9 @@ class _RandomChartPageState extends State<RandomChartPage> {
                           onPressed: busy
                               ? null
                               : () => _applyMasterPreset(advanced: true),
-                          child: const FittedBox(
+                          child:  FittedBox(
                               fit: BoxFit.scaleDown,
-                              child: Text('MASTER 超上级')),
+                              child: Text(context.l10n.flowExpertMASTER)),
                         ),
                       ),
                     ],
@@ -658,7 +662,7 @@ class _RandomChartPageState extends State<RandomChartPage> {
                                 ),
                               ),
                               const SizedBox(width: 8),
-                              const Text('准备中…'),
+                               Text(context.l10n.flowPreparing),
                             ],
                           )
                         : Row(
@@ -668,7 +672,7 @@ class _RandomChartPageState extends State<RandomChartPage> {
                                   ? Icons.stop_rounded
                                   : Icons.casino_outlined),
                               const SizedBox(width: 8),
-                              Text(_isRolling ? '停！' : '开始抽奖'),
+                              Text(_isRolling ? context.l10n.flowStop : context.l10n.flowStartDrawing),
                             ],
                           ),
                   ),
@@ -680,10 +684,10 @@ class _RandomChartPageState extends State<RandomChartPage> {
 
             // 歌曲抽取区域
             AppSectionHeader(
-              title: '抽取结果',
+              title: context.l10n.flowDrawResults,
               trailing: !_isRolling && drawnSongs.isNotEmpty
                   ? Text(
-                      '本次抽取 ${drawnSongs.length} 首',
+                      context.l10n.flowP0SongsDrawn((drawnSongs.length).toString()),
                       style: TextStyle(
                           fontSize: 12, color: scheme.onSurfaceVariant),
                     )
@@ -726,11 +730,11 @@ class _RandomChartPageState extends State<RandomChartPage> {
             const SizedBox(height: 20),
 
             // 历史记录区域
-            const AppSectionHeader(title: '历史抽取记录'),
+             AppSectionHeader(title: context.l10n.flowDrawHistory),
             if (_history.isEmpty)
               AppCard(
                 child: Text(
-                  '暂无历史记录',
+                  context.l10n.flowNoHistoryYet2,
                   textAlign: TextAlign.center,
                   style:
                       TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
@@ -761,7 +765,7 @@ class _RandomChartPageState extends State<RandomChartPage> {
                               ),
                             ),
                             IconButton(
-                              tooltip: '删除这条记录',
+                              tooltip: context.l10n.flowDeleteThisRecord,
                               onPressed: () => _deleteHistory(index),
                               icon: const Icon(Icons.delete_outline),
                               iconSize: 18,
@@ -790,7 +794,6 @@ class _RandomChartPageState extends State<RandomChartPage> {
                                           MaterialPageRoute(
                                             builder: (context) => SongInfoPage(
                                               songId: song.id.toString(),
-                                              initialLevelIndex: 0,
                                             ),
                                           ),
                                         );

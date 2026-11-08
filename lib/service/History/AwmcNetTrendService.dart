@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 /*
  * AWMC NET「玩家 Rating 趋势」API 客户端。
  *
@@ -93,7 +94,7 @@ Future<AwmcNetTrendResult> fetchAwmcNetTrend({
 }) async {
   final id = qqid.trim();
   if (!RegExp(r'^\d{5,12}$').hasMatch(id)) {
-    throw AwmcNetTrendException('QQ 号格式不对（应为 5–12 位数字）：$id');
+    throw AwmcNetTrendException(appL10n.svcInvalidQQNumber512DigitsExpected(id.toString()));
   }
 
   final url = Uri.parse(
@@ -101,24 +102,24 @@ Future<AwmcNetTrendResult> fetchAwmcNetTrend({
   );
   // 出口固定校验：和 [AwmcNetUserPlayDataManager] 同样的「绝不把请求发到别的域名」保险。
   if (url.host != Uri.parse(ApiUrls.AwmcNetTrendBaseUrl).host) {
-    throw AwmcNetTrendException('拒绝请求非 AWMC NET 地址：${url.host}');
+    throw AwmcNetTrendException(appL10n.svcRefusedARequestToANonAWMC(url.host.toString()));
   }
 
   final http.Response response;
   try {
     response = await ApiClient.get(url, timeout: timeout);
   } on Exception catch (e) {
-    throw AwmcNetTrendException('AWMC NET 连接失败：$e');
+    throw AwmcNetTrendException(appL10n.svcAWMCNETConnectionFailedP0(e.toString()));
   }
 
   if (response.statusCode == 404) {
-    throw AwmcNetTrendException('AWMC NET 没有 QQ $id 的数据（请确认该 QQ 已在 net.wmc.pub 绑定并上传过成绩）');
+    throw AwmcNetTrendException(appL10n.svcAWMCNETHasNoDataForQQ2(id.toString()));
   }
   if (response.statusCode == 422) {
-    throw AwmcNetTrendException('AWMC NET 拒绝了请求：days 参数超出范围（1~365）');
+    throw AwmcNetTrendException(appL10n.svcAWMCNETRejectedTheRequestDaysIs);
   }
   if (response.statusCode != 200) {
-    throw AwmcNetTrendException('AWMC NET 返回了 HTTP ${response.statusCode}');
+    throw AwmcNetTrendException(appL10n.svcAWMCNETReturnedHTTPP0(response.statusCode.toString()));
   }
 
   final Map<String, dynamic> body;
@@ -126,12 +127,12 @@ Future<AwmcNetTrendResult> fetchAwmcNetTrend({
     // ⚠️ 见文件头注释：服务端 Content-Type 不带 charset，必须显式 UTF-8 解码。
     body = json.decode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
   } on Exception catch (e) {
-    throw AwmcNetTrendException('AWMC NET 返回了无法解析的 JSON：$e');
+    throw AwmcNetTrendException(appL10n.svcAWMCNETReturnedJSONThatCouldNot(e.toString()));
   }
 
   final pointsRaw = body['points'];
   if (pointsRaw is! List) {
-    throw AwmcNetTrendException('AWMC NET 返回结构里没有 points 数组');
+    throw AwmcNetTrendException(appL10n.svcTheAWMCNETResponseHasNoPoints);
   }
   final points = <AwmcNetTrendPoint>[];
   for (final item in pointsRaw) {

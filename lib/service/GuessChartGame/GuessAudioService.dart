@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'dart:io';
 import 'dart:convert';
 import 'dart:async';
@@ -30,13 +31,13 @@ class GuessAudioService {
           ascii.decode(header.sublist(0, 4)) != 'RIFF' ||
           ascii.decode(header.sublist(8, 16)) != 'WAVEfmt ' ||
           ascii.decode(header.sublist(36, 40)) != 'data') {
-        throw StateError('无法读取片段时长');
+        throw StateError(appL10n.flowCouldNotReadExcerptDuration);
       }
       final data = ByteData.sublistView(header);
       final byteRate = data.getUint32(28, Endian.little);
       final size = data.getUint32(40, Endian.little);
       if (byteRate == 0 || size == 0 || await input.length() < size + 44) {
-        throw StateError('音频片段不完整');
+        throw StateError(appL10n.flowAudioExcerptIsIncomplete);
       }
       return Duration(
           microseconds: size * Duration.microsecondsPerSecond ~/ byteRate);
@@ -175,7 +176,7 @@ class GuessAudioService {
             '音源请求失败 HTTP ${response.statusCode}${code == null ? '' : ' ($code)'}');
       }
       if (data.length < 44 || String.fromCharCodes(data.take(4)) != 'RIFF') {
-        throw StateError('音频响应不是有效的 WAV 文件');
+        throw StateError(appL10n.flowAudioResponseIsNotAValidWAV);
       }
       log('片段下载完成 ${watch.elapsedMilliseconds}ms bytes=${data.length}');
       final temporary = File('${output.path}.tmp');

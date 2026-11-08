@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
@@ -55,7 +56,7 @@ class _GuideLinkTextState extends State<GuideLinkText> {
       final message = widget.fallbackMessage;
       if (await ExternalLaunchUtil.openString(url) || !mounted) return;
       await ExternalLaunchUtil.copyFallback(context, fallback,
-          message: message ?? '无法打开链接，链接已复制到剪贴板，请手动粘贴到浏览器打开');
+          message: message ?? context.l10n.flowCouldNotOpenTheLinkCopiedTo);
     } finally {
       _opening = false;
     }

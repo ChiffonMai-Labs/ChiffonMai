@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import '../../utils/StringUtil.dart';
 
@@ -120,8 +121,8 @@ enum ImprovementMetric {
     return switch (this) {
       achievement => '${score.achievement.toStringAsFixed(4)}%',
       rate => StringUtil.formatRate(score.rate),
-      fc => v == '' ? '无' : StringUtil.formatFC('$v'),
-      fs => v == '' ? '无' : StringUtil.formatFS('$v'),
+      fc => v == '' ? appL10n.flowNone2 : StringUtil.formatFC('$v'),
+      fs => v == '' ? appL10n.flowNone2 : StringUtil.formatFS('$v'),
       dxRate => '${(score.dxRate! * 100).toStringAsFixed(2)}%',
       _ => '$v',
     };

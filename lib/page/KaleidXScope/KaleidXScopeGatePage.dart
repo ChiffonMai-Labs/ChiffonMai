@@ -1,3 +1,6 @@
+import 'package:my_first_flutter_app/l10n/FeatureLocalizations.dart';
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -187,7 +190,8 @@ class _KaleidXScopeGatePageState extends State<KaleidXScopeGatePage> {
         };
       });
     } catch (e) {
-      if (mounted) setState(() => _error = '攻略加载失败，请稍后重试');
+      if (mounted)
+        setState(() => _error = appL10n.flowCouldNotLoadTheGuideTryAgain);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -232,17 +236,18 @@ class _KaleidXScopeGatePageState extends State<KaleidXScopeGatePage> {
   }
 
   List<(String, List<int>)> get _songSources => [
-        if (_poolIds.isNotEmpty) ('曲目池', _poolIds),
+        if (_poolIds.isNotEmpty) (context.l10n.flowSongPool, _poolIds),
         if (_trackIds('track1').isNotEmpty) ('Track 1', _trackIds('track1')),
         if (_trackIds('track2').isNotEmpty) ('Track 2', _trackIds('track2')),
         if (_trackIds('track3').isNotEmpty) ('Track 3', _trackIds('track3')),
       ];
 
   void _openSong(Song song) {
+    FocusManager.instance.primaryFocus?.unfocus();
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => SongInfoPage(songId: song.id, initialLevelIndex: 3),
+        builder: (_) => SongInfoPage(songId: song.id),
       ),
     );
   }
@@ -339,7 +344,7 @@ class _KaleidXScopeGatePageState extends State<KaleidXScopeGatePage> {
                   gate.doorName ??
                       gate.displayName ??
                       _config.doorName ??
-                      widget.title,
+                      context.featureText(widget.title),
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w800,
@@ -357,7 +362,8 @@ class _KaleidXScopeGatePageState extends State<KaleidXScopeGatePage> {
                   ),
                   child: current.isEmpty
                       ? Text(
-                          '暂无进行中的挑战，可以看看下方的时间安排',
+                          context
+                              .l10n.flowNoActiveChallengesCheckTheScheduleBelow,
                           style: TextStyle(
                               fontSize: 13, color: scheme.onSurfaceVariant),
                         )
@@ -370,8 +376,7 @@ class _KaleidXScopeGatePageState extends State<KaleidXScopeGatePage> {
                                   padding:
                                       const EdgeInsets.symmetric(vertical: 10),
                                   child: Divider(
-                                      height: 1,
-                                      color: scheme.outlineVariant),
+                                      height: 1, color: scheme.outlineVariant),
                                 ),
                               _buildCurrentPhase(
                                 item.phase,
@@ -403,7 +408,7 @@ class _KaleidXScopeGatePageState extends State<KaleidXScopeGatePage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                challengeName ?? '当前阶段',
+                challengeName ?? context.l10n.flowCurrentPhase,
                 style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
               ),
               const SizedBox(height: 4),
@@ -421,7 +426,7 @@ class _KaleidXScopeGatePageState extends State<KaleidXScopeGatePage> {
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             Text(
-              twoStages ? 'LIFE 一阶段 / 二阶段' : 'LIFE',
+              twoStages ? context.l10n.flowLIFEPhase1Phase2 : 'LIFE',
               style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
             ),
             Text(
@@ -518,9 +523,9 @@ class _KaleidXScopeGatePageState extends State<KaleidXScopeGatePage> {
 
   Widget _buildFrame(KaleidXScopeGate gate) {
     final id = gate.frameCollectionId ?? _config.frameCollectionId;
-    final url = gate.frameImageUrl ??
-        (id == null ? null : 'https://assets2.lxns.net/maimai/frame/$id.png');
-    if (url == null) return const SizedBox.shrink();
+    final source = gate.frameImageUrl ?? (id == null ? null : lxnsFrameUrl(id));
+    if (source == null) return const SizedBox.shrink();
+    final url = collectionAssetProxyUrl(source);
     return Padding(
       padding: const EdgeInsets.only(top: 8),
       child: GestureDetector(
@@ -540,10 +545,11 @@ class _KaleidXScopeGatePageState extends State<KaleidXScopeGatePage> {
           child: CachedNetworkImage(
             cacheManager: lxnsAssetCacheManager,
             imageUrl: url,
+            cacheKey: collectionAssetCacheKey(url),
             height: 100,
             fit: BoxFit.contain,
-            placeholder: (_, __) => const ImageLoadingIndicator(
-                background: Colors.transparent),
+            placeholder: (_, __) =>
+                const ImageLoadingIndicator(background: Colors.transparent),
             errorWidget: (_, __, ___) =>
                 const Center(child: Icon(Icons.image_not_supported_outlined)),
           ),
@@ -555,33 +561,48 @@ class _KaleidXScopeGatePageState extends State<KaleidXScopeGatePage> {
   Widget _buildUnlockCard() {
     final gate = _gateData!;
     final config = _config;
-    final prerequisite = gate.prerequisite ?? config.prerequisite;
-    final key = gate.keyRequirement ?? config.keyRequirement;
-    final note = gate.guideNote ?? config.guideNote;
-    final track1 = gate.track1Desc ?? config.track1;
-    final track2 = gate.track2Desc ?? config.track2;
-    final track3 = gate.track3Desc ?? config.track3;
+    final prerequisite = gate.prerequisite ??
+        (config.prerequisite == null
+            ? null
+            : context.featureText(config.prerequisite!));
+    final key = gate.keyRequirement ??
+        (config.keyRequirement == null
+            ? null
+            : context.featureText(config.keyRequirement!));
+    final note = gate.guideNote ??
+        (config.guideNote == null
+            ? null
+            : context.featureText(config.guideNote!));
+    final track1 = gate.track1Desc ??
+        (config.track1 == null ? null : context.featureText(config.track1!));
+    final track2 = gate.track2Desc ??
+        (config.track2 == null ? null : context.featureText(config.track2!));
+    final track3 = gate.track3Desc ??
+        (config.track3 == null ? null : context.featureText(config.track3!));
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _buildStep(1, '门扉条件', [
+          _buildStep(1, context.l10n.flowGateConditions, [
             _bodyText(prerequisite == null
-                ? '（未设置）'
-                : '${config.prerequisiteIsArea ? '完成' : ''}$prerequisite'),
+                ? context.l10n.flowNotSet3
+                : '${config.prerequisiteIsArea ? context.l10n.featureDone : ''}$prerequisite'),
           ]),
-          _buildStep(2, '钥匙（挑战所需的物品）', [
+          _buildStep(2, context.l10n.flowKeyRequiredToChallenge, [
             if (key?.isNotEmpty == true) _bodyText(key!),
             _buildFrame(gate),
             if (note?.isNotEmpty == true) _bodyText(note!),
           ]),
           _buildStep(
             3,
-            'KALEIDXSCOPE 模式',
+            context.l10n.flowKALEIDXSCOPEMode,
             [
-              _bodyText('第一首：${track1 ?? '（未设置）'}'),
-              if (track2 != null) _bodyText('第二首：$track2'),
-              if (track3 != null) _bodyText('第三首：$track3'),
+              _bodyText(context.l10n.flowFirstSongP0(
+                  (track1 ?? context.l10n.flowNotSet3).toString())),
+              if (track2 != null)
+                _bodyText(context.l10n.flowSecondSongP0((track2).toString())),
+              if (track3 != null)
+                _bodyText(context.l10n.flowThirdSongP0((track3).toString())),
             ],
             last: true,
           ),
@@ -606,9 +627,9 @@ class _KaleidXScopeGatePageState extends State<KaleidXScopeGatePage> {
                 songId: special.songId,
                 song: _songMap[special.songId],
                 caption: switch (special.role) {
-                  'perfect' => '完美挑战曲',
-                  'reward' => '通关解锁歌曲',
-                  _ => '隐藏歌曲',
+                  'perfect' => context.l10n.flowPerfectChallengeSong,
+                  'reward' => context.l10n.flowClearRewardSong,
+                  _ => context.l10n.flowHiddenSong,
                 },
                 captionColor: _accent,
                 typeLabel: _typeLabel,
@@ -698,7 +719,7 @@ class _KaleidXScopeGatePageState extends State<KaleidXScopeGatePage> {
               ),
               if (isCurrent) ...[
                 Text(
-                  '进行中',
+                  context.l10n.flowInProgress,
                   style: TextStyle(
                     fontSize: 11.5,
                     fontWeight: FontWeight.w700,
@@ -720,8 +741,11 @@ class _KaleidXScopeGatePageState extends State<KaleidXScopeGatePage> {
               spacing: 8,
               runSpacing: 2,
               children: [
-                Text('一阶段 ${phase.lifeTarget}', style: lifeStyle),
-                Text('二阶段 ${phase.target ?? '-'}', style: lifeStyle),
+                Text(context.l10n.flowPhase1P0((phase.lifeTarget).toString()),
+                    style: lifeStyle),
+                Text(
+                    context.l10n.flowPhase2P0((phase.target ?? '-').toString()),
+                    style: lifeStyle),
               ],
             ),
             if (penalties.isNotEmpty) ...[
@@ -764,8 +788,8 @@ class _KaleidXScopeGatePageState extends State<KaleidXScopeGatePage> {
       final painter = TextPainter(
         text: TextSpan(
           text: phase.difficulty,
-          style: const TextStyle(
-              fontSize: fontSize, fontWeight: FontWeight.bold),
+          style:
+              const TextStyle(fontSize: fontSize, fontWeight: FontWeight.bold),
         ),
         textDirection: Directionality.of(context),
         textScaler: scaler,
@@ -863,7 +887,8 @@ class _KaleidXScopeGatePageState extends State<KaleidXScopeGatePage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '已标记 $marked / ${ids.length}',
+                        context.l10n.flowMarkedP0P1(
+                            (marked).toString(), (ids.length).toString()),
                         style: AppTheme.number(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
@@ -871,7 +896,10 @@ class _KaleidXScopeGatePageState extends State<KaleidXScopeGatePage> {
                         ),
                       ),
                       Text(
-                        _isMarkMode ? '点击歌曲可切换完成状态' : '开启标记后点歌曲记录完成情况',
+                        _isMarkMode
+                            ? context.l10n.flowTapASongToToggleCompletion
+                            : context
+                                .l10n.flowEnableMarkingThenTapSongsToRecord,
                         style: TextStyle(
                             fontSize: 12, color: scheme.onSurfaceVariant),
                       ),
@@ -879,7 +907,7 @@ class _KaleidXScopeGatePageState extends State<KaleidXScopeGatePage> {
                   ),
                 ),
                 Semantics(
-                  label: '标记模式',
+                  label: context.l10n.flowMarkingMode,
                   child: AppSwitch(
                     value: _isMarkMode,
                     onChanged: (value) => setState(() => _isMarkMode = value),
@@ -908,7 +936,7 @@ class _KaleidXScopeGatePageState extends State<KaleidXScopeGatePage> {
         _boxSliver(Padding(
           padding: const EdgeInsets.symmetric(vertical: 40),
           child: Text(
-            '暂无歌曲数据',
+            context.l10n.flowNoSongData,
             textAlign: TextAlign.center,
             style: TextStyle(
                 color: Theme.of(context).colorScheme.onSurfaceVariant),
@@ -1004,10 +1032,11 @@ class _KaleidXScopeGatePageState extends State<KaleidXScopeGatePage> {
           children: [
             Icon(Icons.cloud_off_outlined, size: 40, color: scheme.outline),
             const SizedBox(height: 10),
-            Text(_error ?? '攻略加载失败，请稍后重试',
+            Text(_error ?? context.l10n.flowCouldNotLoadTheGuideTryAgain,
                 style: TextStyle(color: scheme.onSurfaceVariant)),
             const SizedBox(height: 10),
-            FilledButton.tonal(onPressed: _load, child: const Text('重试')),
+            FilledButton.tonal(
+                onPressed: _load, child: Text(context.l10n.flowRetry)),
           ],
         ),
       );
@@ -1025,9 +1054,9 @@ class _KaleidXScopeGatePageState extends State<KaleidXScopeGatePage> {
                   EntranceAnimation(child: _buildHero()),
                   const SizedBox(height: AppDesignTokens.cardGap),
                   SegmentedTabs(
-                    items: const [
-                      SegmentedTabItem('攻略'),
-                      SegmentedTabItem('曲目'),
+                    items: [
+                      SegmentedTabItem(context.l10n.flowGuide),
+                      SegmentedTabItem(context.l10n.flowSongs4),
                     ],
                     selectedIndex: _tab,
                     onChanged: (value) => setState(() => _tab = value),
@@ -1133,7 +1162,8 @@ class _SongRow extends StatelessWidget {
                       ),
                     ),
                   Text(
-                    song?.title ?? '歌曲 ID $songId',
+                    song?.title ??
+                        context.l10n.flowSongIDP02((songId).toString()),
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
@@ -1144,7 +1174,8 @@ class _SongRow extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     song == null
-                        ? '刷新曲库后显示歌曲信息'
+                        ? context
+                            .l10n.flowRefreshTheLibraryToShowSongInformation
                         : '${typeLabel(song.type)} | ${StringUtil.formatVersion2WithFlag(song.basicInfo.from, song.isExtra)}',
                     style: metaStyle,
                   ),

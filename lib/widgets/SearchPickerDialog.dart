@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import '../widgets/AppDialogs.dart';
 import '../utils/AppDesignTokens.dart';
@@ -97,7 +98,8 @@ class _SearchPickerDialogState extends State<_SearchPickerDialog> {
                 prefixIcon: const Icon(Icons.search, size: 20),
                 isDense: true,
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+                  borderRadius:
+                      BorderRadius.circular(AppDesignTokens.radiusSmall),
                 ),
                 contentPadding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -141,7 +143,7 @@ class _SearchPickerDialogState extends State<_SearchPickerDialog> {
       ),
       actions: [
         TextButton(
-          child: const Text('取消'),
+          child: Text(context.l10n.featureCancel),
           onPressed: () => Navigator.of(context).pop(),
         ),
       ],

@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import '../utils/ExternalLaunchUtil.dart';
 
@@ -16,7 +17,7 @@ class KaleidXScopeSourceNotice extends StatelessWidget
     final opened = await ExternalLaunchUtil.open(sourceUri);
     if (!opened && context.mounted) {
       await ExternalLaunchUtil.copyFallback(context, sourceUri.toString(),
-          message: '无法打开攻略来源，链接已复制到剪贴板');
+          message: context.l10n.flowCouldNotOpenTheGuideSourceLink);
     }
   }
 
@@ -45,7 +46,7 @@ class KaleidXScopeSourceNotice extends StatelessWidget
                 Icon(Icons.info_outline, size: 14, color: color),
                 const SizedBox(width: 5),
                 Text(
-                  '数据来源：AWMC KALEIDXSCOPE',
+                  context.l10n.flowDataSourceAWMCKALEIDXSCOPE,
                   style: TextStyle(fontSize: 11, color: color),
                 ),
                 const SizedBox(width: 4),

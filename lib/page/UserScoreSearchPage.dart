@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/FeatureLocalizations.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import 'package:my_first_flutter_app/utils/StringUtil.dart';
@@ -27,7 +29,7 @@ class UserScoreSearchPage extends StatefulWidget {
 
 class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
   final UserScoreSearchService _service = UserScoreSearchService();
-  
+
   Map<String, dynamic>? _userPlayData;
   List<dynamic> _sortedSongs = [];
   List<dynamic> _pagedSongs = [];
@@ -64,16 +66,15 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
         1 => _starBucketOf(song),
         2 => _evaluationBucketOf(song['fc'], _comboBuckets,
             UserScoreSearchService.comboFilterValues),
-        _ => _evaluationBucketOf(song['fs'], _syncBuckets,
-            UserScoreSearchService.syncFilterValues),
+        _ => _evaluationBucketOf(
+            song['fs'], _syncBuckets, UserScoreSearchService.syncFilterValues),
       };
 
   /// 没有评价或是没见过的值都算进最后一档（无评价）。
   static int _evaluationBucketOf(
       dynamic value, List<String> buckets, Map<String, String> values) {
     final code = value?.toString().toLowerCase() ?? '';
-    final index =
-        buckets.indexWhere((bucket) => values[bucket] == code);
+    final index = buckets.indexWhere((bucket) => values[bucket] == code);
     return index < 0 ? buckets.length - 1 : index;
   }
 
@@ -93,8 +94,7 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
   /// 星数档位（✦5 含更高的 ✦5.5 / ✦6）。
   int _starBucketOf(dynamic song) {
     if (!song.containsKey('dxScore')) return 5;
-    final rate =
-        _dxRateCache[song] ??= _calculateDXScoreRate(song);
+    final rate = _dxRateCache[song] ??= _calculateDXScoreRate(song);
     if (rate >= 0.97) return 0;
     if (rate >= 0.95) return 1;
     if (rate >= 0.93) return 2;
@@ -139,20 +139,21 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
   final ScrollController _scrollController = ScrollController();
   int _currentPage = 1;
   int _pageSize = 50;
-  final TextEditingController _pageSizeController = TextEditingController(text: '50');
+  final TextEditingController _pageSizeController =
+      TextEditingController(text: '50');
 
   // 当前选中的按钮索引
   int _selectedButtonIndex = 0;
-  
+
   // 缓存DX分数达成率，避免重复计算
   Map<dynamic, double> _dxRateCache = {};
-  
+
   // 当前排序方式
   String _currentSortBy = 'Rating'; // 默认选择Rating
-  
+
   // 显示模式：true为曲绘模式，false为列表模式
   bool _isCoverMode = false;
-  
+
   // 筛选条件：每项都可多选，空列表表示全部
   final Map<String, List<String>> _filterConditions = {
     '版本筛选': [],
@@ -173,21 +174,21 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
     (label: 'AA', range: '90-93.9999'),
     (label: 'A', range: '80-89.9999'),
   ];
-  
+
   // 版本列表
   static List<String> _versionList = VersionListConstant.versionOrderList;
-  
+
   // 处理版本字符串，使其在前端简化展示
   static String _formatVersion(String version) {
     return StringUtil.formatVersion2(version);
   }
-  
+
   @override
   void initState() {
     super.initState();
     _loadData();
   }
-  
+
   // 初始化按钮尺寸变量
 
   int _loadRequest = 0;
@@ -235,7 +236,7 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
       context: context,
       builder: (BuildContext context) {
         return AppAlertDialog(
-          title: Text('选择排序方式'),
+          title: Text(context.l10n.flowChooseSortOrder),
           content: StatefulBuilder(
             builder: (BuildContext context, StateSetter setState) {
               return Column(
@@ -252,7 +253,7 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
                     },
                   ),
                   RadioListTile<String>(
-                    title: Text('达成率'),
+                    title: Text(context.l10n.flowAchievement2),
                     value: '达成率',
                     groupValue: _currentSortBy,
                     onChanged: (value) {
@@ -262,7 +263,7 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
                     },
                   ),
                   RadioListTile<String>(
-                    title: Text('定数'),
+                    title: Text(context.l10n.flowConstant),
                     value: '定数',
                     groupValue: _currentSortBy,
                     onChanged: (value) {
@@ -272,7 +273,7 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
                     },
                   ),
                   RadioListTile<String>(
-                    title: Text('DX分数达成率'),
+                    title: Text(context.l10n.flowDXScoreRate),
                     value: 'DX分数达成率',
                     groupValue: _currentSortBy,
                     onChanged: (value) {
@@ -287,13 +288,13 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
           ),
           actions: [
             TextButton(
-              child: Text('取消'),
+              child: Text(context.l10n.featureCancel),
               onPressed: () {
                 Navigator.of(context).pop();
               },
             ),
             TextButton(
-              child: Text('确认'),
+              child: Text(context.l10n.flowConfirm),
               onPressed: () {
                 Navigator.of(context).pop();
                 _loadData(silent: true); // 重新加载数据
@@ -304,7 +305,7 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
       },
     );
   }
-  
+
   /// 应用一项筛选；对话框取消时返回 null，不做任何事。
   void _applyFilter(String key, List<String>? values) {
     if (values == null || !mounted) return;
@@ -326,8 +327,8 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
     final result = await showDialog<List<String>>(
       context: context,
       builder: (_) => _ChoiceFilterDialog(
-        title: '版本筛选',
-        initial: _filterConditions['版本筛选']!,
+        title: context.l10n.flowVersionFilter,
+        initial: _filterConditions[context.l10n.flowVersionFilter]!,
         groups: [
           _ChoiceGroup(items: [
             for (final version in _versionList)
@@ -336,7 +337,7 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
         ],
       ),
     );
-    _applyFilter('版本筛选', result);
+    _applyFilter(context.l10n.flowVersionFilter, result);
   }
 
   // 根据定数计算等级显示（x或x+）
@@ -352,12 +353,12 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
       return '${integerPart}+';
     }
   }
-  
+
   // 获取等级选项（参考 PersonalizedScoreService.getAllLevelOptions）
   Future<List<String>> _getLevelOptions() async {
     final musicManager = MaimaiMusicDataManager();
     final songs = await musicManager.getCachedSongs();
-    
+
     Set<String> levels = {};
     if (songs != null) {
       for (final song in songs) {
@@ -370,7 +371,7 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
         }
       }
     }
-    
+
     if (levels.isEmpty) {
       for (int i = 1; i <= 14; i++) {
         levels.add('$i');
@@ -378,26 +379,29 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
       }
       levels.add('15');
     }
-    
-    return levels.toList()..sort((a, b) {
-      double parseLevel(String level) {
-        if (level == '15') return 15.0;
-        if (level.endsWith('+')) {
-          return double.parse(level.substring(0, level.length - 1)) + 0.5;
+
+    return levels.toList()
+      ..sort((a, b) {
+        double parseLevel(String level) {
+          if (level == '15') return 15.0;
+          if (level.endsWith('+')) {
+            return double.parse(level.substring(0, level.length - 1)) + 0.5;
+          }
+          return double.tryParse(level) ?? 0.0;
         }
-        return double.tryParse(level) ?? 0.0;
-      }
-      return parseLevel(b).compareTo(parseLevel(a));
-    });
+
+        return parseLevel(b).compareTo(parseLevel(a));
+      });
   }
-  
+
   /// 定数范围对应的等级名（14.0-14.5 → 14，14.6-14.9 → 14+），自定义范围原样显示。
   static String _dsRangeLabel(String range) {
     if (range == '15.0-15.0') return '15';
     final match = RegExp(r'^(\d+)\.(0|6)-(\d+)\.(5|9)$').firstMatch(range);
     if (match == null || match.group(1) != match.group(3)) return range;
     if (match.group(2) == '0' && match.group(4) == '5') return match.group(1)!;
-    if (match.group(2) == '6' && match.group(4) == '9') return '${match.group(1)}+';
+    if (match.group(2) == '6' && match.group(4) == '9')
+      return '${match.group(1)}+';
     return range;
   }
 
@@ -430,12 +434,12 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
     final result = await showDialog<List<String>>(
       context: context,
       builder: (_) => _RangeFilterDialog(
-        title: '定数筛选',
+        title: context.l10n.flowConstantFilter,
         options: options,
         initial: _filterConditions['定数筛选']!,
         minHint: '1.0',
         maxHint: '15.0',
-        hint: '最多一位小数，留空表示默认值',
+        hint: context.l10n.flowUpToOneDecimalPlaceLeaveBlank,
       ),
     );
     _applyFilter('定数筛选', result);
@@ -446,7 +450,7 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
     final result = await showDialog<List<String>>(
       context: context,
       builder: (_) => _ChoiceFilterDialog(
-        title: '难度筛选',
+        title: context.l10n.flowDifficultyFilter,
         initial: _filterConditions['难度筛选']!,
         groups: [
           _ChoiceGroup(items: [
@@ -472,12 +476,12 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
     final result = await showDialog<List<String>>(
       context: context,
       builder: (_) => _RangeFilterDialog(
-        title: '达成率筛选',
+        title: context.l10n.flowAchievementFilter,
         options: _achievementOptions,
         initial: _filterConditions['达成率筛选']!,
         minHint: '0',
         maxHint: '101',
-        hint: '最多四位小数，留空表示默认值',
+        hint: context.l10n.flowUpToFourDecimalPlacesLeaveBlank,
       ),
     );
     _applyFilter('达成率筛选', result);
@@ -488,15 +492,15 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
     final result = await showDialog<List<String>>(
       context: context,
       builder: (_) => _ChoiceFilterDialog(
-        title: '连击/同步筛选',
-        subtitle: '同组内满足任意一项，连击和同步都选时需同时满足',
+        title: context.l10n.flowComboSyncFilter,
+        subtitle: context.l10n.flowAnyOptionWithinAGroupMatchesWhen,
         initial: _filterConditions['连击/同步筛选']!,
         groups: [
-          _ChoiceGroup(title: '连击', items: [
+          _ChoiceGroup(title: context.l10n.flowCombo, items: [
             for (final item in UserScoreSearchService.comboFilterValues.keys)
               _Choice(item, item),
           ]),
-          _ChoiceGroup(title: '同步', items: [
+          _ChoiceGroup(title: context.l10n.flowSync, items: [
             for (final item in UserScoreSearchService.syncFilterValues.keys)
               _Choice(item, item),
           ]),
@@ -507,9 +511,10 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
   }
 
   void _updatePagedSongs() {
-    _pagedSongs = _service.getPagedSongs(_visibleSongs, _currentPage, _pageSize);
+    _pagedSongs =
+        _service.getPagedSongs(_visibleSongs, _currentPage, _pageSize);
   }
-  
+
   void _changePage(int page) {
     setState(() {
       _currentPage = page;
@@ -523,7 +528,7 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
     _scrollController.dispose();
     super.dispose();
   }
-  
+
   void _changePageSize() {
     int newPageSize = int.tryParse(_pageSizeController.text) ?? 50;
     if (newPageSize > 0) {
@@ -534,7 +539,7 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
       });
     }
   }
-  
+
   int _getTotalPages() {
     final count = _visibleSongs.length;
     return count == 0 ? 1 : (count / _pageSize).ceil();
@@ -548,11 +553,13 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
   @override
   Widget build(BuildContext context) {
     return BackgroundPageScaffold(
-      title: '成绩查询',
+      title: context.l10n.featureScoreLookup,
       resizeToAvoidBottomInset: false, // 防止键盘弹出时调整布局
       actions: [
         IconButton(
-          tooltip: _searchOpen ? '关闭搜索' : '搜索曲名或定数',
+          tooltip: _searchOpen
+              ? context.l10n.flowCloseSearch
+              : context.l10n.flowSearchSongTitleOrConstant,
           onPressed: () => setState(() {
             _searchOpen = !_searchOpen;
             if (!_searchOpen) _setSearchQuery('');
@@ -575,7 +582,7 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
                   children: [
                     const Icon(Icons.sort_rounded, size: 16),
                     const SizedBox(width: 6),
-                    Text(_currentSortBy,
+                    Text(context.featureText(_currentSortBy),
                         style: const TextStyle(
                             fontSize: 13, fontWeight: FontWeight.w600)),
                   ],
@@ -589,7 +596,7 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
           ? const Center(child: CircularProgressIndicator())
           : _userPlayData == null
               ? Center(
-                  child: Text('没有找到缓存数据',
+                  child: Text(context.l10n.flowNoCachedDataFound,
                       style: TextStyle(
                           color: Theme.of(context).colorScheme.onSurface)))
               : Column(
@@ -617,13 +624,13 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
                             if (_isCoverMode) ...[
                               SegmentedTabs(
                                 height: 40,
-                                items: const [
-                                  SegmentedTabItem('评级'),
-                                  SegmentedTabItem('连击'),
-                                  SegmentedTabItem('同步'),
-                                  SegmentedTabItem('得分'),
-                                  SegmentedTabItem('星数'),
-                                  SegmentedTabItem('定数'),
+                                items: [
+                                  SegmentedTabItem(context.l10n.flowGrade),
+                                  SegmentedTabItem(context.l10n.flowCombo),
+                                  SegmentedTabItem(context.l10n.flowSync),
+                                  SegmentedTabItem(context.l10n.flowScore),
+                                  SegmentedTabItem(context.l10n.flowStars),
+                                  SegmentedTabItem(context.l10n.flowConstant),
                                 ],
                                 selectedIndex: _selectedButtonIndex,
                                 onChanged: (i) =>
@@ -662,7 +669,7 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
       autofocus: widget.openSearch,
       onChanged: (value) => setState(() => _setSearchQuery(value)),
       decoration: InputDecoration(
-        hintText: '查成绩：曲名、定数、曲目 ID',
+        hintText: context.l10n.featureFindScoresTitleConstantOrSongID,
         prefixIcon: const Icon(Icons.search_rounded, size: 20),
         fillColor: AppSurfaces.card(context),
         contentPadding: const EdgeInsets.symmetric(vertical: 12),
@@ -713,11 +720,11 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
         children: [
           SegmentedTabs(
             height: 38,
-            items: const [
-              SegmentedTabItem('评级'),
-              SegmentedTabItem('星数'),
-              SegmentedTabItem('连击'),
-              SegmentedTabItem('同步'),
+            items: [
+              SegmentedTabItem(context.l10n.flowGrade),
+              SegmentedTabItem(context.l10n.flowStars),
+              SegmentedTabItem(context.l10n.flowCombo),
+              SegmentedTabItem(context.l10n.flowSync),
             ],
             selectedIndex: _distributionMode,
             onChanged: (mode) {
@@ -741,12 +748,16 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
             child: filter == null
                 ? Row(
                     children: [
-                      Text('点色块或统计项筛选 · 共 ', style: hintStyle),
+                      Text(context.l10n.flowTapASegmentOrStatisticToFilter,
+                          style: hintStyle),
                       RollingNumber(value: songs.length, style: hintStyle),
-                      Text(' 条', style: hintStyle),
+                      Text(context.l10n.flowEntries, style: hintStyle),
                     ],
                   )
-                : Text('已筛选 ${labels[filter]} · 再点取消', style: hintStyle),
+                : Text(
+                    context.l10n.flowFilteredByP0TapAgainToClear(
+                        context.featureText(labels[filter])),
+                    style: hintStyle),
           ),
           const SizedBox(height: 10),
           _buildDistributionBar(counts, labels, colorOf, opacityOf, pick),
@@ -754,24 +765,24 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
           FadeSwitcher(
             value: _distributionMode,
             child: Row(
-                children: [
-                  for (var i = 0; i < counts.length; i++)
-                    Expanded(
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () => pick(i),
-                        child: AnimatedOpacity(
-                          opacity: opacityOf(i),
-                          duration: AppDesignTokens.motion(
-                              context, AppDesignTokens.fastMotion),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // 行高固定：中文和英文字母的字体行高不同，
-                              // 否则下方的数字会高低不齐
-                              SizedBox(
-                                height: 16,
-                                child: Row(
+              children: [
+                for (var i = 0; i < counts.length; i++)
+                  Expanded(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => pick(i),
+                      child: AnimatedOpacity(
+                        opacity: opacityOf(i),
+                        duration: AppDesignTokens.motion(
+                            context, AppDesignTokens.fastMotion),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // 行高固定：中文和英文字母的字体行高不同，
+                            // 否则下方的数字会高低不齐
+                            SizedBox(
+                              height: 16,
+                              child: Row(
                                 children: [
                                   Container(
                                     width: 6,
@@ -786,7 +797,8 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
                                     child: FittedBox(
                                       fit: BoxFit.scaleDown,
                                       alignment: Alignment.centerLeft,
-                                      child: Text(labels[i],
+                                      child: Text(
+                                          context.featureText(labels[i]),
                                           maxLines: 1,
                                           style: AppTheme.number(
                                               fontSize: 11,
@@ -795,25 +807,25 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
                                     ),
                                   ),
                                 ],
-                                ),
                               ),
-                              FittedBox(
-                                fit: BoxFit.scaleDown,
-                                alignment: Alignment.centerLeft,
-                                child: RollingNumber(
-                                  value: counts[i],
-                                  style: AppTheme.number(
-                                      fontSize: 17,
-                                      fontWeight: FontWeight.w700,
-                                      color: scheme.onSurface),
-                                ),
+                            ),
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerLeft,
+                              child: RollingNumber(
+                                value: counts[i],
+                                style: AppTheme.number(
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w700,
+                                    color: scheme.onSurface),
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                ],
+                  ),
+              ],
             ),
           ),
         ],
@@ -858,7 +870,9 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
                   child: Semantics(
                     button: width > 0,
                     label: width > 0
-                        ? '${labels[i]} ${counts[i]} 条，点按筛选'
+                        ? context.l10n.flowP0P1EntriesTapToFilter(
+                            context.featureText(labels[i]),
+                            (counts[i]).toString())
                         : null,
                     excludeSemantics: true,
                     child: GestureDetector(
@@ -897,31 +911,31 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
       child: Row(
         children: [
           FilterPill(
-            label: '版本',
+            label: context.l10n.flowVersion,
             value: _filterSummary('版本筛选', _formatVersion),
             onTap: _showVersionFilterDialog,
           ),
           const SizedBox(width: 6),
           FilterPill(
-            label: '定数',
+            label: context.l10n.flowConstant,
             value: _filterSummary('定数筛选', _dsRangeLabel),
             onTap: _showDsFilterDialog,
           ),
           const SizedBox(width: 6),
           FilterPill(
-            label: '难度',
+            label: context.l10n.flowDifficulty,
             value: _filterSummary('难度筛选', (value) => value),
             onTap: _showDifficultyFilterDialog,
           ),
           const SizedBox(width: 6),
           FilterPill(
-            label: '达成率',
+            label: context.l10n.flowAchievement2,
             value: _filterSummary('达成率筛选', _achievementRangeLabel),
             onTap: _showAchievementFilterDialog,
           ),
           const SizedBox(width: 6),
           FilterPill(
-            label: '连击/同步',
+            label: context.l10n.flowComboSync,
             value: _filterSummary('连击/同步筛选', (value) => value),
             onTap: _showComboFilterDialog,
           ),
@@ -935,7 +949,7 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
     final scheme = Theme.of(context).colorScheme;
     return Row(
       children: [
-        Text('每页显示',
+        Text(context.l10n.flowPerPage,
             style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant)),
         const SizedBox(width: 8),
         SizedBox(
@@ -954,7 +968,7 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
           ),
         ),
         const Spacer(),
-        Text('共 ${_visibleSongs.length} 条',
+        Text(context.l10n.flowP0Entries((_visibleSongs.length).toString()),
             style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
       ],
     );
@@ -967,7 +981,7 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
     return BottomActionBar(
       children: [
         IconButton.filledTonal(
-          tooltip: '上一页',
+          tooltip: context.l10n.flowPrevious,
           onPressed:
               _currentPage > 1 ? () => _changePage(_currentPage - 1) : null,
           icon: const Icon(Icons.chevron_left_rounded),
@@ -984,10 +998,9 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
           ),
         ),
         IconButton.filledTonal(
-          tooltip: '下一页',
-          onPressed: _currentPage < total
-              ? () => _changePage(_currentPage + 1)
-              : null,
+          tooltip: context.l10n.flowNext,
+          onPressed:
+              _currentPage < total ? () => _changePage(_currentPage + 1) : null,
           icon: const Icon(Icons.chevron_right_rounded),
         ),
         const SizedBox(width: 8),
@@ -996,7 +1009,8 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
           icon: Icon(_isCoverMode
               ? Icons.grid_view_rounded
               : Icons.view_agenda_outlined),
-          label: Text(_isCoverMode ? '曲绘' : '列表'),
+          label: Text(
+              _isCoverMode ? context.l10n.flowCoverArt : context.l10n.flowList),
           style: FilledButton.styleFrom(
             shape: RoundedRectangleBorder(
                 borderRadius:
@@ -1006,11 +1020,11 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
       ],
     );
   }
-  
+
   // 构建曲绘网格（5列）
   Widget _buildCoverGrid() {
     double screenWidth = MediaQuery.of(context).size.width;
-    
+
     return GridView.builder(
       shrinkWrap: true,
       physics: NeverScrollableScrollPhysics(),
@@ -1026,22 +1040,23 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
         final song = _pagedSongs[index];
         final levelIndex = song['level_index'] ?? 0;
         var borderColor = _service.getBorderColor(levelIndex);
-        
+
         final songId = song['song_id']?.toString() ?? '';
         if (songId.length == 6 && int.tryParse(songId) != null) {
           borderColor = Color(0xFFFF69B4);
         }
-        
+
         final itemSize = (screenWidth - 4 - (4 * 2)) / 5;
-        
+
         String displayText = '';
         String displaySubText = '';
         Color displayColor = Colors.white;
-        
+
         switch (_selectedButtonIndex) {
           case 0: // 评级
             if (song.containsKey('achievements')) {
-              double achievements = double.tryParse(song['achievements'].toString()) ?? 0;
+              double achievements =
+                  double.tryParse(song['achievements'].toString()) ?? 0;
               if (achievements >= 100.5) {
                 displayText = 'SSS+';
                 displayColor = Colors.yellow;
@@ -1138,7 +1153,7 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
                 rate = _calculateDXScoreRate(song);
                 _dxRateCache[song] = rate;
               }
-              
+
               String stars = '';
               if (rate >= 0.99) {
                 stars = '\u2726 6';
@@ -1165,7 +1180,7 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
                 stars = '\u2726 0';
                 displayColor = Colors.grey.shade300;
               }
-              
+
               displayText = stars;
               displaySubText = '${(rate * 100).toStringAsFixed(2)}%';
             }
@@ -1177,7 +1192,7 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
             }
             break;
         }
-        
+
         return GestureDetector(
           onTap: () {
             Navigator.push(
@@ -1185,8 +1200,8 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
               MaterialPageRoute(
                 builder: (context) => SongInfoPage(
                   songId: song['song_id'].toString(),
-                  initialLevelIndex: levelIndex,
-                  isDefaultLevelIndex: false,
+                  initialLevelIndex:
+                      ChartDifficulty.parseStandardIndex(song['level_index']),
                 ),
               ),
             );
@@ -1205,11 +1220,8 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                CoverUtil.buildCoverWidgetWithContextRRect(
-                  context,
-                  song['song_id']?.toString() ?? '',
-                  double.infinity
-                ),
+                CoverUtil.buildCoverWidgetWithContextRRect(context,
+                    song['song_id']?.toString() ?? '', double.infinity),
                 if (displayText.isNotEmpty)
                   Container(
                     decoration: BoxDecoration(
@@ -1217,38 +1229,37 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Center(
-                      child: _selectedButtonIndex == 4 ?
-                        Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
+                      child: _selectedButtonIndex == 4
+                          ? Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  displayText,
+                                  style: TextStyle(
+                                    color: displayColor,
+                                    fontSize: itemSize * 0.18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                if (displaySubText.isNotEmpty)
+                                  Text(
+                                    displaySubText,
+                                    style: TextStyle(
+                                      color: displayColor,
+                                      fontSize: itemSize * 0.15,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                              ],
+                            )
+                          : Text(
                               displayText,
                               style: TextStyle(
                                 color: displayColor,
-                                fontSize: itemSize * 0.18,
+                                fontSize: itemSize * 0.2,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
-                            if (displaySubText.isNotEmpty)
-                              Text(
-                                displaySubText,
-                                style: TextStyle(
-                                  color: displayColor,
-                                  fontSize: itemSize * 0.15,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                          ],
-                        )
-                      :
-                        Text(
-                          displayText,
-                          style: TextStyle(
-                            color: displayColor,
-                            fontSize: itemSize * 0.2,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
                     ),
                   ),
               ],
@@ -1258,7 +1269,7 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
       },
     );
   }
-  
+
   // 构建列表网格（2列）
   Widget _buildListGrid() {
     return AppCard(
@@ -1310,8 +1321,8 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
         MaterialPageRoute(
           builder: (context) => SongInfoPage(
             songId: songId.toString(),
-            initialLevelIndex: levelIndex,
-            isDefaultLevelIndex: false,
+            initialLevelIndex:
+                ChartDifficulty.parseStandardIndex(song['level_index']),
           ),
         ),
       ),
@@ -1371,7 +1382,8 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
                       const SizedBox(width: 5),
                       Expanded(
                         child: MarqueeText(
-                          text: song['title']?.toString() ?? '未知歌曲',
+                          text: song['title']?.toString() ??
+                              context.l10n.flowUnknownSong,
                           style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
@@ -1418,7 +1430,9 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
                         fontSize: 18,
                         fontWeight: FontWeight.w700,
                         color: scheme.onSurface)),
-                Text('定数 ${difficulty.toStringAsFixed(1)}',
+                Text(
+                    context.l10n.flowConstantP0(
+                        (difficulty.toStringAsFixed(1)).toString()),
                     style: AppTheme.number(
                         fontSize: 11,
                         fontWeight: FontWeight.w500,
@@ -1473,14 +1487,15 @@ class _ChoiceFilterDialogState extends State<_ChoiceFilterDialog> {
     final scheme = Theme.of(context).colorScheme;
     return AppAlertDialog(
       title: Text(widget.title),
-      subtitle: widget.subtitle ?? '可多选，满足任意一项即可',
+      subtitle: widget.subtitle ??
+          context.l10n.flowSelectMultipleAnySelectedOptionMatches,
       scrollable: true,
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           GuessChoicePill(
-            label: '全部',
+            label: context.l10n.flowAll,
             selected: _selected.isEmpty,
             onTap: () => setState(_selected.clear),
           ),
@@ -1526,7 +1541,7 @@ class _ChoiceFilterDialogState extends State<_ChoiceFilterDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('取消'),
+          child: Text(context.l10n.featureCancel),
         ),
         TextButton(
           onPressed: () {
@@ -1537,7 +1552,7 @@ class _ChoiceFilterDialogState extends State<_ChoiceFilterDialog> {
                   if (_selected.contains(item.value)) item.value,
             ]);
           },
-          child: const Text('确认'),
+          child: Text(context.l10n.flowConfirm),
         ),
       ],
     );
@@ -1605,7 +1620,7 @@ class _RangeFilterDialogState extends State<_RangeFilterDialog> {
         suffixIcon: controller.text.isEmpty
             ? null
             : IconButton(
-                tooltip: '清除$label',
+                tooltip: context.l10n.flowClearP0((label).toString()),
                 icon: const Icon(Icons.clear),
                 onPressed: () => setState(controller.clear),
               ),
@@ -1639,13 +1654,13 @@ class _RangeFilterDialogState extends State<_RangeFilterDialog> {
     );
     return AppAlertDialog(
       title: Text(widget.title),
-      subtitle: '可多选，满足任意一项即可',
+      subtitle: context.l10n.flowSelectMultipleAnySelectedOptionMatches,
       scrollable: true,
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('快捷选项', style: heading),
+          Text(context.l10n.flowQuickOptions, style: heading),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
@@ -1664,13 +1679,17 @@ class _RangeFilterDialogState extends State<_RangeFilterDialog> {
             ],
           ),
           const SizedBox(height: 16),
-          Text('自定义范围', style: heading),
+          Text(context.l10n.flowCustomRange, style: heading),
           const SizedBox(height: 10),
           Row(
             children: [
-              Expanded(child: _field(_minController, '下界', widget.minHint)),
+              Expanded(
+                  child: _field(_minController, context.l10n.flowLowerBound,
+                      widget.minHint)),
               const SizedBox(width: 12),
-              Expanded(child: _field(_maxController, '上界', widget.maxHint)),
+              Expanded(
+                  child: _field(_maxController, context.l10n.flowUpperBound,
+                      widget.maxHint)),
             ],
           ),
           const SizedBox(height: 6),
@@ -1683,9 +1702,9 @@ class _RangeFilterDialogState extends State<_RangeFilterDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('取消'),
+          child: Text(context.l10n.featureCancel),
         ),
-        TextButton(onPressed: _confirm, child: const Text('确认')),
+        TextButton(onPressed: _confirm, child: Text(context.l10n.flowConfirm)),
       ],
     );
   }

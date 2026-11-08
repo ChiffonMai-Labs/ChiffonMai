@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="home_widget_rating_label">Rating</string>
+    <string name="home_widget_status_label">maimai status and sync</string>
+    <string name="home_widget_medium_label">ChiffonMai overview</string>
+    <string name="home_widget_large_label">ChiffonMai details</string>
+    <string name="home_widget_rating_desc">Shows your Rating</string>
+    <string name="home_widget_status_desc">Shows maimai status and automatic sync</string>
+    <string name="home_widget_medium_desc">Rating, maimai status and automatic sync</string>
+    <string name="home_widget_large_desc">Adds source sync results and quick actions</string>
+</resources>

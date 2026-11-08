@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
+import '../utils/AppTheme.dart';
 import '../widgets/AppLauncherIcon.dart';
 
 /// 应用启动加载页：主题底色 + 应用图标 + 应用名称 + 加载动画。
 /// 设计目标：克制、聚焦，把视觉权重留给 Logo。
 class SplashPage extends StatelessWidget {
-  const SplashPage({super.key});
+  final bool showBrand;
+
+  const SplashPage({super.key, this.showBrand = true});
 
   @override
   Widget build(BuildContext context) {
@@ -19,21 +21,25 @@ class SplashPage extends StatelessWidget {
         systemNavigationBarColor: scheme.surface,
       ),
       child: Scaffold(
-      backgroundColor: scheme.surface,
-      body: SafeArea(
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const AppLauncherIcon(size: 108),
-              const SizedBox(height: 28),
-              _buildBrand(scheme),
-              const SizedBox(height: 32),
-              _buildLoading(scheme),
-            ],
+        backgroundColor: scheme.surface,
+        body: SafeArea(
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const AppLauncherIcon(size: 108),
+                const SizedBox(height: 28),
+                // 字体尚未就绪时保留标题位置，避免启动页也出现字体闪换。
+                if (showBrand)
+                  _buildBrand(scheme)
+                else
+                  const SizedBox(height: 40),
+                const SizedBox(height: 32),
+                _buildLoading(scheme),
+              ],
+            ),
           ),
         ),
-      ),
       ),
     );
   }
@@ -41,7 +47,7 @@ class SplashPage extends StatelessWidget {
   Widget _buildBrand(ColorScheme scheme) {
     return Text(
       'ChiffonMai',
-      style: GoogleFonts.poppins(
+      style: AppTheme.font(
         fontSize: 28,
         fontWeight: FontWeight.w800,
         letterSpacing: 1.6,

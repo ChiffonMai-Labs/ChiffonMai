@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
+import '../../utils/ChartDifficulty.dart';
 // ignore: file_names
 import 'package:flutter/material.dart';
 import 'dart:async';
@@ -153,12 +155,12 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
     fontSizeBase = screenWidth * 0.035;
 
     return BackgroundPageScaffold(
-      title: '拟合 Best50',
+      title: context.l10n.featureFittedBest50,
       resizeToAvoidBottomInset: false,
       actionsEndInset: 4,
       actions: [
         Best50IconAction(
-          tooltip: '导出为图片',
+          tooltip: context.l10n.flowExportAsImage,
           icon: Icons.image_outlined,
           onPressed: () async {
             debugPrint('=== DIFF EXPORT BUTTON CLICKED ===');
@@ -179,10 +181,8 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
           // 加载中状态（覆盖层）
           if (_isLoading)
             Container(
-              color: Theme.of(context)
-                  .colorScheme
-                  .surface
-                  .withValues(alpha: 0.9),
+              color:
+                  Theme.of(context).colorScheme.surface.withValues(alpha: 0.9),
               child: Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -191,7 +191,7 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
                         color: Theme.of(context).colorScheme.onSurface),
                     SizedBox(height: 16),
                     Text(
-                      '正在计算拟合Best50...',
+                      context.l10n.flowCalculatingFittedBest50,
                       style: TextStyle(
                         color: Theme.of(context).colorScheme.onSurface,
                         fontSize: 16,
@@ -224,7 +224,7 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
             ),
             SizedBox(height: 16),
             Text(
-              '暂无拟合Best50数据',
+              context.l10n.flowNoFittedBest50DataYet,
               style: TextStyle(
                 fontSize: 18,
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -232,7 +232,7 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
             ),
             SizedBox(height: 8),
             Text(
-              '请返回首页点击"刷新数据"按钮获取',
+              context.l10n.flowReturnHomeAndTapRefreshData,
               style: TextStyle(
                 fontSize: 14,
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -267,8 +267,9 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
             ],
             remaining: [
               for (final s in (_diffBest50Data?[_currentMode == 0
-                      ? 'remaining'
-                      : (_segment == 0 ? 'sdRemaining' : 'dxRemaining')] as List?) ??
+                          ? 'remaining'
+                          : (_segment == 0 ? 'sdRemaining' : 'dxRemaining')]
+                      as List?) ??
                   const [])
                 _cardData(Map<String, dynamic>.from(s as Map))
             ],
@@ -311,10 +312,10 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
     }).length;
 
     final ratingBrightness = Theme.of(context).brightness;
-    const modeNotes = [
-      '模式A：不分类Best35和Best15，直接获取拟合定数下的Rating前50的谱面',
-      '模式B：将您的Best35和Best15中的所有谱面的定数都替换为其拟合定数，然后计算Rating并降序排序',
-      '模式C：在非当前版本中取拟合定数下的Rating前35的谱面，在当前版本中取拟合定数下Rating前15的谱面',
+    final modeNotes = [
+      context.l10n.flowModeATakeTheTop50Charts,
+      context.l10n.flowModeBReplaceConstantsInYourOfficial,
+      context.l10n.flowModeCTakeTheTop35Older,
     ];
     int sumOf(List<dynamic> list) =>
         list.fold<int>(0, (sum, s) => sum + _toInt(s['diffRating']));
@@ -323,21 +324,26 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
     final split = _currentMode != 0;
     final segmentSongs = _segment == 0 ? _diffSdSongs : _diffDxSongs;
     final segmentName = _segment == 0
-        ? (_currentMode == 1 ? '非当前版本最好成绩' : '非当前版本前 35')
-        : (_currentMode == 1 ? '当前版本最好成绩' : '当前版本前 15');
+        ? (_currentMode == 1
+            ? context.l10n.flowBestScoresFromOlderVersions
+            : context.l10n.flowTop35FromOlderVersions)
+        : (_currentMode == 1
+            ? context.l10n.flowBestScoresFromThisVersion
+            : context.l10n.flowTop15FromThisVersion);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Best50Hero(
           total: diffRatingSum,
-          label:
-              '拟合总 Rating · 较 Best50（平均 ${diffRatingAverage.toStringAsFixed(1)}）',
+          label: context.l10n.flowFittedTotalRatingDifferenceFromBest50Average(
+              (diffRatingAverage.toStringAsFixed(1)).toString()),
           delta: best50Diff,
           best35Sum: split ? b35 : null,
           best15Sum: split ? b15 : null,
           trailing: Best50ActionPill(
             icon: Icons.tune_rounded,
-            label: '模式 ${['A', 'B', 'C'][_currentMode]}',
+            label: context.l10n
+                .flowModeP0((['A', 'B', 'C'][_currentMode]).toString()),
             onTap: _toggleMode,
           ),
         ),
@@ -353,14 +359,16 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
             onChanged: (i) => setState(() => _segment = i),
           ),
           const SizedBox(height: 8),
-          Best50MetaLine(best50MetaText(segmentName,
-              segmentSongs.map((s) => _toInt(s['diffRating'])))),
+          Best50MetaLine(best50MetaText(
+              segmentName, segmentSongs.map((s) => _toInt(s['diffRating'])))),
           const SizedBox(height: 4),
         ],
         Best50MetaLine(modeNotes[_currentMode]),
         if (noFitDiffCount > 0) ...[
           const SizedBox(height: 4),
-          Best50MetaLine('$noFitDiffCount首暂无拟合定数，按照官方定数计算',
+          Best50MetaLine(
+              context.l10n.flowP0ChartsHaveNoFittedConstantOfficial(
+                  (noFitDiffCount).toString()),
               color: AppColors.warningOrange(ratingBrightness)),
         ],
         const SizedBox(height: AppDesignTokens.cardGap),
@@ -380,19 +388,15 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
   // 字号按卡片**实际**宽度自适应（`scale: autoScale`）。
   // 注：原 useOfficialDiff（黄星标记）已废弃，统一不在卡片中显示。
 
-
   // 构建小数文本，整数部分字号大，小数部分和百分号字号小且底部对齐
 
   // 构建双小数文本，如 "100.1234/97.54"
 
   // 构建数据驱动的卡片网格
 
-
   // 根据数据构建游戏卡片
 
-
   // 根据level_index获取卡片颜色
-
 
   int _toInt(dynamic value) {
     if (value is int) return value;
@@ -451,14 +455,13 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
 
   // 构建导出按钮
 
-
   Best50CardData _cardData(Map<String, dynamic> songData) {
     final score = _toInt(songData['dxScore']);
     final levelIndex = _toInt(songData['level_index']);
     final songId = _toInt(songData['song_id']);
     return Best50CardData(
       songId: songId,
-      title: songData['title']?.toString() ?? '未知歌曲',
+      title: songData['title']?.toString() ?? context.l10n.flowUnknownSong,
       levelIndex: levelIndex,
       type: songData['type']?.toString() ?? '',
       rating: _toInt(songData['diffRating']),
@@ -476,8 +479,8 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
         MaterialPageRoute(
           builder: (context) => SongInfoPage(
             songId: songId.toString(),
-            initialLevelIndex: levelIndex,
-            isDefaultLevelIndex: false,
+            initialLevelIndex:
+                ChartDifficulty.parseStandardIndex(songData['level_index']),
           ),
         ),
       ),
@@ -545,7 +548,10 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
       // 先请求存储权限
       bool hasPermission = await _requestStoragePermission();
       if (!hasPermission) {
-        showAppNoticeDialog(context, title: '权限不足', message: '需要存储权限才能导出图片到相册，请在设置中开启权限', tone: AppDialogTone.warning);
+        showAppNoticeDialog(context,
+            title: context.l10n.flowPermissionRequired,
+            message: context.l10n.flowStoragePermissionIsRequiredToExportImages,
+            tone: AppDialogTone.warning);
         return;
       }
 
@@ -553,7 +559,7 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
       final quality = await ExportQualitySelector.show(
         context,
         estimatedPngSize: ImageEncodeUtil.estimatePngSize(songCount: 50),
-        exportingLabel: '拟合 Best50',
+        exportingLabel: context.l10n.featureFittedBest50,
         enableThunderMode: true,
         previewBuilder: (previewContext, previewQuality) =>
             DiffBest50ConvertToImg.buildPreviewWidget(
@@ -569,24 +575,24 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
       );
       if (quality == null) return;
 
-
       // 调用导出方法
       BackgroundExport.run(
-        label: '拟合 Best50',
+        label: context.l10n.featureFittedBest50,
         task: (exportContext) => DiffBest50ConvertToImg.convertToImage(
           exportContext,
-        _diffBest50Data,
-        _diffSongs,
-        _maimaiMusicData,
-        currentMode: _currentMode,
-        jpegQuality: quality.jpegQuality,
-        theme: quality.theme,
-        thunderMode: quality.thunderMode,
-        thunderVertical: quality.thunderVertical,
-      ),
+          _diffBest50Data,
+          _diffSongs,
+          _maimaiMusicData,
+          currentMode: _currentMode,
+          jpegQuality: quality.jpegQuality,
+          theme: quality.theme,
+          thunderMode: quality.thunderMode,
+          thunderVertical: quality.thunderVertical,
+        ),
       );
     } catch (e) {
-      AppToast.show('导出失败：$e');
+      AppToast.show(context.l10n.flowExportFailedP02((e).toString()),
+          tone: AppToastTone.error);
     }
   }
 }

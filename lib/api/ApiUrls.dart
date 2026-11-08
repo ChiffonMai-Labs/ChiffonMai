@@ -20,6 +20,10 @@ class ApiUrls {
   static const String MaintainerAvatarUrl =
       '$BackendBaseUrl/api/about/maintainer-avatar';
 
+  /// 收藏品图片缓存代理，只接收 icon / plate / frame 和收藏品 ID。
+  static const String CollectionAssetsUrl =
+      '$BackendBaseUrl/api/collection-assets';
+
   /// 关于页头像代理（白名单 key，如 `rinviolet` / `dilaxiong` / `redapple_one`）。
   ///
   /// QQ 号、抓取限频和磁盘缓存都在后端维护，客户端只传 key，不要自己拼 QQ 号去访问腾讯接口。
@@ -279,6 +283,7 @@ class ApiUrls {
       '$BiliRedisBaseUrl/reference-duration';
   static const String RefDurationSaveUrl =
       '$BiliRedisBaseUrl/reference-duration';
+  static const String SongDurationUrl = '$BackendBaseUrl/api/song-duration';
 
   // 谱面评分 API 地址（自家后端）
   static const String RatingsBaseUrl = 'https://chiffonmai.cloud/api/ratings';

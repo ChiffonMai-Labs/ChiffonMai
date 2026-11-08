@@ -1,3 +1,4 @@
+import '../l10n/AppMessages.dart';
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
@@ -84,14 +85,14 @@ class SyncRouteNotifier extends ChangeNotifier {
 
   /// 数据新鲜度的可读文案，例如「刚刚 / 12 秒前 / 3 分钟前」。
   String get statsAgeText {
-    if (_statsUpdatedAtMs <= 0) return '尚未更新';
+    if (_statsUpdatedAtMs <= 0) return appL10n.flowStatsNotUpdated;
     final seconds =
         (DateTime.now().millisecondsSinceEpoch - _statsUpdatedAtMs) ~/ 1000;
-    if (seconds < 5) return '刚刚更新';
-    if (seconds < 60) return '$seconds 秒前更新';
+    if (seconds < 5) return appL10n.flowStatsJustUpdated;
+    if (seconds < 60) return appL10n.flowStatsSecondsAgo(seconds.toString());
     final minutes = seconds ~/ 60;
-    if (minutes < 60) return '$minutes 分钟前更新';
-    return '${minutes ~/ 60} 小时前更新';
+    if (minutes < 60) return appL10n.flowStatsMinutesAgo(minutes.toString());
+    return appL10n.flowStatsHoursAgo((minutes ~/ 60).toString());
   }
 
   /// 仅供测试：轮询是否正在跑。

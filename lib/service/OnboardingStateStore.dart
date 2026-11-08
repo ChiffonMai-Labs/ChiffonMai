@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// 首次使用引导的版本化显示状态。
@@ -33,7 +34,7 @@ class OnboardingStateStore {
     required DateTime agreedAt,
     bool guardianConsent = false,
   }) async {
-    if (!accepted) throw StateError('请先阅读并同意用户协议和隐私政策');
+    if (!accepted) throw StateError(appL10n.svcReadAndAcceptTheUserAgreementAnd);
     final prefs = await SharedPreferences.getInstance();
     final saved = await Future.wait([
       prefs.setString(_agreementVersionKey, agreementVersion),
@@ -42,7 +43,7 @@ class OnboardingStateStore {
     ]);
     if (saved.any((value) => !value) ||
         !await prefs.setInt(_completedVersionKey, currentVersion)) {
-      throw StateError('无法保存引导确认记录，请重试');
+      throw StateError(appL10n.svcCouldNotSaveTheOnboardingConfirmationTry);
     }
   }
 

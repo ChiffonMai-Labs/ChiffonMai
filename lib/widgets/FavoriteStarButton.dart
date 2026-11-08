@@ -1,3 +1,4 @@
+import '../l10n/FeatureLocalizations.dart';
 import 'package:flutter/material.dart';
 
 /// 星标按钮：仅 UI，点击行为由父组件通过 onTap 控制。
@@ -90,7 +91,7 @@ class _FavoriteStarButtonState extends State<FavoriteStarButton>
         child: Padding(
           padding: const EdgeInsets.all(6),
           child: Semantics(
-            label: widget.isFavorited ? '取消收藏' : '收藏功能',
+            label: context.featureText(widget.isFavorited ? '取消收藏' : '收藏功能'),
             toggled: widget.isFavorited,
             child: AnimatedBuilder(
               animation: _controller,

@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'dart:convert';
 import 'dart:io';
 
@@ -29,7 +30,7 @@ class UserFileBackupService {
           FileSystemEntityType.file) return;
       bytes += await file.length();
       if (bytes > 35 * 1024 * 1024)
-        throw StateError('用户文件超过备份容量上限，请先精简自定义谱面归档后重试');
+        throw StateError(appL10n.svcUserFilesExceedTheBackupSizeLimit);
       files[key] = {
         'content': base64Encode(await file.readAsBytes()),
         'originalPath': file.path
@@ -56,14 +57,14 @@ class UserFileBackupService {
   /// 所有路径与内容都在落盘前校验，备份不能指定任意绝对目标路径。
   static Future<UserFileRestore> prepare(Object? raw,
       {required bool clearFirst}) async {
-    if (raw is! Map) throw const FormatException('备份的用户文件格式无效');
+    if (raw is! Map) throw FormatException(appL10n.svcTheUserFilesInTheBackupHave);
     final roots = await _roots();
     final targets = <File, List<int>>{};
     final replacements = <String, String>{};
     var bytes = 0;
     for (final entry in raw.entries) {
       if (entry.key is! String || entry.value is! Map)
-        throw const FormatException('用户文件条目无效');
+        throw FormatException(appL10n.svcInvalidUserFileEntry);
       final parts = (entry.key as String).split('/');
       if (parts.length != 2 ||
           !roots.containsKey(parts[0]) ||
@@ -72,22 +73,22 @@ class UserFileBackupService {
           parts[1].contains('\\') ||
           parts[1].contains(':') ||
           parts[0] == 'history' && !parts[1].endsWith('.json')) {
-        throw const FormatException('用户文件路径无效');
+        throw FormatException(appL10n.svcInvalidUserFilePath);
       }
       final value = entry.value as Map;
       if (value['content'] is! String || value['originalPath'] is! String)
-        throw const FormatException('用户文件内容无效');
+        throw FormatException(appL10n.svcInvalidUserFileContent);
       final content = base64Decode(value['content'] as String);
       bytes += content.length;
-      if (bytes > 35 * 1024 * 1024) throw const FormatException('用户文件超过备份容量上限');
+      if (bytes > 35 * 1024 * 1024) throw FormatException(appL10n.svcUserFilesExceedTheBackupSizeLimit2);
       if (parts[0] == 'history') jsonDecode(utf8.decode(content));
       final root = roots[parts[0]]!;
       if (await FileSystemEntity.type(root.path, followLinks: false) ==
           FileSystemEntityType.link)
-        throw const FormatException('用户文件目录不能是符号链接');
+        throw FormatException(appL10n.svcTheUserFileFolderCannotBeA);
       final file = File('${root.path}/${parts[1]}');
       if (await FileSystemEntity.type(file.path, followLinks: false) ==
-          FileSystemEntityType.link) throw const FormatException('用户文件不能是符号链接');
+          FileSystemEntityType.link) throw FormatException(appL10n.svcUserFilesCannotBeSymbolicLinks);
       targets[file] = content;
       replacements[value['originalPath'] as String] = file.path;
     }

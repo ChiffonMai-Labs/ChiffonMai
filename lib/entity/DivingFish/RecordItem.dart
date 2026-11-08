@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import '../../utils/SongFilterUtil.dart';
 
 class RecordItem {
@@ -65,7 +66,7 @@ class RecordItem {
       ra: SongFilterUtil.isUtageSong(songId.toString()) ? 0 : (json['ra'] ?? 0),
       rate: json['rate'] ?? '',
       songId: songId,
-      title: json['title'] ?? '未知歌曲',
+      title: json['title'] ?? appL10n.flowUnknownSong,
       type: json['type'] ?? '',
     );
   }

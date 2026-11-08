@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import '../api/ApiUrls.dart';
@@ -66,7 +68,8 @@ class _RecentCommentsPageState extends State<RecentCommentsPage> {
     });
 
     try {
-      final url = '${ApiUrls.CommentsRecentUrl}?page=$_currentPage&pageSize=$_pageSize${refresh ? '&refresh=true' : ''}';
+      final url =
+          '${ApiUrls.CommentsRecentUrl}?page=$_currentPage&pageSize=$_pageSize${refresh ? '&refresh=true' : ''}';
       final response = await ApiClient.get(Uri.parse(url));
 
       if (response.statusCode == 200) {
@@ -79,19 +82,20 @@ class _RecentCommentsPageState extends State<RecentCommentsPage> {
           });
         } else {
           setState(() {
-            _errorMessage = result['error'] ?? '加载失败';
+            _errorMessage = result['error'] ?? appL10n.flowCouldNotLoad;
             _isLoading = false;
           });
         }
       } else {
         setState(() {
-          _errorMessage = '请求失败 (${response.statusCode})';
+          _errorMessage =
+              appL10n.flowRequestFailedP0((response.statusCode).toString());
           _isLoading = false;
         });
       }
     } catch (e) {
       setState(() {
-        _errorMessage = '网络错误: $e';
+        _errorMessage = appL10n.flowNetworkErrorP0((e).toString());
         _isLoading = false;
       });
     }
@@ -115,23 +119,27 @@ class _RecentCommentsPageState extends State<RecentCommentsPage> {
       final dt = DateTime.parse(timestamp);
       final now = DateTime.now();
       final diff = now.difference(dt);
-      if (diff.inMinutes < 1) return '刚刚';
-      if (diff.inMinutes < 60) return '${diff.inMinutes}分钟前';
-      if (diff.inHours < 24) return '${diff.inHours}小时前';
-      if (diff.inDays < 7) return '${diff.inDays}天前';
+      if (diff.inMinutes < 1) return context.l10n.flowJustNow;
+      if (diff.inMinutes < 60)
+        return context.l10n.flowP0MinutesAgo2((diff.inMinutes).toString());
+      if (diff.inHours < 24)
+        return context.l10n.flowP0HoursAgo2((diff.inHours).toString());
+      if (diff.inDays < 7)
+        return context.l10n.flowP0DaysAgo2((diff.inDays).toString());
       return '${dt.month}/${dt.day} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
     } catch (_) {
       return timestamp;
     }
   }
+
   void _navigateToSong(String songId, int? levelIndex) {
+    FocusManager.instance.primaryFocus?.unfocus();
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => SongInfoPage(
           songId: songId,
-          initialLevelIndex: levelIndex ?? 0,
-          isDefaultLevelIndex: levelIndex == null,
+          initialLevelIndex: levelIndex,
         ),
       ),
     );
@@ -142,13 +150,13 @@ class _RecentCommentsPageState extends State<RecentCommentsPage> {
     final brightness = Theme.of(context).brightness;
     final Color textPrimaryColor = Theme.of(context).colorScheme.onSurface;
     return BackgroundPageScaffold(
-      title: '最近评论',
+      title: context.l10n.featureRecentComments,
       actions: [
-  IconButton(
-                        icon: Icon(Icons.refresh, color: textPrimaryColor),
-                        onPressed: _isLoading ? null : _refresh,
-                      ),
-],
+        IconButton(
+          icon: Icon(Icons.refresh, color: textPrimaryColor),
+          onPressed: _isLoading ? null : _refresh,
+        ),
+      ],
       resizeToAvoidBottomInset: false,
       contentPadding: EdgeInsets.only(
         bottom: MediaQuery.paddingOf(context).bottom,
@@ -174,14 +182,17 @@ class _RecentCommentsPageState extends State<RecentCommentsPage> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.error_outline, size: 48, color: AppColors.errorRed(brightness)),
+          Icon(Icons.error_outline,
+              size: 48, color: AppColors.errorRed(brightness)),
           const SizedBox(height: 12),
           Text(
             _errorMessage!,
-            style: TextStyle(color: AppColors.errorRed(brightness), fontSize: 14),
+            style:
+                TextStyle(color: AppColors.errorRed(brightness), fontSize: 14),
           ),
           const SizedBox(height: 12),
-          ElevatedButton(onPressed: _refresh, child: const Text('重试')),
+          ElevatedButton(
+              onPressed: _refresh, child: Text(context.l10n.flowRetry)),
         ],
       ),
     );
@@ -192,11 +203,13 @@ class _RecentCommentsPageState extends State<RecentCommentsPage> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.comment_outlined, size: 56, color: AppColors.greyHint(brightness)),
+          Icon(Icons.comment_outlined,
+              size: 56, color: AppColors.greyHint(brightness)),
           const SizedBox(height: 12),
           Text(
-            '暂无评论',
-            style: TextStyle(color: AppColors.greyHint(brightness), fontSize: 16),
+            context.l10n.flowNoCommentsYet,
+            style:
+                TextStyle(color: AppColors.greyHint(brightness), fontSize: 16),
           ),
         ],
       ),
@@ -238,7 +251,7 @@ class _RecentCommentsPageState extends State<RecentCommentsPage> {
     final scheme = Theme.of(context).colorScheme;
     final songId = comment.songId;
     final song = _getSong(songId);
-    final levelIndex = comment.levelIndex ?? 0;
+    final levelIndex = comment.levelIndex;
 
     return AppCard(
       radius: AppDesignTokens.radiusMedium,
@@ -275,8 +288,9 @@ class _RecentCommentsPageState extends State<RecentCommentsPage> {
                           SongTypeBadge(songId: songId, type: song.type),
                           const SizedBox(width: 4),
                         ],
-                        ChartDifficultyBadge(
-                            levelIndex: levelIndex, songId: songId),
+                        if (levelIndex != null)
+                          ChartDifficultyBadge(
+                              levelIndex: levelIndex, songId: songId),
                       ],
                     ),
                   ],

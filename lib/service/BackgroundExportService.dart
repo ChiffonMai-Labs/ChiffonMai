@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -6,6 +7,8 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../widgets/AppToast.dart';
 import '../widgets/ExportSuccessDialog.dart';
+import '../utils/AppTaskActivity.dart';
+import '../utils/ExportDiagnostics.dart';
 
 /// 在后台导出图片：不弹阻塞对话框，用户可以继续操作甚至离开页面，结束后在顶部提示。
 ///
@@ -29,33 +32,56 @@ class BackgroundExport {
     required String label,
     required Future<File?> Function(BuildContext context) task,
   }) {
-    AppToast.show('正在后台导出$label，可以继续其它操作',
+    AppToast.show(
+        appL10n.flowExportingP0InTheBackgroundYouCan((label).toString()),
         tone: AppToastTone.info);
-    _queue = _queue.then((_) => _runOne(label, task));
+    final finish = AppTaskActivity.begin();
+    final queued = Stopwatch()..start();
+    debugPrint('[ExportQueue] 图片导出入队：$label');
+    _queue = _queue
+        .then((_) => ExportDiagnostics.run(label, (log) {
+              log.note('开始执行，排队耗时=${queued.elapsedMilliseconds}ms');
+              return _runOne(label, task, log);
+            }))
+        .whenComplete(finish);
   }
 
   /// 导出可能在用户切走后才结束，再发一条系统通知。通知发不出去不影响导出结果。
-  static Future<void> _notifySystem(String label) async {
-    if (!Platform.isAndroid) return;
+  static Future<void> _notifySystem(String label, ExportDiagnostics log) async {
+    if (!Platform.isAndroid) {
+      log.note('非Android平台，跳过系统导出通知');
+      return;
+    }
     try {
-      final status = await Permission.notification.status;
-      if (status.isDenied) await Permission.notification.request();
-      await _notificationChannel.invokeMethod<void>('notifyExportDone', {
-        'title': '$label导出成功',
-        'text': '图片已保存，点按回到 ChiffonMai',
-      });
-    } catch (error) {
-      debugPrint('发送导出通知失败: $error');
+      final status =
+          await log.step('查询通知权限', () => Permission.notification.status);
+      log.note('当前通知权限=$status');
+      if (status.isDenied) {
+        final requested =
+            await log.step('请求通知权限', () => Permission.notification.request());
+        log.note('请求后通知权限=$requested');
+      }
+      await log.step(
+          '发送系统导出通知',
+          () => _notificationChannel.invokeMethod<void>('notifyExportDone', {
+                'title': appL10n.flowP0Exported(label.toString()),
+                'text': appL10n.flowImageSavedTapToReturnToChiffonMai,
+              }));
+    } catch (error, stack) {
+      log.note('发送导出通知失败，继续显示完成提示：$error\n$stack');
     }
   }
 
   static Future<void> _runOne(
     String label,
     Future<File?> Function(BuildContext context) task,
+    ExportDiagnostics log,
   ) async {
     final overlay = navigatorKey.currentState?.overlay;
     if (overlay == null) {
-      AppToast.show('$label导出失败，请重试', tone: AppToastTone.error);
+      log.note('导出取消：根Overlay不可用');
+      AppToast.show(appL10n.flowCouldNotExportP0PleaseRetry((label).toString()),
+          tone: AppToastTone.error);
       return;
     }
     // 在 Overlay 里面取一个 context，导出服务要从它往上找 Overlay。
@@ -65,23 +91,29 @@ class BackgroundExport {
       return const SizedBox.shrink();
     });
     overlay.insert(anchor);
+    log.note('导出上下文Overlay已挂载');
     try {
-      await WidgetsBinding.instance.endOfFrame;
+      await log.step('等待导出上下文首帧', () => WidgetsBinding.instance.endOfFrame);
       final context = taskContext;
       if (context == null || !context.mounted) {
-        throw StateError('导出画布未就绪');
+        throw StateError(appL10n.svcTheExportCanvasIsNotReady);
       }
-      final file = await task(context);
+      final file = await log.step('生成并保存图片', () => task(context));
       if (file == null) {
-        AppToast.show('$label导出失败，请检查存储权限后重试',
+        log.note('导出失败：生成服务返回空文件');
+        AppToast.show(
+            appL10n
+                .flowCouldNotExportP0CheckStoragePermission((label).toString()),
             tone: AppToastTone.error);
         return;
       }
-      await _notifySystem(label);
+      log.note('生成服务已返回文件：${file.path}');
+      await _notifySystem(label, log);
+      log.note('开始显示应用内导出完成提示');
       AppToast.show(
-        '$label导出成功',
+        appL10n.flowP0Exported((label).toString()),
         tone: AppToastTone.success,
-        actionLabel: '查看',
+        actionLabel: appL10n.flowView,
         duration: const Duration(seconds: 6),
         onAction: () {
           final current = navigatorKey.currentState?.overlay?.context;
@@ -95,11 +127,17 @@ class BackgroundExport {
           );
         },
       );
-    } catch (error) {
-      debugPrint('后台导出失败（$label）: $error');
-      AppToast.show('$label导出失败：$error', tone: AppToastTone.error);
+      log.note('应用内导出完成提示已提交');
+    } catch (error, stack) {
+      log.note('后台导出失败：$error\n$stack');
+      AppToast.show(
+          appL10n.flowCouldNotExportP0P1(
+              (label).toString(), (error).toString()),
+          tone: AppToastTone.error);
     } finally {
+      log.note('开始移除导出上下文Overlay');
       anchor.remove();
+      log.note('导出上下文Overlay已移除');
     }
   }
 }

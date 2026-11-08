@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -142,11 +143,11 @@ class MaimaiMusicDataManager {
 
       // 网络请求与两份大 JSON 的 isolate 解析都并行执行。
       final responses = await Future.wait<http.Response?>([
-        _fetchMusicSource(_apiUrl, '水鱼'),
+        _fetchMusicSource(_apiUrl, appL10n.featureFish),
         _fetchMusicSource(_unionApiUrl, 'Union'),
       ]);
       final parsed = await Future.wait<List<Song>?>([
-        _parseMusicSource(responses[0], '水鱼'),
+        _parseMusicSource(responses[0], appL10n.featureFish),
         _parseMusicSource(responses[1], 'Union'),
       ]);
       final dfSongs = parsed[0];

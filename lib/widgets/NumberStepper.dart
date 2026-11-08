@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -25,7 +26,7 @@ class NumberStepper extends StatelessWidget {
   Widget build(BuildContext context) =>
       Row(mainAxisSize: MainAxisSize.min, children: [
         IconButton(
-            tooltip: '减少数量',
+            tooltip: context.l10n.flowDecreaseCount2,
             onPressed: onChanged == null || value <= minimum
                 ? null
                 : () => onChanged!(value - 1),
@@ -55,7 +56,7 @@ class NumberStepper extends StatelessWidget {
                 ),
         ),
         IconButton(
-            tooltip: '增加数量',
+            tooltip: context.l10n.flowIncreaseCount2,
             onPressed:
                 onChanged == null || (maximum != null && value >= maximum!)
                     ? null

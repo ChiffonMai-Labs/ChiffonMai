@@ -103,6 +103,13 @@ abstract final class ChartDifficulty {
   };
 
   static bool isStandard(int index) => index >= basic && index <= reMaster;
+  /// 外部记录中的实际谱面索引；缺失、ALL 等占位值不得伪装成 BASIC。
+  static int? parseStandardIndex(Object? value) {
+    final index = value is num
+        ? (value.isFinite && value == value.toInt() ? value.toInt() : null)
+        : int.tryParse(value?.toString() ?? '');
+    return index != null && isStandard(index) ? index : null;
+  }
   static bool isValid(int index) => index >= basic && index <= utage;
 
   static bool isUtageSong(Object? songId, {String? type}) =>

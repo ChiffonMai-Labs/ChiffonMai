@@ -77,7 +77,7 @@
                 android:padding="6dp"
                 android:scaleType="fitCenter"
                 android:src="@drawable/portable_ic_prev"
-                android:contentDescription="上一首" />
+                android:contentDescription="@string/native_text_76" />
 
             <ImageView
                 android:id="@+id/portable_play"
@@ -86,7 +86,7 @@
                 android:layout_marginStart="14dp"
                 android:scaleType="fitCenter"
                 android:src="@drawable/portable_ic_play"
-                android:contentDescription="播放/暂停" />
+                android:contentDescription="@string/native_text_77" />
 
             <ImageView
                 android:id="@+id/portable_next"
@@ -96,7 +96,7 @@
                 android:padding="6dp"
                 android:scaleType="fitCenter"
                 android:src="@drawable/portable_ic_next"
-                android:contentDescription="下一首" />
+                android:contentDescription="@string/native_text_78" />
         </LinearLayout>
     </LinearLayout>
 </LinearLayout>

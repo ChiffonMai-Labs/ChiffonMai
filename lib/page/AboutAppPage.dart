@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/FeatureLocalizations.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/services.dart';
@@ -152,7 +154,7 @@ class _AboutAppPageState extends State<AboutAppPage> {
     } catch (e) {
       debugPrint('[AboutAppPage] 打开链接失败: $e');
     }
-    AppToast.show('无法打开链接：$url');
+    AppToast.show(context.l10n.flowCouldNotOpenLinkP0((url).toString()), tone: AppToastTone.error);
   }
 
   /// 邮箱优先走邮件客户端；没有可用客户端时退回「复制到剪贴板」，
@@ -167,7 +169,7 @@ class _AboutAppPageState extends State<AboutAppPage> {
       debugPrint('[AboutAppPage] 打开邮件客户端失败: $e');
     }
     await Clipboard.setData(const ClipboardData(text: _email));
-    AppToast.show('邮箱已复制到剪贴板');
+    AppToast.show(context.l10n.flowEmailAddressCopied);
   }
 
   @override
@@ -186,8 +188,8 @@ class _AboutAppPageState extends State<AboutAppPage> {
           CommonWidgetUtil.buildCommonChiffonBgWidget(context),
           Column(
             children: [
-              const AppHeader(
-                title: '关于 APP',
+               AppHeader(
+                title: context.l10n.featureAboutTheApp,
                 barBackground: Colors.transparent,
               ),
               Expanded(
@@ -217,45 +219,45 @@ class _AboutAppPageState extends State<AboutAppPage> {
                                             ? Icons.description_outlined
                                             : Icons.privacy_tip_outlined,
                                         size: 18),
-                                    label: Text(document.title),
+                                    label: Text(context.featureText(document.title)),
                                   ),
                               ],
                             ),
                             const SizedBox(height: 36),
-                            _buildSectionTitle('维护者', 'ChiffonMai 背后的开发者。'),
+                            _buildSectionTitle(context.l10n.flowMaintainer, context.l10n.flowTheDeveloperBehindChiffonMai),
                             _buildDeveloperSection(),
                             const SizedBox(height: 32),
-                            _buildSectionTitle('特别致谢', '感谢每一位给予帮助的伙伴，排名不分先后。'),
+                            _buildSectionTitle(context.l10n.flowSpecialThanks, context.l10n.flowThanksToEveryoneWhoHelpedInNo),
                             _buildCreditGroup(
-                              title: '创作与支持',
+                              title: context.l10n.flowCreationAndSupport,
                               icon: Icons.favorite_outline_rounded,
                               credits: _creativeCredits,
                               personal: true,
                             ),
                             const SizedBox(height: 24),
                             _buildCreditGroup(
-                              title: '捐献致谢',
+                              title: context.l10n.flowSupporterAcknowledgments,
                               icon: Icons.volunteer_activism_outlined,
                               credits: _donationCredits,
                               personal: true,
                             ),
                             const SizedBox(height: 24),
                             _buildCreditGroup(
-                              title: '数据与服务',
+                              title: context.l10n.flowDataAndServices,
                               icon: Icons.hub_outlined,
                               credits: _dataCredits,
                               personal: false,
                             ),
                             const SizedBox(height: 24),
                             _buildCreditGroup(
-                              title: '设计思路借鉴',
+                              title: context.l10n.flowDesignInspiration,
                               icon: Icons.lightbulb_outline_rounded,
                               credits: _designCredits,
                               personal: false,
                             ),
                             const SizedBox(height: 28),
                             Text(
-                              '感谢每一份支持，让 ChiffonMai 不断成长。',
+                              context.l10n.flowThankYouForEveryContributionThatHelps,
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 fontSize: 12,
@@ -302,7 +304,7 @@ class _AboutAppPageState extends State<AboutAppPage> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '陪伴每一次舞萌出勤',
+                    context.l10n.flowHereForEveryMaimaiVisit,
                     style:
                         TextStyle(fontSize: 14, color: scheme.onSurfaceVariant),
                   ),
@@ -319,7 +321,7 @@ class _AboutAppPageState extends State<AboutAppPage> {
             borderRadius: BorderRadius.circular(24),
           ),
           child: Text(
-            _version.isEmpty ? '版本读取中…' : '版本 $_version',
+            _version.isEmpty ? context.l10n.flowReadingVersion : context.l10n.flowVersionP02((_version).toString()),
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w700,
@@ -329,13 +331,13 @@ class _AboutAppPageState extends State<AboutAppPage> {
         ),
         const SizedBox(height: 16),
         Text(
-          _intro,
+          context.featureText(_intro),
           style:
               TextStyle(fontSize: 13.5, height: 1.7, color: scheme.onSurface),
         ),
         const SizedBox(height: 12),
         SelectableText(
-          'APP备案号：津ICP备2024015256号-3A',
+          context.l10n.flowAppRegistrationICP20240152563A,
           style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
         ),
       ],
@@ -409,18 +411,18 @@ class _AboutAppPageState extends State<AboutAppPage> {
                         color: scheme.onSecondaryContainer,
                       )),
                   const SizedBox(height: 3),
-                  Text('开发与维护',
+                  Text(context.l10n.flowDevelopmentAndMaintenance,
                       style: TextStyle(
                           fontSize: 13, color: scheme.onSecondaryContainer)),
                 ])),
           ]),
           const SizedBox(height: 14),
           Wrap(spacing: 8, runSpacing: 8, children: [
-            _buildContactButton(Icons.play_circle_outline_rounded, 'B 站',
+            _buildContactButton(Icons.play_circle_outline_rounded, context.l10n.flowBilibili,
                 () => _openUrl(_bilibiliUrl)),
             _buildContactButton(
                 FontAwesomeIcons.github, 'GitHub', () => _openUrl(_githubUrl)),
-            _buildContactButton(Icons.email_outlined, '邮箱', _openEmail),
+            _buildContactButton(Icons.email_outlined, context.l10n.flowEmail, _openEmail),
           ]),
           const SizedBox(height: 8),
           SelectableText(_email,
@@ -515,7 +517,7 @@ class _AboutAppPageState extends State<AboutAppPage> {
                         color: scheme.onSecondaryContainer,
                       )),
                   const SizedBox(height: 5),
-                  Text(credit.desc,
+                  Text(context.featureText(credit.desc),
                       style: TextStyle(
                         fontSize: 12.5,
                         height: 1.5,

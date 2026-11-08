@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../utils/AppTheme.dart';
@@ -23,7 +24,7 @@ class _SupportDeveloperPageState extends State<SupportDeveloperPage> {
 
   Future<void> _downloadCode() async {
     if (!await ExportPathUtil.prepareForExport(context,
-        subDir: '图片', title: '选择赞赏码保存位置')) {
+        subDir: '图片', title: context.l10n.flowChooseWhereToSaveTheSupportQR)) {
       return;
     }
     setState(() => _saving = true);
@@ -40,7 +41,7 @@ class _SupportDeveloperPageState extends State<SupportDeveloperPage> {
       await showDialog<void>(
           context: context,
           builder: (ctx) => AppAlertDialog(
-                  title: const Text('赞赏码已保存'),
+                  title:  Text(context.l10n.flowSupportQRCodeSaved),
                   content: Column(
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -48,7 +49,7 @@ class _SupportDeveloperPageState extends State<SupportDeveloperPage> {
                         SelectableText(file.path),
                         if (fallback != null) ...[
                           const SizedBox(height: 12),
-                          Text('公开目录不可写，已保存到应用文档目录。可通过分享或应用文件访问。',
+                          Text(context.l10n.flowThePublicDirectoryIsNotWritableSaved2,
                               style: TextStyle(
                                   color: AppColors.warningOrange(
                                       Theme.of(ctx).brightness)))
@@ -57,11 +58,11 @@ class _SupportDeveloperPageState extends State<SupportDeveloperPage> {
                   actions: [
                     TextButton(
                         onPressed: () => Navigator.pop(ctx),
-                        child: const Text('知道了'))
+                        child:  Text(context.l10n.featureGotIt))
                   ]));
     } catch (e) {
       if (mounted)
-        AppToast.show('保存失败：$e');
+        AppToast.show(context.l10n.flowSaveFailedP0((e).toString()), tone: AppToastTone.error);
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -84,7 +85,7 @@ class _SupportDeveloperPageState extends State<SupportDeveloperPage> {
   void _launchUrlFallback(String url) {
     Clipboard.setData(ClipboardData(text: url));
     if (mounted) {
-      AppToast.show('无法打开浏览器，链接已复制到剪贴板，请手动粘贴到浏览器打开', duration: const Duration(seconds: 3), actionLabel: '知道了', onAction: () {});
+      AppToast.show(context.l10n.flowCouldNotOpenABrowserLinkCopied2, duration: const Duration(seconds: 3), actionLabel: context.l10n.featureGotIt, onAction: () {}, tone: AppToastTone.error);
     }
   }
 
@@ -92,7 +93,7 @@ class _SupportDeveloperPageState extends State<SupportDeveloperPage> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return BackgroundPageScaffold(
-      title: '支持开发者',
+      title: context.l10n.featureSupportDevelopment,
       resizeToAvoidBottomInset: false,
       contentPadding: EdgeInsets.only(
         bottom: MediaQuery.paddingOf(context).bottom,
@@ -126,7 +127,7 @@ class _SupportDeveloperPageState extends State<SupportDeveloperPage> {
                   const SizedBox(width: 14),
                   Expanded(
                     child: Text(
-                      'ChiffonMai 是一款完全免费的开源工具，如果它帮到了你，欢迎支持开发者！',
+                      context.l10n.flowChiffonMaiIsAFreeOpenSourceTool,
                       style: TextStyle(
                         color: scheme.onPrimary,
                         fontSize: 14,
@@ -144,8 +145,8 @@ class _SupportDeveloperPageState extends State<SupportDeveloperPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const AppSectionHeader(
-                    title: '微信赞赏码',
+                   AppSectionHeader(
+                    title: context.l10n.flowWeChatSupportQRCode,
                     padding: EdgeInsets.only(bottom: 12),
                   ),
                   Center(
@@ -169,7 +170,7 @@ class _SupportDeveloperPageState extends State<SupportDeveloperPage> {
                   FilledButton.tonalIcon(
                     onPressed: _saving ? null : _downloadCode,
                     icon: const Icon(Icons.download_outlined),
-                    label: Text(_saving ? '正在保存…' : '下载赞赏码图片'),
+                    label: Text(_saving ? context.l10n.flowSaving : context.l10n.flowDownloadQRImage),
                   ),
                 ],
               ),
@@ -180,21 +181,21 @@ class _SupportDeveloperPageState extends State<SupportDeveloperPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const AppSectionHeader(
-                    title: '或通过爱发电支持我',
+                   AppSectionHeader(
+                    title: context.l10n.flowOrSupportMeOnAfdian,
                     padding: EdgeInsets.only(bottom: 12),
                   ),
                   FilledButton.icon(
                     onPressed: _openAfdian,
                     icon: const Icon(Icons.favorite),
-                    label: const Text('前往爱发电'),
+                    label:  Text(context.l10n.flowOpenAfdian),
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 16),
             Text(
-              '你的支持是我持续维护与开发的动力，感谢！❤️',
+              context.l10n.flowYourSupportKeepsDevelopmentAndMaintenanceGoing,
               textAlign: TextAlign.center,
               style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
             ),

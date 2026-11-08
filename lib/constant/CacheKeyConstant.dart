@@ -2,6 +2,9 @@
 class CacheKeyConstant {
   static const String searchInteractionMode = 'search_interaction_mode';
 
+  /// 首页搜索框搜什么（功能 / 歌曲 / 功能和歌曲）。
+  static const String homeSearchScope = 'home_search_scope';
+
   /// 歌曲搜索结果是否显示匹配字段。
   static const String searchShowMatchInfo = 'search_show_match_info';
 
@@ -65,6 +68,10 @@ class CacheKeyConstant {
   // 标签数据相关
   static const String maiTagsCache = 'mai_tags_cache';
   static const String maiTagsCacheTimestamp = 'mai_tags_cache_timestamp';
+  /// 用户自定义标签（名称、颜色、谱面），属于用户数据，随备份导出。
+  static const String customTags = 'custom_tags_v1';
+  /// 谱面代码页的字体选择（默认 / Inconsolata）。
+  static const String chartCodeFont = 'chart_code_font';
 
   // 用户数据相关
   static const String userPlayData = 'user_play_data';
@@ -109,6 +116,7 @@ class CacheKeyConstant {
   static const String guessChartMaxGuesses = 'guessChart_maxGuesses';
   static const String guessChartTimeLimit = 'guessChart_timeLimit';
   static const String guessChartBlurLevel = 'guessChart_blurLevel';
+  static const String guessChartPixelationLevel = 'guessChart_pixelationLevel';
   static const String guessChartSongCount = 'guessChart_songCount';
   static const String guessChartNonEnglishCharThreshold =
       'guessChart_nonEnglishCharThreshold';
@@ -260,6 +268,7 @@ class CacheKeyConstant {
   static const String awmcNetImportToken = 'awmc_net_import_token';
 
   /// 多端同步中补充的 AWMC NET QQ；只作同步设置，不切换当前成绩账号。
+  static const String awmcLookupQQ = 'awmc_lookup_qq';
   static const String awmcNetSyncQQ = 'awmc_net_sync_qq';
 
   // ===== 同步成绩的线路选择 =====

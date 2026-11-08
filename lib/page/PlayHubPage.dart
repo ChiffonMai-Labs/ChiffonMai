@@ -103,6 +103,15 @@ class _PlayHubPageState extends State<PlayHubPage> {
               onToggleFavorite: () => _toggleFavorite('根据模糊曲绘猜歌'),
               onTap: () => _open(context, const GuessChartByBlurredCoverPage()),
             ),
+            '像素曲绘猜歌': HubActionTile(
+              title: '像素曲绘猜歌',
+              subtitle: '根据像素马赛克的色块与轮廓猜歌',
+              icon: Icons.grid_view_rounded,
+              isFavorited: _isFavorited('像素曲绘猜歌'),
+              onToggleFavorite: () => _toggleFavorite('像素曲绘猜歌'),
+              onTap: () => _open(
+                  context, const GuessChartByBlurredCoverPage(pixelated: true)),
+            ),
             '曲绘快闪猜歌': HubActionTile(
               title: '曲绘快闪猜歌',
               subtitle: '曲绘一闪而过，凭记忆猜歌',
@@ -184,6 +193,7 @@ class _PlayHubPageState extends State<PlayHubPage> {
             ),
           };
 
+          // 分类键固定，只有展示文案随语言切换。
           final sections = FeatureRegistry.sections['休闲']!;
           return HubPageScaffold(
             title: widget.title,

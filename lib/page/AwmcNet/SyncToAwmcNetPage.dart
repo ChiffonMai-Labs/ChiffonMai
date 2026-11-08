@@ -1,3 +1,5 @@
+import '../../widgets/AnimatedReveal.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 
 import '../../api/ApiUrls.dart';
@@ -6,12 +8,11 @@ import '../../service/SyncStatsService.dart';
 import '../../utils/AppTheme.dart';
 import '../../utils/SecureCredentialStore.dart';
 import '../../utils/ExternalLaunchUtil.dart';
-import '../../widgets/QrQuickFillButtons.dart';
+import '../../widgets/SyncDialogUi.dart';
 import '../../widgets/QuickSyncOption.dart';
 
 import '../../widgets/SyncStatsFooter.dart';
 import '../../widgets/PostSyncRefreshOptions.dart';
-import '../../utils/AppDesignTokens.dart';
 import '../../widgets/AppDialogs.dart';
 import '../../widgets/AppToast.dart';
 import '../../widgets/RefreshDataDialog.dart'
@@ -104,7 +105,8 @@ class _SyncToAwmcNetPageState extends State<SyncToAwmcNetPage> {
   Future<void> _saveToken() async {
     final token = _tokenController.text.trim();
     if (token.isEmpty) {
-      AppToast.show('请输入 AWMC NET 成绩导入 Token');
+      AppToast.show(context.l10n.flowEnterYourAWMCNETScoreImportToken2,
+          tone: AppToastTone.warning);
       return;
     }
     await SecureCredentialStore.write(
@@ -115,7 +117,7 @@ class _SyncToAwmcNetPageState extends State<SyncToAwmcNetPage> {
       _credentialRevision++;
       _tokenController.clear();
     });
-    AppToast.show('导入 Token 已保存');
+    AppToast.show(context.l10n.flowImportTokenSaved);
   }
 
   Future<void> _clearToken() async {
@@ -135,12 +137,14 @@ class _SyncToAwmcNetPageState extends State<SyncToAwmcNetPage> {
   Future<void> _submit() async {
     final qr = _qrController.text.trim();
     if (!_quickUpdate && qr.isEmpty) {
-      AppToast.show('请先粘贴或扫描机台登入二维码（SGWCMAID 开头）');
+      AppToast.show(context.l10n.flowPasteOrScanACabinetLoginQR,
+          tone: AppToastTone.warning);
       return;
     }
     final token = _savedToken ?? _tokenController.text.trim();
     if (token.isEmpty) {
-      AppToast.show('请先设置 AWMC NET 成绩导入 Token');
+      AppToast.show(context.l10n.flowSetYourAWMCNETScoreImportToken,
+          tone: AppToastTone.warning);
       return;
     }
     // 用户是直接在输入框里填的（没点保存）：顺手存下来，下次不用再填
@@ -168,69 +172,67 @@ class _SyncToAwmcNetPageState extends State<SyncToAwmcNetPage> {
     final scheme = Theme.of(context).colorScheme;
 
     return AppAlertDialog(
-      title: Row(
-        children: [
-          Icon(Icons.cloud_upload_outlined, color: scheme.onSurface, size: 22),
-          const SizedBox(width: 8),
-          // ⚠️ 必须 Expanded：AlertDialog 标题区在 360dp 屏上只剩 232dp，
-          // 而「同步成绩到 AWMC NET」+ 图标要约 266dp，裸 Text 会直接
-          // RenderFlex 溢出（真机实测 45px，测试里 134px；320dp 屏更大，
-          // 系统字体调到 1.5 倍时到 286px）。Expanded 让它换行而不是溢出 ——
-          // 落雪那条标题只有 6 个汉字，所以一直没暴露这个坑。
-          const Expanded(child: Text('同步成绩到 AWMC NET')),
-        ],
-      ),
+      title: Text(context.l10n.featureSyncToAWMCNET),
+      subtitle: context.l10n.featureImportScoresToAWMCNETUsingA,
       content: SingleChildScrollView(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: [
-            QuickSyncOption(
-              platforms: const {SyncPlatform.awmc},
-              credentialRevision: _credentialRevision,
-              onChanged: (enabled) => setState(() => _quickUpdate = enabled),
-            ),
-            if (!_quickUpdate) ...[
-              // ── 二维码 ──
-              Text(
-                '在「舞萌|中二」公众号请求登入二维码并打开，再粘贴到下方；'
-                '也可直接用「扫描」或「从图片识别」。',
-                style: TextStyle(
-                    fontSize: 13, color: AppColors.greyHint(brightness)),
+            SyncDialogSection(
+              first: true,
+              icon: Icons.bolt_rounded,
+              title: context.l10n.syncDialogMode,
+              child: QuickSyncOption(
+                platforms: const {SyncPlatform.awmc},
+                credentialRevision: _credentialRevision,
+                onChanged: (enabled) => setState(() => _quickUpdate = enabled),
               ),
-              const SizedBox(height: 12),
-              QrQuickFillButtons(controller: _qrController),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _qrController,
-                maxLines: 3,
-                decoration: InputDecoration(
-                  hintText: '舞萌DX | 中二节奏 登入二维码（SGWCMAID...）',
-                  hintStyle: TextStyle(
-                      fontSize: 13,
-                      color: AppColors.greyHint(brightness, shade: 400)),
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall)),
+            ),
+            AnimatedReveal(
+              visible: !_quickUpdate,
+              child: SyncDialogSection(
+                icon: Icons.qr_code_2_rounded,
+                title: context.l10n.syncDialogQrCode,
+                caption: context.l10n.flowRequestAndOpenALoginQRIn,
+                child: SyncQrInput(
+                  controller: _qrController,
+                  hintText: context.l10n.flowMaimaiDXCHUNITHMLoginQRSGWCMAID3,
                 ),
               ),
-              const SizedBox(height: 16),
-            ],
+            ),
 
             // ── 导入 Token ──
-            if (_tokenChecked) _buildTokenSection(brightness, scheme),
+            if (_tokenChecked)
+              SyncDialogSection(
+                icon: Icons.key_outlined,
+                title: context.l10n.featureAccountManagement,
+                child: _buildTokenSection(brightness, scheme),
+              ),
 
-            const SizedBox(height: 12),
             // 覆盖式写入这件事必须**在点开始之前**说：等导入完了再提醒就晚了
-            if (!_quickUpdate) _buildOverwriteWarning(brightness),
+            AnimatedReveal(
+                visible: !_quickUpdate,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: _buildOverwriteWarning(brightness),
+                )),
 
-            PostSyncRefreshOptions(
-              key: _refreshKey,
-              source: RefreshDataSource.awmc,
+            SyncDialogSection(
+              icon: Icons.refresh_rounded,
+              title: context.l10n.flowRefreshDataAfterSync,
+              caption: context.l10n
+                  .flowRefreshAutomaticallyAfterUploadRefreshErrorsAre,
+              child: PostSyncRefreshOptions(
+                key: _refreshKey,
+                source: RefreshDataSource.awmc,
+                showHeader: false,
+              ),
             ),
 
             // ── 近 100 次统计（所有使用者共享；点开看详情）──
             // 二维码直传没有线路可选，所以这里只有统计、没有线路切换器。
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             const SyncStatsFooter(slot: (SyncLine.direct, SyncPlatform.awmc)),
           ],
         ),
@@ -238,15 +240,10 @@ class _SyncToAwmcNetPageState extends State<SyncToAwmcNetPage> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('关闭'),
+          child: Text(context.l10n.featureCancel),
         ),
-        ElevatedButton.icon(
-          icon: const Icon(Icons.send, size: 18),
-          label: const Text('开始同步'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.linkBlue(brightness),
-            foregroundColor: Colors.white,
-          ),
+        SyncStartButton(
+          label: context.l10n.flowStartSync,
           onPressed: _submit,
         ),
       ],
@@ -259,75 +256,51 @@ class _SyncToAwmcNetPageState extends State<SyncToAwmcNetPage> {
         ? AppColors.successGreen(brightness)
         : AppColors.warningOrange(brightness);
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: accent.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: accent.withValues(alpha: 0.2)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(hasToken ? Icons.check_circle : Icons.vpn_key,
-                  size: 18, color: accent),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  hasToken ? '成绩导入 Token 已设置' : '设置 AWMC NET 成绩导入 Token',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: scheme.onSurface,
-                  ),
-                ),
-              ),
-              if (hasToken)
-                TextButton(
-                  onPressed: _clearToken,
-                  child: const Text('更换', style: TextStyle(fontSize: 12)),
-                ),
-            ],
-          ),
-          if (!hasToken) ...[
-            const SizedBox(height: 8),
-            _howToGetToken(brightness),
-            const SizedBox(height: 8),
-            Row(
+    return SyncNoticeCard(
+      icon: hasToken ? Icons.check_circle : Icons.vpn_key,
+      color: accent,
+      title: hasToken
+          ? context.l10n.flowScoreImportTokenSet
+          : context.l10n.flowSetAWMCNETScoreImportToken,
+      trailing: hasToken
+          ? TextButton(
+              onPressed: _clearToken,
+              child: Text(context.l10n.flowChange,
+                  style: const TextStyle(fontSize: 12)),
+            )
+          : null,
+      child: hasToken
+          ? null
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  child: TextField(
-                    controller: _tokenController,
-                    obscureText: true,
-                    decoration: InputDecoration(
-                      hintText: '在此粘贴成绩导入 Token…',
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall)),
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 10),
-                      isDense: true,
+                _howToGetToken(brightness),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _tokenController,
+                        obscureText: true,
+                        decoration: InputDecoration(
+                          hintText: context.l10n.flowPasteScoreImportToken,
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 10),
+                          isDense: true,
+                        ),
+                        style: const TextStyle(fontSize: 13),
+                      ),
                     ),
-                    style: const TextStyle(fontSize: 13),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: _saveToken,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.linkBlue(brightness),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 10),
-                  ),
-                  child: const Text('保存', style: TextStyle(fontSize: 13)),
+                    const SizedBox(width: 8),
+                    FilledButton(
+                      onPressed: _saveToken,
+                      child: Text(context.l10n.save,
+                          style: const TextStyle(fontSize: 13)),
+                    ),
+                  ],
                 ),
               ],
             ),
-          ],
-        ],
-      ),
     );
   }
 
@@ -338,13 +311,13 @@ class _SyncToAwmcNetPageState extends State<SyncToAwmcNetPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '导入需要在 AWMC NET 官网生成一次 Token（项目自带的密钥在这里用不了）：',
+          context.l10n.flowGenerateYourOwnTokenOnAWMCNET,
           style: hintStyle,
         ),
         const SizedBox(height: 4),
-        Text('① 点击下面的链接打开 AWMC NET 设置页', style: hintStyle),
-        Text('② 滑到页面最底部，点「生成/轮换Token」', style: hintStyle),
-        Text('③ 复制生成的 Token，然后粘贴到此处', style: hintStyle),
+        Text(context.l10n.flow1OpenTheAWMCNETSettingsLink, style: hintStyle),
+        Text(context.l10n.flow2ScrollToTheBottomAndGenerate, style: hintStyle),
+        Text(context.l10n.flow3CopyTheTokenAndPasteIt, style: hintStyle),
         const SizedBox(height: 6),
         GestureDetector(
           onTap: () => _openSettingsPage(),
@@ -363,26 +336,11 @@ class _SyncToAwmcNetPageState extends State<SyncToAwmcNetPage> {
   }
 
   Widget _buildOverwriteWarning(Brightness brightness) {
-    final warn = AppColors.warningOrange(brightness);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: warn.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-        border: Border.all(color: warn.withValues(alpha: 0.25)),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.info_outline, size: 16, color: warn),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              '以机台为准，会覆盖 AWMC NET 上已存在的对应成绩。',
-              style: TextStyle(fontSize: 12, color: warn),
-            ),
-          ),
-        ],
-      ),
+    return SyncNoticeCard(
+      icon: Icons.info_outline,
+      color: AppColors.warningOrange(brightness),
+      child: Text(
+          context.l10n.flowCabinetScoresTakePriorityAndOverwriteMatching),
     );
   }
 
@@ -400,6 +358,9 @@ class _SyncToAwmcNetPageState extends State<SyncToAwmcNetPage> {
       debugPrint('打开 AWMC NET 设置页失败: $e');
     }
     if (!mounted) return;
-    AppToast.show('打不开浏览器，请手动访问 ${ApiUrls.AwmcNetSettingsUrl}');
+    AppToast.show(
+        context.l10n.flowCouldNotOpenABrowserVisitP0(
+            (ApiUrls.AwmcNetSettingsUrl).toString()),
+        tone: AppToastTone.warning);
   }
 }

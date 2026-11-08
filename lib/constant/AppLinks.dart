@@ -44,8 +44,9 @@ class AppLinks {
       'https://wward.lanzn.com/chiffonmai-unsigned-ipa';
 
   /// 最新的 GitHub Releases。
+  static const String githubRepository = 'ChiffonMai-Labs/ChiffonMai';
   static const String latestReleaseUrl =
-      'https://github.com/ChiffonMai-Labs/ChiffonMai/releases/latest';
+      'https://github.com/$githubRepository/releases/latest';
 
   /// 问题反馈。
   static const String feedbackUrl = 'https://wj.qq.com/s2/28237817/wmfe/';

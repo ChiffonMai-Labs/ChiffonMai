@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -41,7 +43,9 @@ class _SongPvPageState extends State<SongPvPage> {
   String _loadingTip = LoadingTipsConstant.getRandomLoadingTip();
   bool _usingLocalFile = false;
 
-  String get _loadingStatus => _usingLocalFile ? '正在读取本地视频…' : '正在缓冲视频…';
+  String get _loadingStatus => _usingLocalFile
+      ? appL10n.flowReadingLocalVideo
+      : appL10n.flowBufferingVideo;
 
   bool _isSeeking = false;
   double _seekDragOffset = 0;
@@ -188,7 +192,9 @@ class _SongPvPageState extends State<SongPvPage> {
           Row(
             children: [
               IconButton(
-                tooltip: value.isPlaying ? '暂停' : '播放',
+                tooltip: value.isPlaying
+                    ? context.l10n.flowPause
+                    : context.l10n.flowPlay,
                 color: Colors.white,
                 icon: Icon(value.isPlaying ? Icons.pause : Icons.play_arrow),
                 onPressed: () {
@@ -289,7 +295,8 @@ class _SongPvPageState extends State<SongPvPage> {
       child: Text(
         _usingLocalFile
             ? _loadingStatus
-            : '$_loadingStatus 已向前缓冲 ${bufferedAhead.inSeconds} 秒',
+            : context.l10n.flowP0P1SBufferedAhead((_loadingStatus).toString(),
+                (bufferedAhead.inSeconds).toString()),
         style: const TextStyle(color: Colors.white60, fontSize: 11),
       ),
     );
@@ -376,8 +383,8 @@ class _SongPvPageState extends State<SongPvPage> {
           children: [
             const Icon(Icons.error_outline, color: Colors.white70, size: 48),
             const SizedBox(height: 12),
-            const Text(
-              'PV 加载失败，请检查网络后重试',
+            Text(
+              context.l10n.flowCouldNotLoadThePVCheckYour,
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.white70),
             ),
@@ -385,7 +392,7 @@ class _SongPvPageState extends State<SongPvPage> {
             FilledButton.icon(
               onPressed: () => Navigator.of(context).pop(),
               icon: const Icon(Icons.arrow_back),
-              label: const Text('返回歌曲详情'),
+              label: Text(context.l10n.flowBackToSongDetails),
             ),
           ],
         ),

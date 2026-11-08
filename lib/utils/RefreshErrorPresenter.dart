@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import '../manager/DivingFish/DivingFishOAuthManager.dart';
 import '../manager/DivingFish/ProberException.dart';
@@ -33,8 +34,10 @@ Future<void> presentRefreshError(
     if (url.isEmpty) {
       await showErrorMessageDialog(
         context,
-        title: '刷新数据失败',
-        message: qq.isEmpty ? error.message : 'QQ $qq 尚未授权本应用，请稍后在「账号与同步」中完成授权',
+        title: context.l10n.flowCouldNotRefreshData,
+        message: qq.isEmpty
+            ? error.message
+            : context.l10n.flowQQP0HasNotAuthorizedThisApp((qq).toString()),
       );
       return;
     }
@@ -53,13 +56,16 @@ Future<void> presentRefreshError(
     if (!context.mounted) return;
     await showErrorMessageDialog(
       context,
-      title: opened ? '需要完成授权' : '刷新数据失败',
+      title: opened
+          ? context.l10n.flowAuthorizationNeeded
+          : context.l10n.flowCouldNotRefreshData,
       message: opened
-          ? '该 QQ 尚未授权本应用，已打开授权页；授权完成后请重新刷新'
-          : '该 QQ 尚未授权本应用，请在浏览器中打开授权页完成绑定',
+          ? context.l10n.flowThisQQHasNotAuthorizedTheApp
+          : context.l10n.flowThisQQHasNotAuthorizedTheApp2,
     );
     return;
   }
 
-  await showErrorMessageDialog(context, message: '刷新数据失败：$error');
+  await showErrorMessageDialog(context,
+      message: context.l10n.flowCouldNotRefreshDataP0((error).toString()));
 }

@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -194,7 +195,7 @@ class GuessChartByAliaService {
   static String getRandomAlias(Song song) {
     final aliases = SongAliasManager.instance.aliases[song.title] ?? [];
     if (aliases.isEmpty) {
-      return '无别名';
+      return appL10n.flowNoAliases;
     }
     
     // 过滤掉与歌曲标题相同的别名，以及别名全小写等于歌名全小写的情况
@@ -204,7 +205,7 @@ class GuessChartByAliaService {
       alias.toLowerCase() != songTitleLower
     ).toList();
     if (filteredAliases.isEmpty) {
-      return '无别名';
+      return appL10n.flowNoAliases;
     }
     
     final randomIndex = DateTime.now().millisecondsSinceEpoch % filteredAliases.length;

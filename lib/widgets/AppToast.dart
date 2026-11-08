@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -69,9 +70,9 @@ class AppToast {
   static void hide() => _current.value = null;
 
   static AppToastTone _inferTone(String message) {
-    const errors = ['失败', '错误', '无法', '异常', '出错', '超时', '不能', '未能'];
+    final errors = [appL10n.flowFailed, '错误', '无法', '异常', '出错', '超时', '不能', '未能'];
     const warnings = ['请', '未', '暂无', '不支持', '没有', '不足', '再按'];
-    const successes = ['成功', '已', '完成'];
+    final successes = ['成功', '已', appL10n.featureDone];
     if (errors.any(message.contains)) return AppToastTone.error;
     if (successes.any(message.startsWith) || message.contains('成功')) {
       return AppToastTone.success;

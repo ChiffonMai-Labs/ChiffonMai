@@ -122,3 +122,6 @@ tool/backup/
 
 # 应用图标完整回滚快照，仅本地保留。
 /.local-backups/
+
+# 宣传片配乐（第三方授权音频，不进仓库）
+promo/**/music/

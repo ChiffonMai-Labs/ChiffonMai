@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'dart:async';
 import 'ThunderBest50Export.dart';
 import 'dart:io';
@@ -42,7 +43,8 @@ class PersonalizedDiffBest50ConvertToImg {
         key: globalKey,
         child: await _buildExportImageWidget(
             context, title, diffBest50Data, diffSongs, maimaiMusicData,
-            thunderMode: thunderMode, thunderVertical: thunderVertical,
+            thunderMode: thunderMode,
+            thunderVertical: thunderVertical,
             theme: theme),
       );
       final exportWidth = thunderMode
@@ -82,8 +84,8 @@ class PersonalizedDiffBest50ConvertToImg {
       await Future.delayed(Duration(milliseconds: 100));
 
       debugPrint('Starting image capture...');
-      final encoded =
-          await ImageEncodeUtil.encodeBoundary(boundary, jpegQuality: jpegQuality);
+      final encoded = await ImageEncodeUtil.encodeBoundary(boundary,
+          jpegQuality: jpegQuality);
       final Uint8List finalBytes = encoded.bytes;
       final String extension = encoded.extension;
 
@@ -239,10 +241,13 @@ class PersonalizedDiffBest50ConvertToImg {
         title: title,
         vertical: thunderVertical,
         count: diffSongs.length,
-        statistics:
-            '拟合 Rating $diffRatingSum（较该标签 Best50 ${best50Diff > 0 ? '+' : ''}$best50Diff）\n平均 Rating ${diffRatingAverage.toStringAsFixed(1)}\n'
-            '平均达成率 ${averageAchievement.toStringAsFixed(4)}%\n'
-            '平均DX分数达成率 ${(averageScoreRate * 100).toStringAsFixed(2)}%',
+        statistics: context.l10n.flowFittedRatingP0VsThisTagS(
+            (diffRatingSum).toString(),
+            (best50Diff > 0 ? '+' : '').toString(),
+            (best50Diff).toString(),
+            (diffRatingAverage.toStringAsFixed(1)).toString(),
+            (averageAchievement.toStringAsFixed(4)).toString(),
+            ((averageScoreRate * 100).toStringAsFixed(2)).toString()),
         cardBuilder: (index) => _buildDataGameCard(
             context, diffSongs[index], maimaiMusicData, maxIdLength),
       );
@@ -262,7 +267,6 @@ class PersonalizedDiffBest50ConvertToImg {
               children: [
                 ExportPosterHeader(title: title),
                 SizedBox(height: 16.0),
-
                 _buildRatingSection(
                     context,
                     title,
@@ -272,10 +276,8 @@ class PersonalizedDiffBest50ConvertToImg {
                     averageAchievement,
                     averageScoreRate),
                 SizedBox(height: 20.0),
-
                 _buildSectionTitle(context, title),
                 SizedBox(height: 16.0),
-
                 _buildDataCardGrid(
                     context,
                     diffSongs,
@@ -308,16 +310,17 @@ class PersonalizedDiffBest50ConvertToImg {
             Expanded(
               flex: 2,
               child: ExportHeroBlock(
-                label: '拟合总Rating',
+                label: context.l10n.flowFittedTotalRating,
                 value: '$diffRatingSum',
-                caption: '平均 ${diffRatingAverage.toStringAsFixed(1)}',
+                caption: context.l10n.flowAverageP02(
+                    (diffRatingAverage.toStringAsFixed(1)).toString()),
               ),
             ),
             const SizedBox(width: 10),
             Expanded(
               flex: 2,
               child: ExportStatBlock(
-                label: '较该标签 Best50',
+                label: context.l10n.flowComparedWithThisTagSBest50,
                 value: '${best50Diff > 0 ? '+' : ''}$best50Diff',
                 positive: best50Diff >= 0,
               ),
@@ -326,7 +329,7 @@ class PersonalizedDiffBest50ConvertToImg {
             Expanded(
               flex: 4,
               child: ExportAchievementBlock(
-                label: '平均达成率 / DX分数达成率',
+                label: context.l10n.flowAverageAchievementDXScoreRate2,
                 achievement: averageAchievement,
                 scoreRate: averageScoreRate,
               ),
@@ -436,7 +439,7 @@ class PersonalizedDiffBest50ConvertToImg {
     int levelIndex = songData['level_index'] ?? 0;
     int rating = songData['diffRating'] ?? 0;
     String type = songData['type'] ?? '';
-    String title = songData['title'] ?? '未知歌曲';
+    String title = songData['title'] ?? context.l10n.flowUnknownSong;
     int songId = songData['song_id'] ?? 0;
 
     double scoreRate =
@@ -484,7 +487,8 @@ class PersonalizedDiffBest50ConvertToImg {
 
       dynamic songData;
       try {
-        songData = maimaiMusicData[MusicDataIndex.indexOf(maimaiMusicData, songId)];
+        songData =
+            maimaiMusicData[MusicDataIndex.indexOf(maimaiMusicData, songId)];
       } catch (_) {
         return 0;
       }
@@ -513,7 +517,8 @@ class PersonalizedDiffBest50ConvertToImg {
 
       dynamic songData;
       try {
-        songData = maimaiMusicData[MusicDataIndex.indexOf(maimaiMusicData, songId)];
+        songData =
+            maimaiMusicData[MusicDataIndex.indexOf(maimaiMusicData, songId)];
       } catch (e) {
         return 0.0;
       }

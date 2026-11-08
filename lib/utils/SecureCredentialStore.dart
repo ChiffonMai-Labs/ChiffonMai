@@ -26,12 +26,20 @@ class SecureCredentialStore {
     CacheKeyConstant.awmcNetImportToken,
   };
 
+  /// 每次写入或删除后递增，让展示凭据状态的界面即时重新读取。
+  static final ValueNotifier<int> revision = ValueNotifier(0);
+
   static Future<String?> read(String key) => _storage.read(key: key);
 
-  static Future<void> write(String key, String value) =>
-      _storage.write(key: key, value: value);
+  static Future<void> write(String key, String value) async {
+    await _storage.write(key: key, value: value);
+    revision.value++;
+  }
 
-  static Future<void> delete(String key) => _storage.delete(key: key);
+  static Future<void> delete(String key) async {
+    await _storage.delete(key: key);
+    revision.value++;
+  }
 
   /// 将旧版明文偏好迁移到系统安全存储；重复执行是安全的。
   static Future<void> migrateLegacy() async {

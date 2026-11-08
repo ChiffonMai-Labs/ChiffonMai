@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/FeatureLocalizations.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -128,7 +130,13 @@ class _AutoSyncStatusFooterState extends State<AutoSyncStatusFooter>
             Padding(
               padding: const EdgeInsets.only(bottom: 5),
               child: Text(
-                  '${_queue!.upcoming ? '下轮' : '本轮'}排队用户 ${_queue!.waitingUsers} 人 · 处理中 ${_queue!.runningTasks} 项',
+                  context.l10n.flowP0P1UsersQueuedP2ItemsProcessing(
+                      (_queue!.upcoming
+                              ? context.l10n.flowNextRound
+                              : context.l10n.flowThisRound)
+                          .toString(),
+                      (_queue!.waitingUsers).toString(),
+                      (_queue!.runningTasks).toString()),
                   style: TextStyle(
                       fontSize: 10.5,
                       color: Theme.of(context).colorScheme.onSurfaceVariant)),
@@ -147,9 +155,9 @@ class _AutoSyncStatusFooterState extends State<AutoSyncStatusFooter>
     final waiting = task?.waiting == true;
     final warning = AppColors.warningOrange(theme.brightness);
     final status = failed
-        ? '状态未确认'
+        ? context.l10n.flowStatusUnconfirmed
         : _loading
-            ? '读取中…'
+            ? context.l10n.featureLoading
             : _summary(task);
     final icon = failed
         ? Icons.cloud_off_outlined
@@ -181,12 +189,12 @@ class _AutoSyncStatusFooterState extends State<AutoSyncStatusFooter>
                 task?.lastRunAt);
     final detail = _detail(task, platform, failed: failed);
     final timeLabel = task?.status == 'running' && task?.timing?.retryAt != null
-        ? '预计重试'
-        : '最近执行';
+        ? context.l10n.flowExpectedRetry
+        : context.l10n.flowLastRun;
     final textStyle = TextStyle(fontSize: 11.5, color: scheme.onSurfaceVariant);
     return Tooltip(
       message:
-          '${platform.label}：$detail${time == null ? '' : '\n$timeLabel：$time（北京时间）'}',
+          '${platform.label}：$detail${time == null ? '' : context.l10n.flowP0P1ChinaTime((timeLabel).toString(), (time).toString())}',
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: Row(children: [
@@ -194,12 +202,13 @@ class _AutoSyncStatusFooterState extends State<AutoSyncStatusFooter>
           const SizedBox(width: 6),
           SizedBox(
             width: MediaQuery.textScalerOf(context).scale(12) * 6,
-            child: Text(platform.label,
+            child: Text(context.featureText(platform.label),
                 style: textStyle.copyWith(fontWeight: FontWeight.w600)),
           ),
           const SizedBox(width: 6),
           Expanded(child: LayoutBuilder(builder: (context, constraints) {
-            final timeText = failed ? '待刷新' : time ?? '—';
+            final timeText =
+                failed ? context.l10n.flowRefreshPending : time ?? '—';
             final timeStyle = textStyle.copyWith(fontSize: 10.5);
             // 窄屏或大字体时把时间换到下一行，优先让同步结果完整可读。
             if (constraints.maxWidth <
@@ -232,14 +241,16 @@ class _AutoSyncStatusFooterState extends State<AutoSyncStatusFooter>
   /// Hub 摘要的详细说明（Tooltip / 窄屏展开用），比一行摘要多出等待、耗时与上轮明细。
   String _detail(AutoSyncTask? task, SyncPlatform platform,
       {required bool failed}) {
-    if (failed) return '状态刷新失败，请点击查看或重试；此前结果不代表本次查询已确认';
-    if (task == null) return '尚未读取到同步状态';
+    if (failed) return context.l10n.flowStatusRefreshFailedTapToViewOr;
+    if (task == null) return context.l10n.flowSyncStatusNotReadYet;
     final parts = <String>[];
     if (task.status == 'running') {
       final waitLine = AutoSyncDisplay.waitLine(task.timing);
       if (waitLine != null) parts.add(waitLine);
       final progressLine = AutoSyncDisplay.progressLine(task, platform.label);
-      parts.add(task.waiting ? '上次进度：$progressLine' : progressLine);
+      parts.add(task.waiting
+          ? context.l10n.flowLastProgressP0((progressLine).toString())
+          : progressLine);
       final meta = AutoSyncDisplay.runningMeta(task);
       if (meta != null) parts.add(meta);
     } else {
@@ -247,16 +258,22 @@ class _AutoSyncStatusFooterState extends State<AutoSyncStatusFooter>
     }
     final userPosition = task.queue?.userPosition ?? task.queue?.position;
     if (userPosition != null) {
-      parts.add(
-          '${task.queue!.upcoming ? '下轮' : '本轮'}用户第 $userPosition 位 / ${task.queue!.waitingUsers} 人');
+      parts.add(context.l10n.flowP0UserP1OfP2(
+          (task.queue!.upcoming
+                  ? context.l10n.flowNextRound
+                  : context.l10n.flowThisRound)
+              .toString(),
+          (userPosition).toString(),
+          (task.queue!.waitingUsers).toString()));
     }
     if (task.lastResult != null) {
-      parts.add('上轮：${_resultBrief(task.lastResult!)}');
+      parts.add(context.l10n
+          .flowPreviousRoundP02((_resultBrief(task.lastResult!)).toString()));
     }
     if (task.status != 'running' && task.nextRunAt != null) {
       final retry = task.lastResult?.status == 'failed';
       parts.add(
-          '${retry ? '下次自动重试' : '下次执行'}：${AutoSyncDisplay.dateTime(task.nextRunAt)}');
+          '${retry ? context.l10n.flowNextAutomaticRetry : context.l10n.flowNextRun}：${AutoSyncDisplay.dateTime(task.nextRunAt)}');
     }
     return parts.join('\n');
   }
@@ -265,13 +282,16 @@ class _AutoSyncStatusFooterState extends State<AutoSyncStatusFooter>
     final time = AutoSyncDisplay.resultTimeLine(result);
     if (result.status == 'success') {
       final stats = AutoSyncDisplay.resultStats(result) ?? '无变化';
-      return '成功 · $stats · $time';
+      return context.l10n
+          .flowSuccessP0P1((stats).toString(), (time).toString());
     }
-    return '失败 · ${AutoSyncDisplay.errorBrief(result.error)} · $time';
+    return context.l10n.flowFailedP0P1(
+        (AutoSyncDisplay.errorBrief(result.error)).toString(),
+        (time).toString());
   }
 
   String _summary(AutoSyncTask? task) {
-    if (task == null || !task.enabled) return '未开启';
+    if (task == null || !task.enabled) return context.l10n.featureOff;
     if (task.status == 'running') {
       final waitLine = AutoSyncDisplay.waitLine(task.timing);
       if (waitLine != null) return waitLine;
@@ -282,12 +302,20 @@ class _AutoSyncStatusFooterState extends State<AutoSyncStatusFooter>
     final userPosition = queue?.userPosition ?? queue?.position;
     final position = userPosition == null
         ? null
-        : '${queue!.upcoming ? '下轮' : '本轮'}用户第$userPosition位';
+        : context.l10n.flowP0UserPositionP1(
+            (queue!.upcoming
+                    ? context.l10n.flowNextRound
+                    : context.l10n.flowThisRound)
+                .toString(),
+            (userPosition).toString());
     if (last == null) return position ?? '暂无记录';
     if (last.status != 'success') {
-      return '同步失败·${AutoSyncDisplay.errorBrief(last.error)}';
+      return context.l10n.flowSyncFailedP03(
+          (AutoSyncDisplay.errorBrief(last.error)).toString());
     }
-    return position == null ? '同步成功' : '同步成功·$position';
+    return position == null
+        ? context.l10n.flowSyncSucceeded
+        : context.l10n.flowSyncSucceededP0((position).toString());
   }
 
   AutoSyncQueue? get _queue {

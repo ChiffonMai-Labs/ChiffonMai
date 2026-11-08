@@ -1,3 +1,12 @@
+import '../widgets/AccountAuthorizationDialog.dart';
+import '../widgets/AccountAuthorizationStatus.dart';
+import '../widgets/AccountBindingManager.dart';
+import '../widgets/DivingFishAuthorizationDialog.dart';
+import '../widgets/AccountSwitchSheet.dart';
+import '../widgets/QuickSyncOption.dart' show showBindCabinetIdentityDialog;
+import '../utils/CurrentDataSourceNotifier.dart';
+import '../l10n/LocalizationsExtension.dart';
+import '../l10n/FeatureLocalizations.dart';
 import '../widgets/CommunityAppearanceBanner.dart';
 import '../widgets/PlayerExperienceStrip.dart';
 import 'dart:async';
@@ -18,7 +27,6 @@ import 'SupportDeveloperPage.dart';
 import 'FriendLinksPage.dart';
 import 'LoadingTipsPage.dart';
 import '../manager/LZYCheckUpdateManager.dart';
-import '../manager/DivingFishProbeManager.dart';
 import '../manager/DivingFish/ProberException.dart';
 import '../manager/LuoXue/CollectionsManager.dart';
 import '../entity/LuoXue/Collection.dart';
@@ -73,11 +81,30 @@ class SystemHubPage extends StatefulWidget {
   State<SystemHubPage> createState() => SystemHubPageState();
 }
 
-class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
+class SystemHubPageState extends State<SystemHubPage>
+    with SyncFlowMixin, WidgetsBindingObserver {
   /// 首页搜索调用系统 Hub 的原有入口，沿用同一份进度与互斥状态。
   Future<void> openFeature(ButtonItem item) async {
     if (anyBusy) {
-      AppToast.show('正在处理其它任务，请稍候');
+      AppToast.show(context.featureText('正在处理其它任务，请稍候'));
+      return;
+    }
+    if (item.title == '切换账号') {
+      await showAccountSwitchDialog(context,
+          onNeedRefresh: (source) => _refreshData(initialSource: source));
+      return;
+    }
+    if (item.title == '绑定与授权管理') {
+      await _manageAccountBindings();
+      return;
+    }
+    if (item.title == '落雪账号授权' || item.title == '绑定 AWMC NET 账号') {
+      await showAccountAuthorizationDialog(context,
+          luoxue: item.title == '落雪账号授权');
+      return;
+    }
+    if (item.title == '绑定机台身份') {
+      await showBindCabinetIdentityDialog(context);
       return;
     }
     if (item.title == '登录 maimai Score Hub') {
@@ -101,7 +128,7 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
       await _refreshPlayCounts();
       return;
     }
-    if (item.title == '刷新数据（高级）') {
+    if (item.title == '拉取成绩并更新数据（高级）') {
       await _advancedRefreshData();
     }
   }
@@ -116,7 +143,6 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
   // ===== 登出水鱼确认 + 进度 =====
   bool _loggingOut = false;
   String _logoutText = '';
-  bool _maimaiHubLoggedIn = false;
 
   // ===== 社区装扮；头像与姓名框同时兼容 Best50 图片导出 =====
   List<Collection> _avatarIcons = [];
@@ -150,6 +176,8 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    AccountAuthorizationStatus.changes.addListener(_onSyncRouteChanged);
     // 监听共享状态：首页登出水鱼账号 / 同步成功后此处也会自动刷新昵称 / QQ
     UserProfileNotifier.instance.addListener(_onUserProfileChanged);
     _onUserProfileChanged();
@@ -158,27 +186,11 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
     unawaited(CommunityAvatarStore.instance.activate());
     _collectionsReady = Future.wait(
         [_fetchAvatarIcons(), _fetchExtraAppearance(), _fetchAvatarPlates()]);
-    MaimaiHubLoginNotifier.instance.addListener(_onMaimaiHubLoginChanged);
-    unawaited(_refreshMaimaiHubLoginState());
     // 线路 + 统计（与首页收藏区共享同一份状态；重复调用幂等）
     SyncRouteNotifier.instance.addListener(_onSyncRouteChanged);
     CacheManagementService.instance.addListener(_onSyncRouteChanged);
     SyncRouteNotifier.instance.ensureLoaded();
     HomeRefreshNotifier.isBusy.addListener(_onHomeRefreshBusyChanged);
-  }
-
-  void _onMaimaiHubLoginChanged() {
-    if (mounted) {
-      setState(
-          () => _maimaiHubLoggedIn = MaimaiHubLoginNotifier.instance.value);
-    }
-  }
-
-  Future<void> _refreshMaimaiHubLoginState() async {
-    final token = await DivingFishProbeManager().ensureAuthToken();
-    // 本机已有登录态时也要同步给通知器，之后失效才能从 true 变成 false 触发刷新。
-    MaimaiHubLoginNotifier.instance.value = token != null;
-    if (mounted) setState(() => _maimaiHubLoggedIn = token != null);
   }
 
   void _onSyncRouteChanged() {
@@ -187,7 +199,8 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
 
   @override
   void dispose() {
-    MaimaiHubLoginNotifier.instance.removeListener(_onMaimaiHubLoginChanged);
+    WidgetsBinding.instance.removeObserver(this);
+    AccountAuthorizationStatus.changes.removeListener(_onSyncRouteChanged);
     CommunityAvatarStore.instance.removeListener(_onAvatarChanged);
     LoginStateNotifier.instance.removeListener(_onAvatarLoginChanged);
     UserProfileNotifier.instance.removeListener(_onUserProfileChanged);
@@ -201,10 +214,19 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
     if (mounted) setState(() {});
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(AccountAuthorizationStatus.refresh());
+    }
+  }
+
   /// 共享用户档案变更回调：把 notifier 中的值同步到本地字段，
   /// 我的页头像区昵称等区域立刻更新。
   void _onUserProfileChanged() {
     if (!mounted) return;
+    // 初次载入、账号切换和恢复备份后重新核对，凭据写入则由存储层直接通知。
+    unawaited(AccountAuthorizationStatus.refresh());
     final p = UserProfileNotifier.instance.value;
     setState(() {
       _userNickname = p.nickname;
@@ -294,12 +316,16 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
           void choose(Future<void> Function() save) {
             if (store.value.playerId != player) {
               if (ctx.mounted) Navigator.pop(ctx);
-              AppToast.show('账号已切换，请重新选择装扮');
+              AppToast.show(
+                  context.l10n.flowAccountChangedChooseYourAppearanceAgain,
+                  tone: AppToastTone.warning);
               return;
             }
             if (ctx.mounted) Navigator.pop(ctx);
             unawaited(save().catchError((Object _) {
-              AppToast.show('装扮未能保存，请重新选择');
+              AppToast.show(
+                  context.l10n.flowCouldNotSaveYourAppearanceChooseAgain,
+                  tone: AppToastTone.error);
             }));
           }
 
@@ -340,7 +366,7 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
 
   Future<void> _exportLogs() async {
     if (!await ExportPathUtil.prepareForExport(context,
-        subDir: '日志', title: '选择日志保存位置')) {
+        subDir: '日志', title: context.l10n.flowChooseWhereToSaveLogs)) {
       return;
     }
     try {
@@ -349,17 +375,18 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
       await showDialog<void>(
           context: context,
           builder: (ctx) => AppAlertDialog(
-                title: const Text('日志已导出'),
+                title: Text(context.l10n.flowLogsExported),
                 content: AppDialogCodeBlock(file.path),
                 actions: [
                   TextButton(
                       onPressed: () => Navigator.pop(ctx),
-                      child: const Text('知道了'))
+                      child: Text(context.l10n.featureGotIt))
                 ],
               ));
     } catch (e) {
       if (mounted)
-        AppToast.show('导出日志失败：$e');
+        AppToast.show(context.l10n.flowCouldNotExportLogsP0((e).toString()),
+            tone: AppToastTone.error);
     }
   }
 
@@ -388,19 +415,21 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
       url,
       context,
       copyText: copyText,
-      message: failMessage ?? '无法打开浏览器，$label已复制到剪贴板，请手动粘贴打开',
+      message: failMessage ??
+          context.l10n.flowCouldNotOpenABrowserP0Copied((label).toString()),
     );
   }
 
   /// 刷新数据：对话框只收集输入，进度显示在「刷新数据」这个按钮上。
-  Future<void> _refreshData() async {
+  Future<void> _refreshData({RefreshDataSource? initialSource}) async {
     if (anyBusy) return;
-    final request = await showRefreshDataDialog(context);
+    final request =
+        await showRefreshDataDialog(context, initialSource: initialSource);
     if (request == null || !mounted) return;
 
     setState(() {
       _refreshing = true;
-      _refreshText = '正在刷新数据...';
+      _refreshText = context.l10n.flowRefreshingData;
       _refreshProgress = 0;
     });
     try {
@@ -413,7 +442,7 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
       });
       if (!mounted) return;
       ConfettiEffect.show(context);
-      AppToast.show('数据刷新成功!');
+      AppToast.show(context.l10n.flowDataRefreshed, tone: AppToastTone.success);
     } on ProberException catch (e) {
       // 未授权 → 直接拉起授权页；其余按统一文案提示。
       // 与首页刷新入口共用 presentRefreshError，避免两边行为不一致。
@@ -439,7 +468,7 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
 
     setState(() {
       _refreshingAdvanced = true;
-      _refreshAdvancedText = '正在刷新数据...';
+      _refreshAdvancedText = context.l10n.flowRefreshingData;
       _refreshAdvancedProgress = 0;
     });
     try {
@@ -455,7 +484,7 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
       );
       if (!mounted) return;
       ConfettiEffect.show(context);
-      AppToast.show('数据刷新成功!');
+      AppToast.show(context.l10n.flowDataRefreshed, tone: AppToastTone.success);
     } on ProberException catch (e) {
       // 未授权 → 直接拉起授权页；其余按统一文案提示。
       // 与首页刷新入口共用 presentRefreshError，避免两边行为不一致。
@@ -474,16 +503,19 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
 
   Future<void> _showCacheManagementDialog() async {
     if (anyBusy) {
-      AppToast.show('正在处理其它任务，请稍候');
+      AppToast.show(context.featureText('正在处理其它任务，请稍候'));
       return;
     }
     final reload = await showCacheManagementDialog(context);
     if (reload != true || !mounted || anyBusy) return;
     try {
       await CacheManagementService.instance.reloadBaseMaidata();
-      if (mounted) AppToast.show('基础量 maidata 已重新拉取');
+      if (mounted)
+        AppToast.show(context.l10n.flowBaseNoteMaidataDownloadedAgain);
     } catch (error) {
-      if (mounted) await showErrorMessageDialog(context, message: '重新拉取失败：$error');
+      if (mounted)
+        await showErrorMessageDialog(context,
+            message: context.l10n.flowDownloadFailedP0((error).toString()));
     }
   }
 
@@ -492,7 +524,7 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
     if (anyBusy) return;
     setState(() {
       _refreshingPlayCounts = true;
-      _refreshPlayCountsText = '准备读取机台游玩次数…';
+      _refreshPlayCountsText = context.l10n.flowPreparingToReadCabinetPlayCount;
     });
     try {
       final outcome = await AwmcPlayCountSyncFlow.run(
@@ -506,8 +538,11 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
       );
       if (!mounted || outcome.cancelled) return;
       AppToast.show(outcome.ok
-            ? '游玩次数已更新（${outcome.cachedRecords} 条）'
-            : '游玩次数读取失败：${outcome.message ?? '未知错误'}');
+          ? context.l10n.flowPlayCountsUpdatedP0Records(
+              (outcome.cachedRecords).toString())
+          : context.l10n.flowCouldNotReadPlayCountsP0(
+              (outcome.message ?? context.l10n.featureUnknownError)
+                  .toString()));
     } finally {
       if (mounted) {
         setState(() {
@@ -522,7 +557,8 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
     final isOnline = await ConnectivityService().hasConnection();
     if (!mounted) return;
     if (!isOnline) {
-      AppToast.show('当前无网络连接，请联网后重试');
+      AppToast.show(context.l10n.flowNoConnectionConnectAndTryAgain,
+          tone: AppToastTone.warning);
       return;
     }
     final updateManager = LZYCheckUpdateManager();
@@ -575,8 +611,38 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
     final loggedIn = await showMaimaiHubLoginDialog(context);
     if (!mounted) return;
     if (loggedIn) {
-      setState(() => _maimaiHubLoggedIn = true);
-      AppToast.show('maimai Score Hub 登录状态已保存，现在可以使用 OCR 了');
+      MaimaiHubLoginNotifier.instance.value = true;
+      AppToast.show(context.l10n.flowMaimaiScoreHubSignInSavedOCR);
+    }
+  }
+
+  /// 「绑定与授权管理」：先选目标，再沿用各自原有的登录 / 授权 / 绑定流程。
+  Future<void> _manageAccountBindings() async {
+    if (anyBusy) return;
+    final target = await showAccountBindingDialog(context);
+    if (target == null || !mounted) return;
+    switch (target) {
+      case AccountBindingTarget.scoreHub:
+        await _loginMaimaiHub();
+      case AccountBindingTarget.divingFish:
+        if (LoginStateNotifier.instance.value) {
+          await _logoutDivingFish();
+        } else {
+          _loginDivingFish();
+        }
+      case AccountBindingTarget.divingFishAuth:
+        if (!LoginStateNotifier.instance.value) {
+          AppToast.show(context.l10n.flowNotSignedInToDivingFish,
+              tone: AppToastTone.warning);
+          return;
+        }
+        await showDivingFishAuthorizationDialog(context);
+      case AccountBindingTarget.lxns:
+        await showAccountAuthorizationDialog(context, luoxue: true);
+      case AccountBindingTarget.awmc:
+        await showAccountAuthorizationDialog(context, luoxue: false);
+      case AccountBindingTarget.cabinet:
+        await showBindCabinetIdentityDialog(context);
     }
   }
 
@@ -584,16 +650,16 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
     final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => AppAlertDialog(
-        title: const Text('确认登出水鱼账号'),
-        content: const Text('登出后将清除缓存的登录信息和 ImportToken，确定要登出吗？'),
+        title: Text(context.l10n.flowSignOutOfDivingFish),
+        content: Text(context.l10n.flowSigningOutClearsSavedLoginDetailsAnd),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('取消'),
+            child: Text(context.l10n.featureCancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('登出'),
+            child: Text(context.l10n.flowSignOut),
           ),
         ],
       ),
@@ -607,17 +673,20 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
     if (!await _confirmLogout() || !mounted) return;
     setState(() {
       _loggingOut = true;
-      _logoutText = '正在登出水鱼账号...';
+      _logoutText = context.l10n.flowSigningOutOfDivingFish2;
     });
     try {
       await UserProfileNotifier.clearShuiyuAccountCache();
       if (!mounted) return;
       LoginStateNotifier.setLoggedIn(false);
-      AppToast.show('已登出水鱼账号');
+      AppToast.show(context.l10n.flowSignedOutOfDivingFish,
+          tone: AppToastTone.success);
     } catch (e) {
       debugPrint('登出水鱼账号失败：$e');
       if (mounted) {
-        await showErrorMessageDialog(context, message: '登出水鱼账号失败：$e');
+        await showErrorMessageDialog(context,
+            message:
+                context.l10n.flowCouldNotSignOutOfDivingFish((e).toString()));
       }
     } finally {
       if (mounted) {
@@ -637,17 +706,25 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
             : syncingAwmcNet
                 ? '同步成绩到 AWMC NET'
                 : syncingMulti
-                    ? '多端同步'
+                    ? context.l10n.flowMultiPlatformSync
                     : _refreshingAdvanced
-                        ? '高级数据刷新'
+                        ? context.l10n.flowAdvancedDataRefresh
                         : _refreshingPlayCounts
-                            ? '读取游玩次数'
+                            ? context.l10n.flowReadPlayCounts
                             : _loggingOut
-                                ? '退出账号'
+                                ? context.l10n.flowSignOut3
                                 : _refreshing
-                                    ? '数据刷新'
-                                    : '首页数据刷新';
-    return '$task正在进行中，不能使用本功能';
+                                    ? context.l10n.featureRefreshData
+                                    : context.l10n.flowHomeDataRefresh;
+    final label = switch (task) {
+      '多端同步' => '同步成绩到多端',
+      '高级数据刷新' => '拉取成绩并更新数据（高级）',
+      '读取游玩次数' => '刷新机台游玩次数',
+      '退出账号' => context.l10n.featureSignOutOfDivingFish,
+      '首页数据刷新' => '拉取成绩并更新数据',
+      _ => task,
+    };
+    return context.l10n.hubBusyTask(context.featureText(label));
   }
 
   @override
@@ -666,40 +743,41 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
                 onToggleFavorite: () => _toggleFavorite('账号注册引导'),
                 onTap: () => showAccountRegistrationGuide(context),
               ),
-              '账号管理': HubActionTile(
-                title: '账号管理',
-                subtitle: '查看已绑定的水鱼账号信息',
-                icon: Icons.manage_accounts_outlined,
-                isFavorited: _isFavorited('账号管理'),
-                onToggleFavorite: () => _toggleFavorite('账号管理'),
+              '成绩导入凭据': HubActionTile(
+                title: '成绩导入凭据',
+                subtitle: '管理水鱼、落雪与 AWMC NET 的成绩导入 Token',
+                icon: Icons.key_outlined,
+                isFavorited: _isFavorited('成绩导入凭据'),
+                onToggleFavorite: () => _toggleFavorite('成绩导入凭据'),
                 onTap: widget.onAccountManageTap,
+                footer: const ImportCredentialStatusFooter(),
               ),
-              '登录 maimai Score Hub': HubActionTile(
-                title: '登录 maimai Score Hub',
-                subtitle: _maimaiHubLoggedIn
-                    ? '已登录，可直接使用 OCR；点击可重新登录'
-                    : '仅登录，不同步成绩；用于 OCR 与 maimai Score Hub 功能',
-                icon: _maimaiHubLoggedIn
-                    ? Icons.verified_user_outlined
-                    : Icons.login_rounded,
-                isFavorited: _isFavorited('登录 maimai Score Hub'),
-                onToggleFavorite: () => _toggleFavorite('登录 maimai Score Hub'),
-                onTap: _loginMaimaiHub,
-                disabledReason: _busyReason,
+              '切换账号': HubActionTile(
+                title: '切换账号',
+                subtitle: '切换数据源与玩家信息，使用本地缓存',
+                icon: Icons.switch_account_outlined,
+                isFavorited: _isFavorited('切换账号'),
+                onToggleFavorite: () => _toggleFavorite('切换账号'),
+                onTap: () => openFeature(const ButtonItem(
+                    title: '切换账号',
+                    subtitle: '切换数据源与玩家信息，使用本地缓存',
+                    icon: Icons.switch_account_outlined)),
                 disabled: anyBusy,
+                disabledReason: _busyReason,
+                footer: const AccountSwitchStatusFooter(),
               ),
-              '登录水鱼': HubActionTile(
-                title: loggedIn ? '登出水鱼账号' : '登录水鱼',
-                subtitle: loggedIn ? '清除水鱼登录状态' : '获取 ImportToken 以使用同步功能',
-                icon: loggedIn ? Icons.logout_rounded : Icons.login_rounded,
-                isFavorited: _isFavorited(loggedIn ? '登出水鱼账号' : '登录水鱼'),
-                onToggleFavorite: () =>
-                    _toggleFavorite(loggedIn ? '登出水鱼账号' : '登录水鱼'),
-                onTap: loggedIn ? _logoutDivingFish : _loginDivingFish,
+              '绑定与授权管理': HubActionTile(
+                title: '绑定与授权管理',
+                subtitle: '登录、授权与绑定各数据源账号',
+                icon: Icons.admin_panel_settings_outlined,
+                isFavorited: _isFavorited('绑定与授权管理'),
+                onToggleFavorite: () => _toggleFavorite('绑定与授权管理'),
+                onTap: _manageAccountBindings,
                 loading: _loggingOut,
                 loadingText: _logoutText,
                 disabledReason: _busyReason,
                 disabled: anyBusy && !_loggingOut,
+                footer: const AccountBindingStatusFooter(),
               ),
               '同步成绩到水鱼': HubActionTile(
                 title: '同步成绩到水鱼',
@@ -790,12 +868,12 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
                   onTap: () => _open(context, const AutoSyncPage()),
                 ),
               ),
-              '刷新数据': HubActionTile(
-                title: '刷新数据',
-                subtitle: '重新拉取并初始化所有本地缓存',
+              '拉取成绩并更新数据': HubActionTile(
+                title: '拉取成绩并更新数据',
+                subtitle: '拉取所选账号的成绩并重算 Best50，同时更新曲目、定数与标签',
                 icon: Icons.file_upload_sharp,
-                isFavorited: _isFavorited('刷新数据'),
-                onToggleFavorite: () => _toggleFavorite('刷新数据'),
+                isFavorited: _isFavorited('拉取成绩并更新数据'),
+                onToggleFavorite: () => _toggleFavorite('拉取成绩并更新数据'),
                 onTap: _refreshData,
                 loading: _refreshing,
                 loadingText: _refreshText,
@@ -804,12 +882,12 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
                 disabledReason: _busyReason,
                 disabled: anyBusy && !_refreshing,
               ),
-              '刷新数据（高级）': HubActionTile(
-                title: '刷新数据（高级）',
-                subtitle: '按缓存源勾选强制刷新，并测试各 API 连通性',
+              '拉取成绩并更新数据（高级）': HubActionTile(
+                title: '拉取成绩并更新数据（高级）',
+                subtitle: '按数据类型选择是否强制重新下载，并测试各接口连通性',
                 icon: Icons.tune_rounded,
-                isFavorited: _isFavorited('刷新数据（高级）'),
-                onToggleFavorite: () => _toggleFavorite('刷新数据（高级）'),
+                isFavorited: _isFavorited('拉取成绩并更新数据（高级）'),
+                onToggleFavorite: () => _toggleFavorite('拉取成绩并更新数据（高级）'),
                 onTap: _advancedRefreshData,
                 loading: _refreshingAdvanced,
                 loadingText: _refreshAdvancedText,
@@ -844,7 +922,8 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
                 loading: CacheManagementService.instance.reloadingBase,
                 loadingText: CacheManagementService.instance.reloadText,
                 progressValue: CacheManagementService.instance.reloadProgress,
-                disabled: anyBusy && !CacheManagementService.instance.reloadingBase,
+                disabled:
+                    anyBusy && !CacheManagementService.instance.reloadingBase,
                 icon: Icons.storage_outlined,
                 isFavorited: _isFavorited('缓存管理'),
                 onToggleFavorite: () => _toggleFavorite('缓存管理'),
@@ -917,8 +996,10 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
                   }
                   return HubActionTile(
                     title: UpdateNotifier.titleFor(update),
-                    subtitle: UpdateNotifier.subtitleFor(
-                        update, UpdateNotifier.idleSubtitle),
+                    subtitle: context.l10n.hubUpdateReleased(
+                        update.latestVersion.isEmpty
+                            ? context.featureText('新版本')
+                            : 'v${update.latestVersion}'),
                     icon: Icons.arrow_upward_rounded,
                     titleColor: UpdateAvailableIcon.green,
                     leading: const UpdateAvailableIcon(),
@@ -947,8 +1028,8 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
                   context,
                   AppLinks.officialSite,
                   '官网链接',
-                  failMessage: '无法打开浏览器，官网链接已复制到剪贴板，'
-                      '请粘贴到浏览器访问 ${AppLinks.officialSite}',
+                  failMessage: context.l10n.flowCouldNotOpenABrowserWebsiteLink(
+                      (AppLinks.officialSite).toString()),
                 ),
               ),
               '查看友情链接': HubActionTile(
@@ -970,7 +1051,7 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
               ),
               '加入 QQ 群': HubActionTile(
                 title: '加入 QQ 群',
-                subtitle: '一键跳转官方交流群（${AppLinks.qqGroupNumber}）',
+                subtitle: context.l10n.hubJoinGroup(AppLinks.qqGroupNumber),
                 icon: Icons.groups_outlined,
                 isFavorited: _isFavorited('加入 QQ 群'),
                 onToggleFavorite: () => _toggleFavorite('加入 QQ 群'),
@@ -980,8 +1061,8 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
                   '群号',
                   // 加群链接在浏览器里只是个空壳中转页，所以要复制**群号**
                   copyText: AppLinks.qqGroupNumber,
-                  failMessage: '没能跳转到 QQ，群号 ${AppLinks.qqGroupNumber} '
-                      '已复制到剪贴板，可在 QQ 里搜索加入',
+                  failMessage: context.l10n.flowCouldNotOpenQQGroupIDP0(
+                      (AppLinks.qqGroupNumber).toString()),
                 ),
               ),
               '问卷调查': HubActionTile(
@@ -1034,10 +1115,10 @@ class SystemHubPageState extends State<SystemHubPage> with SyncFlowMixin {
                     subtitle: section.subtitle,
                     icon: section.icon,
                     badgeCount: section.titles.length,
-                    contentPadding: section.title == '单平台同步' ||
-                            section.title == '批量与定时同步'
-                        ? const EdgeInsets.only(bottom: 8)
-                        : EdgeInsets.zero,
+                    contentPadding:
+                        section.title == '单平台同步' || section.title == '批量与定时同步'
+                            ? const EdgeInsets.only(bottom: 8)
+                            : EdgeInsets.zero,
                     children: [
                       for (final title in section.titles) features[title]!
                     ],

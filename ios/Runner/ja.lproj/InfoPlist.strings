@@ -1,0 +1,4 @@
+"NSLocationWhenInUseUsageDescription" = "地域の天気を表示するために位置情報を使用します。";
+"NSCameraUsageDescription" = "ジャケットを撮影して認識するためにカメラを使用します。";
+"NSPhotoLibraryUsageDescription" = "書き出した画像を保存するために写真へのアクセスを使用します。";
+"NSPhotoLibraryAddUsageDescription" = "書き出した画像を保存するために写真へのアクセスを使用します。";

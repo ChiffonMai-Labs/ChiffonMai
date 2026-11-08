@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'package:safe_text/safe_text.dart';
 
 class CommentTextValidator {
@@ -34,37 +35,37 @@ class CommentTextValidator {
     await _ensureInitialized();
 
     if (text.trim().isEmpty) {
-      return '内容不能为空';
+      return appL10n.flowContentCannotBeEmpty;
     }
 
     // 1. 使用 safe_text 检查敏感词
     final hasBadWord = await SafeTextFilter.containsBadWord(text: text);
     if (hasBadWord) {
-      return '内容包含不合规词句，请修改后重试';
+      return appL10n.flowContentContainsDisallowedWordingEditItAnd;
     }
 
     // 2. 检查是否包含电话号码
     final hasPhone = await PhoneNumberChecker.containsPhoneNumber(text: text);
     if (hasPhone) {
-      return '内容包含不合规词句，请修改后重试';
+      return appL10n.flowContentContainsDisallowedWordingEditItAnd;
     }
 
     // 3. 中文缩写脏话校验（cnm等，独立词边界防误伤）
     if (_abbreviationBadWordRegex.hasMatch(text)) {
-      return '内容包含不合规词句，请修改后重试';
+      return appL10n.flowContentContainsDisallowedWordingEditItAnd;
     }
 
     // 4. 自定义词句库精确匹配
     for (final word in _customExactWords) {
       if (text.contains(word)) {
-        return '内容包含不合规词句，请修改后重试';
+        return appL10n.flowContentContainsDisallowedWordingEditItAnd;
       }
     }
 
     // 5. 自定义正则模式匹配
     for (final pattern in _customPatterns) {
       if (pattern.hasMatch(text)) {
-        return '内容包含不合规词句，请修改后重试';
+        return appL10n.flowContentContainsDisallowedWordingEditItAnd;
       }
     }
 

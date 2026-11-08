@@ -207,4 +207,21 @@ class CropRect {
 
   double get width => x2 - x1;
   double get height => y2 - y1;
+
+  Map<String, double> toJson() => {'x1': x1, 'y1': y1, 'x2': x2, 'y2': y2};
+
+  static CropRect? tryFromJson(dynamic value) {
+    if (value is! Map) return null;
+    final coordinates = [for (final key in ['x1', 'y1', 'x2', 'y2']) value[key]];
+    if (coordinates.any((v) => v is! num || !v.isFinite)) return null;
+    final rect = CropRect(
+      x1: (coordinates[0] as num).toDouble(),
+      y1: (coordinates[1] as num).toDouble(),
+      x2: (coordinates[2] as num).toDouble(),
+      y2: (coordinates[3] as num).toDouble(),
+    );
+    if (rect.x1 < 0 || rect.y1 < 0 || rect.x2 > 1.000001 ||
+        rect.y2 > 1.000001 || rect.width <= 0 || rect.height <= 0) return null;
+    return rect;
+  }
 }

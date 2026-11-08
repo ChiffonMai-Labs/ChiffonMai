@@ -1,3 +1,6 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
+import 'AppTaskActivity.dart';
 import 'package:flutter/material.dart';
 
 import '../service/FavoriteTransferService.dart';
@@ -22,50 +25,52 @@ enum FavoriteImportMode { merge, replace }
 Future<bool> runFavoriteImportFlow(
   BuildContext context, {
   String? presetPath,
-}) async {
-  final service = FavoriteTransferService();
+}) =>
+    AppTaskActivity.run(() async {
+      final service = FavoriteTransferService();
 
-  // ---- 1. 取得文件并解析 ----
-  FavoriteImportBundle? bundle;
-  try {
-    bundle = presetPath != null
-        ? await service.parseFile(presetPath)
-        : await service.pickAndParse();
-  } on FormatException catch (e) {
-    if (context.mounted) {
-      await _showMessageDialog(context, title: '无法导入', message: e.message);
-    }
-    return false;
-  } catch (e) {
-    if (context.mounted) {
-      await _showMessageDialog(context, title: '无法导入', message: '$e');
-    }
-    return false;
-  }
+      // ---- 1. 取得文件并解析 ----
+      FavoriteImportBundle? bundle;
+      try {
+        bundle = presetPath != null
+            ? await service.parseFile(presetPath)
+            : await service.pickAndParse();
+      } on FormatException catch (e) {
+        if (context.mounted) {
+          await _showMessageDialog(context, title: context.l10n.flowCannotImport, message: e.message);
+        }
+        return false;
+      } catch (e) {
+        if (context.mounted) {
+          await _showMessageDialog(context, title: context.l10n.flowCannotImport, message: '$e');
+        }
+        return false;
+      }
 
-  // 用户取消选择
-  if (bundle == null) return false;
-  if (!context.mounted) return false;
+      // 用户取消选择
+      if (bundle == null) return false;
+      if (!context.mounted) return false;
 
-  // ---- 2. 确认对话框（选合并 / 覆盖） ----
-  final mode = await _showConfirmDialog(context, bundle);
-  if (mode == null) return false;
+      // ---- 2. 确认对话框（选合并 / 覆盖） ----
+      final mode = await _showConfirmDialog(context, bundle);
+      if (mode == null) return false;
 
-  // ---- 3. 执行导入 ----
-  try {
-    final stats = await service.apply(
-      bundle,
-      replaceAll: mode == FavoriteImportMode.replace,
-    );
-    AppToast.show('导入完成：${stats.describe()}', duration: const Duration(seconds: 4));
-    return true;
-  } catch (e) {
-    if (context.mounted) {
-      await _showMessageDialog(context, title: '导入失败', message: '$e');
-    }
-    return false;
-  }
-}
+      // ---- 3. 执行导入 ----
+      try {
+        final stats = await service.apply(
+          bundle,
+          replaceAll: mode == FavoriteImportMode.replace,
+        );
+        AppToast.show(context.l10n.flowImportCompleteP0((stats.describe()).toString()),
+            duration: const Duration(seconds: 4));
+        return true;
+      } catch (e) {
+        if (context.mounted) {
+          await _showMessageDialog(context, title: context.l10n.flowImportFailed, message: '$e');
+        }
+        return false;
+      }
+    });
 
 Future<FavoriteImportMode?> _showConfirmDialog(
   BuildContext context,
@@ -79,14 +84,14 @@ Future<FavoriteImportMode?> _showConfirmDialog(
         builder: (ctx, setLocal) {
           final scheme = Theme.of(ctx).colorScheme;
           return AppAlertDialog(
-            title: const Text('导入收藏夹'),
+            title:  Text(context.l10n.flowImportFavorites),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '共 ${bundle.folders.length} 个收藏夹、${bundle.chartCount} 个谱面',
+                    context.l10n.flowP0FoldersP1Charts((bundle.folders.length).toString(), (bundle.chartCount).toString()),
                     style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 8),
@@ -95,7 +100,7 @@ Future<FavoriteImportMode?> _showConfirmDialog(
                         (f) => Padding(
                           padding: const EdgeInsets.symmetric(vertical: 1),
                           child: Text(
-                            '· ${f.name}（${f.charts.length} 个谱面）',
+                            context.l10n.flowP0P1Charts2((f.name).toString(), (f.charts.length).toString()),
                             style: TextStyle(
                               fontSize: 13,
                               color: scheme.onSurfaceVariant,
@@ -107,7 +112,7 @@ Future<FavoriteImportMode?> _showConfirmDialog(
                     Padding(
                       padding: const EdgeInsets.only(top: 1),
                       child: Text(
-                        '· 其余 ${bundle.folders.length - 8} 个收藏夹…',
+                        context.l10n.flowP0MoreFolders((bundle.folders.length - 8).toString()),
                         style: TextStyle(
                           fontSize: 13,
                           color: scheme.onSurfaceVariant,
@@ -121,9 +126,9 @@ Future<FavoriteImportMode?> _showConfirmDialog(
                     onChanged: (v) => setLocal(() => mode = v!),
                     contentPadding: EdgeInsets.zero,
                     dense: true,
-                    title: const Text('合并到现有收藏夹'),
-                    subtitle: const Text(
-                      '同名收藏夹会合并，重复谱面自动跳过',
+                    title:  Text(context.l10n.flowMergeWithExistingFolders),
+                    subtitle:  Text(
+                      context.l10n.flowFoldersWithTheSameNameAreMerged,
                       style: TextStyle(fontSize: 12),
                     ),
                   ),
@@ -133,9 +138,9 @@ Future<FavoriteImportMode?> _showConfirmDialog(
                     onChanged: (v) => setLocal(() => mode = v!),
                     contentPadding: EdgeInsets.zero,
                     dense: true,
-                    title: const Text('覆盖导入'),
+                    title:  Text(context.l10n.flowReplaceExistingFavorites),
                     subtitle: Text(
-                      '先清空当前所有收藏夹，再导入文件内容',
+                      context.l10n.flowClearAllCurrentFoldersThenImportThe,
                       style: TextStyle(
                         fontSize: 12,
                         color: Theme.of(context).colorScheme.error,
@@ -148,11 +153,11 @@ Future<FavoriteImportMode?> _showConfirmDialog(
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(ctx).pop(),
-                child: const Text('取消'),
+                child:  Text(context.l10n.featureCancel),
               ),
               TextButton(
                 onPressed: () => Navigator.of(ctx).pop(mode),
-                child: const Text('导入'),
+                child:  Text(context.l10n.flowImport),
               ),
             ],
           );
@@ -175,7 +180,7 @@ Future<void> _showMessageDialog(
       actions: [
         TextButton(
           onPressed: () => Navigator.of(ctx).pop(),
-          child: const Text('知道了'),
+          child:  Text(context.l10n.featureGotIt),
         ),
       ],
     ),
@@ -187,7 +192,7 @@ Future<void> _showMessageDialog(
 /// 提示里只认 `.cmf`，但**文件选择器不过滤后缀**（导入按内容识别），
 /// 所以用户以前用自定义后缀导出的备份也照样能选、能导进来。
 String favoriteImportHint() =>
-    '支持 ${ExportSettings.favoriteExtensionWithDot} 等 ChiffonMai 收藏夹文件';
+    appL10n.flowSupportsChiffonMaiFavoritesFilesSuchAsP0((ExportSettings.favoriteExtensionWithDot).toString());
 
 /// 导出文件名前缀，集中在这里方便以后调整。
 const String favoriteExportPrefix = 'ChiffonMai_favorites';

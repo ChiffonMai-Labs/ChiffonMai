@@ -4,6 +4,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:my_first_flutter_app/page/OnboardingPage.dart';
+import 'package:my_first_flutter_app/main.dart';
+import 'package:my_first_flutter_app/page/AppEntryPage.dart';
+import 'package:my_first_flutter_app/utils/AppTheme.dart';
+import 'package:my_first_flutter_app/widgets/PortablePlayerBadge.dart';
 import 'package:my_first_flutter_app/service/OnboardingStateStore.dart';
 import 'package:my_first_flutter_app/widgets/AppDialogs.dart';
 
@@ -49,6 +53,59 @@ void main() {
     expect(prefs.getString('onboarding_agreement_version'),
         OnboardingStateStore.agreementVersion);
     expect(prefs.getBool('onboarding_guardian_consent'), isFalse);
+  });
+
+  testWidgets('首次安装显示引导时不启动主界面服务或解码隐藏背景', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final calls = <String>[];
+    const channels = [
+      MethodChannel('com.ryanheise.audio_service.client.methods'),
+      MethodChannel('plugins.it_nomads.com/flutter_secure_storage'),
+      MethodChannel('com.example.app/open_file'),
+      MethodChannel('com.example.app/crash_report'),
+    ];
+    for (final channel in channels) {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+        calls.add('${channel.name}/${call.method}');
+        return null;
+      });
+    }
+    AppTheme.debugLocalFontFamily = true;
+    addTearDown(() {
+      AppTheme.debugLocalFontFamily = false;
+      for (final channel in channels) {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, null);
+      }
+    });
+    await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+
+    expect(find.byType(OnboardingPage), findsOneWidget);
+    expect(find.byType(PortablePlayerBall), findsNothing);
+    expect(calls, isEmpty);
+    final images = tester.widgetList<Image>(find.byType(Image));
+    expect(
+        images.where((image) =>
+            image.image is AssetImage &&
+            ['assets/background.png', 'assets/chiffon2.png']
+                .contains((image.image as AssetImage).assetName)),
+        isEmpty);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('主界面准备回调不在首次引导期间执行', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    var prepared = false;
+    await tester.pumpWidget(MaterialApp(
+        home: AppEntryPage(
+      prepareMain: () async => prepared = true,
+    )));
+    await tester.pumpAndSettle();
+    expect(find.byType(OnboardingPage), findsOneWidget);
+    expect(prepared, isFalse);
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 
   test('未同意时不能写入完成记录', () async {

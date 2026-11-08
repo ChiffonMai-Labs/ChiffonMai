@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../manager/DivingFishProbeManager.dart';
@@ -86,7 +87,7 @@ class _UpdateLuoXueScorePageState extends State<UpdateLuoXueScorePage> {
   Future<void> _saveLxnsToken() async {
     final token = _tokenController.text.trim();
     if (token.isEmpty) {
-      AppToast.show('请输入落雪个人 API 密钥');
+      AppToast.show(context.l10n.flowEnterYourLXNSPersonalAPIKey, tone: AppToastTone.warning);
       return;
     }
     // 先保存到本地缓存（无需登录 maimai Score Hub）
@@ -100,9 +101,9 @@ class _UpdateLuoXueScorePageState extends State<UpdateLuoXueScorePage> {
         _tokenController.clear();
       });
       if (ok) {
-        AppToast.show('落雪 API 密钥已保存');
+        AppToast.show(context.l10n.flowLXNSAPIKeySaved);
       } else {
-        AppToast.show('已本地保存，同步时将自动绑定到云端');
+        AppToast.show(context.l10n.flowSavedLocallyItWillBeLinkedTo, tone: AppToastTone.success);
       }
     }
   }
@@ -116,11 +117,11 @@ class _UpdateLuoXueScorePageState extends State<UpdateLuoXueScorePage> {
       // 登录要花时间，之前输入的二维码可能已经过期；登录后请重新输入。
       _qrController.clear();
     }
-    if (!await ensureMaimaiHubLogin(context, reason: '落雪线路2')) return;
+    if (!await ensureMaimaiHubLogin(context, reason: context.l10n.flowLXNSRoute2)) return;
     if (!mounted) return;
     final qrCode = _qrController.text.trim();
     if (qrCode.isEmpty) {
-      AppToast.show('请先粘贴舞萌|中二登入二维码字符串');
+      AppToast.show(context.l10n.flowPasteTheMaimaiCHUNITHMLoginQRString, tone: AppToastTone.warning);
       return;
     }
 
@@ -129,7 +130,7 @@ class _UpdateLuoXueScorePageState extends State<UpdateLuoXueScorePage> {
     if (!_hasLxnsToken) {
       final inputToken = _tokenController.text.trim();
       if (inputToken.isEmpty) {
-        AppToast.show('请先设置落雪个人 API 密钥');
+        AppToast.show(context.l10n.flowSetYourLXNSPersonalAPIKeyFirst, tone: AppToastTone.warning);
         return;
       }
       lxnsToken = inputToken;
@@ -141,7 +142,7 @@ class _UpdateLuoXueScorePageState extends State<UpdateLuoXueScorePage> {
 
     setState(() {
       _isSyncing = true;
-      _statusText = '准备同步...';
+      _statusText = context.l10n.flowPreparingSync;
       _currentStage = SyncStage.authenticating;
       _isDone = false;
       _resultMessage = null;
@@ -201,7 +202,7 @@ class _UpdateLuoXueScorePageState extends State<UpdateLuoXueScorePage> {
       setState(() {
         _currentStage = SyncStage.completed;
         _isDone = true;
-        _resultMessage = '同步完成！共同步 ${result.exportedCount} 条成绩到落雪';
+        _resultMessage = context.l10n.flowSyncCompleteP0ScoresSyncedToLXNS((result.exportedCount).toString());
         _statusText = _resultMessage!;
         _progress = 1.0;
       });
@@ -209,13 +210,13 @@ class _UpdateLuoXueScorePageState extends State<UpdateLuoXueScorePage> {
       setState(() {
         _currentStage = SyncStage.cancelled;
         _isDone = true;
-        _statusText = '同步已取消';
+        _statusText = context.l10n.flowSyncCancelled;
       });
     } else {
       setState(() {
         _currentStage = SyncStage.failed;
         _isDone = true;
-        _statusText = result.errorMessage ?? '同步失败';
+        _statusText = result.errorMessage ?? context.l10n.featureSyncFailed;
       });
     }
 
@@ -291,7 +292,7 @@ class _UpdateLuoXueScorePageState extends State<UpdateLuoXueScorePage> {
             Icon(Icons.qr_code_scanner,
                 color: Theme.of(context).colorScheme.onSurface, size: 22),
             const SizedBox(width: 8),
-            const Text('同步成绩到落雪'),
+             Text(context.l10n.featureSyncToLXNS),
           ],
         ),
         content: SingleChildScrollView(
@@ -302,7 +303,7 @@ class _UpdateLuoXueScorePageState extends State<UpdateLuoXueScorePage> {
               // ===== 阶段 1：输入 QR 码 =====
               if (!_isSyncing && !_isDone) ...[
                 Text(
-                  '在舞萌|中二公众号请求并打开二维码，扫描后将字符串粘贴到下方：',
+                  context.l10n.flowRequestAndOpenALoginQRCode,
                   style: TextStyle(
                       fontSize: 13, color: AppColors.greyHint(brightness)),
                 ),
@@ -313,7 +314,7 @@ class _UpdateLuoXueScorePageState extends State<UpdateLuoXueScorePage> {
                   controller: _qrController,
                   maxLines: 3,
                   decoration: InputDecoration(
-                    hintText: '舞萌DX | 中二节奏 登入二维码(SGWCMAID...)',
+                    hintText: context.l10n.flowMaimaiDXCHUNITHMLoginQRSGWCMAID,
                     hintStyle: TextStyle(
                         fontSize: 13,
                         color: AppColors.greyHint(brightness, shade: 400)),
@@ -345,7 +346,7 @@ class _UpdateLuoXueScorePageState extends State<UpdateLuoXueScorePage> {
                                 size: 16,
                                 color: AppColors.linkBlue(brightness)),
                             const SizedBox(width: 6),
-                            Text('如何获取？',
+                            Text(context.l10n.flowHowDoIGetIt,
                                 style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w600,
@@ -364,8 +365,8 @@ class _UpdateLuoXueScorePageState extends State<UpdateLuoXueScorePage> {
                           child: Text.rich(
                             TextSpan(
                               children: [
-                                const TextSpan(
-                                    text: '访问 ',
+                                 TextSpan(
+                                    text: context.l10n.flowVisit2,
                                     style: TextStyle(fontSize: 12)),
                                 TextSpan(
                                   text:
@@ -376,8 +377,8 @@ class _UpdateLuoXueScorePageState extends State<UpdateLuoXueScorePage> {
                                       color: Theme.of(context).colorScheme.primary,
                                       decoration: TextDecoration.underline),
                                 ),
-                                const TextSpan(
-                                    text: '，滑到页面最底部即可找到个人 API 密钥。',
+                                 TextSpan(
+                                    text: context.l10n.flowThenScrollToTheBottomToFind,
                                     style: TextStyle(fontSize: 12)),
                               ],
                             ),
@@ -410,7 +411,7 @@ class _UpdateLuoXueScorePageState extends State<UpdateLuoXueScorePage> {
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            _hasLxnsToken ? '落雪 API 密钥已设置' : '设置落雪个人 API 密钥',
+                            _hasLxnsToken ? context.l10n.flowLXNSAPIKeyIsSet : context.l10n.flowSetLXNSPersonalAPIKey,
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w500,
@@ -428,7 +429,7 @@ class _UpdateLuoXueScorePageState extends State<UpdateLuoXueScorePage> {
                                 controller: _tokenController,
                                 obscureText: true,
                                 decoration: InputDecoration(
-                                  hintText: '在此粘贴落雪个人 API 密钥...',
+                                  hintText: context.l10n.flowPasteYourLXNSPersonalAPIKey,
                                   border: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall)),
                                   contentPadding: const EdgeInsets.symmetric(
@@ -447,7 +448,7 @@ class _UpdateLuoXueScorePageState extends State<UpdateLuoXueScorePage> {
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 12, vertical: 10),
                               ),
-                              child: const Text('保存',
+                              child:  Text(context.l10n.save,
                                   style: TextStyle(fontSize: 13)),
                             ),
                           ],
@@ -479,7 +480,7 @@ class _UpdateLuoXueScorePageState extends State<UpdateLuoXueScorePage> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            '同步进行中，请耐心等待，不要进行其他操作',
+                            context.l10n.flowSyncInProgressPleaseWaitAndAvoid,
                             style: TextStyle(
                                 fontSize: 12,
                                 color: AppColors.warningOrange(brightness)),
@@ -547,7 +548,7 @@ class _UpdateLuoXueScorePageState extends State<UpdateLuoXueScorePage> {
                   Padding(
                     padding: const EdgeInsets.only(top: 12),
                     child: Text(
-                      '${_resultMessage!}\n${_countdown > 0 ? "${_countdown}s 后自动关闭" : ""}',
+                      '${_resultMessage!}\n${_countdown > 0 ? context.l10n.flowClosesAutomaticallyInP0S((_countdown).toString()) : ""}',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                           fontSize: 12, color: AppColors.greyHint(brightness)),
@@ -562,11 +563,11 @@ class _UpdateLuoXueScorePageState extends State<UpdateLuoXueScorePage> {
           if (!_isSyncing && !_isDone) ...[
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('关闭'),
+              child:  Text(context.l10n.featureClose),
             ),
             ElevatedButton.icon(
               icon: const Icon(Icons.send, size: 18),
-              label: const Text('开始同步'),
+              label:  Text(context.l10n.flowStartSync),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.linkBlue(brightness),
                 foregroundColor: Colors.white,
@@ -582,7 +583,7 @@ class _UpdateLuoXueScorePageState extends State<UpdateLuoXueScorePage> {
                 _autoCloseTimer?.cancel();
                 Navigator.of(context).pop();
               },
-              child: Text(_countdown > 0 ? '确定 ($_countdown)' : '确定'),
+              child: Text(_countdown > 0 ? context.l10n.flowOKP0((_countdown).toString()) : context.l10n.featureOK),
             ),
         ],
       ),

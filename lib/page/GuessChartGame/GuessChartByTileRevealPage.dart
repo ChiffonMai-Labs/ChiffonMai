@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import '../../widgets/GuessCoverImage.dart';
 import '../../widgets/GuessGameStatusPanel.dart';
 import 'dart:async';
@@ -415,7 +416,7 @@ class _GuessChartByTileRevealPageState
     bool hasGuessed =
         _guessHistory.any((guess) => guess.songId == int.parse(guessedSong.id));
     if (hasGuessed) {
-      AppToast.show('已经猜过这首歌了！', duration: Duration(seconds: 2));
+      AppToast.show(context.l10n.flowYouAlreadyGuessedThisSong, duration: Duration(seconds: 2), tone: AppToastTone.success);
       _searchController.clear();
       _searchResults = [];
       _showSearchResults = false;
@@ -574,37 +575,36 @@ class _GuessChartByTileRevealPageState
       context: context,
       builder: (BuildContext context) {
         return AppAlertDialog(
-          title: const Text('规则说明'),
+          title:  Text(context.l10n.flowHowToPlay),
           content: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('曲绘被切成若干小块，每隔一段时间会随机揭示其中一批，'
-                    '已揭示的小块会累积保留 —— 拼图会越来越完整。'),
+                 Text(context.l10n.flowTheCoverIsSplitIntoTilesAt),
                 const SizedBox(height: 8),
-                const Text('越早猜中得分越高（计入平均用时），也可以等拼图更完整后再下手。'),
+                 Text(context.l10n.flowEarlierGuessesImproveYourScoreAverageTime),
                 const SizedBox(height: 16),
-                const Text('绿色 - 该属性与你猜的完全一致。'),
+                 Text(context.l10n.flowGreenTheAttributeMatchesTheTargetExactly),
                 const SizedBox(height: 8),
-                const Text('橙色 - 该属性与你猜的"接近"：'),
+                 Text(context.l10n.flowOrangeTheAttributeIsCloseToThe),
                 const SizedBox(height: 4),
-                const Text('BPM 相差在 ±20 范围内；'),
-                const Text('MASTER 难度或 Re:MASTER 难度相差在 ±0.4范围内；'),
-                const Text('版本相差一个世代（例如 maimai ← maimai PLUS → maimai GreeN）。'),
+                 Text(context.l10n.flowBPMDiffersByNoMoreThan20),
+                 Text(context.l10n.flowMASTEROrReMASTERDifficultyDiffersBy),
+                 Text(context.l10n.flowVersionsAreOneGenerationApartEG),
                 const SizedBox(height: 8),
-                const Text('灰色 - 该属性与你猜的"差距较大"。'),
+                 Text(context.l10n.flowGrayTheAttributeIsFarFromThe),
                 const SizedBox(height: 16),
-                const Text('箭头：'),
+                 Text(context.l10n.flowArrows),
                 const SizedBox(height: 4),
-                const Text('设计思路借鉴：'),
+                 Text(context.l10n.flowDesignInspiration2),
                 const SizedBox(height: 16),
-                const Text('标签：'),
+                 Text(context.l10n.flowTags2),
                 const SizedBox(height: 4),
-                const Text('显示您猜测的曲目的 MASTER 难度的配置、难度和评价标签。'),
-                const Text('当一个标签与目标曲目的属性一致时，该标签会变为绿色。'),
-                const Text('注意，有些曲目可能未添加标签。'),
+                 Text(context.l10n.flowShowsPatternDifficultyAndEvaluationTagsFor),
+                 Text(context.l10n.flowATagTurnsGreenWhenItMatches),
+                 Text(context.l10n.flowSomeSongsMayNotHaveTags),
                 const SizedBox(height: 16),
-                const Text('设计思路借鉴：'),
+                 Text(context.l10n.flowDesignInspiration2),
                 GestureDetector(
                   onTap: () async {
                     final url = Uri.parse('https://maimai.yukineko2233.top/');
@@ -614,7 +614,7 @@ class _GuessChartByTileRevealPageState
                       await ExternalLaunchUtil.copyFallback(
                         context,
                         url.toString(),
-                        message: '无法打开该链接，链接已复制到剪贴板',
+                        message: context.l10n.flowCouldNotOpenThisLinkLinkCopied,
                       );
                     }
                   },
@@ -634,7 +634,7 @@ class _GuessChartByTileRevealPageState
               onPressed: () {
                 Navigator.of(context).pop();
               },
-              child: const Text('确定'),
+              child:  Text(context.l10n.featureOK),
             ),
           ],
         );
@@ -668,7 +668,7 @@ class _GuessChartByTileRevealPageState
         selectedGenres: selectedGenres,
       );
       if (testSong != null || !mounted) return;
-      AppToast.show('当前筛选条件抽不到曲目，请放宽筛选条件', duration: Duration(seconds: 4));
+      AppToast.show(context.l10n.flowNoSongsMatchTheseFiltersBroadenYour, duration: Duration(seconds: 4), tone: AppToastTone.warning);
     } catch (e) {
       debugPrint('校验筛选条件失败: $e');
     }
@@ -718,8 +718,8 @@ class _GuessChartByTileRevealPageState
       context: context,
       builder: (BuildContext context) {
         return AppAlertDialog(
-          title: const Text('游戏设置'),
-          subtitle: '保存后下局生效',
+          title:  Text(context.l10n.flowGameSettings),
+          subtitle: context.l10n.flowAppliesFromTheNextGame,
           content: StatefulBuilder(
             builder: (BuildContext context, StateSetter setState) {
               return SingleChildScrollView(
@@ -764,12 +764,12 @@ class _GuessChartByTileRevealPageState
                       },
                     ),
                     GuessSettingSection(
-                      title: '本模式设置',
+                      title: context.l10n.flowModeSettings,
                       icon: Icons.grid_on_rounded,
                       children: [
                         GuessSliderTile(
-                          label: '切块数量',
-                          valueText: '$tempTileCount 块',
+                          label: context.l10n.flowTileCount,
+                          valueText: context.l10n.flowP0Tiles((tempTileCount).toString()),
                           value: tempTileCount.toDouble(),
                           min: 100,
                           max: 10000,
@@ -778,8 +778,8 @@ class _GuessChartByTileRevealPageState
                               setState(() => tempTileCount = value.toInt()),
                         ),
                         GuessSliderTile(
-                          label: '揭示间隔',
-                          valueText: '${(tempTileRevealIntervalMs / 1000).toStringAsFixed(1)} 秒',
+                          label: context.l10n.flowRevealInterval,
+                          valueText: context.l10n.flowP0Seconds2(((tempTileRevealIntervalMs / 1000).toStringAsFixed(1)).toString()),
                           value: tempTileRevealIntervalMs.toDouble(),
                           min: 100,
                           max: 10000,
@@ -802,7 +802,7 @@ class _GuessChartByTileRevealPageState
               onPressed: () {
                 Navigator.of(context).pop();
               },
-              child: const Text('取消'),
+              child:  Text(context.l10n.featureCancel),
             ),
             TextButton(
               onPressed: () async {
@@ -826,7 +826,7 @@ class _GuessChartByTileRevealPageState
 
                 if (!navigator.mounted) return;
                 navigator.pop();
-                AppToast.show('设置已保存，将在下局游戏生效',
+                AppToast.show(context.l10n.flowSettingsSavedTheyApplyFromTheNext,
                     tone: AppToastTone.success);
 
                 _warnIfNoSongMatches(
@@ -836,7 +836,7 @@ class _GuessChartByTileRevealPageState
                   selectedGenres: tempSelectedGenres,
                 );
               },
-              child: const Text('确定'),
+              child:  Text(context.l10n.featureOK),
             ),
           ],
         );
@@ -855,22 +855,22 @@ class _GuessChartByTileRevealPageState
     return BackgroundPageScaffold(
       actions: [
         IconButton(
-          tooltip: '规则',
+          tooltip: context.l10n.flowRules,
           icon: const Icon(Icons.info_outline_rounded, size: 20),
           onPressed: _showRulesDialog,
         ),
         IconButton(
-          tooltip: '设置',
+          tooltip: context.l10n.flowSettings,
           icon: const Icon(Icons.settings_outlined, size: 20),
           onPressed: _showSettingsDialog,
         ),
         IconButton(
-          tooltip: '换一题',
+          tooltip: context.l10n.flowNewQuestion,
           icon: const Icon(Icons.refresh_rounded, size: 20),
           onPressed: _startNewGame,
         ),
       ],
-      title: '曲绘拼图猜歌',
+      title: context.l10n.featureCoverPuzzleQuiz,
       resizeToAvoidBottomInset: false,
       child: GestureDetector(
         onTap: () {
@@ -898,7 +898,7 @@ class _GuessChartByTileRevealPageState
                                 children: [
                                   // 本局状态与每日统计共用布局。
                                   GuessGameStatusPanel(
-                                    roundLabel: '剩余次数',
+                                    roundLabel: context.l10n.flowGuessesLeft,
                                     roundValue: _maxGuesses > 0
                                         ? (_maxGuesses - _guessCount)
                                             .clamp(0, _maxGuesses)
@@ -986,7 +986,7 @@ class _GuessChartByTileRevealPageState
                                               CrossAxisAlignment.start,
                                           children: [
                                             Text(
-                                              _isWon ? '恭喜你猜对了！' : '本局答案',
+                                              _isWon ? context.l10n.flowYouGotIt : context.l10n.flowThisGameSAnswer,
                                               style: TextStyle(
                                                 fontSize: 16,
                                                 fontWeight: FontWeight.bold,
@@ -1161,7 +1161,7 @@ class _GuessChartByTileRevealPageState
                   GuessInputBar(
                     controller: _searchController,
                     onChanged: _handleSearchInput,
-                    hintText: '搜索歌名、别名、编号等',
+                    hintText: context.l10n.flowSearchTitleAliasIDAndMore,
                     isGameOver: _isGameOver,
                     onSurrender: () async {
                                                   // 投降时取消倒计时和渐显
@@ -1200,8 +1200,7 @@ class _GuessChartByTileRevealPageState
     return Column(
       children: [
         Text(
-          '已显示 ${(_revealedTileCount * 100 / _tileCount).toStringAsFixed(0)}%'
-          '（$_revealedTileCount / $_tileCount 块）',
+          context.l10n.flowP0RevealedP1P2Tiles(((_revealedTileCount * 100 / _tileCount).toStringAsFixed(0)).toString(), (_revealedTileCount).toString(), (_tileCount).toString()),
           style: TextStyle(
             fontSize: 13,
             color: scheme.onSurfaceVariant,
@@ -1224,8 +1223,8 @@ class _GuessChartByTileRevealPageState
                 ),
                 child: Text(
                   _isRevealPaused
-                      ? '揭示已暂停'
-                      : '${_secondsToNextReveal.toStringAsFixed(1)} 秒后揭示下一批',
+                      ? context.l10n.flowRevealPaused
+                      : context.l10n.flowNextRevealInP0S((_secondsToNextReveal.toStringAsFixed(1)).toString()),
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -1260,7 +1259,7 @@ class _GuessChartByTileRevealPageState
                     size: 16,
                   ),
                   label: Text(
-                    _isRevealPaused ? '继续揭示' : '暂停揭示',
+                    _isRevealPaused ? context.l10n.flowResumeReveal : context.l10n.flowPauseReveal,
                     style: const TextStyle(fontSize: 12),
                   ),
                 ),

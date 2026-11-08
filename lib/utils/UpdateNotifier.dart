@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 /*
  * 「有没有新版本」的全局状态。
  *
@@ -89,8 +90,8 @@ class UpdateNotifier {
   static String subtitleFor(UpdateAvailability? update, String fallback) {
     if (update == null) return fallback;
     final version =
-        update.latestVersion.isEmpty ? '新版本' : 'v${update.latestVersion}';
-    return '$version 已发布，点击查看更新内容';
+        update.latestVersion.isEmpty ? appL10n.featureNewVersion : 'v${update.latestVersion}';
+    return appL10n.flowP0ReleasedTapForChanges((version).toString());
   }
 
   /// 这个名字是不是「检查更新」入口。

@@ -1,3 +1,6 @@
+import 'package:my_first_flutter_app/l10n/FeatureLocalizations.dart';
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
 import '../../service/KaleidXScope/KaleidXScopeGateService.dart';
@@ -77,7 +80,7 @@ class _KaleidXScopeSelectPageState extends State<KaleidXScopeSelectPage> {
         }
       });
     } catch (_) {
-      if (mounted) setState(() => _listError = '新增门列表加载失败，请点击右上角刷新');
+      if (mounted) setState(() => _listError = appL10n.flowCouldNotLoadNewGatesRefreshUsing);
     }
   }
 
@@ -106,7 +109,7 @@ class _KaleidXScopeSelectPageState extends State<KaleidXScopeSelectPage> {
                 IconButton(
                     onPressed: _loadGates,
                     icon: const Icon(Icons.refresh),
-                    tooltip: '刷新门列表')
+                    tooltip: context.l10n.flowRefreshGateList)
               ],
       contentPadding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
       child: SingleChildScrollView(
@@ -127,7 +130,7 @@ class _KaleidXScopeSelectPageState extends State<KaleidXScopeSelectPage> {
                                     MaterialPageRoute(
                                         builder: (_) => KaleidXScopeGatePage(
                                             color: item['type']!,
-                                            title: item['title']!))),
+                                            title: context.featureText(item['title']!)))),
                                 child: ClipRRect(
                                   borderRadius: BorderRadius.circular(12),
                                   child: Stack(

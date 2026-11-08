@@ -1,3 +1,6 @@
+import 'package:my_first_flutter_app/l10n/FeatureLocalizations.dart';
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
@@ -147,7 +150,8 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
       if (mounted) await _load();
     } catch (e) {
       if (mounted) {
-        AppToast.show('保存历史失败：$e');
+        AppToast.show(context.l10n.flowCouldNotSaveHistoryP0((e).toString()),
+            tone: AppToastTone.error);
       }
     }
   }
@@ -169,7 +173,9 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
       if (mounted) await _load();
     } catch (e) {
       if (mounted) {
-        AppToast.show('删除记录点失败：$e');
+        AppToast.show(
+            context.l10n.flowCouldNotDeleteDataPointP0((e).toString()),
+            tone: AppToastTone.error);
       }
     }
   }
@@ -185,7 +191,8 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
   /// 不要奇怪，那本来就是预期行为。
   Future<void> _syncFromAwmcNet() async {
     if (_awmcSyncing) return;
-    if (CurrentDataSourceNotifier.instance.value != RefreshDataSource.awmc) return;
+    if (CurrentDataSourceNotifier.instance.value != RefreshDataSource.awmc)
+      return;
 
     // QQ 必须从**当前源**的账号存档拿，不能用活动槽里的 cachedQQ（详见
     // RefreshDataDialog._fetchCurrentAwmcNetQQ 注释）
@@ -193,7 +200,8 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
     final awmcQQ = metas[RefreshDataSource.awmc.key]?.id ?? '';
     if (awmcQQ.isEmpty) {
       if (mounted) {
-        AppToast.show('AWMC NET 还没绑定 QQ，请先在「同步成绩到 AWMC NET」入口绑定');
+        AppToast.show(context.l10n.flowLinkYourQQThroughSyncScoresTo,
+            tone: AppToastTone.warning);
       }
       return;
     }
@@ -207,7 +215,9 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
       if (!mounted) return;
 
       if (result.points.isEmpty) {
-        AppToast.show('AWMC NET 上 QQ $awmcQQ 近 90 天没有任何 Rating 记录');
+        AppToast.show(
+            context.l10n.flowNoRatingRecordsForQQP0On((awmcQQ).toString()),
+            tone: AppToastTone.warning);
         return;
       }
 
@@ -224,8 +234,7 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
           .toList(growable: false);
 
       final sourceKey = await ChartHistoryStore.storageKey();
-      final added =
-          await ChartHistoryStore.instance.recordRatingSeries(
+      final added = await ChartHistoryStore.instance.recordRatingSeries(
         newPoints: newPoints,
         sourceKey: sourceKey,
       );
@@ -233,17 +242,23 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
 
       await _load();
       if (!mounted) return;
-      AppToast.show(added > 0
-            ? '已从 AWMC NET 同步 Rating 趋势，新增 $added 条'
-            : 'AWMC NET 没有新数据点（${result.points.length} 条都已记录过）');
+      AppToast.show(
+          added > 0
+              ? context.l10n
+                  .flowSyncedRatingHistoryFromAWMCNETAdded((added).toString())
+              : context.l10n.flowNoNewAWMCNETPointsP0Already(
+                  (result.points.length).toString()),
+          tone: AppToastTone.success);
     } on AwmcNetTrendException catch (e) {
       if (mounted) {
-        AppToast.show('同步失败：${e.message}');
+        AppToast.show(context.l10n.flowSyncFailedP0((e.message).toString()),
+            tone: AppToastTone.error);
       }
     } catch (e) {
       debugPrint('[RatingHistory] 从 AWMC NET 同步趋势失败：$e');
       if (mounted) {
-        AppToast.show('同步失败：$e');
+        AppToast.show(context.l10n.flowSyncFailedP0((e).toString()),
+            tone: AppToastTone.error);
       }
     } finally {
       if (mounted) {
@@ -282,12 +297,12 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
           Column(
             children: [
               AppHeader(
-                title: 'Rating 历史',
+                title: context.l10n.featureRatingHistory,
                 actions: [
                   // 仅 AWMC NET 数据源出现：拉取该 QQ 的 Rating 趋势并并入本地缓存。
                   if (showAwmcSync)
                     IconButton(
-                      tooltip: '从 AWMC NET 同步 Rating 趋势',
+                      tooltip: context.l10n.flowSyncRatingHistoryFromAWMCNET,
                       icon: _awmcSyncing
                           ? const SizedBox(
                               width: 18,
@@ -298,7 +313,7 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
                       onPressed: _awmcSyncing ? null : _syncFromAwmcNet,
                     ),
                   IconButton(
-                    tooltip: '添加历史记录',
+                    tooltip: context.l10n.flowAddHistoryRecord,
                     icon: const Icon(Icons.add_chart_outlined),
                     onPressed: _addManualPoint,
                   ),
@@ -348,35 +363,34 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
     final scheme = Theme.of(context).colorScheme;
     final source = CurrentDataSourceNotifier.instance.value;
     final summary = _summary;
-    final style = TextStyle(
-        fontSize: 12, height: 1.45, color: scheme.onSurfaceVariant);
+    final style =
+        TextStyle(fontSize: 12, height: 1.45, color: scheme.onSurfaceVariant);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            '当前数据源：${source.displayName}',
+            context.l10n.flowCurrentSourceP0(
+                (context.featureText(source.displayName)).toString()),
             style: style.copyWith(
                 fontWeight: FontWeight.w700, color: scheme.onSurface),
           ),
           const SizedBox(height: 2),
           if (summary != null && summary.chartCount > 0)
             Text(
-              '已记录 ${summary.chartCount} 张谱面的成绩基线'
-              ' · ${summary.eventCount} 次成绩变化'
-              '（曲目详情页里，单谱的达成率 / DX分数曲线就画在这些变化上）',
+              context.l10n.flowBaselinesForP0ChartsP1ScoreChanges(
+                  (summary.chartCount).toString(),
+                  (summary.eventCount).toString()),
               style: style,
             ),
           Text(
             // 文案根据数据源动态化：AWMC 有趋势接口，可以回填；其他源只能从今天起攒。
             source == RefreshDataSource.awmc
-                ? '水鱼 / 落雪 / AWMC NET 按账号分别记录历史。'
-                    '${summary?.firstRecordedText ?? ''}'
-                    '（AWMC NET 数据源下可点右上角「云同步」按钮回填历史趋势）'
-                : '水鱼 / 落雪 / AWMC NET 按账号分别记录历史。'
-                    '${summary?.firstRecordedText ?? ''}'
-                    '（历史只能从现在开始攒：水鱼与落雪都不提供历史成绩接口）',
+                ? context.l10n.flowDivingFishLXNSAWMCNETHistoryIs(
+                    (summary?.firstRecordedText ?? '').toString())
+                : context.l10n.flowDivingFishLXNSAWMCNETHistoryIs2(
+                    (summary?.firstRecordedText ?? '').toString()),
             style: style,
           ),
         ],
@@ -387,7 +401,11 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
   /// 当前 Rating、所选范围内的变化、时间范围和最高值。
   Widget _buildOverviewCard(Brightness brightness) {
     const ranges = [30, 90, 0];
-    const labels = ['近 30 天', '近 90 天', '全部'];
+    final labels = [
+      context.l10n.flowLast30Days,
+      context.l10n.flowLast90Days,
+      context.l10n.flowAll
+    ];
     final scheme = Theme.of(context).colorScheme;
     final visible = _visible;
     final current = visible.last;
@@ -396,14 +414,16 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
         visible.length >= 2 ? visible.last.rating - visible.first.rating : 0;
     final deltaColor = delta > 0
         ? AppColors.successGreen(brightness)
-        : (delta < 0 ? AppColors.errorRed(brightness) : scheme.onSurfaceVariant);
+        : (delta < 0
+            ? AppColors.errorRed(brightness)
+            : scheme.onSurfaceVariant);
     return AppCard(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            '当前',
+            context.l10n.flowCurrent,
             style: TextStyle(fontSize: 12.5, color: scheme.onSurfaceVariant),
           ),
           const SizedBox(height: 2),
@@ -459,7 +479,7 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
               Expanded(
                 child: StatTile(
                   centered: true,
-                  label: '最高',
+                  label: context.l10n.flowHighest,
                   value: '${best.rating}',
                 ),
               ),
@@ -546,10 +566,11 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         AppSectionHeader(
-          title: '记录点',
+          title: context.l10n.flowDataPoints,
           subtitle: visible.length > 30
-              ? '共 ${visible.length} 条，显示最近 30 条'
-              : '共 ${visible.length} 条',
+              ? context.l10n
+                  .flowP0EntriesShowingTheLatest30((visible.length).toString())
+              : context.l10n.flowP0Entries((visible.length).toString()),
         ),
         AppCard(
           padding: EdgeInsets.zero,
@@ -629,7 +650,7 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
               size: 42, color: AppColors.greyHint(brightness)),
           const SizedBox(height: 12),
           Text(
-            '还没有历史数据',
+            context.l10n.flowNoHistoryYet,
             style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w700,
@@ -637,8 +658,7 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
           ),
           const SizedBox(height: 8),
           Text(
-            '每次「刷新数据」都会顺手记一笔，不需要额外操作。\n'
-            '时间精确到秒；同一秒重复刷新会更新该点，不同时间的变化会分别保留。',
+            context.l10n.flowEachDataRefreshRecordsAPointAutomatically,
             textAlign: TextAlign.center,
             style: TextStyle(
                 fontSize: 12.5, color: AppColors.secondaryText(brightness)),
@@ -691,7 +711,8 @@ class _ManualRatingDialog extends StatefulWidget {
 
 class _ManualRatingDialogState extends State<_ManualRatingDialog> {
   /// 拿不到理论值（没有歌曲缓存）时的上限提示：如实说明在按硬上限兜底。
-  static const String _unknownLimitHint = '上限 $ratingHardMax（理论值未取到）';
+  static String get _unknownLimitHint => appL10n
+      .flowLimitP0TheoreticalValueUnavailable((ratingHardMax).toString());
 
   final TextEditingController _ratingController = TextEditingController();
   final TextEditingController _best35Controller = TextEditingController();
@@ -727,20 +748,20 @@ class _ManualRatingDialogState extends State<_ManualRatingDialog> {
         _ratingController.text,
         hardMax: ratingHardMax,
         limit: limits.total,
-        limitLabel: '当前理论 Rating',
+        limitLabel: context.l10n.flowCurrentTheoreticalRating,
       ).error;
       _best35Error = checkNumberInput(
         _best35Controller.text,
         hardMax: ratingHardMax,
         limit: limits.best35,
-        limitLabel: '当前理论 B35',
+        limitLabel: context.l10n.flowCurrentTheoreticalB35,
         allowZero: true,
       ).error;
       _best15Error = checkNumberInput(
         _best15Controller.text,
         hardMax: ratingHardMax,
         limit: limits.best15,
-        limitLabel: '当前理论 B15',
+        limitLabel: context.l10n.flowCurrentTheoreticalB15,
         allowZero: true,
       ).error;
     });
@@ -762,10 +783,8 @@ class _ManualRatingDialogState extends State<_ManualRatingDialog> {
     // 校验是按 double 过的，这里再 `int.tryParse` 会把 "16353.6" 解析成 null，
     // 于是点保存什么都不发生 —— 用户只会觉得按钮坏了。
     final rating = double.tryParse(_ratingController.text.trim())?.round();
-    final best35 =
-        double.tryParse(_best35Controller.text.trim())?.round() ?? 0;
-    final best15 =
-        double.tryParse(_best15Controller.text.trim())?.round() ?? 0;
+    final best35 = double.tryParse(_best35Controller.text.trim())?.round() ?? 0;
+    final best15 = double.tryParse(_best15Controller.text.trim())?.round() ?? 0;
     if (rating == null || rating <= 0 || best35 < 0 || best15 < 0) return;
     Navigator.of(context).pop(_ManualRatingInput(
       rating: rating,
@@ -785,7 +804,7 @@ class _ManualRatingDialogState extends State<_ManualRatingDialog> {
   Widget build(BuildContext context) {
     final limits = widget.limits;
     return AppAlertDialog(
-      title: const Text('添加 Rating 历史'),
+      title: Text(context.l10n.flowAddRatingHistory),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -797,10 +816,13 @@ class _ManualRatingDialogState extends State<_ManualRatingDialog> {
               onChanged: (_) => _revalidate(),
               decoration: InputDecoration(
                 labelText: 'Rating',
-                helperText: limitHelperText(limits.total, '当前理论 Rating') ??
+                helperText: limitHelperText(limits.total,
+                        context.l10n.flowCurrentTheoreticalRating) ??
                     _unknownLimitHint,
+                helperMaxLines: 3,
                 helperStyle: const TextStyle(fontSize: 11),
                 errorText: _ratingError,
+                errorMaxLines: 3,
                 errorStyle: const TextStyle(fontSize: 11),
               ).insetLabel(context),
             ),
@@ -810,11 +832,14 @@ class _ManualRatingDialogState extends State<_ManualRatingDialog> {
               keyboardType: TextInputType.number,
               onChanged: (_) => _revalidate(),
               decoration: InputDecoration(
-                labelText: 'Best35（可选）',
-                helperText: limitHelperText(limits.best35, '当前理论 B35') ??
+                labelText: context.l10n.flowBest35Optional,
+                helperText: limitHelperText(limits.best35,
+                        context.l10n.flowCurrentTheoreticalB35) ??
                     _unknownLimitHint,
+                helperMaxLines: 3,
                 helperStyle: const TextStyle(fontSize: 11),
                 errorText: _best35Error,
+                errorMaxLines: 3,
                 errorStyle: const TextStyle(fontSize: 11),
               ).insetLabel(context),
             ),
@@ -824,11 +849,14 @@ class _ManualRatingDialogState extends State<_ManualRatingDialog> {
               keyboardType: TextInputType.number,
               onChanged: (_) => _revalidate(),
               decoration: InputDecoration(
-                labelText: 'Best15（可选）',
-                helperText: limitHelperText(limits.best15, '当前理论 B15') ??
+                labelText: context.l10n.flowBest15Optional,
+                helperText: limitHelperText(limits.best15,
+                        context.l10n.flowCurrentTheoreticalB15) ??
                     _unknownLimitHint,
+                helperMaxLines: 3,
                 helperStyle: const TextStyle(fontSize: 11),
                 errorText: _best15Error,
+                errorMaxLines: 3,
                 errorStyle: const TextStyle(fontSize: 11),
               ).insetLabel(context),
             ),
@@ -847,12 +875,12 @@ class _ManualRatingDialogState extends State<_ManualRatingDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('取消'),
+          child: Text(context.l10n.featureCancel),
         ),
         FilledButton(
           // 空值 / 非法值都不给点：弹窗里没有别的提示位，最省事的是按钮直接灰掉
           onPressed: _canSave ? _save : null,
-          child: const Text('保存'),
+          child: Text(context.l10n.save),
         ),
       ],
     );

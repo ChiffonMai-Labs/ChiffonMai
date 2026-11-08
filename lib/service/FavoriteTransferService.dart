@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'dart:convert';
 import 'dart:io';
 
@@ -97,7 +98,7 @@ class FavoriteTransferService {
     void Function(String fallbackPath)? onFallback,
   }) async {
     if (folders.isEmpty) {
-      throw StateError('没有可导出的收藏夹');
+      throw StateError(appL10n.svcThereAreNoFavoriteFoldersToExport);
     }
 
     final content = await buildPayload(folders);
@@ -126,7 +127,7 @@ class FavoriteTransferService {
     FilePickerResult? result;
     try {
       result = await FilePicker.pickFiles(
-        dialogTitle: '选择 ChiffonMai 收藏夹文件',
+        dialogTitle: appL10n.svcChooseAChiffonMaiFavoritesFile,
         // 不按后缀过滤：后缀固定为 .cmf，但用户以前的自定义后缀备份也应当能选中
         type: FileType.any,
         allowMultiple: false,
@@ -136,7 +137,7 @@ class FavoriteTransferService {
       // 部分机型在 custom 类型下会直接抛错，降级重试一次
       debugPrint('[FavoriteTransfer] 文件选择失败，降级重试: $e');
       result = await FilePicker.pickFiles(
-        dialogTitle: '选择 ChiffonMai 收藏夹文件',
+        dialogTitle: appL10n.svcChooseAChiffonMaiFavoritesFile,
         type: FileType.any,
         allowMultiple: false,
         withData: false,
@@ -146,7 +147,7 @@ class FavoriteTransferService {
     if (result == null || result.files.isEmpty) return null;
     final path = result.files.single.path;
     if (path == null || path.isEmpty) {
-      throw const FormatException('无法读取所选文件');
+      throw FormatException(appL10n.svcCouldNotReadTheSelectedFile);
     }
     return parseFile(path);
   }
@@ -155,12 +156,12 @@ class FavoriteTransferService {
   Future<FavoriteImportBundle> parseFile(String path) async {
     final file = File(path);
     if (!await file.exists()) {
-      throw FormatException('文件不存在：$path');
+      throw FormatException(appL10n.svcFileNotFoundP0(path.toString()));
     }
     final length = await file.length();
     if (length > maxImportBytes) {
       throw FormatException(
-          '收藏夹文件过大（上限 ${maxImportBytes ~/ (1024 * 1024)} MB）');
+          appL10n.svcTheFavoritesFileIsTooLargeLimit((maxImportBytes ~/ (1024 * 1024)).toString()));
     }
 
     final raw = await _readAsText(file);
@@ -168,9 +169,8 @@ class FavoriteTransferService {
 
     // 旧版导出的是人读的纯文本清单，不含 songId，无法还原成收藏夹
     if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
-      throw const FormatException(
-        '这个文件不是 ChiffonMai 收藏夹格式。\n'
-        '（旧版导出的 .txt 纯文本清单不含歌曲 ID，无法还原成收藏夹，请重新导出一次）',
+      throw FormatException(
+        appL10n.svcThisFileIsNotInTheChiffonMai,
       );
     }
 
@@ -178,7 +178,7 @@ class FavoriteTransferService {
     try {
       decoded = jsonDecode(raw);
     } catch (_) {
-      throw const FormatException('文件内容不是合法的 JSON，可能已损坏');
+      throw FormatException(appL10n.svcTheFileIsNotValidJSONAnd);
     }
 
     final List<FavoriteFolder> folders;
@@ -192,18 +192,18 @@ class FavoriteTransferService {
     } else if (decoded is Map<String, dynamic>) {
       final tag = decoded['format'];
       if (tag != null && tag != formatTag) {
-        throw FormatException('文件格式标识为 "$tag"，不是 ChiffonMai 收藏夹文件');
+        throw FormatException(appL10n.svcTheFileFormatTagIsP0Not(tag.toString()));
       }
       folders = _foldersFromMap(decoded);
       appName = decoded['appName'] as String?;
       exportedAt = decoded['exportedAt'] as String?;
       version = (decoded['formatVersion'] as num?)?.toInt() ?? formatVersion;
     } else {
-      throw const FormatException('文件内容无法识别');
+      throw FormatException(appL10n.svcTheFileContentCouldNotBeRecognized);
     }
 
     if (folders.isEmpty) {
-      throw const FormatException('文件里没有任何收藏夹数据');
+      throw FormatException(appL10n.svcTheFileHasNoFavoritesData);
     }
 
     return FavoriteImportBundle(
@@ -220,7 +220,7 @@ class FavoriteTransferService {
     final raw = json['folders'] ?? json['data'] ?? json['folder'];
     if (raw is List) return _foldersFromList(raw);
     if (raw is Map<String, dynamic>) return _foldersFromList([raw]);
-    throw const FormatException('文件缺少 folders 字段');
+    throw FormatException(appL10n.svcTheFileIsMissingTheFoldersField);
   }
 
   List<FavoriteFolder> _foldersFromList(List<dynamic> list) {
@@ -243,7 +243,7 @@ class FavoriteTransferService {
   Future<String> _readAsText(File file) async {
     final bytes = await file.readAsBytes();
     if (bytes.isEmpty) {
-      throw const FormatException('文件是空的');
+      throw FormatException(appL10n.svcTheFileIsEmpty);
     }
     var text = utf8.decode(bytes, allowMalformed: true);
     // 去掉 BOM

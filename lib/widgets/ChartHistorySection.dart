@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:my_first_flutter_app/widgets/NoRipple.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
@@ -193,7 +195,8 @@ class _ChartHistorySectionState extends State<ChartHistorySection> {
       if (mounted) await _load();
     } catch (e) {
       if (mounted) {
-        AppToast.show('保存历史失败：$e');
+        AppToast.show(context.l10n.flowCouldNotSaveHistoryP0((e).toString()),
+            tone: AppToastTone.error);
       }
     }
   }
@@ -204,9 +207,13 @@ class _ChartHistorySectionState extends State<ChartHistorySection> {
   Future<void> _deleteEvent(ChartHistoryEvent event) async {
     final confirmed = await confirmDeleteHistoryPoint(
       context,
-      pointLabel: '${_formatDate(event.tMs)}\n'
-          '达成率 ${event.achievement.toStringAsFixed(4)}%'
-          '${event.dxScore > 0 ? ' · DX分数 ${event.dxScore}' : ''}',
+      pointLabel: context.l10n.flowP0AchievementP1P2(
+          (_formatDate(event.tMs)).toString(),
+          (event.achievement.toStringAsFixed(4)).toString(),
+          (event.dxScore > 0
+                  ? context.l10n.flowDXScoreP03((event.dxScore).toString())
+                  : '')
+              .toString()),
     );
     if (!mounted || !confirmed) return;
     try {
@@ -220,7 +227,9 @@ class _ChartHistorySectionState extends State<ChartHistorySection> {
       if (mounted) await _load();
     } catch (e) {
       if (mounted) {
-        AppToast.show('删除记录点失败：$e');
+        AppToast.show(
+            context.l10n.flowCouldNotDeleteDataPointP0((e).toString()),
+            tone: AppToastTone.error);
       }
     }
   }
@@ -258,13 +267,14 @@ class _ChartHistorySectionState extends State<ChartHistorySection> {
           child: TextButton.icon(
             onPressed: _addManualPoint,
             icon: const Icon(Icons.add_chart_outlined),
-            label: const Text('添加成绩历史'),
+            label: Text(context.l10n.flowAddScoreHistory),
           ),
         ),
       );
     }
-    final eventCountLabel =
-        events.length == 1 ? '1 个记录点' : '${events.length} 次变化';
+    final eventCountLabel = events.length == 1
+        ? context.l10n.flow1DataPoint
+        : context.l10n.flowP0Changes((events.length).toString());
 
     return _wrap(
       widget.chartPadding,
@@ -277,7 +287,7 @@ class _ChartHistorySectionState extends State<ChartHistorySection> {
                   size: 15, color: AppColors.secondaryText(brightness)),
               const SizedBox(width: 6),
               Text(
-                '成绩历史（$eventCountLabel）',
+                context.l10n.flowScoreHistoryP0((eventCountLabel).toString()),
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
@@ -286,7 +296,7 @@ class _ChartHistorySectionState extends State<ChartHistorySection> {
               ),
               const Spacer(),
               IconButton(
-                tooltip: '添加成绩历史',
+                tooltip: context.l10n.flowAddScoreHistory,
                 icon: const Icon(Icons.add_chart_outlined, size: 18),
                 onPressed: _addManualPoint,
               ),
@@ -301,7 +311,7 @@ class _ChartHistorySectionState extends State<ChartHistorySection> {
                 const SizedBox(width: 4),
                 Expanded(
                   child: Text(
-                    '曲线出现下降：游戏里成绩取最高，这多半是切换数据源/账号造成的记录差异',
+                    context.l10n.flowTheCurveDropsInGameScoresKeep,
                     style: TextStyle(
                         fontSize: 11,
                         color: AppColors.warningOrange(brightness)),
@@ -314,10 +324,13 @@ class _ChartHistorySectionState extends State<ChartHistorySection> {
           if (_hasDisplayedDx)
             Row(
               children: [
-                _metricChip('达成率', _HistoryMetric.achievement),
+                _metricChip(
+                    context.l10n.flowAchievement2, _HistoryMetric.achievement),
                 const SizedBox(width: 8),
                 _metricChip(
-                  _maxDx != null ? 'DX分数（占满分%）' : 'DX分数',
+                  _maxDx != null
+                      ? context.l10n.flowDXScoreOfMaximum
+                      : context.l10n.flowDXScore2,
                   _HistoryMetric.dxScore,
                 ),
               ],
@@ -405,9 +418,11 @@ class _ChartHistorySectionState extends State<ChartHistorySection> {
         final dxText = maxDx != null
             ? '${e.dxScore} / $maxDx（${(e.dxScore / maxDx * 100).toStringAsFixed(1)}%）'
             : '${e.dxScore}';
-        return '${e.tMs > 0 ? _formatDate(e.tMs) : '日期未知'}\n'
-            '达成率 ${e.achievement.toStringAsFixed(4)}%\n'
-            'DX分数 $dxText';
+        return context.l10n.flowP0AchievementP1DXScoreP2(
+            (e.tMs > 0 ? _formatDate(e.tMs) : context.l10n.flowUnknownDate)
+                .toString(),
+            (e.achievement.toStringAsFixed(4)).toString(),
+            (dxText).toString());
       },
     );
   }
@@ -463,7 +478,9 @@ class _ChartHistorySectionState extends State<ChartHistorySection> {
                       fit: BoxFit.scaleDown,
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        e.tMs > 0 ? _formatDate(e.tMs) : '日期未知',
+                        e.tMs > 0
+                            ? _formatDate(e.tMs)
+                            : context.l10n.flowUnknownDate,
                         maxLines: 1,
                         style: TextStyle(
                             fontSize: 11.5,
@@ -528,7 +545,10 @@ class _ChartHistorySectionState extends State<ChartHistorySection> {
               onPressed: () =>
                   setState(() => _expandedChangeList = !_expandedChangeList),
               child: Text(
-                _expandedChangeList ? '收起' : '展开全部（${all.length} 条）',
+                _expandedChangeList
+                    ? context.l10n.flowCollapse
+                    : context.l10n
+                        .flowShowAllP0Entries((all.length).toString()),
                 style: const TextStyle(fontSize: 12),
               ),
             ),
@@ -538,7 +558,7 @@ class _ChartHistorySectionState extends State<ChartHistorySection> {
   }
 
   static String _formatDate(int ms) {
-    if (ms <= 0) return '日期未知';
+    if (ms <= 0) return appL10n.flowUnknownDate;
     final d = DateTime.fromMillisecondsSinceEpoch(ms);
     String two(int v) => v.toString().padLeft(2, '0');
     return '${d.year}/${two(d.month)}/${two(d.day)} '
@@ -612,13 +632,13 @@ class _ManualChartPointDialogState extends State<_ManualChartPointDialog> {
         _achievementController.text,
         hardMax: achievementHardMax,
         limit: widget.maxAchievement,
-        limitLabel: '谱面上限',
+        limitLabel: context.l10n.flowChartLimit,
       ).error;
       _dxError = checkNumberInput(
         _dxController.text,
         hardMax: dxScoreHardMax,
         limit: widget.maxDxScore > 0 ? widget.maxDxScore : null,
-        limitLabel: '谱面上限',
+        limitLabel: context.l10n.flowChartLimit,
         allowZero: true,
       ).error;
     });
@@ -636,8 +656,7 @@ class _ManualChartPointDialogState extends State<_ManualChartPointDialog> {
   void _save() {
     _revalidate();
     if (!_canSave) return;
-    final achievement =
-        double.tryParse(_achievementController.text.trim());
+    final achievement = double.tryParse(_achievementController.text.trim());
     // 先按 double 解再取整（与自定义 Best50 的 DX 输入同一处理）：
     // 校验是按 double 过的，这里再 `int.tryParse` 会把 "3000.5" 解析成 null，
     // 于是 DX 被静默存成 0。
@@ -659,7 +678,7 @@ class _ManualChartPointDialogState extends State<_ManualChartPointDialog> {
   @override
   Widget build(BuildContext context) {
     return AppAlertDialog(
-      title: const Text('添加谱面成绩历史'),
+      title: Text(context.l10n.flowAddChartScoreHistory),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -672,13 +691,17 @@ class _ManualChartPointDialogState extends State<_ManualChartPointDialog> {
               ),
               onChanged: (_) => _revalidate(),
               decoration: InputDecoration(
-                labelText: '达成率（%）',
+                labelText: context.l10n.flowAchievement3,
                 helperText: limitHelperText(
                   widget.maxAchievement,
-                  widget.maxAchievement > 101.0 ? '宴会场子谱相加' : '普通谱面上限',
+                  widget.maxAchievement > 101.0
+                      ? context.l10n.flowSumOfUTAGESubcharts
+                      : context.l10n.flowNormalChartLimit,
                 ),
+                helperMaxLines: 3,
                 helperStyle: const TextStyle(fontSize: 11),
                 errorText: _achievementError,
+                errorMaxLines: 3,
                 errorStyle: const TextStyle(fontSize: 11),
               ).insetLabel(context),
             ),
@@ -688,12 +711,15 @@ class _ManualChartPointDialogState extends State<_ManualChartPointDialog> {
               keyboardType: TextInputType.number,
               onChanged: (_) => _revalidate(),
               decoration: InputDecoration(
-                labelText: 'DX 分数（可选）',
+                labelText: context.l10n.flowDXScoreOptional,
                 helperText: widget.maxDxScore > 0
-                    ? limitHelperText(widget.maxDxScore, '谱面满分')
+                    ? limitHelperText(
+                        widget.maxDxScore, context.l10n.flowChartMaximumScore)
                     : null,
+                helperMaxLines: 3,
                 helperStyle: const TextStyle(fontSize: 11),
                 errorText: _dxError,
+                errorMaxLines: 3,
                 errorStyle: const TextStyle(fontSize: 11),
               ).insetLabel(context),
             ),
@@ -712,12 +738,12 @@ class _ManualChartPointDialogState extends State<_ManualChartPointDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('取消'),
+          child: Text(context.l10n.featureCancel),
         ),
         FilledButton(
           // 空值 / 非法值都不给点：弹窗里没有别的提示位，最省事的是按钮直接灰掉
           onPressed: _canSave ? _save : null,
-          child: const Text('保存'),
+          child: Text(context.l10n.save),
         ),
       ],
     );

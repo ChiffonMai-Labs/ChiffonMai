@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/FeatureLocalizations.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 
 import '../utils/AppDesignTokens.dart';
@@ -244,7 +246,7 @@ class _AchievementRateCalculatorState extends State<AchievementRateCalculator> {
               ),
             );
         return AppAlertDialog(
-          title: const Text('单个音符的判定损失'),
+          title:  Text(context.l10n.flowJudgmentLossPerNote),
           content: SingleChildScrollView(
             child: Table(
               columnWidths: const {0: FixedColumnWidth(58)},
@@ -281,7 +283,7 @@ class _AchievementRateCalculatorState extends State<AchievementRateCalculator> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('确定'),
+              child:  Text(context.l10n.featureOK),
             ),
           ],
         );
@@ -304,12 +306,12 @@ class _AchievementRateCalculatorState extends State<AchievementRateCalculator> {
     // 「跟列表一起滚」之间切换，切换时输入框被销毁 → 丢焦点 → 键盘立刻收回，
     // 表现就是一点输入框键盘就闪退。键盘只影响结果卡的详略和下方留白。
     return BackgroundPageScaffold(
-      title: '达成率计算',
+      title: context.l10n.featureAchievementCalculator,
       resizeToAvoidBottomInset: false,
       actions: [
         TextButton(
           onPressed: _hasAny ? _clearAll : null,
-          child: const Text('清空',
+          child:  Text(context.l10n.featureClear,
               style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
         ),
       ],
@@ -376,8 +378,8 @@ class _AchievementRateCalculatorState extends State<AchievementRateCalculator> {
                         padding: const EdgeInsets.symmetric(horizontal: 4),
                         child: Text(
                           isBreak
-                              ? 'BREAK 共 ${_countOf('BREAK')} 个 · 每行下方是基础分 / 奖励分比例'
-                              : '$type 共 ${_countOf(type)} 个 · 红字是这一档判定丢掉的达成率',
+                              ? context.l10n.flowP0BREAKsBaseBonusScoreRatiosBelow((_countOf('BREAK')).toString())
+                              : context.l10n.flowP0P1NotesRedValuesShowAchievement((type).toString(), (_countOf(type)).toString()),
                           style: TextStyle(
                               fontSize: 12, color: scheme.onSurfaceVariant),
                         ),
@@ -401,7 +403,7 @@ class _AchievementRateCalculatorState extends State<AchievementRateCalculator> {
                       onPressed: result == null
                           ? null
                           : () => _showSingleNoteLossDialog(result),
-                      child: const Text('查看单音符损失',
+                      child:  Text(context.l10n.flowViewPerNoteLoss,
                           style: TextStyle(
                               fontSize: 15, fontWeight: FontWeight.w700)),
                     ),
@@ -421,13 +423,13 @@ class _AchievementRateCalculatorState extends State<AchievementRateCalculator> {
     final lossText = loss > 0.00005 ? '−${loss.toStringAsFixed(4)}%' : null;
     final String? detail;
     if (def.note != null) {
-      detail = lossText == null ? def.note : '${def.note}  $lossText';
+      detail = lossText == null ? context.featureText(def.note!) : '${context.featureText(def.note!)}  $lossText';
     } else {
-      detail = lossText ?? '无损失';
+      detail = lossText ?? context.l10n.flowNoLoss;
     }
     return JudgeCountRow(
       key: ValueKey('$type-$index'),
-      label: def.label,
+      label: context.featureText(def.label),
       color: def.color,
       detail: detail,
       detailColor: lossText != null ? scheme.error : null,
@@ -440,7 +442,7 @@ class _AchievementRateCalculatorState extends State<AchievementRateCalculator> {
   Widget _buildResultCard(_AchievementResult? result, {bool compact = false}) {
     final scheme = Theme.of(context).colorScheme;
     final brightness = Theme.of(context).brightness;
-    final onCard = scheme.onInverseSurface;
+    final onCard = scheme.onSurface;
     final muted = onCard.withValues(alpha: 0.72);
     final normalNum = _countOf('TAP') +
         _countOf('HOLD') +
@@ -453,7 +455,7 @@ class _AchievementRateCalculatorState extends State<AchievementRateCalculator> {
         child: Row(
           children: [
             Expanded(
-              child: Text('实时达成率',
+              child: Text(context.l10n.flowLiveAchievement,
                   style: TextStyle(fontSize: 12, color: muted)),
             ),
             Text('—',
@@ -469,14 +471,14 @@ class _AchievementRateCalculatorState extends State<AchievementRateCalculator> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('实时达成率', style: TextStyle(fontSize: 12, color: muted)),
+            Text(context.l10n.flowLiveAchievement, style: TextStyle(fontSize: 12, color: muted)),
             const SizedBox(height: 8),
             Text('—',
                 style: AppTheme.number(
                     fontSize: 46, fontWeight: FontWeight.w700, color: onCard)),
             if (!compact) ...[
               const SizedBox(height: 6),
-              Text('在下方填写各档判定数量，结果会自动算出来',
+              Text(context.l10n.flowEnterJudgmentCountsBelowToCalculateAutomatically,
                   style: TextStyle(fontSize: 12, color: muted)),
             ],
           ],
@@ -502,7 +504,7 @@ class _AchievementRateCalculatorState extends State<AchievementRateCalculator> {
           Row(
             children: [
               Expanded(
-                child: Text('实时达成率',
+                child: Text(context.l10n.flowLiveAchievement,
                     style: TextStyle(fontSize: 12, color: muted)),
               ),
               Text('$normalNum + ${result.breakNum} BREAK',
@@ -511,7 +513,7 @@ class _AchievementRateCalculatorState extends State<AchievementRateCalculator> {
           ),
           const SizedBox(height: 8),
           Semantics(
-            label: '总达成率 $fixed%，评级 ${tier.$2}',
+            label: context.l10n.flowTotalAchievementP0GradeP1((fixed).toString(), (tier.$2).toString()),
             excludeSemantics: true,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
@@ -550,7 +552,7 @@ class _AchievementRateCalculatorState extends State<AchievementRateCalculator> {
           // 键盘弹出时空间紧张，结果卡只留达成率和评级。
           if (!compact) ...[
           const SizedBox(height: 8),
-          Text('基础 ${result.base.toStringAsFixed(4)}% · 奖励 ${result.extra.toStringAsFixed(4)}%',
+          Text(context.l10n.flowBaseP0BonusP1((result.base.toStringAsFixed(4)).toString(), (result.extra.toStringAsFixed(4)).toString()),
               style: TextStyle(fontSize: 12, color: muted)),
           const SizedBox(height: 12),
           ClipRRect(
@@ -565,8 +567,8 @@ class _AchievementRateCalculatorState extends State<AchievementRateCalculator> {
           const SizedBox(height: 6),
           Text(
             next == null
-                ? '已经是最高评级 SSS+'
-                : '距 ${next.$2}（${next.$1}%）还差 ${(next.$1 - total).toStringAsFixed(4)}%',
+                ? context.l10n.flowAlreadyAtTheHighestGradeSSS
+                : context.l10n.flowP2NeededForP0P1((next.$2).toString(), (next.$1).toString(), ((next.$1 - total).toStringAsFixed(4)).toString()),
             style: TextStyle(fontSize: 12, color: onCard.withValues(alpha: 0.86)),
           ),
           ],

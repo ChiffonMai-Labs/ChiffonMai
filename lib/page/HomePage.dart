@@ -1,9 +1,18 @@
+import '../l10n/LocalizationsExtension.dart';
+import '../widgets/AccountAuthorizationStatus.dart';
+import 'CustomTagsPage.dart';
+import '../widgets/DivingFishAuthorizationDialog.dart' show fetchDivingFishProfile;
+import '../l10n/FeatureLocalizations.dart';
 import '../service/GuessChartGame/GuessAudioService.dart';
 import 'GuessChartGame/GuessGameSettingsPage.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../widgets/MainNavigationInsets.dart';
 import '../utils/SearchInteractionPreferences.dart';
+import '../utils/CoverUtil.dart';
+import '../entity/DivingFish/Song.dart';
+import '../service/SongSearchService.dart';
+import 'SongInfoPage.dart';
 import 'package:flutter/services.dart';
 import 'package:my_first_flutter_app/page/RankingList/AvgScoreRankingListPage.dart';
 import 'package:my_first_flutter_app/page/RankingList/FittedRatingRankingListPage.dart';
@@ -106,7 +115,6 @@ import 'FriendComparePage.dart';
 import 'RecentCommentsPage.dart';
 import 'RecentRatingsPage.dart';
 import '../manager/DivingFishProbeManager.dart';
-import '../manager/DivingFish/DivingFishOAuthManager.dart';
 import 'package:my_first_flutter_app/utils/FavoriteFeaturesNotifier.dart';
 import 'package:my_first_flutter_app/utils/LoginStateNotifier.dart';
 import 'package:my_first_flutter_app/utils/UserProfileNotifier.dart';
@@ -120,10 +128,7 @@ import '../utils/HomeRefreshNotifier.dart';
 import '../utils/RefreshErrorPresenter.dart';
 import '../widgets/ErrorMessageDialog.dart';
 import '../utils/UpdateNotifier.dart';
-import '../widgets/SyncRouteFooter.dart';
 import '../widgets/ConfettiEffect.dart';
-import '../widgets/SyncStatsFooter.dart';
-import '../widgets/AutoSyncStatusFooter.dart';
 import '../widgets/SyncFlowMixin.dart';
 import '../widgets/QuickSearchBar.dart';
 import '../widgets/FeatureSearchOverlay.dart';
@@ -196,7 +201,8 @@ class _AwmcNetTokenSectionState extends State<_AwmcNetTokenSection> {
   Future<void> _save() async {
     final token = _controller.text.trim();
     if (token.isEmpty) {
-      AppToast.show('请先输入 AWMC NET Token');
+      AppToast.show(context.l10n.flowEnterYourAWMCNETTokenFirst,
+          tone: AppToastTone.warning);
       return;
     }
     setState(() => _saving = true);
@@ -210,7 +216,9 @@ class _AwmcNetTokenSectionState extends State<_AwmcNetTokenSection> {
       });
       AppToast.show(message);
     } catch (_) {
-      if (mounted) AppToast.show('个人 key 保存失败，请重试');
+      if (mounted)
+        AppToast.show(context.l10n.flowCouldNotSaveYourPersonalKeyTry,
+            tone: AppToastTone.error);
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -226,7 +234,9 @@ class _AwmcNetTokenSectionState extends State<_AwmcNetTokenSection> {
       setState(() => _hasToken = false);
       AppToast.show(message);
     } catch (_) {
-      if (mounted) AppToast.show('无法关闭对应自动同步，个人 key 未清除，请重试');
+      if (mounted)
+        AppToast.show(context.l10n.flowCouldNotDisableAutoSyncYourKey,
+            tone: AppToastTone.error);
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -250,7 +260,7 @@ class _AwmcNetTokenSectionState extends State<_AwmcNetTokenSection> {
             ),
             const SizedBox(width: 8),
             Text(
-              'AWMC NET 成绩导入 Token',
+              context.l10n.flowAWMCNETScoreImportToken,
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
@@ -269,7 +279,7 @@ class _AwmcNetTokenSectionState extends State<_AwmcNetTokenSection> {
         else ...[
           if (_hasToken)
             Text(
-              '已设置',
+              context.l10n.flowSet,
               style: TextStyle(
                 color: AppColors.successGreen(brightness),
                 fontSize: 13,
@@ -277,7 +287,7 @@ class _AwmcNetTokenSectionState extends State<_AwmcNetTokenSection> {
             )
           else ...[
             Text(
-              '未设置',
+              context.l10n.flowNotSet,
               style: TextStyle(
                 color: AppColors.warningOrange(brightness),
                 fontSize: 13,
@@ -289,7 +299,9 @@ class _AwmcNetTokenSectionState extends State<_AwmcNetTokenSection> {
               child: Text.rich(
                 TextSpan(
                   children: [
-                    const TextSpan(text: '访问', style: TextStyle(fontSize: 12)),
+                    TextSpan(
+                        text: context.l10n.flowVisit,
+                        style: TextStyle(fontSize: 12)),
                     TextSpan(
                       text: 'https://net.wmc.pub/settings/',
                       style: TextStyle(
@@ -298,8 +310,8 @@ class _AwmcNetTokenSectionState extends State<_AwmcNetTokenSection> {
                         decoration: TextDecoration.underline,
                       ),
                     ),
-                    const TextSpan(
-                      text: '，在页面底部生成或轮换Token。',
+                    TextSpan(
+                      text: context.l10n.flowToGenerateOrRotateYourTokenAt,
                       style: TextStyle(fontSize: 12),
                     ),
                   ],
@@ -316,7 +328,8 @@ class _AwmcNetTokenSectionState extends State<_AwmcNetTokenSection> {
                     autocorrect: false,
                     enableSuggestions: false,
                     decoration: InputDecoration(
-                      hintText: '在此粘贴 AWMC NET 成绩导入 Token...',
+                      hintText:
+                          context.l10n.flowPasteYourAWMCNETScoreImportToken,
                       border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8)),
                       contentPadding: const EdgeInsets.symmetric(
@@ -337,10 +350,9 @@ class _AwmcNetTokenSectionState extends State<_AwmcNetTokenSection> {
                       ? const SizedBox(
                           width: 16,
                           height: 16,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2),
+                          child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Text('保存', style: TextStyle(fontSize: 13)),
+                      : Text(context.l10n.save, style: TextStyle(fontSize: 13)),
                 ),
               ],
             ),
@@ -357,7 +369,7 @@ class _AwmcNetTokenSectionState extends State<_AwmcNetTokenSection> {
                 alignment: Alignment.centerLeft,
               ),
               child: Text(
-                '清除 Token',
+                context.l10n.flowClearToken,
                 style: TextStyle(
                     color: AppColors.errorRed(brightness), fontSize: 12),
               ),
@@ -399,7 +411,7 @@ class _HomeFeatureSearchEntry {
 ///
 /// 回归测试：`test/home_greeting_test.dart`。
 class HomeGreetingText extends StatelessWidget {
-  /// 用户昵称；空串表示还没登录（这时显示「请前往系统页获取账号数据」）。
+  /// 用户昵称；空串表示还没登录（这时显示登录引导）。
   final String nickname;
 
   /// 允许缩到的最小字号。再小就不好看了，改用省略号。
@@ -416,7 +428,10 @@ class HomeGreetingText extends StatelessWidget {
     final base =
         theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800);
     final baseSize = fontSize ?? base?.fontSize ?? 24;
-    final text = nickname.trim().isEmpty ? '请前往系统页获取账号数据' : '欢迎回来，$nickname';
+    final isHint = nickname.trim().isEmpty;
+    final text = isHint
+        ? context.featureText('前往「我的」同步数据')
+        : context.l10n.homeWelcome(nickname);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -440,7 +455,8 @@ class HomeGreetingText extends StatelessWidget {
         var size = baseSize;
         if (basePainter.size.width > available) {
           size = (baseSize * available / basePainter.size.width)
-              .clamp(minFontSize, baseSize);
+              // 引导语是固定文案，不能被省略号截断，放不下时继续缩小。
+              .clamp(isHint ? 11.0 : minFontSize, baseSize);
         }
 
         return SizedBox(
@@ -495,7 +511,6 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
 
   /// 「搜索」按钮在非弹层模式下展开的内联搜索框。
 
-
   // 用户数据（昵称 / Rating）：实际数据来自 UserProfileNotifier，字段保留便于本地访问
   String _userNickname = "";
   // 0 表示尚未从水鱼/落雪拉取真实数据；UI 层用 _displayBest* 回落为 "-"
@@ -508,7 +523,10 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
   /// 任意长任务进行中：收藏区那三个同步入口之间也要互斥，
   /// 否则能同时点起两个同步互相踩缓存（「系统」hub 页一直有这个保护）。
   @override
-  bool get anyBusy => !syncFlowsIdle || _isRefreshing || CacheManagementService.instance.reloadingBase;
+  bool get anyBusy =>
+      !syncFlowsIdle ||
+      _isRefreshing ||
+      CacheManagementService.instance.reloadingBase;
 
   // 初始化方法，用于从本地存储加载数据
   @override
@@ -538,6 +556,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
 
     // 在第一帧渲染完成后触发字体加载
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       widget.onFirstFrameRendered?.call();
       // 桌面小组件上点的功能，从这里打开
       unawaited(HomeWidgetService.listen((action) {
@@ -616,7 +635,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
     if (mounted) {
       setState(() {
         _isBackgroundInitializing = true;
-        _initializationProgress = '正在初始化应用数据，请稍候...';
+        _initializationProgress = context.l10n.homeInitWorking;
       });
     }
 
@@ -629,10 +648,11 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
         _isBackgroundInitializing = false;
         if (result.success) {
           _isInitializationCompleted = true;
-          _initializationProgress = '数据初始化完成！总耗时 ${result.durationStr}';
+          _initializationProgress =
+              context.l10n.homeInitFinished(result.durationStr);
         } else {
           _initializationProgress =
-              '初始化失败: ${result.errorMessage}\n建议检查网络连接后重启应用';
+              context.l10n.homeInitFailed("${result.errorMessage}");
         }
       });
 
@@ -746,13 +766,13 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
     showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => const AppAlertDialog(
+      builder: (ctx) => AppAlertDialog(
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             CircularProgressIndicator(),
             SizedBox(height: 16),
-            Text('正在登出水鱼账号…'),
+            Text(context.l10n.flowSigningOutOfDivingFish),
           ],
         ),
       ),
@@ -763,7 +783,8 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
       debugPrint('登出水鱼账号失败：$e');
       if (mounted) {
         Navigator.of(context, rootNavigator: true).pop();
-        await showErrorMessageDialog(context, message: '登出失败：$e');
+        await showErrorMessageDialog(context,
+            message: context.l10n.flowSignOutFailedP0((e).toString()));
       }
       return;
     }
@@ -771,7 +792,8 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
     Navigator.of(context, rootNavigator: true).pop();
     LoginStateNotifier.setLoggedIn(false);
     _loginStateNotifier.value = false;
-    AppToast.show('已登出水鱼账号');
+    AppToast.show(context.l10n.flowSignedOutOfDivingFish,
+        tone: AppToastTone.success);
   }
 
   List<ButtonCategory> get _buttonCategories =>
@@ -855,6 +877,8 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
               child: QuickSearchBar(
                 padding: EdgeInsets.zero,
                 query: _hubSearchQuery,
+                hintText: context.featureText(
+                    SearchInteractionPreferences.instance.homeSearchScope.hint),
                 onTap: SearchInteractionPreferences.instance.usesOverlay
                     ? _openHomeFeatureSearch
                     : null,
@@ -930,7 +954,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
         const SizedBox(width: 8),
         _headerIconButton(
           context,
-          tooltip: '主题与导航设置',
+          tooltip: context.featureText('主题与导航设置'),
           icon: Theme.of(context).brightness == Brightness.dark
               ? Icons.dark_mode_outlined
               : Icons.light_mode_outlined,
@@ -967,7 +991,8 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
       valueListenable: CurrentDataSourceNotifier.instance,
       builder: (context, source, _) => Semantics(
         button: true,
-        label: '切换数据源，当前 ${source.shortDisplayName}',
+        label: context.l10n
+            .homeSwitchSource(context.featureText(source.shortDisplayName)),
         excludeSemantics: true,
         child: Material(
           color: AppSurfaces.track(context),
@@ -981,7 +1006,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    source.shortDisplayName,
+                    context.featureText(source.shortDisplayName),
                     style:
                         TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
                   ),
@@ -1031,8 +1056,6 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
     if (mounted) setState(() {});
   }
 
-
-
   Future<void> _openHomeFeatureSearch() async {
     if (_featureSearchOpen) return;
     final navigator = Navigator.of(context, rootNavigator: true);
@@ -1047,6 +1070,8 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
       sourceRect: sourceRect,
       initialQuery: _hubSearchQuery,
       reduceMotion: MediaQuery.disableAnimationsOf(context),
+      hintText: context.featureText(
+          SearchInteractionPreferences.instance.homeSearchScope.hint),
       queryResultsBuilder: (context, query, close) =>
           _buildHomeFeatureSearchResults(context, query, _handleFeatureTap,
               closeOverlay: close),
@@ -1060,6 +1085,8 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
     }
     if (!mounted || query == null) return;
     final keyword = query.trim();
+    // 收起时把关键词带回首页显示结果；只存历史的话看起来就是直接退回首页。
+    setState(() => _hubSearchQuery = keyword);
     if (keyword.isEmpty) return;
     try {
       await FeatureSearchOverlay.historyStore.remember(keyword);
@@ -1121,7 +1148,9 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
     for (final category in _searchableCategories) {
       for (final item in category.items) {
         if (_matchesHomeFeature(item.title, query) ||
-            _matchesHomeFeature(item.subtitle, query)) {
+            _matchesHomeFeature(item.subtitle, query) ||
+            _matchesHomeFeature(context.featureText(item.title), query) ||
+            _matchesHomeFeature(context.featureText(item.subtitle), query)) {
           results.add(_HomeFeatureSearchEntry(category, item));
         }
       }
@@ -1133,13 +1162,18 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
       BuildContext context, String query, ValueChanged<ButtonItem> onSelected,
       {VoidCallback? closeOverlay}) {
     final scheme = Theme.of(context).colorScheme;
-    final results = _homeFeatureSearchResults(query);
+    final scope = SearchInteractionPreferences.instance.homeSearchScope;
+    final showFeatures = scope != HomeSearchScope.song;
+    final showSongs = scope != HomeSearchScope.feature;
+    final results = showFeatures
+        ? _homeFeatureSearchResults(query)
+        : <_HomeFeatureSearchEntry>[];
     final resultBody = results.isEmpty
         ? Padding(
             padding: const EdgeInsets.symmetric(vertical: 32),
             child: Center(
               child: Text(
-                '没有找到匹配的功能',
+                context.featureText('没有找到匹配的功能'),
                 style: TextStyle(color: scheme.onSurfaceVariant),
               ),
             ),
@@ -1151,6 +1185,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                   builder: (context) {
                     final path =
                         FeatureRegistry.pathFor(entry.category, entry.item)
+                            .map(context.featureText)
                             .join(' > ');
                     return Material(
                       color: Colors.transparent,
@@ -1191,18 +1226,16 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(
-                                      entry.item.title,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
+                                    MarqueeText(
+                                      text:
+                                          context.featureText(entry.item.title),
                                       style: const TextStyle(
                                           fontWeight: FontWeight.w700),
                                     ),
                                     const SizedBox(height: 2),
-                                    Text(
-                                      entry.item.subtitle,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
+                                    MarqueeText(
+                                      text: context
+                                          .featureText(entry.item.subtitle),
                                       style: TextStyle(
                                         fontSize: 12,
                                         color: scheme.onSurfaceVariant,
@@ -1234,23 +1267,43 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
           );
 
     return SingleChildScrollView(
-      key: ValueKey(query),
+      // 有歌曲结果时不按关键词换 key：歌曲要等搜索返回，输入时保留上一次的结果。
+      key: showSongs ? null : ValueKey(query),
       padding: EdgeInsets.zero,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(4, 4, 4, 8),
-            child: Text(
-              query.isEmpty
-                  ? '全部功能（${results.length}）'
-                  : '搜索结果（${results.length}）',
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                  ),
+          if (showFeatures) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(4, 4, 4, 8),
+              child: Text(
+                showSongs
+                    ? context.l10n.homeFeatureCount(results.length)
+                    : query.isEmpty
+                        ? context.l10n.homeAllFeatureCount(results.length)
+                        : context.l10n.homeResultCount(results.length),
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+              ),
             ),
-          ),
-          resultBody,
+            resultBody,
+          ],
+          if (showFeatures && showSongs) const SizedBox(height: 16),
+          if (showSongs)
+            _HomeSongSearchResults(
+              query: query,
+              onOpen: (songId) {
+                // 和功能结果一样：先关搜索层再跳转。
+                FocusScope.of(context).unfocus();
+                closeOverlay?.call();
+                Navigator.push(
+                  this.context,
+                  MaterialPageRoute(
+                      builder: (_) => SongInfoPage(songId: songId)),
+                );
+              },
+            ),
         ],
       ),
     );
@@ -1267,6 +1320,14 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
     final tier = AppColors.ratingTier(total);
     final fraction = total > 0 ? _best35TotalRA / total : 0.7;
     final secondary = scheme.primary.withValues(alpha: 0.5);
+    // 字体样式只随页面状态生成，避免动画每一帧重复查询主字体与回落字体。
+    final ratingStyle = AppTheme.number(
+      fontSize: 68,
+      fontWeight: FontWeight.w700,
+      height: 0.95,
+      letterSpacing: -2,
+      color: scheme.onSurface,
+    );
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -1276,7 +1337,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
           // 大数字 → 「刷新数据（高级）」
           Semantics(
             button: true,
-            label: '总 Rating ${_displayBest50RA()}，打开高级刷新',
+            label: context.l10n.homeTotalRatingAction(_displayBest50RA()),
             excludeSemantics: true,
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
@@ -1288,20 +1349,33 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                     child: FittedBox(
                       fit: BoxFit.scaleDown,
                       alignment: Alignment.centerLeft,
-                      child: TweenAnimationBuilder<double>(
-                        tween: Tween(begin: 0, end: total.toDouble()),
-                        duration: AppDesignTokens.motion(
-                            context, const Duration(milliseconds: 1100)),
-                        curve: Curves.easeOutCubic,
-                        builder: (context, value, _) => Text(
-                          total == 0 ? '-' : '${value.round()}',
-                          style: AppTheme.number(
-                            fontSize: 68,
-                            fontWeight: FontWeight.w700,
-                            height: 0.95,
-                            letterSpacing: -2,
-                            color: scheme.onSurface,
-                          ),
+                      child: RepaintBoundary(
+                        child: Stack(
+                          children: [
+                            // 用最终数字占位，计数位数变化时不再牵动整行和首页布局。
+                            Opacity(
+                              opacity: 0,
+                              child: Text(_displayBest50RA(),
+                                  maxLines: 1, style: ratingStyle),
+                            ),
+                            Positioned.fill(
+                              child: TweenAnimationBuilder<double>(
+                                tween: Tween(begin: 0, end: total.toDouble()),
+                                duration: AppDesignTokens.motion(context,
+                                    const Duration(milliseconds: 1100)),
+                                curve: Curves.easeOutCubic,
+                                builder: (context, value, _) => FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    total == 0 ? '-' : '${value.round()}',
+                                    maxLines: 1,
+                                    style: ratingStyle,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -1356,7 +1430,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
-        tier.label,
+        context.featureText(tier.label),
         style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w800,
@@ -1579,7 +1653,9 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                       size: 22,
                     ),
                     const SizedBox(width: 8),
-                    Text(needDivingFishToken ? '绑定水鱼账号' : '同步成绩到水鱼'),
+                    Text(needDivingFishToken
+                        ? dialogContext.l10n.flowLinkDivingFishAccount
+                        : dialogContext.l10n.featureSyncToDivingFish),
                   ],
                 ),
                 content: SingleChildScrollView(
@@ -1590,7 +1666,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                       // ===== 阶段 1：输入 QR 码 =====
                       if (!isSyncing && !needDivingFishToken) ...[
                         Text(
-                          '在舞萌|中二公众号请求并打开二维码，扫描后将字符串粘贴到下方：',
+                          dialogContext.l10n.flowRequestAndOpenALoginQRCode,
                           style: TextStyle(
                               fontSize: 13,
                               color: AppColors.greyHint(brightness)),
@@ -1603,19 +1679,21 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                           controller: qrController,
                           maxLines: 3,
                           decoration: InputDecoration(
-                            hintText: '舞萌DX | 中二节奏 登入二维码(SGWCMAID...)',
+                            hintText: dialogContext
+                                .l10n.flowMaimaiDXCHUNITHMLoginQRSGWCMAID,
                             hintStyle: TextStyle(
                                 fontSize: 13,
                                 color:
                                     AppColors.greyHint(brightness, shade: 400)),
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+                              borderRadius: BorderRadius.circular(
+                                  AppDesignTokens.radiusSmall),
                             ),
                           ),
                         ),
                         const SizedBox(height: 8),
                         CheckboxListTile(
-                          title: const Text('参与排行榜',
+                          title: Text(dialogContext.l10n.flowJoinLeaderboards,
                               style: TextStyle(fontSize: 14)),
                           value: participateRankings,
                           onChanged: (value) {
@@ -1631,7 +1709,9 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                         ),
                         if (participateRankings)
                           CheckboxListTile(
-                            title: const Text('展示昵称（不勾选则显示为匿名用户）',
+                            title: Text(
+                                dialogContext.l10n
+                                    .flowShowNicknameOtherwiseShownAsAnonymous,
                                 style: TextStyle(fontSize: 13)),
                             value: showNickname,
                             onChanged: (value) {
@@ -1647,7 +1727,8 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                       // ===== 阶段 2：绑定水鱼账号 =====
                       if (needDivingFishToken) ...[
                         Text(
-                          '成绩已抓取成功！但要推送到水鱼，需要先绑定你的水鱼账号：',
+                          dialogContext
+                              .l10n.flowScoresFetchedLinkYourDivingFishAccount,
                           style: TextStyle(
                               fontSize: 13,
                               color: AppColors.greyHint(brightness)),
@@ -1656,8 +1737,10 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                         TextField(
                           controller: dfUserController,
                           decoration: InputDecoration(
-                            labelText: '水鱼用户名',
-                            hintText: '输入 Diving-Fish 用户名',
+                            labelText:
+                                dialogContext.l10n.flowDivingFishUsername,
+                            hintText:
+                                dialogContext.l10n.flowEnterDivingFishUsername,
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 12,
                               vertical: 10,
@@ -1669,8 +1752,10 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                           controller: dfPassController,
                           obscureText: true,
                           decoration: InputDecoration(
-                            labelText: '水鱼密码',
-                            hintText: '输入 Diving-Fish 密码',
+                            labelText:
+                                dialogContext.l10n.flowDivingFishPassword,
+                            hintText:
+                                dialogContext.l10n.flowEnterDivingFishPassword,
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 12,
                               vertical: 10,
@@ -1701,7 +1786,8 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                             decoration: BoxDecoration(
                               color: AppColors.warningOrange(brightness)
                                   .withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+                              borderRadius: BorderRadius.circular(
+                                  AppDesignTokens.radiusSmall),
                             ),
                             child: Row(
                               children: [
@@ -1711,7 +1797,8 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
-                                    '同步进行中，请耐心等待，不要进行其他操作',
+                                    dialogContext.l10n
+                                        .flowSyncInProgressPleaseWaitAndAvoid,
                                     style: TextStyle(
                                         fontSize: 12,
                                         color: AppColors.warningOrange(
@@ -1785,7 +1872,8 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                           const SizedBox(height: 8),
                           Center(
                             child: Text(
-                              '成绩已同步！可前往水鱼查看',
+                              dialogContext
+                                  .l10n.flowScoresSyncedViewThemOnDivingFish,
                               style: TextStyle(
                                   fontSize: 12,
                                   color: AppColors.greyHint(brightness,
@@ -1802,7 +1890,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                   if (!isSyncing && !needDivingFishToken)
                     TextButton(
                       onPressed: () => Navigator.of(dialogContext).pop(),
-                      child: const Text('关闭'),
+                      child: Text(dialogContext.l10n.featureClose),
                     ),
                   if (isSyncing &&
                       (currentStage == SyncStage.completed ||
@@ -1817,7 +1905,10 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                         Navigator.of(dialogContext).pop(fc);
                       },
                       child: Text(
-                        _countdown > 0 ? '确定 ($_countdown)' : '确定',
+                        _countdown > 0
+                            ? dialogContext.l10n
+                                .flowOKP0((_countdown).toString())
+                            : dialogContext.l10n.featureOK,
                       ),
                     ),
 
@@ -1825,7 +1916,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                   if (needDivingFishToken) ...[
                     TextButton(
                       onPressed: () => Navigator.of(dialogContext).pop(),
-                      child: const Text('跳过'),
+                      child: Text(dialogContext.l10n.flowSkip),
                     ),
                     ElevatedButton.icon(
                       icon: isBinding
@@ -1838,7 +1929,9 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                               ),
                             )
                           : const Icon(Icons.link, size: 18),
-                      label: Text(isBinding ? '绑定中...' : '绑定并同步'),
+                      label: Text(isBinding
+                          ? dialogContext.l10n.flowLinking
+                          : dialogContext.l10n.flowLinkAndSync),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.linkBlue(brightness),
                         foregroundColor: Colors.white,
@@ -1850,7 +1943,8 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                               final password = dfPassController.text.trim();
                               if (username.isEmpty || password.isEmpty) {
                                 setState(() {
-                                  bindingError = '请输入水鱼用户名和密码';
+                                  bindingError = dialogContext.l10n
+                                      .flowEnterYourDivingFishUsernameAndPassword;
                                 });
                                 return;
                               }
@@ -1866,7 +1960,8 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                               if (!ok) {
                                 setState(() {
                                   isBinding = false;
-                                  bindingError = '绑定水鱼账号失败，请稍后重试';
+                                  bindingError = dialogContext
+                                      .l10n.flowCouldNotLinkDivingFishTryAgain;
                                 });
                                 return;
                               }
@@ -1879,9 +1974,10 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                               if (loginResult == null) {
                                 setState(() {
                                   isBinding = false;
-                                  bindingError =
-                                      manager.lastLoginFailure?.message ??
-                                          '水鱼登录失败，请稍后重试';
+                                  bindingError = manager
+                                          .lastLoginFailure?.message ??
+                                      dialogContext.l10n
+                                          .flowDivingFishSignInFailedTryAgain;
                                 });
                                 return;
                               }
@@ -1901,7 +1997,8 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
 
                                 // 自动刷新本地数据
                                 setState(() {
-                                  statusText = '同步成功！正在刷新本地数据...';
+                                  statusText = dialogContext.l10n
+                                      .flowSyncSucceededRefreshingLocalData;
                                 });
                                 String? qq = await DivingFishProbeManager()
                                     .fetchBindQQ();
@@ -1923,14 +2020,17 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                                   },
                                 );
 
-                                AppToast.show('全部完成！$count 条成绩已同步，本地数据已刷新');
+                                AppToast.show(dialogContext.l10n
+                                    .flowDoneP0ScoresSyncedAndLocalData(
+                                        (count).toString()));
                                 final fc =
                                     DivingFishProbeManager().currentFriendCode;
                                 Navigator.of(dialogContext).pop(fc);
                               } else {
                                 setState(() {
                                   isBinding = false;
-                                  bindingError = '导出失败，请稍后重试';
+                                  bindingError = dialogContext
+                                      .l10n.flowExportFailedTryAgain;
                                 });
                               }
                             },
@@ -1941,7 +2041,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                   if (!isSyncing && !needDivingFishToken)
                     ElevatedButton.icon(
                       icon: const Icon(Icons.send, size: 18),
-                      label: const Text('开始同步'),
+                      label: Text(dialogContext.l10n.flowStartSync),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.linkBlue(brightness),
                         foregroundColor: Colors.white,
@@ -1949,13 +2049,16 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                       onPressed: () async {
                         final qrCode = qrController.text.trim();
                         if (qrCode.isEmpty) {
-                          AppToast.show('请先粘贴舞萌|中二登入二维码字符串');
+                          AppToast.show(
+                              dialogContext
+                                  .l10n.flowPasteTheMaimaiCHUNITHMLoginQRString,
+                              tone: AppToastTone.warning);
                           return;
                         }
 
                         setState(() {
                           isSyncing = true;
-                          statusText = '准备同步...';
+                          statusText = dialogContext.l10n.flowPreparingSync;
                           currentStage = SyncStage.authenticating;
                         });
 
@@ -1969,7 +2072,8 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                         if (!qrCode.startsWith('SGWCMAID')) {
                           setState(() {
                             currentStage = SyncStage.failed;
-                            statusText = '无效的二维码，请使用舞萌|中二公众号生成的登入二维码';
+                            statusText =
+                                dialogContext.l10n.flowInvalidQRCodeUseALoginQR;
                             isSyncing = false;
                           });
                           LoadingTipsConstant.stopAutoSwitch();
@@ -1997,7 +2101,8 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                           // ===== 同步成功 → 先展示过渡态 =====
                           setState(() {
                             currentStage = SyncStage.exporting;
-                            statusText = '同步成功！正在刷新本地数据...';
+                            statusText = dialogContext
+                                .l10n.flowSyncSucceededRefreshingLocalData;
                             progress = 0.70;
                           });
                           // 让 UI 先渲染出 70% 和过渡文字
@@ -2039,17 +2144,19 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                             currentStage = SyncStage.completed;
                             progress = 1.0;
                             if (hasQQ) {
-                              statusText =
-                                  '全部完成！${result.exportedCount} 条成绩已同步，本地数据已刷新';
+                              statusText = dialogContext.l10n
+                                  .flowDoneP0ScoresSyncedAndLocalData(
+                                      (result.exportedCount).toString());
                             } else {
-                              statusText =
-                                  '同步完成！${result.exportedCount} 条成绩已推送到水鱼\n（需先登录水鱼才能自动刷新本地数据）';
+                              statusText = dialogContext.l10n
+                                  .flowP0ScoresSentToDivingFishSign(
+                                      (result.exportedCount).toString());
                             }
                           });
                         } else if (result.errorMessage == '用户取消同步') {
                           setState(() {
                             currentStage = SyncStage.cancelled;
-                            statusText = '同步已取消';
+                            statusText = dialogContext.l10n.flowSyncCancelled;
                           });
                         } else {
                           final msg = result.errorMessage ?? '';
@@ -2132,7 +2239,9 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                     size: 22,
                   ),
                   const SizedBox(width: 8),
-                  Text(loginSuccess ? '登录成功' : '登录水鱼'),
+                  Text(loginSuccess
+                      ? dialogContext.l10n.flowSignedIn
+                      : dialogContext.l10n.featureSignInToDivingFish),
                 ],
               ),
               content: SingleChildScrollView(
@@ -2142,7 +2251,8 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                   children: [
                     if (!loginSuccess) ...[
                       Text(
-                        '输入你的 Diving-Fish 水鱼账号密码以获取 ImportToken：',
+                        dialogContext
+                            .l10n.flowEnterYourDivingFishCredentialsToObtain,
                         style: TextStyle(
                             fontSize: 13,
                             color: AppColors.greyHint(brightness)),
@@ -2151,8 +2261,8 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                       TextField(
                         controller: userController,
                         decoration: InputDecoration(
-                          labelText: '用户名',
-                          hintText: 'Diving-Fish 用户名',
+                          labelText: dialogContext.l10n.flowUsername,
+                          hintText: dialogContext.l10n.flowDivingFishUsername2,
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 12,
                             vertical: 10,
@@ -2164,8 +2274,8 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                         controller: passController,
                         obscureText: true,
                         decoration: InputDecoration(
-                          labelText: '密码',
-                          hintText: 'Diving-Fish 密码',
+                          labelText: dialogContext.l10n.flowPassword,
+                          hintText: dialogContext.l10n.flowDivingFishPassword2,
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 12,
                             vertical: 10,
@@ -2184,13 +2294,15 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                           color: AppColors.successGreen(brightness), size: 48),
                       const SizedBox(height: 12),
                       Text(
-                        statusText.isNotEmpty ? statusText : '登录成功',
+                        statusText.isNotEmpty
+                            ? statusText
+                            : dialogContext.l10n.flowSignedIn,
                         style: const TextStyle(
                             fontSize: 14, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'ImportToken 已获取并缓存',
+                        dialogContext.l10n.flowImportTokenRetrievedAndSaved,
                         style: TextStyle(
                             fontSize: 13,
                             color: AppColors.greyHint(brightness)),
@@ -2204,7 +2316,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '现在可以使用"同步成绩"功能一键同步到水鱼了',
+                        dialogContext.l10n.flowYouCanNowSyncScoresToDiving,
                         style: TextStyle(
                             fontSize: 12,
                             color: AppColors.greyHint(brightness)),
@@ -2216,7 +2328,9 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(dialogContext).pop(),
-                  child: Text(loginSuccess ? '完成' : '取消'),
+                  child: Text(loginSuccess
+                      ? dialogContext.l10n.featureDone
+                      : dialogContext.l10n.featureCancel),
                 ),
                 if (!loginSuccess)
                   ElevatedButton.icon(
@@ -2230,7 +2344,9 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                             ),
                           )
                         : const Icon(Icons.login, size: 18),
-                    label: Text(isLoggingIn ? '登录中...' : '登录'),
+                    label: Text(isLoggingIn
+                        ? dialogContext.l10n.flowSigningIn
+                        : dialogContext.l10n.flowSignIn),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.linkBlue(brightness),
                       foregroundColor: Colors.white,
@@ -2241,7 +2357,8 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                             final username = userController.text.trim();
                             final password = passController.text.trim();
                             if (username.isEmpty || password.isEmpty) {
-                              setState(() => errorMsg = '请输入用户名和密码');
+                              setState(() => errorMsg = dialogContext
+                                  .l10n.flowEnterUsernameAndPassword);
                               return;
                             }
                             setState(() {
@@ -2277,8 +2394,10 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                                 importedToken = token.isNotEmpty
                                     ? '${token.substring(0, token.length > 12 ? 12 : token.length)}...'
                                     : '***';
-                                statusText =
-                                    '欢迎，$nickname${plate.isNotEmpty ? " ($plate)" : ""}';
+                                statusText = dialogContext.l10n.flowWelcomeP0P1(
+                                    (nickname).toString(),
+                                    (plate.isNotEmpty ? " ($plate)" : "")
+                                        .toString());
                               });
                               // 登录成功后立即更新缓存的QQ号，确保排行榜等页面使用新账号标识
                               await _saveQQ(bindQQ);
@@ -2287,7 +2406,8 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                               setState(() {
                                 isLoggingIn = false;
                                 errorMsg = manager.lastLoginFailure?.message ??
-                                    '登录失败，请稍后再试';
+                                    dialogContext
+                                        .l10n.flowSignInFailedTryAgainLater;
                               });
                             }
                           },
@@ -2305,7 +2425,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
     showDialog<void>(
       context: context,
       builder: (ctx) => AppAlertDialog(
-        title: const Text('主题设置'),
+        title: Text(context.featureText('主题设置')),
         content: const SingleChildScrollView(child: ThemePreferenceControls()),
         actions: [
           TextButton(
@@ -2314,18 +2434,18 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
               Navigator.push(context,
                   MaterialPageRoute(builder: (_) => const SettingsPage()));
             },
-            child: const Text('更多设置'),
+            child: Text(context.featureText('更多设置')),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('完成'),
+            child: Text(context.featureText('完成')),
           ),
         ],
       ),
     );
   }
 
-  // 显示账号管理对话框
+  // 显示成绩导入凭据对话框
   /// 打开「切换账号」底部面板；目标无缓存时引导去刷新对应数据源。
   Future<void> _showAccountSwitchSheet() async {
     if (anyBusy) return;
@@ -2372,7 +2492,9 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
     if (anyBusy) return;
     setState(() {
       _isRefreshing = true;
-      _refreshText = advanced ? '正在刷新数据（高级）...' : '正在刷新数据...';
+      _refreshText = advanced
+          ? context.l10n.flowAdvancedDataRefreshInProgress
+          : context.l10n.flowRefreshingData;
       _refreshProgress = 0;
     });
     HomeRefreshNotifier.setBusy(true);
@@ -2392,7 +2514,8 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
       }
       if (mounted) {
         ConfettiEffect.show(context);
-        AppToast.show('数据刷新成功!');
+        AppToast.show(context.l10n.flowDataRefreshed,
+            tone: AppToastTone.success);
       }
     } catch (e) {
       if (mounted) await presentRefreshError(context, e, qq: request.qq);
@@ -2415,18 +2538,18 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
       barrierDismissible: true,
       builder: (BuildContext dialogContext) {
         return FutureBuilder<Map<String, dynamic>?>(
-          future: _fetchAccountProfile(),
+          future: fetchDivingFishProfile(),
           builder: (ctx, snapshot) {
             final isLoading = snapshot.connectionState != ConnectionState.done;
             final errorMsg = snapshot.hasError ? '${snapshot.error}' : null;
             final profile = snapshot.data;
 
             return AppAlertDialog(
-              title: const Row(
+              title: Row(
                 children: [
                   Icon(Icons.manage_accounts, size: 22),
                   SizedBox(width: 8),
-                  Text('账号管理'),
+                  Text(dialogContext.l10n.featureAccountManagement),
                 ],
               ),
               content: SingleChildScrollView(
@@ -2442,37 +2565,54 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                             style: TextStyle(
                                 color: AppColors.errorRed(brightness)))
                         : Column(mainAxisSize: MainAxisSize.min, children: [
-                            // 已登录水鱼：显示账号信息 + 水鱼授权状态
+                            // 已登录水鱼：只显示成绩导入 Token
                             if (profile != null) ...[
-                              Align(
-                                alignment: Alignment.centerLeft,
-                                child: Padding(
-                                  padding:
-                                      const EdgeInsets.only(top: 4, bottom: 6),
-                                  child: Text(
-                                    '水鱼-个人信息',
-                                    style: Theme.of(dialogContext)
-                                        .textTheme
-                                        .titleSmall
-                                        ?.copyWith(
-                                          color: Theme.of(dialogContext)
-                                              .colorScheme
-                                              .primary,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                  ),
+                              // 标题样式与下方落雪、AWMC NET 两节一致：
+                              // 已有 Token 显示绿色勾，否则灰色钥匙。
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Row(
+                                  children: [
+                                    Builder(builder: (_) {
+                                      final hasToken = (profile.tryGet<String>(
+                                                  'import_token') ??
+                                              '')
+                                          .isNotEmpty;
+                                      return Icon(
+                                        hasToken
+                                            ? Icons.check_circle
+                                            : Icons.vpn_key,
+                                        size: 18,
+                                        color: hasToken
+                                            ? AppColors.successGreen(brightness)
+                                            : AppColors.greyHint(brightness),
+                                      );
+                                    }),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      dialogContext.l10n.flowDivingFishProfile,
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: Theme.of(dialogContext)
+                                            .colorScheme
+                                            .onSurface,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
+                              const SizedBox(height: 8),
+                              // 水鱼账号资料与授权已移到「绑定与授权管理 → 水鱼授权」。
                               _buildAccountInfo(profile, dialogContext),
-                              _buildDivingFishAuthSection(
-                                  dialogContext, brightness, profile),
                             ] else
                               // 未登录水鱼：友好提示用户去登录水鱼（落雪 token 仍可操作）
                               Padding(
                                 padding:
                                     const EdgeInsets.symmetric(vertical: 8),
                                 child: Text(
-                                  '未登录水鱼账号，仅显示落雪相关设置',
+                                  dialogContext
+                                      .l10n.flowNotSignedInToDivingFishOnly,
                                   style: TextStyle(
                                     fontSize: 13,
                                     color: AppColors.greyHint(brightness),
@@ -2488,7 +2628,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(dialogContext).pop(),
-                  child: const Text('关闭'),
+                  child: Text(dialogContext.l10n.featureClose),
                 ),
               ],
             );
@@ -2503,112 +2643,6 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
     final local =
         await SecureCredentialStore.read(CacheKeyConstant.probeLxnsImportToken);
     return local != null && local.isNotEmpty;
-  }
-
-  /// 水鱼 OAuth 授权指引（读取成绩需在浏览器授权本应用，并显示授权状态）
-  Widget _buildDivingFishAuthSection(
-    BuildContext dialogContext,
-    Brightness brightness,
-    Map<String, dynamic> profile,
-  ) {
-    final bindQQ = profile.tryGet<String>('bind_qq') ?? '';
-    final qq = bindQQ;
-    final authFuture = qq.isNotEmpty
-        ? DivingFishOAuthManager().checkAuthorization(qq)
-        : Future<bool?>.value(null);
-
-    return FutureBuilder<bool?>(
-      future: authFuture,
-      builder: (ctx, snapshot) {
-        final checking = snapshot.connectionState != ConnectionState.done;
-        final authorized = snapshot.data;
-
-        final statusColor = authorized == true
-            ? AppColors.successGreen(brightness)
-            : (authorized == false
-                ? AppColors.warningOrange(brightness)
-                : AppColors.greyHint(brightness));
-        final statusIcon = authorized == true
-            ? Icons.check_circle
-            : (authorized == false ? Icons.warning_amber : Icons.verified_user);
-
-        Widget status;
-        if (checking) {
-          status = const SizedBox(
-            width: 16,
-            height: 16,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          );
-        } else if (qq.isEmpty) {
-          status = Text('未找到 QQ 号，请先刷新数据或登录水鱼',
-              style: TextStyle(
-                  color: AppColors.warningOrange(brightness), fontSize: 13));
-        } else if (authorized == true) {
-          status = Text('已授权',
-              style: TextStyle(
-                  color: AppColors.successGreen(brightness), fontSize: 13));
-        } else if (authorized == false) {
-          status = Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('未授权',
-                  style: TextStyle(
-                      color: AppColors.warningOrange(brightness),
-                      fontSize: 13)),
-              const SizedBox(height: 6),
-              Text('读取你的水鱼成绩需要先在浏览器里授权本应用。点下方按钮打开授权链接，登录水鱼并同意即可。',
-                  style: TextStyle(
-                      fontSize: 12, color: AppColors.greyHint(brightness))),
-            ],
-          );
-        } else {
-          status = Text('状态未知',
-              style: TextStyle(
-                  color: AppColors.greyHint(brightness), fontSize: 13));
-        }
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Divider(height: 24),
-            Row(
-              children: [
-                Icon(statusIcon, size: 18, color: statusColor),
-                const SizedBox(width: 8),
-                Text(
-                  '水鱼授权',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Theme.of(dialogContext).colorScheme.onSurface,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            status,
-            const SizedBox(height: 8),
-            FilledButton(
-              onPressed: () async {
-                if (qq.isEmpty) {
-                  AppToast.show('未找到 QQ 号，请先刷新数据或登录水鱼');
-                  return;
-                }
-                final ok = await DivingFishOAuthManager().openBindingLink(qq);
-                if (!dialogContext.mounted) return;
-                AppToast.show(ok ? '已打开授权链接，请在浏览器中完成授权后返回查看' : '发起授权失败，请稍后重试');
-              },
-              style: FilledButton.styleFrom(
-              ),
-              child: Text(
-                authorized == true ? '重新授权' : '打开授权链接',
-                style: const TextStyle(fontSize: 13),
-              ),
-            ),
-          ],
-        );
-      },
-    );
   }
 
   /// 管理落雪 API 密钥（maimai Score Hub 侧）
@@ -2656,7 +2690,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  '落雪 API 密钥',
+                  context.l10n.flowLXNSPersonalAPIKey,
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -2676,12 +2710,12 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
               )
             else ...[
               if (hasToken == true)
-                Text('已设置',
+                Text(context.l10n.flowSet,
                     style: TextStyle(
                         color: AppColors.successGreen(brightness),
                         fontSize: 13))
               else ...[
-                Text('未设置',
+                Text(context.l10n.flowNotSet,
                     style: TextStyle(
                         color: AppColors.warningOrange(brightness),
                         fontSize: 13)),
@@ -2704,8 +2738,9 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                   child: Text.rich(
                     TextSpan(
                       children: [
-                        const TextSpan(
-                            text: '访问 ', style: TextStyle(fontSize: 12)),
+                        TextSpan(
+                            text: context.l10n.flowVisit2,
+                            style: TextStyle(fontSize: 12)),
                         TextSpan(
                           text:
                               'https://maimai.lxns.net/user/profile?tab=thirdparty',
@@ -2715,8 +2750,8 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                               color: Theme.of(context).colorScheme.primary,
                               decoration: TextDecoration.underline),
                         ),
-                        const TextSpan(
-                            text: '，滑到最底部获取密钥。',
+                        TextSpan(
+                            text: context.l10n.flowAndScrollToTheBottomToGet,
                             style: TextStyle(fontSize: 12)),
                       ],
                     ),
@@ -2730,7 +2765,8 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                         controller: tokenCtrl,
                         obscureText: true,
                         decoration: InputDecoration(
-                          hintText: '在此粘贴落雪个人 API 密钥...',
+                          hintText:
+                              context.l10n.flowPasteYourLXNSPersonalAPIKey,
                           border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8)),
                           contentPadding: const EdgeInsets.symmetric(
@@ -2747,7 +2783,9 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                           : () async {
                               final t = tokenCtrl.text.trim();
                               if (t.isEmpty) {
-                                AppToast.show('请先输入 API 密钥');
+                                AppToast.show(
+                                    context.l10n.flowEnterYourAPIKeyFirst,
+                                    tone: AppToastTone.warning);
                                 return;
                               }
                               setState(() => saving = true);
@@ -2765,7 +2803,10 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                                 AppToast.show(message);
                               } catch (_) {
                                 if (ctx.mounted)
-                                  AppToast.show('个人 key 保存失败，请重试');
+                                  AppToast.show(
+                                      context.l10n
+                                          .flowCouldNotSaveYourPersonalKeyTry,
+                                      tone: AppToastTone.error);
                               } finally {
                                 if (ctx.mounted) setState(() => saving = false);
                               }
@@ -2778,9 +2819,9 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                           ? const SizedBox(
                               width: 16,
                               height: 16,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2))
-                          : const Text('保存', style: TextStyle(fontSize: 13)),
+                              child: CircularProgressIndicator(strokeWidth: 2))
+                          : Text(context.l10n.save,
+                              style: TextStyle(fontSize: 13)),
                     ),
                   ],
                 ),
@@ -2804,7 +2845,10 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                             AppToast.show(message);
                           } catch (_) {
                             if (ctx.mounted)
-                              AppToast.show('无法关闭对应自动同步，个人 key 未清除，请重试');
+                              AppToast.show(
+                                  context
+                                      .l10n.flowCouldNotDisableAutoSyncYourKey,
+                                  tone: AppToastTone.error);
                           } finally {
                             if (ctx.mounted) setState(() => saving = false);
                           }
@@ -2815,7 +2859,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     alignment: Alignment.centerLeft,
                   ),
-                  child: Text('清除密钥',
+                  child: Text(context.l10n.flowClearKey,
                       style: TextStyle(
                           color: AppColors.errorRed(brightness), fontSize: 12)),
                 ),
@@ -2832,36 +2876,10 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
     return _AwmcNetTokenSection(brightness: brightness);
   }
 
-  Future<Map<String, dynamic>?> _fetchAccountProfile() async {
-    final jwt =
-        await SecureCredentialStore.read(CacheKeyConstant.probeDivingFishToken);
-    if (jwt == null || jwt.isEmpty) {
-      // 未登录水鱼：返回 null，由弹窗决定渲染降级 UI；
-      // 落雪 token 区块始终会渲染，不受影响。
-      return null;
-    }
-    final response = await ApiClient.get(
-      Uri.parse(ApiUrls.DivingFishProfileApi),
-      headers: {
-        'Content-Type': 'application/json',
-        'Cookie': 'jwt_token=$jwt',
-      },
-    );
-    if (response.statusCode == 200) {
-      return json.decode(response.body) as Map<String, dynamic>;
-    }
-    throw Exception('获取账号信息失败 (${response.statusCode})');
-  }
-
   Widget _buildAccountInfo(Map<String, dynamic> p, BuildContext dialogContext) {
     final brightness = Theme.of(dialogContext).brightness;
-    var importToken = p.tryGet<String>('import_token') ?? '无';
-    final bindQQ = p.tryGet<String>('bind_qq') ?? '未绑定';
-    final nickname = p.tryGet<String>('nickname') ?? '无';
-    final channelUid = p.tryGet<String>('qq_channel_uid') ?? '未绑定';
-    final username = p.tryGet<String>('username') ?? '无';
-    final plate = p.tryGet<String>('plate') ?? '无';
-    final additionalRating = p.tryGet<int>('additional_rating') ?? 0;
+    var importToken =
+        p.tryGet<String>('import_token') ?? dialogContext.l10n.flowNone2;
 
     // 需要跨 setState 保持状态，声明在 StatefulBuilder 外部
     bool isRefreshing = false;
@@ -2869,12 +2887,6 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
     return StatefulBuilder(
       builder: (ctx, setState) {
         final rows = <Widget>[
-          _infoRow('用户名', username, brightness),
-          _infoRow('昵称', nickname, brightness),
-          _infoRow('牌子', plate.isNotEmpty ? plate : '无', brightness),
-          _infoRow('Rating段位', _ratingName(additionalRating), brightness),
-          _infoRow('绑定QQ', bindQQ, brightness),
-          _infoRow('频道ID', channelUid, brightness),
           // ImportToken 行带操作按钮
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 4),
@@ -2912,7 +2924,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                     visualDensity: VisualDensity.compact,
                     constraints:
                         const BoxConstraints(minWidth: 28, minHeight: 24),
-                    tooltip: '刷新 ImportToken',
+                    tooltip: dialogContext.l10n.flowRefreshImportToken,
                     onPressed: () async {
                       setState(() => isRefreshing = true);
                       final newToken = await _refreshImportToken();
@@ -2923,7 +2935,8 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                       } else {
                         await showErrorMessageDialog(
                           context,
-                          message: 'ImportToken 刷新失败，请稍后重试',
+                          message: dialogContext
+                              .l10n.flowCouldNotRefreshImportTokenTryAgain,
                         );
                       }
                       if (!ctx.mounted) return;
@@ -2936,10 +2949,10 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                     visualDensity: VisualDensity.compact,
                     constraints:
                         const BoxConstraints(minWidth: 28, minHeight: 24),
-                    tooltip: '复制 ImportToken',
+                    tooltip: dialogContext.l10n.flowCopyImportToken,
                     onPressed: () {
                       Clipboard.setData(ClipboardData(text: importToken));
-                      AppToast.show('ImportToken 已复制到剪贴板');
+                      AppToast.show(dialogContext.l10n.flowImportTokenCopied);
                     },
                   ),
                 ],
@@ -2954,26 +2967,6 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
           children: rows,
         );
       },
-    );
-  }
-
-  Widget _infoRow(String label, String value, Brightness brightness) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 90,
-            child: Text(label,
-                style: TextStyle(
-                    color: AppColors.greyHint(brightness), fontSize: 13)),
-          ),
-          Expanded(
-            child: Text(value, style: const TextStyle(fontSize: 13)),
-          ),
-        ],
-      ),
     );
   }
 
@@ -3003,36 +2996,6 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
       debugPrint('刷新水鱼个人 key 失败（错误详情已隐藏）');
     }
     return null;
-  }
-
-  String _ratingName(int rating) {
-    const names = [
-      '初学者',
-      '一段',
-      '二段',
-      '三段',
-      '四段',
-      '五段',
-      '六段',
-      '七段',
-      '八段',
-      '九段',
-      '十段',
-      '真初段',
-      '真二段',
-      '真三段',
-      '真四段',
-      '真五段',
-      '真六段',
-      '真七段',
-      '真八段',
-      '真九段',
-      '真十段',
-      '真皆传',
-      '里皆传',
-    ];
-    if (rating < 0 || rating >= names.length) return '$rating';
-    return '${names[rating]} ($rating)';
   }
 
   // 构建同步状态图标
@@ -3065,21 +3028,28 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
       return;
     }
     if (const {
+      '绑定与授权管理',
       '登录 maimai Score Hub',
+      '切换账号',
+      '落雪账号授权',
+      '绑定 AWMC NET 账号',
+      '绑定机台身份',
       '自动同步',
       '打印日志',
       '缓存管理',
-      '刷新数据（高级）',
+      '拉取成绩并更新数据（高级）',
       '刷新机台游玩次数',
     }.contains(item.title)) {
       await widget.onSystemFeatureTap?.call(item);
       return;
     }
     final extraPage = switch (item.title) {
+      '自定义标签' => const CustomTagsPage(),
       '自定义 Best50' => const CustomBest50Page(),
       '理想 Best50' => const IdealBest50Page(),
       '曲绘快闪猜歌' => const GuessChartByFlashCoverPage(),
       '曲绘拼图猜歌' => const GuessChartByTileRevealPage(),
+      '像素曲绘猜歌' => const GuessChartByBlurredCoverPage(pixelated: true),
       '谱面片段猜歌' => const GuessChartByChartPeekPage(),
       '吃分推荐' => const GainRecommendPage(),
       _ => null,
@@ -3158,24 +3128,24 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
         MaterialPageRoute(builder: (context) => const UpdateCalendarPage()),
       );
     }
-    if (item.title == '刷新数据') {
+    if (item.title == '拉取成绩并更新数据') {
       await _openRefreshData();
     }
     if (item.title == '刷新 maidata') {
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (ctx) => AppAlertDialog(
-          title: const Text('确认刷新'),
-          content: const Text(
-              '将清除所有maidata缓存并从服务器重新拉取全部maidata数据，耗时可能较长。\n\n确定要刷新吗？'),
+          title: Text(context.l10n.flowConfirmRefresh),
+          content:
+              Text(context.l10n.flowThisClearsAllMaidataCachesAndDownloads),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text('取消'),
+              child: Text(context.l10n.featureCancel),
             ),
             ElevatedButton(
               onPressed: () => Navigator.of(ctx).pop(true),
-              child: const Text('确认刷新'),
+              child: Text(context.l10n.flowConfirmRefresh),
             ),
           ],
         ),
@@ -3186,13 +3156,13 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
           showDialog(
             context: context,
             barrierDismissible: false,
-            builder: (ctx) => const AppAlertDialog(
+            builder: (ctx) => AppAlertDialog(
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   CircularProgressIndicator(),
                   SizedBox(height: 16),
-                  Text('正在刷新maidata...'),
+                  Text(context.l10n.flowRefreshingMaidata),
                 ],
               ),
             ),
@@ -3216,14 +3186,16 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
           // 关闭加载对话框
           if (mounted) Navigator.of(context).pop();
           if (mounted) {
-            AppToast.show('Maidata刷新成功');
+            AppToast.show(context.l10n.flowMaidataRefreshed,
+                tone: AppToastTone.success);
             ConfettiEffect.show(context);
           }
         } catch (e) {
           debugPrint('[HomePage] 刷新maidata失败: $e');
           if (mounted) Navigator.of(context).pop();
           if (mounted) {
-            await showErrorMessageDialog(context, message: '刷新失败: $e');
+            await showErrorMessageDialog(context,
+                message: context.l10n.flowRefreshFailedP0((e).toString()));
           }
         }
       }
@@ -3436,8 +3408,8 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
           launchUrlFallback(
             uri.toString(),
             context,
-            message: '无法打开浏览器，官网链接已复制到剪贴板，'
-                '请粘贴到浏览器访问 ${AppLinks.officialSite}',
+            message: context.l10n.flowCouldNotOpenABrowserWebsiteLink(
+                (AppLinks.officialSite).toString()),
           );
         }
       } catch (e) {
@@ -3445,16 +3417,16 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
         launchUrlFallback(
           uri.toString(),
           context,
-          message: '无法打开浏览器，官网链接已复制到剪贴板，'
-              '请粘贴到浏览器访问 ${AppLinks.officialSite}',
+          message: context.l10n.flowCouldNotOpenABrowserWebsiteLink(
+              (AppLinks.officialSite).toString()),
         );
       }
     }
     if (item.title == '加入 QQ 群') {
       final uri = Uri.parse(AppLinks.qqGroupJoinUrl);
       // 跳不动时复制的是**群号**：加群链接在浏览器里只是个空壳中转页
-      const failMessage = '没能跳转到 QQ，群号 ${AppLinks.qqGroupNumber} '
-          '已复制到剪贴板，可在 QQ 里搜索加入';
+      final failMessage = context.l10n
+          .flowCouldNotOpenQQGroupIDP0((AppLinks.qqGroupNumber).toString());
       try {
         if (await ExternalLaunchUtil.open(uri)) {
           return;
@@ -3481,7 +3453,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
       // 线路2 走对话框输入 + 按钮上进度
       await syncToDivingFishByCurrentRoute();
     }
-    if (item.title == '账号管理') {
+    if (item.title == '成绩导入凭据') {
       _showAccountManageDialog(context);
     }
     if (item.title == '登录水鱼') {
@@ -3491,19 +3463,20 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
       final ok = await showDialog<bool>(
         context: context,
         builder: (ctx) => AppAlertDialog(
-          title: const Text('确认登出'),
-          content: const Text('登出后将清除缓存的登录信息和 ImportToken，确定要登出吗？'),
+          title: Text(context.l10n.flowConfirmSignOut),
+          content: Text(context.l10n.flowSigningOutClearsSavedLoginDetailsAnd),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text('取消'),
+              child: Text(context.l10n.featureCancel),
             ),
             ElevatedButton(
               onPressed: () => Navigator.of(ctx).pop(true),
               style: ElevatedButton.styleFrom(
                   backgroundColor:
                       AppColors.errorRed(Theme.of(context).brightness)),
-              child: const Text('登出', style: TextStyle(color: Colors.white)),
+              child: Text(context.l10n.flowSignOut,
+                  style: TextStyle(color: Colors.white)),
             ),
           ],
         ),
@@ -3563,13 +3536,13 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
         barrierDismissible: false,
         builder: (BuildContext context) {
           return AppAlertDialog(
-            title: Text('检查更新'),
+            title: Text(context.featureText('检查更新')),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 CircularProgressIndicator(),
                 SizedBox(height: 16),
-                Text('正在检查更新...'),
+                Text(context.featureText('正在检查更新...')),
               ],
             ),
           );
@@ -3588,26 +3561,27 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
             context: context,
             builder: (BuildContext context) {
               return AppAlertDialog(
-                title: Text('检查更新失败'),
+                title: Text(context.featureText('检查更新失败')),
                 // 单列按原顺序排，确定在最下面。
                 actionColumns: 1,
-                content: Text('请检查网络连接后重试'),
+                content: Text(context.featureText('请检查网络连接后重试')),
                 actions: [
                   TextButton(
                     onPressed: () {
                       Clipboard.setData(ClipboardData(
                           text: LZYCheckUpdateManager.platformDownloadUrl));
                       Navigator.of(context).pop();
-                      AppToast.show('下载链接已复制到剪贴板', duration: Duration(seconds: 2));
+                      AppToast.show(context.featureText('下载链接已复制到剪贴板'),
+                          duration: Duration(seconds: 2));
                     },
-                    child: Text('复制下载链接'),
+                    child: Text(context.featureText('复制下载链接')),
                   ),
                   LZYCheckUpdateManager().buildReleasesButton(context),
                   TextButton(
                     onPressed: () {
                       Navigator.of(context).pop();
                     },
-                    child: Text('确定'),
+                    child: Text(context.featureText('确定')),
                   ),
                 ],
               );
@@ -3716,55 +3690,6 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
         if (available.containsKey(title)) available[title]!,
     ];
 
-    Widget buildItem(int index) {
-      final item = items[index];
-      return ValueListenableBuilder<UpdateAvailability?>(
-        key: ValueKey(item.title),
-        valueListenable: UpdateNotifier.available,
-        builder: (context, update, _) {
-          final isUpdate = UpdateNotifier.isUpdateEntry(item.title);
-          final effective = isUpdate && update != null ? update : null;
-          return HubActionTile(
-            title: isUpdate ? UpdateNotifier.titleFor(effective) : item.title,
-            subtitle: UpdateNotifier.subtitleFor(effective, item.subtitle),
-            icon: isUpdate ? Icons.arrow_upward_rounded : item.icon,
-            titleColor: effective == null ? null : UpdateAvailableIcon.green,
-            leading: effective == null ? null : const UpdateAvailableIcon(),
-            isFavorited: true,
-            onToggleFavorite: () => _toggleFavorite(item.title),
-            onTap: () => _handleFeatureTap(item),
-            loading: _syncBusyFor(item.title),
-            loadingText: _syncTextFor(item.title),
-            showProgress: true,
-            progressValue: _syncProgressFor(item.title),
-            disabled: _isSyncBlockedFeature(item.title) &&
-                anyBusy &&
-                !_syncBusyFor(item.title),
-            footerLift: item.title == '同步成绩到 AWMC NET' || item.title == '自动同步'
-                ? SyncStatsFooter.footerLift
-                : 0,
-            footer: _syncFooterFor(item),
-          );
-        },
-      );
-    }
-
-    // 带进度 / 线路 / 统计的入口（同步、缓存管理、新版本）放不进小图标，
-    // 平时单独成组显示完整样式；其余收藏进「常用」图标网格。
-    bool needsFullTile(ButtonItem item) =>
-        _isSyncFeature(item.title) ||
-        item.title == '自动同步' ||
-        item.title == '缓存管理' ||
-        (UpdateNotifier.isUpdateEntry(item.title) &&
-            UpdateNotifier.available.value != null);
-    final gridItems = [
-      for (final item in items)
-        if (!needsFullTile(item)) item,
-    ];
-    final fullIndexes = [
-      for (var i = 0; i < items.length; i++)
-        if (needsFullTile(items[i])) i,
-    ];
     final scheme = Theme.of(context).colorScheme;
 
     return Column(
@@ -3777,7 +3702,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
               Expanded(
                 child: Semantics(
                   header: true,
-                  child: const Text('常用',
+                  child: Text(context.featureText('常用'),
                       style:
                           TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
                 ),
@@ -3786,84 +3711,70 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
             ],
           ),
         ),
-        if (_sortingFavorites)
-          Padding(
+        AnimatedReveal(
+          visible: _sortingFavorites,
+          child: Padding(
             padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
-            child: Text('拖动图标调整顺序；点叉号或拖到删除区域可移除收藏',
-                style:
-                    TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+            child: Text(context.featureText('拖动图标调整顺序；点叉号或拖到删除区域可移除收藏'),
+                style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
           ),
+        ),
         if (items.isEmpty)
           AppCard(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
             child: Text(
-              '点击分类中的 ⭐ 星标即可收藏功能，收藏后直接显示在此处',
+              context.featureText('点击分类中的 ⭐ 星标即可收藏功能，收藏后直接显示在此处'),
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
             ),
           )
-        else if (_sortingFavorites)
-          FavoriteEditGrid(
-            items: [
-              for (final item in items)
-                FavoriteEditItem(title: item.title, icon: item.icon),
-            ],
-            onReorder: (ordered) {
-              // 当前不可用的收藏不显示，但要留在原来的集合里。
-              final hidden = titles.where((t) => !ordered.contains(t));
-              unawaited(FavoriteFeaturesNotifier.replaceAll(
-                  {...ordered, ...hidden}));
-            },
-            onRemove: _toggleFavorite,
-          )
-        else ...[
-          if (gridItems.isNotEmpty)
-            LayoutBuilder(
-              builder: (context, constraints) {
-                const gap = 8.0;
-                final columns = constraints.maxWidth >= 600 ? 6 : 4;
-                final width =
-                    (constraints.maxWidth - gap * (columns - 1)) / columns;
-                return Wrap(
-                  spacing: gap,
-                  runSpacing: 8,
-                  children: [
-                    for (var i = 0; i < gridItems.length; i++)
-                      SizedBox(
-                        key: ValueKey(gridItems[i].title),
-                        width: width,
-                        child: EntranceAnimation(
-                          index: i,
-                          stagger: const Duration(milliseconds: 60),
-                          baseDelay: const Duration(milliseconds: 200),
-                          duration: const Duration(milliseconds: 500),
-                          offset: const Offset(0, 12),
-                          child: FeatureIconTile(
-                            title: gridItems[i].title,
-                            icon: gridItems[i].icon,
-                            onTap: _isSyncBlockedFeature(gridItems[i].title) &&
-                                    anyBusy
-                                ? null
-                                : () => _handleFeatureTap(gridItems[i]),
-                          ),
-                        ),
-                      ),
-                  ],
-                );
-              },
-            ),
-          if (fullIndexes.isNotEmpty) ...[
-            if (gridItems.isNotEmpty) const SizedBox(height: 12),
-            AppCard(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Column(
-                children: [
-                  for (final i in fullIndexes) buildItem(i),
+        else
+          // 正常态和编辑态共用一棵树：切换时图标不重新入场。
+          ValueListenableBuilder<UpdateAvailability?>(
+            valueListenable: UpdateNotifier.available,
+            builder: (context, update, _) => ListenableBuilder(
+              listenable: AccountAuthorizationStatus.changes,
+              builder: (context, _) => FavoriteEditGrid(
+                editing: _sortingFavorites,
+                items: [
+                  for (final item in items)
+                    () {
+                      final isUpdate = UpdateNotifier.isUpdateEntry(item.title);
+                      final effective =
+                          isUpdate && update != null ? update : null;
+                      final presentation =
+                          AccountAuthorizationStatus.present(context, item);
+                      return FavoriteEditItem(
+                        title: item.title,
+                        displayTitle: isUpdate
+                            ? UpdateNotifier.titleFor(effective)
+                            : presentation.title,
+                        icon: isUpdate
+                            ? Icons.arrow_upward_rounded
+                            : presentation.icon,
+                        titleColor: effective == null
+                            ? null
+                            : UpdateAvailableIcon.green,
+                        loading: _syncBusyFor(item.title),
+                        progress: _syncProgressFor(item.title),
+                        onTap: _isSyncBlockedFeature(item.title) &&
+                                anyBusy &&
+                                !_syncBusyFor(item.title)
+                            ? null
+                            : () => _handleFeatureTap(item),
+                      );
+                    }(),
                 ],
+                onReorder: (ordered) {
+                  // 当前不可用的收藏不显示，但要留在原来的集合里。
+                  final hidden = titles.where((t) => !ordered.contains(t));
+                  unawaited(FavoriteFeaturesNotifier.replaceAll(
+                      {...ordered, ...hidden}));
+                },
+                onRemove: _toggleFavorite,
               ),
             ),
-          ],
-        ],
+          ),
       ],
     );
   }
@@ -3872,7 +3783,9 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
     return Semantics(
       button: true,
       selected: _sortingFavorites,
-      label: _sortingFavorites ? '完成收藏功能编辑' : '编辑收藏功能',
+      label: _sortingFavorites
+          ? context.featureText('完成收藏功能编辑')
+          : context.featureText('编辑收藏功能'),
       excludeSemantics: true,
       child: TextButton(
         onPressed: () {
@@ -3883,9 +3796,11 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
           padding: const EdgeInsets.symmetric(horizontal: 8),
           minimumSize: const Size(44, 40),
         ),
-        child: Text(_sortingFavorites ? '完成' : '编辑',
-            style:
-                const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+        child: Text(
+            _sortingFavorites
+                ? context.featureText('完成')
+                : context.featureText('编辑'),
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
       ),
     );
   }
@@ -3912,20 +3827,10 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
       _isSyncFeature(title) ||
       title == '登录水鱼' ||
       title == '登出水鱼账号' ||
-      title == '刷新数据' ||
-      title == '刷新数据（高级）' ||
+      title == '拉取成绩并更新数据' ||
+      title == '拉取成绩并更新数据（高级）' ||
       title == '缓存管理' ||
       title == '刷新机台游玩次数';
-
-  /// 收藏区某个同步入口按钮上的进度文案。
-  String _syncTextFor(String title) {
-    if (title == '缓存管理') return CacheManagementService.instance.reloadText;
-    if (title == '同步成绩到水鱼') return syncText;
-    if (title == '同步成绩到落雪') return luoXueText;
-    if (title == '同步成绩到 AWMC NET') return awmcNetText;
-    if (title == '同步成绩到多端') return multiSyncText;
-    return '';
-  }
 
   double? _syncProgressFor(String title) {
     if (title == '缓存管理') return CacheManagementService.instance.reloadProgress;
@@ -3933,31 +3838,6 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
     if (title == '同步成绩到落雪') return luoXueProgress;
     if (title == '同步成绩到 AWMC NET') return awmcNetProgress;
     if (title == '同步成绩到多端') return multiSyncProgress;
-    return null;
-  }
-
-  /// 收藏区同步入口的线路与统计，复用系统页组件；其它功能不占位置。
-  Widget? _syncFooterFor(ButtonItem item) {
-    final title = item.title;
-    if (title == '自动同步') {
-      return AutoSyncStatusFooter(onTap: () => _handleFeatureTap(item));
-    }
-    if (title == '同步成绩到水鱼') {
-      return SyncRouteFooter(
-        platform: SyncPlatform.divingFish,
-        enabled: !anyBusy,
-      );
-    }
-    if (title == '同步成绩到落雪') {
-      return SyncRouteFooter(
-        platform: SyncPlatform.luoXue,
-        enabled: !anyBusy,
-      );
-    }
-    // AWMC NET 只有二维码直传、没有线路，所以只有统计那一行
-    if (title == '同步成绩到 AWMC NET') {
-      return const SyncStatsFooter(slot: (SyncLine.direct, SyncPlatform.awmc));
-    }
     return null;
   }
 
@@ -4035,7 +3915,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      category.name,
+                      context.featureText(category.name),
                       style: TextStyle(
                         color: scheme.onSurface,
                         fontSize: screenWidth * 0.042,
@@ -4044,7 +3924,8 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                     ),
                     SizedBox(height: 2),
                     Text(
-                      '${overrideCount ?? category.items.length} 个功能',
+                      context.l10n.hubFeaturesCount(
+                          overrideCount ?? category.items.length),
                       style: TextStyle(
                         color: scheme.onSurface.withValues(alpha: 0.6),
                         fontSize: screenWidth * 0.03,
@@ -4063,6 +3944,170 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// 首页搜索的歌曲结果：输入停顿后才搜索，旧请求不会覆盖新结果。
+class _HomeSongSearchResults extends StatefulWidget {
+  final String query;
+  final ValueChanged<String> onOpen;
+
+  const _HomeSongSearchResults({required this.query, required this.onOpen});
+
+  @override
+  State<_HomeSongSearchResults> createState() => _HomeSongSearchResultsState();
+}
+
+class _HomeSongSearchResultsState extends State<_HomeSongSearchResults> {
+  /// 结果最多显示这么多首，完整结果和筛选在「乐曲查询」。
+  static const int _maxShown = 50;
+
+  Timer? _debounce;
+  int _generation = 0;
+  List<Song>? _songs;
+  bool _failed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _schedule();
+  }
+
+  @override
+  void didUpdateWidget(_HomeSongSearchResults oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.query != widget.query) _schedule();
+  }
+
+  void _schedule() {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 250), _search);
+  }
+
+  Future<void> _search() async {
+    final generation = ++_generation;
+    final query = widget.query.trim();
+    if (query.isEmpty) {
+      setState(() {
+        _songs = const [];
+        _failed = false;
+      });
+      return;
+    }
+    try {
+      final songs = await SongSearchService.searchSongs(query);
+      if (!mounted || generation != _generation) return;
+      setState(() {
+        _songs = songs;
+        _failed = false;
+      });
+    } catch (error) {
+      debugPrint('首页歌曲搜索失败: $error');
+      if (!mounted || generation != _generation) return;
+      setState(() => _failed = true);
+    }
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final songs = _songs;
+    Widget message(String text) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 24),
+          child: Center(
+            child: Text(text, style: TextStyle(color: scheme.onSurfaceVariant)),
+          ),
+        );
+    final Widget body;
+    if (_failed) {
+      body = message(context.l10n.flowSongSearchFailedTheLibraryMayNot);
+    } else if (songs == null) {
+      body = const Padding(
+        padding: EdgeInsets.symmetric(vertical: 24),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    } else if (songs.isEmpty) {
+      body = message(widget.query.trim().isEmpty
+          ? context.featureText('输入关键词搜索歌曲')
+          : context.featureText('没有找到匹配的歌曲'));
+    } else {
+      final shown = songs.take(_maxShown).toList();
+      body = AppCard(
+        padding: EdgeInsets.zero,
+        child: Column(
+          children: [
+            for (var i = 0; i < shown.length; i++)
+              InkWell(
+                onTap: () => widget.onOpen(shown[i].id),
+                child: Container(
+                  decoration: BoxDecoration(
+                    border: i == 0
+                        ? null
+                        : Border(
+                            top: BorderSide(
+                                color: AppSurfaces.hairline(context))),
+                  ),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                  child: Row(
+                    children: [
+                      ClipRRect(
+                        borderRadius:
+                            BorderRadius.circular(AppDesignTokens.radiusSmall),
+                        child: SizedBox(
+                          width: 40,
+                          height: 40,
+                          child: CoverUtil.buildCoverWidgetWithContext(
+                              context, shown[i].id, 40),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      SongTypeBadge(songId: shown[i].id, type: shown[i].type),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: MarqueeText(
+                          text: shown[i].basicInfo.title,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: scheme.onSurface,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(4, 4, 4, 8),
+          child: Text(
+            songs == null
+                ? context.featureText('歌曲')
+                : songs.length > _maxShown
+                    ? context.l10n.homeSongCountLimited(songs.length, _maxShown)
+                    : context.l10n.homeSongCount(songs.length),
+            style: Theme.of(context)
+                .textTheme
+                .labelLarge
+                ?.copyWith(color: scheme.onSurfaceVariant),
+          ),
+        ),
+        body,
+      ],
     );
   }
 }

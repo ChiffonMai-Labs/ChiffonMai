@@ -1,10 +1,12 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/CommonWidgetUtil.dart';
 import '../widgets/AppHeader.dart';
 
-String attendanceRegionLabel(int index) => index.isEven ? '出勤' : '不出勤';
+String attendanceRegionLabel(int index) => index.isEven ? appL10n.featureArcade : appL10n.flowStayHome;
 
 int normalizeAttendanceCount(int count) {
   final bounded = count.clamp(2, 100);
@@ -103,22 +105,22 @@ class _AttendanceWheelPageState extends State<AttendanceWheelPage>
           CommonWidgetUtil.buildCommonBgWidget(),
           CommonWidgetUtil.buildCommonChiffonBgWidget(context),
           Column(children: [
-            const AppHeader(title: '出勤转盘'),
+             AppHeader(title: context.l10n.featureArcadeRoulette),
             Expanded(
                 child: SingleChildScrollView(
                     padding: const EdgeInsets.all(20),
                     child: Column(children: [
-                      Text('出勤和不出勤交替排布，让转盘决定今天要不要出勤吧。',
+                      Text(context.l10n.flowAlternatingPlayRestSegmentsLetTheWheel,
                           textAlign: TextAlign.center,
                           style: TextStyle(color: scheme.onSurfaceVariant)),
                       const SizedBox(height: 20),
                       Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Text('区域数量'),
+                             Text(context.l10n.flowSegments),
                             const SizedBox(width: 12),
                             IconButton(
-                                tooltip: '减少区域',
+                                tooltip: context.l10n.flowFewerSegments,
                                 onPressed:
                                     spinning || _prefs == null || _count <= 2
                                         ? null
@@ -132,14 +134,14 @@ class _AttendanceWheelPageState extends State<AttendanceWheelPage>
                                         .textTheme
                                         .titleLarge)),
                             IconButton(
-                                tooltip: '增加区域',
+                                tooltip: context.l10n.flowMoreSegments,
                                 onPressed:
                                     spinning || _prefs == null || _count >= 100
                                         ? null
                                         : () => _setCount(_count + 2),
                                 icon: const Icon(Icons.add)),
                           ]),
-                      const Text('默认 20，最多 100 区；每次增减 2 区，保持交替'),
+                       Text(context.l10n.flow20ByDefaultUpTo100Changes),
                       const SizedBox(height: 20),
                       ConstrainedBox(
                           constraints: const BoxConstraints(maxWidth: 420),
@@ -169,14 +171,14 @@ class _AttendanceWheelPageState extends State<AttendanceWheelPage>
                           liveRegion: true,
                           child: Text(
                               _result == null
-                                  ? (spinning ? '转盘正在旋转…' : '准备好就开始吧')
-                                  : '本次：${attendanceRegionLabel(_result! - 1)}',
+                                  ? (spinning ? context.l10n.flowSpinning : context.l10n.flowStartWhenYouAreReady)
+                                  : context.l10n.flowThisSpinP0((attendanceRegionLabel(_result! - 1)).toString()),
                               style: Theme.of(context).textTheme.titleLarge)),
                       const SizedBox(height: 20),
                       FilledButton.icon(
                           onPressed: spinning || _prefs == null ? null : _spin,
                           icon: const Icon(Icons.casino_outlined),
-                          label: const Text('转一转')),
+                          label:  Text(context.l10n.flowSpin)),
                     ])))
           ])
         ]));

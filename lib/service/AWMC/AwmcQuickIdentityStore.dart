@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 
 import '../../constant/CacheKeyConstant.dart';
 import '../../utils/SecureCredentialStore.dart';
@@ -10,6 +11,9 @@ import '../SyncStatsService.dart';
 class AwmcQuickIdentityStore {
   AwmcQuickIdentityStore._();
   static Future<void> _writes = Future.value();
+  static final ValueNotifier<bool> _linked = ValueNotifier(false);
+  static ValueListenable<bool> get linked => _linked;
+  static int _revision = 0;
 
   static Future<T> _serialized<T>(Future<T> Function() action) {
     final next = _writes.then((_) => action());
@@ -32,9 +36,12 @@ class AwmcQuickIdentityStore {
     }
   }
 
-  static Future<void> _save(int userId) => SecureCredentialStore.write(
-      CacheKeyConstant.awmcQuickIdentities,
-      jsonEncode({'version': 2, 'userId': userId}));
+  static Future<void> _save(int userId) async {
+    await SecureCredentialStore.write(CacheKeyConstant.awmcQuickIdentities,
+        jsonEncode({'version': 2, 'userId': userId}));
+    _revision++;
+    _linked.value = true;
+  }
 
   static Future<int?> _sharedId(Map<String, dynamic> data) async {
     if (data.containsKey('userId')) return _validId(data['userId']);
@@ -52,11 +59,16 @@ class AwmcQuickIdentityStore {
 
   static Future<int?> read() async {
     await _writes;
+    final revision = _revision;
     final data = await _read();
-    if (data.containsKey('userId')) return _validId(data['userId']);
-    if (data.isEmpty) return null;
     // 普通读取不进入写队列；只有旧缓存迁移需要串行，并在写前重新读取。
-    return _serialized(() async => _sharedId(await _read()));
+    final id = data.containsKey('userId')
+        ? _validId(data['userId'])
+        : data.isEmpty
+            ? null
+            : await _serialized(() async => _sharedId(await _read()));
+    if (revision == _revision) _linked.value = id != null;
+    return id;
   }
 
   static Future<void> write(int userId) {
@@ -71,6 +83,8 @@ class AwmcQuickIdentityStore {
         }
         await SecureCredentialStore.delete(
             CacheKeyConstant.awmcQuickIdentities);
+        _revision++;
+        _linked.value = false;
       });
 
   /// 清理某个数据源只撤销它的任务，不能删除其它数据源仍在使用的共用凭据。
@@ -86,5 +100,7 @@ class AwmcQuickIdentityStore {
           await SecureCredentialStore.write(
               CacheKeyConstant.awmcQuickIdentities, jsonEncode(data));
         }
+        _revision++;
+        _linked.value = false;
       });
 }

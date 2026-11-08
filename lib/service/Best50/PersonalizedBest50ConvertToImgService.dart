@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'dart:async';
 import 'ThunderBest50Export.dart';
 import 'dart:io';
@@ -54,7 +55,8 @@ class PersonalizedB50ConvertToImg {
         key: globalKey,
         child: await _buildExportImageWidget(context, title, personalizedSongs,
             maimaiMusicData, warningText, sortLabel,
-            thunderMode: thunderMode, thunderVertical: thunderVertical,
+            thunderMode: thunderMode,
+            thunderVertical: thunderVertical,
             theme: theme),
       );
 
@@ -103,8 +105,8 @@ class PersonalizedB50ConvertToImg {
 
       // 获取图片数据（异步执行，避免阻塞主线程）
       debugPrint('Starting image capture...');
-      final encoded =
-          await ImageEncodeUtil.encodeBoundary(boundary, jpegQuality: jpegQuality);
+      final encoded = await ImageEncodeUtil.encodeBoundary(boundary,
+          jpegQuality: jpegQuality);
       final Uint8List finalBytes = encoded.bytes;
       final String extension = encoded.extension;
 
@@ -273,8 +275,10 @@ class PersonalizedB50ConvertToImg {
         title: title,
         vertical: thunderVertical,
         count: personalizedSongs.length,
-        statistics: '共 ${personalizedSongs.length} 张谱面\nRating 合计 $sum\n'
-            '平均DX分数达成率 ${(averageScoreRate * 100).toStringAsFixed(2)}%',
+        statistics: context.l10n.flowP0ChartsTotalRatingP1AverageDX(
+            (personalizedSongs.length).toString(),
+            (sum).toString(),
+            ((averageScoreRate * 100).toStringAsFixed(2)).toString()),
         warning: warningText,
         sortLabel: sortLabel,
         cardBuilder: (index) => _buildGameCard(
@@ -317,7 +321,7 @@ class PersonalizedB50ConvertToImg {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 24.0, vertical: 8.0),
                       child: Text(
-                        '当前排序：$sortLabel',
+                        context.l10n.flowCurrentOrderP0((sortLabel).toString()),
                         style: TextStyle(
                           color: c.ink,
                           fontSize: 28.0,
@@ -389,21 +393,23 @@ class PersonalizedB50ConvertToImg {
             Expanded(
               flex: 3,
               child: ExportHeroBlock(
-                label: '总RA',
+                label: context.l10n.flowTotalRA,
                 value: '$totalRa',
-                caption: '平均RA ${avgRa.toStringAsFixed(1)}',
+                caption: context.l10n
+                    .flowAverageRAP0((avgRa.toStringAsFixed(1)).toString()),
               ),
             ),
             const SizedBox(width: 10),
             Expanded(
               flex: 2,
-              child: ExportStatBlock(label: '歌曲数', value: '$totalSongs'),
+              child: ExportStatBlock(
+                  label: context.l10n.flowSongs, value: '$totalSongs'),
             ),
             const SizedBox(width: 10),
             Expanded(
               flex: 4,
               child: ExportStatBlock(
-                label: '平均达成率',
+                label: context.l10n.featureAverageAchievement,
                 value: '${avgAchievement.toStringAsFixed(4)}%',
               ),
             ),
@@ -474,7 +480,7 @@ class PersonalizedB50ConvertToImg {
     int levelIndex = songData['level_index'] ?? 0;
     int rating = songData['ra'] ?? 0;
     String type = songData['type'] ?? '';
-    String title = songData['title'] ?? '未知歌曲';
+    String title = songData['title'] ?? context.l10n.flowUnknownSong;
     int songId = songData['song_id'] ?? 0;
 
     // 计算maxScore
@@ -535,7 +541,8 @@ class PersonalizedB50ConvertToImg {
 
       dynamic songData;
       try {
-        songData = maimaiMusicData[MusicDataIndex.indexOf(maimaiMusicData, songId)];
+        songData =
+            maimaiMusicData[MusicDataIndex.indexOf(maimaiMusicData, songId)];
       } catch (_) {
         return 0;
       }
@@ -565,7 +572,8 @@ class PersonalizedB50ConvertToImg {
 
       dynamic songData;
       try {
-        songData = maimaiMusicData[MusicDataIndex.indexOf(maimaiMusicData, songId)];
+        songData =
+            maimaiMusicData[MusicDataIndex.indexOf(maimaiMusicData, songId)];
       } catch (e) {
         return 0.0;
       }

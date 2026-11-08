@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 
 import 'ImageLoadingIndicator.dart';
+import '../utils/CollectionAssetUrls.dart';
+export '../utils/CollectionAssetUrls.dart';
 
 /// 收藏品专属缓存：Flutter ImageCache 复用内存中的解码结果，磁盘副本用于
 /// 进程重启或内存淘汰后的读取。文件在应用缓存目录，卸载时随应用清除。
@@ -22,6 +24,14 @@ class LxnsAssetCacheManager extends CacheManager {
 
   final Map<String, Future<FileInfo>> _downloads = {};
 
+  // 返回类型沿用父类（package:file 的 File），与 dart:io 的 File 不是同一类型。
+  @override
+  getSingleFile(String url,
+      {String? key, Map<String, String>? headers}) async {
+    final result = await getFileStream(url, key: key, headers: headers).first;
+    return (result as FileInfo).file;
+  }
+
   Future<Uint8List> readBytes(String url) async {
     final result = await getFileStream(url).first;
     return (result as FileInfo).file.readAsBytes();
@@ -34,7 +44,7 @@ class LxnsAssetCacheManager extends CacheManager {
     Map<String, String>? headers,
     bool withProgress = false,
   }) async* {
-    final cacheKey = key ?? url;
+    final cacheKey = collectionAssetCacheKey(key ?? url);
     final cached = await getFileFromCache(cacheKey);
     // 不按服务端的 max-age 重复回源：收藏品本地命中即返回。
     if (cached != null && await cached.file.exists()) {
@@ -44,7 +54,8 @@ class LxnsAssetCacheManager extends CacheManager {
 
     final download = _downloads.putIfAbsent(
       cacheKey,
-      () => downloadFile(url, key: cacheKey, authHeaders: headers),
+      () => downloadFile(collectionAssetProxyUrl(url),
+          key: cacheKey, authHeaders: headers),
     );
     try {
       yield await download;
@@ -55,18 +66,6 @@ class LxnsAssetCacheManager extends CacheManager {
     }
   }
 }
-
-/// 落雪静态素材的 URL 前缀（头像 / 姓名框 / 背景）。
-const String lxnsAssetBaseUrl = 'https://assets2.lxns.net/maimai';
-
-/// 头像图：`icon/<收藏品 id>.png`（128×128）。
-String lxnsIconUrl(int id) => '$lxnsAssetBaseUrl/icon/$id.png';
-
-/// 姓名框图：`plate/<收藏品 id>.png`（约 720×116 的长条）。
-String lxnsPlateUrl(int id) => '$lxnsAssetBaseUrl/plate/$id.png';
-
-/// 背景图：`frame/<收藏品 id>.png`。
-String lxnsFrameUrl(int id) => '$lxnsAssetBaseUrl/frame/$id.png';
 
 /// 落雪静态素材图片：统一磁盘缓存 + **零淡入** + 静态占位 + 自动解码尺寸。
 ///
@@ -145,7 +144,8 @@ class LxnsAssetImage extends StatelessWidget {
             : null;
 
         return CachedNetworkImage(
-          imageUrl: url,
+          imageUrl: collectionAssetProxyUrl(url),
+          cacheKey: collectionAssetCacheKey(url),
           // 专属磁盘缓存：不再和排行榜头像 / 曲绘挤那 200 个名额。
           cacheManager: lxnsAssetCacheManager,
           width: width,

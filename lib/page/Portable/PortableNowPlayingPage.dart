@@ -1,91 +1,245 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 /*
- * 随身听的全屏播放页（大曲绘 + 进度条 + 上一首/播放/下一首）。
+ * 随身听的全屏播放页：曲绘取色铺满页面，主体是可拖动的环形进度表盘。
  *
- * 入口：随身听列表顶部的「正在播放」条、悬浮球迷你卡片、以及旧播放页被接管后的跳转。
+ * 入口：随身听列表顶部的「正在播放」条、悬浮球迷你卡片，以及歌曲详情页的「播放音乐」。
  *
  * ⚠️ 这一页**不持有播放器状态的所有权**：`leave` 时不动播放器，音乐继续放。
  * 这正是需求里「切出此页面也不会中断音乐」的关键 —— 旧 `SongPlayPage` 在
  * `dispose` 里把播放器 stop + dispose 了，所以退出即静音。
+ *
+ * 取色背景是这一页的全屏播放语义，所以不走 `ThemeAwareBackground`，
+ * 明暗模式仍跟随 App；还没有当前曲目时退回标准页面壳。
  */
 import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import '../../widgets/ExportSuccessDialog.dart';
 
 import '../../entity/Portable/PortableSong.dart';
 import '../../service/Portable/PortablePlayerController.dart';
 import '../../service/Portable/PortableSongDownloadService.dart';
+import '../../utils/AppDesignTokens.dart';
 import '../../utils/ExportPathUtil.dart';
 import '../../utils/PortablePlayerScope.dart';
-import '../../widgets/AnimatedChoiceBar.dart';
+import '../../widgets/AppHeader.dart';
+import '../../widgets/AppToast.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
 import '../../widgets/MarqueeText.dart';
-import '../../widgets/PortablePlayerBadge.dart';
+import '../../widgets/NextPlayAddDialog.dart';
+import '../../widgets/NowPlayingUi.dart';
 import '../../widgets/PortablePlaybackModeButton.dart';
-import '../../widgets/AppToast.dart';
 
 class PortableNowPlayingPage extends StatefulWidget {
-  const PortableNowPlayingPage({super.key});
+  /// 歌曲详情页进来时，音源还没就绪就先显示这首歌，避免先闪出别的曲目或空页面。
+  final PortableSong? preparingSong;
+  final String? preparationError;
+  final VoidCallback? onRetryPreparation;
+
+  const PortableNowPlayingPage({
+    super.key,
+    this.preparingSong,
+    this.preparationError,
+    this.onRetryPreparation,
+  });
 
   @override
   State<PortableNowPlayingPage> createState() => _PortableNowPlayingPageState();
 }
 
-class _PortableNowPlayingPageState extends State<PortableNowPlayingPage> {
+class _PortableNowPlayingPageState extends State<PortableNowPlayingPage>
+    with SingleTickerProviderStateMixin {
   final PortablePlayerController _player = PortablePlayerController();
   final List<StreamSubscription<dynamic>> _subs =
       <StreamSubscription<dynamic>>[];
+  final ValueNotifier<Duration> _position =
+      ValueNotifier<Duration>(Duration.zero);
+  late final Ticker _ticker;
 
-  double? _dragValue;
-  double _coverDrag = 0;
   bool _switching = false;
   double _slideDirection = 1;
   bool _downloading = false;
   double? _downloadProgress;
   double? _downloadSpeedBytesPerSecond;
+  Duration? _lastDuration;
+  PortableSong? _nextSong;
+
+  /// 当前曲绘取色任务的标识，迟到的旧结果不得覆盖新曲目。
+  String? _artKey;
+  ImageProvider? _artProvider;
+  ColorScheme? _artScheme;
+
+  bool get _isPreparing => widget.preparingSong != null;
+  PortableSong? get _song => widget.preparingSong ?? _player.currentSong;
 
   @override
   void initState() {
     super.initState();
     PortablePlayerScope.isNowPlayingPageOpen.value = true;
-    _player.addListener(_safeSetState);
-    _subs.add(_player.currentIndexStream.listen((_) => _safeSetState()));
-    _subs.add(_player.playingStream.listen((_) => _safeSetState()));
-    _subs.add(_player.processingStateStream.listen((_) => _safeSetState()));
+    _ticker = createTicker((_) => _publishPosition());
+    _player.addListener(_onPlayerChanged);
+    _subs.add(_player.currentIndexStream.listen((_) => _onPlayerChanged()));
+    _subs.add(_player.playingStream.listen((_) => _onPlayerChanged()));
+    _subs.add(_player.processingStateStream.listen((_) => _onPlayerChanged()));
     _subs.add(_player.positionStream.listen((_) {
-      if (mounted && _dragValue == null) _safeSetState();
+      _publishPosition();
+      // 位置不再驱动整页刷新，时长拿到新值时要单独补一次。
+      if (_player.duration != _lastDuration) _onPlayerChanged();
     }));
+    _publishPosition();
+    _lastDuration = _player.duration;
+    _refreshNextSong();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncTicker();
+    unawaited(_syncArt());
+  }
+
+  @override
+  void didUpdateWidget(covariant PortableNowPlayingPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _syncTicker();
+    unawaited(_syncArt());
+    _publishPosition();
   }
 
   @override
   void dispose() {
     PortablePlayerScope.isNowPlayingPageOpen.value = false;
-    _player.removeListener(_safeSetState);
+    _player.removeListener(_onPlayerChanged);
     for (final sub in _subs) {
       sub.cancel();
     }
+    _ticker.dispose();
+    _position.dispose();
     super.dispose();
   }
 
-  void _safeSetState() {
-    if (mounted) setState(() {});
+  void _publishPosition() {
+    _position.value = _isPreparing ? Duration.zero : _player.position;
+  }
+
+  /// positionStream 约 200ms 一条，播放中改用逐帧读取，表盘才连贯。
+  void _syncTicker() {
+    final shouldRun = !_isPreparing &&
+        _player.isPlaying &&
+        !MediaQuery.disableAnimationsOf(context);
+    if (shouldRun && !_ticker.isActive) {
+      _ticker.start();
+    } else if (!shouldRun && _ticker.isActive) {
+      _ticker.stop();
+    }
+  }
+
+  void _refreshNextSong() {
+    // 切歌途中播放器还没定位，保留上一次的结果，避免这一条闪一下。
+    if (_player.isLoading) return;
+    _nextSong = _player.nextSong;
+  }
+
+  void _onPlayerChanged() {
+    if (!mounted) return;
+    _lastDuration = _player.duration;
+    _refreshNextSong();
+    _syncTicker();
+    unawaited(_syncArt());
+    _publishPosition();
+    setState(() {});
+  }
+
+  Future<void> _syncArt() async {
+    final song = _song;
+    if (song == null) return;
+    final brightness = Theme.of(context).brightness;
+    final key = '${song.portableKey}|${brightness.name}';
+    if (key == _artKey) return;
+    _artKey = key;
+    final provider = await NowPlayingArt.providerFor(song);
+    if (!mounted || key != _artKey) return;
+    setState(() => _artProvider = provider);
+    final scheme = await NowPlayingArt.schemeFor(song, provider, brightness);
+    if (!mounted || key != _artKey) return;
+    setState(() => _artScheme = scheme);
+  }
+
+  ThemeData _themeWithArt(ThemeData base) {
+    final art = _artScheme;
+    if (art == null) return base;
+    // 纯黑模式保留纯黑底，曲绘颜色只进入强调色和背景。
+    final isPureBlack = base.colorScheme.surface.toARGB32() == 0xFF000000;
+    return base.copyWith(
+      colorScheme: isPureBlack ? art.copyWith(surface: Colors.black) : art,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    // 配色、背景图和顶部栏都跟随应用主题，与其它页面一致。
-    final scheme = Theme.of(context).colorScheme;
-    final song = _player.currentSong;
+    final song = _song;
+    if (song == null) {
+      return BackgroundPageScaffold(
+        title: context.l10n.flowPlayMusic,
+        child: SafeArea(
+          top: false,
+          child: _player.isLoading
+              ? _preparing(Theme.of(context).colorScheme)
+              : _empty(Theme.of(context).colorScheme),
+        ),
+      );
+    }
 
-    return BackgroundPageScaffold(
-      title: '播放音乐',
-      child: SafeArea(
-        top: false,
-        child: Builder(
-          builder: (context) => song == null
-              ? (_player.isLoading ? _preparing(scheme) : _empty(scheme))
-              : _content(context, scheme, song),
+    return AnimatedTheme(
+      data: _themeWithArt(Theme.of(context)),
+      duration: AppDesignTokens.motion(context, AppDesignTokens.slowMotion),
+      child: Builder(
+        builder: (context) => Scaffold(
+          backgroundColor: Colors.transparent,
+          resizeToAvoidBottomInset: false,
+          body: Stack(
+            fit: StackFit.expand,
+            children: [
+              NowPlayingBackdrop(provider: _artProvider),
+              Column(
+                children: [
+                  AppHeader(
+                    title: context.l10n.flowPlayMusic,
+                    actions: [
+                      _downloadControl(context, song),
+                    ],
+                  ),
+                  if (widget.preparationError case final error?)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(error,
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.error,
+                                )),
+                          ),
+                          TextButton(
+                            onPressed: widget.onRetryPreparation,
+                            child: Text(context.l10n.flowRetry),
+                          ),
+                        ],
+                      ),
+                    ),
+                  Expanded(
+                    child: SafeArea(
+                      top: false,
+                      child: _content(context, song),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -99,7 +253,7 @@ class _PortableNowPlayingPageState extends State<PortableNowPlayingPage> {
           Icon(Icons.music_note, size: 64, color: scheme.onSurfaceVariant),
           const SizedBox(height: 12),
           Text(
-            '还没有在放的音乐',
+            context.l10n.flowNothingPlayingYet,
             style: TextStyle(color: scheme.onSurfaceVariant),
           ),
         ],
@@ -115,7 +269,7 @@ class _PortableNowPlayingPageState extends State<PortableNowPlayingPage> {
           CircularProgressIndicator(color: scheme.primary),
           const SizedBox(height: 12),
           Text(
-            '正在准备音源…',
+            context.l10n.flowPreparingAudio,
             style: TextStyle(color: scheme.onSurfaceVariant),
           ),
         ],
@@ -123,9 +277,31 @@ class _PortableNowPlayingPageState extends State<PortableNowPlayingPage> {
     );
   }
 
+  Future<void> _addToNextPlay(PortableSong song) async {
+    final added = await showNextPlayAddDialog(
+      context,
+      songId: song.divingFishId,
+      title: song.title,
+      artist: song.artist,
+      type: song.hasDx ? 'DX' : 'SD',
+      coverId: song.audioId,
+      difficulties: NextPlayDifficultyOption.standard(
+        count: song.difficultyConstants.isEmpty
+            ? 5
+            : song.difficultyConstants.length,
+        constants: song.difficultyConstants
+            .map((value) => value.toStringAsFixed(1))
+            .toList(),
+      ),
+    );
+    if (mounted && added)
+      AppToast.show(context.l10n.flowAddedToPlayNext,
+          tone: AppToastTone.success);
+  }
+
   Future<void> _downloadSong(PortableSong song) async {
     if (!await ExportPathUtil.prepareForExport(context,
-        subDir: '歌曲', title: '选择歌曲保存位置')) {
+        subDir: '歌曲', title: context.l10n.flowChooseWhereToSaveTheSong)) {
       return;
     }
     setState(() {
@@ -150,15 +326,16 @@ class _PortableNowPlayingPageState extends State<PortableNowPlayingPage> {
           context,
           filePath: file.path,
           fileName: song.title,
-          title: '下载成功',
-          successPrefix: '已下载',
+          title: context.l10n.flowDownloaded,
+          successPrefix: context.l10n.flowDownloaded2,
           fallbackPath: fallbackPath,
         );
       }
     } on AudioDownloadSourceException catch (e) {
       if (mounted) _showDownloadHint(e.message);
     } catch (e) {
-      if (mounted) _showDownloadHint('下载失败：$e');
+      if (mounted)
+        _showDownloadHint(context.l10n.flowDownloadFailedP02((e).toString()));
     } finally {
       if (mounted) {
         setState(() {
@@ -174,98 +351,103 @@ class _PortableNowPlayingPageState extends State<PortableNowPlayingPage> {
     AppToast.show(message, duration: const Duration(seconds: 4));
   }
 
-  Widget _content(
-    BuildContext context,
-    ColorScheme scheme,
-    PortableSong song,
-  ) {
-    final theme = Theme.of(context);
-    final duration = _player.duration ?? Duration.zero;
-    final totalMs = duration.inMilliseconds;
-    final value = _dragValue ??
-        (totalMs > 0
-            ? (_player.position.inMilliseconds / totalMs).clamp(0.0, 1.0)
-            : 0.0);
+  Widget _content(BuildContext context, PortableSong song) {
+    final scheme = Theme.of(context).colorScheme;
+    final queue = _player.queue;
+    final showQueue = !_isPreparing && queue.length > 1;
+    final busy = _isPreparing
+        ? widget.preparationError == null
+        : _player.isLoading || _player.isBuffering;
 
     return LayoutBuilder(builder: (context, constraints) {
-      // 参考图内容宽 484、曲绘宽 440；保留这个比例，不再限制成小曲绘。
-      final width = math.min(constraints.maxWidth, 560.0);
-      final scale = width / 484;
-      final coverSize = 440 * scale;
-      final progressHeight = math.max(48.0, 60 * scale);
-      final playSize = 76 * scale;
       final textScaler = MediaQuery.textScalerOf(context);
-      final titleHeight = textScaler.scale(28 * scale) * 1.4;
-      final artistHeight = textScaler.scale(22 * scale) * 1.4;
+      final width = math.min(constraints.maxWidth, 560.0);
+      final titleHeight = textScaler.scale(26) * 1.35;
+      final artistHeight = textScaler.scale(14) * 1.4;
+      const controlsHeight = 76.0;
+      final nextHeight = showQueue ? NowPlayingNextBar.height : 0.0;
+      const gapsHeight = 8 + 16 + 4 + 18 + 18 + 12;
       final fixedHeight =
-          coverSize + progressHeight + titleHeight + artistHeight + playSize;
-      // 小屏、横屏或大字体时允许滚动，保持曲绘正方形并让控制区可达。
-      final height = math.max(constraints.maxHeight, fixedHeight + 80 * scale);
-      final gapUnit = (height - fixedHeight) / 197;
+          titleHeight + artistHeight + controlsHeight + nextHeight + gapsHeight;
+      final contentWidth = width - AppDesignTokens.gutter * 2;
+      // 大字体或矮屏幕放不下时保住表盘的最小尺寸，改为整页滚动。
+      final dialSize = math.max(
+        220.0,
+        math.min(contentWidth, constraints.maxHeight - fixedHeight),
+      );
+      final totalHeight =
+          math.max(constraints.maxHeight, dialSize + fixedHeight);
 
       return Center(
         child: SingleChildScrollView(
-          padding: EdgeInsets.zero,
-          physics: height > constraints.maxHeight
+          physics: totalHeight > constraints.maxHeight
               ? const ClampingScrollPhysics()
               : const NeverScrollableScrollPhysics(),
           child: SizedBox(
             width: width,
-            height: height,
+            height: totalHeight,
             child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 22 * scale),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppDesignTokens.gutter,
+              ),
               child: Column(
                 children: [
-                  SizedBox(height: 54 * gapUnit),
-                  _coverArtwork(song, coverSize, 22 * scale),
-                  SizedBox(height: 57 * gapUnit),
+                  const SizedBox(height: 8),
                   SizedBox(
-                    height: progressHeight,
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 8 * scale),
-                      child: _progressRow(
-                        scheme,
-                        song,
-                        duration,
-                        value,
-                        scale,
-                      ),
+                    width: contentWidth,
+                    height: dialSize,
+                    child: NowPlayingDial(
+                      song: song,
+                      position: _position,
+                      duration: _isPreparing
+                          ? Duration.zero
+                          : _player.duration ?? Duration.zero,
+                      isPlaying: !_isPreparing && _player.isPlaying,
+                      isBusy: busy,
+                      slideDirection: _slideDirection,
+                      canSwipePrevious: !_isPreparing && _player.hasPrevious,
+                      canSwipeNext: !_isPreparing && _player.hasNext,
+                      queueLabel: showQueue ? _queueLabel(song) : null,
+                      onSeek: (position) async {
+                        if (!_isPreparing) await _player.seek(position);
+                      },
+                      onChangeSong: (next) => unawaited(_changeSong(next)),
+                      onTogglePlay: _togglePlay,
                     ),
                   ),
-                  SizedBox(height: 24 * gapUnit),
+                  const Spacer(),
                   SizedBox(
                     height: titleHeight,
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 8 * scale),
-                      child: Align(
-                        alignment: Alignment.center,
-                        child: Tooltip(
-                          message: song.title,
-                          child: MarqueeText(
-                            key: ValueKey(song.portableKey),
-                            text: song.title,
-                            style: TextStyle(
-                              fontSize: 28 * scale,
-                              height: 1.4,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0,
-                              color: scheme.onSurface,
-                            ),
+                    child: Align(
+                      alignment: Alignment.center,
+                      child: Tooltip(
+                        message: song.title,
+                        child: MarqueeText(
+                          key: ValueKey(song.portableKey),
+                          text: song.title,
+                          style: TextStyle(
+                            fontSize: 26,
+                            height: 1.35,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0,
+                            color: scheme.onSurface,
                           ),
                         ),
                       ),
                     ),
                   ),
-                  SizedBox(height: 22 * gapUnit),
+                  const SizedBox(height: 4),
                   SizedBox(
                     height: artistHeight,
-                    child: Center(
-                      child: Text(
-                        '${song.artist.isEmpty ? '未知艺术家' : song.artist} · Audio',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                    child: Align(
+                      alignment: Alignment.center,
+                      child: MarqueeText(
+                        key: ValueKey('artist-${song.portableKey}'),
+                        text: song.artist.isEmpty
+                            ? context.l10n.flowUnknownArtist
+                            : song.artist,
                         style: TextStyle(
-                          fontSize: 22 * scale,
+                          fontSize: 14,
                           height: 1.4,
                           letterSpacing: 0,
                           color: scheme.onSurfaceVariant,
@@ -273,38 +455,58 @@ class _PortableNowPlayingPageState extends State<PortableNowPlayingPage> {
                       ),
                     ),
                   ),
-                  SizedBox(height: 22 * gapUnit),
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 8 * scale),
+                  const Spacer(),
+                  SizedBox(
+                    height: controlsHeight,
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         PortablePlaybackModeButton(
-                          iconSize: 28 * scale,
+                          iconSize: 26,
                           color: scheme.onSurfaceVariant,
                           sequentialIcon: Icons.repeat_rounded,
                         ),
                         _skipButton(
-                          theme,
-                          scale: scale,
+                          scheme,
                           previous: true,
-                          enabled: _player.hasPrevious,
+                          enabled: !_isPreparing && _player.hasPrevious,
                         ),
-                        _playButton(theme, size: playSize),
+                        NowPlayingPlayButton(
+                          isPlaying: !_isPreparing && _player.isPlaying,
+                          isBusy: busy,
+                          enabled: !_isPreparing && !_player.isLoading,
+                          onPressed: _togglePlay,
+                          size: controlsHeight,
+                        ),
                         _skipButton(
-                          theme,
-                          scale: scale,
+                          scheme,
                           previous: false,
-                          enabled: _player.hasNext,
+                          enabled: !_isPreparing && _player.hasNext,
                         ),
                         SizedBox(
                           width: 48,
-                          child: _downloadControl(scheme, song),
+                          child: IconButton(
+                            tooltip: context.l10n.flowAddToPlayNext,
+                            icon: Icon(
+                              Icons.playlist_add_rounded,
+                              size: 28,
+                              color: scheme.onSurfaceVariant,
+                            ),
+                            onPressed: () => _addToNextPlay(song),
+                          ),
                         ),
                       ],
                     ),
                   ),
-                  SizedBox(height: 18 * gapUnit),
+                  if (showQueue) ...[
+                    const Spacer(),
+                    NowPlayingNextBar(
+                      nextSong: _nextSong,
+                      caption: _nextCaption(song),
+                      onTap: () => unawaited(showNowPlayingQueueSheet(context)),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
                 ],
               ),
             ),
@@ -314,107 +516,44 @@ class _PortableNowPlayingPageState extends State<PortableNowPlayingPage> {
     });
   }
 
-  Widget _progressRow(
-    ColorScheme scheme,
-    PortableSong song,
-    Duration duration,
-    double value,
-    double scale,
-  ) {
-    final totalMs = duration.inMilliseconds;
-    final timeStyle = TextStyle(
-      fontSize: 20 * scale,
-      height: 1,
-      letterSpacing: 0,
-      color: scheme.onSurfaceVariant,
-      fontFeatures: const [FontFeature.tabularFigures()],
-    );
-    return Row(
-      children: [
-        ConstrainedBox(
-          constraints: BoxConstraints(minWidth: 44 * scale),
-          child: Text(
-            _fmt(Duration(milliseconds: (value * totalMs).round())),
-            maxLines: 1,
-            style: timeStyle,
-          ),
-        ),
-        SizedBox(width: 20 * scale),
-        Expanded(
-          child: SliderTheme(
-            data: SliderTheme.of(context).copyWith(
-              // 粗圆角轨道、滑块两侧留缝、末端圆点均由同一个轨道形状绘制。
-              trackShape: const GappedSliderTrackShape(),
-              thumbShape: const HandleThumbShape(),
-              trackHeight: 21 * scale,
-              trackGap: 8 * scale,
-              thumbSize: WidgetStatePropertyAll(Size(5 * scale, 60 * scale)),
-              activeTrackColor: scheme.primary,
-              inactiveTrackColor: scheme.surfaceContainerHighest,
-              thumbColor: scheme.primary,
-              disabledActiveTrackColor: scheme.primary,
-              disabledInactiveTrackColor: scheme.surfaceContainerHighest,
-              disabledThumbColor: scheme.primary,
-              overlayShape: SliderComponentShape.noOverlay,
-              overlayColor: Colors.transparent,
-              showValueIndicator: ShowValueIndicator.never,
-              padding: EdgeInsets.zero,
-            ),
-            child: TweenAnimationBuilder<double>(
-              key: ValueKey(song.portableKey),
-              tween: Tween(begin: value, end: value),
-              duration: _dragValue != null
-                  ? Duration.zero
-                  : const Duration(milliseconds: 180),
-              builder: (context, animatedValue, _) => Slider(
-                value: animatedValue,
-                padding: EdgeInsets.zero,
-                semanticFormatterCallback: (v) =>
-                    _fmt(Duration(milliseconds: (v * totalMs).round())),
-                onChanged:
-                    totalMs <= 0 ? null : (v) => setState(() => _dragValue = v),
-                onChangeEnd: (v) async {
-                  try {
-                    await _player.seek(
-                      Duration(milliseconds: (v * totalMs).round()),
-                    );
-                  } finally {
-                    if (mounted) setState(() => _dragValue = null);
-                  }
-                },
-              ),
-            ),
-          ),
-        ),
-        SizedBox(width: 20 * scale),
-        ConstrainedBox(
-          constraints: BoxConstraints(minWidth: 44 * scale),
-          child: Text(
-            _fmt(duration),
-            maxLines: 1,
-            textAlign: TextAlign.right,
-            style: timeStyle,
-          ),
-        ),
-      ],
-    );
+  String _queueLabel(PortableSong song) {
+    final queue = _player.queue;
+    final index = queue.indexWhere((s) => s.lxnsId == song.lxnsId);
+    return '${index + 1}/${queue.length}';
+  }
+
+  String _nextCaption(PortableSong song) {
+    final next = _nextSong;
+    if (next == null) {
+      return _player.isLoading
+          ? context.l10n.flowSwitchingSongs
+          : context.l10n.flowThisIsTheLastSong;
+    }
+    return next.lxnsId == song.lxnsId
+        ? _player.playbackModeLabel
+        : context.l10n.flowUpNext;
+  }
+
+  void _togglePlay() {
+    if (_isPreparing || _player.isLoading) return;
+    unawaited(_player.togglePlayPause());
   }
 
   Widget _skipButton(
-    ThemeData theme, {
-    required double scale,
+    ColorScheme scheme, {
     required bool previous,
     required bool enabled,
   }) {
-    final scheme = theme.colorScheme;
     return IconButton(
-      iconSize: 30 * scale,
+      iconSize: 34,
       padding: EdgeInsets.zero,
-      constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
-      tooltip: previous ? '上一首' : '下一首',
+      constraints: const BoxConstraints(minWidth: 52, minHeight: 52),
+      tooltip: previous ? context.l10n.flowPrevious2 : context.l10n.flowNext2,
       icon: Icon(
         previous ? Icons.skip_previous_rounded : Icons.skip_next_rounded,
-        color: enabled ? scheme.onSurface : scheme.onSurfaceVariant,
+        color: enabled
+            ? scheme.onSurface
+            : scheme.onSurface.withValues(alpha: 0.3),
       ),
       onPressed: enabled ? () => _changeSong(!previous) : null,
     );
@@ -422,6 +561,7 @@ class _PortableNowPlayingPageState extends State<PortableNowPlayingPage> {
 
   Future<void> _changeSong(bool next) async {
     if (_switching ||
+        _isPreparing ||
         _player.isLoading ||
         (next ? !_player.hasNext : !_player.hasPrevious)) {
       return;
@@ -429,7 +569,6 @@ class _PortableNowPlayingPageState extends State<PortableNowPlayingPage> {
     setState(() {
       _switching = true;
       _slideDirection = next ? 1 : -1;
-      _coverDrag = 0;
     });
     try {
       await (next ? _player.next() : _player.previous());
@@ -438,135 +577,49 @@ class _PortableNowPlayingPageState extends State<PortableNowPlayingPage> {
     }
   }
 
-  Widget _coverArtwork(PortableSong song, double size, double radius) {
-    return Semantics(
-      image: true,
-      label: '${song.title} 曲绘，可左右滑动切歌',
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onHorizontalDragUpdate: (details) {
-          if (!_switching) {
-            setState(() => _coverDrag =
-                (_coverDrag + details.delta.dx).clamp(-size / 3, size / 3));
-          }
-        },
-        onHorizontalDragCancel: () => setState(() => _coverDrag = 0),
-        onHorizontalDragEnd: (details) {
-          final velocity = details.primaryVelocity ?? 0;
-          if (_coverDrag.abs() > 40 || velocity.abs() > 300) {
-            final next = velocity.abs() > 300 ? velocity < 0 : _coverDrag < 0;
-            unawaited(_changeSong(next));
-          }
-          setState(() => _coverDrag = 0);
-        },
-        child: SizedBox.square(
-          dimension: size,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(radius),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              transform: Matrix4.translationValues(_coverDrag, 0, 0),
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 300),
-                transitionBuilder: (child, animation) => FadeTransition(
-                  opacity: animation,
-                  child: SlideTransition(
-                    position: Tween<Offset>(
-                      begin: Offset(_slideDirection * .18, 0),
-                      end: Offset.zero,
-                    ).animate(CurvedAnimation(
-                      parent: animation,
-                      curve: Curves.easeOutCubic,
-                    )),
-                    child: child,
-                  ),
-                ),
-                child: PortableCover(
-                  key: ValueKey(song.portableKey),
-                  song: song,
-                  size: size,
-                  radius: radius,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _playButton(ThemeData theme, {required double size}) {
-    final scheme = theme.colorScheme;
-    final radius = BorderRadius.circular(size * 22 / 76);
-    return Semantics(
-      button: true,
-      label: _player.isLoading ? '正在加载音源' : (_player.isPlaying ? '暂停' : '播放'),
-      child: SizedBox.square(
-        dimension: size,
-        child: Material(
-          color: scheme.primary,
-          borderRadius: radius,
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            borderRadius: radius,
-            splashFactory: NoSplash.splashFactory,
-            highlightColor: Colors.transparent,
-            onTap: _player.isLoading ? null : () => _player.togglePlayPause(),
-            child: Center(
-              child: FadeContent(
-                child: _player.isLoading || _player.isBuffering
-                    ? SizedBox(
-                        key: const ValueKey('loading'),
-                        width: size * .34,
-                        height: size * .34,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.6,
-                          color: scheme.onPrimary,
-                        ),
-                      )
-                    : Icon(
-                        _player.isPlaying
-                            ? Icons.pause_rounded
-                            : Icons.play_arrow_rounded,
-                        key: ValueKey(_player.isPlaying),
-                        size: size * 32 / 76,
-                        color: scheme.onPrimary,
-                      ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _downloadControl(ColorScheme scheme, PortableSong song) {
+  /// 放在顶部栏：下载时换成同尺寸的圆形进度，保持和其它顶部按钮对齐。
+  Widget _downloadControl(BuildContext context, PortableSong song) {
     if (!_downloading) {
       return IconButton(
-        tooltip: '下载歌曲',
-        icon: Icon(Icons.download_outlined, color: scheme.primary),
+        tooltip: context.l10n.flowDownloadSong,
+        icon: const Icon(Icons.download_outlined),
         onPressed: () => _downloadSong(song),
       );
     }
-    return SizedBox(
-      width: 48,
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      width: 44,
+      height: 44,
+      decoration: BoxDecoration(
+        color: AppSurfaces.card(context),
+        shape: BoxShape.circle,
+      ),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          SizedBox(
-            width: 22,
-            height: 22,
+          SizedBox.square(
+            dimension: 18,
             child: CircularProgressIndicator(
               strokeWidth: 2,
               value: _downloadProgress,
+              color: scheme.primary,
             ),
           ),
-          const SizedBox(height: 2),
-          Text(
-            _formatDownloadSpeed(_downloadSpeedBytesPerSecond),
-            maxLines: 1,
-            overflow: TextOverflow.clip,
-            style: TextStyle(fontSize: 9, color: scheme.onSurfaceVariant),
+          const SizedBox(height: 1),
+          SizedBox(
+            width: 34,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                _formatDownloadSpeed(_downloadSpeedBytesPerSecond),
+                maxLines: 1,
+                style: TextStyle(
+                  fontSize: 8,
+                  height: 1.1,
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+            ),
           ),
         ],
       ),
@@ -574,16 +627,11 @@ class _PortableNowPlayingPageState extends State<PortableNowPlayingPage> {
   }
 
   static String _formatDownloadSpeed(double? bytesPerSecond) {
-    if (bytesPerSecond == null || bytesPerSecond <= 0) return '计算中';
+    if (bytesPerSecond == null || bytesPerSecond <= 0)
+      return appL10n.flowCalculating;
     if (bytesPerSecond >= 1024 * 1024) {
       return '${(bytesPerSecond / (1024 * 1024)).toStringAsFixed(1)} MB/s';
     }
     return '${(bytesPerSecond / 1024).toStringAsFixed(0)} KB/s';
-  }
-
-  static String _fmt(Duration d) {
-    final minutes = d.inMinutes;
-    final seconds = d.inSeconds % 60;
-    return '$minutes:${seconds.toString().padLeft(2, '0')}';
   }
 }

@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import '../entity/KaleidXScope/KaleidXScopeGate.dart';
 
 /// 万花镜日期统一按 2026 年展示。接口历史上同时出现过 ISO、斜线、点号和中文格式，
@@ -47,9 +48,9 @@ class KaleidDateUtil {
 
   static String format(String raw) {
     final date = parse(raw);
-    return date == null ? '日期待更新' : '${date.month}月${date.day}日';
+    return date == null ? appL10n.flowDateToBeUpdated : appL10n.flowP0P12((date.month).toString(), (date.day).toString());
   }
 
   static String range(String start, String? end) =>
-      '${format(start)} - ${end == null || end.trim().isEmpty ? '后续' : format(end)}';
+      '${format(start)} - ${end == null || end.trim().isEmpty ? appL10n.flowLater : format(end)}';
 }

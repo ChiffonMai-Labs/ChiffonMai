@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../l10n/FeatureLocalizations.dart';
 
 /// 用原始指针事件响应短按、长按和划过，不依赖点击手势是否最终获胜。
 class TouchSearchButton extends StatefulWidget {
@@ -51,7 +52,7 @@ class _TouchSearchButtonState extends State<TouchSearchButton> {
             ),
           ),
           child: IconButton(
-            tooltip: '搜索',
+            tooltip: context.featureText('搜索'),
             constraints: const BoxConstraints.tightFor(width: 48, height: 48),
             onPressed: widget.onPressed,
             style: IconButton.styleFrom(

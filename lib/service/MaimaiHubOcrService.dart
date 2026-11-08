@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'dart:convert';
 import 'dart:io';
 
@@ -54,27 +55,28 @@ class MaimaiHubOcrService {
   /// 未登录或 token 失效时抛 [MaimaiHubOcrException]，请先调 [isAvailable]。
   Future<MaimaiHubOcrBatch> recognize(List<File> imageFiles) async {
     if (imageFiles.isEmpty) {
-      throw MaimaiHubOcrException('请先选择至少一张结算画面图片');
+      throw MaimaiHubOcrException(appL10n.svcChooseAtLeastOneResultScreenImage);
     }
     if (imageFiles.length > maxImagesPerBatch) {
       throw MaimaiHubOcrException(
-          '一次最多识别 $maxImagesPerBatch 张，当前选了 ${imageFiles.length} 张');
+          appL10n.svcUpToP0ImagesCanBeRecognized(maxImagesPerBatch.toString(), imageFiles.length.toString()));
     }
 
     for (final f in imageFiles) {
       if (!await f.exists()) {
-        throw MaimaiHubOcrException('文件不存在：${f.path}');
+        throw MaimaiHubOcrException(appL10n.svcFileNotFoundP0(f.path.toString()));
       }
       final len = await f.length();
       if (len > maxImageBytes) {
         throw MaimaiHubOcrException(
-            '${f.uri.pathSegments.last} 超过 8 MiB 上限（${(len / 1024 / 1024).toStringAsFixed(1)} MiB）');
+            appL10n.svcP0ExceedsThe8MiBLimitP1(f.uri.pathSegments.last.toString(), ((len / 1024 / 1024).toStringAsFixed(1)).toString()));
       }
     }
 
     final token = await DivingFishProbeManager().ensureAuthToken();
     if (token == null || token.isEmpty) {
-      throw MaimaiHubOcrException('未登录 maimai Score Hub，无法使用该识别服务');
+      throw MaimaiHubOcrException(appL10n.svcNotSignedInToMaimaiScoreHub2,
+          loginRequired: true);
     }
 
     final uri = Uri.parse(ApiUrls.MaimaiHubOcrRecognizeUrl);
@@ -95,20 +97,21 @@ class MaimaiHubOcrService {
       );
 
       if (resp.statusCode < 200 || resp.statusCode >= 300) {
-        throw MaimaiHubOcrException(_describeError(resp.statusCode, resp.body));
+        throw MaimaiHubOcrException(_describeError(resp.statusCode, resp.body),
+            loginRequired: resp.statusCode == 401);
       }
 
       final Map<String, dynamic> body;
       try {
         body = jsonDecode(utf8.decode(resp.bodyBytes)) as Map<String, dynamic>;
       } catch (e) {
-        throw MaimaiHubOcrException('识别结果 JSON 解析失败: $e');
+        throw MaimaiHubOcrException(appL10n.svcCouldNotParseTheRecognitionResultJSON(e.toString()));
       }
       return MaimaiHubOcrBatch.fromJson(body);
     } on MaimaiHubOcrException {
       rethrow;
     } catch (e) {
-      throw MaimaiHubOcrException('识别请求失败: $e');
+      throw MaimaiHubOcrException(appL10n.svcRecognitionRequestFailedP0(e.toString()));
     }
   }
 
@@ -125,21 +128,21 @@ class MaimaiHubOcrService {
     final detail = _extractMessage(body);
     switch (status) {
       case 400:
-        return '图片为空或数量超限${detail.isEmpty ? '' : '：$detail'}';
+        return appL10n.svcNoImagesOrTooManyImagesP0((detail.isEmpty ? '' : '：$detail').toString());
       case 401:
-        return '登录状态已失效，请重新登录 maimai Score Hub';
+        return appL10n.svcYourSignInHasExpiredSignIn;
       case 413:
-        return '有图片超过 8 MiB 上限';
+        return appL10n.svcAnImageExceedsThe8MiBLimit;
       case 415:
-        return '图片格式不支持（仅支持 JPEG / PNG / WebP）';
+        return appL10n.svcUnsupportedImageFormatOnlyJPEGPNGWebP;
       case 502:
-        return 'OCR 服务返回了无法解析的结果';
+        return appL10n.svcTheOCRServiceReturnedAResultThat;
       case 503:
-        return 'OCR 服务暂时不可用，请稍后再试';
+        return appL10n.svcTheOCRServiceIsUnavailableTryAgain;
       case 504:
-        return 'OCR 识别超时，请稍后再试';
+        return appL10n.svcOCRRecognitionTimedOutTryAgainLater;
       default:
-        return '识别失败（HTTP $status）${detail.isEmpty ? '' : '：$detail'}';
+        return appL10n.svcRecognitionFailedHTTPP0P1(status.toString(), (detail.isEmpty ? '' : '：$detail').toString());
     }
   }
 
@@ -162,7 +165,10 @@ class MaimaiHubOcrService {
 
 class MaimaiHubOcrException implements Exception {
   final String message;
-  MaimaiHubOcrException(this.message);
+
+  /// 登录态缺失或失效；页面据此刷新登录提示，不再按文案判断。
+  final bool loginRequired;
+  MaimaiHubOcrException(this.message, {this.loginRequired = false});
 
   @override
   String toString() => 'MaimaiHubOcrException: $message';

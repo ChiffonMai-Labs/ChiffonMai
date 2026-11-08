@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import '../service/AutoSyncService.dart';
 
 /// 自动同步状态的统一展示文案：时间、耗时、等待原因、进度与结果摘要。
@@ -29,17 +30,19 @@ class AutoSyncDisplay {
   static String duration(Duration? value) {
     if (value == null || value.isNegative) return '—';
     final seconds = value.inSeconds;
-    if (seconds < 60) return '$seconds 秒';
+    if (seconds < 60) return appL10n.flowP0Seconds2((seconds).toString());
     final minutes = seconds ~/ 60;
     final rest = seconds % 60;
-    return rest == 0 ? '$minutes 分钟' : '$minutes 分 $rest 秒';
+    return rest == 0
+        ? appL10n.flowP0Minutes((minutes).toString())
+        : appL10n.flowP0MinP1Sec((minutes).toString(), (rest).toString());
   }
 
   /// 从某个时刻到现在的已用时长（客户端时钟略快时显示「刚刚」而不是负数）。
   static String elapsedSince(DateTime? start, {DateTime? now}) {
     if (start == null) return '—';
     final elapsed = (now ?? DateTime.now()).toUtc().difference(start.toUtc());
-    return elapsed.isNegative ? '刚刚' : duration(elapsed);
+    return elapsed.isNegative ? appL10n.flowJustNow : duration(elapsed);
   }
 
   /// 服务端下发的整轮处理上限（毫秒 → 分钟）；旧版本或历史结果没有该字段时返回 null。
@@ -54,10 +57,12 @@ class AutoSyncDisplay {
 
   /// 等待原因（服务端 waitReason 码）。
   static String waitReason(String? code) => switch (code) {
-        'quota_unavailable' || 'quota_wait' => '等待上游配额恢复',
-        'upstream_wait' => '等待上游服务恢复',
-        'gateway_suspended' => '等待上游网关恢复',
-        _ => '等待上游处理',
+        'quota_unavailable' ||
+        'quota_wait' =>
+          appL10n.flowWaitingForUpstreamQuota,
+        'upstream_wait' => appL10n.flowWaitingForUpstreamService,
+        'gateway_suspended' => appL10n.flowWaitingForUpstreamGateway,
+        _ => appL10n.flowWaitingForUpstreamProcessing,
       };
 
   /// 等待状态的一行说明：原因 + 预计重试时间。
@@ -67,34 +72,35 @@ class AutoSyncDisplay {
     final retry = timing?.retryAt;
     return retry == null
         ? waitReason(reason)
-        : '${waitReason(reason)}，预计 ${clock(retry)} 重试';
+        : appL10n.flowP0RetryAroundP1(
+            (waitReason(reason)).toString(), (clock(retry)).toString());
   }
 
   /// 失败原因短标签，用于 Hub 摘要这种一行宽度有限的场景。
   static String errorBrief(String? code) => switch (code) {
-        'run_timeout' => '处理超时',
-        'quota_unavailable' || 'quota_wait' => '配额不足',
+        'run_timeout' => appL10n.flowProcessingTimedOut,
+        'quota_unavailable' || 'quota_wait' => appL10n.flowQuotaInsufficient,
         'upstream_wait' ||
         'gateway_suspended' ||
         'upstream_unavailable' =>
-          '上游不可用',
-        'upload_failed' || 'upload_uncertain' => '上传未完成',
-        'upload_credential_invalid' => '上传凭据失效',
-        'target_records_failed' => '目标成绩读取失败',
-        'catalog_failed' => '曲库读取失败',
-        'gateway_failed' => '机台读取失败',
-        'no_scores' || 'no_matching_scores' => '没有可同步成绩',
-        'interrupted' => '服务重启中断',
-        'window_expired' => '处理窗口已结束',
-        'snapshot_invalid' => '本轮数据已失效',
-        'cancelled' => '任务已取消',
-        _ => '同步失败',
+          appL10n.flowUpstreamUnavailable,
+        'upload_failed' || 'upload_uncertain' => appL10n.flowUploadIncomplete,
+        'upload_credential_invalid' => appL10n.flowUploadCredentialsExpired,
+        'target_records_failed' => appL10n.flowCouldNotReadTargetScores,
+        'catalog_failed' => appL10n.flowCouldNotReadLibrary,
+        'gateway_failed' => appL10n.flowCouldNotReadCabinetData,
+        'no_scores' || 'no_matching_scores' => appL10n.flowNoScoresToSync,
+        'interrupted' => appL10n.flowInterruptedByServiceRestart,
+        'window_expired' => appL10n.flowProcessingWindowEnded,
+        'snapshot_invalid' => appL10n.flowRoundDataExpired,
+        'cancelled' => appL10n.flowTaskCancelled,
+        _ => appL10n.featureSyncFailed,
       };
 
   /// 执行中的详细进度行（按目标源区分文案）。
   static String progressLine(AutoSyncTask task, String platformLabel) {
     final progress = task.progress;
-    if (progress == null) return '正在准备快速同步…';
+    if (progress == null) return appL10n.flowPreparingQuickSync;
     return progress.detailLabel(platformLabel);
   }
 
@@ -105,14 +111,17 @@ class AutoSyncDisplay {
     if (task.status == 'running') {
       if (timing?.startedAt != null) {
         final limit = roundTimeoutMinutes(timing, null);
-        parts.add('处理已用 ${elapsedSince(timing!.startedAt, now: now)}'
-            '${limit == null ? '' : ' / 上限 $limit 分钟'}');
+        parts.add(appL10n.flowElapsedP0P1(
+            (elapsedSince(timing!.startedAt, now: now)).toString(),
+            (limit == null ? '' : appL10n.flowLimitP0Min((limit).toString()))
+                .toString()));
       } else {
-        parts.add('等待开始处理');
+        parts.add(appL10n.flowWaitingForProcessingToStart);
       }
     }
     if (timing?.collectedAt != null) {
-      parts.add('机台数据采集 ${clock(timing!.collectedAt)}');
+      parts.add(appL10n.flowCabinetDataCollectedP02(
+          (clock(timing!.collectedAt)).toString()));
     }
     return parts.isEmpty ? null : parts.join(' · ');
   }
@@ -120,13 +129,19 @@ class AutoSyncDisplay {
   /// 汇总卡片的一行进度（Hub 摘要用，避免过长）。
   static String progressBrief(AutoSyncTask task) {
     final progress = task.progress;
-    if (progress == null) return '正在同步…';
+    if (progress == null) return appL10n.featureSyncing2;
     return switch (progress.stage) {
-      'uploading' => '上传 ${progress.completed}/${progress.total} 条'
-          '${progress.submitted > 0 ? ' · 已提交 ${progress.submitted} 条' : ''}',
+      'uploading' => appL10n.flowUploadingP0P1P2(
+          (progress.completed).toString(),
+          (progress.total).toString(),
+          (progress.submitted > 0
+                  ? appL10n.flowSubmittedP0((progress.submitted).toString())
+                  : '')
+              .toString()),
       'reading' => progress.completed > 0
-          ? '读取机台成绩 · 第 ${progress.completed} 页'
-          : '读取机台成绩…',
+          ? appL10n
+              .flowReadingCabinetScoresPageP0((progress.completed).toString())
+          : appL10n.featureReadingCabinetScores,
       _ => progress.label,
     };
   }
@@ -134,9 +149,12 @@ class AutoSyncDisplay {
   /// 上次结果的数量明细；没有可展示的数量时返回 null。
   static String? resultStats(AutoSyncRunResult result) {
     final parts = <String>[
-      if (result.submitted > 0) '提交 ${result.submitted} 条',
-      if (result.skipped > 0) '跳过 ${result.skipped} 条不支持的谱面',
-      if (result.unchanged > 0) '未变化 ${result.unchanged} 条',
+      if (result.submitted > 0)
+        appL10n.flowSubmittedP02((result.submitted).toString()),
+      if (result.skipped > 0)
+        appL10n.flowSkippedP0UnsupportedCharts2((result.skipped).toString()),
+      if (result.unchanged > 0)
+        appL10n.flowUnchangedP0((result.unchanged).toString()),
     ];
     return parts.isEmpty ? null : parts.join(' · ');
   }
@@ -150,6 +168,8 @@ class AutoSyncDisplay {
     final spent = start != null && finish != null
         ? duration(finish.difference(start))
         : null;
-    return spent == null ? begin : '$begin · 耗时 $spent';
+    return spent == null
+        ? begin
+        : appL10n.flowP0TookP1((begin).toString(), (spent).toString());
   }
 }

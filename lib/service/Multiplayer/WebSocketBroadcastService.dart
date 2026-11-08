@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
@@ -160,7 +161,7 @@ class WebSocketBroadcastService {
       // 等待连接真正建立
       await channel.ready.timeout(const Duration(seconds: 10));
       if (_isDisconnecting || !identical(_channel, channel)) {
-        throw StateError('连接已取消');
+        throw StateError(appL10n.svcConnectionCancelled);
       }
 
       _isConnected = true;
@@ -301,7 +302,7 @@ class WebSocketBroadcastService {
       _resumePlayerId = resumePlayerId;
     }
     if (!_isConnected || _channel == null) {
-      throw StateError('连接已断开，请重新连接后重试');
+      throw StateError(appL10n.svcDisconnectedReconnectAndTryAgain);
     }
 
     try {
@@ -310,6 +311,7 @@ class WebSocketBroadcastService {
         'payload': {
           'nickname': nickname,
           'avatarId': _avatarId,
+          'coverPreparationVersion': 1,
           if (_resumePlayerId != null) 'resumePlayerId': _resumePlayerId,
         },
       });
@@ -336,7 +338,7 @@ class WebSocketBroadcastService {
   // 发送创建房间消息
   Future<void> sendCreateRoom(Map<String, dynamic> options) async {
     if (!_isConnected || _channel == null) {
-      throw StateError('连接已断开，请重新连接后重试');
+      throw StateError(appL10n.svcDisconnectedReconnectAndTryAgain);
     }
 
     try {
@@ -355,7 +357,7 @@ class WebSocketBroadcastService {
   // 发送加入房间消息（支持房间ID或房间码）
   Future<void> sendJoinRoom(String roomId, String? nickname) async {
     if (!_isConnected || _channel == null) {
-      throw StateError('连接已断开，请重新连接后重试');
+      throw StateError(appL10n.svcDisconnectedReconnectAndTryAgain);
     }
 
     try {
@@ -374,6 +376,7 @@ class WebSocketBroadcastService {
           'action': 'join_room_by_code',
           'payload': {
             'code': roomId,
+            'pixelationLevelVersion': 1,
             'supportedGameTypes':
                 GameType.values.map((type) => type.apiKey).toList(),
             'nickname': nickname,
@@ -385,6 +388,7 @@ class WebSocketBroadcastService {
           'action': 'join_room',
           'payload': {
             'roomId': roomId,
+            'pixelationLevelVersion': 1,
             'supportedGameTypes':
                 GameType.values.map((type) => type.apiKey).toList(),
             'nickname': nickname,
@@ -403,7 +407,7 @@ class WebSocketBroadcastService {
   // 发送更新准备状态消息
   Future<void> sendUpdateReady(bool ready) async {
     if (!_isConnected || _channel == null) {
-      throw StateError('连接已断开，请重新连接后重试');
+      throw StateError(appL10n.svcDisconnectedReconnectAndTryAgain);
     }
 
     try {
@@ -422,7 +426,7 @@ class WebSocketBroadcastService {
   // 发送开始游戏消息
   Future<void> sendStartGame() async {
     if (!_isConnected || _channel == null) {
-      throw StateError('连接已断开，请重新连接后重试');
+      throw StateError(appL10n.svcDisconnectedReconnectAndTryAgain);
     }
 
     try {
@@ -441,7 +445,7 @@ class WebSocketBroadcastService {
   // 发送开始下一回合消息
   Future<void> sendStartNextRound() async {
     if (!_isConnected || _channel == null) {
-      throw StateError('连接已断开，请重新连接后重试');
+      throw StateError(appL10n.svcDisconnectedReconnectAndTryAgain);
     }
 
     try {
@@ -457,10 +461,27 @@ class WebSocketBroadcastService {
     }
   }
 
+  /// 曲绘准备消息显式携带捕获时的回合令牌，不能让旧图片回调串到新回合。
+  Future<void> sendCoverPreparation(String action, String roomId, String roundId,
+      {Map<String, double>? crop, bool failed = false}) async {
+    if (!_isConnected || _channel == null) {
+      throw StateError(appL10n.svcDisconnectedTheCoverReadyStatusWasNot);
+    }
+    _channel!.sink.add(jsonEncode({
+      'action': action,
+      'payload': {
+        'roomId': roomId,
+        'roundId': roundId,
+        if (crop != null) 'crop': crop,
+        'failed': failed,
+      },
+    }));
+  }
+
   // 发送猜测消息
   Future<void> sendGuess(String songId, String songName) async {
     if (!_isConnected || _channel == null) {
-      throw StateError('连接已断开，本次猜测未提交，请连接后重试');
+      throw StateError(appL10n.svcDisconnectedThisGuessWasNotSubmittedReconnect);
     }
 
     try {
@@ -482,7 +503,7 @@ class WebSocketBroadcastService {
   // 发送开字母消息（letters 模式）
   Future<void> sendOpenLetter(String letter) async {
     if (!_isConnected || _channel == null) {
-      throw StateError('连接已断开，请重新连接后重试');
+      throw StateError(appL10n.svcDisconnectedReconnectAndTryAgain);
     }
 
     try {
@@ -501,7 +522,7 @@ class WebSocketBroadcastService {
   // 发送离开房间消息
   Future<void> sendLeaveRoom() async {
     if (!_isConnected || _channel == null) {
-      throw StateError('连接已断开，请重新连接后再退出房间');
+      throw StateError(appL10n.svcDisconnectedReconnectBeforeLeavingTheRoom);
     }
 
     try {
@@ -539,7 +560,7 @@ class WebSocketBroadcastService {
   // 发送投降消息
   Future<void> sendSurrender() async {
     if (!_isConnected || _channel == null) {
-      throw StateError('连接已断开，请重新连接后重试');
+      throw StateError(appL10n.svcDisconnectedReconnectAndTryAgain);
     }
 
     try {

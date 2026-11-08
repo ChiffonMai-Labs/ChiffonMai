@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../utils/CommunityProfileUtil.dart';
 
@@ -107,7 +108,7 @@ class PlayerEntity {
   /// 从缓存获取玩家昵称（与首页使用相同的键名）
   static Future<String> getCachedNickname() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('userNickname') ?? '玩家';
+    return prefs.getString('userNickname') ?? appL10n.flowPlayers;
   }
 
   /// 保存玩家昵称到缓存（与首页使用相同的键名）

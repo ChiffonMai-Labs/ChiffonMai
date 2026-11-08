@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
@@ -171,8 +172,8 @@ class CommunityAvatarStore extends ValueNotifier<AvatarSyncState> {
         await _queue(_activate);
       } while (_activateAgain);
     } catch (_) {
-      value = const AvatarSyncState(
-          message: '装扮未能读取，请重新打开此页', level: AvatarSyncLevel.error);
+      value =  AvatarSyncState(
+          message: appL10n.flowCouldNotLoadAppearanceReopenThisPage, level: AvatarSyncLevel.error);
     }
   }
 
@@ -197,9 +198,9 @@ class CommunityAvatarStore extends ValueNotifier<AvatarSyncState> {
       final source = RefreshDataSource.fromKey(
           prefs.getString(CacheKeyConstant.lastDataSource));
       final message = switch (source) {
-        RefreshDataSource.shuiyu => '仅本机保存 · 登录水鱼后自动同步',
-        RefreshDataSource.luoxue => '仅本机保存 · 请先登录并刷新落雪账号',
-        RefreshDataSource.awmc => '仅本机保存 · 请先填写 AWMC 账号的 QQ 号',
+        RefreshDataSource.shuiyu => appL10n.svcSavedOnThisDeviceOnlySyncsAfter,
+        RefreshDataSource.luoxue => appL10n.svcSavedOnThisDeviceOnlySignIn,
+        RefreshDataSource.awmc => appL10n.svcSavedOnThisDeviceOnlyEnterThe,
       };
       value = _state(null, local, message, AvatarSyncLevel.localOnly);
       return;
@@ -258,7 +259,7 @@ class CommunityAvatarStore extends ValueNotifier<AvatarSyncState> {
     value = _state(
         player,
         entry,
-        entry['pending'] == true ? '装扮待同步' : '正在读取社区装扮',
+        entry['pending'] == true ? appL10n.svcAppearanceWaitingToSync : appL10n.svcLoadingCommunityAppearance,
         AvatarSyncLevel.syncing);
     await _compatibility(prefs, player, entry);
     unawaited(sync(player));
@@ -284,7 +285,7 @@ class CommunityAvatarStore extends ValueNotifier<AvatarSyncState> {
           'pending': true,
           'generation': value.generation + 1
         };
-    value = _state(player, optimistic, player == null ? value.message : '装扮待同步',
+    value = _state(player, optimistic, player == null ? value.message : appL10n.svcAppearanceWaitingToSync,
         player == null ? AvatarSyncLevel.localOnly : AvatarSyncLevel.pending);
     return _queue(() async {
       final prefs = await SharedPreferences.getInstance(),
@@ -313,7 +314,7 @@ class CommunityAvatarStore extends ValueNotifier<AvatarSyncState> {
   }
 
   String _failure(int status) =>
-      [401, 403].contains(status) ? '装扮待同步 · 请登录或验证对应账号后重试' : '装扮待同步 · 点击重试';
+      [401, 403].contains(status) ? appL10n.svcAppearanceWaitingToSyncSignInOr : appL10n.svcAppearanceWaitingToSyncTapToRetry;
 
   bool _sameChoice(String key, dynamic local, dynamic remote) {
     if (key == 'avatarId') {
@@ -357,10 +358,10 @@ class CommunityAvatarStore extends ValueNotifier<AvatarSyncState> {
           !headers.containsKey('Authorization') &&
           !headers.containsKey('X-Auto-Sync-Token')) {
         _publish(
-            player, entry, '仅本机保存 · 请先登录或验证对应账号', AvatarSyncLevel.localOnly);
+            player, entry, appL10n.svcSavedOnThisDeviceOnlySignIn2, AvatarSyncLevel.localOnly);
         return;
       }
-      _publish(player, entry, '正在同步社区装扮', AvatarSyncLevel.syncing);
+      _publish(player, entry, appL10n.svcSyncingCommunityAppearance, AvatarSyncLevel.syncing);
       final get = await ApiClient.get(
           Uri.parse(_endpoint).replace(queryParameters: {'playerId': player}),
           headers: headers);
@@ -388,7 +389,7 @@ class CommunityAvatarStore extends ValueNotifier<AvatarSyncState> {
             'revision': remote['profileRevision']
           });
           await _persist(prefs, _key(player), latest);
-          _publish(player, latest, '社区装扮已同步', AvatarSyncLevel.synced);
+          _publish(player, latest, appL10n.svcCommunityAppearanceSynced, AvatarSyncLevel.synced);
           await _compatibility(prefs, player, latest);
           if (changed) await _invalidateProfileCaches(prefs);
           return true;
@@ -427,7 +428,7 @@ class CommunityAvatarStore extends ValueNotifier<AvatarSyncState> {
               !remote.containsKey(key) ||
               !_sameChoice(key, entry[key], remote[key]))) {
             _publish(
-                player, latest, '装扮待同步 · 服务端尚未确认所选装扮', AvatarSyncLevel.error);
+                player, latest, appL10n.svcAppearanceWaitingToSyncTheServerHas, AvatarSyncLevel.error);
             return;
           }
           final saved = await _queue(() async {
@@ -440,7 +441,7 @@ class CommunityAvatarStore extends ValueNotifier<AvatarSyncState> {
               'revision': remote['profileRevision']
             });
             await _persist(prefs, _key(player), current);
-            _publish(player, current, '社区装扮已同步', AvatarSyncLevel.synced);
+            _publish(player, current, appL10n.svcCommunityAppearanceSynced, AvatarSyncLevel.synced);
             await _compatibility(prefs, player, current);
             return true;
           });
@@ -453,12 +454,12 @@ class CommunityAvatarStore extends ValueNotifier<AvatarSyncState> {
         }
         entry = _entry(prefs, player);
         if (entry['pending'] == true)
-          _publish(player, entry, '装扮待同步 · 点击重试', AvatarSyncLevel.pending);
+          _publish(player, entry, appL10n.svcAppearanceWaitingToSyncTapToRetry, AvatarSyncLevel.pending);
       }
     } catch (_) {
       final prefs = await SharedPreferences.getInstance();
       _publish(
-          player, _entry(prefs, player), '装扮待同步 · 点击重试', AvatarSyncLevel.error);
+          player, _entry(prefs, player), appL10n.svcAppearanceWaitingToSyncTapToRetry, AvatarSyncLevel.error);
     } finally {
       await _writes;
       final prefs = await SharedPreferences.getInstance();

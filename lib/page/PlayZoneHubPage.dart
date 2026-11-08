@@ -1,3 +1,4 @@
+import '../l10n/FeatureLocalizations.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -80,9 +81,9 @@ class PlayZoneHubPageState extends State<PlayZoneHubPage> {
                   const SizedBox(height: 12),
                   SegmentedTabs(
                     height: 44,
-                    items: const [
-                      SegmentedTabItem('出勤'),
-                      SegmentedTabItem('休闲'),
+                    items: [
+                      SegmentedTabItem(context.featureText('出勤')),
+                      SegmentedTabItem(context.featureText('休闲')),
                     ],
                     selectedIndex: _section,
                     onChanged: showSection,

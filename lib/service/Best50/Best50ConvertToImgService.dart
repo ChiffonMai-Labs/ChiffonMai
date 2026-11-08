@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'dart:async';
 import 'ThunderBest50Export.dart';
 import 'package:my_first_flutter_app/widgets/B50GameCardWidget.dart';
@@ -14,6 +16,7 @@ import 'package:my_first_flutter_app/utils/StringUtil.dart';
 import 'package:my_first_flutter_app/utils/ImageEncodeUtil.dart';
 import 'package:my_first_flutter_app/widgets/ExportStatsUi.dart';
 import '../../utils/MusicDataIndex.dart';
+import '../../utils/ExportDiagnostics.dart';
 
 class B50ConvertToImg {
   // 全局Key，用于获取widget的渲染对象
@@ -22,202 +25,218 @@ class B50ConvertToImg {
 
   // 导出为图片的方法
   static Future<File?> convertToImage(
-      BuildContext context,
-      Map<String, dynamic>? b50Data,
-      List<Map<String, dynamic>> sdSongs,
-      List<Map<String, dynamic>> dxSongs,
-      List<dynamic>? maimaiMusicData,
-      {bool isTheoreticalMode = false,
-      int? jpegQuality,
-      int? selectedPlateId,
-      bool thunderMode = false,
-      bool thunderVertical = true,
-      ExportImageTheme theme = ExportImageTheme.light}) async {
-    OverlayEntry? overlayEntry;
-    try {
-      debugPrint('=== STARTING IMAGE CONVERSION ===');
-      debugPrint(
-          'Current platform: ${Platform.operatingSystem} ${Platform.version}');
-
-      // 首先请求存储权限（在导出前请求）
-      debugPrint('Step 1: Requesting storage permission...');
-      PermissionStatus status = await _requestStoragePermission();
-      debugPrint('Step 1 completed: Storage permission status: $status');
-      debugPrint('Is granted: ${status.isGranted}');
-
-      // 创建一个GlobalKey
-      GlobalKey globalKey = GlobalKey();
-
-      // 创建一个Widget，用于生成图片
-      Widget imageWidget = RepaintBoundary(
-        key: globalKey,
-        child: await _buildExportImageWidget(
-            context, b50Data, sdSongs, dxSongs, maimaiMusicData,
-            isTheoreticalMode: isTheoreticalMode,
-            selectedPlateId: selectedPlateId,
-            thunderMode: thunderMode,
-            thunderVertical: thunderVertical,
-            theme: theme),
-      );
-      final exportWidth = thunderMode
-          ? ThunderBest50Export.widthFor(
-              sdSongs.length + dxSongs.length, thunderVertical)
-          : 1700.0;
-
-      // 创建一个屏幕外的OverlayEntry，避免影响主UI
-      // 使用Positioned将Widget定位到屏幕外，确保它被渲染但不可见
-      overlayEntry = OverlayEntry(
-        builder: (context) => Positioned(
-          left: -9999, // 移到屏幕外
-          top: -9999,
-          width: exportWidth,
-          child: Material(
-            type: MaterialType.transparency,
-            child: imageWidget,
-          ),
-        ),
-      );
-
-      // 预加载图片资源
-      await _preloadImages(context);
-      debugPrint('Images preloaded');
-
-      // 将OverlayEntry添加到widget树中
-      Overlay.of(context).insert(overlayEntry);
-      debugPrint('Overlay entry inserted');
-
-      // 等待渲染完成（使用WidgetsBinding确保所有帧都已处理）
-      await _waitForRender();
-      debugPrint('Render wait completed');
-
-      // 创建一个RenderRepaintBoundary
-      final RenderRepaintBoundary? boundary = globalKey.currentContext
-          ?.findRenderObject() as RenderRepaintBoundary?;
-      if (boundary == null) {
-        debugPrint('Error: RenderRepaintBoundary not found');
-        overlayEntry.remove();
-        return null;
-      }
-      debugPrint('RenderRepaintBoundary found successfully');
-
-      // 额外等待确保边界框已准备好
-      await Future.delayed(Duration(milliseconds: 100));
-
-      // 获取图片数据（异步执行，避免阻塞主线程）
-      debugPrint('Starting image capture...');
-      final encoded =
-          await ImageEncodeUtil.encodeBoundary(boundary, jpegQuality: jpegQuality);
-      final Uint8List finalBytes = encoded.bytes;
-      final String extension = encoded.extension;
-
-      // 释放图片资源
-
-      // 立即移除Overlay，避免占用资源
-      overlayEntry.remove();
-
-      // 优先使用相册目录（需要存储权限）
-      Directory? directory;
-      debugPrint(
-          'Step 4: Saving image. Permission granted: ${status.isGranted}');
-
-      if (status.isGranted) {
-        debugPrint(
-            'Step 4a: Permission granted, trying to use Pictures directory');
+          BuildContext context,
+          Map<String, dynamic>? b50Data,
+          List<Map<String, dynamic>> sdSongs,
+          List<Map<String, dynamic>> dxSongs,
+          List<dynamic>? maimaiMusicData,
+          {bool isTheoreticalMode = false,
+          int? jpegQuality,
+          int? selectedPlateId,
+          bool thunderMode = false,
+          bool thunderVertical = true,
+          ExportImageTheme theme = ExportImageTheme.light}) =>
+      ExportDiagnostics.run('Best50转换', (log) async {
+        OverlayEntry? overlayEntry;
         try {
-          // 直接使用标准的相册目录路径
-          String picturesPath = '/storage/emulated/0/Pictures';
-          directory = Directory(picturesPath);
-          debugPrint('Pictures directory path: $picturesPath');
+          debugPrint('=== STARTING IMAGE CONVERSION ===');
+          debugPrint(
+              'Current platform: ${Platform.operatingSystem} ${Platform.version}');
+          log.note(
+              'Best50配置：格式=${jpegQuality == null ? "PNG无损" : "JPEG Q$jpegQuality"} '
+              '雷霆=$thunderMode 纵向=$thunderVertical 主题=${theme.name} '
+              '旧曲=${sdSongs.length} 新曲=${dxSongs.length} 理论模式=$isTheoreticalMode');
 
-          // 检查目录是否存在
-          bool exists = directory.existsSync();
-          debugPrint('Pictures directory exists: $exists');
+          // 首先请求存储权限（在导出前请求）
+          debugPrint('Step 1: Requesting storage permission...');
+          PermissionStatus status =
+              await log.step('查询或请求存储权限', _requestStoragePermission);
+          debugPrint('Step 1 completed: Storage permission status: $status');
+          debugPrint('Is granted: ${status.isGranted}');
 
-          // 确保相册目录存在
-          if (!exists) {
-            debugPrint('Creating Pictures directory...');
-            directory.createSync(recursive: true);
-            debugPrint('Created Pictures directory successfully');
+          // 创建一个GlobalKey
+          GlobalKey globalKey = GlobalKey();
+
+          // 创建一个Widget，用于生成图片
+          Widget imageWidget = RepaintBoundary(
+            key: globalKey,
+            child: await log.step(
+                '构建Best50导出画布',
+                () => _buildExportImageWidget(
+                    context, b50Data, sdSongs, dxSongs, maimaiMusicData,
+                    isTheoreticalMode: isTheoreticalMode,
+                    selectedPlateId: selectedPlateId,
+                    thunderMode: thunderMode,
+                    thunderVertical: thunderVertical,
+                    theme: theme)),
+          );
+          final exportWidth = thunderMode
+              ? ThunderBest50Export.widthFor(
+                  sdSongs.length + dxSongs.length, thunderVertical)
+              : 1700.0;
+
+          // 创建一个屏幕外的OverlayEntry，避免影响主UI
+          // 使用Positioned将Widget定位到屏幕外，确保它被渲染但不可见
+          overlayEntry = OverlayEntry(
+            builder: (context) => Positioned(
+              left: -9999, // 移到屏幕外
+              top: -9999,
+              width: exportWidth,
+              child: Material(
+                type: MaterialType.transparency,
+                child: imageWidget,
+              ),
+            ),
+          );
+
+          // 预加载图片资源
+          await log.step('预加载导出图片', () => _preloadImages(context));
+          debugPrint('Images preloaded');
+
+          // 将OverlayEntry添加到widget树中
+          Overlay.of(context).insert(overlayEntry);
+          debugPrint('Overlay entry inserted');
+
+          // 等待渲染完成（使用WidgetsBinding确保所有帧都已处理）
+          await log.step('等待Best50画布布局绘制', _waitForRender);
+          debugPrint('Render wait completed');
+
+          // 创建一个RenderRepaintBoundary
+          final RenderRepaintBoundary? boundary = globalKey.currentContext
+              ?.findRenderObject() as RenderRepaintBoundary?;
+          if (boundary == null) {
+            debugPrint('Error: RenderRepaintBoundary not found');
+            overlayEntry.remove();
+            return null;
           }
+          debugPrint('RenderRepaintBoundary found successfully');
 
-          // 验证目录是否可写
-          bool canWrite = await _checkDirectoryWritable(directory);
-          debugPrint('Pictures directory writable: $canWrite');
+          // 额外等待确保边界框已准备好
+          await Future.delayed(Duration(milliseconds: 100));
 
-          if (!canWrite) {
+          // 获取图片数据（异步执行，避免阻塞主线程）
+          debugPrint('Starting image capture...');
+          final encoded = await ImageEncodeUtil.encodeBoundary(boundary,
+              jpegQuality: jpegQuality);
+          final Uint8List finalBytes = encoded.bytes;
+          final String extension = encoded.extension;
+
+          // 释放图片资源
+
+          // 立即移除Overlay，避免占用资源
+          log.note('开始移除Best50图片画布');
+          overlayEntry.remove();
+          log.note('Best50图片画布已移除，编码结果=${finalBytes.lengthInBytes}B');
+
+          // 优先使用相册目录（需要存储权限）
+          Directory? directory;
+          debugPrint(
+              'Step 4: Saving image. Permission granted: ${status.isGranted}');
+
+          if (status.isGranted) {
             debugPrint(
-                'Warning: Pictures directory is not writable, will fall back');
-            directory = null;
+                'Step 4a: Permission granted, trying to use Pictures directory');
+            try {
+              // 直接使用标准的相册目录路径
+              String picturesPath = '/storage/emulated/0/Pictures';
+              directory = Directory(picturesPath);
+              debugPrint('Pictures directory path: $picturesPath');
+
+              // 检查目录是否存在
+              bool exists = directory.existsSync();
+              debugPrint('Pictures directory exists: $exists');
+
+              // 确保相册目录存在
+              if (!exists) {
+                debugPrint('Creating Pictures directory...');
+                directory.createSync(recursive: true);
+                debugPrint('Created Pictures directory successfully');
+              }
+
+              // 验证目录是否可写
+              bool canWrite = await log.step(
+                  '探测Pictures目录可写性', () => _checkDirectoryWritable(directory!));
+              debugPrint('Pictures directory writable: $canWrite');
+
+              if (!canWrite) {
+                debugPrint(
+                    'Warning: Pictures directory is not writable, will fall back');
+                directory = null;
+              }
+            } catch (e) {
+              debugPrint('Error getting pictures directory: $e');
+              directory = null;
+            }
           }
-        } catch (e) {
-          debugPrint('Error getting pictures directory: $e');
-          directory = null;
-        }
-      }
 
-      // 如果相册目录获取失败或没有权限，使用应用文档目录
-      if (directory == null) {
-        debugPrint('Step 4b: Using fallback directory');
-        try {
-          directory = await getApplicationDocumentsDirectory();
-          debugPrint('Using app documents directory: ${directory.path}');
-        } catch (e) {
-          debugPrint('Error getting application documents directory: $e');
-          // 备选方案：使用外部存储目录
-          try {
-            directory = await getExternalStorageDirectory();
-            debugPrint('Using external storage directory: ${directory?.path}');
-          } catch (e2) {
-            debugPrint('Error getting external storage directory: $e2');
+          // 如果相册目录获取失败或没有权限，使用应用文档目录
+          if (directory == null) {
+            debugPrint('Step 4b: Using fallback directory');
+            try {
+              directory = await getApplicationDocumentsDirectory();
+              debugPrint('Using app documents directory: ${directory.path}');
+            } catch (e) {
+              debugPrint('Error getting application documents directory: $e');
+              // 备选方案：使用外部存储目录
+              try {
+                directory = await getExternalStorageDirectory();
+                debugPrint(
+                    'Using external storage directory: ${directory?.path}');
+              } catch (e2) {
+                debugPrint('Error getting external storage directory: $e2');
+              }
+            }
           }
+
+          if (directory == null) {
+            debugPrint('Error: No storage directory found');
+            overlayEntry.remove();
+            return null;
+          }
+
+          debugPrint('Selected directory: ${directory.path}');
+
+          // 尝试使用 MediaStore API 保存到相册（Android 13+）
+          if (Platform.isAndroid && status.isGranted) {
+            debugPrint('Step 5: Trying to save via MediaStore API...');
+            String? galleryPath = await log.step(
+                'MediaStore相册写入',
+                () => _saveImageToGallery(finalBytes,
+                    'b50_export_${DateTime.now().millisecondsSinceEpoch}.$extension'));
+            log.note('MediaStore写入返回=${galleryPath ?? "空，改走文件写入"}');
+            if (galleryPath != null) {
+              debugPrint('Image saved to gallery via MediaStore: $galleryPath');
+              // 调用媒体扫描器
+              await _notifySystemGallery(galleryPath, log);
+              log.note('Best50相册导出完成，返回文件');
+              return File(galleryPath);
+            }
+            debugPrint('MediaStore API failed, falling back to file system');
+          }
+
+          // 确保目录存在
+          if (!directory.existsSync()) {
+            directory.createSync(recursive: true);
+          }
+
+          final file = File(
+              '${directory.path}/b50_export_${DateTime.now().millisecondsSinceEpoch}.$extension');
+          await log.step('备用路径文件写入', () => file.writeAsBytes(finalBytes));
+          debugPrint('Image saved to: ${file.path}');
+
+          // 调用媒体扫描器，通知系统有新文件（多重保障）
+          if (Platform.isAndroid) {
+            await _notifySystemGallery(file.path, log);
+            debugPrint('Media scanner completed for: ${file.path}');
+          }
+
+          return file;
+        } catch (e, stack) {
+          log.note('Best50导出失败：$e\n$stack');
+          overlayEntry?.remove();
+          return null;
         }
-      }
-
-      if (directory == null) {
-        debugPrint('Error: No storage directory found');
-        overlayEntry.remove();
-        return null;
-      }
-
-      debugPrint('Selected directory: ${directory.path}');
-
-      // 尝试使用 MediaStore API 保存到相册（Android 13+）
-      if (Platform.isAndroid && status.isGranted) {
-        debugPrint('Step 5: Trying to save via MediaStore API...');
-        String? galleryPath = await _saveImageToGallery(finalBytes,
-            'b50_export_${DateTime.now().millisecondsSinceEpoch}.$extension');
-        if (galleryPath != null) {
-          debugPrint('Image saved to gallery via MediaStore: $galleryPath');
-          // 调用媒体扫描器
-          await _notifySystemGallery(galleryPath);
-          return File(galleryPath);
-        }
-        debugPrint('MediaStore API failed, falling back to file system');
-      }
-
-      // 确保目录存在
-      if (!directory.existsSync()) {
-        directory.createSync(recursive: true);
-      }
-
-      final file = File(
-          '${directory.path}/b50_export_${DateTime.now().millisecondsSinceEpoch}.$extension');
-      await file.writeAsBytes(finalBytes);
-      debugPrint('Image saved to: ${file.path}');
-
-      // 调用媒体扫描器，通知系统有新文件（多重保障）
-      if (Platform.isAndroid) {
-        await _notifySystemGallery(file.path);
-        debugPrint('Media scanner completed for: ${file.path}');
-      }
-
-      return file;
-    } catch (e) {
-      debugPrint('Error converting to image: $e');
-      overlayEntry?.remove();
-      return null;
-    }
-  }
+      });
 
   /// 构建与实际导出相同的预览 Widget。
   static Future<Widget> buildPreviewWidget(
@@ -346,13 +365,17 @@ class B50ConvertToImg {
       final songs = [...sdSongs, ...dxSongs];
       return ThunderBest50Export.build(
         theme: theme,
-        title: isTheoreticalMode ? '理论 Best50' : 'Best50',
+        title:
+            isTheoreticalMode ? context.l10n.flowTheoreticalBest50 : 'Best50',
         vertical: thunderVertical,
         count: songs.length,
         showUserInfo: !isTheoreticalMode,
-        statistics: 'Rating $rating\nBest35 $best35Sum · Best15 $best15Sum\n'
-            '平均达成率 ${best50AchievementAverage.toStringAsFixed(4)}%\n'
-            '平均DX分数达成率 ${(best50ScoreRateAverage * 100).toStringAsFixed(2)}%',
+        statistics: context.l10n.flowRatingP0Best35P1Best15P2Average(
+            (rating).toString(),
+            (best35Sum).toString(),
+            (best15Sum).toString(),
+            (best50AchievementAverage.toStringAsFixed(4)).toString(),
+            ((best50ScoreRateAverage * 100).toStringAsFixed(2)).toString()),
         cardBuilder: (index) => _buildDataGameCard(
             context, songs[index], b50Data, maimaiMusicData, maxIdLength),
       );
@@ -371,7 +394,9 @@ class B50ConvertToImg {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 ExportPosterHeader(
-                  title: isTheoreticalMode ? '理论 Best50' : 'Best50',
+                  title: isTheoreticalMode
+                      ? context.l10n.flowTheoreticalBest50
+                      : 'Best50',
                   showUser: !isTheoreticalMode,
                   selectedPlateId: selectedPlateId,
                 ),
@@ -400,8 +425,9 @@ class B50ConvertToImg {
                 _buildSectionTitle(
                     context,
                     isTheoreticalMode
-                        ? '理论Best35 | 非当前版本最高定数'
-                        : 'Best35 | 非当前版本最好成绩'),
+                        ? context.l10n
+                            .flowTheoreticalBest35HighestConstantsFromOlderVersions
+                        : context.l10n.flowBest35BestScoresFromOlderVersions),
                 SizedBox(height: 16.0),
 
                 // Best35 卡片网格 (5列)
@@ -419,8 +445,9 @@ class B50ConvertToImg {
                 _buildSectionTitle(
                     context,
                     isTheoreticalMode
-                        ? '理论Best15 | 当前版本最高定数'
-                        : 'Best15 | 当前版本最好成绩'),
+                        ? context.l10n
+                            .flowTheoreticalBest15HighestConstantsFromThisVersion
+                        : context.l10n.flowBest15BestScoresFromThisVersion),
                 SizedBox(height: 16.0),
 
                 // Best15 卡片网格 (5列)
@@ -522,7 +549,8 @@ class B50ConvertToImg {
                     child: ExportHeroBlock(
                       label: 'Rating',
                       value: '$rating',
-                      caption: '平均 ${ratingAverage.toStringAsFixed(1)}',
+                      caption: context.l10n.flowAverageP02(
+                          (ratingAverage.toStringAsFixed(1)).toString()),
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -530,22 +558,24 @@ class B50ConvertToImg {
                     ExportStatBlock(
                       label: 'Best 35',
                       value: '$best35Sum',
-                      caption: '平均 ${best35Average.toStringAsFixed(1)}',
+                      caption: context.l10n.flowAverageP02(
+                          (best35Average.toStringAsFixed(1)).toString()),
                     ),
                     ExportStatBlock(
                       label: 'Best 15',
                       value: '$best15Sum',
-                      caption: '平均 ${best15Average.toStringAsFixed(1)}',
+                      caption: context.l10n.flowAverageP02(
+                          (best15Average.toStringAsFixed(1)).toString()),
                     ),
                   ),
                   const SizedBox(height: 10),
                   pair(
                     ExportStatBlock(
-                      label: 'Best35 定数区间',
+                      label: context.l10n.flowBest35ConstantRange,
                       value: _computeDsRange(sdSongs),
                     ),
                     ExportStatBlock(
-                      label: 'Best15 定数区间',
+                      label: context.l10n.flowBest15ConstantRange,
                       value: _computeDsRange(dxSongs),
                     ),
                   ),
@@ -561,7 +591,7 @@ class B50ConvertToImg {
                 children: [
                   Expanded(
                     child: ExportAchievementBlock(
-                      label: 'Best 50 平均',
+                      label: context.l10n.flowBest50Average,
                       achievement: best50AchievementAverage,
                       scoreRate: best50ScoreRateAverage,
                     ),
@@ -569,7 +599,7 @@ class B50ConvertToImg {
                   const SizedBox(height: 10),
                   Expanded(
                     child: ExportAchievementBlock(
-                      label: 'Best 35 平均',
+                      label: context.l10n.flowBest35Average,
                       achievement: best35AchievementAverage,
                       scoreRate: best35ScoreRateAverage,
                     ),
@@ -577,7 +607,7 @@ class B50ConvertToImg {
                   const SizedBox(height: 10),
                   Expanded(
                     child: ExportAchievementBlock(
-                      label: 'Best 15 平均',
+                      label: context.l10n.flowBest15Average,
                       achievement: best15AchievementAverage,
                       scoreRate: best15ScoreRateAverage,
                     ),
@@ -585,12 +615,12 @@ class B50ConvertToImg {
                   const SizedBox(height: 10),
                   pair(
                     ExportStatBlock(
-                      label: '50首 SSS+ 数量',
+                      label: context.l10n.flowSSSCountIn50Charts,
                       value:
                           '${_countRate(sdSongs, 'sssp') + _countRate(dxSongs, 'sssp')}',
                     ),
                     ExportStatBlock(
-                      label: '50首 SSS 数量',
+                      label: context.l10n.flowSSSCountIn50Charts2,
                       value:
                           '${_countRate(sdSongs, 'sss') + _countRate(dxSongs, 'sss')}',
                     ),
@@ -632,7 +662,7 @@ class B50ConvertToImg {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '可提升定数 RA 对照',
+          context.l10n.flowPotentialConstantRATable,
           style: TextStyle(
             fontSize: titleFontSize,
             fontWeight: FontWeight.bold,
@@ -716,9 +746,12 @@ class B50ConvertToImg {
             children: [
               // 表头：定数 + 5 个评级图标
               TableRow(
-                decoration: BoxDecoration(color: ExportPalette.of(context).inset),
+                decoration:
+                    BoxDecoration(color: ExportPalette.of(context).inset),
                 children: [
-                  _buildHeaderCell(context, '定数', cellFontSize, bold: true),
+                  _buildHeaderCell(
+                      context, context.l10n.flowConstant, cellFontSize,
+                      bold: true),
                   for (final t in tiers) _buildTierIconCell(t, headerIconSize),
                 ],
               ),
@@ -730,8 +763,7 @@ class B50ConvertToImg {
                   ),
                   children: [
                     _buildHeaderCell(
-                        context,
-                        diffList[i].toStringAsFixed(1), cellFontSize,
+                        context, diffList[i].toStringAsFixed(1), cellFontSize,
                         bold: true),
                     for (int t = 0; t < tiers.length; t++)
                       () {
@@ -770,7 +802,8 @@ class B50ConvertToImg {
   }
 
   // 表头文字 cell
-  static Widget _buildHeaderCell(BuildContext context, String text, double fontSize,
+  static Widget _buildHeaderCell(
+      BuildContext context, String text, double fontSize,
       {bool bold = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
@@ -811,7 +844,8 @@ class B50ConvertToImg {
   // 数据 cell（RA 数字 + 可选提升值）
   // [improvement] 若非空，在 RA 数字右侧追加绿色小字「▲xx」表示该 RA 相对池子最低 RA 的提升量。
   // 用 Row + baseline 对齐：RA 主字号，提升值小一号、绿色（▲ 实心三角），整行不换行。
-  static Widget _buildDataCell(BuildContext context, String text, double fontSize,
+  static Widget _buildDataCell(
+      BuildContext context, String text, double fontSize,
       {int? improvement}) {
     final mainStyle = TextStyle(
       fontSize: fontSize,
@@ -950,7 +984,7 @@ class B50ConvertToImg {
   static Widget _buildGameCard({
     required BuildContext context,
     required Color cardColor,
-    String songName = '未知歌曲',
+    String? songName,
     double achievementRate = 0.0,
     double difficulty = 0.0,
     bool dxMode = false,
@@ -968,7 +1002,7 @@ class B50ConvertToImg {
   }) {
     return B50GameCardWidget(
       cardColor: cardColor,
-      songName: songName,
+      songName: songName ?? appL10n.flowUnknownSong,
       achievementRate: achievementRate,
       difficulty: difficulty,
       dxMode: dxMode,
@@ -1035,7 +1069,7 @@ class B50ConvertToImg {
     int levelIndex = songData['level_index'] ?? 0;
     int rating = songData['ra'] ?? 0;
     String type = songData['type'] ?? '';
-    String title = songData['title'] ?? '未知歌曲';
+    String title = songData['title'] ?? context.l10n.flowUnknownSong;
     int songId = songData['song_id'] ?? 0;
 
     // 计算星星等级（使用与App相同的StringUtil）
@@ -1103,7 +1137,8 @@ class B50ConvertToImg {
       // 查找对应的歌曲数据
       dynamic songData;
       try {
-        songData = maimaiMusicData[MusicDataIndex.indexOf(maimaiMusicData, songId)];
+        songData =
+            maimaiMusicData[MusicDataIndex.indexOf(maimaiMusicData, songId)];
       } catch (_) {
         // 如果找不到歌曲，返回0
         return 0;
@@ -1137,7 +1172,8 @@ class B50ConvertToImg {
       // 查找对应的歌曲
       dynamic songData;
       try {
-        songData = maimaiMusicData[MusicDataIndex.indexOf(maimaiMusicData, songId)];
+        songData =
+            maimaiMusicData[MusicDataIndex.indexOf(maimaiMusicData, songId)];
       } catch (e) {
         // 如果找不到歌曲，返回0.0
         return 0.0;
@@ -1199,10 +1235,12 @@ class B50ConvertToImg {
   }
 
   // 发送Android系统广播，通知相册刷新
-  static Future<void> _sendMediaScanBroadcast(String filePath) async {
+  static Future<void> _sendMediaScanBroadcast(
+      String filePath, ExportDiagnostics log) async {
     try {
       const MethodChannel channel = MethodChannel('com.example.app/media_scan');
-      await channel.invokeMethod('scanFile', {'path': filePath});
+      await log.step('相册扫描 scanFile',
+          () => channel.invokeMethod('scanFile', {'path': filePath}));
       debugPrint('Broadcast sent for: $filePath');
     } catch (e) {
       debugPrint('Error sending broadcast: $e');
@@ -1210,22 +1248,25 @@ class B50ConvertToImg {
   }
 
   // 通知系统刷新媒体库（多重保障）
-  static Future<void> _notifySystemGallery(String filePath) async {
+  static Future<void> _notifySystemGallery(
+      String filePath, ExportDiagnostics log) async {
     // 方法1：使用media_scanner库
     try {
-      await MediaScanner.loadMedia(path: filePath);
+      await log.step(
+          '相册扫描 MediaScanner', () => MediaScanner.loadMedia(path: filePath));
       debugPrint('MediaScanner.loadMedia succeeded for: $filePath');
     } catch (e) {
       debugPrint('MediaScanner.loadMedia failed: $e');
     }
 
     // 方法2：发送系统广播
-    await _sendMediaScanBroadcast(filePath);
+    await _sendMediaScanBroadcast(filePath, log);
 
     // 方法3：尝试使用MediaStore API（Android 10+）
     try {
       const MethodChannel channel = MethodChannel('com.example.app/media_scan');
-      await channel.invokeMethod('scanImage', {'path': filePath});
+      await log.step('相册扫描 scanImage',
+          () => channel.invokeMethod('scanImage', {'path': filePath}));
       debugPrint('MediaStore scan succeeded for: $filePath');
     } catch (e) {
       debugPrint('MediaStore scan failed: $e');

@@ -1,3 +1,6 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
+import 'package:my_first_flutter_app/service/CustomTagStore.dart';
+import '../../utils/ChartDifficulty.dart';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -134,11 +137,11 @@ class _PersonalizedDiffBest50PageState
         context: context,
         builder: (BuildContext context) {
           return AppAlertDialog(
-            title: Text('提示'),
-            content: Text('没有找到标签数据'),
+            title: Text(context.l10n.featureNotice),
+            content: Text(context.l10n.flowNoTagDataFound),
             actions: [
               TextButton(
-                child: Text('确定'),
+                child: Text(context.l10n.featureOK),
                 onPressed: () => Navigator.of(context).pop(),
               ),
             ],
@@ -167,7 +170,7 @@ class _PersonalizedDiffBest50PageState
       context: context,
       builder: (BuildContext context) {
         return AppAlertDialog(
-          title: Text('选择标签'),
+          title: Text(context.l10n.flowSelectTag),
           content: SizedBox(
             width: double.maxFinite,
             child: SingleChildScrollView(
@@ -197,7 +200,12 @@ class _PersonalizedDiffBest50PageState
                           onTap: () {
                             setState(() {
                               _selectedTagId = tag.id;
-                              _selectedTagName = tag.localizedName.zhHans;
+                              // 自定义标签可能与 DXRating 标签同名，显示时加标记区分。
+                              _selectedTagName = CustomTagStore.instance
+                                      .isCustomTagId(tag.id)
+                                  ? context.l10n.customTagMarked(
+                                      tag.localizedName.zhHans)
+                                  : tag.localizedName.zhHans;
                             });
                             Navigator.of(context).pop();
                             _loadDiffBest50Data();
@@ -212,7 +220,7 @@ class _PersonalizedDiffBest50PageState
           ),
           actions: [
             TextButton(
-              child: Text('取消'),
+              child: Text(context.l10n.featureCancel),
               onPressed: () => Navigator.of(context).pop(),
             ),
           ],
@@ -255,13 +263,18 @@ class _PersonalizedDiffBest50PageState
   Future<void> _exportToImage() async {
     try {
       if (_diffSongs.isEmpty) {
-        showAppNoticeDialog(context, title: '提示', message: '没有数据可导出');
+        showAppNoticeDialog(context,
+            title: context.l10n.featureNotice,
+            message: context.l10n.flowNoDataToExport);
         return;
       }
 
       bool hasPermission = await _requestStoragePermission();
       if (!hasPermission) {
-        showAppNoticeDialog(context, title: '权限不足', message: '需要存储权限才能导出图片到相册，请在设置中开启权限', tone: AppDialogTone.warning);
+        showAppNoticeDialog(context,
+            title: context.l10n.flowPermissionRequired,
+            message: context.l10n.flowStoragePermissionIsRequiredToExportImages,
+            tone: AppDialogTone.warning);
         return;
       }
 
@@ -270,12 +283,13 @@ class _PersonalizedDiffBest50PageState
         context,
         estimatedPngSize:
             ImageEncodeUtil.estimatePngSize(songCount: _diffSongs.length),
-        exportingLabel: '个性化拟合 Best50',
+        exportingLabel: context.l10n.featureCustomFittedBest50,
         enableThunderMode: true,
         previewBuilder: (previewContext, previewQuality) =>
             PersonalizedDiffBest50ConvertToImg.buildPreviewWidget(
           previewContext,
-          '个性化拟合Best50 - ${_selectedTagName ?? '标签'}',
+          context.l10n.flowPersonalizedFittedBest50P0(
+              (_selectedTagName ?? context.l10n.flowTags).toString()),
           _diffBest50Data,
           _diffSongs,
           _maimaiMusicData,
@@ -286,25 +300,27 @@ class _PersonalizedDiffBest50PageState
       );
       if (quality == null) return;
 
-
-      String title = '个性化拟合Best50 - ${_selectedTagName ?? '标签'}';
+      String title = context.l10n.flowPersonalizedFittedBest50P0(
+          (_selectedTagName ?? context.l10n.flowTags).toString());
 
       BackgroundExport.run(
-        label: '个性化拟合 Best50',
-        task: (exportContext) => PersonalizedDiffBest50ConvertToImg.convertToImage(
+        label: context.l10n.featureCustomFittedBest50,
+        task: (exportContext) =>
+            PersonalizedDiffBest50ConvertToImg.convertToImage(
           exportContext,
-        title,
-        _diffBest50Data,
-        _diffSongs,
-        _maimaiMusicData,
-        jpegQuality: quality.jpegQuality,
-        theme: quality.theme,
-        thunderMode: quality.thunderMode,
-        thunderVertical: quality.thunderVertical,
-      ),
+          title,
+          _diffBest50Data,
+          _diffSongs,
+          _maimaiMusicData,
+          jpegQuality: quality.jpegQuality,
+          theme: quality.theme,
+          thunderMode: quality.thunderMode,
+          thunderVertical: quality.thunderVertical,
+        ),
       );
     } catch (e) {
-      AppToast.show('导出失败：$e');
+      AppToast.show(context.l10n.flowExportFailedP02((e).toString()),
+          tone: AppToastTone.error);
     }
   }
 
@@ -315,13 +331,13 @@ class _PersonalizedDiffBest50PageState
     fontSizeBase = screenWidth * 0.035;
 
     return BackgroundPageScaffold(
-      title: '个性化拟合 Best50',
+      title: context.l10n.featureCustomFittedBest50,
       resizeToAvoidBottomInset: false,
       actionsEndInset: 4,
       actions: [
         if (_selectedTagId != null && _diffSongs.isNotEmpty) ...[
           Best50IconAction(
-            tooltip: '导出为图片',
+            tooltip: context.l10n.flowExportAsImage,
             icon: Icons.image_outlined,
             onPressed: () async {
               try {
@@ -349,8 +365,9 @@ class _PersonalizedDiffBest50PageState
                 Best50ActionButton(
                   icon: Icons.sell_outlined,
                   label: _selectedTagName != null
-                      ? '选择标签: $_selectedTagName'
-                      : '选择标签',
+                      ? context.l10n
+                          .flowSelectTagP0((_selectedTagName).toString())
+                      : context.l10n.flowSelectTag,
                   onPressed: _showTagSelectionDialog,
                 ),
                 SizedBox(height: 12.0),
@@ -383,7 +400,8 @@ class _PersonalizedDiffBest50PageState
                               for (final s in _remaining)
                                 _cardData(Map<String, dynamic>.from(s))
                             ],
-                            remainingLabel: 'RA ${_diffSongs.last['diffRating']}',
+                            remainingLabel:
+                                'RA ${_diffSongs.last['diffRating']}',
                           ),
                         ],
                       ),
@@ -410,7 +428,7 @@ class _PersonalizedDiffBest50PageState
                             color: Theme.of(context).colorScheme.onSurface),
                         SizedBox(height: 16),
                         Text(
-                          '正在计算个性化拟合Best50...',
+                          context.l10n.flowCalculatingPersonalizedFittedBest50,
                           style: TextStyle(
                             color: Theme.of(context).colorScheme.onSurface,
                             fontSize: 16,
@@ -442,7 +460,7 @@ class _PersonalizedDiffBest50PageState
           ),
           SizedBox(height: 12),
           Text(
-            '请先选择一个标签',
+            context.l10n.flowSelectATagFirst,
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -452,7 +470,7 @@ class _PersonalizedDiffBest50PageState
           ),
           SizedBox(height: 6),
           Text(
-            '选择标签后，将显示包含该标签且有游玩记录\n在拟合定数下RA前50的谱面',
+            context.l10n.flowSelectATagToShowYourTop,
             style: TextStyle(
               fontSize: 13,
               color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -479,7 +497,8 @@ class _PersonalizedDiffBest50PageState
           ),
           SizedBox(height: 12),
           Text(
-            '暂无标签"$_selectedTagName"的拟合Best50数据',
+            context.l10n
+                .flowNoFittedBest50DataForTagP0((_selectedTagName).toString()),
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -489,7 +508,7 @@ class _PersonalizedDiffBest50PageState
           ),
           SizedBox(height: 6),
           Text(
-            '该标签可能没有对应的游玩记录\n可尝试更换其他标签',
+            context.l10n.flowNoMatchingPlayRecordsMayExistTry,
             style: TextStyle(
               fontSize: 13,
               color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -500,7 +519,7 @@ class _PersonalizedDiffBest50PageState
           TextButton.icon(
             onPressed: _showTagSelectionDialog,
             icon: const Icon(Icons.swap_horiz, size: 16),
-            label: const Text('更换标签'),
+            label: Text(context.l10n.flowChangeTag),
             style: TextButton.styleFrom(
               foregroundColor: AppColors.linkBlue(Theme.of(context).brightness),
             ),
@@ -545,22 +564,26 @@ class _PersonalizedDiffBest50PageState
       children: [
         Best50Hero(
           total: diffRatingSum,
-          label:
-              '拟合总 Rating · 较该标签 Best50（平均 ${diffRatingAverage.toStringAsFixed(1)}）',
+          label: context.l10n.flowFittedTotalRatingDifferenceFromThisTag(
+              (diffRatingAverage.toStringAsFixed(1)).toString()),
           delta: (_diffBest50Data?['best50Diff'] as num?)?.toInt(),
         ),
         const SizedBox(height: 8),
-        Best50MetaLine(
-            '标签：${_selectedTagName ?? ''} · 共${_diffSongs.length}张谱面 · 在拟合定数下计算单曲Rating，取前50的谱面'),
+        Best50MetaLine(context.l10n.flowTagP0P1ChartsTop50By(
+            (_selectedTagName ?? '').toString(),
+            (_diffSongs.length).toString())),
         if (noFitDiffCount > 0) ...[
           const SizedBox(height: 4),
-          Best50MetaLine('$noFitDiffCount首暂无拟合定数，按照官方定数计算',
+          Best50MetaLine(
+              context.l10n.flowP0ChartsHaveNoFittedConstantOfficial(
+                  (noFitDiffCount).toString()),
               color: AppColors.warningOrange(brightness)),
         ],
         const SizedBox(height: AppDesignTokens.cardGap),
         Best50AveragesCard(
           rows: [
-            Best50AverageRow('平均', averageAchievement, averageScoreRate),
+            Best50AverageRow(
+                context.l10n.flowAverage, averageAchievement, averageScoreRate),
           ],
         ),
       ],
@@ -576,7 +599,7 @@ class _PersonalizedDiffBest50PageState
     final int songId = songData['song_id'] ?? 0;
     return Best50CardData(
       songId: songId,
-      title: songData['title'] ?? '未知歌曲',
+      title: songData['title'] ?? context.l10n.flowUnknownSong,
       levelIndex: levelIndex,
       type: songData['type'] ?? '',
       rating: songData['diffRating'] ?? 0,
@@ -594,8 +617,8 @@ class _PersonalizedDiffBest50PageState
         MaterialPageRoute(
           builder: (context) => SongInfoPage(
             songId: songId.toString(),
-            initialLevelIndex: levelIndex,
-            isDefaultLevelIndex: false,
+            initialLevelIndex:
+                ChartDifficulty.parseStandardIndex(songData['level_index']),
           ),
         ),
       ),
@@ -604,18 +627,15 @@ class _PersonalizedDiffBest50PageState
 
   // 根据数据构建游戏卡片
 
-
   // 构建游戏卡片（委托至通用 widget B50GameCardWidget，
   // 字号按卡片**实际**宽度自适应（`scale: autoScale`）。
   // 注：原 useOfficialDiff（黄星标记）已废弃，统一不在卡片中显示。
-
 
   // 构建小数文本
 
   // 构建双小数文本
 
   // 根据level_index获取卡片颜色
-
 
   // 计算scoreRate
   double _calculateScoreRate(int songId, int levelIndex, int score) {
@@ -658,5 +678,4 @@ class _PersonalizedDiffBest50PageState
   }
 
   // 构建导出按钮
-
 }

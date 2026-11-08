@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import 'package:my_first_flutter_app/manager/DivingFish/MaimaiMusicDataManager.dart';
@@ -267,7 +268,7 @@ class UserScoreSearchService {
       List<dynamic> songs, Map<String, List<String>> filterConditions) async {
     // 初始化缓存
     await _initSongCache();
-    final versions = filterConditions['版本筛选'] ?? const <String>[];
+    final versions = filterConditions[appL10n.flowVersionFilter] ?? const <String>[];
     final dsRanges = filterConditions['定数筛选'] ?? const <String>[];
     final difficulties = filterConditions['难度筛选'] ?? const <String>[];
     final achievementRanges = filterConditions['达成率筛选'] ?? const <String>[];

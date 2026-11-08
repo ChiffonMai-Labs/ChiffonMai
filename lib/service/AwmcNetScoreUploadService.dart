@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import '../utils/AppTaskActivity.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -65,7 +67,7 @@ class AwmcNetQrImportResult {
 
   /// 成功时给用户看的一行摘要。
   String get summary =>
-      '新增 $imported 条 · 更新 $updated 条 · 跳过 $skipped 条（机台共 $totalRecords 条）';
+      appL10n.svcP0AddedP1UpdatedP2SkippedP3(imported.toString(), updated.toString(), skipped.toString(), totalRecords.toString());
 }
 
 /// AWMC NET（https://net.wmc.pub）「同步成绩到 AWMC NET」。
@@ -97,47 +99,48 @@ class AwmcNetScoreUploadService {
   Future<AwmcNetQrImportResult> importByQr({
     required String importToken,
     required String sgwcmaid,
-  }) async {
-    final token = importToken.trim();
-    final qr = sgwcmaid.trim();
-    if (token.isEmpty) {
-      return AwmcNetQrImportResult.failure('还没有设置 AWMC NET 成绩导入 Token');
-    }
-    if (qr.isEmpty) {
-      return AwmcNetQrImportResult.failure('请先粘贴或扫描机台登入二维码');
-    }
+  }) =>
+      AppTaskActivity.run(() async {
+        final token = importToken.trim();
+        final qr = sgwcmaid.trim();
+        if (token.isEmpty) {
+          return AwmcNetQrImportResult.failure(appL10n.svcTheAWMCNETScoreImportTokenHas);
+        }
+        if (qr.isEmpty) {
+          return AwmcNetQrImportResult.failure(appL10n.svcPasteOrScanTheCabinetSignIn);
+        }
 
-    final uri = Uri.parse(ApiUrls.AwmcNetScoreQrApi);
-    // 出口固定校验：杜绝把 Token 发到别的域名
-    if (uri.host != Uri.parse(ApiUrls.AwmcNetBaseUrl).host) {
-      return AwmcNetQrImportResult.failure('拒绝请求非 AWMC NET 地址：${uri.host}');
-    }
+        final uri = Uri.parse(ApiUrls.AwmcNetScoreQrApi);
+        // 出口固定校验：杜绝把 Token 发到别的域名
+        if (uri.host != Uri.parse(ApiUrls.AwmcNetBaseUrl).host) {
+          return AwmcNetQrImportResult.failure(appL10n.svcRefusedARequestToANonAWMC(uri.host.toString()));
+        }
 
-    final sw = Stopwatch()..start();
-    final http.Response response;
-    try {
-      response = await ApiClient.postMultipart(
-        uri,
-        // 走 multipart 文本字段：接口另有一个 `file`（二维码图片）字段，
-        // 但 App 现有扫码流程拿到的是字符串，用 sgwcmaid 这条更直接。
-        fields: {'sgwcmaid': qr},
-        headers: {'Import-Token': token},
-        timeout: timeout,
-      );
-    } on TimeoutException {
-      return AwmcNetQrImportResult.failure(
-        '导入超时（已等待 ${timeout.inSeconds} 秒）。机台数据量大时会更久，请稍后重试',
-        elapsedMs: sw.elapsedMilliseconds,
-      );
-    } catch (e) {
-      return AwmcNetQrImportResult.failure(
-        '连接 AWMC NET 失败：${_redact(e.toString())}',
-        elapsedMs: sw.elapsedMilliseconds,
-      );
-    }
-    final elapsed = sw.elapsedMilliseconds;
-    return parseResponse(response, elapsed);
-  }
+        final sw = Stopwatch()..start();
+        final http.Response response;
+        try {
+          response = await ApiClient.postMultipart(
+            uri,
+            // 走 multipart 文本字段：接口另有一个 `file`（二维码图片）字段，
+            // 但 App 现有扫码流程拿到的是字符串，用 sgwcmaid 这条更直接。
+            fields: {'sgwcmaid': qr},
+            headers: {'Import-Token': token},
+            timeout: timeout,
+          );
+        } on TimeoutException {
+          return AwmcNetQrImportResult.failure(
+            appL10n.svcImportTimedOutAfterP0SecondsLarge(timeout.inSeconds.toString()),
+            elapsedMs: sw.elapsedMilliseconds,
+          );
+        } catch (e) {
+          return AwmcNetQrImportResult.failure(
+            appL10n.svcCouldNotConnectToAWMCNETP0((_redact(e.toString())).toString()),
+            elapsedMs: sw.elapsedMilliseconds,
+          );
+        }
+        final elapsed = sw.elapsedMilliseconds;
+        return parseResponse(response, elapsed);
+      });
 
   /// 把一次响应翻成结果。**抽成纯函数是为了能用真实响应体做单测**
   /// （下面的文案全部对着实测到的服务端原文写）。
@@ -145,6 +148,8 @@ class AwmcNetScoreUploadService {
   static AwmcNetQrImportResult parseResponse(
       http.Response response, int elapsedMs) {
     if (response.statusCode != 200) {
+      debugPrint('[AWMC NET] QR 导入失败：HTTP ${response.statusCode} '
+          '(${(elapsedMs / 1000).toStringAsFixed(1)}s)');
       return _failureForStatus(response, elapsedMs);
     }
 
@@ -153,7 +158,7 @@ class AwmcNetScoreUploadService {
       final decoded = json.decode(utf8.decode(response.bodyBytes));
       if (decoded is! Map) {
         return AwmcNetQrImportResult.failure(
-          'AWMC NET 返回了无法识别的数据',
+          appL10n.svcAWMCNETReturnedUnrecognizedData,
           elapsedMs: elapsedMs,
         );
       }
@@ -176,7 +181,7 @@ class AwmcNetScoreUploadService {
       return result;
     } catch (e) {
       return AwmcNetQrImportResult.failure(
-        '解析 AWMC NET 返回失败：$e',
+        appL10n.svcCouldNotParseTheAWMCNETResponse(e.toString()),
         elapsedMs: elapsedMs,
       );
     }
@@ -206,34 +211,43 @@ class AwmcNetScoreUploadService {
       final invalid = !detail.contains('需要提供');
       return AwmcNetQrImportResult.failure(
         invalid
-            ? 'AWMC NET 导入 Token 无效，请到 net.wmc.pub 设置页最底部重新生成'
-            : '缺少 AWMC NET 导入 Token',
+            ? appL10n.svcTheAWMCNETImportTokenIsInvalid2
+            : appL10n.svcTheAWMCNETImportTokenIsMissing,
         tokenInvalid: invalid,
+        elapsedMs: elapsed,
+      );
+    }
+    // 实测上游以 502 包裹 Chime 业务码 3002。它并不能证明二维码已过期，
+    // 也不代表导入 Token 无效；只展示已知错误，避免回显原文中的凭据或身份。
+    if (detail.contains('Chime') && RegExp(r'\b3002\b').hasMatch(detail)) {
+      debugPrint('[AWMC NET] 机台读取失败：upstream=Chime, code=3002');
+      return AwmcNetQrImportResult.failure(
+        appL10n.svcAWMCNETChimeUserReadFailed(response.statusCode.toString()),
         elapsedMs: elapsed,
       );
     }
     if (response.statusCode == 400) {
       return AwmcNetQrImportResult.failure(
         detail.contains('sgwcmaid') || detail.contains('二维码')
-            ? '机台二维码无效或已过期，请重新在公众号/机台获取后重试'
-            : 'AWMC NET 拒绝了请求：${clipped.isEmpty ? '参数不合法' : clipped}',
+            ? appL10n.svcTheCabinetQRCodeIsInvalidOr
+            : appL10n.svcAWMCNETRejectedTheRequestP0((clipped.isEmpty ? appL10n.svcInvalidParameters : clipped).toString()),
         elapsedMs: elapsed,
       );
     }
     if (response.statusCode == 429) {
       return AwmcNetQrImportResult.failure(
-        'AWMC NET 请求过于频繁，请稍后再试\n${quotaRetryHint(utf8.decode(response.bodyBytes))}',
+        appL10n.svcTooManyAWMCNETRequestsTryAgain((quotaRetryHint(utf8.decode(response.bodyBytes))).toString()),
         elapsedMs: elapsed,
       );
     }
     if (response.statusCode >= 500) {
       return AwmcNetQrImportResult.failure(
-        'AWMC NET 服务端异常（HTTP ${response.statusCode}），请稍后重试',
+        appL10n.svcAWMCNETServerErrorHTTPP0Try(response.statusCode.toString()),
         elapsedMs: elapsed,
       );
     }
     return AwmcNetQrImportResult.failure(
-      'AWMC NET 返回 HTTP ${response.statusCode}'
+      '${appL10n.svcAWMCNETReturnedHTTPP0(response.statusCode.toString())}'
       '${clipped.isEmpty ? '' : '：$clipped'}',
       elapsedMs: elapsed,
     );

@@ -1,3 +1,5 @@
+import '../../l10n/FeatureLocalizations.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
 import '../../service/Collection/CollectionSearchService.dart';
@@ -290,8 +292,8 @@ class _CollectionSearchPageState extends State<CollectionSearchPage> {
           builder: (context, setDialogState) {
             return AppAlertDialog(
               icon: const Icon(Icons.palette_outlined),
-              title: const Text('筛选称号底色'),
-              subtitle: '可同时选择多个底色',
+              title: Text(context.l10n.flowFilterTitleBackgroundColors),
+              subtitle: context.l10n.flowChooseMultipleColors,
               content: SingleChildScrollView(
                 child: GridView.count(
                   crossAxisCount: 2,
@@ -328,12 +330,12 @@ class _CollectionSearchPageState extends State<CollectionSearchPage> {
               actions: [
                 TextButton(
                   onPressed: () => setDialogState(draft.clear),
-                  child: const Text('清除选择'),
+                  child: Text(context.l10n.flowClearSelection),
                 ),
                 FilledButton(
                   onPressed: () =>
                       Navigator.pop(dialogContext, Set<String>.from(draft)),
-                  child: const Text('应用'),
+                  child: Text(context.l10n.flowApply),
                 ),
               ],
             );
@@ -355,12 +357,13 @@ class _CollectionSearchPageState extends State<CollectionSearchPage> {
   Future<void> _clearCache() async {
     try {
       await CollectionsManager().clearAllCache();
-      AppToast.show('缓存已清除，重新加载数据中...');
+      AppToast.show(context.l10n.flowCacheClearedReloading);
       // 重新执行搜索
       await _performSearch();
     } catch (e) {
       debugPrint('清除缓存时出错: $e');
-      AppToast.show('清除缓存失败');
+      AppToast.show(context.l10n.flowCouldNotClearCache,
+          tone: AppToastTone.error);
     }
   }
 
@@ -403,7 +406,7 @@ class _CollectionSearchPageState extends State<CollectionSearchPage> {
       controller: _searchController,
       textInputAction: TextInputAction.search,
       decoration: InputDecoration(
-        hintText: '搜索收藏品名称、描述或 ID',
+        hintText: context.l10n.flowSearchCollectibleNamesDescriptionsOrIDs,
         isDense: true,
         filled: true,
         fillColor: AppSurfaces.card(context),
@@ -412,7 +415,7 @@ class _CollectionSearchPageState extends State<CollectionSearchPage> {
         suffixIcon: _searchController.text.isEmpty
             ? null
             : IconButton(
-                tooltip: '清空',
+                tooltip: context.l10n.featureClear,
                 icon: const Icon(Icons.close_rounded, size: 20),
                 onPressed: () {
                   _searchController.clear();
@@ -448,21 +451,25 @@ class _CollectionSearchPageState extends State<CollectionSearchPage> {
             child: Row(
               children: [
                 FilterPill(
-                  label: '有歌曲要求',
+                  label: context.l10n.flowSongRequirements,
                   selected: _filterSongRequired,
                   onTap: _toggleSongRequiredFilter,
                 ),
                 if (_selectedType == 'trophies') ...[
                   const SizedBox(width: 6),
                   FilterPill(
-                    label: '底色',
-                    value: colorCount > 0 ? '$colorCount 种' : null,
+                    label: context.l10n.flowBackgroundColor,
+                    value: colorCount > 0
+                        ? context.l10n.flowP0Types((colorCount).toString())
+                        : null,
                     onTap: _showColorFilterDialog,
                   ),
                 ],
                 const SizedBox(width: 6),
                 FilterPill(
-                  label: _sortDescending ? 'ID 倒序' : 'ID 正序',
+                  label: _sortDescending
+                      ? context.l10n.flowIDDescending
+                      : context.l10n.flowIDAscending,
                   selected: _sortDescending,
                   onTap: _toggleSortOrder,
                 ),
@@ -472,7 +479,7 @@ class _CollectionSearchPageState extends State<CollectionSearchPage> {
         ),
         const SizedBox(width: 10),
         Text(
-          '${_searchResults.length} 个',
+          context.l10n.flowP0Items((_searchResults.length).toString()),
           style: AppTheme.number(
             fontSize: 13,
             fontWeight: FontWeight.w700,
@@ -544,7 +551,7 @@ class _CollectionSearchPageState extends State<CollectionSearchPage> {
               ),
             if (_requiresSongs(collection))
               Text(
-                '有歌曲要求',
+                context.l10n.flowSongRequirements,
                 style: TextStyle(
                   fontSize: 11.5,
                   fontWeight: FontWeight.w600,
@@ -553,7 +560,7 @@ class _CollectionSearchPageState extends State<CollectionSearchPage> {
               )
             else if (collection.required?.isNotEmpty ?? false)
               Text(
-                '有达成条件',
+                context.l10n.flowHasUnlockRequirements,
                 style: TextStyle(
                   fontSize: 11.5,
                   fontWeight: FontWeight.w600,
@@ -662,7 +669,8 @@ class _CollectionSearchPageState extends State<CollectionSearchPage> {
 
   Widget _buildResults() {
     final scheme = Theme.of(context).colorScheme;
-    final bottom = AppDesignTokens.gutter + MediaQuery.paddingOf(context).bottom;
+    final bottom =
+        AppDesignTokens.gutter + MediaQuery.paddingOf(context).bottom;
     const horizontal = AppDesignTokens.gutter;
     if (_searchResults.isEmpty) {
       if (_isSearching) {
@@ -682,7 +690,7 @@ class _CollectionSearchPageState extends State<CollectionSearchPage> {
                 size: 40, color: scheme.onSurfaceVariant),
             const SizedBox(height: 10),
             Text(
-              '未找到匹配的收藏品',
+              context.l10n.flowNoMatchingCollectibles,
               style: TextStyle(fontSize: 14, color: scheme.onSurfaceVariant),
             ),
           ],
@@ -690,7 +698,8 @@ class _CollectionSearchPageState extends State<CollectionSearchPage> {
       );
     }
     final results = _searchResults;
-    final key = ValueKey('$_selectedType-results');
+    final key = ValueKey(
+        '$_selectedType-$_sortDescending-$_filterSongRequired-results');
     return ListView.builder(
       key: key,
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
@@ -704,12 +713,12 @@ class _CollectionSearchPageState extends State<CollectionSearchPage> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return BackgroundPageScaffold(
-      title: '收藏品查询',
+      title: context.l10n.featureCollectibleLookup,
       actions: [
         IconButton(
           icon: const Icon(Icons.refresh_rounded),
           onPressed: _clearCache,
-          tooltip: '清除缓存并重新加载',
+          tooltip: context.l10n.flowClearCacheAndReload,
         ),
       ],
       resizeToAvoidBottomInset: false, // 防止键盘弹出时调整布局
@@ -728,7 +737,7 @@ class _CollectionSearchPageState extends State<CollectionSearchPage> {
                   height: 40,
                   items: [
                     for (final option in _typeOptions)
-                      SegmentedTabItem(option['label']!),
+                      SegmentedTabItem(context.featureText(option['label']!)),
                   ],
                   selectedIndex: _typeOptions
                       .indexWhere((o) => o['value'] == _selectedType),

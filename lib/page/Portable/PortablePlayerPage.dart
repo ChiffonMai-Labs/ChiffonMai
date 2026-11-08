@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:my_first_flutter_app/widgets/AppSwitch.dart';
 /*
  * 随身听 —— 曲库列表页。
@@ -143,14 +145,14 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
         _loading = false;
         _playListEntrance = true;
         if (songs.isEmpty) {
-          _error = '曲库还没准备好。请先回首页「刷新数据」，或检查网络后重试。';
+          _error = appL10n.flowTheLibraryIsNotReadyRefreshData;
         }
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error = '加载曲库失败：$e';
+        _error = appL10n.flowCouldNotLoadLibraryP0((e).toString());
       });
     }
   }
@@ -196,7 +198,8 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
       // 返回的是「还没问」的初始状态（isDenied/isPermanentlyDenied 都为 false），
       // 那种情况下用户其实没有拒绝，不该报提示。
       if (!status.isGranted) {
-        _showHint('未授予通知权限：音乐仍可后台播放，但不会显示通知栏播放器');
+        _showHint(context
+            .l10n.flowNotificationPermissionWasNotGrantedBackgroundPlayback);
       }
     } catch (e) {
       debugPrint('[Portable] 申请通知权限失败: $e');
@@ -232,7 +235,7 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
   Future<void> _downloadSong(PortableSong song) async {
     if (_downloadingLxnsId != null) return;
     if (!await ExportPathUtil.prepareForExport(context,
-        subDir: '歌曲', title: '选择歌曲保存位置')) {
+        subDir: '歌曲', title: context.l10n.flowChooseWhereToSaveTheSong)) {
       return;
     }
     setState(() {
@@ -261,15 +264,16 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
           context,
           filePath: file.path,
           fileName: song.title,
-          title: '下载成功',
-          successPrefix: '已下载',
+          title: context.l10n.flowDownloaded,
+          successPrefix: context.l10n.flowDownloaded2,
           fallbackPath: fallbackPath,
         );
       }
     } on AudioDownloadSourceException catch (e) {
       if (mounted) _showHint(e.message);
     } catch (e) {
-      if (mounted) _showHint('下载失败：$e');
+      if (mounted)
+        _showHint(context.l10n.flowDownloadFailedP02((e).toString()));
     } finally {
       if (mounted && _downloadingLxnsId == song.lxnsId) {
         setState(() {
@@ -318,7 +322,7 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
       index = _filtered.indexWhere((s) => s.lxnsId == current.lxnsId);
     }
     if (index < 0) {
-      if (!_loading) _showHint('当前播放的曲目不在列表里');
+      if (!_loading) _showHint(context.l10n.flowTheCurrentSongIsNotInThis);
       return;
     }
     // 清除搜索后等列表完成布局，再使用新的滚动范围。
@@ -351,27 +355,27 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
     final scheme = Theme.of(context).colorScheme;
 
     return BackgroundPageScaffold(
-      title: '随身听',
+      title: context.l10n.featureMusicPlayer,
       actions: [
         IconButton(
           icon: const Icon(Icons.my_location),
-          tooltip: '定位到正在播放',
+          tooltip: context.l10n.flowGoToCurrentSong,
           onPressed:
               _player.hasSong ? () => unawaited(_locateCurrentSong()) : null,
         ),
         IconButton(
           icon: const Icon(Icons.refresh),
-          tooltip: '重建曲库',
+          tooltip: context.l10n.flowRebuildLibrary,
           onPressed: _loading ? null : () => _loadLibrary(force: true),
         ),
         IconButton(
           icon: const Icon(Icons.settings_outlined),
-          tooltip: '随身听设置',
+          tooltip: context.l10n.flowMusicPlayerSettings,
           onPressed: _showPortableSettings,
         ),
         IconButton(
           icon: const Icon(Icons.queue_music),
-          tooltip: '下次想玩',
+          tooltip: context.l10n.featurePlayNext,
           onPressed: () => Navigator.of(context).push(
             MaterialPageRoute(builder: (_) => const NextPlayQueuePage()),
           ),
@@ -413,12 +417,13 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (dialogContext, setDialogState) => AppAlertDialog(
-          title: const Text('随身听设置'),
+          title: Text(context.l10n.flowMusicPlayerSettings),
           content: AppSwitchListTile(
             contentPadding: EdgeInsets.zero,
             value: PortablePlayerScope.showBallOnLibraryExit.value,
-            title: const Text('退出随身听页面时显示悬浮球'),
-            subtitle: const Text('关闭后，离开随身听页面也不会重新显示悬浮球'),
+            title:
+                Text(context.l10n.flowShowFloatingPlayerAfterLeavingThisPage),
+            subtitle: Text(context.l10n.flowWhenOffLeavingTheMusicPlayerWill),
             onChanged: (value) {
               unawaited(PortablePlayerScope.setShowBallOnLibraryExit(value));
               setDialogState(() {});
@@ -427,7 +432,7 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('完成'),
+              child: Text(context.l10n.featureDone),
             ),
           ],
         ),
@@ -445,7 +450,7 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
         textInputAction: TextInputAction.search,
         decoration: InputDecoration(
           isDense: true,
-          hintText: '搜索曲名 / 艺术家 / 流派 / 别名 / BPM / id',
+          hintText: context.l10n.flowSearchTitleArtistGenreAliasBPMID,
           prefixIcon: const Icon(Icons.search, size: 20),
           suffixIcon: _searchController.text.isEmpty
               ? null
@@ -514,105 +519,111 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(10, 10, 6, 10),
                 child: Row(
-              children: [
-                // 封面撑满右侧三行的高度；右边那一列被钉成同一个高度，
-                // 用 `spaceBetween` 把三行铺开 —— 字号缩放时也对得上。
-                SizedBox(
-                  width: coverSide,
-                  height: coverSide,
-                  child: PortableCover(
-                    song: song,
-                    size: coverSide,
-                    radius: AppDesignTokens.radiusSmall,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: SizedBox(
-                    height: coverSide,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        MarqueeText(
-                          text: song.title,
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: scheme.onPrimaryContainer,
-                          ),
-                        ),
-                        Text(
-                          _player.isPlaying ? '正在播放' : '已暂停',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: scheme.primary,
-                          ),
-                        ),
-                        // 第三行：进度条 + 时间（高度定成 20，见 coverSide 的注释）
-                        SizedBox(
-                          height: 20,
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: SliderTheme(
-                                  // 用主题里现成的配色，只把尺寸压扁到
-                                  // 「进度条」的量级；padding 收紧是为了
-                                  // 别把这一条撑成 48 高（拖拽命中区仍由
-                                  // overlay 保证）。
-                                  data: SliderTheme.of(context).copyWith(
-                                    trackHeight: 3,
-                                    thumbShape: const RoundSliderThumbShape(
-                                      enabledThumbRadius: 6,
-                                    ),
-                                    overlayShape: const RoundSliderOverlayShape(
-                                      overlayRadius: 12,
-                                    ),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                    ),
-                                  ),
-                                  child: Slider(
-                                    value: value,
-                                    onChanged: totalMs <= 0
-                                        ? null
-                                        : (v) => setState(() => _dragValue = v),
-                                    onChangeStart: totalMs <= 0
-                                        ? null
-                                        : (v) => setState(() => _dragValue = v),
-                                    onChangeEnd: totalMs <= 0
-                                        ? null
-                                        : (v) => unawaited(_seekToFraction(v)),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                '${_fmtClock(shown)} / ${_fmtClock(duration)}',
-                                style: AppTheme.number(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w500,
-                                  color: scheme.onPrimaryContainer,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                  children: [
+                    // 封面撑满右侧三行的高度；右边那一列被钉成同一个高度，
+                    // 用 `spaceBetween` 把三行铺开 —— 字号缩放时也对得上。
+                    SizedBox(
+                      width: coverSide,
+                      height: coverSide,
+                      child: PortableCover(
+                        song: song,
+                        size: coverSide,
+                        radius: AppDesignTokens.radiusSmall,
+                      ),
                     ),
-                  ),
-                ),
-                IconButton(
-                  icon: Icon(
-                    _player.isPlaying ? Icons.pause : Icons.play_arrow,
-                    color: scheme.primary,
-                  ),
-                  onPressed: () => _player.togglePlayPause(),
-                ),
-                const PortablePlaybackModeButton(
-                  iconButtonKey: Key('portablePlaybackModeButton'),
-                ),
-              ],
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: SizedBox(
+                        height: coverSide,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            MarqueeText(
+                              text: song.title,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: scheme.onPrimaryContainer,
+                              ),
+                            ),
+                            Text(
+                              _player.isPlaying
+                                  ? context.l10n.flowNowPlaying
+                                  : context.l10n.flowPaused,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: scheme.primary,
+                              ),
+                            ),
+                            // 第三行：进度条 + 时间（高度定成 20，见 coverSide 的注释）
+                            SizedBox(
+                              height: 20,
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: SliderTheme(
+                                      // 用主题里现成的配色，只把尺寸压扁到
+                                      // 「进度条」的量级；padding 收紧是为了
+                                      // 别把这一条撑成 48 高（拖拽命中区仍由
+                                      // overlay 保证）。
+                                      data: SliderTheme.of(context).copyWith(
+                                        trackHeight: 3,
+                                        thumbShape: const RoundSliderThumbShape(
+                                          enabledThumbRadius: 6,
+                                        ),
+                                        overlayShape:
+                                            const RoundSliderOverlayShape(
+                                          overlayRadius: 12,
+                                        ),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                        ),
+                                      ),
+                                      child: Slider(
+                                        value: value,
+                                        onChanged: totalMs <= 0
+                                            ? null
+                                            : (v) =>
+                                                setState(() => _dragValue = v),
+                                        onChangeStart: totalMs <= 0
+                                            ? null
+                                            : (v) =>
+                                                setState(() => _dragValue = v),
+                                        onChangeEnd: totalMs <= 0
+                                            ? null
+                                            : (v) =>
+                                                unawaited(_seekToFraction(v)),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '${_fmtClock(shown)} / ${_fmtClock(duration)}',
+                                    style: AppTheme.number(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w500,
+                                      color: scheme.onPrimaryContainer,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(
+                        _player.isPlaying ? Icons.pause : Icons.play_arrow,
+                        color: scheme.primary,
+                      ),
+                      onPressed: () => _player.togglePlayPause(),
+                    ),
+                    const PortablePlaybackModeButton(
+                      iconButtonKey: Key('portablePlaybackModeButton'),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -644,7 +655,9 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
       return _buildMessage(
         scheme,
         Icons.search_off,
-        _all.isEmpty ? '没有可播放的歌曲' : '没有匹配的歌曲',
+        _all.isEmpty
+            ? context.l10n.flowNoPlayableSongs
+            : context.l10n.flowNoMatchingSongs,
       );
     }
 
@@ -705,10 +718,12 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
   Widget _buildFooter(ColorScheme scheme) {
     final skipped = _library.skippedCount;
     final utage = _library.excludedUtageCount;
-    final buffer = StringBuffer('共 ${_filtered.length} 首可播放');
+    final buffer = StringBuffer(
+        context.l10n.flowP0PlayableSongs((_filtered.length).toString()));
     final notes = <String>[
-      if (utage > 0) '已排除宴会场 $utage 首',
-      if (skipped > 0) '水鱼无对应条目 $skipped 首',
+      if (utage > 0) context.l10n.flowExcludedP0UTAGESongs((utage).toString()),
+      if (skipped > 0)
+        context.l10n.flowP0SongsHaveNoDivingFishEntry((skipped).toString()),
     ];
     if (notes.isNotEmpty) {
       buffer.write(' · ${notes.join(' · ')}');
@@ -732,107 +747,111 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
       clipBehavior: Clip.antiAlias,
       borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
       child: InkWell(
-      onTap: () => _onTapSong(song),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(8, 8, 12, 8),
-        child: Row(
-          children: [
-            PortableCover(
-                song: song, size: 44, radius: AppDesignTokens.radiusSmall),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: MarqueeText(
-                          text: song.title,
-                          style: TextStyle(
-                            fontSize: 14.5,
-                            height: 1.35,
-                            fontWeight:
-                                isCurrent ? FontWeight.w700 : FontWeight.w500,
-                            color:
-                                isCurrent ? scheme.primary : scheme.onSurface,
+        onTap: () => _onTapSong(song),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 8, 12, 8),
+          child: Row(
+            children: [
+              PortableCover(
+                  song: song, size: 44, radius: AppDesignTokens.radiusSmall),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: MarqueeText(
+                            text: song.title,
+                            style: TextStyle(
+                              fontSize: 14.5,
+                              height: 1.35,
+                              fontWeight:
+                                  isCurrent ? FontWeight.w700 : FontWeight.w500,
+                              color:
+                                  isCurrent ? scheme.primary : scheme.onSurface,
+                            ),
                           ),
                         ),
-                      ),
-                      if (song.hasDx) ...[
-                        const SizedBox(width: 6),
-                        _badge('DX', scheme),
+                        if (song.hasDx) ...[
+                          const SizedBox(width: 6),
+                          _badge('DX', scheme),
+                        ],
                       ],
-                    ],
-                  ),
-                  const SizedBox(height: 2),
-                  MarqueeText(
-                    text: song.artist.isEmpty ? '未知艺术家' : song.artist,
-                    style: TextStyle(
-                      fontSize: 12,
-                      height: 1.35,
-                      color: scheme.onSurfaceVariant,
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 2),
+                    MarqueeText(
+                      text: song.artist.isEmpty
+                          ? context.l10n.flowUnknownArtist
+                          : song.artist,
+                      style: TextStyle(
+                        fontSize: 12,
+                        height: 1.35,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(width: 4),
-            IconButton(
-              tooltip: '下载歌曲',
-              visualDensity: VisualDensity.compact,
-              icon: _downloadingLxnsId == song.lxnsId
-                  ? _downloadProgressIndicator(scheme)
-                  : const Icon(Icons.download_outlined, size: 21),
-              onPressed:
-                  _downloadingLxnsId == null ? () => _downloadSong(song) : null,
-            ),
-            IconButton(
-              tooltip: '加入下次想玩',
-              visualDensity: VisualDensity.compact,
-              icon: const Icon(Icons.playlist_add, size: 21),
-              onPressed: () async {
-                final added = await showNextPlayAddDialog(context,
-                    songId: song.divingFishId,
-                    title: song.title,
-                    artist: song.artist,
-                    type: song.hasDx ? 'DX' : 'SD',
-                    coverId: song.audioId,
-                    difficulties: NextPlayDifficultyOption.standard(
-                      count: song.difficultyConstants.isEmpty
-                          ? 5
-                          : song.difficultyConstants.length,
-                      constants: song.difficultyConstants
-                          .map((value) => value.toStringAsFixed(1))
-                          .toList(),
-                    ));
-                if (mounted && added) {
-                  AppToast.show('已加入下次想玩');
-                }
-              },
-            ),
-            // 行内 loading：只在这一首「还在建源 / 还在缓冲」时转。
-            // 别只看 `_player.isLoading` —— 见 playAt 的注释：`play()` 的
-            // future 挂满整首歌，用它会出现「已经播了，右边还在转圈」。
-            if (isPending ||
-                (isCurrent && (_player.isLoading || _player.isBuffering)))
-              const SizedBox(
-                width: 22,
-                height: 22,
-                child: CircularProgressIndicator(strokeWidth: 2.2),
-              )
-            else if (isCurrent && _player.isPlaying)
-              Icon(Icons.graphic_eq, size: 22, color: scheme.primary)
-            else
-              Icon(
-                Icons.play_circle_outline,
-                size: 24,
-                color: scheme.onSurfaceVariant,
+              const SizedBox(width: 4),
+              IconButton(
+                tooltip: context.l10n.flowDownloadSong,
+                visualDensity: VisualDensity.compact,
+                icon: _downloadingLxnsId == song.lxnsId
+                    ? _downloadProgressIndicator(scheme)
+                    : const Icon(Icons.download_outlined, size: 21),
+                onPressed: _downloadingLxnsId == null
+                    ? () => _downloadSong(song)
+                    : null,
               ),
-          ],
+              IconButton(
+                tooltip: context.l10n.flowAddToPlayNext,
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.playlist_add, size: 21),
+                onPressed: () async {
+                  final added = await showNextPlayAddDialog(context,
+                      songId: song.divingFishId,
+                      title: song.title,
+                      artist: song.artist,
+                      type: song.hasDx ? 'DX' : 'SD',
+                      coverId: song.audioId,
+                      difficulties: NextPlayDifficultyOption.standard(
+                        count: song.difficultyConstants.isEmpty
+                            ? 5
+                            : song.difficultyConstants.length,
+                        constants: song.difficultyConstants
+                            .map((value) => value.toStringAsFixed(1))
+                            .toList(),
+                      ));
+                  if (mounted && added) {
+                    AppToast.show(context.l10n.flowAddedToPlayNext,
+                        tone: AppToastTone.success);
+                  }
+                },
+              ),
+              // 行内 loading：只在这一首「还在建源 / 还在缓冲」时转。
+              // 别只看 `_player.isLoading` —— 见 playAt 的注释：`play()` 的
+              // future 挂满整首歌，用它会出现「已经播了，右边还在转圈」。
+              if (isPending ||
+                  (isCurrent && (_player.isLoading || _player.isBuffering)))
+                const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(strokeWidth: 2.2),
+                )
+              else if (isCurrent && _player.isPlaying)
+                Icon(Icons.graphic_eq, size: 22, color: scheme.primary)
+              else
+                Icon(
+                  Icons.play_circle_outline,
+                  size: 24,
+                  color: scheme.onSurfaceVariant,
+                ),
+            ],
+          ),
         ),
-      ),
       ),
     );
   }
@@ -864,7 +883,8 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
   }
 
   static String _formatDownloadSpeed(double? bytesPerSecond) {
-    if (bytesPerSecond == null || bytesPerSecond <= 0) return '计算中';
+    if (bytesPerSecond == null || bytesPerSecond <= 0)
+      return appL10n.flowCalculating;
     if (bytesPerSecond >= 1024 * 1024) {
       return '${(bytesPerSecond / (1024 * 1024)).toStringAsFixed(1)} MB/s';
     }

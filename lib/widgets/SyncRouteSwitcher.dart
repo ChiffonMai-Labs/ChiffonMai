@@ -1,3 +1,5 @@
+import '../l10n/FeatureLocalizations.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'AnimatedChoiceBar.dart';
 import 'package:flutter/material.dart';
 
@@ -35,7 +37,7 @@ class SyncRouteSwitcher extends StatelessWidget {
         Icon(Icons.alt_route, size: 15, color: scheme.onSurfaceVariant),
         const SizedBox(width: 6),
         Text(
-          '线路',
+          context.l10n.flowRoute,
           style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
         ),
         const SizedBox(width: 8),
@@ -49,8 +51,9 @@ class SyncRouteSwitcher extends StatelessWidget {
                 SyncRouteStore.routeScoreHub
               ],
               value: value,
-              label: (route) =>
-                  route == SyncRouteStore.routeAwmc ? '线路1' : '线路2',
+              label: (route) => route == SyncRouteStore.routeAwmc
+                  ? context.l10n.flowRoute1
+                  : context.l10n.flowRoute2,
               onChanged: enabled ? onChanged : null,
             )),
         const SizedBox(width: 8),
@@ -59,7 +62,7 @@ class SyncRouteSwitcher extends StatelessWidget {
             offset: const Offset(-6, 0),
             child: FadeContent(
               child: Text(
-                SyncRouteStore.routeName(value),
+                context.featureText(SyncRouteStore.routeName(value)),
                 key: ValueKey(value),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,

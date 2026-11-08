@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/FeatureLocalizations.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart' show SystemNavigator;
@@ -15,7 +17,10 @@ import '../widgets/AppLauncherIcon.dart';
 
 /// ChiffonMai 的首次使用与功能更新引导。
 class OnboardingPage extends StatefulWidget {
-  const OnboardingPage({super.key});
+  /// 首次启动直接作为入口页时交还给主界面；从设置打开时仍按路由返回。
+  final VoidCallback? onCompleted;
+
+  const OnboardingPage({super.key, this.onCompleted});
 
   @override
   State<OnboardingPage> createState() => _OnboardingPageState();
@@ -34,6 +39,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
   late final TapGestureRecognizer _privacyTap;
   DateTime? _lastBack;
   bool _permissionsLoading = true;
+  bool _permissionStatusesRequested = false;
   final Map<_OnboardingPermission, PermissionStatus> _permissionStatuses = {};
 
   static const _steps = <_OnboardingStepData>[
@@ -54,7 +60,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
       title: '先刷新数据，再开始探索',
       description: '刷新数据会准备曲库、定数、标签和成绩。\n不登录也可以先逛逛。',
       rows: [
-        _OnboardingRow(Icons.refresh_rounded, '刷新数据', '在「我的」页，或点首页的 Rating 进入'),
+        _OnboardingRow(Icons.refresh_rounded, '拉取成绩并更新数据', '在「我的」页，或点首页的 Rating 进入'),
         _OnboardingRow(Icons.sync_rounded, '同步成绩', '水鱼、落雪和 AWMC NET，需先绑定账号'),
         _OnboardingRow(Icons.autorenew_rounded, '自动同步', '开启后每天分时处理，首页随时能看结果'),
       ],
@@ -118,7 +124,6 @@ class _OnboardingPageState extends State<OnboardingPage> {
     _privacyTap = TapGestureRecognizer()
       ..onTap =
           () => LegalDocumentPage.open(context, AppLegalDocument.privacyPolicy);
-    _refreshPermissionStatuses();
   }
 
   @override
@@ -138,11 +143,16 @@ class _OnboardingPageState extends State<OnboardingPage> {
           agreedAt: _agreedAt!,
           guardianConsent: _guardianConsent);
       if (!mounted) return;
-      Navigator.of(context).pop();
+      final onCompleted = widget.onCompleted;
+      if (onCompleted != null) {
+        onCompleted();
+      } else {
+        Navigator.of(context).pop();
+      }
     } catch (_) {
       if (!mounted) return;
       setState(() => _closing = false);
-      AppToast.show('确认记录保存失败，请重试');
+      AppToast.show(context.l10n.flowCouldNotSaveConfirmationPleaseRetry, tone: AppToastTone.error);
     }
   }
 
@@ -187,20 +197,20 @@ class _OnboardingPageState extends State<OnboardingPage> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, update) => AppAlertDialog(
-          title: const Text('监护人单独同意'),
+          title:  Text(context.l10n.flowSeparateGuardianConsent),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('请将设备交由监护人操作。监护人应阅读以下文件，了解所处理的信息、用途，以及查询和删除信息的方式。'),
+                 Text(context.l10n.flowPleaseHandTheDeviceToAGuardian),
                 const SizedBox(height: 8),
                 Wrap(children: [
                   for (final document in AppLegalDocument.values)
                     TextButton(
                       onPressed: () =>
                           LegalDocumentPage.open(context, document),
-                      child: Text('《${document.title}》'),
+                      child: Text('《${context.featureText(document.title)}》'),
                     ),
                 ]),
                 const SizedBox(height: 8),
@@ -209,22 +219,22 @@ class _OnboardingPageState extends State<OnboardingPage> {
                   controlAffinity: ListTileControlAffinity.leading,
                   value: confirmed,
                   onChanged: (value) => update(() => confirmed = value == true),
-                  title: const Text(
-                      '我是该用户的监护人，已阅读并同意《用户协议》和《隐私政策》，同意为提供相应功能处理被监护人的必要个人信息。'),
+                  title:  Text(
+                      context.l10n.flowIAmThisUserSGuardianI),
                 ),
                 const SizedBox(height: 8),
-                const Text('同意后，仍可按需选择权限和相关功能；也可按隐私政策说明撤回授权或申请删除信息。'),
+                 Text(context.l10n.flowAfterConsentPermissionsAndFeaturesRemainOptional),
               ],
             ),
           ),
           actions: [
             TextButton(
                 onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('取消')),
+                child:  Text(context.l10n.featureCancel)),
             FilledButton(
                 onPressed:
                     confirmed ? () => Navigator.of(context).pop(true) : null,
-                child: const Text('监护人同意')),
+                child:  Text(context.l10n.flowGuardianConsent)),
           ],
         ),
       ),
@@ -253,10 +263,10 @@ class _OnboardingPageState extends State<OnboardingPage> {
           return;
         }
         _lastBack = now;
-        AppToast.show('再返回一次退出应用', duration: Duration(seconds: 2));
+        AppToast.show(context.l10n.flowGoBackOnceMoreToExit, duration: Duration(seconds: 2));
       },
       child: BackgroundPageScaffold(
-        title: 'ChiffonMai 入门',
+        title: context.l10n.flowGettingStartedWithChiffonMai,
         showBack: false,
         headerOverride: const SizedBox.shrink(),
         contentPadding: EdgeInsets.zero,
@@ -295,7 +305,14 @@ class _OnboardingPageState extends State<OnboardingPage> {
                 // 仅通过按钮前进；返回可回到上一页，不把退出应用记作完成。
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: _pageCount,
-                onPageChanged: (value) => setState(() => _page = value),
+                onPageChanged: (value) {
+                  setState(() => _page = value);
+                  // 权限状态只在用户进入权限页时查询，不挤占欢迎页的首帧。
+                  if (value == _steps.length + 1 &&
+                      !_permissionStatusesRequested) {
+                    _refreshPermissionStatuses();
+                  }
+                },
                 itemBuilder: (context, index) {
                   if (index == 0) return _buildWelcomeStep(context);
                   if (index <= _steps.length) {
@@ -323,7 +340,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                         : Padding(
                             padding: const EdgeInsets.only(right: 8),
                             child: IconButton.filledTonal(
-                              tooltip: '上一步',
+                              tooltip: context.l10n.flowPrevious3,
                               onPressed: _closing || _changingPage
                                   ? null
                                   : () => _goToPage(_page - 1),
@@ -336,7 +353,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                       scale: 0.98,
                       child: FilledButton(
                         onPressed: _canProceed ? _next : null,
-                        child: Text(_isLastPage ? '开始探索' : '下一步'),
+                        child: Text(_isLastPage ? context.l10n.flowStartExploring : context.l10n.flowNext3),
                       ),
                     ),
                   ),
@@ -446,9 +463,9 @@ class _OnboardingPageState extends State<OnboardingPage> {
     return _buildCharacterStep(
       context,
       visual: const AppLauncherIcon(size: 96),
-      title: '欢迎来到 ChiffonMai',
+      title: context.l10n.flowWelcomeToChiffonMai,
       // 手动断句：两行长度相近，不会只剩一个字掉到下一行
-      description: '歌曲、谱面、成绩与实用工具都在这里，\n从查一首歌到推一次分，慢慢来就好。',
+      description: context.l10n.flowSongsChartsScoresAndUsefulToolsAll,
     );
   }
 
@@ -463,13 +480,14 @@ class _OnboardingPageState extends State<OnboardingPage> {
             BoxDecoration(color: scheme.primary, shape: BoxShape.circle),
         child: Icon(Icons.check_rounded, size: 56, color: scheme.onPrimary),
       ),
-      speech: '都准备好了呢。记得先刷新一下数据哦？',
-      title: '准备完成！',
-      description: '接下来，就从一首歌开始探索吧。',
+      speech: context.l10n.flowEverythingIsReadyRememberToRefreshData,
+      title: context.l10n.flowAllSet,
+      description: context.l10n.flowStartExploringWithASong,
     );
   }
 
   Future<void> _refreshPermissionStatuses() async {
+    _permissionStatusesRequested = true;
     final statuses = <_OnboardingPermission, PermissionStatus>{};
     for (final item in _permissions) {
       statuses[item.permission] = await _statusFor(item.permission);
@@ -551,18 +569,18 @@ class _OnboardingPageState extends State<OnboardingPage> {
       await _refreshPermissionStatuses();
     } catch (error) {
       if (!mounted) return;
-      AppToast.show('申请权限失败：$error');
+      AppToast.show(context.l10n.flowCouldNotRequestPermissionP0((error).toString()), tone: AppToastTone.error);
     } finally {
       if (mounted) setState(() => _requestingPermission = false);
     }
   }
 
   String _permissionStatusLabel(PermissionStatus? status) {
-    if (_permissionsLoading || status == null) return '检查中';
-    if (status.isGranted) return '已允许';
-    if (status.isLimited) return '有限访问';
-    if (status.isPermanentlyDenied || status.isRestricted) return '请前往设置';
-    return '未允许';
+    if (_permissionsLoading || status == null) return context.l10n.flowChecking;
+    if (status.isGranted) return context.l10n.flowAllowed;
+    if (status.isLimited) return context.l10n.flowLimitedAccess;
+    if (status.isPermanentlyDenied || status.isRestricted) return context.l10n.flowOpenSettings3;
+    return context.l10n.flowNotAllowed;
   }
 
   Widget _buildPermissionStep(BuildContext context) {
@@ -574,7 +592,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            '协议与权限',
+            context.l10n.flowAgreementsAndPermissions,
             style: TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.w800,
@@ -584,7 +602,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
           ),
           const SizedBox(height: 6),
           Text(
-            '先确认协议才能继续。权限可以现在允许，也可以等用到时再说。',
+            context.l10n.flowAgreeToTheDocumentsFirstYouCan,
             style: TextStyle(
                 fontSize: 14.5, height: 1.5, color: scheme.onSurfaceVariant),
           ),
@@ -600,7 +618,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
             ),
           const SizedBox(height: 4),
           Text(
-            '网络、后台播放和安全存储由系统自动管理，不需要在这里单独授权。',
+            context.l10n.flowTheSystemManagesNetworkAccessBackgroundPlayback,
             style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
           ),
         ],
@@ -626,7 +644,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                 onChanged: _requestingPermission
                     ? null
                     : (value) => _setAgreement(value == true),
-                semanticLabel: '我已阅读并同意用户协议和隐私政策',
+                semanticLabel: context.l10n.flowIHaveReadAndAgreeToThe,
               ),
               Expanded(
                 child: FittedBox(
@@ -634,14 +652,14 @@ class _OnboardingPageState extends State<OnboardingPage> {
                   alignment: Alignment.centerLeft,
                   child: Text.rich(
                     TextSpan(children: [
-                      const TextSpan(text: '我已阅读并同意'),
+                       TextSpan(text: context.l10n.flowIHaveReadAndAgreeTo),
                       TextSpan(
-                          text: '《用户协议》',
+                          text: context.l10n.flowUserAgreement,
                           style: linkStyle,
                           recognizer: _agreementTap),
-                      const TextSpan(text: '和'),
+                       TextSpan(text: context.l10n.flowAnd),
                       TextSpan(
-                          text: '《隐私政策》',
+                          text: context.l10n.flowPrivacyPolicy,
                           style: linkStyle,
                           recognizer: _privacyTap),
                     ]),
@@ -663,11 +681,10 @@ class _OnboardingPageState extends State<OnboardingPage> {
               children: [
                 const SizedBox(height: 4),
                 Text(
-                    '为提供游戏服务，我们会处理你的游玩记录、歌曲成绩、账号及设备标识等必要信息；'
-                    '多人联机对战会实时传输对局通信数据，仅用于维持联机功能。',
+                    context.l10n.flowToProvideTheGameServiceWeProcess,
                     style: style),
                 const SizedBox(height: 8),
-                Text('未满18周岁请在监护人指导下使用。未满14周岁需由监护人单独同意。', style: style),
+                Text(context.l10n.flowUsersUnder18ShouldUseTheApp, style: style),
                 TextButton(
                   style: TextButton.styleFrom(
                     padding: EdgeInsets.zero,
@@ -677,7 +694,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                   onPressed:
                       _requestingPermission ? null : _showGuardianConsent,
                   child:
-                      Text(_guardianConsent ? '监护人已单独同意' : '未满14周岁，由监护人完成同意'),
+                      Text(_guardianConsent ? context.l10n.flowGuardianHasGivenSeparateConsent : context.l10n.flowUnder14GuardianMustProvideConsent),
                 ),
               ],
             ),
@@ -722,7 +739,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                   Row(
                     children: [
                       Text(
-                        item.title,
+                        context.featureText(item.title),
                         style: TextStyle(
                           fontSize: 14.5,
                           fontWeight: FontWeight.w700,
@@ -743,8 +760,8 @@ class _OnboardingPageState extends State<OnboardingPage> {
                   const SizedBox(height: 2),
                   Text(
                     item.fullAccessHint
-                        ? '${item.description} 请在系统弹窗中选择“允许完全访问”。'
-                        : item.description,
+                        ? context.l10n.flowP0SelectAllowFullAccessInThe(context.featureText(item.description))
+                        : context.featureText(item.description),
                     style: TextStyle(
                         fontSize: 12.5,
                         height: 1.45,
@@ -755,8 +772,8 @@ class _OnboardingPageState extends State<OnboardingPage> {
                       padding: const EdgeInsets.only(top: 2),
                       child: Text(
                         item.fullAccessHint && status?.isLimited == true
-                            ? '当前是有限访问，请在系统设置中改为“允许完全访问”。'
-                            : '当前未授权，使用相关功能时仍会再次请求。',
+                            ? context.l10n.flowAccessIsCurrentlyLimitedChangeToAllow
+                            : context.l10n.flowNotAuthorizedYetPermissionWillBeRequested,
                         style: TextStyle(fontSize: 12.5, color: scheme.error),
                       ),
                     ),
@@ -768,7 +785,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                   !_hasAgreed || _permissionsLoading || _requestingPermission
                       ? null
                       : () => _requestPermission(item.permission),
-              child: Text(needsSettings ? '去设置' : '允许'),
+              child: Text(needsSettings ? context.l10n.flowOpenSettings : context.l10n.flowAllow),
             ),
           ],
         ),
@@ -821,7 +838,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                   EntranceAnimation(
                     baseDelay: const Duration(milliseconds: 80),
                     child: Text(
-                      step.title,
+                      context.featureText(step.title),
                       style: TextStyle(
                         fontSize: 26,
                         fontWeight: FontWeight.w800,
@@ -834,7 +851,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                   EntranceAnimation(
                     baseDelay: const Duration(milliseconds: 120),
                     child: Text(
-                      step.description,
+                      context.featureText(step.description),
                       style: TextStyle(
                           fontSize: 14.5,
                           height: 1.5,
@@ -899,7 +916,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  row.title,
+                  context.featureText(row.title),
                   style: TextStyle(
                     fontSize: 14.5,
                     fontWeight: FontWeight.w700,
@@ -907,7 +924,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                   ),
                 ),
                 Text(
-                  row.subtitle,
+                  context.featureText(row.subtitle),
                   style: TextStyle(
                     fontSize: 13,
                     height: 1.4,
@@ -1023,7 +1040,7 @@ class _OnboardingHeroArt extends StatelessWidget {
         const SizedBox(height: 12),
         Wrap(
           spacing: 6,
-          children: [chip('水鱼'), chip('落雪'), chip('AWMC NET')],
+          children: [chip(context.l10n.featureFish), chip(context.l10n.featureLxns), chip('AWMC NET')],
         ),
       ],
     );
@@ -1074,9 +1091,9 @@ class _OnboardingHeroArt extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        card(const Color(0xFFF7FAF9), const Color(0xFF1B2B2B), '浅色', -0.08, 6),
-        card(const Color(0xFF1F2A2A), const Color(0xFFE6EEEE), '深色', 0, -4),
-        card(const Color(0xFF000000), const Color(0xFFFFFFFF), '纯黑', 0.08, 6),
+        card(const Color(0xFFF7FAF9), const Color(0xFF1B2B2B), context.l10n.lightMode, -0.08, 6),
+        card(const Color(0xFF1F2A2A), const Color(0xFFE6EEEE), context.l10n.darkMode, 0, -4),
+        card(const Color(0xFF000000), const Color(0xFFFFFFFF), context.l10n.exportBlackTheme, 0.08, 6),
       ],
     );
   }

@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../utils/TranslationUtil.dart';
@@ -26,10 +27,13 @@ class _SongTitleDialogState extends State<SongTitleDialog> {
       if (!mounted) return;
       setState(() {
         _translation = translated;
-        if (translated == null || translated.isEmpty) _error = '暂时无法翻译，请稍后重试';
+        if (translated == null || translated.isEmpty)
+          _error = context.l10n.flowTranslationIsUnavailableTryAgainLater;
       });
     } catch (_) {
-      if (mounted) setState(() => _error = '翻译失败，请稍后重试');
+      if (mounted)
+        setState(
+            () => _error = context.l10n.flowTranslationFailedTryAgainLater);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -37,7 +41,7 @@ class _SongTitleDialogState extends State<SongTitleDialog> {
 
   @override
   Widget build(BuildContext context) => AppAlertDialog(
-        title: const Text('歌曲标题'),
+        title: Text(context.l10n.flowSongTitle2),
         content: SingleChildScrollView(
             child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -50,7 +54,7 @@ class _SongTitleDialogState extends State<SongTitleDialog> {
                 const SizedBox(height: 8),
                 SelectableText(_translation!),
                 const SizedBox(height: 8),
-                Text('由百度大模型翻译',
+                Text(context.l10n.flowTranslatedByBaiduSLanguageModel,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: Theme.of(context).colorScheme.onSurfaceVariant)),
               ],
@@ -70,7 +74,9 @@ class _SongTitleDialogState extends State<SongTitleDialog> {
                             height: 16,
                             child: CircularProgressIndicator(strokeWidth: 2))
                         : const Icon(Icons.translate),
-                    label: Text(_loading ? '翻译中…' : '翻译为中文')),
+                    label: Text(_loading
+                        ? context.l10n.flowTranslating
+                        : context.l10n.flowTranslateToChinese)),
               ],
             ])),
         actions: [
@@ -78,11 +84,13 @@ class _SongTitleDialogState extends State<SongTitleDialog> {
               onPressed: () async {
                 await Clipboard.setData(ClipboardData(text: widget.title));
                 if (context.mounted)
-                  AppToast.show('已复制到剪贴板');
+                  AppToast.show(context.l10n.flowCopiedToClipboard,
+                      tone: AppToastTone.success);
               },
-              child: const Text('复制')),
+              child: Text(context.l10n.flowCopy)),
           TextButton(
-              onPressed: () => Navigator.pop(context), child: const Text('关闭')),
+              onPressed: () => Navigator.pop(context),
+              child: Text(context.l10n.featureClose)),
         ],
       );
 }

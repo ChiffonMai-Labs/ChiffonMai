@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 
 import '../../service/AWMC/AwmcApiService.dart';
@@ -99,11 +101,14 @@ class AwmcUi {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    _kv(ctx, '接口', '${result.method} ${result.path}'),
+                    _kv(ctx, context.l10n.flowEndpoint,
+                        '${result.method} ${result.path}'),
                     _kv(
                       ctx,
-                      '结果',
-                      result.ok ? '业务成功' : result.displayMessage,
+                      context.l10n.flowResult,
+                      result.ok
+                          ? context.l10n.flowBusinessOperationSucceeded
+                          : result.displayMessage,
                       valueColor: result.ok ? okColor(ctx) : warnColor(ctx),
                     ),
                     _kv(ctx, 'HTTP', '${result.httpStatus}'),
@@ -118,13 +123,16 @@ class AwmcUi {
                             ? '${msgShown.substring(0, resultMsgMaxChars)}…'
                             : msgShown,
                         note: msgClipped
-                            ? '上游 msg 过长已截断（完整 ${msgShown.length} 字符）'
+                            ? context.l10n
+                                .flowUpstreamMessageTruncatedFullLengthP0Characters(
+                                    (msgShown.length).toString())
                             : null,
                       ),
-                    _kv(ctx, '耗时', '${result.elapsedMs} ms'),
+                    _kv(ctx, context.l10n.flowDuration,
+                        '${result.elapsedMs} ms'),
                     _kv(
                       ctx,
-                      '计费',
+                      context.l10n.flowBilling,
                       result.billingNote,
                       valueColor: result.ok ? warnColor(ctx) : null,
                     ),
@@ -141,7 +149,7 @@ class AwmcUi {
                         const SizedBox(width: 8),
                         if (result.businessData == null)
                           Text(
-                            '（无）',
+                            context.l10n.flowNone,
                             style: TextStyle(color: scheme.onSurfaceVariant),
                           ),
                       ],
@@ -181,12 +189,12 @@ class AwmcUi {
                           );
                         },
                         icon: const Icon(Icons.unfold_more, size: 18),
-                        label: const Text('查看完整数据'),
+                        label: Text(context.l10n.flowViewFullData),
                       ),
                     ],
                     const SizedBox(height: 8),
                     Text(
-                      '数据仅在本机展示，不会上传到任何第三方。',
+                      context.l10n.flowDataIsShownOnlyOnThisDevice,
                       style: TextStyle(
                         fontSize: 12,
                         color: scheme.onSurfaceVariant,
@@ -203,7 +211,7 @@ class AwmcUi {
                 width: double.infinity,
                 child: FilledButton(
                   onPressed: () => Navigator.pop(ctx),
-                  child: const Text('关闭'),
+                  child: Text(context.l10n.featureClose),
                 ),
               ),
             ),
@@ -274,7 +282,7 @@ class AwmcUi {
     required String label,
     required String hint,
     String? footer,
-    String confirmText = '保存',
+    String? confirmText,
     bool multilineWhenVisible = false,
     bool showQrQuickFill = false,
   }) async {
@@ -286,7 +294,7 @@ class AwmcUi {
         label: label,
         hint: hint,
         footer: footer,
-        confirmText: confirmText,
+        confirmText: confirmText ?? context.l10n.save,
         multilineWhenVisible: multilineWhenVisible,
         showQrQuickFill: showQrQuickFill,
       ),
@@ -299,13 +307,11 @@ class AwmcUi {
   /// 输入网关令牌（gw_...）。取消/留空返回 null。
   static Future<String?> askToken(BuildContext context) => _askSecret(
         context,
-        title: '设置网关令牌',
-        body: '令牌来自 AWMC 控制台（api.wmc.pub），形如 gw_xxxx。\n\n'
-            '⚠️ 令牌等同于你的账户操作权限与余额，请勿截图、勿粘贴到聊天/公开仓库。'
-            '若怀疑泄露，请立即到控制台吊销并重新生成。',
+        title: context.l10n.flowSetGatewayToken,
+        body: context.l10n.flowGetThisTokenFromTheAWMCConsole,
         label: 'AwmcGateway Token',
         hint: 'gw_...',
-        footer: '令牌保存在本机（可随时清除），不会随备份导出。',
+        footer: context.l10n.flowTokenStaysOnThisDeviceCanBe,
       );
 
   /// 输入机台 qrcode（SGWCMAID...）。取消或格式不对返回 null。
@@ -315,28 +321,24 @@ class AwmcUi {
   /// 不同的 [title] / [body]，提醒用户换一张新的二维码。
   static Future<String?> askQrcode(
     BuildContext context, {
-    String title = '输入机台二维码',
+    String? title,
     String? body,
   }) async {
     final qrcode = await _askSecret(
       context,
-      title: title,
-      body: body ??
-          '与「同步成绩」用的是同一串二维码内容（SGWCMAID 开头），'
-              '可直接从微信/相机识别结果里复制。\n\n'
-              '⚠️ 该二维码等同于机台登录凭据，只能用于你自己的账号。',
-      label: '二维码内容',
+      title: title ?? context.l10n.flowEnterCabinetQRCode,
+      body: body ?? context.l10n.flowQrPrivateNotice,
+      label: context.l10n.flowQRCodeContent,
       hint: 'SGWCMAID...',
-      footer: '本次输入只用于这一次操作，用完即弃：不保存、不缓存；'
-          '下一次操作会重新问你一次。',
-      confirmText: '使用',
+      footer: context.l10n.flowUsedOnlyForThisOperationThenDiscarded,
+      confirmText: context.l10n.flowUse,
       multilineWhenVisible: true,
       showQrQuickFill: true,
     );
     if (qrcode == null) return null;
     if (!AwmcCredentials.isValidQrcode(qrcode)) {
       if (context.mounted) {
-        AppToast.show('二维码格式不正确（应以 SGWCMAID 开头）');
+        AppToast.show(context.l10n.flowInvalidQRFormatMustStartWithSGWCMAID);
       }
       return null;
     }
@@ -357,8 +359,8 @@ class AwmcUi {
         body: warning,
         label: label,
         hint: hint,
-        footer: '该密钥只会随本次请求发送给 AWMC 网关转发，不会保存在本机。',
-        confirmText: '继续',
+        footer: context.l10n.flowThisKeyIsSentOnlyWithThis,
+        confirmText: context.l10n.flowContinue,
       );
 
   // ==================== 完整数据页 ====================
@@ -412,17 +414,22 @@ class AwmcUi {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _kv(ctx, '接口', 'POST $path'),
+                _kv(ctx, context.l10n.flowEndpoint, 'POST $path'),
                 _kv(
                   ctx,
-                  'Token 消耗',
-                  costTokens > 0 ? '$costTokens（成功才扣）' : '不消耗',
+                  context.l10n.flowTokenCost,
+                  costTokens > 0
+                      ? context.l10n
+                          .flowP0ChargedOnlyOnSuccess((costTokens).toString())
+                      : context.l10n.flowNoTokenSpent,
                   valueColor: costTokens > 0 ? scheme.error : null,
                 ),
                 _kv(
                   ctx,
-                  '可撤销',
-                  reversible ? '可以（重新上传即可覆盖）' : '不可以',
+                  context.l10n.flowReversible,
+                  reversible
+                      ? context.l10n.flowYesUploadAgainToOverwrite
+                      : context.l10n.flowNo,
                   valueColor: reversible ? null : scheme.error,
                 ),
                 const SizedBox(height: 10),
@@ -444,11 +451,12 @@ class AwmcUi {
                         value: acked,
                         onChanged: (v) => setLocal(() => acked = v == true),
                       ),
-                      const Expanded(
+                      Expanded(
                         child: Padding(
                           padding: EdgeInsets.only(top: 12),
                           child: Text(
-                            '我已确认上述影响，并确认这是我自己账号的二维码',
+                            context
+                                .l10n.flowIUnderstandTheEffectsAboveAndConfirm,
                             style: TextStyle(fontSize: 12.5),
                           ),
                         ),
@@ -462,7 +470,7 @@ class AwmcUi {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('取消'),
+              child: Text(context.l10n.featureCancel),
             ),
             FilledButton(
               onPressed: acked ? () => Navigator.pop(ctx, true) : null,
@@ -470,7 +478,7 @@ class AwmcUi {
                 backgroundColor: scheme.error,
                 foregroundColor: scheme.onError,
               ),
-              child: const Text('确认执行'),
+              child: Text(context.l10n.flowConfirmAction),
             ),
           ],
         ),
@@ -485,7 +493,7 @@ class AwmcUi {
     final scheme = Theme.of(context).colorScheme;
     if (cost <= 0) {
       return Text(
-        '不计费',
+        context.l10n.flowNoCharge,
         style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
       );
     }
@@ -623,7 +631,7 @@ class AwmcUi {
             ),
           ),
           if (danger) ...[
-            riskBadge(context, '写入'),
+            riskBadge(context, context.l10n.flowWrite),
             const SizedBox(width: 6),
           ],
           costBadge(context, cost),
@@ -659,7 +667,7 @@ class _AwmcSecretDialog extends StatefulWidget {
     required this.label,
     required this.hint,
     this.footer,
-    this.confirmText = '保存',
+    required this.confirmText,
     this.multilineWhenVisible = false,
     this.showQrQuickFill = false,
   });
@@ -708,7 +716,7 @@ class _AwmcSecretDialogState extends State<_AwmcSecretDialog> {
                 labelText: widget.label,
                 hintText: widget.hint,
                 suffixIcon: IconButton(
-                  tooltip: _obscure ? '显示' : '隐藏',
+                  tooltip: _obscure ? context.l10n.flowShow : context.l10n.hide,
                   icon:
                       Icon(_obscure ? Icons.visibility_off : Icons.visibility),
                   onPressed: () => setState(() => _obscure = !_obscure),
@@ -725,7 +733,7 @@ class _AwmcSecretDialogState extends State<_AwmcSecretDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('取消'),
+          child: Text(context.l10n.featureCancel),
         ),
         FilledButton(
           onPressed: () => Navigator.pop(context, _controller.text),
@@ -759,7 +767,7 @@ class _AwmcRawDataPage extends StatelessWidget {
           // 顶部栏统一走公共组件：标题 = 思源黑体 20 / bold / primary / 居中。
           // 直接用 `appBar: AppBar(title: Text(...))` 时，标题那层裸 `Text`
           // 会被 AppBar 自己的 `DefaultTextStyle` 接管，字体退回系统 Roboto。
-          const AppHeader(title: '完整数据'),
+          AppHeader(title: context.l10n.flowFullData),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
@@ -769,8 +777,10 @@ class _AwmcRawDataPage extends StatelessWidget {
               ),
             ),
             child: Text(
-              '$title · 共 ${text.length} 字符 / ${lines.length} 行\n'
-              '数据仅在本机展示，不会上传到任何第三方。',
+              context.l10n.flowP0P1CharactersP2LinesShownOnly(
+                  (title).toString(),
+                  (text.length).toString(),
+                  (lines.length).toString()),
               style: TextStyle(
                 fontSize: 12,
                 color: scheme.onSurfaceVariant,

@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../utils/AppTheme.dart';
@@ -168,8 +169,8 @@ class _AnimatedStatMetricState extends State<AnimatedStatMetric>
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Semantics(
         label: widget.loading
-            ? '${widget.label}，加载中'
-            : '${widget.label} ${widget.semanticValue ?? widget.value ?? '暂不可用'}${_direction > 0 ? '，增加' : _direction < 0 ? '，减少' : ''}',
+            ? context.l10n.flowP0Loading((widget.label).toString())
+            : '${widget.label} ${widget.semanticValue ?? widget.value ?? context.l10n.flowUnavailable}${_direction > 0 ? context.l10n.flowIncrease : _direction < 0 ? context.l10n.flowDecrease : ''}',
         excludeSemantics: true,
         child: Row(children: [
           Flexible(

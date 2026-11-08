@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../constant/CacheKeyConstant.dart';
@@ -55,7 +56,7 @@ class PostSyncRefreshOperation {
           null,
           null,
           AccountSwitchService.revision,
-          '刷新配置读取失败，请手动刷新数据');
+          appL10n.svcCouldNotReadTheRefreshSettingsRefresh);
     }
   }
 
@@ -98,9 +99,9 @@ class PostSyncRefreshOperation {
           useSavedAuthorization: savedAuthorization,
         );
     final error = selected.dataSource != source
-        ? '刷新来源与同步目标不同，已跳过自动刷新'
+        ? appL10n.svcTheRefreshSourceDiffersFromTheSync
         : source.idIsQQ && id.isNotEmpty && selected.qq != id
-            ? '刷新账号与同步目标不同，已跳过自动刷新'
+            ? appL10n.svcTheRefreshAccountDiffersFromTheSync
             : null;
     return PostSyncRefreshOperation._(
         source, selected, id, credential, authorization, revision, error);
@@ -120,7 +121,7 @@ class PostSyncRefreshOperation {
       if ((current.isNotEmpty && current != accountId) ||
           credential != _credential ||
           authorization != _authorization) {
-        throw StateError('账号或同步凭据已变化，已跳过自动刷新');
+        throw StateError(appL10n.svcTheAccountOrSyncCredentialsChangedAutomatic);
       }
       await AccountSwitchService.guardedRefresh(
         () => AccountSwitchService.revision == _revision,

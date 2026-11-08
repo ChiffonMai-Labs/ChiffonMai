@@ -25,7 +25,7 @@ class FeatureRegistry {
           title: '乐曲检索',
           subtitle: '搜索国服与非国服曲库',
           icon: Icons.search_rounded,
-          titles: ['乐曲查询', '非国服乐曲查询']),
+          titles: ['乐曲查询', '非国服乐曲查询', '自定义标签']),
       FeatureSection(
           title: '版本与曲库分析',
           subtitle: '版本资料、更新对照与谱面定数',
@@ -129,9 +129,9 @@ class FeatureRegistry {
           titles: ['无提示猜歌', '根据别名猜歌', '舞萌开字母']),
       FeatureSection(
           title: '曲绘辨识',
-          subtitle: '观察局部、模糊、快闪与拼图曲绘',
+          subtitle: '观察局部、像素、模糊、快闪与拼图曲绘',
           icon: Icons.image_outlined,
-          titles: ['根据部分曲绘猜歌', '根据模糊曲绘猜歌', '曲绘快闪猜歌', '曲绘拼图猜歌']),
+          titles: ['根据部分曲绘猜歌', '像素曲绘猜歌', '根据模糊曲绘猜歌', '曲绘快闪猜歌', '曲绘拼图猜歌']),
       FeatureSection(
           title: '音频辨识',
           subtitle: '通过原速、倒放或变调片段辨认歌曲',
@@ -158,7 +158,17 @@ class FeatureRegistry {
           title: '账号与授权',
           subtitle: '管理账号与数据源登录状态',
           icon: Icons.manage_accounts_outlined,
-          titles: ['账号注册引导', '账号管理', '登录 maimai Score Hub', '登录水鱼']),
+          titles: [
+            '账号注册引导',
+            '成绩导入凭据',
+            '切换账号',
+            '绑定与授权管理'
+          ]),
+      FeatureSection(
+          title: '数据刷新',
+          subtitle: '更新成绩缓存与机台游玩次数',
+          icon: Icons.refresh_rounded,
+          titles: ['拉取成绩并更新数据', '拉取成绩并更新数据（高级）', '刷新机台游玩次数']),
       FeatureSection(
           title: '单平台同步',
           subtitle: '分别同步成绩到各查分器',
@@ -169,11 +179,6 @@ class FeatureRegistry {
           subtitle: '多端同步与自动同步',
           icon: Icons.schedule_outlined,
           titles: ['同步成绩到多端', '自动同步']),
-      FeatureSection(
-          title: '数据刷新',
-          subtitle: '更新成绩缓存与机台游玩次数',
-          icon: Icons.refresh_rounded,
-          titles: ['刷新数据', '刷新数据（高级）', '刷新机台游玩次数']),
       FeatureSection(
           title: '本地数据管理',
           subtitle: '备份数据，管理本地缓存',
@@ -209,7 +214,14 @@ class FeatureRegistry {
 
   /// 状态文案变化不改变功能的分类和收藏身份。
   static String canonicalTitle(String title) => switch (title) {
-        '登出水鱼账号' || '登出账号' => '登录水鱼',
+        '登出水鱼账号' ||
+        '登出账号' ||
+        '登录水鱼' ||
+        '登录 maimai Score Hub' ||
+        '落雪账号授权' ||
+        '绑定 AWMC NET 账号' ||
+        '绑定机台身份' =>
+          '绑定与授权管理',
         '发现新版本' => '检查更新',
         _ => title,
       };
@@ -228,6 +240,8 @@ class FeatureRegistry {
     final items = <String, ButtonItem>{
       '乐曲查询': const ButtonItem(
           icon: Icons.music_note, title: '乐曲查询', subtitle: '按歌名、别名、谱师和标签搜索'),
+      '自定义标签': const ButtonItem(
+          icon: Icons.sell_outlined, title: '自定义标签', subtitle: '自定义标签名称、颜色与谱面，接入标签筛选与统计'),
       '非国服乐曲查询': const ButtonItem(
           icon: Icons.travel_explore_rounded,
           title: '非国服乐曲查询',
@@ -370,6 +384,10 @@ class FeatureRegistry {
           icon: Icons.gamepad, title: '根据部分曲绘猜歌', subtitle: '看一小块曲绘猜出歌曲'),
       '根据模糊曲绘猜歌': const ButtonItem(
           icon: Icons.gamepad, title: '根据模糊曲绘猜歌', subtitle: '根据模糊化处理后的曲绘猜歌'),
+      '像素曲绘猜歌': const ButtonItem(
+          icon: Icons.grid_view_rounded,
+          title: '像素曲绘猜歌',
+          subtitle: '根据像素马赛克的色块与轮廓猜歌'),
       '曲绘快闪猜歌': const ButtonItem(
           icon: Icons.flash_on_outlined,
           title: '曲绘快闪猜歌',
@@ -396,23 +414,22 @@ class FeatureRegistry {
           icon: Icons.headphones, title: '随身听', subtitle: '后台播放舞萌曲库，带通知栏播放器'),
       '自定义谱面播放': const ButtonItem(
           icon: Icons.play_arrow, title: '自定义谱面播放', subtitle: '播放本地自定义谱面'),
-      '账号管理': const ButtonItem(
-          icon: Icons.manage_accounts, title: '账号管理', subtitle: '查看已绑定的水鱼账号信息'),
+      '成绩导入凭据': const ButtonItem(
+          icon: Icons.key_outlined,
+          title: '成绩导入凭据',
+          subtitle: '管理水鱼、落雪与 AWMC NET 的成绩导入 Token'),
       '账号注册引导': const ButtonItem(
           icon: Icons.person_add_alt_1_outlined,
           title: '账号注册引导',
           subtitle: '水鱼注册、落雪注册与 AWMC NET 档案创建引导'),
-      '登录 maimai Score Hub': const ButtonItem(
-          icon: Icons.login_rounded,
-          title: '登录 maimai Score Hub',
-          subtitle: '仅登录，不同步成绩；用于 OCR 与 maimai Score Hub 功能'),
-      '登录水鱼': isDivingFishLoggedIn
-          ? const ButtonItem(
-              icon: Icons.logout, title: '登出水鱼账号', subtitle: '清除水鱼登录状态')
-          : const ButtonItem(
-              icon: Icons.login,
-              title: '登录水鱼',
-              subtitle: '获取 ImportToken 以使用同步功能'),
+      '切换账号': const ButtonItem(
+          icon: Icons.switch_account_outlined,
+          title: '切换账号',
+          subtitle: '切换数据源与玩家信息，使用本地缓存'),
+      '绑定与授权管理': const ButtonItem(
+          icon: Icons.admin_panel_settings_outlined,
+          title: '绑定与授权管理',
+          subtitle: '登录、授权与绑定各数据源账号'),
       '同步成绩到水鱼': const ButtonItem(
           icon: Icons.qr_code_scanner,
           title: '同步成绩到水鱼',
@@ -431,14 +448,14 @@ class FeatureRegistry {
           icon: Icons.schedule_outlined,
           title: '自动同步',
           subtitle: '每天北京时间 0 点和 12 点自动快速同步'),
-      '刷新数据': const ButtonItem(
+      '拉取成绩并更新数据': const ButtonItem(
           icon: Icons.file_upload_sharp,
-          title: '刷新数据',
-          subtitle: '重新拉取并初始化所有本地缓存'),
-      '刷新数据（高级）': const ButtonItem(
+          title: '拉取成绩并更新数据',
+          subtitle: '拉取所选账号的成绩并重算 Best50，同时更新曲目、定数与标签'),
+      '拉取成绩并更新数据（高级）': const ButtonItem(
           icon: Icons.tune_rounded,
-          title: '刷新数据（高级）',
-          subtitle: '按缓存源勾选强制刷新，并测试各 API 连通性'),
+          title: '拉取成绩并更新数据（高级）',
+          subtitle: '按数据类型选择是否强制重新下载，并测试各接口连通性'),
       '刷新机台游玩次数': const ButtonItem(
           icon: Icons.numbers_outlined,
           title: '刷新机台游玩次数',

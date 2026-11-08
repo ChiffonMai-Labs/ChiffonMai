@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/FeatureLocalizations.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import 'package:my_first_flutter_app/service/RankTable/RankTableService.dart';
@@ -61,7 +63,7 @@ class _RankListPageState extends State<RankListPage> {
     final groups = _groups();
     final (_, ranks) = groups[_group];
     return BackgroundPageScaffold(
-      title: '段位表',
+      title: context.l10n.featureRankTable,
       contentPadding:
           EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
       child: SingleChildScrollView(
@@ -76,7 +78,7 @@ class _RankListPageState extends State<RankListPage> {
               items: [
                 for (final (label, members) in groups)
                   SegmentedTabItem(
-                    '$label ${members.where(_isCleared).length}/${members.length}',
+                    '${context.featureText(label)} ${members.where(_isCleared).length}/${members.length}',
                   ),
               ],
               selectedIndex: _group,
@@ -130,25 +132,25 @@ class _RankListPageState extends State<RankListPage> {
               ),
               const SizedBox(width: 4),
               Text(
-                '/ ${options.length} 已合格',
+                context.l10n.flowP0Passed((options.length).toString()),
                 style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
               ),
               const Spacer(),
               if (red > 0) ...[
                 Text(
-                  '赤合格 $red',
+                  context.l10n.flowRedPassP0((red).toString()),
                   style: TextStyle(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w600,
-                    color: AppColors.warningOrange(
-                        Theme.of(context).brightness),
+                    color:
+                        AppColors.warningOrange(Theme.of(context).brightness),
                   ),
                 ),
                 const SizedBox(width: 10),
               ],
               if (failed > 0)
                 Text(
-                  '不合格 $failed',
+                  context.l10n.flowFailedP0((failed).toString()),
                   style: TextStyle(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w600,

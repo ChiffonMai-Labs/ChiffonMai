@@ -1,5 +1,6 @@
 import 'package:my_first_flutter_app/constant/CacheKeyConstant.dart';
 import 'GuessChartSettingsStore.dart';
+import '../../utils/GuessPixelation.dart';
 
 class GuessChartCommonSettingsService {
   // 单例模式
@@ -18,6 +19,7 @@ class GuessChartCommonSettingsService {
   static const int defaultMaxGuesses = 10;
   static const int defaultTimeLimit = 0; // 0表示无限制
   static const int defaultBlurLevel = 50; // 模糊程度，默认50%
+  static const int defaultPixelationLevel = GuessPixelation.defaultLevel;
   static const int defaultSongCount = 3; // 每次抽取歌曲数，默认3首
   static const int defaultNonEnglishCharThreshold = 50; // 非英文字符占比阈值，默认50%
   static const int defaultFlashDurationMs = 300; // 曲绘快闪时长，默认300ms
@@ -55,6 +57,7 @@ class GuessChartCommonSettingsService {
     required int maxGuesses,
     required int timeLimit,
     int? blurLevel,
+    int? pixelationLevel,
     int? songCount,
     int? nonEnglishCharThreshold,
     int? flashDurationMs,
@@ -80,6 +83,9 @@ class GuessChartCommonSettingsService {
     }
     if (blurLevel != null) {
       values[CacheKeyConstant.guessChartBlurLevel] = blurLevel;
+    }
+    if (pixelationLevel != null) {
+      values[CacheKeyConstant.guessChartPixelationLevel] = GuessPixelation.normalize(pixelationLevel);
     }
     if (songCount != null) {
       values[CacheKeyConstant.guessChartSongCount] = songCount;
@@ -159,6 +165,8 @@ class GuessChartCommonSettingsService {
         CacheKeyConstant.guessChartBlurLevel,
         defaultBlurLevel,
       ),
+      'pixelationLevel': GuessPixelation.normalize(valueOr(
+        CacheKeyConstant.guessChartPixelationLevel, defaultPixelationLevel)),
       'songCount': valueOr(
         CacheKeyConstant.guessChartSongCount,
         defaultSongCount,
@@ -211,6 +219,7 @@ class GuessChartCommonSettingsService {
     CacheKeyConstant.guessChartMaxGuesses,
     CacheKeyConstant.guessChartTimeLimit,
     CacheKeyConstant.guessChartBlurLevel,
+    CacheKeyConstant.guessChartPixelationLevel,
     CacheKeyConstant.guessChartSongCount,
     CacheKeyConstant.guessChartNonEnglishCharThreshold,
     CacheKeyConstant.guessChartFlashDuration,
@@ -233,6 +242,7 @@ class GuessChartCommonSettingsService {
       maxGuesses: defaultMaxGuesses,
       timeLimit: defaultTimeLimit,
       blurLevel: defaultBlurLevel,
+      pixelationLevel: defaultPixelationLevel,
       songCount: defaultSongCount,
       nonEnglishCharThreshold: defaultNonEnglishCharThreshold,
       flashDurationMs: defaultFlashDurationMs,
@@ -265,6 +275,7 @@ class GuessChartCommonSettingsService {
         'maxGuesses': defaultMaxGuesses,
         'timeLimit': defaultTimeLimit,
         'blurLevel': defaultBlurLevel,
+        'pixelationLevel': defaultPixelationLevel,
         'songCount': defaultSongCount,
         'nonEnglishCharThreshold': defaultNonEnglishCharThreshold,
         'flashDurationMs': defaultFlashDurationMs,
@@ -305,6 +316,8 @@ class GuessChartCommonSettingsService {
     }
 
     // 检查模糊程度
+    final pixelationLevel = settings['pixelationLevel'] ?? defaultPixelationLevel;
+    if (pixelationLevel is! int || pixelationLevel < 0 || pixelationLevel > 100) return false;
     int blurLevel = settings['blurLevel'] ?? defaultBlurLevel;
     if (blurLevel < 0 || blurLevel > 100) {
       return false;

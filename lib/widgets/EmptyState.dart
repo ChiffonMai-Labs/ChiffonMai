@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/FeatureLocalizations.dart';
 import 'package:flutter/material.dart';
 
 /// 可复用的无内容提示，文案可由页面按场景覆盖。
@@ -14,7 +15,7 @@ class EmptyState extends StatelessWidget {
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     color: Theme.of(context).colorScheme.onSurfaceVariant)),
             const SizedBox(height: 12),
-            Text(message,
+            Text(context.featureText(message),
                 textAlign: TextAlign.center,
                 style: TextStyle(
                     color: Theme.of(context).colorScheme.onSurfaceVariant)),

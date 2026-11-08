@@ -1,3 +1,4 @@
+import '../l10n/FeatureLocalizations.dart';
 import 'package:flutter/material.dart';
 import 'AppDialogs.dart';
 
@@ -8,19 +9,19 @@ import 'AppDialogs.dart';
 Future<void> showErrorMessageDialog(
   BuildContext context, {
   required String message,
-  String title = '操作失败',
+  String? title,
 }) {
-  final text = message.trim().isEmpty ? '未知错误' : message.trim();
+  final text = message.trim().isEmpty ? context.featureText('未知错误') : message.trim();
   return showDialog<void>(
     context: context,
     builder: (ctx) => AppDialog(
-      title: title,
+      title: title ?? context.featureText('操作失败'),
       tone: AppDialogTone.error,
       content: AppDialogCodeBlock(text),
       actions: [
         FilledButton(
           onPressed: () => Navigator.of(ctx).pop(),
-          child: const Text('知道了'),
+          child: Text(context.featureText('知道了')),
         ),
       ],
     ),

@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'dart:async';
 import 'ThunderBest50Export.dart';
 import 'dart:io';
@@ -101,8 +102,8 @@ class DiffBest50ConvertToImg {
 
       // 获取图片数据（异步执行，避免阻塞主线程）
       debugPrint('Starting image capture...');
-      final encoded =
-          await ImageEncodeUtil.encodeBoundary(boundary, jpegQuality: jpegQuality);
+      final encoded = await ImageEncodeUtil.encodeBoundary(boundary,
+          jpegQuality: jpegQuality);
       final Uint8List finalBytes = encoded.bytes;
       final String extension = encoded.extension;
 
@@ -278,13 +279,14 @@ class DiffBest50ConvertToImg {
           diffSongs.any((song) => '${song['song_id']}'.length == 6) ? 6 : 5;
       return ThunderBest50Export.build(
         theme: theme,
-        title: '拟合 Best50',
+        title: context.l10n.featureFittedBest50,
         vertical: thunderVertical,
         count: diffSongs.length,
-        statistics:
-            '拟合 Rating $diffRatingSum\n平均 Rating ${diffRatingAverage.toStringAsFixed(1)}\n'
-            '平均达成率 ${diffBest50AchievementAverage.toStringAsFixed(4)}%\n'
-            '平均DX分数达成率 ${(diffBest50ScoreRateAverage * 100).toStringAsFixed(2)}%',
+        statistics: context.l10n.flowFittedRatingP0AverageRatingP1Average(
+            (diffRatingSum).toString(),
+            (diffRatingAverage.toStringAsFixed(1)).toString(),
+            (diffBest50AchievementAverage.toStringAsFixed(4)).toString(),
+            ((diffBest50ScoreRateAverage * 100).toStringAsFixed(2)).toString()),
         cardBuilder: (index) => _buildDataGameCard(
             context, diffSongs[index], maimaiMusicData, maxIdLength),
       );
@@ -303,7 +305,7 @@ class DiffBest50ConvertToImg {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                ExportPosterHeader(title: '拟合 Best50'),
+                ExportPosterHeader(title: context.l10n.featureFittedBest50),
                 SizedBox(height: 16.0),
 
                 // 评分区域
@@ -318,7 +320,8 @@ class DiffBest50ConvertToImg {
                 SizedBox(height: 20.0),
 
                 // 基于拟合难度的Best50 标题区域
-                _buildSectionTitle(context, '基于拟合难度的Best50'),
+                _buildSectionTitle(
+                    context, context.l10n.flowBest50BasedOnFittedConstants),
                 SizedBox(height: 16.0),
 
                 // 基于拟合难度的Best50 卡片网格 (5列)
@@ -348,10 +351,10 @@ class DiffBest50ConvertToImg {
       int currentMode) {
     // 获取模式说明文本
     String modeText = currentMode == 0
-        ? '模式A：不分类Best35和Best15，直接获取拟合定数下的Rating前50的谱面'
+        ? context.l10n.flowModeATakeTheTop50Charts
         : (currentMode == 1
-            ? "模式B：将您的Best35和Best15中的所有谱面的定数都替换为其拟合定数，然后计算Rating并降序排序"
-            : '模式C：在非当前版本中取拟合定数下的Rating前35的谱面，在当前版本中取拟合定数下Rating前15的谱面');
+            ? context.l10n.flowModeBReplaceConstantsInYourOfficial
+            : context.l10n.flowModeCTakeTheTop35Older);
 
     return ExportStatsPanel(
       child: Column(
@@ -364,16 +367,17 @@ class DiffBest50ConvertToImg {
                 Expanded(
                   flex: 3,
                   child: ExportHeroBlock(
-                    label: '拟合总Rating',
+                    label: context.l10n.flowFittedTotalRating,
                     value: '$diffRatingSum',
-                    caption: '平均 ${diffRatingAverage.toStringAsFixed(1)}',
+                    caption: context.l10n.flowAverageP02(
+                        (diffRatingAverage.toStringAsFixed(1)).toString()),
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   flex: 2,
                   child: ExportStatBlock(
-                    label: '与Best50差值',
+                    label: context.l10n.flowDifferenceFromBest50,
                     value: '${best50Diff > 0 ? '+' : ''}$best50Diff',
                     positive: best50Diff >= 0,
                   ),
@@ -382,7 +386,7 @@ class DiffBest50ConvertToImg {
                 Expanded(
                   flex: 5,
                   child: ExportAchievementBlock(
-                    label: '平均达成率 / DX分数达成率',
+                    label: context.l10n.flowAverageAchievementDXScoreRate2,
                     achievement: diffBest50AchievementAverage,
                     scoreRate: diffBest50ScoreRateAverage,
                   ),
@@ -509,7 +513,7 @@ class DiffBest50ConvertToImg {
     int levelIndex = songData['level_index'] ?? 0;
     int rating = songData['diffRating'] ?? 0;
     String type = songData['type'] ?? '';
-    String title = songData['title'] ?? '未知歌曲';
+    String title = songData['title'] ?? context.l10n.flowUnknownSong;
     int songId = songData['song_id'] ?? 0;
 
     // 计算星星等级（使用与App相同的StringUtil）
@@ -565,7 +569,8 @@ class DiffBest50ConvertToImg {
       // 查找对应的歌曲数据
       dynamic songData;
       try {
-        songData = maimaiMusicData[MusicDataIndex.indexOf(maimaiMusicData, songId)];
+        songData =
+            maimaiMusicData[MusicDataIndex.indexOf(maimaiMusicData, songId)];
       } catch (_) {
         // 如果找不到歌曲，返回0
         return 0;
@@ -599,7 +604,8 @@ class DiffBest50ConvertToImg {
       // 查找对应的歌曲
       dynamic songData;
       try {
-        songData = maimaiMusicData[MusicDataIndex.indexOf(maimaiMusicData, songId)];
+        songData =
+            maimaiMusicData[MusicDataIndex.indexOf(maimaiMusicData, songId)];
       } catch (e) {
         // 如果找不到歌曲，返回0.0
         return 0.0;

@@ -9,8 +9,8 @@ class MaidataDecodeUtil {
   static final RegExp _patternInote = RegExp(r'^&inote_num=\d+$');
   // 正则：匹配 (数字){数字} 形式，如 (216){1}
   static final RegExp _patternParenthesisBrace = RegExp(r'^\(\d+\)\{\d+}$');
-  // 正则：匹配 HOLD 模式，如 6h[4:1], Ch[4:3]
-  static final RegExp _patternHold = RegExp(r'.*h\[\d+:\d+\].*');
+  // 正则：匹配 HOLD，兼容保护套 x 位于 h 前后，如 6xh[4:1]、6hx[4:1]。
+  static final RegExp _patternHold = RegExp(r'.*hx?\[\d+:\d+\].*');
   // 正则：匹配 TOUCH 模式，如 E7, C1f
   static final RegExp _patternTouch = RegExp(r'.*[A-G]\d+f?.*');
   // 正则：匹配纯数字或数字x形式，如 1, 2, 1x, 2x
@@ -77,6 +77,10 @@ class MaidataDecodeUtil {
                 'slide': c.stats!.slide,
                 'breakNote': c.stats!.breakNote,
                 'touch': c.stats!.touch,
+                'protectedNotes': c.stats!.protectedNotes,
+                'unprotectedNotes': c.stats!.unprotectedNotes,
+                'protectedTap': c.stats!.protectedTap,
+                'protectedHold': c.stats!.protectedHold,
               } : null,
             }).toList(),
           });
@@ -112,6 +116,10 @@ class MaidataDecodeUtil {
           slide: c['stats']['slide'] ?? 0,
           breakNote: c['stats']['breakNote'] ?? 0,
           touch: c['stats']['touch'] ?? 0,
+          protectedNotes: c['stats']['protectedNotes'] ?? 0,
+          unprotectedNotes: c['stats']['unprotectedNotes'] ?? 0,
+          protectedTap: c['stats']['protectedTap'] ?? 0,
+          protectedHold: c['stats']['protectedHold'] ?? 0,
         ) : null,
       )).toList() ?? [],
       rawContent: '',
@@ -504,7 +512,32 @@ class MaidataDecodeUtil {
 
   static NoteStats parseInote(String inote) {
     List<String> validSegments = extractValidSegments(inote);
-    List<int> counts = countNoteTypes(validSegments);
+    final counts = List<int>.filled(NoteType.values.length, 0);
+    var protectedNotes = 0;
+    var unprotectedNotes = 0;
+    var protectedTap = 0;
+    var protectedHold = 0;
+    for (final note in validSegments) {
+      final type = classifyNote(note);
+      counts[type.index]++;
+      if (type == NoteType.TAP || type == NoteType.HOLD) {
+        if (note.contains('x')) {
+          protectedNotes++;
+          if (type == NoteType.TAP) protectedTap++;
+          if (type == NoteType.HOLD) protectedHold++;
+        } else {
+          unprotectedNotes++;
+        }
+      } else if (type == NoteType.BREAK) {
+        final breakType = classifyBreak(note);
+        if (breakType == BreakType.PROTECTED) {
+          protectedNotes++;
+        } else if (breakType == BreakType.TRUE_ZETTAI_TAP ||
+            breakType == BreakType.TRUE_ZETTAI_HOLD) {
+          unprotectedNotes++;
+        }
+      }
+    }
     
     //debugPrintGroups(validSegments);
     
@@ -515,6 +548,10 @@ class MaidataDecodeUtil {
       slide: counts[NoteType.SLIDE.index],
       breakNote: counts[NoteType.BREAK.index],
       touch: counts[NoteType.TOUCH.index],
+      protectedNotes: protectedNotes,
+      unprotectedNotes: unprotectedNotes,
+      protectedTap: protectedTap,
+      protectedHold: protectedHold,
     );
   }
 
@@ -702,6 +739,13 @@ class NoteStats {
   final int slide;
   final int breakNote;
   final int touch;
+  /// TAP/HOLD 中含 x 的音符，以及 BREAK 中的保护套绝赞。
+  final int protectedNotes;
+  /// TAP/HOLD 中不含 x 的音符，以及真绝赞 TAP/HOLD；不含绝赞星星。
+  final int unprotectedNotes;
+  /// 仅普通 TAP/HOLD 中含 x 的数量，BREAK 的保护套绝赞单独统计。
+  final int protectedTap;
+  final int protectedHold;
 
   NoteStats({
     required this.total,
@@ -710,6 +754,10 @@ class NoteStats {
     required this.slide,
     required this.breakNote,
     required this.touch,
+    this.protectedNotes = 0,
+    this.unprotectedNotes = 0,
+    this.protectedTap = 0,
+    this.protectedHold = 0,
   });
 
   @override

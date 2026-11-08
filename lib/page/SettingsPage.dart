@@ -1,4 +1,7 @@
+import '../l10n/LocalizationsExtension.dart';
+import '../utils/AppLanguagePreferences.dart';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -12,6 +15,7 @@ import '../utils/ConfettiPreferences.dart';
 import '../utils/ExportSettings.dart';
 import '../utils/NavigationPreferences.dart';
 import '../utils/ThemeManager.dart';
+import '../utils/SystemWallpaperColor.dart';
 import '../utils/SearchInteractionPreferences.dart';
 import '../widgets/AnimatedChoiceBar.dart';
 import '../widgets/BackgroundPageScaffold.dart';
@@ -20,11 +24,14 @@ import '../widgets/ThemeAwareBackground.dart';
 import '../widgets/AppColorPickerDialog.dart';
 import '../widgets/ThemePreferenceControls.dart';
 import 'OnboardingPage.dart';
+import 'WallpaperCropPage.dart';
 import '../utils/AppDesignTokens.dart';
 import '../widgets/AppUi.dart';
 import '../widgets/AppDialogs.dart';
 import '../widgets/AppToast.dart';
 import '../widgets/AppSwitch.dart';
+import '../widgets/AppUpdateAutoInstallControl.dart';
+import '../widgets/SongDetailDifficultySettings.dart';
 
 /// 设置页（独立页面，从首页主题弹窗"更多设置"进入）
 ///
@@ -42,6 +49,7 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   final ImagePicker _picker = ImagePicker();
   bool _pickingImage = false;
+  bool _readingSystemWallpaperColor = false;
   int _tab = 0;
   final ScrollController _scrollController = ScrollController();
 
@@ -51,6 +59,7 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   void initState() {
     super.initState();
+    AppLanguagePreferences.instance.load();
     SearchInteractionPreferences.instance.load();
     NavigationPreferences.instance.load();
     ConfettiPreferences.instance.load();
@@ -83,13 +92,14 @@ class _SettingsPageState extends State<SettingsPage> {
 
   // ============ 图片操作 ============
 
-  /// 清空 custom_bg 目录下所有 background.* 文件
+  /// 清空 custom_bg 目录下的旧壁纸文件（background.* 和 background_*），[keep] 除外
   /// 避免旧文件残留 + Flutter ImageCache 命中同一 path 时的解码陈旧
-  Future<void> _clearOldBackgroundFiles(Directory dir) async {
+  Future<void> _clearOldBackgroundFiles(Directory dir, {String? keep}) async {
     if (!await dir.exists()) return;
     await for (final entity in dir.list()) {
       if (entity is File &&
-          p.basename(entity.path).toLowerCase().startsWith('background.')) {
+          entity.path != keep &&
+          p.basename(entity.path).toLowerCase().startsWith('background')) {
         try {
           // 同步 evict Flutter 解码缓存
           PaintingBinding.instance.imageCache
@@ -101,7 +111,9 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _pickBackground() async {
-    if (_pickingImage || _backgroundsDisabled) return;
+    if (_pickingImage || _readingSystemWallpaperColor || _backgroundsDisabled) {
+      return;
+    }
     setState(() => _pickingImage = true);
     try {
       final photo = await _picker.pickImage(
@@ -112,38 +124,75 @@ class _SettingsPageState extends State<SettingsPage> {
       );
       if (photo == null || !mounted || _backgroundsDisabled) return;
 
+      // 先裁剪，确认后才写入；取消时旧壁纸不受影响。
+      final cropped = await Navigator.of(context).push<Uint8List>(
+        MaterialPageRoute(
+            builder: (_) => WallpaperCropPage(imagePath: photo.path)),
+      );
+      if (cropped == null || !mounted || _backgroundsDisabled) return;
+
       final docs = await getApplicationDocumentsDirectory();
       final dir = Directory(p.join(docs.path, 'custom_bg'));
       if (!await dir.exists()) await dir.create(recursive: true);
 
-      // 先清空目录下所有旧 background.* 文件（包括当前生效的）
-      // 原因 1：File.copy 在目标已存在时会抛异常；
-      // 原因 2：Flutter ImageCache 按 path 缓存解码图，必须 evict 才能显示新内容
-      final oldPath = ThemeManager().customBackgroundPath;
-      if (oldPath != null) {
-        PaintingBinding.instance.imageCache
-            .evict(FileImage(File(oldPath)), includeLive: true);
-      }
-      await _clearOldBackgroundFiles(dir);
+      // 每次用新文件名：新壁纸写好并生效后才清理旧文件，
+      // 中途失败不会丢掉旧壁纸，也不用处理同路径的解码缓存。
+      final destPath = p.join(
+          dir.path, 'background_${DateTime.now().millisecondsSinceEpoch}.jpg');
+      await File(destPath).writeAsBytes(cropped, flush: true);
 
-      final ext =
-          p.extension(photo.path).isNotEmpty ? p.extension(photo.path) : '.jpg';
-      final destPath = p.join(dir.path, 'background$ext');
-      final destFile = File(destPath);
-
-      // 先 writeAsBytes（覆盖写）而非 copy，避免同 path 残留时静默失败
-      final bytes = await File(photo.path).readAsBytes();
-      await destFile.writeAsBytes(bytes, flush: true);
-
-      if (!mounted) return;
       await ThemeManager().setCustomBackgroundPath(destPath);
+      await _clearOldBackgroundFiles(dir, keep: destPath);
+      final themed = await _applyWallpaperThemeColor(destPath);
       if (mounted) {
-        AppToast.show('背景图已设置');
+        AppToast.show(themed
+            ? context.l10n.wallpaperAndThemeApplied
+            : context.l10n.wallpaperApplied);
       }
     } catch (e) {
-      if (mounted) AppToast.show('选择图片失败: $e');
+      if (mounted) AppToast.show(context.l10n.picturePickFailed('$e'));
     } finally {
       if (mounted) setState(() => _pickingImage = false);
+    }
+  }
+
+  /// 从新壁纸取色并设为主题色，失败时保留原主题色。
+  ///
+  /// 取色是纯 Dart 算法（`ColorScheme.fromImageProvider`），不依赖系统的动态取色，
+  /// Android 各版本和 iOS 行为一致；图片先缩小再取色，不会卡界面。
+  Future<bool> _applyWallpaperThemeColor(String path) async {
+    try {
+      final scheme = await ColorScheme.fromImageProvider(
+        provider: ResizeImage(FileImage(File(path)), width: 128),
+      );
+      await ThemeManager().setSeedColor(scheme.primary);
+      return true;
+    } catch (e) {
+      debugPrint('壁纸取色失败: $e');
+      return false;
+    }
+  }
+
+  /// 手动应用一次系统配色，并复用现有主题色的持久化流程。
+  Future<void> _useSystemWallpaperColor() async {
+    if (_readingSystemWallpaperColor || _pickingImage) return;
+    final previousSeed = ThemeManager().seedColor;
+    setState(() => _readingSystemWallpaperColor = true);
+    try {
+      final color = await SystemWallpaperColor.read();
+      // 离页或用户已选择其他主题色时，丢弃这次迟到的结果。
+      if (!mounted || ThemeManager().seedColor != previousSeed) return;
+      if (color == null) {
+        AppToast.show(context.l10n.wallpaperColorUnsupported);
+        return;
+      }
+      await ThemeManager().setSeedColor(color);
+      if (mounted) AppToast.show(context.l10n.wallpaperColorApplied);
+    } catch (e) {
+      debugPrint('读取系统壁纸配色失败: $e');
+      if (mounted) AppToast.show(context.l10n.wallpaperColorFailed);
+    } finally {
+      if (mounted) setState(() => _readingSystemWallpaperColor = false);
     }
   }
 
@@ -165,7 +214,7 @@ class _SettingsPageState extends State<SettingsPage> {
       final dir = Directory(p.join(docs.path, 'custom_bg'));
       await _clearOldBackgroundFiles(dir);
     } catch (_) {}
-    if (mounted) AppToast.show('已恢复默认背景');
+    if (mounted) AppToast.show(context.l10n.backgroundReset);
   }
 
   // ============ 主题色操作 ============
@@ -183,19 +232,19 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _pickCustomColor() async {
     final picked = await showAppColorPicker(
       context,
-      title: '自定义主题色',
+      title: context.l10n.customColor,
       initial: ThemeManager().seedColor ?? AppTheme.defaultLightSeed,
     );
     if (mounted && picked != null) {
       await ThemeManager().setSeedColor(picked);
-      if (mounted) AppToast.show('主题色已更新');
+      if (mounted) AppToast.show(context.l10n.themeColorUpdated);
     }
   }
 
   /// 恢复默认主题色。
   Future<void> _resetSeed() async {
     await ThemeManager().setSeedColor(null);
-    if (mounted) AppToast.show('已恢复默认主题色');
+    if (mounted) AppToast.show(context.l10n.themeColorReset);
   }
 
   Widget _buildSearchInteractionSettings() {
@@ -205,11 +254,32 @@ class _SettingsPageState extends State<SettingsPage> {
       builder: (context, _) => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          Text(context.l10n.homeSearchScope, style: TextStyle(fontSize: 13.5)),
+          const SizedBox(height: 8),
+          AnimatedChoiceBar<HomeSearchScope>(
+            values: HomeSearchScope.values,
+            value: preferences.homeSearchScope,
+            label: (scope) => switch (scope) {
+              HomeSearchScope.feature => context.l10n.searchFeatures,
+              HomeSearchScope.song => context.l10n.searchSongs,
+              HomeSearchScope.both => context.l10n.searchBoth,
+            },
+            onChanged: preferences.loaded
+                ? (scope) {
+                    FocusManager.instance.primaryFocus?.unfocus();
+                    preferences.setHomeSearchScope(scope);
+                  }
+                : null,
+          ),
+          const SizedBox(height: 12),
+          Text(context.l10n.searchMode, style: TextStyle(fontSize: 13.5)),
+          const SizedBox(height: 8),
           AnimatedChoiceBar<SearchInteractionMode>(
             values: SearchInteractionMode.values,
             value: preferences.mode,
-            label: (mode) =>
-                mode == SearchInteractionMode.inline ? '原位输入' : '展开搜索',
+            label: (mode) => mode == SearchInteractionMode.inline
+                ? context.l10n.searchInline
+                : context.l10n.searchOverlay,
             onChanged: preferences.loaded
                 ? (mode) {
                     FocusManager.instance.primaryFocus?.unfocus();
@@ -220,8 +290,8 @@ class _SettingsPageState extends State<SettingsPage> {
           const SizedBox(height: 8),
           Text(
             preferences.usesOverlay
-                ? '首页功能和歌曲搜索使用展开搜索界面（当前默认）'
-                : '直接在原搜索框输入，歌曲搜索历史显示在搜索框下方',
+                ? context.l10n.searchOverlayHint
+                : context.l10n.searchInlineHint,
             style: _hintStyle(),
           ),
           const SizedBox(height: 8),
@@ -231,8 +301,8 @@ class _SettingsPageState extends State<SettingsPage> {
             onChanged: preferences.loaded ? preferences.setShowMatchInfo : null,
             secondary: Icon(Icons.manage_search_rounded,
                 color: Theme.of(context).colorScheme.primary),
-            title: const Text('显示匹配字段'),
-            subtitle: const Text('在歌曲搜索结果里显示命中的定数、BPM、标签等信息'),
+            title: Text(context.l10n.showMatchInfo),
+            subtitle: Text(context.l10n.showMatchInfoHint),
           ),
         ],
       ),
@@ -259,7 +329,7 @@ class _SettingsPageState extends State<SettingsPage> {
     final motion =
         AppDesignTokens.motion(context, AppDesignTokens.mediumMotion);
     return BackgroundPageScaffold(
-      title: '系统设置',
+      title: context.l10n.settingsTitle,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -268,11 +338,11 @@ class _SettingsPageState extends State<SettingsPage> {
                 AppDesignTokens.gutter, 4, AppDesignTokens.gutter, 8),
             child: SegmentedTabs(
               height: 42,
-              items: const [
-                SegmentedTabItem('外观'),
-                SegmentedTabItem('交互'),
-                SegmentedTabItem('特效'),
-                SegmentedTabItem('其他'),
+              items: [
+                SegmentedTabItem(context.l10n.appearance),
+                SegmentedTabItem(context.l10n.interaction),
+                SegmentedTabItem(context.l10n.effects),
+                SegmentedTabItem(context.l10n.other),
               ],
               selectedIndex: _tab,
               onChanged: _selectTab,
@@ -354,32 +424,50 @@ class _SettingsPageState extends State<SettingsPage> {
         );
     return _tabColumn([
       _buildPreviewCard(),
-      const GuessSettingSection(
+      GuessSettingSection(
         card: true,
-        title: '主题模式',
+        title: context.l10n.themeMode,
         icon: Icons.contrast_rounded,
         children: [ThemeModeControl()],
       ),
       GuessSettingSection(
         card: true,
-        title: '主题色',
+        title: context.l10n.themeColor,
         icon: Icons.palette_outlined,
         children: [_buildColorPalette()],
       ),
       GuessSettingSection(
         card: true,
-        title: '背景图',
+        title: context.l10n.backgroundImage,
         icon: Icons.wallpaper_rounded,
         children: [
           if (disabled)
-            Text('纯黑模式下背景图与装饰图调节不可用', style: _hintStyle()),
+            Text(context.l10n.pureBlackBackgroundDisabled, style: _hintStyle()),
           backgroundControl(_buildBackgroundControls(enabled: !disabled)),
+          if (Platform.isAndroid) ...[
+            OutlinedButton.icon(
+              onPressed: _readingSystemWallpaperColor || _pickingImage
+                  ? null
+                  : _useSystemWallpaperColor,
+              icon: _readingSystemWallpaperColor
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.palette_outlined, size: 18),
+              label: Text(_readingSystemWallpaperColor
+                  ? context.l10n.reading
+                  : context.l10n.useSystemWallpaperColor),
+            ),
+            Text(context.l10n.systemWallpaperHint, style: _hintStyle()),
+          ],
           const BackgroundOverlayControl(),
         ],
       ),
       backgroundControl(GuessSettingSection(
         card: true,
-        title: '装饰图',
+        title: context.l10n.decorationImage,
         icon: Icons.auto_awesome_outlined,
         children: [_buildChiffonControls(enabled: !disabled)],
       )),
@@ -387,36 +475,45 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Widget _buildInteractionTab() => _tabColumn([
-        const GuessSettingSection(
+        const SongDetailDifficultySettings(),
+        GuessSettingSection(
           card: true,
-          title: '导航体验',
+          title: context.l10n.navigationExperience,
           icon: Icons.navigation_outlined,
           children: [NavigationControls()],
         ),
         GuessSettingSection(
           card: true,
-          title: '搜索框交互',
+          title: context.l10n.searchInteraction,
           icon: Icons.search_rounded,
           children: [_buildSearchInteractionSettings()],
         ),
       ]);
 
   Widget _buildEffectsTab() => _tabColumn([
-        const GuessSettingSection(
+        GuessSettingSection(
           card: true,
-          title: '纸屑特效',
+          title: context.l10n.confetti,
           icon: Icons.celebration_outlined,
           children: [ConfettiControls()],
         ),
       ]);
 
   Widget _buildOtherTab() => _tabColumn([
+        _buildLanguageSection(),
+        if (Platform.isAndroid)
+          GuessSettingSection(
+            card: true,
+            title: context.l10n.appUpdate,
+            icon: Icons.system_update_rounded,
+            children: [AppUpdateAutoInstallControl()],
+          ),
         GuessSettingSection(
           card: true,
-          title: '功能引导',
+          title: context.l10n.featureGuide,
           icon: Icons.menu_book_outlined,
           children: [
-            Text('想再看一遍各个功能在哪里，可以随时重新打开。', style: _hintStyle()),
+            Text(context.l10n.featureGuideHint, style: _hintStyle()),
             SizedBox(
               height: 46,
               child: FilledButton.tonal(
@@ -427,7 +524,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                   );
                 },
-                child: const Text('重新查看功能引导'),
+                child: Text(context.l10n.reopenGuide),
               ),
             ),
           ],
@@ -435,6 +532,82 @@ class _SettingsPageState extends State<SettingsPage> {
         _buildExportSection(),
         _buildAwmcGatewaySection(),
       ]);
+
+  Widget _buildLanguageSection() {
+    final preferences = AppLanguagePreferences.instance;
+    return ListenableBuilder(
+      listenable: preferences,
+      builder: (context, _) => GuessSettingSection(
+        card: true,
+        title: context.l10n.language,
+        icon: Icons.language_rounded,
+        children: [
+          AppDialogOption(
+            title: preferences.language.nativeName ?? context.l10n.followSystem,
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: preferences.loaded ? _chooseLanguage : null,
+          ),
+          Text(context.l10n.languageDescription, style: _hintStyle()),
+          Text(context.l10n.languageTranslationDisclaimer,
+              style: _hintStyle()),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _chooseLanguage() async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    final preferences = AppLanguagePreferences.instance;
+    final picked = await showDialog<AppLanguage>(
+      context: context,
+      builder: (dialogContext) => AppAlertDialog(
+        title: Text(dialogContext.l10n.language),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final language in AppLanguage.values)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: AppDialogOption(
+                    title:
+                        language.nativeName ?? dialogContext.l10n.followSystem,
+                    selected: language == preferences.language,
+                    leading: Icon(language == preferences.language
+                        ? Icons.radio_button_checked_rounded
+                        : Icons.radio_button_off_rounded),
+                    onTap: () => Navigator.pop(dialogContext, language),
+                  ),
+                ),
+              // 翻译准确性声明：非简体中文均为翻译文本。
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  dialogContext.l10n.languageTranslationDisclaimer,
+                  style: TextStyle(
+                      fontSize: 12,
+                      height: 1.4,
+                      color: Theme.of(dialogContext)
+                          .colorScheme
+                          .onSurfaceVariant),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(dialogContext.l10n.cancel),
+          )
+        ],
+      ),
+    );
+    if (picked == null || !mounted) return;
+    final saved = await preferences.setLanguage(picked);
+    if (!saved && mounted) AppToast.show(context.l10n.languageSaveFailed);
+  }
 
   /// 实时预览：直接用页面背景组件，背景图、覆层、装饰图和主题色都是真实效果。
   Widget _buildPreviewCard() {
@@ -483,7 +656,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Text('预览效果',
+                          Text(context.l10n.preview,
                               style: TextStyle(
                                   fontSize: 12,
                                   color: scheme.onSurfaceVariant)),
@@ -505,7 +678,7 @@ class _SettingsPageState extends State<SettingsPage> {
                               borderRadius: BorderRadius.circular(
                                   AppDesignTokens.radiusSmall),
                             ),
-                            child: Text('主要按钮',
+                            child: Text(context.l10n.primaryButton,
                                 style: TextStyle(
                                     fontSize: 12.5,
                                     fontWeight: FontWeight.w700,
@@ -522,13 +695,13 @@ class _SettingsPageState extends State<SettingsPage> {
           const SizedBox(height: 10),
           Row(
             children: [
-              swatch('主色', scheme.primary),
+              swatch(context.l10n.primaryColor, scheme.primary),
               const SizedBox(width: 8),
-              swatch('辅助色', scheme.secondary),
+              swatch(context.l10n.secondaryColor, scheme.secondary),
               const SizedBox(width: 8),
-              swatch('强调色', scheme.tertiary),
+              swatch(context.l10n.tertiaryColor, scheme.tertiary),
               const SizedBox(width: 8),
-              swatch('背景色', scheme.surface),
+              swatch(context.l10n.surfaceColor, scheme.surface),
             ],
           ),
         ],
@@ -582,24 +755,24 @@ class _SettingsPageState extends State<SettingsPage> {
               .floorToDouble()
               .clamp(24.0, 40.0);
           return Wrap(
-          spacing: gap,
-          runSpacing: gap,
-          children: [
-            for (final (index, color) in _presetColors.indexed)
-              dot(
-                size,
-                color,
-                // 没有自定义过时第一个就是默认色
-                current == null
-                    ? index == 0
-                    : current.toARGB32() == color.toARGB32(),
-                () async {
-                  await ThemeManager().setSeedColor(color);
-                  if (mounted) AppToast.show('主题色已更新');
-                },
-              ),
-            if (customSelected) dot(size, current, true, _pickCustomColor),
-          ],
+            spacing: gap,
+            runSpacing: gap,
+            children: [
+              for (final (index, color) in _presetColors.indexed)
+                dot(
+                  size,
+                  color,
+                  // 没有自定义过时第一个就是默认色
+                  current == null
+                      ? index == 0
+                      : current.toARGB32() == color.toARGB32(),
+                  () async {
+                    await ThemeManager().setSeedColor(color);
+                    if (mounted) AppToast.show(context.l10n.themeColorUpdated);
+                  },
+                ),
+              if (customSelected) dot(size, current, true, _pickCustomColor),
+            ],
           );
         }),
         const SizedBox(height: 10),
@@ -609,7 +782,7 @@ class _SettingsPageState extends State<SettingsPage> {
               child: OutlinedButton.icon(
                 onPressed: _pickCustomColor,
                 icon: const Icon(Icons.colorize_rounded, size: 18),
-                label: const Text('自定义颜色'),
+                label: Text(context.l10n.customColor),
               ),
             ),
             const SizedBox(width: 8),
@@ -617,7 +790,7 @@ class _SettingsPageState extends State<SettingsPage> {
               child: OutlinedButton.icon(
                 onPressed: current == null ? null : _resetSeed,
                 icon: const Icon(Icons.refresh_rounded, size: 18),
-                label: const Text('恢复默认'),
+                label: Text(context.l10n.restoreDefaults),
               ),
             ),
           ],
@@ -659,7 +832,9 @@ class _SettingsPageState extends State<SettingsPage> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                bgPath == null ? '当前：内置背景' : '当前：自定义图片',
+                bgPath == null
+                    ? context.l10n.builtInBackground
+                    : context.l10n.customBackground,
                 style: TextStyle(
                   fontSize: 13.5,
                   fontWeight: FontWeight.w600,
@@ -668,7 +843,10 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               const SizedBox(height: 8),
               OutlinedButton.icon(
-                onPressed: !enabled || _pickingImage ? null : _pickBackground,
+                onPressed:
+                    !enabled || _pickingImage || _readingSystemWallpaperColor
+                        ? null
+                        : _pickBackground,
                 icon: _pickingImage
                     ? const SizedBox(
                         width: 14,
@@ -676,13 +854,15 @@ class _SettingsPageState extends State<SettingsPage> {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Icon(Icons.image_outlined, size: 18),
-                label: Text(_pickingImage ? '处理中…' : '从相册选择'),
+                label: Text(_pickingImage
+                    ? context.l10n.processing
+                    : context.l10n.chooseFromGallery),
               ),
               const SizedBox(height: 6),
               OutlinedButton.icon(
                 onPressed: !enabled || bgPath == null ? null : _resetBackground,
                 icon: const Icon(Icons.restore_rounded, size: 18),
-                label: const Text('恢复默认'),
+                label: Text(context.l10n.restoreDefaults),
               ),
             ],
           ),
@@ -697,14 +877,14 @@ class _SettingsPageState extends State<SettingsPage> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         GuessSliderTile(
-          label: 'chiffon 装饰图透明度',
+          label: context.l10n.decorationOpacity,
           valueText: '${(opacity * 100).round()}%',
           value: opacity,
           min: 0,
           max: 1,
           divisions: 20,
           onChanged: enabled ? ThemeManager().setChiffonOpacity : null,
-          hint: '默认 40%。纯黑模式下自动隐藏；深浅模式共用同一透明度。',
+          hint: context.l10n.decorationOpacityHint,
         ),
         const SizedBox(height: 8),
         Row(
@@ -715,7 +895,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     ? null
                     : () => ThemeManager().setChiffonOpacity(0.0),
                 icon: const Icon(Icons.visibility_off_outlined, size: 18),
-                label: const Text('隐藏'),
+                label: Text(context.l10n.hide),
               ),
             ),
             const SizedBox(width: 8),
@@ -725,7 +905,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     ? null
                     : () => ThemeManager().setChiffonOpacity(0.40),
                 icon: const Icon(Icons.refresh_rounded, size: 18),
-                label: const Text('恢复默认'),
+                label: Text(context.l10n.restoreDefaults),
               ),
             ),
           ],
@@ -744,7 +924,7 @@ class _SettingsPageState extends State<SettingsPage> {
     final scheme = Theme.of(context).colorScheme;
     return GuessSettingSection(
       card: true,
-      title: '收藏夹导出后缀',
+      title: context.l10n.favoriteExportExtension,
       icon: Icons.description_outlined,
       // 固定值，只读展示（不让改，避免劫持常见后缀的打开方式）
       trailing: AppBadge(
@@ -755,10 +935,8 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
       children: [
         Text(
-          '导出收藏夹会生成 <名字>${ExportSettings.favoriteExtensionWithDot} 文件，'
-          '放在 Download/ChiffonMai/收藏夹/ 下，文件管理器可以直接找到。\n'
-          '后缀已固定：自定义后缀会把常见格式的默认打开方式抢过来，所以不再开放。\n'
-          '导入按文件内容识别、与后缀无关，以前用别的后缀导出的备份照样能导回来。',
+          context.l10n
+              .exportDescription(ExportSettings.favoriteExtensionWithDot),
           style: _hintStyle(),
         ),
       ],
@@ -772,12 +950,12 @@ class _SettingsPageState extends State<SettingsPage> {
     final scheme = Theme.of(context).colorScheme;
     return GuessSettingSection(
       card: true,
-      title: '同步与网关',
+      title: context.l10n.syncAndGateway,
       icon: Icons.sync_alt_rounded,
       children: [
         Semantics(
           button: true,
-          label: 'AWMC 网关检测超时，当前 $_awmcProbeTimeoutSeconds 秒',
+          label: context.l10n.gatewayTimeoutSemantics(_awmcProbeTimeoutSeconds),
           excludeSemantics: true,
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
@@ -793,12 +971,12 @@ class _SettingsPageState extends State<SettingsPage> {
                 children: [
                   Expanded(
                     child: Text(
-                      'AWMC 网关检测超时',
+                      context.l10n.gatewayTimeout,
                       style: TextStyle(fontSize: 13.5, color: scheme.onSurface),
                     ),
                   ),
                   Text(
-                    '$_awmcProbeTimeoutSeconds 秒',
+                    context.l10n.secondsValue(_awmcProbeTimeoutSeconds),
                     style: AppTheme.number(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
@@ -813,7 +991,7 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
         ),
         Text(
-          '线路1 同步前会先请求 GET /v1/health 探活；超过这个时间就取消同步（不消耗 Token）。',
+          context.l10n.gatewayTimeoutHint,
           style: _hintStyle(),
         ),
       ],
@@ -831,7 +1009,7 @@ class _SettingsPageState extends State<SettingsPage> {
     if (!mounted) return;
     setState(() =>
         _awmcProbeTimeoutSeconds = AwmcGatewaySettings.clampSeconds(seconds));
-    AppToast.show('AWMC 网关检测超时已设为 $_awmcProbeTimeoutSeconds 秒');
+    AppToast.show(context.l10n.gatewayTimeoutSaved(_awmcProbeTimeoutSeconds));
   }
 }
 
@@ -860,14 +1038,14 @@ class _AwmcProbeTimeoutDialogState extends State<_AwmcProbeTimeoutDialog> {
   void _submit() {
     final parsed = int.tryParse(_controller.text.trim());
     if (parsed == null) {
-      setState(() => _error = '请输入整数秒数');
+      setState(() => _error = context.l10n.enterIntegerSeconds);
       return;
     }
     if (parsed < AwmcGatewaySettings.minProbeTimeoutSeconds ||
         parsed > AwmcGatewaySettings.maxProbeTimeoutSeconds) {
-      setState(
-          () => _error = '允许 ${AwmcGatewaySettings.minProbeTimeoutSeconds}–'
-              '${AwmcGatewaySettings.maxProbeTimeoutSeconds} 秒');
+      setState(() => _error = context.l10n.allowedSeconds(
+          AwmcGatewaySettings.minProbeTimeoutSeconds,
+          AwmcGatewaySettings.maxProbeTimeoutSeconds));
       return;
     }
     Navigator.pop(context, parsed);
@@ -876,14 +1054,13 @@ class _AwmcProbeTimeoutDialogState extends State<_AwmcProbeTimeoutDialog> {
   @override
   Widget build(BuildContext context) {
     return AppAlertDialog(
-      title: const Text('AWMC 网关检测超时'),
+      title: Text(context.l10n.gatewayTimeout),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            '线路1 同步前会先请求 GET /v1/health 探活；超过这个时间视为网关不可用，'
-            '直接取消同步（不会消耗 Token）。',
+          Text(
+            context.l10n.gatewayTimeoutDialogHint,
             style: TextStyle(fontSize: 12.5, height: 1.5),
           ),
           const SizedBox(height: 12),
@@ -893,12 +1070,12 @@ class _AwmcProbeTimeoutDialogState extends State<_AwmcProbeTimeoutDialog> {
             keyboardType: TextInputType.number,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             decoration: InputDecoration(
-              labelText: '超时时间',
-              suffixText: '秒',
-              helperText:
-                  '默认 ${AwmcGatewaySettings.defaultProbeTimeoutSeconds} 秒，'
-                  '允许 ${AwmcGatewaySettings.minProbeTimeoutSeconds}–'
-                  '${AwmcGatewaySettings.maxProbeTimeoutSeconds} 秒',
+              labelText: context.l10n.timeout,
+              suffixText: context.l10n.secondsUnit,
+              helperText: context.l10n.defaultSecondsHint(
+                  AwmcGatewaySettings.defaultProbeTimeoutSeconds,
+                  AwmcGatewaySettings.minProbeTimeoutSeconds,
+                  AwmcGatewaySettings.maxProbeTimeoutSeconds),
               errorText: _error,
             ).insetLabel(context),
             onSubmitted: (_) => _submit(),
@@ -909,13 +1086,13 @@ class _AwmcProbeTimeoutDialogState extends State<_AwmcProbeTimeoutDialog> {
         TextButton(
           onPressed: () => Navigator.pop(
               context, AwmcGatewaySettings.defaultProbeTimeoutSeconds),
-          child: const Text('恢复默认'),
+          child: Text(context.l10n.restoreDefaults),
         ),
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('取消'),
+          child: Text(context.l10n.cancel),
         ),
-        FilledButton(onPressed: _submit, child: const Text('保存')),
+        FilledButton(onPressed: _submit, child: Text(context.l10n.save)),
       ],
     );
   }

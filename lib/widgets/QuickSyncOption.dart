@@ -1,7 +1,11 @@
+import '../utils/AppTaskActivity.dart';
+import 'AnimatedReveal.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:my_first_flutter_app/widgets/AppSwitch.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 
+import '../service/AWMC/AwmcQuickIdentityStore.dart';
 import '../service/AWMC/AwmcQuickSyncService.dart';
 import '../service/SyncStatsService.dart';
 import '../utils/AppTheme.dart';
@@ -30,7 +34,12 @@ class _QuickSyncOptionState extends State<QuickSyncOption> {
   bool _loading = true;
   bool _deleting = false;
   bool _binding = false;
-  Map<SyncPlatform, bool> _cached = {};
+
+  /// 三个数据源共用的机台身份是否已缓存。
+  bool _identity = false;
+
+  /// 各数据源自身的阻塞原因（缺个人 Token / 账号等），与机台身份分开显示。
+  List<String> _issues = const [];
   int _request = 0;
   @override
   void initState() {
@@ -49,13 +58,20 @@ class _QuickSyncOptionState extends State<QuickSyncOption> {
     final request = ++_request;
     setState(() => _loading = true);
     final platforms = widget.platforms.toList();
-    final ready =
-        await Future.wait(platforms.map(AwmcQuickSyncService.hasIdentity));
+    bool identity;
+    try {
+      identity = await AwmcQuickIdentityStore.read() != null;
+    } catch (_) {
+      identity = false;
+    }
+    final issues = await Future.wait(
+        platforms.map(AwmcQuickSyncService.accountIssue));
     if (!mounted || request != _request) return;
     setState(() {
       _loading = false;
-      _cached = Map.fromIterables(platforms, ready);
-      _ready = ready.isNotEmpty && ready.every((value) => value);
+      _identity = identity;
+      _issues = issues.whereType<String>().toSet().toList();
+      _ready = platforms.isNotEmpty && identity && _issues.isEmpty;
       if (!_ready) _enabled = false;
     });
     widget.onChanged(_enabled);
@@ -75,14 +91,17 @@ class _QuickSyncOptionState extends State<QuickSyncOption> {
         children: [
           AppSwitchListTile(
             contentPadding: EdgeInsets.zero,
-            title: const Text('快速同步'),
+            title: Text(context.l10n.flowQuickSync),
             subtitle: Text(_loading
-                ? '正在检查用户凭据缓存…'
-                : _ready
-                    ? '已绑定机台身份，本次无需二维码'
-                    : widget.platforms.isEmpty
-                        ? '请先选择同步数据源'
-                        : '可直接输入二维码绑定机台身份'),
+                ? context.l10n.flowCheckingCachedUserCredentials
+                : widget.platforms.isEmpty
+                    ? context.l10n.flowChooseASyncSourceFirst
+                    : !_identity
+                        ? context.l10n.flowEnterAQRToLinkCabinetIdentity
+                        : _issues.isNotEmpty
+                            ? _issues.first
+                            : context.l10n
+                                .flowCabinetIdentityLinkedNoQRNeededThis),
             value: _enabled && !_loading,
             onChanged: _loading || _deleting || !_ready
                 ? null
@@ -96,35 +115,60 @@ class _QuickSyncOptionState extends State<QuickSyncOption> {
             Padding(
               padding: const EdgeInsets.only(bottom: 6),
               child: Row(children: [
-                Icon(_ready ? Icons.check_circle_outline : Icons.error_outline,
+                Icon(
+                    _identity
+                        ? Icons.check_circle_outline
+                        : Icons.error_outline,
                     size: 16,
-                    color: _ready
+                    color: _identity
                         ? AppColors.successGreen(brightness)
                         : AppColors.errorRed(brightness)),
                 const SizedBox(width: 6),
                 Expanded(
-                    child: Text(_ready ? '用户凭据已缓存' : '用户凭据未缓存',
+                    child: Text(
+                        _identity
+                            ? context.l10n.flowUserCredentialsCached
+                            : context.l10n.flowUserCredentialsNotCached,
                         style: TextStyle(
                             fontSize: 12,
-                            color: _ready
+                            color: _identity
                                 ? AppColors.successGreen(brightness)
                                 : AppColors.errorRed(brightness)))),
               ]),
             ),
-          if (!_loading && !_ready)
+          // 机台身份已绑定但数据源自身未就绪：如实说明缺什么，不再要求重新扫码。
+          if (!_loading && _identity)
+            for (final issue in _issues)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(children: [
+                  Icon(Icons.info_outline,
+                      size: 16, color: AppColors.warningOrange(brightness)),
+                  const SizedBox(width: 6),
+                  Expanded(
+                      child: Text(issue,
+                          style: TextStyle(
+                              fontSize: 12,
+                              color: AppColors.warningOrange(brightness)))),
+                ]),
+              ),
+          if (!_loading && !_identity && widget.platforms.isNotEmpty)
             Align(
               alignment: Alignment.centerLeft,
               child: TextButton.icon(
                 onPressed: _binding ? null : _bindIdentity,
                 icon: const Icon(Icons.qr_code_2, size: 18),
-                label: Text(_binding ? '正在验证二维码…' : '输入二维码绑定机台身份'),
+                label: Text(_binding
+                    ? context.l10n.flowValidatingQRCode
+                    : context.l10n.flowLinkCabinetIdentityUsingQR),
               ),
             ),
-          if (_enabled) ...[
-            Text('更新达成率与 DX 分数；连击、同步分别沿用各目标账号现有的标记。暂不更新宴谱和游玩次数。',
-                style: Theme.of(context).textTheme.bodySmall),
-          ],
-          if (!_loading && _cached.values.any((value) => value))
+          AnimatedReveal(
+              visible: _enabled,
+              child: Text(
+                  context.l10n.flowUpdatesAchievementAndDXScoresComboAnd,
+                  style: Theme.of(context).textTheme.bodySmall)),
+          if (!_loading && _identity)
             TextButton(
               onPressed: _deleting
                   ? null
@@ -138,7 +182,10 @@ class _QuickSyncOptionState extends State<QuickSyncOption> {
                         await AwmcQuickSyncService.forgetIdentity();
                       } catch (_) {
                         if (context.mounted)
-                          AppToast.show('用户凭据删除失败，请重试');
+                          AppToast.show(
+                              context
+                                  .l10n.flowCouldNotDeleteCredentialsTryAgain,
+                              tone: AppToastTone.error);
                       } finally {
                         if (mounted) {
                           await _check();
@@ -146,10 +193,10 @@ class _QuickSyncOptionState extends State<QuickSyncOption> {
                         }
                       }
                     },
-              child: const Text('删除用户凭据'),
+              child: Text(context.l10n.flowDeleteUserCredentials),
             ),
-          if (!_loading && _cached.values.any((value) => value))
-            Text('三个数据源共用此凭据，删除时会关闭全部自动同步。',
+          if (!_loading && _identity)
+            Text(context.l10n.flowAllThreeSourcesShareTheseCredentialsDeleting,
                 style: theme.textTheme.bodySmall
                     ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
         ],
@@ -158,26 +205,21 @@ class _QuickSyncOptionState extends State<QuickSyncOption> {
   }
 
   Future<void> _bindIdentity() async {
-    final qrCode = await showDialog<String>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const _BindQuickIdentityDialog(),
-    );
-    if (!mounted || qrCode == null) return;
     setState(() => _binding = true);
     try {
-      await AwmcQuickSyncService.bindIdentityWithQr(qrCode);
-      if (!mounted) return;
-      AppToast.show('机台身份已缓存，现在可以使用快速同步');
-      await _check();
-    } catch (error) {
-      if (!mounted) return;
-      AppToast.show('绑定机台身份失败：$error');
+      await showBindCabinetIdentityDialog(context);
+      if (mounted) await _check();
     } finally {
       if (mounted) setState(() => _binding = false);
     }
   }
 }
+
+Future<void> showBindCabinetIdentityDialog(BuildContext context) =>
+    AppTaskActivity.run(() => showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const _BindQuickIdentityDialog()));
 
 class _BindQuickIdentityDialog extends StatefulWidget {
   const _BindQuickIdentityDialog();
@@ -190,6 +232,7 @@ class _BindQuickIdentityDialog extends StatefulWidget {
 class _BindQuickIdentityDialogState extends State<_BindQuickIdentityDialog> {
   final _controller = TextEditingController();
   String? _error;
+  bool _saving = false;
 
   @override
   void dispose() {
@@ -197,47 +240,75 @@ class _BindQuickIdentityDialogState extends State<_BindQuickIdentityDialog> {
     super.dispose();
   }
 
-  void _submit() {
+  Future<void> _submit() async {
+    if (_saving) return;
     final value = _controller.text.trim();
     if (!value.startsWith('SGWCMAID') || value.length <= 20) {
-      setState(() => _error = '请输入有效的 SGWCMAID 机台登入二维码');
+      setState(
+          () => _error = context.l10n.flowEnterAValidSGWCMAIDCabinetLoginQR);
       return;
     }
-    Navigator.of(context).pop(value);
+    FocusManager.instance.primaryFocus?.unfocus();
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await AwmcQuickSyncService.bindIdentityWithQr(value);
+      if (!mounted) return;
+      AppToast.show(context.l10n.flowCabinetIdentityCachedQuickSyncIsReady,
+          tone: AppToastTone.success);
+      Navigator.of(context).pop();
+    } catch (error) {
+      if (mounted)
+        setState(() => _error =
+            context.l10n.flowCouldNotLinkCabinetIdentityP0(error.toString()));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override
-  Widget build(BuildContext context) => AppAlertDialog(
-        title: const Text('绑定机台身份'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('只读取 userId 用于快速同步，不读取成绩，也不会执行普通同步。'),
-              const SizedBox(height: 12),
-              QrQuickFillButtons(
-                controller: _controller,
-                onFilled: () => setState(() => _error = null),
+  Widget build(BuildContext context) => PopScope(
+      canPop: !_saving,
+      child: AppAlertDialog(
+        title: Text(context.l10n.flowLinkCabinetIdentity),
+        content: AbsorbPointer(
+            absorbing: _saving,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(context.l10n.flowReadsOnlyUserIdForQuickSyncDoes),
+                  const SizedBox(height: 12),
+                  QrQuickFillButtons(
+                    controller: _controller,
+                    onFilled: () => setState(() => _error = null),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _controller,
+                    maxLines: 3,
+                    decoration: InputDecoration(
+                      hintText:
+                          context.l10n.flowMaimaiDXCHUNITHMLoginQRSGWCMAID2,
+                      errorText: _error,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _controller,
-                maxLines: 3,
-                decoration: InputDecoration(
-                  hintText: '舞萌DX | 中二节奏登入二维码（SGWCMAID...）',
-                  errorText: _error,
-                ),
-              ),
-            ],
-          ),
-        ),
+            )),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('取消'),
+            onPressed: _saving ? null : () => Navigator.of(context).pop(),
+            child: Text(context.l10n.featureCancel),
           ),
-          FilledButton(onPressed: _submit, child: const Text('验证并缓存')),
+          FilledButton(
+              onPressed: _saving ? null : _submit,
+              child: Text(_saving
+                  ? context.l10n.flowValidatingQRCode
+                  : context.l10n.flowVerifyAndSave)),
         ],
-      );
+      ));
 }

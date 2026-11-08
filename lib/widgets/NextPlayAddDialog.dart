@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 
@@ -117,7 +118,7 @@ class _NextPlayAddFormState extends State<_NextPlayAddForm> {
   Widget build(BuildContext context) {
     final brightness = Theme.of(context).brightness;
     return AppAlertDialog(
-      title: const Text('加入下次想玩'),
+      title: Text(context.l10n.flowAddToPlayNext),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -128,7 +129,7 @@ class _NextPlayAddFormState extends State<_NextPlayAddForm> {
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 12),
-            const Text('想玩的难度（可多选）'),
+            Text(context.l10n.flowDifficultiesToPlayMultipleSelections),
             const SizedBox(height: 6),
             ...widget.difficulties.map((option) {
               final selected = _selected.contains(option.index);
@@ -151,7 +152,8 @@ class _NextPlayAddFormState extends State<_NextPlayAddForm> {
               return Padding(
                 padding: const EdgeInsets.only(bottom: 6),
                 child: InkWell(
-                  borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+                  borderRadius:
+                      BorderRadius.circular(AppDesignTokens.radiusSmall),
                   onTap: () => setState(() {
                     if (selected) {
                       _selected.remove(option.index);
@@ -165,7 +167,8 @@ class _NextPlayAddFormState extends State<_NextPlayAddForm> {
                         const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                     decoration: BoxDecoration(
                       color: background,
-                      borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+                      borderRadius:
+                          BorderRadius.circular(AppDesignTokens.radiusSmall),
                     ),
                     child: Row(
                       children: [
@@ -195,9 +198,9 @@ class _NextPlayAddFormState extends State<_NextPlayAddForm> {
             const SizedBox(height: 4),
             Row(
               children: [
-                const Expanded(child: Text('添加次数')),
+                Expanded(child: Text(context.l10n.flowNumberOfEntries)),
                 IconButton(
-                  tooltip: '减少次数',
+                  tooltip: context.l10n.flowDecreaseCount,
                   onPressed:
                       _count <= 1 ? null : () => setState(() => _count--),
                   icon: const Icon(Icons.remove_circle_outline),
@@ -212,7 +215,7 @@ class _NextPlayAddFormState extends State<_NextPlayAddForm> {
                   ),
                 ),
                 IconButton(
-                  tooltip: '增加次数',
+                  tooltip: context.l10n.flowIncreaseCount,
                   onPressed:
                       _count >= 99 ? null : () => setState(() => _count++),
                   icon: const Icon(Icons.add_circle_outline),
@@ -224,8 +227,8 @@ class _NextPlayAddFormState extends State<_NextPlayAddForm> {
               maxLines: 2,
               maxLength: 100,
               decoration: InputDecoration(
-                labelText: '备注（可选）',
-                hintText: '例如：和朋友一起玩',
+                labelText: context.l10n.flowNotesOptional,
+                hintText: context.l10n.flowExamplePlayWithFriends,
               ).insetLabel(context),
             ),
           ],
@@ -234,11 +237,11 @@ class _NextPlayAddFormState extends State<_NextPlayAddForm> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('取消'),
+          child: Text(context.l10n.featureCancel),
         ),
         FilledButton(
           onPressed: _submit,
-          child: const Text('加入'),
+          child: Text(context.l10n.flowAdd),
         ),
       ],
     );

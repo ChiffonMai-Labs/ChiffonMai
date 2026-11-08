@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'package:my_first_flutter_app/widgets/AppSwitch.dart';
 import 'dart:async';
 import 'dart:math' as math;
@@ -44,19 +46,28 @@ class ExportQualityResult {
   });
 
   /// 预设选项列表
-  static const List<ExportQualityResult> presets = [
-    ExportQualityResult(
-        jpegQuality: null,
-        label: 'PNG 无损（原始画质）',
-        name: 'PNG 无损',
-        hint: '原始画质'),
-    ExportQualityResult(
-        jpegQuality: 95, label: 'JPEG 高质量', name: 'JPEG 高质量', hint: '清晰，体积较小'),
-    ExportQualityResult(
-        jpegQuality: 85, label: 'JPEG 标准', name: 'JPEG 标准', hint: '适合发送和分享'),
-    ExportQualityResult(
-        jpegQuality: 70, label: 'JPEG 压缩', name: 'JPEG 压缩', hint: '体积最小'),
-  ];
+  static List<ExportQualityResult> get presets => [
+        ExportQualityResult(
+            jpegQuality: null,
+            label: appL10n.flowPNGLosslessOriginalQuality,
+            name: appL10n.flowPNGLossless,
+            hint: appL10n.flowOriginalQuality),
+        ExportQualityResult(
+            jpegQuality: 95,
+            label: appL10n.flowJPEGHighQuality,
+            name: appL10n.flowJPEGHighQuality,
+            hint: appL10n.flowClearImageSmallerFile),
+        ExportQualityResult(
+            jpegQuality: 85,
+            label: appL10n.flowJPEGStandard,
+            name: appL10n.flowJPEGStandard,
+            hint: appL10n.flowGoodForSharing),
+        ExportQualityResult(
+            jpegQuality: 70,
+            label: appL10n.flowJPEGCompressed,
+            name: appL10n.flowJPEGCompressed,
+            hint: appL10n.flowSmallestFile),
+      ];
 
   /// 获取文件扩展名
   String get extension => jpegQuality != null ? 'jpg' : 'png';
@@ -146,7 +157,7 @@ class ExportQualitySelector {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
-                      '选择导出质量',
+                      context.l10n.flowChooseExportQuality,
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w800,
@@ -158,7 +169,8 @@ class ExportQualitySelector {
                       Padding(
                         padding: const EdgeInsets.only(top: 2),
                         child: Text(
-                          '当前正在导出：$exportingLabel',
+                          context.l10n
+                              .flowExportingP0((exportingLabel).toString()),
                           style: TextStyle(
                             color: scheme.onSurfaceVariant,
                             fontSize: 13,
@@ -172,7 +184,7 @@ class ExportQualitySelector {
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             Text(
-                              '图片主题',
+                              context.l10n.flowImageTheme,
                               style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
@@ -184,7 +196,14 @@ class ExportQualitySelector {
                               height: 38,
                               items: [
                                 for (final item in ExportImageTheme.values)
-                                  SegmentedTabItem(item.label),
+                                  SegmentedTabItem(switch (item) {
+                                    ExportImageTheme.light =>
+                                      context.l10n.lightMode,
+                                    ExportImageTheme.dark =>
+                                      context.l10n.darkMode,
+                                    ExportImageTheme.black =>
+                                      context.l10n.exportBlackTheme,
+                                  }),
                               ],
                               selectedIndex: theme.index,
                               onChanged: (index) {
@@ -236,9 +255,9 @@ class ExportQualitySelector {
                                       value: thunderMode,
                                       onChanged: (value) =>
                                           setState(() => thunderMode = value),
-                                      title: const Text('雷霆模式'),
-                                      subtitle: const Text(
-                                          '将歌曲卡片改为单列 50 行或单行 50 列，适合超长图片'),
+                                      title: Text(context.l10n.flowThunderMode),
+                                      subtitle: Text(context
+                                          .l10n.flowArrangeCardsIn50RowsOr50),
                                     ),
                                     if (thunderMode)
                                       Padding(
@@ -246,9 +265,11 @@ class ExportQualitySelector {
                                             12, 0, 12, 10),
                                         child: SegmentedTabs(
                                           height: 38,
-                                          items: const [
-                                            SegmentedTabItem('单列 50 行'),
-                                            SegmentedTabItem('单行 50 列'),
+                                          items: [
+                                            SegmentedTabItem(
+                                                context.l10n.flow50Rows1Column),
+                                            SegmentedTabItem(
+                                                context.l10n.flow1Row50Columns),
                                           ],
                                           selectedIndex:
                                               thunderVertical ? 0 : 1,
@@ -285,7 +306,7 @@ class ExportQualitySelector {
                                   },
                                   icon: const Icon(Icons.preview_rounded,
                                       size: 20),
-                                  label: const Text('导出效果图'),
+                                  label: Text(context.l10n.flowExportPreview),
                                 ),
                               ),
                             ],
@@ -301,13 +322,15 @@ class ExportQualitySelector {
                             height: 48,
                             child: OutlinedButton(
                               onPressed: () => Navigator.pop(ctx, null),
-                              child: const Text('取消'),
+                              child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(context.l10n.featureCancel,
+                                      maxLines: 1)),
                             ),
                           ),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
-                          flex: 2,
                           child: SizedBox(
                             height: 48,
                             child: FilledButton(
@@ -320,7 +343,10 @@ class ExportQualitySelector {
                                   theme: theme,
                                 ),
                               ),
-                              child: const Text('确认导出'),
+                              child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(context.l10n.flowConfirmExport,
+                                      maxLines: 1)),
                             ),
                           ),
                         ),
@@ -357,7 +383,8 @@ class ExportQualitySelector {
         if (snapshot.hasError) {
           return Padding(
             padding: const EdgeInsets.all(24),
-            child: Text('预览生成失败：${snapshot.error}'),
+            child: Text(appL10n
+                .flowCouldNotGeneratePreviewP0((snapshot.error).toString())),
           );
         }
         if (!snapshot.hasData) {
@@ -491,7 +518,7 @@ class _ExportPreviewDialogState extends State<_ExportPreviewDialog> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '导出效果图',
+                          context.l10n.flowExportPreview,
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w800,
@@ -511,13 +538,16 @@ class _ExportPreviewDialogState extends State<_ExportPreviewDialog> {
                       ],
                     ),
                   ),
-                  tool('缩小', Icons.remove_rounded, () => _scaleBy(0.8)),
+                  tool(context.l10n.flowZoomOut, Icons.remove_rounded,
+                      () => _scaleBy(0.8)),
                   const SizedBox(width: 4),
-                  tool('放大', Icons.add_rounded, () => _scaleBy(1.25)),
+                  tool(context.l10n.flowZoomIn, Icons.add_rounded,
+                      () => _scaleBy(1.25)),
                   const SizedBox(width: 4),
-                  tool('适应窗口', Icons.fit_screen_rounded, _fitContent),
+                  tool(context.l10n.flowFitToWindow, Icons.fit_screen_rounded,
+                      _fitContent),
                   const SizedBox(width: 4),
-                  tool('关闭', Icons.close_rounded,
+                  tool(context.l10n.featureClose, Icons.close_rounded,
                       () => Navigator.of(context).pop()),
                 ],
               ),
@@ -624,7 +654,8 @@ class _QualityOption extends StatelessWidget {
       child: Semantics(
         button: true,
         selected: selected,
-        label: '$name，$hint，预计 $size',
+        label: context.l10n.flowP0P1EstimatedP2(
+            (name).toString(), (hint).toString(), (size).toString()),
         excludeSemantics: true,
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
@@ -674,7 +705,7 @@ class _QualityOption extends StatelessWidget {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  '约 $size',
+                  context.l10n.flowAboutP0((size).toString()),
                   style: AppTheme.number(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,

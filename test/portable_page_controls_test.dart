@@ -41,6 +41,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:my_first_flutter_app/entity/Portable/PortableSong.dart';
 import 'package:my_first_flutter_app/page/Portable/PortablePlayerPage.dart';
 import 'package:my_first_flutter_app/page/Portable/PortableNowPlayingPage.dart';
+import 'package:my_first_flutter_app/page/SongPlayPage.dart';
 import 'package:my_first_flutter_app/widgets/PortablePlayerBadge.dart';
 import 'package:my_first_flutter_app/service/Portable/PortablePlayerController.dart';
 import 'package:my_first_flutter_app/service/Portable/PortableSongLibrary.dart';
@@ -121,6 +122,38 @@ void main() {
       _mockChannel('plugins.flutter.io/path_provider', null);
       PortablePlayerScope.isLibraryPageOpen.value = false;
     });
+  });
+
+  testWidgets('试听页先呈现播放器，入场未完成就退出时不再加载曲库或播放', (tester) async {
+    final navigator = GlobalKey<NavigatorState>();
+    await tester.pumpWidget(MaterialApp(
+      navigatorKey: navigator,
+      theme: AppTheme.lightTheme(),
+      home: const Scaffold(body: Text('歌曲详情')),
+    ));
+    unawaited(navigator.currentState!.push(MaterialPageRoute<void>(
+      builder: (_) => const SongPlayPage(
+        songId: '8',
+        songTitle: '准备中的试听曲',
+        songArtist: '试听艺术家',
+        songType: 'ST',
+      ),
+    )));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 16));
+
+    expect(find.byType(PortableNowPlayingPage), findsOneWidget);
+    expect(find.text('准备中的试听曲'), findsWidgets);
+    expect(find.text('试听艺术家'), findsWidgets);
+    expect(PortableSongLibrary().songsOrNull, isNull, reason: '页面入场时不能先等待曲库加载');
+    expect(PortablePlayerController().queue, isEmpty);
+
+    navigator.currentState!.pop();
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pump();
+    expect(PortableSongLibrary().songsOrNull, isNull);
+    expect(PortablePlayerController().queue, isEmpty, reason: '入场期间离页后不能迟到起播');
+    await quietDown(tester);
   });
 
   testWidgets('A. 播放开始后，行内不要一直转 loading', (tester) async {

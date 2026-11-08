@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'ChartDifficulty.dart';
 
 /// 单值或两端都包含的定数区间；空输入由筛选器处理。
@@ -17,7 +18,7 @@ class DifficultyConstantRange {
         RegExp(r'^(\d+(?:\.\d+)?|\.\d+)\s*(?:-\s*(\d+(?:\.\d+)?|\.\d+))?$')
             .firstMatch(normalized);
     if (match == null) {
-      throw const FormatException('请输入单值或完整区间，如 13.7 或 13.4-14');
+      throw  FormatException(appL10n.flowEnterOneValueOrACompleteRange);
     }
     final minimum = double.parse(match.group(1)!);
     final maximum = double.parse(match.group(2) ?? match.group(1)!);
@@ -25,10 +26,10 @@ class DifficultyConstantRange {
         !maximum.isFinite ||
         minimum <= 0 ||
         maximum <= 0) {
-      throw const FormatException('定数必须是大于 0 的有限数字');
+      throw  FormatException(appL10n.flowConstantMustBeAFiniteNumberGreater);
     }
     if (minimum > maximum) {
-      throw const FormatException('区间下限不能大于上限');
+      throw  FormatException(appL10n.flowLowerBoundCannotExceedUpperBound);
     }
     return DifficultyConstantRange._(minimum, maximum);
   }
@@ -54,7 +55,7 @@ class DifficultyConstantFilter {
       if (entry.value.trim().isEmpty) continue;
       active.add(entry.key);
       if (!ChartDifficulty.isValid(entry.key)) {
-        errors[entry.key] = '未知难度';
+        errors[entry.key] = appL10n.flowUnknownDifficulty;
         continue;
       }
       try {
@@ -65,7 +66,7 @@ class DifficultyConstantFilter {
     }
     if (active.contains(ChartDifficulty.utage) &&
         active.any(ChartDifficulty.isStandard)) {
-      errors[ChartDifficulty.utage] = 'UTAGE 不能与普通难度同时填写';
+      errors[ChartDifficulty.utage] = appL10n.flowUTAGECannotBeCombinedWithNormalDifficulties;
     }
     return DifficultyConstantFilter._(
       Map.unmodifiable(ranges),

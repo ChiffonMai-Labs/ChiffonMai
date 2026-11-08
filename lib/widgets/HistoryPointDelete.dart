@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/FeatureLocalizations.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 
 import '../utils/AppTheme.dart';
@@ -32,7 +34,7 @@ class HistoryPointDeleteButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final brightness = Theme.of(context).brightness;
     return Tooltip(
-      message: tooltip,
+      message: context.featureText(tooltip),
       child: InkWell(
         onTap: onPressed,
         customBorder: const CircleBorder(),
@@ -63,15 +65,15 @@ Future<bool> confirmDeleteHistoryPoint(
   final confirmed = await showDialog<bool>(
     context: context,
     builder: (dialogContext) => AppAlertDialog(
-      title: const Text('删除这个记录点？'),
+      title: Text(context.l10n.flowDeleteThisDataPoint),
       content: Text(
         '$pointLabel\n\n'
-        '${note ?? '删除后无法恢复。如果它是自动采集到的当前成绩，下次刷新可能会重新记录。'}',
+        '${note ?? context.l10n.flowThisCannotBeUndoneIfThisIs}',
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(dialogContext).pop(false),
-          child: const Text('取消'),
+          child: Text(context.l10n.featureCancel),
         ),
         FilledButton(
           style: FilledButton.styleFrom(
@@ -79,7 +81,7 @@ Future<bool> confirmDeleteHistoryPoint(
             foregroundColor: scheme.onError,
           ),
           onPressed: () => Navigator.of(dialogContext).pop(true),
-          child: const Text('删除'),
+          child: Text(context.l10n.flowDelete),
         ),
       ],
     ),

@@ -2,13 +2,33 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:my_first_flutter_app/api/ApiUrls.dart';
 import 'package:my_first_flutter_app/utils/ApiClient.dart';
+import 'package:my_first_flutter_app/manager/DivingFishProbeManager.dart';
 import 'package:my_first_flutter_app/utils/ExternalLaunchUtil.dart';
+import 'package:my_first_flutter_app/utils/LoginStateNotifier.dart';
 
 /// 水鱼账号 OAuth 绑定流程封装。
 /// 后端（server.js /api/prober）持有 client_secret，App 只负责发起绑定与打开授权链接。
 class DivingFishOAuthManager {
   static final DivingFishOAuthManager _instance =
       DivingFishOAuthManager._internal();
+
+  /// 最近一次查询到的授权状态：true=已授权，false=未授权，null=未查询或查询失败。
+  /// 绑定与授权管理的状态标签与水鱼授权对话框共用这一份。
+  final ValueNotifier<bool?> authorizationState = ValueNotifier(null);
+
+  /// 按当前水鱼账号重新查询授权状态；未登录或没有绑定 QQ 时置空。
+  Future<void> refreshAuthorization() async {
+    if (!LoginStateNotifier.instance.value) {
+      authorizationState.value = null;
+      return;
+    }
+    final qq = (await DivingFishProbeManager().fetchBindQQ())?.trim() ?? '';
+    if (qq.isEmpty) {
+      authorizationState.value = null;
+      return;
+    }
+    await checkAuthorization(qq);
+  }
   factory DivingFishOAuthManager() => _instance;
   DivingFishOAuthManager._internal();
 
@@ -50,7 +70,10 @@ class DivingFishOAuthManager {
       );
       if (response.statusCode == 200) {
         final data = json.decode(response.body) as Map<String, dynamic>;
-        return data['authorized'] as bool?;
+        final authorized = data['authorized'] as bool?;
+        // 查询失败不覆盖已知状态，避免临时断网把「已授权」刷成未知。
+        if (authorized != null) authorizationState.value = authorized;
+        return authorized;
       }
       debugPrint('查询授权状态失败，状态码: ${response.statusCode}');
       return null;

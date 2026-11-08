@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 /*
  * 随身听全局播放控制器。
  *
@@ -138,11 +139,11 @@ class PortablePlayerController extends ChangeNotifier {
   String get playbackModeLabel {
     switch (_playbackMode) {
       case PortablePlaybackMode.sequential:
-        return '顺序播放';
+        return appL10n.flowSequential;
       case PortablePlaybackMode.shuffle:
-        return '随机播放';
+        return appL10n.flowShuffle;
       case PortablePlaybackMode.single:
-        return _singleLoopCount == null ? '单曲循环' : '单曲循环 $_singleLoopCount 次';
+        return _singleLoopCount == null ? appL10n.flowRepeatOne : appL10n.flowRepeatOneP0Times((_singleLoopCount).toString());
     }
   }
 
@@ -168,6 +169,13 @@ class PortablePlayerController extends ChangeNotifier {
     final state = _player.processingState;
     return state == ProcessingState.loading ||
         state == ProcessingState.buffering;
+  }
+
+  /// 下一首要放的曲目，随机模式下也按实际播放顺序；没有下一首时为 null。
+  PortableSong? get nextSong {
+    final index = _player.nextIndex;
+    if (index == null || index < 0 || index >= _queue.length) return null;
+    return _queue[index];
   }
 
   bool get hasNext => _player.hasNext;
@@ -468,7 +476,7 @@ class PortablePlayerController extends ChangeNotifier {
   /// 什么提示都没有」—— 真机上极难排查。
   void _handleSourceFailure(Object error) {
     final song = currentSong;
-    final title = song?.title ?? '当前曲目';
+    final title = song?.title ?? appL10n.flowCurrentSong;
     debugPrint('[Portable] 音源加载失败 $title: $error');
 
     // 单曲播放（队列里只有这一首）：先试一次 wmc.pub 兜底，再走 skip。
@@ -477,7 +485,7 @@ class PortablePlayerController extends ChangeNotifier {
       _triedWmcFallback = true;
       debugPrint('[Portable] 单曲失败 → 试 wmc 兜底: ${song.wmcAudioUrl}');
       _emit(PortablePlayerEvent(
-        '《$title》落雪音源失败，尝试 wmc 兜底…',
+        appL10n.flowLXNSAudioFailedForP0TryingWmc((title).toString()),
         isError: true,
       ));
       unawaited(_retryWithWmcFallback(song));
@@ -485,7 +493,7 @@ class PortablePlayerController extends ChangeNotifier {
     }
 
     _emit(PortablePlayerEvent(
-      '《$title》当前暂无可用音源，已跳过',
+      appL10n.flowNoAudioAvailableForP0Skipped((title).toString()),
       isError: true,
     ));
     unawaited(_autoSkipAfterFailure());
@@ -503,8 +511,8 @@ class PortablePlayerController extends ChangeNotifier {
         tag: MediaItem(
           id: song.portableKey,
           title: song.title,
-          artist: song.artist.isEmpty ? '未知艺术家' : song.artist,
-          album: song.genre.isEmpty ? 'ChiffonMai 随身听' : song.genre,
+          artist: song.artist.isEmpty ? appL10n.flowUnknownArtist : song.artist,
+          album: song.genre.isEmpty ? appL10n.flowChiffonMaiMusicPlayer : song.genre,
           artUri: Uri.parse(_notificationArtUri(song)),
           extras: <String, dynamic>{
             'lxnsId': song.lxnsId,
@@ -542,8 +550,8 @@ class PortablePlayerController extends ChangeNotifier {
     try {
       _consecutiveSkips++;
       if (_consecutiveSkips > kPortableMaxConsecutiveSkips) {
-        _emit(const PortablePlayerEvent(
-          '连续多首音源都加载失败，已停止自动跳过（请检查网络后重试）',
+        _emit( PortablePlayerEvent(
+          appL10n.flowSeveralSongsFailedToLoadAutomaticSkipping,
           isError: true,
         ));
         return;
@@ -683,7 +691,7 @@ class PortablePlayerController extends ChangeNotifier {
       unawaited(_player.play().catchError((Object e) {
         if (request == _playRequest) _handleSourceFailure(e);
       }));
-      _emit(PortablePlayerEvent('正在播放：${song.title}'));
+      _emit(PortablePlayerEvent(appL10n.flowNowPlayingP0((song.title).toString())));
     } catch (e) {
       if (request != _playRequest) return;
       // 只有「建源/发起播放」这一段的同步失败会走到这里（比如 URL 非法）。
@@ -802,8 +810,8 @@ class PortablePlayerController extends ChangeNotifier {
     final tag = MediaItem(
       id: song.portableKey,
       title: song.title,
-      artist: song.artist.isEmpty ? '未知艺术家' : song.artist,
-      album: song.genre.isEmpty ? 'ChiffonMai 随身听' : song.genre,
+      artist: song.artist.isEmpty ? appL10n.flowUnknownArtist : song.artist,
+      album: song.genre.isEmpty ? appL10n.flowChiffonMaiMusicPlayer : song.genre,
       artUri: Uri.parse(_notificationArtUri(song)),
       extras: <String, dynamic>{
         'lxnsId': song.lxnsId,

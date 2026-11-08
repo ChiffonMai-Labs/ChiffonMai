@@ -4,10 +4,8 @@ part of '../SongInfoPage.dart';
 ///
 /// 2026-11 从 SongInfoPage.dart 原样拆出（方法体未改，仅 setState → _update）。
 extension _SongInfoWidgets on _SongInfoPageState {
-
-  Widget _buildBpmDialogContent(String rawValue) {
-    // 基准值在下面单独一行，这里只显示范围，去掉卡片上括号里的基准值。
-    final value = rawValue.split('(').first;
+  /// [value] 已经是「谱面：x」「基准：y」两行，不再另加标签。
+  Widget _buildBpmDialogContent(String value) {
     // 使用当前谱面的完整顺序，保留降速后再次升回同一 BPM 的记录。
     final values =
         _maidataBpmChangesByDiffIndex[_currentDiffIndex] ?? const <double>[];
@@ -23,12 +21,10 @@ extension _SongInfoWidgets on _SongInfoPageState {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-            Text(_hasBpmChanges ? '$_bpmRangeLabel：$value' : '谱面 BPM：$value'),
-            const SizedBox(height: 8),
-            Text('$_defaultBpmLabel：${_defaultBpm(_songData?['basic_info'])}'),
+            Text(value),
             if (values.toSet().length > 1) ...[
               const SizedBox(height: 16),
-              const Text('按当前谱面中 BPM 标记的出现顺序'),
+              Text(context.l10n.flowInTheOrderBPMMarkersAppearIn),
               const SizedBox(height: 8),
               Center(
                 child: Table(
@@ -40,14 +36,17 @@ extension _SongInfoWidgets on _SongInfoPageState {
                   ),
                   children: [
                     TableRow(children: [
-                      cell(const Text('变化序号')),
+                      cell(Text(context.l10n.flowChangeIndex)),
                       cell(const Text('BPM')),
                     ]),
                     for (var i = 0; i < values.length; i++)
                       TableRow(children: [
                         cell(Text('${i + 1}')),
-                        cell(_valueWithDirection(_formatBpm(values[i]),
-                            i == 0 ? null : values[i].compareTo(values[i - 1]))),
+                        cell(_valueWithDirection(
+                            _formatBpm(values[i]),
+                            i == 0
+                                ? null
+                                : values[i].compareTo(values[i - 1]))),
                       ]),
                   ],
                 ),
@@ -59,7 +58,6 @@ extension _SongInfoWidgets on _SongInfoPageState {
 
   /// 构建 B站播放量统计项（带 BV 上传功能）
   Widget _buildBiliPlayCountStat() {
-
     return Expanded(
       child: GestureDetector(
         onTap: _showBvUploadDialog,
@@ -68,7 +66,7 @@ extension _SongInfoWidgets on _SongInfoPageState {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'B站播放',
+              context.l10n.flowPlayOnBilibili,
               style: TextStyle(
                 fontSize: 11,
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -110,11 +108,15 @@ extension _SongInfoWidgets on _SongInfoPageState {
         basicInfo['from'], _usesExtraVersionName);
     final jpFrom = _songData?['type'] == 'DX' ? _unionDxFrom : _unionFrom;
     if (_isExtraSong || jpFrom == null || jpFrom.isEmpty) {
-      return _buildStatItem('版本', cnVersion, scrollable: false);
+      return _buildStatItem(context.l10n.flowVersion, cnVersion,
+          scrollable: false);
     }
     // 年号是国服的叫法，日服版本用世代名。
     final jpVersion = StringUtil.formatVersion2WithFlag(jpFrom, true);
-    return _buildRegionStat('版本', [('国服', cnVersion), ('日服', jpVersion)]);
+    return _buildRegionStat(context.l10n.flowVersion, [
+      (context.l10n.flowChina, cnVersion),
+      (context.l10n.flowJapan, jpVersion)
+    ]);
   }
 
   /// 首次上线：国服来自落雪，日服来自 union；没上国服的歌只有日服一行。
@@ -125,18 +127,19 @@ extension _SongInfoWidgets on _SongInfoPageState {
     final jpTime = DateTime.tryParse(jpDate);
     final gap = cnTime == null || jpTime == null
         ? ''
-        : '(相差${cnTime.difference(jpTime).inDays.abs()}天)';
-    return _buildRegionStat('首次上线$gap', [
-      if (cnDate != null) ('国服', cnDate),
-      ('日服', jpDate),
+        : context.l10n.flowP0DaysApart(
+            (cnTime.difference(jpTime).inDays.abs()).toString());
+    return _buildRegionStat(context.l10n.flowFirstReleaseP0((gap).toString()), [
+      if (cnDate != null) (context.l10n.flowChina, cnDate),
+      (context.l10n.flowJapan, jpDate),
     ]);
   }
 
   /// BPM：谱面 BPM 和基准固定分两行。
   Widget _buildBpmStat(dynamic basicInfo) {
     return _buildRegionStat('BPM', [
-      ('谱面', _displayBpm(basicInfo)),
-      ('基准', _defaultBpm(basicInfo)),
+      (context.l10n.detailChartBpm, _displayBpm(basicInfo)),
+      (context.l10n.flowBase, _defaultBpm(basicInfo)),
     ]);
   }
 
@@ -245,7 +248,7 @@ extension _SongInfoWidgets on _SongInfoPageState {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('可游玩地区',
+          Text(context.l10n.flowPlayableRegions,
               style: TextStyle(
                   fontSize: 11,
                   color: Theme.of(context).colorScheme.onSurfaceVariant)),
@@ -305,22 +308,22 @@ extension _SongInfoWidgets on _SongInfoPageState {
       builder: (BuildContext context) {
         return AppAlertDialog(
           title: Text(label),
-          content:
-              label == 'BPM' ? _buildBpmDialogContent(value) : Text(value),
+          content: label == 'BPM' ? _buildBpmDialogContent(value) : Text(value),
           actions: [
             TextButton(
               onPressed: () {
                 Clipboard.setData(ClipboardData(text: value));
                 Navigator.of(context).pop();
-                AppToast.show('已复制到剪贴板');
+                AppToast.show(context.l10n.flowCopiedToClipboard,
+                    tone: AppToastTone.success);
               },
-              child: Text('复制'),
+              child: Text(context.l10n.flowCopy),
             ),
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
               },
-              child: Text('关闭'),
+              child: Text(context.l10n.featureClose),
             ),
           ],
         );
@@ -364,29 +367,27 @@ extension _SongInfoWidgets on _SongInfoPageState {
                   child: Text(value, style: textStyle, maxLines: 1),
                 )
               else
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final painter = TextPainter(
-                    text: TextSpan(text: value, style: textStyle),
-                    maxLines: 1,
-                    textDirection: Directionality.of(context),
-                    textScaler: MediaQuery.textScalerOf(context),
-                  )..layout();
-                  final fits = painter.width <= constraints.maxWidth;
-                  painter.dispose();
-                  return fits
-                      ? Text(value, style: textStyle, maxLines: 1)
-                      : MarqueeText(text: value, style: textStyle);
-                },
-              ),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final painter = TextPainter(
+                      text: TextSpan(text: value, style: textStyle),
+                      maxLines: 1,
+                      textDirection: Directionality.of(context),
+                      textScaler: MediaQuery.textScalerOf(context),
+                    )..layout();
+                    final fits = painter.width <= constraints.maxWidth;
+                    painter.dispose();
+                    return fits
+                        ? Text(value, style: textStyle, maxLines: 1)
+                        : MarqueeText(text: value, style: textStyle);
+                  },
+                ),
             ],
           ),
         ),
       ),
     );
   }
-
-
 
   /// 分段比例条（物量、绝赞共用）：切难度时色块宽度过渡。
   Widget _buildDistributionBar(List<int> counts, List<Color> colors) {
@@ -396,8 +397,7 @@ extension _SongInfoWidgets on _SongInfoPageState {
     final gapCount = counts.where((c) => c > 0).length - 1;
     return LayoutBuilder(
       builder: (context, constraints) {
-        final usable =
-            constraints.maxWidth - (gapCount < 0 ? 0 : gapCount) * 2;
+        final usable = constraints.maxWidth - (gapCount < 0 ? 0 : gapCount) * 2;
         return ClipRRect(
           borderRadius: BorderRadius.circular(6),
           child: SizedBox(
@@ -423,7 +423,8 @@ extension _SongInfoWidgets on _SongInfoPageState {
 
   /// 分段条下方的图例：色点 + 名称 + 滚动数字。[counts] 为 null 表示没有数据，显示「-」。
   Widget _buildDistributionLegend(
-      List<String> labels, List<int?> counts, List<Color> colors) {
+      List<String> labels, List<int?> counts, List<Color> colors,
+      {double dotOffsetY = 1.5}) {
     final scheme = Theme.of(context).colorScheme;
     final numberStyle = AppTheme.number(
         fontSize: 15, fontWeight: FontWeight.w600, color: scheme.onSurface);
@@ -436,12 +437,15 @@ extension _SongInfoWidgets on _SongInfoPageState {
               children: [
                 Row(
                   children: [
-                    Container(
-                      width: 6,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        color: colors[i],
-                        shape: BoxShape.circle,
+                    Transform.translate(
+                      offset: Offset(0, dotOffsetY),
+                      child: Container(
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: colors[i],
+                          shape: BoxShape.circle,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 4),
@@ -467,6 +471,96 @@ extension _SongInfoWidgets on _SongInfoPageState {
     );
   }
 
+  /// 按原有分类口径拆开两组 NOTE，不把 SLIDE、TOUCH 或绝赞星星混入。
+  Widget _buildProtectionDistributions(
+      NoteStats? stats, List<int?> breakCounts) {
+    final type = _songData?['type']?.toString().toUpperCase();
+    final isUtage = ChartDifficulty.isUtageSong(widget.songId, type: type);
+    if (!isUtage && (type == 'SD' || type == 'ST')) {
+      return const SizedBox.shrink();
+    }
+    final scheme = Theme.of(context).colorScheme;
+    final groups = [
+      (
+        context.l10n.flowProtectedNOTEDistribution,
+        [
+          context.l10n.flowProtectedTAP,
+          context.l10n.flowProtectedHOLD,
+          context.l10n.flowProtectedBREAK
+        ],
+        <int?>[stats?.protectedTap, stats?.protectedHold, breakCounts[2]],
+        [
+          AppColors.noteDistribution[0],
+          AppColors.noteDistribution[1],
+          AppColors.breakDistribution[2]
+        ],
+        stats?.protectedNotes,
+      ),
+      (
+        context.l10n.flowUnprotectedNOTEDistribution,
+        [
+          context.l10n.flowUnprotectedTAP,
+          context.l10n.flowUnprotectedHOLD,
+          context.l10n.flowTrueBREAKTAP,
+          context.l10n.flowTrueBREAKHOLD
+        ],
+        <int?>[
+          stats == null ? null : stats.tap - stats.protectedTap,
+          stats == null ? null : stats.hold - stats.protectedHold,
+          breakCounts[0],
+          breakCounts[1]
+        ],
+        [
+          AppColors.noteDistribution[0],
+          AppColors.noteDistribution[1],
+          AppColors.breakDistribution[0],
+          AppColors.breakDistribution[1]
+        ],
+        stats?.unprotectedNotes,
+      ),
+    ]
+        .where((group) =>
+            !group.$3.every((count) => count == 0) &&
+            group.$3.any((count) => count != null))
+        .toList();
+    // 全为 0 或全为「-」时隐藏对应分组，混合数据保留各自的占位。
+    if (groups.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final group in groups) ...[
+          const SizedBox(height: 16),
+          AppSectionHeader(
+            title: group.$1,
+            padding: const EdgeInsets.only(bottom: 10),
+            trailing: group.$5 == null
+                ? Text(context.l10n.flowParsingDataUnavailable,
+                    style:
+                        TextStyle(fontSize: 12, color: scheme.onSurfaceVariant))
+                : RollingNumber(
+                    value: group.$5!,
+                    prefix: context.l10n.flowTotal,
+                    style: AppTheme.number(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+          ),
+          _buildDistributionBar(
+              [for (final count in group.$3) count ?? 0], group.$4),
+          const SizedBox(height: 10),
+          _buildDistributionLegend(group.$2, group.$3, group.$4),
+        ],
+        const SizedBox(height: 8),
+        Text(
+          context.l10n.flowExcludesSLIDETOUCHAndBREAKStars,
+          style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
+        ),
+      ],
+    );
+  }
+
   // 构建占位符
 
   // 构建徽章
@@ -487,7 +581,7 @@ extension _SongInfoWidgets on _SongInfoPageState {
           borderRadius: BorderRadius.circular(16),
         ),
         child: Text(
-          '别名: 无',
+          context.l10n.flowAliasesNone,
           style: AppTheme.number(
             fontSize: 13,
             fontWeight: FontWeight.w500,
@@ -504,13 +598,14 @@ extension _SongInfoWidgets on _SongInfoPageState {
           context: context,
           builder: (BuildContext context) {
             return AppAlertDialog(
-              title: Text('${songTitle}的别名'),
+              title:
+                  Text(context.l10n.flowAliasesForP0((songTitle).toString())),
               content: SingleChildScrollView(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '点击任意别名即可复制',
+                      context.l10n.flowTapAnyAliasToCopy,
                       style: TextStyle(
                         fontSize: 12,
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -519,10 +614,13 @@ extension _SongInfoWidgets on _SongInfoPageState {
                     const SizedBox(height: 6),
                     // 每条别名可点击复制到剪贴板（点击后不关闭弹窗，方便连续复制）
                     ...aliases.map((alias) => InkWell(
-                          borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+                          borderRadius: BorderRadius.circular(
+                              AppDesignTokens.radiusSmall),
                           onTap: () async {
                             await Clipboard.setData(ClipboardData(text: alias));
-                            AppToast.show('已复制：$alias');
+                            AppToast.show(
+                                context.l10n.flowCopiedP0((alias).toString()),
+                                tone: AppToastTone.success);
                           },
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
@@ -553,7 +651,7 @@ extension _SongInfoWidgets on _SongInfoPageState {
                   onPressed: () {
                     Navigator.of(context).pop();
                   },
-                  child: Text('关闭'),
+                  child: Text(context.l10n.featureClose),
                 ),
               ],
             );
@@ -572,7 +670,7 @@ extension _SongInfoWidgets on _SongInfoPageState {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              '查看别名 (${aliases.length})',
+              context.l10n.flowViewAliasesP0((aliases.length).toString()),
               style: AppTheme.number(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
@@ -626,7 +724,8 @@ class _SongDrawerHeroClipper extends CustomClipper<Path> {
 
   @override
   Path getClip(Size size) {
-    final offset = controller.hasClients ? controller.offset.clamp(0.0, 1e6) : 0.0;
+    final offset =
+        controller.hasClients ? controller.offset.clamp(0.0, 1e6) : 0.0;
     final top = size.height - _songDrawerOverlap - offset;
     const radius = AppDesignTokens.radiusLarge + 4;
     // 抽屉顶边已经滑过头图顶端，头图完全不用露出来。

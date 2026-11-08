@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:my_first_flutter_app/widgets/NoRipple.dart';
 import 'package:flutter/material.dart';
 
@@ -91,10 +92,10 @@ class _UnionUpdateComparePageState extends State<UnionUpdateComparePage> {
   Widget build(BuildContext context) {
     final brightness = Theme.of(context).brightness;
     return BackgroundPageScaffold(
-      title: '国服更新对照',
+      title: context.l10n.featureChinaUpdateComparison,
       actions: [
         IconButton(
-          tooltip: '口径说明',
+          tooltip: context.l10n.flowAboutThisComparison,
           icon: const Icon(Icons.info_outline),
           onPressed: _showNotes,
         ),
@@ -149,9 +150,10 @@ class _UnionUpdateComparePageState extends State<UnionUpdateComparePage> {
               padding: const EdgeInsets.symmetric(vertical: 32),
               child: Center(
                 child: Text(
-                  '这一段里没有曲目',
+                  context.l10n.flowNoSongsInThisSection,
                   style: TextStyle(
-                      fontSize: 12.5, color: AppColors.secondaryText(brightness)),
+                      fontSize: 12.5,
+                      color: AppColors.secondaryText(brightness)),
                 ),
               ),
             ),
@@ -187,7 +189,7 @@ class _UnionUpdateComparePageState extends State<UnionUpdateComparePage> {
                   size: 15, color: AppColors.warningOrange(brightness)),
               const SizedBox(width: 6),
               Text(
-                '国服（水鱼）更新前沿',
+                context.l10n.flowChinaDivingFishUpdateFrontier,
                 style: TextStyle(
                   fontSize: 12.5,
                   fontWeight: FontWeight.w700,
@@ -209,8 +211,9 @@ class _UnionUpdateComparePageState extends State<UnionUpdateComparePage> {
           if (frontier != null) ...[
             const SizedBox(height: 2),
             Text(
-              '日服首发 ${_formatDate(frontier.basicInfo.releaseDate)}'
-              ' · ${_versionLabel(frontier)}',
+              context.l10n.flowJapanDebutP0P1(
+                  (_formatDate(frontier.basicInfo.releaseDate)).toString(),
+                  (_versionLabel(frontier)).toString()),
               style: TextStyle(
                   fontSize: 11.5, color: AppColors.secondaryText(brightness)),
             ),
@@ -224,33 +227,36 @@ class _UnionUpdateComparePageState extends State<UnionUpdateComparePage> {
             ),
             child: Row(
               children: [
-                _countCell(brightness, '全量', '${compare.unionSongCount}'),
-                _countCell(brightness, '国服已上', '${compare.cnSongCount}'),
+                _countCell(brightness, context.l10n.flowAllSongs,
+                    '${compare.unionSongCount}'),
+                _countCell(brightness, context.l10n.flowInChina,
+                    '${compare.cnSongCount}'),
                 _countCell(
                   brightness,
-                  '待上线',
+                  context.l10n.flowPendingRelease,
                   '${compare.upcoming.length}',
                   highlight: true,
                 ),
-                _countCell(brightness, '未收录',
+                _countCell(brightness, context.l10n.flowNotIncluded,
                     '${compare.skipped.length}'),
               ],
             ),
           ),
           const SizedBox(height: 8),
           Text(
-            '「首次上线」显示的是日服首发时间，不是国服上线时间。'
-            '候选按首发日期识别，并从已确认待补批次补齐遗漏；'
-            '日期缺失时才参考 ID，较小 ID 的新曲也会纳入。',
+            context.l10n.flowFirstReleaseMeansTheJapanReleaseDate,
             style: TextStyle(
-                fontSize: 11, height: 1.5, color: AppColors.secondaryText(brightness)),
+                fontSize: 11,
+                height: 1.5,
+                color: AppColors.secondaryText(brightness)),
           ),
           if (compare.earlyReleases.isNotEmpty) ...[
             const SizedBox(height: 4),
             Text(
-              '已排除 ${compare.earlyReleases.length} 首国服超前上线曲目'
-              '（${compare.earlyReleases.map((s) => '#${s.id}').join(' ')}）'
-              '—— 它们会把前沿顶高，让真正待补的曲子排不进候选。',
+              context.l10n.flowExcludedP0SongsReleasedEarlyInChina(
+                  (compare.earlyReleases.length).toString(),
+                  (compare.earlyReleases.map((s) => '#${s.id}').join(' '))
+                      .toString()),
               style: TextStyle(
                   fontSize: 11,
                   height: 1.5,
@@ -288,13 +294,25 @@ class _UnionUpdateComparePageState extends State<UnionUpdateComparePage> {
 
   Widget _buildSectionChips(Brightness brightness, UnionUpdateCompare compare) {
     final chips = <(_Section, String, int)>[
-      (_Section.upcoming, '下次更新候选', compare.upcoming.length),
-      (_Section.skipped, '国服未收录旧曲', compare.skipped.length),
-      (_Section.utage, '宴会场', compare.utage.length),
+      (
+        _Section.upcoming,
+        context.l10n.flowNextUpdateCandidates,
+        compare.upcoming.length
+      ),
+      (
+        _Section.skipped,
+        context.l10n.flowOlderSongsMissingInChina,
+        compare.skipped.length
+      ),
+      (_Section.utage, context.l10n.flowUTAGE, compare.utage.length),
       // 注意标签与顶部计数不同名：顶部「国服已上」含水鱼宴会（1394），
       // 这一段只有常规曲（不含宴会），同名会让人以为数字对不上。
-      (_Section.cn, '国服常规曲', compare.cnSongs.length),
-      (_Section.early, '国服超前上线', compare.earlyReleases.length),
+      (_Section.cn, context.l10n.flowChinaRegularSongs, compare.cnSongs.length),
+      (
+        _Section.early,
+        context.l10n.flowEarlyChinaReleases,
+        compare.earlyReleases.length
+      ),
     ];
     return Wrap(
       spacing: 6,
@@ -317,39 +335,45 @@ class _UnionUpdateComparePageState extends State<UnionUpdateComparePage> {
     switch (_section) {
       case _Section.upcoming:
         hint = compare.upcoming.isEmpty
-            ? '当前参考范围内没有未收录的常规曲。'
-            : '按 ID 升序展示，顺序不代表上线先后；实际更新以官方公告为准。'
-                '${_versionSummary(compare)}';
+            ? context.l10n.flowNoMissingRegularSongsInTheCurrent
+            : context.l10n.flowSortedByIDNotReleaseOrderOfficial(
+                (_versionSummary(compare)).toString());
       case _Section.skipped:
-        hint = '这些曲早于候选参考起点，或缺少日期且 ID 较小，可能是区域限定、'
-            '联动独占或尚未补入的旧曲；不代表以后不会上线。';
+        hint = context.l10n.flowTheseSongsPredateTheReferenceStartOr;
       case _Section.utage:
-        hint = '宴会场不随版本更新，列在这里仅供参考。';
+        hint = context.l10n.flowUTAGEDoesNotFollowVersionUpdatesListed;
       case _Section.cn:
-        hint = '水鱼（国服）的常规曲，按首发日期从新到旧排列 —— 第一首就是本页的「更新前沿」。';
+        hint = context.l10n.flowRegularDivingFishChinaSongsNewestDebut;
       case _Section.early:
-        hint = '这些是**国服先于日服**上线的曲子：国服已经有了，id 却排在最新。'
-            '它们不能当前沿（会把真正待补的那批顶出候选），所以单独列在这里。';
+        hint = context.l10n.flowTheseSongsReachedChinaBeforeJapanTheir;
     }
     return Text(
       hint,
       style: TextStyle(
-          fontSize: 11, height: 1.45, color: AppColors.secondaryText(brightness)),
+          fontSize: 11,
+          height: 1.45,
+          color: AppColors.secondaryText(brightness)),
     );
   }
 
   String _versionSummary(UnionUpdateCompare compare) {
     final parts = compare.upcomingByVersion;
     if (parts.length <= 1) return '';
-    return '\n涉及版本：${parts.map((e) => '${StringUtil.formatVersion2WithFlag(e.version, true)} ${e.count} 首').join(' · ')}';
+    return context.l10n.flowVersionsInvolvedP0((parts
+            .map((e) => context.l10n.flowP0P1Songs(
+                (StringUtil.formatVersion2WithFlag(e.version, true)).toString(),
+                (e.count).toString()))
+            .join(' · '))
+        .toString());
   }
 
   Widget _buildSongRow(Brightness brightness, Song song, int order) {
     final isUpcoming = _section == _Section.upcoming;
     // 「国服已上」段按首发日期降序，第一行就是前沿 —— 这就是「在 union 全量源里
     // 标注出水鱼最新歌曲」的那一处标注。
-    final isFrontierRow =
-        _section == _Section.cn && order == 1 && song.id == _compare?.frontier?.id;
+    final isFrontierRow = _section == _Section.cn &&
+        order == 1 &&
+        song.id == _compare?.frontier?.id;
     return Padding(
       padding: const EdgeInsets.fromLTRB(
           AppDesignTokens.gutter, 0, AppDesignTokens.gutter, 8),
@@ -363,53 +387,54 @@ class _UnionUpdateComparePageState extends State<UnionUpdateComparePage> {
           ),
         ),
         child: Row(
-            children: [
-              if (isUpcoming || isFrontierRow)
-                SizedBox(
-                  width: 24,
-                  child: isFrontierRow
-                      ? Icon(Icons.flag_rounded,
-                          size: 15,
-                          color: AppColors.warningOrange(brightness))
-                      : Text(
-                          '$order',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.secondaryText(brightness),
-                          ),
-                        ),
-                ),
-              CoverUtil.buildCoverWidgetWithContextRRect(context, song.id, 44),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      song.basicInfo.title,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.primaryText(brightness),
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      '#${song.id} · ${_versionLabel(song)}'
-                      ' · 日服 ${_formatDate(song.basicInfo.releaseDate)}',
-                      style: TextStyle(
+          children: [
+            if (isUpcoming || isFrontierRow)
+              SizedBox(
+                width: 24,
+                child: isFrontierRow
+                    ? Icon(Icons.flag_rounded,
+                        size: 15, color: AppColors.warningOrange(brightness))
+                    : Text(
+                        '$order',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
                           fontSize: 11,
-                          color: AppColors.secondaryText(brightness)),
-                    ),
-                  ],
-                ),
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.secondaryText(brightness),
+                        ),
+                      ),
               ),
-              Icon(Icons.chevron_right,
-                  size: 18, color: AppColors.greyHint(brightness)),
-            ],
-          ),
+            CoverUtil.buildCoverWidgetWithContextRRect(context, song.id, 44),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    song.basicInfo.title,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.primaryText(brightness),
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    context.l10n.flowP0P1JapanP2(
+                        (song.id).toString(),
+                        (_versionLabel(song)).toString(),
+                        (_formatDate(song.basicInfo.releaseDate)).toString()),
+                    style: TextStyle(
+                        fontSize: 11,
+                        color: AppColors.secondaryText(brightness)),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right,
+                size: 18, color: AppColors.greyHint(brightness)),
+          ],
+        ),
       ),
     );
   }
@@ -425,7 +450,7 @@ class _UnionUpdateComparePageState extends State<UnionUpdateComparePage> {
                 size: 42, color: AppColors.greyHint(brightness)),
             const SizedBox(height: 12),
             Text(
-              '曲库还没有缓存',
+              context.l10n.flowNoCachedLibraryYet,
               style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w700,
@@ -434,8 +459,7 @@ class _UnionUpdateComparePageState extends State<UnionUpdateComparePage> {
             ),
             const SizedBox(height: 8),
             Text(
-              '本页的数据来自本地曲库（水鱼 + union）。\n'
-              '请先在首页执行一次「刷新数据」，把曲库拉下来后再回来查看。',
+              context.l10n.flowThisPageUsesTheLocalDivingFish,
               textAlign: TextAlign.center,
               style: TextStyle(
                   fontSize: 12.5, color: AppColors.secondaryText(brightness)),
@@ -450,50 +474,41 @@ class _UnionUpdateComparePageState extends State<UnionUpdateComparePage> {
     showDialog<void>(
       context: context,
       builder: (dialogContext) => AppAlertDialog(
-        title: const Text('这个页面的口径'),
+        title: Text(context.l10n.flowHowThisPageWorks),
         content: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
-            children: const [
-              Text('1. 数据来源', style: TextStyle(fontWeight: FontWeight.w700)),
+            children: [
+              Text(context.l10n.flow1DataSources,
+                  style: TextStyle(fontWeight: FontWeight.w700)),
               SizedBox(height: 4),
               Text(
-                '本地曲库 = 水鱼（国服全量歌曲）+ union（全量歌曲）。'
-                '合并时 union 独有的那批会打上 isExtra 标记，本页据此区分来源；'
-                '已确认的国服超前上线名单优先于这个标记。'
-                '所以整个页面离线可用，与网络无关。',
+                context.l10n.flowTheLocalLibraryCombinesDivingFishAll,
                 style: TextStyle(fontSize: 12.5, height: 1.5),
               ),
               SizedBox(height: 12),
-              Text('2. 更新前沿怎么定', style: TextStyle(fontWeight: FontWeight.w700)),
+              Text(context.l10n.flow2DefiningTheUpdateFrontier,
+                  style: TextStyle(fontWeight: FontWeight.w700)),
               SizedBox(height: 4),
               Text(
-                '先筛出水鱼曲库里的国服常规曲，再按首发日期从新到旧排列，第一首作为「国服最新」。'
-                '日期缺失或格式异常时参考 ID，所以这条前沿近似等于「国服已经追到哪」。\n'
-                '宴会场（6 位 id）与 maidata 追加曲不参与判定。\n'
-                '国服**超前上线**的曲目（国服先于日服上，id 却排最新）也不参与 —— '
-                '它们会把前沿顶高，让真正待补的曲子排不进候选。',
+                context.l10n.flowRegularChinaSongsInDivingFishAre,
                 style: TextStyle(fontSize: 12.5, height: 1.5),
               ),
               SizedBox(height: 12),
-              Text('3. 候选怎么补齐', style: TextStyle(fontWeight: FontWeight.w700)),
+              Text(context.l10n.flow3CompletingTheCandidateList,
+                  style: TextStyle(fontWeight: FontWeight.w700)),
               SizedBox(height: 4),
               Text(
-                '先取 union 独有的常规曲，以前沿的日服首发日期作为参考起点；'
-                '如果已确认待补批次中仍有更早的未收录曲目，起点下移至该批最早日期。\n'
-                '· 首发不早于起点的曲目都纳入，包含同一天以及 ID 较小的歌曲；\n'
-                '· 日期缺失或异常时才按 ID 判断，已确认待补曲始终保留；\n'
-                '· 早于起点的旧曲单独列出，不据此断定区域独占；'
-                '候选只是参考，实际更新以官方公告为准。',
+                context.l10n.flowStartWithUnionOnlyRegularSongsUsing,
                 style: TextStyle(fontSize: 12.5, height: 1.5),
               ),
               SizedBox(height: 12),
-              Text('4. 「首次上线」是什么时间', style: TextStyle(fontWeight: FontWeight.w700)),
+              Text(context.l10n.flow4WhatFirstReleaseMeans,
+                  style: TextStyle(fontWeight: FontWeight.w700)),
               SizedBox(height: 4),
               Text(
-                '水鱼与 union 提供的首发日期都是**日服**时间，不是国服上线时间 —— '
-                '这也是「曲目详情页显示首次上线、却看不出国服上没上」的原因。',
+                context.l10n.flowTheDebutDatesFromDivingFishAnd,
                 style: TextStyle(fontSize: 12.5, height: 1.5),
               ),
             ],
@@ -502,7 +517,7 @@ class _UnionUpdateComparePageState extends State<UnionUpdateComparePage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('知道了'),
+            child: Text(context.l10n.featureGotIt),
           ),
         ],
       ),

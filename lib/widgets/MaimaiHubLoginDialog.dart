@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 
 import '../manager/DivingFishProbeManager.dart';
@@ -41,9 +42,9 @@ class _MaimaiHubLoginDialogState extends State<_MaimaiHubLoginDialog> {
     final value = _qrController.text.trim();
     setState(() {
       _inputError = value.isEmpty
-          ? '请粘贴或扫描登入二维码'
+          ? context.l10n.flowPasteOrScanALoginQRCode
           : !value.startsWith('SGWCMAID')
-              ? '请使用舞萌|中二公众号生成的登入二维码'
+              ? context.l10n.flowUseALoginQRFromTheMaimai
               : null;
       _error = null;
     });
@@ -77,7 +78,7 @@ class _MaimaiHubLoginDialogState extends State<_MaimaiHubLoginDialog> {
       if (result == null) {
         setState(() {
           _loggingIn = false;
-          _error = 'maimai Score Hub 登录失败，二维码可能已过期，请重新生成';
+          _error = context.l10n.flowMaimaiScoreHubSignInFailedThe;
         });
         return;
       }
@@ -89,7 +90,7 @@ class _MaimaiHubLoginDialogState extends State<_MaimaiHubLoginDialog> {
       if (!mounted) return;
       setState(() {
         _loggingIn = false;
-        _error = '登录失败：$e';
+        _error = context.l10n.flowSignInFailedP0((e).toString());
       });
     }
   }
@@ -110,7 +111,9 @@ class _MaimaiHubLoginDialogState extends State<_MaimaiHubLoginDialog> {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              _success ? 'maimai Score Hub 登录成功' : '登录 maimai Score Hub',
+              _success
+                  ? context.l10n.flowSignedInToMaimaiScoreHub
+                  : context.l10n.featureSignInToMaimaiScoreHub,
               maxLines: 2,
               softWrap: true,
             ),
@@ -125,7 +128,7 @@ class _MaimaiHubLoginDialogState extends State<_MaimaiHubLoginDialog> {
                   Icon(Icons.check_circle,
                       color: AppColors.successGreen(brightness), size: 52),
                   const SizedBox(height: 12),
-                  const Text('登录状态已保存。可复用于 OCR 与线路2 同步，\n不需要再重复扫码登录。',
+                  Text(context.l10n.flowSignInSavedForOCRAndRoute,
                       textAlign: TextAlign.center),
                 ],
               )
@@ -134,7 +137,7 @@ class _MaimaiHubLoginDialogState extends State<_MaimaiHubLoginDialog> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    '只进行 maimai Score Hub 认证，不会抓取或同步成绩。',
+                    context.l10n.flowAuthenticatesWithMaimaiScoreHubOnlyNo,
                     style: TextStyle(
                         fontSize: 13, color: AppColors.greyHint(brightness)),
                   ),
@@ -149,7 +152,8 @@ class _MaimaiHubLoginDialogState extends State<_MaimaiHubLoginDialog> {
                     maxLines: 3,
                     enabled: !_loggingIn,
                     decoration: InputDecoration(
-                      hintText: '舞萌DX | 中二节奏 登入二维码(SGWCMAID...)',
+                      hintText:
+                          context.l10n.flowMaimaiDXCHUNITHMLoginQRSGWCMAID,
                       hintStyle: TextStyle(
                           fontSize: 13,
                           color: AppColors.greyHint(brightness, shade: 400)),
@@ -171,7 +175,9 @@ class _MaimaiHubLoginDialogState extends State<_MaimaiHubLoginDialog> {
         TextButton(
           onPressed:
               _loggingIn ? null : () => Navigator.of(context).pop(_success),
-          child: Text(_success ? '关闭' : '取消'),
+          child: Text(_success
+              ? context.l10n.featureClose
+              : context.l10n.featureCancel),
         ),
         if (!_success)
           FilledButton.icon(
@@ -183,12 +189,14 @@ class _MaimaiHubLoginDialogState extends State<_MaimaiHubLoginDialog> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.login, size: 18),
-            label: Text(_loggingIn ? '登录中...' : '登录'),
+            label: Text(_loggingIn
+                ? context.l10n.flowSigningIn
+                : context.l10n.flowSignIn),
           )
         else
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('完成'),
+            child: Text(context.l10n.featureDone),
           ),
       ],
     );

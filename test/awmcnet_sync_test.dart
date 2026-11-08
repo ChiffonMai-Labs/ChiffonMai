@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -10,6 +11,9 @@ import 'package:my_first_flutter_app/service/AwmcNetScoreUploadService.dart';
 /// **所有响应体都是 2026-09-24 对 net.wmc.pub 实测抓到的原文**，
 /// 所以这些用例同时是「服务端文案变了要回来改代码」的回归守卫。
 void main() {
+  // 断言的是简体中文提示，固定系统语言，不受跑测试机器的语言影响。
+  TestWidgetsFlutterBinding.ensureInitialized().platformDispatcher.localesTestValue =
+      const [Locale('zh')];
   http.Response res(int status, String body) =>
       http.Response.bytes(utf8.encode(body), status);
 
@@ -97,6 +101,26 @@ void main() {
       expect(r.ok, isFalse);
       expect(r.tokenInvalid, isFalse);
       expect(r.errorMessage, contains('二维码'));
+    });
+
+    test('上游 Chime 3002 显示机台读取原因，不清除 Token 或回显凭据', () {
+      final r = AwmcNetScoreUploadService.parseResponse(
+        res(502, jsonEncode({
+          'message': "上游 /user/music 业务错误: {'returnCode': 3002, "
+              "'businessData': {'errorType': 'ChimeError', "
+              "'errorCode': 3002, 'errorMessage': 'Chime 获取用户失败'}, "
+              "'qrcode': 'SGWCMAID_SYNTHETIC_TEST', 'token': 'synthetic-secret'}",
+        })),
+        5513,
+      );
+      expect(r.ok, isFalse);
+      expect(r.tokenInvalid, isFalse);
+      expect(r.elapsedMs, 5513);
+      expect(r.errorMessage, contains('Chime 获取用户失败'));
+      expect(r.errorMessage, contains('3002'));
+      expect(r.errorMessage, contains('502'));
+      expect(r.errorMessage, isNot(contains('SGWCMAID')));
+      expect(r.errorMessage, isNot(contains('synthetic-secret')));
     });
 
     test('429 / 5xx / 未知状态码都有中文文案，不裸奔英文', () {

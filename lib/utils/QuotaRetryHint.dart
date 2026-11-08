@@ -1,8 +1,9 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'dart:convert';
 
 /// 从上游 429 响应中提取配额恢复提示，避免客户端只显示笼统的“稍后重试”。
 String quotaRetryHint(String body) {
-  const fallback = '等待 retryAfterSeconds 或 quota.resetAt 后再重试';
+  final fallback = appL10n.flowWaitForRetryAfterSecondsOrQuotaResetAtBefore;
   dynamic decoded;
   try {
     decoded = jsonDecode(body);
@@ -15,11 +16,11 @@ String quotaRetryHint(String body) {
   final quota = decoded['quota'];
   final reset = quota is Map ? quota['resetAt'] : null;
   final retryText = retry is num && retry.isFinite && retry >= 0
-      ? 'retryAfterSeconds（${retry.round()} 秒）'
+      ? appL10n.flowRetryAfterSecondsP0S((retry.round()).toString())
       : 'retryAfterSeconds';
   final resetText = reset is String && reset.trim().isNotEmpty
       ? 'quota.resetAt（${reset.trim()}）'
       : 'quota.resetAt';
   if (retry == null && reset == null) return fallback;
-  return '等待 $retryText 或 $resetText 后再重试';
+  return appL10n.flowRetryAfterP0OrP1((retryText).toString(), (resetText).toString());
 }

@@ -49,19 +49,25 @@ class SongAliasManager {
   Future<void> _loadFromLocal() async {
     final prefs = await SharedPreferences.getInstance();
     final jsonString = prefs.getString(_keyAliases);
+    final aliasesAtStart = _aliases;
 
     if (jsonString != null) {
       try {
-        final Map<String, dynamic> map = jsonDecode(jsonString);
-        _aliases = map.map((key, value) {
-          return MapEntry(key, List<String>.from(value));
-        });
+        // 冷启动时别名可能有数千条，解析与列表转换一起放到后台，避免阻塞首页动画。
+        final aliases = await compute(_decodeAliases, jsonString);
+        // 解析期间若接口已经返回新数据，旧缓存不能再覆盖它。
+        if (identical(_aliases, aliasesAtStart)) _aliases = aliases;
       } catch (e) {
         // 缓存解析失败则清空，避免脏数据
-        _aliases = {};
+        if (identical(_aliases, aliasesAtStart)) _aliases = {};
         debugPrint('本地别名缓存解析失败：$e');
       }
     }
+  }
+
+  static Map<String, List<String>> _decodeAliases(String jsonString) {
+    final map = jsonDecode(jsonString) as Map<String, dynamic>;
+    return map.map((key, value) => MapEntry(key, List<String>.from(value)));
   }
 
   /// 调用第三方API获取最新别名（同时获取三个API的数据并合并）

@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -59,7 +61,7 @@ class _ChartPlayPageState extends State<ChartPlayPage>
   bool _hasLoggedPlayerBuild = false;
   Timer? _loadingDiagnosticTimer;
   Timer? _loadingTipTimer;
-  String _loadingStage = '正在准备谱面…';
+  String _loadingStage = appL10n.flowPreparingChart;
   double? _loadingProgress;
   double _loadingSpeed = 0;
   String _loadingTip = '';
@@ -184,7 +186,7 @@ class _ChartPlayPageState extends State<ChartPlayPage>
 
   Future<void> _loadChart() async {
     debugPrint('[ChartPlay] load-start songId=${widget.songId}');
-    _setLoadingStatus('正在读取谱面设置…');
+    _setLoadingStatus(appL10n.flowReadingChartSettings);
     if (widget.maidataContent.isEmpty) {
       debugPrint('[ChartPlay] load-abort: maidata content is empty');
       return;
@@ -201,7 +203,7 @@ class _ChartPlayPageState extends State<ChartPlayPage>
     if (widget.loadAudio) {
       // 音源是可选资源，不能让曲库接口或音源服务阻塞谱面播放器的创建。
       _ignoreAudioLookupResult = false;
-      _setLoadingStatus('正在查找音频文件…');
+      _setLoadingStatus(appL10n.flowFindingAudio);
       try {
         await _loadAudioUrl().timeout(const Duration(seconds: 8));
       } on TimeoutException {
@@ -223,7 +225,7 @@ class _ChartPlayPageState extends State<ChartPlayPage>
     debugPrint('[ChartPlay] audio-lookup-ready hasUrl=${_audioUrl != null}');
 
     // 加载曲绘
-    _setLoadingStatus('正在准备曲绘…');
+    _setLoadingStatus(appL10n.flowPreparingCoverArt);
     await _loadBackgroundImage();
     if (!mounted || _isLeaving) return;
     debugPrint(
@@ -231,7 +233,7 @@ class _ChartPlayPageState extends State<ChartPlayPage>
     );
 
     try {
-      _setLoadingStatus('正在解析谱面数据…');
+      _setLoadingStatus(appL10n.flowParsingChartData);
       var simaiFile = SimaiFile(widget.maidataContent);
 
       String? chartText;
@@ -371,8 +373,12 @@ class _ChartPlayPageState extends State<ChartPlayPage>
       'Video exported: ${result.width}x${result.height} '
       '(${result.duration.inSeconds}s, $sizeMb MB) -> ${result.path}',
     );
-    AppToast.show('视频已生成，请在导出页点击“保存到相册”：'
-          '${result.width}×${result.height} · $sizeMb MB');
+    AppToast.show(
+        context.l10n.flowVideoGeneratedTapSaveToPhotosOn(
+            (result.width).toString(),
+            (result.height).toString(),
+            (sizeMb).toString()),
+        tone: AppToastTone.warning);
   }
 
   // Android 11+ 的 Movies 是分区存储目录，第三方库直接在其中创建临时文件
@@ -409,7 +415,7 @@ class _ChartPlayPageState extends State<ChartPlayPage>
       if (_ignoreAudioLookupResult || !mounted || _isLeaving) return;
       _audioUrl = cached.path;
       _audioUrls = <String>[cached.path];
-      _setLoadingStatus('已从本地缓存读取音频', progress: 1);
+      _setLoadingStatus(appL10n.flowAudioLoadedFromLocalCache, progress: 1);
       return;
     }
 
@@ -499,6 +505,7 @@ class _ChartPlayPageState extends State<ChartPlayPage>
       return null;
     }
   }
+
   Future<void> _loadFallbackChart() async {
     if (!mounted || _isLeaving) return;
     const sampleChart = """

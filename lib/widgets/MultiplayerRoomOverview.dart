@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -25,7 +26,7 @@ class MultiplayerRoomHeader extends StatelessWidget {
         Expanded(
             child: Text.rich(
           TextSpan(children: [
-            const TextSpan(text: '房间 '),
+             TextSpan(text: context.l10n.flowRoom),
             TextSpan(
                 text: room.roomCode,
                 style: AppTheme.number(
@@ -34,17 +35,17 @@ class MultiplayerRoomHeader extends StatelessWidget {
                     color: scheme.onSurface)),
             TextSpan(
                 text:
-                    ' · ${room.players.length} 人 · ${room.status.displayName}'),
+                    context.l10n.flowP0PlayersP1((room.players.length).toString(), (room.status.displayName).toString())),
           ]),
           style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
         )),
         IconButton(
-            tooltip: '复制房间码',
+            tooltip: context.l10n.flowCopyRoomCode,
             icon: const Icon(Icons.copy_rounded, size: 18),
             onPressed: () async {
               await Clipboard.setData(ClipboardData(text: room.roomCode));
               if (context.mounted)
-                AppToast.show('房间码已复制');
+                AppToast.show(context.l10n.flowRoomCodeCopied);
             }),
       ]);
     return Container(
@@ -56,7 +57,7 @@ class MultiplayerRoomHeader extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Expanded(
-              child: Text('邀请好友，一起猜歌',
+              child: Text(context.l10n.flowInviteFriendsToGuessSongsTogether,
                   style: Theme.of(context).textTheme.labelLarge)),
           Icon(
               room.status == RoomStatus.playing
@@ -69,7 +70,7 @@ class MultiplayerRoomHeader extends StatelessWidget {
               style: TextStyle(color: scheme.primary)),
         ]),
         const SizedBox(height: 12),
-        Text('房间码',
+        Text(context.l10n.flowRoomCode,
             style: Theme.of(context)
                 .textTheme
                 .labelMedium
@@ -86,17 +87,17 @@ class MultiplayerRoomHeader extends StatelessWidget {
                           letterSpacing: 4,
                           color: scheme.primary)))),
           IconButton.filledTonal(
-            tooltip: '复制房间码',
+            tooltip: context.l10n.flowCopyRoomCode,
             onPressed: () async {
               await Clipboard.setData(ClipboardData(text: room.roomCode));
               if (!context.mounted) return;
-              AppToast.show('房间码已复制，发送给好友即可加入');
+              AppToast.show(context.l10n.flowRoomCodeCopiedSendItToA);
             },
             icon: const Icon(Icons.copy_rounded, size: 20),
           ),
         ]),
         const SizedBox(height: 16),
-        Text(room.gameType.name,
+        Text(room.gameType.localizedName,
             style: Theme.of(context)
                 .textTheme
                 .titleMedium
@@ -107,12 +108,12 @@ class MultiplayerRoomHeader extends StatelessWidget {
         const SizedBox(height: 16),
         Wrap(spacing: 16, runSpacing: 8, children: [
           _rule(context, Icons.timer_outlined,
-              room.timeLimit > 0 ? '${room.timeLimit} 秒 / 回合' : '不限时'),
-          _rule(context, Icons.repeat_rounded, '${room.totalRounds} 回合'),
+              room.timeLimit > 0 ? context.l10n.flowP0SRound((room.timeLimit).toString()) : context.l10n.flowNoTimeLimit),
+          _rule(context, Icons.repeat_rounded, context.l10n.flowP0Rounds((room.totalRounds).toString())),
           _rule(context, Icons.touch_app_outlined,
-              room.maxGuesses > 0 ? '每回合共享 ${room.maxGuesses} 次猜测' : '猜测次数不限'),
+              room.maxGuesses > 0 ? context.l10n.flowP0SharedGuessesPerRound((room.maxGuesses).toString()) : context.l10n.flowUnlimitedGuesses),
           _rule(context, Icons.tune_rounded,
-              '定数 ${room.masterMinDx.toStringAsFixed(1)} - ${room.masterMaxDx.toStringAsFixed(1)}'),
+              context.l10n.flowConstantsP0P1((room.masterMinDx.toStringAsFixed(1)).toString(), (room.masterMaxDx.toStringAsFixed(1)).toString())),
         ]),
       ]),
     );
@@ -166,13 +167,13 @@ class MultiplayerRoomPlayers extends StatelessWidget {
         const Icon(Icons.people_outline_rounded, size: 20),
         const SizedBox(width: 8),
         Expanded(
-            child: Text('玩家席位',
+            child: Text(context.l10n.flowPlayerSlots,
                 style: Theme.of(context)
                     .textTheme
                     .titleSmall
                     ?.copyWith(fontWeight: FontWeight.w700))),
         Text(
-            '${room.players.length} / ${room.maxPlayers} 人${playing ? '' : ' · $ready 人准备'}',
+            context.l10n.flowP0P1PlayersP2((room.players.length).toString(), (room.maxPlayers).toString(), (playing ? '' : context.l10n.flowP0Ready((ready).toString())).toString()),
             style: Theme.of(context)
                 .textTheme
                 .bodySmall
@@ -203,10 +204,10 @@ class MultiplayerRoomPlayers extends StatelessWidget {
     final mine = player.playerId == currentPlayerId;
     final fg = mine ? scheme.onInverseSurface : scheme.onSurface;
     final status = !player.isOnline
-        ? '暂时离线'
+        ? context.l10n.flowTemporarilyOffline
         : player.isSurrendered
-            ? '已投降'
-            : '${scoreOf(player)} 分';
+            ? context.l10n.flowSurrendered
+            : context.l10n.flowP0Points((scoreOf(player)).toString());
     return Container(
       height: 48,
       padding: const EdgeInsets.fromLTRB(6, 0, 14, 0),
@@ -247,14 +248,14 @@ class MultiplayerRoomPlayers extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final mine = player != null && player.playerId == currentPlayerId;
     final status = player == null
-        ? '分享房间码邀请好友'
+        ? context.l10n.flowShareTheRoomCodeToInviteFriends
         : !player.isOnline
-            ? '暂时离线'
+            ? context.l10n.flowTemporarilyOffline
             : playing
-                ? (player.isSurrendered ? '已投降' : '${scoreOf(player)} 分')
+                ? (player.isSurrendered ? context.l10n.flowSurrendered : context.l10n.flowP0Points((scoreOf(player)).toString()))
                 : player.isReady
-                    ? '已准备'
-                    : '等待准备';
+                    ? context.l10n.flowReady2
+                    : context.l10n.flowWaitingToBeReady;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -278,8 +279,8 @@ class MultiplayerRoomPlayers extends StatelessWidget {
                 children: [
               MarqueeText(
                   text: player == null
-                      ? '等待加入'
-                      : '${displayName(player)}${mine ? ' · 我' : ''}',
+                      ? context.l10n.flowWaitingForPlayers
+                      : '${displayName(player)}${mine ? context.l10n.flowMe2 : ''}',
                   style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
@@ -331,14 +332,14 @@ class MultiplayerRoomReadyBar extends StatelessWidget {
     final canStart = room.players.length >= 2 && missing == 0;
     final ready = player?.isReady == true;
     final hint = player == null
-        ? '正在确认玩家身份…'
+        ? context.l10n.flowConfirmingPlayerIdentity
         : room.players.length < 2
-            ? '分享房间码，邀请至少一位好友加入'
+            ? context.l10n.flowShareTheCodeAndInviteAtLeast
             : missing > 0
-                ? '还有 $missing 位玩家尚未准备就绪'
+                ? context.l10n.flowP0PlayersAreNotReadyYet((missing).toString())
                 : player!.isHost
-                    ? '全员就绪，可以开始了'
-                    : '全员就绪，等待房主开始';
+                    ? context.l10n.flowEveryoneIsReadyYouCanStart
+                    : context.l10n.flowEveryoneIsReadyWaitingForTheHost;
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
       decoration: BoxDecoration(
@@ -353,7 +354,7 @@ class MultiplayerRoomReadyBar extends StatelessWidget {
       child: SafeArea(
           top: false,
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Text(busy ? '正在等待服务端确认…' : hint,
+            Text(busy ? context.l10n.flowWaitingForServerConfirmation : hint,
                 textAlign: TextAlign.center,
                 style: Theme.of(context)
                     .textTheme
@@ -381,7 +382,7 @@ class MultiplayerRoomReadyBar extends StatelessWidget {
                               ? Icons.check_circle_rounded
                               : Icons.check_circle_outline_rounded,
                           size: 20),
-                      label: Text(ready ? '取消准备' : '准备就绪'),
+                      label: Text(ready ? context.l10n.flowNotReady : context.l10n.flowReady),
                     )),
                 if (host)
                   SizedBox(
@@ -391,7 +392,7 @@ class MultiplayerRoomReadyBar extends StatelessWidget {
                             minimumSize: const Size(0, 48)),
                         onPressed: canStart && !busy ? onStart : null,
                         icon: const Icon(Icons.play_arrow_rounded, size: 22),
-                        label: const Text('开始游戏'),
+                        label:  Text(context.l10n.flowStartGame),
                       )),
               ]);
             }),

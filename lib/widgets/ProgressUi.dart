@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 
 import '../utils/AppDesignTokens.dart';
@@ -202,7 +203,7 @@ class ProgressSummaryCard extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Text(
-                '完成率',
+                context.l10n.flowCompletionRate,
                 style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
               ),
             ],
@@ -218,12 +219,16 @@ class ProgressSummaryCard extends StatelessWidget {
           const SizedBox(height: 14),
           Row(
             children: [
-              Expanded(child: _rollingStat('总数', total)),
-              Expanded(child: _rollingStat('已完成', completed)),
-              Expanded(child: _rollingStat('未完成', total - completed)),
+              Expanded(child: _rollingStat(context.l10n.flowTotal2, total)),
+              Expanded(
+                  child: _rollingStat(context.l10n.flowCompleted, completed)),
+              Expanded(
+                  child: _rollingStat(
+                      context.l10n.flowIncomplete, total - completed)),
               Expanded(
                   flex: 2,
-                  child: _rollingStat('平均达成率', averageAchievement,
+                  child: _rollingStat(context.l10n.featureAverageAchievement,
+                      averageAchievement,
                       fractionDigits: 2, suffix: '%')),
             ],
           ),
@@ -262,10 +267,10 @@ class ProgressDisplayControls extends StatelessWidget {
       children: [
         SegmentedTabs(
           height: 40,
-          items: const [
-            SegmentedTabItem('全部'),
-            SegmentedTabItem('已完成'),
-            SegmentedTabItem('未完成'),
+          items: [
+            SegmentedTabItem(context.l10n.flowAll),
+            SegmentedTabItem(context.l10n.flowCompleted),
+            SegmentedTabItem(context.l10n.flowIncomplete),
           ],
           selectedIndex: _filters.indexOf(filterMode).clamp(0, 2),
           onChanged: (index) => onFilterChanged(_filters[index]),
@@ -276,9 +281,9 @@ class ProgressDisplayControls extends StatelessWidget {
             Expanded(
               child: SegmentedTabs(
                 height: 40,
-                items: const [
-                  SegmentedTabItem('按等级'),
-                  SegmentedTabItem('按定数'),
+                items: [
+                  SegmentedTabItem(context.l10n.flowByLevel),
+                  SegmentedTabItem(context.l10n.flowByConstant),
                 ],
                 selectedIndex: useLevelDisplay ? 0 : 1,
                 onChanged: (index) => onLevelDisplayChanged(index == 0),
@@ -288,9 +293,9 @@ class ProgressDisplayControls extends StatelessWidget {
             Expanded(
               child: SegmentedTabs(
                 height: 40,
-                items: const [
-                  SegmentedTabItem('列表'),
-                  SegmentedTabItem('曲绘'),
+                items: [
+                  SegmentedTabItem(context.l10n.flowList),
+                  SegmentedTabItem(context.l10n.flowCoverArt),
                 ],
                 selectedIndex: showListMode ? 0 : 1,
                 onChanged: (index) => onListModeChanged(index == 0),
@@ -328,7 +333,7 @@ class ProgressGroupHeader extends StatelessWidget {
           ),
           const Spacer(),
           Text(
-            '$count 首',
+            context.l10n.flowP0Songs2((count).toString()),
             style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
           ),
         ],
@@ -372,9 +377,8 @@ class ProgressSongRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final statusColor = completed && !excluded
-        ? scheme.primary
-        : scheme.onSurfaceVariant;
+    final statusColor =
+        completed && !excluded ? scheme.primary : scheme.onSurfaceVariant;
     return InkWell(
       onTap: onTap,
       child: Container(
@@ -445,7 +449,11 @@ class ProgressSongRow extends StatelessWidget {
             ),
             const SizedBox(width: 4),
             Text(
-              excluded ? '不计入' : (completed ? '已完成' : '未完成'),
+              excluded
+                  ? context.l10n.flowExcluded
+                  : (completed
+                      ? context.l10n.flowCompleted
+                      : context.l10n.flowIncomplete),
               style: TextStyle(fontSize: 11, color: statusColor),
             ),
           ],
@@ -597,10 +605,9 @@ class ProgressSongSliver extends StatelessWidget {
     const spacing = 6.0;
     const edge = 10.0;
     return LayoutBuilder(builder: (context, constraints) {
-      final tile = (constraints.maxWidth -
-              edge * 2 -
-              spacing * (_coversPerRow - 1)) /
-          _coversPerRow;
+      final tile =
+          (constraints.maxWidth - edge * 2 - spacing * (_coversPerRow - 1)) /
+              _coversPerRow;
       final top = first ? edge : 0.0;
       final bottom = last ? edge : spacing;
       return GroupedRowShell(
@@ -765,7 +772,7 @@ class _ProgressListSkeletonState extends State<ProgressListSkeleton>
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      label: '正在加载',
+      label: context.l10n.flowLoading4,
       child: FadeTransition(
         opacity: _pulse,
         child: Column(

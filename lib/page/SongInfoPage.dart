@@ -1,5 +1,9 @@
+import 'package:my_first_flutter_app/l10n/FeatureLocalizations.dart';
+import '../l10n/AppMessages.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import '../widgets/SongTitleDialog.dart';
 import '../utils/ChartBpmInfo.dart';
+import '../utils/SongDetailPreferences.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'dart:async';
 import 'dart:io';
@@ -13,7 +17,6 @@ import 'package:marquee/marquee.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:media_scanner/media_scanner.dart';
-import 'package:audioplayers/audioplayers.dart';
 import 'package:my_first_flutter_app/manager/SongAliasManager.dart';
 import 'package:my_first_flutter_app/manager/DivingFish/MaimaiMusicDataManager.dart';
 import 'package:my_first_flutter_app/entity/DivingFish/DiffSong.dart';
@@ -23,8 +26,6 @@ import 'package:my_first_flutter_app/entity/DivingFish/Song.dart';
 import 'package:my_first_flutter_app/page/SongMaidataPage.dart';
 import 'package:my_first_flutter_app/service/SongInfoService.dart';
 import 'package:my_first_flutter_app/service/SongMaidataPageService.dart';
-import 'package:my_first_flutter_app/service/SongPlayService.dart';
-import 'package:my_first_flutter_app/service/SongMediaCache.dart';
 import 'package:my_first_flutter_app/utils/CoverUtil.dart';
 import 'package:my_first_flutter_app/utils/CommentTextValidator.dart';
 import 'package:my_first_flutter_app/utils/StringUtil.dart';
@@ -40,7 +41,6 @@ import 'package:my_first_flutter_app/entity/FavoriteFolder.dart';
 import 'package:my_first_flutter_app/service/FavoriteFolderService.dart';
 import 'package:my_first_flutter_app/service/RankingList/SongRankingService.dart';
 import 'package:my_first_flutter_app/service/BiliSearchService.dart';
-import 'package:my_first_flutter_app/api/ApiUrls.dart';
 import 'package:my_first_flutter_app/service/BiliRedisService.dart';
 import 'package:my_first_flutter_app/service/SongInfo/SongScoreShareService.dart';
 import 'package:my_first_flutter_app/service/SongInfo/SongInfoExportToImgService.dart';
@@ -54,6 +54,8 @@ import 'package:my_first_flutter_app/service/AWMC/AwmcPlayCountStore.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import 'package:my_first_flutter_app/utils/AppDesignTokens.dart';
 import 'package:my_first_flutter_app/widgets/AppUi.dart';
+import 'package:my_first_flutter_app/service/CustomTagStore.dart';
+import 'package:my_first_flutter_app/widgets/CustomTagUi.dart';
 import 'package:my_first_flutter_app/utils/ScoreInputValidator.dart';
 import 'package:my_first_flutter_app/utils/SongFilterUtil.dart';
 import 'package:my_first_flutter_app/widgets/BackgroundPageScaffold.dart';
@@ -66,7 +68,6 @@ import '../widgets/AppDialogs.dart';
 import '../widgets/Best50Ui.dart';
 import '../widgets/AppToast.dart';
 import 'package:my_first_flutter_app/service/BackgroundExportService.dart';
-
 
 part 'song_info/SongInfoLoaders.dart';
 part 'song_info/SongInfoCommunity.dart';
@@ -86,6 +87,7 @@ const int _breakWeight = 5;
 const int _commentsPerPage = 10;
 // 难度索引 → dxrating 难度名
 const List<String> _dxDifficultyNames = ChartDifficulty.apiNames;
+
 /// 对齐 DXRating 与水鱼使用的 5 位 DX 谱面编号：DX 条目可能带 10000 偏移。
 String _normalizeDxInternalId(String raw) {
   final value = int.tryParse(raw.trim());
@@ -93,19 +95,25 @@ String _normalizeDxInternalId(String raw) {
   if (value >= 10000 && value < 20000) return '${value - 10000}';
   return '$value';
 }
+
 const _bpmRangeLabel = 'BPM 范围';
 const _defaultBpmLabel = '基准 BPM';
 
 class SongInfoPage extends StatefulWidget {
   final String songId;
   final int initialLevelIndex;
-  final bool isDefaultLevelIndex; // 标记是否使用默认值
+  final bool isDefaultLevelIndex; // 仅由是否提供有效索引决定，调用方不能绕过偏好。
 
-  const SongInfoPage(
-      {super.key,
-      required this.songId,
-      this.initialLevelIndex = 0,
-      this.isDefaultLevelIndex = true});
+  const SongInfoPage({super.key, required this.songId, int? initialLevelIndex})
+      : initialLevelIndex = initialLevelIndex != null &&
+                initialLevelIndex >= ChartDifficulty.basic &&
+                initialLevelIndex <= ChartDifficulty.reMaster
+            ? initialLevelIndex
+            : ChartDifficulty.master,
+        // 显式传入 BASIC（0）也属于明确指定，不能再被默认难度覆盖。
+        isDefaultLevelIndex = initialLevelIndex == null ||
+            initialLevelIndex < ChartDifficulty.basic ||
+            initialLevelIndex > ChartDifficulty.reMaster;
 
   @override
   State<SongInfoPage> createState() => _SongInfoSwitcherState();
@@ -168,6 +176,7 @@ class _SongInfoPageState extends State<_SongInfoView> {
 
   // 数据加载状态
   bool _isLoading = true;
+  bool _defaultDifficultyApplied = false;
 
   /// 切换 ST / DX 的状态：见 [_switchSong]、[_onSongChanged]。
   int _songGeneration = 0;
@@ -197,6 +206,8 @@ class _SongInfoPageState extends State<_SongInfoView> {
   // Maidata解析的break统计
   Map<int, List<int>> _maidataBreakCounts =
       {}; // key: 难度索引(0-4), value: [trueZettaiTap, trueZettaiHold, protectedZettai, star]
+  // 仅 maidata 可识别保护套，不能用曲库总物量推算。
+  Map<int, NoteStats> _maidataProtectionStats = {};
   Map<int, String> _maidataBpmByDiffIndex =
       {}; // key: 难度索引，value: maidata 中该谱面的 BPM 或 BPM 区间
   Map<int, List<double>> _maidataBpmChangesByDiffIndex = {};
@@ -303,6 +314,7 @@ class _SongInfoPageState extends State<_SongInfoView> {
   Map<String, dynamic>? _chartUserRatingData;
   Map<String, int>? _chartRatingDistribution; // 评分分布：key 为 "5.0" 等，value 为投票数
   bool _chartRatingLoading = false;
+  String? _chartRatingError;
   int _chartRatingRequest = 0;
   double _selectedRating = 3.0;
   int? _userTotalRating;
@@ -353,8 +365,8 @@ class _SongInfoPageState extends State<_SongInfoView> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading || _songData == null) {
-      return const BackgroundPageScaffold(
-        title: '歌曲详情',
+      return BackgroundPageScaffold(
+        title: context.l10n.flowSongDetails,
         child: Center(child: CircularProgressIndicator()),
       );
     }
@@ -380,7 +392,8 @@ class _SongInfoPageState extends State<_SongInfoView> {
     //   → 成绩历史 / 数据 / 社区 / 工具 四个标签页
     //   → 贴底操作栏
     final surface = Theme.of(context).colorScheme.surface;
-    final title = _songData!['basic_info']?['title']?.toString() ?? '歌曲详情';
+    final title = _songData!['basic_info']?['title']?.toString() ??
+        context.l10n.flowSongDetails;
     return BackgroundPageScaffold(
       title: title,
       headerOverride: const SizedBox.shrink(),
@@ -400,96 +413,101 @@ class _SongInfoPageState extends State<_SongInfoView> {
                     onNotification: _snapSongDrawer,
                     child: LayoutBuilder(
                       builder: (context, viewport) => SingleChildScrollView(
-                    controller: _songScrollController,
-                    physics: const ClampingScrollPhysics(),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // 头图固定在抽屉后面；拖头图也能拉动抽屉。
-                        _SongDrawerHero(
-                          controller: _songScrollController,
-                          child: KeyedSubtree(
-                            key: _songHeroKey,
-                            child: _buildSongHero(
-                                basicInfo, levels, accentColor, userRecord),
-                          ),
-                        ),
-                        // 信息抽屉：向上压住头图 24dp。内容少时也撑够高度，
-                        // 保证抽屉能拉到顶。
-                        Transform.translate(
-                          offset: const Offset(0, -_songDrawerOverlap),
-                          child: ConstrainedBox(
-                            constraints: BoxConstraints(
-                              minHeight: viewport.maxHeight -
-                                  MediaQuery.paddingOf(context).top -
-                                  AppHeader.toolbarHeight,
-                            ),
-                            child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              // 抽屉把手：点一下收起或拉开，也可以直接拖。
-                              Semantics(
-                                button: true,
-                                label: '展开或收起歌曲信息',
-                                onTap: _toggleSongDrawer,
-                                excludeSemantics: true,
-                                child: GestureDetector(
-                                  behavior: HitTestBehavior.opaque,
-                                  onTap: _toggleSongDrawer,
-                                  child: SizedBox(
-                                    height: 28,
-                                    child: Center(
-                                      child: Container(
-                                        width: 36,
-                                        height: 4,
-                                        decoration: BoxDecoration(
-                                          color: Theme.of(context)
-                                              .colorScheme
-                                              .outlineVariant,
-                                          borderRadius: BorderRadius.circular(
-                                              AppDesignTokens.radiusPill),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
+                        controller: _songScrollController,
+                        physics: const ClampingScrollPhysics(),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            // 头图固定在抽屉后面；拖头图也能拉动抽屉。
+                            _SongDrawerHero(
+                              controller: _songScrollController,
+                              child: KeyedSubtree(
+                                key: _songHeroKey,
+                                child: _buildSongHero(
+                                    basicInfo, levels, accentColor, userRecord),
                               ),
-                              Padding(
-                                padding:
-                                    const EdgeInsets.fromLTRB(16, 0, 16, 0),
+                            ),
+                            // 信息抽屉：向上压住头图 24dp。内容少时也撑够高度，
+                            // 保证抽屉能拉到顶。
+                            Transform.translate(
+                              offset: const Offset(0, -_songDrawerOverlap),
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  minHeight: viewport.maxHeight -
+                                      MediaQuery.paddingOf(context).top -
+                                      AppHeader.toolbarHeight,
+                                ),
                                 child: Column(
                                   crossAxisAlignment:
                                       CrossAxisAlignment.stretch,
                                   children: [
-                                    // 玩家最佳成绩
-                                    // 玩家最佳成绩：切难度时数字滚动、文字淡入淡出，
-                                    // 卡片本身不重新入场。
-                                    _buildBestScoreCard(
-                                        userRecord, basicInfo, levels),
-                                    const SizedBox(height: 12),
-                                    _buildKeyStatsRow(currentDiffData),
-                                    const SizedBox(height: 12),
-                                    // 物量、基础信息、定数历史、谱面标签
-                                    ..._buildChartInfo(
-                                        basicInfo, currentChart, accentColor),
-                                    const SizedBox(height: 4),
-                                    _buildDetailTabBar(accentColor),
-                                    const SizedBox(height: 12),
-                                    _buildDetailTabContent(
-                                      chartHistory: _buildChartHistoryCard(),
-                                      currentDiffData: currentDiffData,
-                                      accentColor: accentColor,
+                                    // 抽屉把手：点一下收起或拉开，也可以直接拖。
+                                    Semantics(
+                                      button: true,
+                                      label: context.l10n
+                                          .flowExpandOrCollapseSongInformation,
+                                      onTap: _toggleSongDrawer,
+                                      excludeSemantics: true,
+                                      child: GestureDetector(
+                                        behavior: HitTestBehavior.opaque,
+                                        onTap: _toggleSongDrawer,
+                                        child: SizedBox(
+                                          height: 28,
+                                          child: Center(
+                                            child: Container(
+                                              width: 36,
+                                              height: 4,
+                                              decoration: BoxDecoration(
+                                                color: Theme.of(context)
+                                                    .colorScheme
+                                                    .outlineVariant,
+                                                borderRadius:
+                                                    BorderRadius.circular(
+                                                        AppDesignTokens
+                                                            .radiusPill),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    Padding(
+                                      padding: const EdgeInsets.fromLTRB(
+                                          16, 0, 16, 0),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.stretch,
+                                        children: [
+                                          // 玩家最佳成绩
+                                          // 玩家最佳成绩：切难度时数字滚动、文字淡入淡出，
+                                          // 卡片本身不重新入场。
+                                          _buildBestScoreCard(
+                                              userRecord, basicInfo, levels),
+                                          const SizedBox(height: 12),
+                                          _buildKeyStatsRow(currentDiffData),
+                                          const SizedBox(height: 12),
+                                          // 物量、基础信息、定数历史、谱面标签
+                                          ..._buildChartInfo(basicInfo,
+                                              currentChart, accentColor),
+                                          const SizedBox(height: 4),
+                                          _buildDetailTabBar(accentColor),
+                                          const SizedBox(height: 12),
+                                          _buildDetailTabContent(
+                                            chartHistory:
+                                                _buildChartHistoryCard(),
+                                            currentDiffData: currentDiffData,
+                                            accentColor: accentColor,
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ],
                                 ),
                               ),
-                            ],
                             ),
-                          ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ),
+                      ),
                     ),
                   ),
                 ),
@@ -509,7 +527,9 @@ class _SongInfoPageState extends State<_SongInfoView> {
                         barBackground: surface,
                         actions: [
                           IconButton(
-                            tooltip: _isBookmarked ? '已收藏' : '收藏到收藏夹',
+                            tooltip: _isBookmarked
+                                ? context.l10n.flowFavorited
+                                : context.l10n.flowAddToAFavoritesFolder,
                             onPressed: () => _showBookmarkDialog(),
                             icon: Icon(_isBookmarked
                                 ? Icons.favorite
@@ -540,7 +560,6 @@ class _SongInfoPageState extends State<_SongInfoView> {
     if (generation != null && generation != _songGeneration) return;
     setState(fn);
   }
-
 }
 
 /// 收藏夹选择对话框：选择要将当前谱面加入哪些收藏夹
@@ -596,7 +615,9 @@ class _BookmarkFolderSelectorDialogState
           _folders.add(newFolder);
           _selectedFolderIds.add(newFolder.id);
         });
-        AppToast.show('已创建收藏夹「$name」并将当前谱面加入');
+        AppToast.show(
+            context.l10n.flowCreatedP0AndAddedThisChart((name).toString()),
+            tone: AppToastTone.success);
       }
     }
   }
@@ -619,7 +640,7 @@ class _BookmarkFolderSelectorDialogState
 
     return AppAlertDialog(
       scrollable: true,
-      title: const Text('收藏到收藏夹'),
+      title: Text(context.l10n.flowAddToAFavoritesFolder),
       contentPadding: EdgeInsets.zero,
       content: SizedBox(
         width: screenWidth * 0.9,
@@ -632,13 +653,15 @@ class _BookmarkFolderSelectorDialogState
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: AppSurfaces.inset(context),
-                borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+                borderRadius:
+                    BorderRadius.circular(AppDesignTokens.radiusSmall),
               ),
               child: Row(
                 children: [
                   // 左侧：曲绘
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+                    borderRadius:
+                        BorderRadius.circular(AppDesignTokens.radiusSmall),
                     child: CoverUtil.buildCoverWidget(widget.chart.songId, 60),
                   ),
                   const SizedBox(width: 12),
@@ -706,7 +729,7 @@ class _BookmarkFolderSelectorDialogState
                                 color: AppColors.greyHint(brightness)),
                             const SizedBox(height: 8),
                             Text(
-                              '还没有收藏夹',
+                              context.l10n.flowNoFavoritesFoldersYet,
                               style: TextStyle(
                                   fontSize: 14,
                                   color: Theme.of(context)
@@ -715,7 +738,7 @@ class _BookmarkFolderSelectorDialogState
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              '请先创建收藏夹',
+                              context.l10n.flowCreateAFavoritesFolderFirst,
                               style: TextStyle(
                                   fontSize: 12,
                                   color: AppColors.greyHint(brightness)),
@@ -739,7 +762,8 @@ class _BookmarkFolderSelectorDialogState
                                 style: const TextStyle(fontSize: 14),
                               ),
                               subtitle: Text(
-                                '${folder.charts.length} 个谱面',
+                                context.l10n.flowP0Charts(
+                                    (folder.charts.length).toString()),
                                 style: TextStyle(
                                     fontSize: 12,
                                     color: Theme.of(context)
@@ -778,12 +802,12 @@ class _BookmarkFolderSelectorDialogState
       actions: [
         TextButton.icon(
           icon: const Icon(Icons.add, size: 18),
-          label: const Text('新建收藏夹'),
+          label: Text(context.l10n.flowNewFavoritesFolder),
           onPressed: _createNewFolder,
         ),
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('完成'),
+          child: Text(context.l10n.featureDone),
         ),
       ],
     );
@@ -943,14 +967,15 @@ class _BookmarkFolderNameDialogState extends State<_BookmarkFolderNameDialog> {
   }
 
   void _validate(String value) {
-    final error = value.trim().isEmpty ? '收藏夹名称不能为空' : null;
+    final error =
+        value.trim().isEmpty ? context.l10n.flowFolderNameCannotBeEmpty : null;
     if (error != _error) setState(() => _error = error);
   }
 
   void _submit() {
     final value = _controller.text.trim();
     if (value.isEmpty) {
-      setState(() => _error = '收藏夹名称不能为空');
+      setState(() => _error = context.l10n.flowFolderNameCannotBeEmpty);
       return;
     }
     Navigator.of(context).pop(value);
@@ -959,14 +984,14 @@ class _BookmarkFolderNameDialogState extends State<_BookmarkFolderNameDialog> {
   @override
   Widget build(BuildContext context) {
     return AppAlertDialog(
-      title: const Text('新建收藏夹'),
+      title: Text(context.l10n.flowNewFavoritesFolder),
       content: TextField(
         controller: _controller,
         autofocus: true,
         onChanged: _validate,
         onSubmitted: (_) => _submit(),
         decoration: InputDecoration(
-          hintText: '请输入收藏夹名称',
+          hintText: context.l10n.flowEnterAFolderName,
           errorText: _error,
         ),
         inputFormatters: [LengthLimitingTextInputFormatter(30)],
@@ -974,9 +999,9 @@ class _BookmarkFolderNameDialogState extends State<_BookmarkFolderNameDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('取消'),
+          child: Text(context.l10n.featureCancel),
         ),
-        TextButton(onPressed: _submit, child: const Text('创建')),
+        TextButton(onPressed: _submit, child: Text(context.l10n.flowCreate)),
       ],
     );
   }

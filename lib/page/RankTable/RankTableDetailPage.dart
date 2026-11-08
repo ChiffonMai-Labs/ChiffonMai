@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import 'package:my_first_flutter_app/service/RankTable/RankTableService.dart';
@@ -223,7 +224,7 @@ class _RankDetailPageState extends State<RankDetailPage> {
         _buildCompletionRow(),
         ..._buildResultCard(rankData),
         const SizedBox(height: 16),
-        const AppSectionHeader(title: '段位曲目'),
+        AppSectionHeader(title: context.l10n.flowDanCourseSongs),
         for (int index = 0; index < 4; index++)
           EntranceAnimation(
             index: index,
@@ -254,7 +255,7 @@ class _RankDetailPageState extends State<RankDetailPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '段位认定',
+            context.l10n.flowDanCertification,
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
@@ -284,7 +285,7 @@ class _RankDetailPageState extends State<RankDetailPage> {
       child: Row(
         children: [
           Text(
-            '我的挑战',
+            context.l10n.flowMyChallenges,
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w700,
@@ -330,7 +331,7 @@ class _RankDetailPageState extends State<RankDetailPage> {
               children: [
                 Expanded(
                   child: Text(
-                    '预计结果',
+                    context.l10n.flowEstimatedResult,
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
@@ -339,7 +340,9 @@ class _RankDetailPageState extends State<RankDetailPage> {
                   ),
                 ),
                 AppBadge(
-                  text: isDead ? '不合格' : '合格',
+                  text: isDead
+                      ? context.l10n.flowFailed2
+                      : context.l10n.flowPassed,
                   numeric: false,
                   fontSize: 14,
                   background: resultColor.withValues(alpha: 0.14),
@@ -364,14 +367,14 @@ class _RankDetailPageState extends State<RankDetailPage> {
               ),
             ),
             Text(
-              '总达成率',
+              context.l10n.flowTotalAchievement,
               style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
             ),
             const SizedBox(height: 12),
             Row(
               children: [
                 Text(
-                  '剩余血量',
+                  context.l10n.flowRemainingLife,
                   style:
                       TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
                 ),
@@ -391,7 +394,9 @@ class _RankDetailPageState extends State<RankDetailPage> {
             const SizedBox(height: 6),
             SmoothLinearProgressIndicator(
               value: rankData.initialHp > 0
-                  ? (remainingHp / rankData.initialHp).clamp(0.0, 1.0).toDouble()
+                  ? (remainingHp / rankData.initialHp)
+                      .clamp(0.0, 1.0)
+                      .toDouble()
                   : 0,
               minHeight: 8,
               color: resultColor,
@@ -427,7 +432,6 @@ class _RankDetailPageState extends State<RankDetailPage> {
             builder: (context) => SongInfoPage(
               songId: songId,
               initialLevelIndex: levelIndex,
-              isDefaultLevelIndex: false,
             ),
           ),
         );
@@ -490,7 +494,8 @@ class _RankDetailPageState extends State<RankDetailPage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 MarqueeText(
-                  text: song?.title ?? '曲目 ${index + 1}',
+                  text: song?.title ??
+                      context.l10n.flowSongP02((index + 1).toString()),
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
@@ -512,7 +517,7 @@ class _RankDetailPageState extends State<RankDetailPage> {
                 Text(
                   hasAchievement
                       ? '${achievementValue.toStringAsFixed(4)}%'
-                      : '未游玩',
+                      : context.l10n.flowUnplayed,
                   style: hasAchievement
                       ? AppTheme.number(
                           fontSize: 15,
@@ -521,8 +526,7 @@ class _RankDetailPageState extends State<RankDetailPage> {
                               ? AppColors.successGreen(brightness)
                               : scheme.onSurface,
                         )
-                      : TextStyle(
-                          fontSize: 12, color: scheme.onSurfaceVariant),
+                      : TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
                 ),
               ],
             ),
@@ -543,7 +547,7 @@ class _RankDetailPageState extends State<RankDetailPage> {
                   ),
                 ),
                 Text(
-                  '预计最低扣血',
+                  context.l10n.flowEstimatedMinimumLifeLoss,
                   style:
                       TextStyle(fontSize: 10, color: scheme.onSurfaceVariant),
                 ),
@@ -564,15 +568,15 @@ class _RankDetailPageState extends State<RankDetailPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const AppSectionHeader(
-            title: '血量设置',
+          AppSectionHeader(
+            title: context.l10n.flowLifeSettings,
             padding: EdgeInsets.only(bottom: 10),
           ),
           Row(
             children: [
               Expanded(
                 child: StatTile(
-                  label: '初始血量',
+                  label: context.l10n.flowStartingLife,
                   value: '${rankData.initialHp}',
                   valueColor: success,
                 ),
@@ -600,7 +604,7 @@ class _RankDetailPageState extends State<RankDetailPage> {
               ),
               Expanded(
                 child: StatTile(
-                  label: '通关回复',
+                  label: context.l10n.flowClearRecovery,
                   value: '+${rankData.healAmount}',
                   valueColor: success,
                 ),
@@ -615,7 +619,7 @@ class _RankDetailPageState extends State<RankDetailPage> {
   Widget _buildEmptyContent() {
     return Center(
       child: Text(
-        '未找到段位数据',
+        context.l10n.flowNoDanDataFound,
         style: TextStyle(
           fontSize: 13,
           color: Theme.of(context).colorScheme.onSurfaceVariant,

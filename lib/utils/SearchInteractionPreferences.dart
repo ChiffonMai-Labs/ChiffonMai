@@ -5,6 +5,18 @@ import '../constant/CacheKeyConstant.dart';
 
 enum SearchInteractionMode { inline, overlay }
 
+/// 首页搜索框的搜索范围。
+enum HomeSearchScope {
+  feature('功能', '搜索功能名称或关键词'),
+  song('歌曲', '搜索歌名、别名、歌曲 ID…'),
+  both('功能+歌曲', '搜索功能或歌曲');
+
+  final String label;
+  final String hint;
+
+  const HomeSearchScope(this.label, this.hint);
+}
+
 /// 首页功能搜索与歌曲搜索共用的交互偏好。
 class SearchInteractionPreferences extends ChangeNotifier {
   SearchInteractionPreferences._();
@@ -12,6 +24,7 @@ class SearchInteractionPreferences extends ChangeNotifier {
 
   SearchInteractionMode _mode = SearchInteractionMode.inline;
   bool _showMatchInfo = false;
+  HomeSearchScope _homeSearchScope = HomeSearchScope.feature;
   bool _loaded = false;
   Future<void>? _loading;
   Future<void> _writes = Future<void>.value();
@@ -21,6 +34,9 @@ class SearchInteractionPreferences extends ChangeNotifier {
 
   /// 歌曲搜索结果是否显示匹配字段，默认关闭。
   bool get showMatchInfo => _showMatchInfo;
+
+  /// 首页搜索框的搜索范围，默认只搜功能。
+  HomeSearchScope get homeSearchScope => _homeSearchScope;
 
   Future<void> load() {
     if (_loaded) return Future<void>.value();
@@ -46,6 +62,11 @@ class SearchInteractionPreferences extends ChangeNotifier {
               : SearchInteractionMode.inline;
       _showMatchInfo =
           prefs.getBool(CacheKeyConstant.searchShowMatchInfo) ?? false;
+      _homeSearchScope = HomeSearchScope.values.firstWhere(
+        (scope) =>
+            scope.name == prefs.getString(CacheKeyConstant.homeSearchScope),
+        orElse: () => HomeSearchScope.feature,
+      );
     } catch (error) {
       debugPrint('读取搜索框交互偏好失败: $error');
     } finally {
@@ -64,6 +85,20 @@ class SearchInteractionPreferences extends ChangeNotifier {
       await prefs.setBool(CacheKeyConstant.searchShowMatchInfo, value);
     }).catchError((Object error) {
       debugPrint('保存匹配字段显示偏好失败: $error');
+    });
+    await _writes;
+  }
+
+  Future<void> setHomeSearchScope(HomeSearchScope scope) async {
+    await load();
+    if (_homeSearchScope == scope) return;
+    _homeSearchScope = scope;
+    notifyListeners();
+    _writes = _writes.then((_) async {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(CacheKeyConstant.homeSearchScope, scope.name);
+    }).catchError((Object error) {
+      debugPrint('保存首页搜索范围失败: $error');
     });
     await _writes;
   }

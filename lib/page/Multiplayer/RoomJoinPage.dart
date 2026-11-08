@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
@@ -45,7 +46,7 @@ class _RoomJoinPageState extends State<RoomJoinPage> {
     String roomId = _roomIdController.text.trim().toLowerCase();
 
     if (roomId.isEmpty) {
-      setState(() => _roomIdError = '房间码不能为空');
+      setState(() => _roomIdError = context.l10n.flowRoomCodeCannotBeEmpty);
       return;
     }
 
@@ -66,7 +67,7 @@ class _RoomJoinPageState extends State<RoomJoinPage> {
           text: text,
           selection: TextSelection.collapsed(offset: text.length),
         );
-        _roomIdError = text.isEmpty ? '房间码不能为空' : null;
+        _roomIdError = text.isEmpty ? context.l10n.flowRoomCodeCannotBeEmpty : null;
       });
     }
   }
@@ -170,7 +171,7 @@ class _RoomJoinPageState extends State<RoomJoinPage> {
               onTap: () => _roomIdController.selection = TextSelection.collapsed(
                   offset: _roomIdController.text.length),
               onChanged: (value) {
-                final error = value.trim().isEmpty ? '房间码不能为空' : null;
+                final error = value.trim().isEmpty ? context.l10n.flowRoomCodeCannotBeEmpty : null;
                 if (error != _roomIdError) {
                   setState(() => _roomIdError = error);
                 }
@@ -226,7 +227,7 @@ class _RoomJoinPageState extends State<RoomJoinPage> {
     final scheme = Theme.of(context).colorScheme;
 
     return BackgroundPageScaffold(
-      title: '加入房间',
+      title: context.l10n.flowJoinRoom,
       resizeToAvoidBottomInset: false,
       child: SingleChildScrollView(
         padding: EdgeInsets.fromLTRB(
@@ -261,7 +262,7 @@ class _RoomJoinPageState extends State<RoomJoinPage> {
                     ),
                     const SizedBox(height: 14),
                     Text(
-                      '输入房间码',
+                      context.l10n.flowEnterRoomCode,
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 22,
@@ -271,7 +272,7 @@ class _RoomJoinPageState extends State<RoomJoinPage> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '输入 6 位房间码，也支持完整房间 ID',
+                      context.l10n.flowEnterA6DigitCodeOrThe,
                       textAlign: TextAlign.center,
                       style: TextStyle(
                           fontSize: 13, color: scheme.onSurfaceVariant),
@@ -292,7 +293,7 @@ class _RoomJoinPageState extends State<RoomJoinPage> {
                       child: TextButton.icon(
                         onPressed: _handlePaste,
                         icon: const Icon(Icons.content_paste_rounded, size: 16),
-                        label: const Text('粘贴房间码'),
+                        label:  Text(context.l10n.flowPasteRoomCode),
                       ),
                     ),
                     const SizedBox(height: 6),
@@ -309,8 +310,8 @@ class _RoomJoinPageState extends State<RoomJoinPage> {
                                   color: scheme.onPrimary,
                                 ),
                               )
-                            : const Text(
-                                '加入房间',
+                            :  Text(
+                                context.l10n.flowJoinRoom,
                                 style: TextStyle(
                                     fontSize: 15, fontWeight: FontWeight.w700),
                               ),
@@ -330,7 +331,7 @@ class _RoomJoinPageState extends State<RoomJoinPage> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
-                      '如何获取房间码？',
+                      context.l10n.flowHowDoIGetARoomCode,
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
@@ -338,9 +339,9 @@ class _RoomJoinPageState extends State<RoomJoinPage> {
                       ),
                     ),
                     const SizedBox(height: 10),
-                    _buildStep(1, '房主创建房间后，可在房间页面复制房间码。'),
+                    _buildStep(1, context.l10n.flowAfterCreatingARoomTheHostCan),
                     const SizedBox(height: 8),
-                    _buildStep(2, '让好友把房间码发给你，在上面粘贴就能加入。'),
+                    _buildStep(2, context.l10n.flowAskYourFriendToSendTheCode),
                   ],
                 ),
               ),

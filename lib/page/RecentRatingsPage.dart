@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import '../api/ApiUrls.dart';
@@ -7,6 +9,7 @@ import '../page/SongInfoPage.dart';
 import '../utils/AppTheme.dart';
 import '../utils/CoverUtil.dart';
 import '../utils/CurrentDataSourceNotifier.dart';
+import '../utils/ChartDifficulty.dart';
 import 'package:my_first_flutter_app/utils/ApiClient.dart';
 import '../widgets/BackgroundPageScaffold.dart';
 import '../utils/AppDesignTokens.dart';
@@ -17,7 +20,7 @@ import '../widgets/MarqueeText.dart';
 class RatingRecordItem {
   final int id;
   final String songId;
-  final int levelIndex;
+  final int? levelIndex;
   final String userId;
   final String? dataSource;
   final String? originalId;
@@ -71,7 +74,8 @@ class RatingRecordItem {
     return RatingRecordItem(
       id: _parseInt(json['id']) ?? 0,
       songId: (json['songId'] ?? json['song_id'] ?? '').toString(),
-      levelIndex: _parseInt(json['levelIndex'] ?? json['level_index']) ?? 0,
+      levelIndex: ChartDifficulty.parseStandardIndex(
+          json['levelIndex'] ?? json['level_index']),
       userId: (json['userId'] ?? json['user_id'] ?? '').toString(),
       dataSource: json['dataSource'] ?? json['data_source'],
       originalId: json['originalId'] ?? json['original_id'],
@@ -82,10 +86,9 @@ class RatingRecordItem {
               ? _parseDouble(json['achievement_rate'], 0)
               : null,
       totalRating: _parseInt(json['totalRating'] ?? json['total_rating']),
-      theoreticalRating: _parseInt(json['theoreticalRating'] ?? json['theoretical_rating']),
-      weight: json['weight'] != null
-          ? _parseDouble(json['weight'], 0)
-          : null,
+      theoreticalRating:
+          _parseInt(json['theoreticalRating'] ?? json['theoretical_rating']),
+      weight: json['weight'] != null ? _parseDouble(json['weight'], 0) : null,
       createdAt: json['createdAt'] ?? json['created_at'],
     );
   }
@@ -141,7 +144,8 @@ class _RecentRatingsPageState extends State<RecentRatingsPage> {
     });
 
     try {
-      final url = '${ApiUrls.RatingsRecentUrl}?page=$_currentPage&pageSize=$_pageSize${refresh ? '&refresh=true' : ''}';
+      final url =
+          '${ApiUrls.RatingsRecentUrl}?page=$_currentPage&pageSize=$_pageSize${refresh ? '&refresh=true' : ''}';
       final response = await ApiClient.get(Uri.parse(url));
 
       if (response.statusCode == 200) {
@@ -149,24 +153,26 @@ class _RecentRatingsPageState extends State<RecentRatingsPage> {
         if (result['success'] == true) {
           final List<dynamic> data = result['data'] ?? [];
           setState(() {
-            _ratings = data.map((json) => RatingRecordItem.fromJson(json)).toList();
+            _ratings =
+                data.map((json) => RatingRecordItem.fromJson(json)).toList();
             _isLoading = false;
           });
         } else {
           setState(() {
-            _errorMessage = result['error'] ?? '加载失败';
+            _errorMessage = result['error'] ?? appL10n.flowCouldNotLoad;
             _isLoading = false;
           });
         }
       } else {
         setState(() {
-          _errorMessage = '请求失败 (${response.statusCode})';
+          _errorMessage =
+              appL10n.flowRequestFailedP0((response.statusCode).toString());
           _isLoading = false;
         });
       }
     } catch (e) {
       setState(() {
-        _errorMessage = '网络错误: $e';
+        _errorMessage = appL10n.flowNetworkErrorP0((e).toString());
         _isLoading = false;
       });
     }
@@ -190,17 +196,21 @@ class _RecentRatingsPageState extends State<RecentRatingsPage> {
       final dt = DateTime.parse(timestamp);
       final now = DateTime.now();
       final diff = now.difference(dt);
-      if (diff.inMinutes < 1) return '刚刚';
-      if (diff.inMinutes < 60) return '${diff.inMinutes}分钟前';
-      if (diff.inHours < 24) return '${diff.inHours}小时前';
-      if (diff.inDays < 7) return '${diff.inDays}天前';
+      if (diff.inMinutes < 1) return context.l10n.flowJustNow;
+      if (diff.inMinutes < 60)
+        return context.l10n.flowP0MinutesAgo2((diff.inMinutes).toString());
+      if (diff.inHours < 24)
+        return context.l10n.flowP0HoursAgo2((diff.inHours).toString());
+      if (diff.inDays < 7)
+        return context.l10n.flowP0DaysAgo2((diff.inDays).toString());
       return '${dt.month}/${dt.day} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
     } catch (_) {
       return timestamp;
     }
   }
 
-  Widget _buildStars(double score, Brightness brightness, {double starSize = 16}) {
+  Widget _buildStars(double score, Brightness brightness,
+      {double starSize = 16}) {
     final fullStars = score.floor();
     final hasHalf = (score - fullStars) >= 0.25;
 
@@ -230,19 +240,19 @@ class _RecentRatingsPageState extends State<RecentRatingsPage> {
     // 三个源都认（原来只判断 shuiyu / luoxue，AWMC NET 会掉到下面显示原始 uid）。
     // 用短名：这里拼出来是「AWMC用户」，全名会变成「AWMC NET用户」，读着别扭。
     final label = RefreshDataSource.shortDisplayNameOfKey(rating.dataSource);
-    if (label.isNotEmpty) return '$label用户';
+    if (label.isNotEmpty) return context.l10n.flowP0User((label).toString());
     final uid = rating.userId;
     return uid.length > 8 ? '${uid.substring(0, 8)}...' : uid;
   }
 
-  void _navigateToSong(String songId, int levelIndex) {
+  void _navigateToSong(String songId, int? levelIndex) {
+    FocusManager.instance.primaryFocus?.unfocus();
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => SongInfoPage(
           songId: songId,
           initialLevelIndex: levelIndex,
-          isDefaultLevelIndex: false,
         ),
       ),
     );
@@ -253,7 +263,7 @@ class _RecentRatingsPageState extends State<RecentRatingsPage> {
     final brightness = Theme.of(context).brightness;
     final Color textPrimaryColor = Theme.of(context).colorScheme.onSurface;
     return BackgroundPageScaffold(
-      title: '最近评分',
+      title: context.l10n.featureRecentRatings,
       actions: [
         IconButton(
           icon: Icon(Icons.refresh, color: textPrimaryColor),
@@ -285,14 +295,17 @@ class _RecentRatingsPageState extends State<RecentRatingsPage> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.error_outline, size: 48, color: AppColors.errorRed(brightness)),
+          Icon(Icons.error_outline,
+              size: 48, color: AppColors.errorRed(brightness)),
           const SizedBox(height: 12),
           Text(
             _errorMessage!,
-            style: TextStyle(color: AppColors.errorRed(brightness), fontSize: 14),
+            style:
+                TextStyle(color: AppColors.errorRed(brightness), fontSize: 14),
           ),
           const SizedBox(height: 12),
-          ElevatedButton(onPressed: _refresh, child: const Text('重试')),
+          ElevatedButton(
+              onPressed: _refresh, child: Text(context.l10n.flowRetry)),
         ],
       ),
     );
@@ -303,11 +316,13 @@ class _RecentRatingsPageState extends State<RecentRatingsPage> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.star_border_outlined, size: 56, color: AppColors.greyHint(brightness)),
+          Icon(Icons.star_border_outlined,
+              size: 56, color: AppColors.greyHint(brightness)),
           const SizedBox(height: 12),
           Text(
-            '暂无评分记录',
-            style: TextStyle(color: AppColors.greyHint(brightness), fontSize: 16),
+            context.l10n.flowNoRatingsYet,
+            style:
+                TextStyle(color: AppColors.greyHint(brightness), fontSize: 16),
           ),
         ],
       ),
@@ -381,8 +396,9 @@ class _RecentRatingsPageState extends State<RecentRatingsPage> {
                       SongTypeBadge(songId: songId, type: song.type),
                       const SizedBox(width: 4),
                     ],
-                    ChartDifficultyBadge(
-                        levelIndex: levelIndex, songId: songId),
+                    if (levelIndex != null)
+                      ChartDifficultyBadge(
+                          levelIndex: levelIndex, songId: songId),
                   ],
                 ),
                 const SizedBox(height: 6),

@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'dart:convert';
 
 import '../api/ApiUrls.dart';
@@ -41,7 +42,7 @@ class FriendLinksService {
   static const List<FriendLinkRecord> fallback = [
     FriendLinkRecord(
       name: '中二查歌',
-      description: '这是ChiffonChu，一站式中二工具()',
+      description: '这是ChiffonChu，一站式中二工具',
       url: 'https://github.com/k4641321/chusearchsong_flutter',
       iconType: 'github',
       iconColor: '#7E57C2',
@@ -76,7 +77,7 @@ class FriendLinksService {
     }
     final decoded = jsonDecode(utf8.decode(response.bodyBytes));
     final raw = decoded is Map<String, dynamic> ? decoded['links'] : decoded;
-    if (raw is! List) throw const FormatException('友链数据格式错误');
+    if (raw is! List) throw FormatException(appL10n.svcInvalidFriendLinkDataFormat);
     return [
       for (final item in raw)
         if (item is Map<String, dynamic>) FriendLinkRecord.fromJson(item),

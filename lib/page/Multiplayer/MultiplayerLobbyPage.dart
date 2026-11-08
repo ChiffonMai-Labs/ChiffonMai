@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/entity/Multiplayer/GameType.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -95,7 +97,7 @@ class _MultiplayerLobbyPageState extends State<MultiplayerLobbyPage> {
             MaterialPageRoute(builder: (context) => GameRoomPage(room: result)));
       }
     } catch (error) {
-      if (mounted) AppToast.show('创建房间失败：$error');
+      if (mounted) AppToast.show(context.l10n.flowCouldNotCreateRoomP0((error).toString()), tone: AppToastTone.error);
     } finally {
       if (mounted) setState(() => _isCreating = false);
     }
@@ -113,11 +115,11 @@ class _MultiplayerLobbyPageState extends State<MultiplayerLobbyPage> {
       if (!mounted || roomId == null) return;
       final room = await _manager.joinRoom(roomId);
       if (!mounted) return;
-      if (room == null) throw StateError('房间不存在或无法加入');
+      if (room == null) throw StateError(context.l10n.flowRoomDoesNotExistOrCannotBe);
       await Navigator.push(context,
           MaterialPageRoute(builder: (context) => GameRoomPage(room: room)));
     } catch (error) {
-      if (mounted) AppToast.show('加入房间失败：$error');
+      if (mounted) AppToast.show(context.l10n.flowCouldNotJoinRoomP0((error).toString()), tone: AppToastTone.error);
     } finally {
       if (mounted) setState(() => _isJoining = false);
     }
@@ -153,7 +155,7 @@ class _MultiplayerLobbyPageState extends State<MultiplayerLobbyPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '你还在房间 ${room.roomCode} 里',
+                        context.l10n.flowYouAreStillInRoomP0((room.roomCode).toString()),
                         style: TextStyle(
                           color: scheme.onPrimaryContainer,
                           fontSize: 15 * scaleFactor,
@@ -162,7 +164,7 @@ class _MultiplayerLobbyPageState extends State<MultiplayerLobbyPage> {
                       ),
                       SizedBox(height: 2 * scaleFactor),
                       Text(
-                        '${room.gameType.name} · ${room.players.length} 人 · 点击返回',
+                        context.l10n.flowP0P1PlayersTapToReturn((room.gameType.localizedName).toString(), (room.players.length).toString()),
                         style: TextStyle(
                           color: scheme.onPrimaryContainer.withValues(alpha: 0.8),
                           fontSize: 12.5 * scaleFactor,
@@ -237,7 +239,7 @@ class _MultiplayerLobbyPageState extends State<MultiplayerLobbyPage> {
     final paddingM = 12.0 * scaleFactor;
 
     return BackgroundPageScaffold(
-      title: '多人猜歌游戏',
+      title: context.l10n.featureMultiplayerSongQuiz,
       contentPadding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom + 10),
       child: SingleChildScrollView(
                     padding: EdgeInsets.fromLTRB(AppDesignTokens.gutter, 4, AppDesignTokens.gutter, paddingM),
@@ -249,16 +251,16 @@ class _MultiplayerLobbyPageState extends State<MultiplayerLobbyPage> {
 
                         _buildLobbyEntry(
                           icon: Icons.add_rounded,
-                          title: '创建房间',
-                          subtitle: '选择玩法和规则，邀请好友一起猜歌',
+                          title: context.l10n.flowCreateRoom,
+                          subtitle: context.l10n.flowChooseAModeAndRulesThenInvite,
                           emphasis: true,
                           onTap: _handleCreateRoom,
                         ),
                         const SizedBox(height: AppDesignTokens.cardGap),
                         _buildLobbyEntry(
                           icon: Icons.group_add_outlined,
-                          title: '加入房间',
-                          subtitle: '输入好友分享的房间码',
+                          title: context.l10n.flowJoinRoom,
+                          subtitle: context.l10n.flowEnterARoomCodeSharedByA,
                           onTap: _handleJoinRoom,
                         ),
                       ],

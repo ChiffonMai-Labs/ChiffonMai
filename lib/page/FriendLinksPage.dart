@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:marquee/marquee.dart';
@@ -46,7 +48,7 @@ class _FriendLinksPageState extends State<FriendLinksPage> {
       if (!mounted) return;
       setState(() {
         _isLoading = false;
-        _loadError = '在线友链暂时不可用，当前显示本地缓存';
+        _loadError = appL10n.flowOnlineLinksAreUnavailableShowingLocallyCached;
       });
     }
   }
@@ -54,7 +56,7 @@ class _FriendLinksPageState extends State<FriendLinksPage> {
   Future<void> _open(String url) async {
     final uri = Uri.tryParse(url);
     if (uri == null) {
-      AppToast.show('链接无效');
+      AppToast.show(context.l10n.flowInvalidLink);
       return;
     }
     try {
@@ -72,7 +74,7 @@ class _FriendLinksPageState extends State<FriendLinksPage> {
   void _copyFallback(String url) {
     Clipboard.setData(ClipboardData(text: url));
     if (mounted) {
-      AppToast.show('无法打开浏览器，链接已复制到剪贴板', duration: Duration(seconds: 3));
+      AppToast.show(context.l10n.flowCouldNotOpenABrowserLinkCopied3, duration: Duration(seconds: 3), tone: AppToastTone.error);
     }
   }
 
@@ -83,7 +85,7 @@ class _FriendLinksPageState extends State<FriendLinksPage> {
     final Color textSecondaryColor =
         Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7);
     return BackgroundPageScaffold(
-      title: '查看友情链接',
+      title: context.l10n.featureRelatedProjects,
       resizeToAvoidBottomInset: false,
       contentPadding: EdgeInsets.only(bottom: safeBottom + 10),
       child: SingleChildScrollView(
@@ -98,8 +100,7 @@ class _FriendLinksPageState extends State<FriendLinksPage> {
                         children: [
                           // 顶部说明
                           Text(
-                            '这里收录了同好/同行项目的友情链接，'
-                            '点击卡片即可在浏览器中打开。',
+                            context.l10n.flowRelatedCommunityProjectsTapACardTo,
                             style: TextStyle(
                               color: textSecondaryColor,
                               fontSize: 12,
@@ -128,7 +129,7 @@ class _FriendLinksPageState extends State<FriendLinksPage> {
                                   ),
                                   TextButton(
                                     onPressed: _loadFriendLinks,
-                                    child: const Text('重试'),
+                                    child:  Text(context.l10n.flowRetry),
                                   ),
                                 ],
                               ),

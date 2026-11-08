@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import '../service/NextPlayQueueStore.dart';
@@ -45,15 +46,15 @@ class _NextPlayQueuePageState extends State<NextPlayQueuePage> {
           CommonWidgetUtil.buildCommonBgWidget(),
           CommonWidgetUtil.buildCommonChiffonBgWidget(context),
           Column(children: [
-            AppHeader(title: '下次想玩', actions: [
+            AppHeader(title: context.l10n.featurePlayNext, actions: [
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Center(child: Text('${entries.length} 首')),
+                child: Center(child: Text(context.l10n.flowP0Songs2((entries.length).toString()))),
               ),
             ]),
             Expanded(
               child: entries.isEmpty
-                  ? const Center(child: Text('还没有加入歌曲\n在歌曲详情或随身听中点「加入下次想玩」吧'))
+                  ?  Center(child: Text(context.l10n.flowNoSongsAddedYetUseAddTo))
                   : ReorderableListView.builder(
                       padding: const EdgeInsets.fromLTRB(8, 8, 8, 24),
                       itemCount: entries.length,
@@ -103,7 +104,7 @@ class _NextPlayQueuePageState extends State<NextPlayQueuePage> {
                                       const SizedBox(height: 5),
                                       Text(
                                           entry.artist.isEmpty
-                                              ? '未知艺术家'
+                                              ? context.l10n.flowUnknownArtist
                                               : entry.artist,
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
@@ -123,7 +124,7 @@ class _NextPlayQueuePageState extends State<NextPlayQueuePage> {
                                               .toList(),
                                         )
                                       else
-                                        Text('未指定难度',
+                                        Text(context.l10n.flowDifficultyNotSpecified,
                                             style: TextStyle(
                                                 fontSize: 12,
                                                 color: Theme.of(context)
@@ -131,7 +132,7 @@ class _NextPlayQueuePageState extends State<NextPlayQueuePage> {
                                                     .onSurfaceVariant)),
                                       if (entry.note.isNotEmpty) ...[
                                         const SizedBox(height: 4),
-                                        Text('备注：${entry.note}',
+                                        Text(context.l10n.flowNoteP0((entry.note).toString()),
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
                                             style: TextStyle(
@@ -146,7 +147,7 @@ class _NextPlayQueuePageState extends State<NextPlayQueuePage> {
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       IconButton(
-                                          tooltip: '移除这一次',
+                                          tooltip: context.l10n.flowRemoveThisEntry,
                                           icon: const Icon(
                                               Icons.remove_circle_outline),
                                           onPressed: () => _store

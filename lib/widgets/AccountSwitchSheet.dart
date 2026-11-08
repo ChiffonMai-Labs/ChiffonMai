@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 
 import '../service/AccountStore.dart';
@@ -31,11 +33,39 @@ Future<void> showAccountSwitchSheet(
   );
 }
 
+/// 我的页使用对话框，账号操作仍与首页底部面板共用。
+Future<void> showAccountSwitchDialog(
+  BuildContext context, {
+  required Future<void> Function(RefreshDataSource source) onNeedRefresh,
+}) async {
+  final metas = await AccountStore.loadAll();
+  if (!context.mounted) return;
+  await showDialog<void>(
+      context: context,
+      builder: (dialogCtx) => AppAlertDialog(
+            title: Text(context.l10n.flowSwitchAccount),
+            content: SizedBox(
+                width: 520,
+                child: _AccountSwitchSheet(
+                    initialMetas: metas,
+                    onNeedRefresh: onNeedRefresh,
+                    dialog: true)),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogCtx).pop(),
+                child: Text(context.l10n.featureCancel),
+              ),
+            ],
+          ));
+}
+
 class _AccountSwitchSheet extends StatefulWidget {
+  final bool dialog;
   final Map<String, AccountMeta> initialMetas;
   final Future<void> Function(RefreshDataSource source) onNeedRefresh;
 
   const _AccountSwitchSheet({
+    this.dialog = false,
     required this.initialMetas,
     required this.onNeedRefresh,
   });
@@ -60,18 +90,18 @@ class _AccountSwitchSheetState extends State<_AccountSwitchSheet> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogCtx) => AppAlertDialog(
-        title: Text('清除${source.displayName}账号数据'),
-        content: Text('将删除 ${source.displayName} 账号的本地缓存'
-            '（成绩、Best50、玩家信息、推荐结果等），不影响登录状态。\n\n'
-            '下次使用该账号需要重新刷新数据，确定清除？'),
+        title: Text(context.l10n
+            .flowClearP0AccountData(appLocalizeLabel(source.displayName))),
+        content: Text(context.l10n.flowThisDeletesLocalP0CachesScoresBest50(
+            appLocalizeLabel(source.displayName))),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogCtx).pop(false),
-            child: const Text('取消'),
+            child: Text(context.l10n.featureCancel),
           ),
           TextButton(
             onPressed: () => Navigator.of(dialogCtx).pop(true),
-            child: Text('清除',
+            child: Text(context.l10n.flowClear,
                 style: TextStyle(color: Theme.of(dialogCtx).colorScheme.error)),
           ),
         ],
@@ -92,7 +122,8 @@ class _AccountSwitchSheetState extends State<_AccountSwitchSheet> {
           _clearing = null;
         });
       }
-      AppToast.show('清除失败：$e');
+      AppToast.show(context.l10n.flowCouldNotClearP0((e).toString()),
+          tone: AppToastTone.error);
       return;
     }
     final loaded = await AccountStore.loadAll();
@@ -104,7 +135,10 @@ class _AccountSwitchSheetState extends State<_AccountSwitchSheet> {
         ..clear()
         ..addAll(loaded);
     });
-    AppToast.show('已清除${source.displayName}账号数据');
+    AppToast.show(
+        context.l10n
+            .flowClearedP0AccountData(appLocalizeLabel(source.displayName)),
+        tone: AppToastTone.success);
   }
 
   Future<void> _onTapAccount(RefreshDataSource source) async {
@@ -129,31 +163,37 @@ class _AccountSwitchSheetState extends State<_AccountSwitchSheet> {
     switch (outcome) {
       case SwitchOutcome.switched:
         Navigator.of(context).pop();
-        AppToast.show('已切换到${source.displayName}账号');
+        AppToast.show(
+            context.l10n
+                .flowSwitchedToP0Account(appLocalizeLabel(source.displayName)),
+            tone: AppToastTone.success);
         break;
       case SwitchOutcome.sameSource:
         Navigator.of(context).pop();
         break;
       case SwitchOutcome.failed:
-        AppToast.show('账号切换失败，已尝试恢复原账号');
+        AppToast.show(context.l10n.flowAccountSwitchFailedAttemptedToRestoreThe,
+            tone: AppToastTone.error);
         break;
       case SwitchOutcome.busy:
-        AppToast.show('正在切换，请稍候');
+        AppToast.show(context.l10n.flowSwitchingPleaseWait,
+            tone: AppToastTone.warning);
         break;
       case SwitchOutcome.noCache:
         final confirmed = await showDialog<bool>(
           context: context,
           builder: (dialogCtx) => AppAlertDialog(
-            title: const Text('该账号暂无缓存'),
-            content: Text('${source.displayName}账号还没有缓存过数据，去刷新数据？'),
+            title: Text(context.l10n.flowNoCachedDataForThisAccount),
+            content: Text(context.l10n.flowNoDataHasBeenCachedForP0(
+                appLocalizeLabel(source.displayName))),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(dialogCtx).pop(false),
-                child: const Text('取消'),
+                child: Text(context.l10n.featureCancel),
               ),
               TextButton(
                 onPressed: () => Navigator.of(dialogCtx).pop(true),
-                child: const Text('去刷新'),
+                child: Text(context.l10n.flowRefreshNow),
               ),
             ],
           ),
@@ -173,16 +213,19 @@ class _AccountSwitchSheetState extends State<_AccountSwitchSheet> {
     return SafeArea(
       child: SingleChildScrollView(
           child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+        padding: widget.dialog
+            ? EdgeInsets.zero
+            : const EdgeInsets.fromLTRB(20, 0, 20, 16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('切换账号',
-                style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: scheme.onSurface)),
+            if (!widget.dialog)
+              Text(context.l10n.flowSwitchAccount,
+                  style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: scheme.onSurface)),
             const SizedBox(height: 4),
             // 切换中：在标题下方显示状态，避免点完没有任何反馈
             if (_busy)
@@ -197,7 +240,8 @@ class _AccountSwitchSheetState extends State<_AccountSwitchSheet> {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  '正在切换到${_switchingTo?.displayName ?? ''}账号…',
+                  context.l10n.flowSwitchingToP0(
+                      (_switchingTo?.displayName ?? '').toString()),
                   style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -205,7 +249,7 @@ class _AccountSwitchSheetState extends State<_AccountSwitchSheet> {
                 ),
               ])
             else
-              Text('点击账号即可切换数据源与玩家信息（使用本地缓存，不联网）',
+              Text(context.l10n.flowTapAnAccountToSwitchSourceAnd,
                   style:
                       TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
             const SizedBox(height: 12),
@@ -216,7 +260,7 @@ class _AccountSwitchSheetState extends State<_AccountSwitchSheet> {
               const SizedBox(height: 8),
             ],
             const SizedBox(height: 4),
-            Text('刷新数据可更新当前账号；水鱼 / 落雪的登录状态相互独立，AWMC NET 按 QQ 查询无需登录。',
+            Text(context.l10n.flowRefreshToUpdateTheActiveAccountDiving,
                 style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
           ],
         ),
@@ -243,11 +287,11 @@ class _AccountSwitchSheetState extends State<_AccountSwitchSheet> {
     final bool hasData = meta?.hasData ?? false;
     final String nickname = (meta?.nickname.isNotEmpty ?? false)
         ? meta!.nickname
-        : '${source.displayName}账号';
+        : context.l10n.flowP0Account(appLocalizeLabel(source.displayName));
     // 水鱼 / AWMC NET 都是按 QQ，只有落雪是 friendCode
     final String idLine = (meta?.id.isNotEmpty ?? false)
         ? '${source.idIsQQ ? 'QQ' : 'ID'} ${meta!.id}'
-        : '未绑定';
+        : context.l10n.flowNotLinked;
     final ratingLine =
         'RA ${meta?.best50TotalRA ?? 0}  B35 ${meta?.best35TotalRA ?? 0}  B15 ${meta?.best15TotalRA ?? 0}';
     final bool isSwitching = _switchingTo == source;
@@ -285,7 +329,7 @@ class _AccountSwitchSheetState extends State<_AccountSwitchSheet> {
                           color: scheme.primary.withValues(alpha: 0.14),
                           borderRadius: BorderRadius.circular(20),
                         ),
-                        child: Text('当前',
+                        child: Text(context.l10n.flowCurrent,
                             style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
@@ -325,7 +369,7 @@ class _AccountSwitchSheetState extends State<_AccountSwitchSheet> {
               )
             else ...[
               if (!isCurrent && !hasData)
-                Text('暂无缓存',
+                Text(context.l10n.flowNoCache,
                     style:
                         TextStyle(fontSize: 11, color: scheme.onSurfaceVariant))
               else if (!isCurrent)
@@ -334,7 +378,8 @@ class _AccountSwitchSheetState extends State<_AccountSwitchSheet> {
               if (hasData)
                 IconButton(
                   onPressed: () => _onClearAccount(source),
-                  tooltip: '清除${source.displayName}账号数据',
+                  tooltip: context.l10n.flowClearP0AccountData(
+                      appLocalizeLabel(source.displayName)),
                   visualDensity: VisualDensity.compact,
                   iconSize: 18,
                   icon: Icon(

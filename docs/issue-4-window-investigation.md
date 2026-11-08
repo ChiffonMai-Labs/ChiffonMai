@@ -35,3 +35,13 @@
 - 导出对常见 Token、密码和二维码进行脱敏；提交前仍需检查个人信息。日志本身不纳入数据备份。
 - 应用内导出不能获取完整 Android Surface／Vulkan／系统窗口日志；需要时仍应录制未经筛选的 adb logcat。
 - 未连接 HyperOS／Android 真机，未验证小窗问题已修复；发布后回复草稿见 `issue-4-reply-2.9.0.md`，尚未发送。
+
+## v3.0.0-alpha 日志复核（2026-11-07）
+
+- 报告者（REDMI K80，HyperOS 2.0.9.0）在 v3.0.0-alpha 仍可复现。新日志显示：刚进入小窗的那一帧布局正常（节点 713、窗口内文字 42），App 收到 `resumed` 后约 0.3 秒的补画里，节点降到 342、窗口内文字只剩 10，也就是导航栏还在、页面内容消失。上次会话的记录完全相同（695 → 339）。
+- 退出小窗回全屏的第一帧，系统报出 `padding T1989 B64`（物理像素），比小窗高度 1728 还大。v3.0.0-alpha 只在窗口尺寸变化时记日志，尺寸不变的安全区变化没有记录。
+- 推断：恢复时 App 调用 `applySystemUiMode()`（`setEnabledSystemUIMode(edgeToEdge)` 加原生 `controller.show(statusBars)`），HyperOS 2.0 随后给小窗报出比窗口还高的顶部安全区，页面内容被整体推到窗口外。这条推断与「v1.11.1 正常、v2.7.x 起异常」吻合：恢复时重设系统栏是 v2.7.0 加入的。尚未在设备上验证。
+- 本轮修改：
+  - 根部 `MediaQuery` 经过 `WindowDiagnostics.sanitizePadding`：某一侧安全区超过窗口对应边长的三分之一时按 0 处理，并记 `[Window] 安全区异常已忽略`。
+  - `MainActivity.applyStatusBarVisibility()` 在小窗 / 分屏（`isInMultiWindowMode`）中不再控制状态栏。
+  - `didChangeMetrics` 在尺寸不变、安全区变化时也记 `[Window] 安全区变化`，下次日志能直接看到数值。

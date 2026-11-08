@@ -1,3 +1,5 @@
+import '../l10n/LocalizationsExtension.dart';
+import '../l10n/FeatureLocalizations.dart';
 import 'dart:async';
 
 import 'TrophyTitleBadge.dart';
@@ -116,11 +118,11 @@ class _CommunityAppearanceBannerState extends State<CommunityAppearanceBanner> {
       _ => AppColors.warningOrange(brightness),
     };
     final statusLabel = switch (appearance.level) {
-      AvatarSyncLevel.synced => '已同步',
-      AvatarSyncLevel.syncing => '同步中',
-      AvatarSyncLevel.error => '同步失败',
-      AvatarSyncLevel.pending => '待同步',
-      AvatarSyncLevel.localOnly => '仅本机',
+      AvatarSyncLevel.synced => context.l10n.featureSynced,
+      AvatarSyncLevel.syncing => context.l10n.featureSyncing,
+      AvatarSyncLevel.error => context.l10n.featureSyncFailed,
+      AvatarSyncLevel.pending => context.l10n.featurePendingSync,
+      AvatarSyncLevel.localOnly => context.l10n.featureLocalOnly,
     };
     return Material(
         color: scheme.surfaceContainerLow,
@@ -200,8 +202,10 @@ class _CommunityAppearanceBannerState extends State<CommunityAppearanceBanner> {
                                               ),
                                               padding: EdgeInsets.zero,
                                               tooltip: _expanded
-                                                  ? '切换为简略信息'
-                                                  : '展开详细信息',
+                                                  ? context
+                                                      .featureText('切换为简略信息')
+                                                  : context
+                                                      .featureText('展开详细信息'),
                                               visualDensity:
                                                   VisualDensity.compact,
                                               onPressed: _toggleExpanded,
@@ -253,21 +257,25 @@ class _CommunityAppearanceBannerState extends State<CommunityAppearanceBanner> {
                                                         ),
                                                       ),
                                                       const SizedBox(width: 4),
-                                                      Text(statusLabel,
+                                                      Text(
+                                                          context.featureText(
+                                                              statusLabel),
                                                           style: TextStyle(
                                                               color: color,
                                                               fontSize: 12)),
                                                     ]),
                                               ),
                                             ),
-                                            Text('点击选择社区装扮',
+                                            Text(
+                                                context.featureText('点击选择社区装扮'),
                                                 style: TextStyle(
                                                     color: scheme.primary,
                                                     fontSize: 13)),
                                           ],
                                         ),
                                         const SizedBox(height: 2),
-                                        Text('可按需在下方管理账号数据',
+                                        Text(
+                                            context.featureText('可按需在下方管理账号数据'),
                                             style: TextStyle(
                                                 color: scheme.onSurfaceVariant,
                                                 fontSize: 11)),
@@ -294,7 +302,9 @@ class _CommunityAppearanceBannerState extends State<CommunityAppearanceBanner> {
                                           child: TrophyTitleBadge(
                                               name: appearance.trophy?['name']
                                                       ?.toString() ??
-                                                  '称号 #${appearance.trophyId}',
+                                                  context.l10n.homeTrophyId(
+                                                      appearance.trophyId
+                                                          .toString()),
                                               color: appearance.trophy?['color']
                                                   ?.toString(),
                                               trophyId: appearance.trophyId))),

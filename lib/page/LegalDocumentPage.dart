@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/FeatureLocalizations.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:markdown_widget/markdown_widget.dart';
@@ -14,6 +16,16 @@ enum AppLegalDocument {
   final String title;
   final String fileName;
   String get assetPath => 'assets/legal/$fileName';
+
+  String assetPathForLocale(Locale locale) {
+    final suffix = switch(locale.languageCode) {
+      'en' => 'en',
+      'ja' => 'ja',
+      'zh' when locale.scriptCode == 'Hant' => 'zh_Hant',
+      _ => null,
+    };
+    return suffix == null ? assetPath : 'assets/legal/${fileName.replaceFirst('.md', '.$suffix.md')}';
+  }
 }
 
 /// 协议随应用发布，首次打开和离线时均可阅读。
@@ -35,11 +47,16 @@ class LegalDocumentPage extends StatefulWidget {
 
 class _LegalDocumentPageState extends State<LegalDocumentPage> {
   late Future<String> _content;
+  String _assetPath = "";
 
   @override
-  void initState() {
-    super.initState();
-    _content = rootBundle.loadString(widget.document.assetPath);
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final path = widget.document.assetPathForLocale(Localizations.localeOf(context));
+    if (_assetPath != path) {
+      _assetPath = path;
+      _content = rootBundle.loadString(path);
+    }
   }
 
   Future<void> _openLink(String value) async {
@@ -56,7 +73,7 @@ class _LegalDocumentPageState extends State<LegalDocumentPage> {
       if (await ExternalLaunchUtil.open(uri)) return;
     } catch (_) {}
     if (mounted) {
-      AppToast.show('无法打开链接，请稍后重试');
+      AppToast.show(context.l10n.flowCouldNotOpenTheLinkTryAgain, tone: AppToastTone.error);
     }
   }
 
@@ -68,7 +85,7 @@ class _LegalDocumentPageState extends State<LegalDocumentPage> {
         ? MarkdownConfig.darkConfig
         : MarkdownConfig.defaultConfig;
     return BackgroundPageScaffold(
-      title: widget.document.title,
+      title: context.featureText(widget.document.title),
       showDecorativeImage: false,
       child: Center(
         child: ConstrainedBox(
@@ -80,9 +97,9 @@ class _LegalDocumentPageState extends State<LegalDocumentPage> {
                 return Center(
                   child: TextButton.icon(
                     onPressed: () => setState(() => _content =
-                        rootBundle.loadString(widget.document.assetPath)),
+                        rootBundle.loadString(_assetPath)),
                     icon: const Icon(Icons.refresh),
-                    label: const Text('文档读取失败，点击重试'),
+                    label:  Text(context.l10n.flowCouldNotLoadDocumentTapToRetry),
                   ),
                 );
               }

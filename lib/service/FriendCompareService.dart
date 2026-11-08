@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -150,9 +151,9 @@ class FriendCompareService {
   }
 
   Future<Map<String, dynamic>> _fetchShuiyuMine(String myQQ) async {
-    if (myQQ.isEmpty) throw Exception('请先登录并绑定水鱼 QQ');
+    if (myQQ.isEmpty) throw Exception(appL10n.svcSignInAndLinkYourDivingFish);
     return _requireRecords(await UserPlayDataManager().fetchUserPlayData(myQQ),
-        '当前水鱼用户无游玩数据，请先刷新数据');
+        appL10n.svcTheCurrentDivingFishUserHasNo);
   }
 
   Future<Map<String, dynamic>> _fetchShuiyuFriend(String friendQQ) async {
@@ -167,11 +168,11 @@ class FriendCompareService {
       }
       rethrow;
     }
-    return _requireRecords(data, '未找到该好友的游玩数据，请检查 QQ 号是否正确');
+    return _requireRecords(data, appL10n.svcNoPlayDataWasFoundForThis);
   }
 
   Future<Map<String, dynamic>> _fetchAwmcMine(String myQQ) async {
-    if (myQQ.isEmpty) throw Exception('请先在账号管理里添加 AWMC NET 的 QQ');
+    if (myQQ.isEmpty) throw Exception(appL10n.svcAddYourAWMCNETQQNumberIn);
     return AwmcNetUserPlayDataManager().fetchUserPlayData(myQQ);
   }
 
@@ -197,15 +198,15 @@ class FriendCompareService {
   Future<Map<String, dynamic>> _fetchLuoXueMine() async {
     final manager = LuoXueUserPlayDataManager();
     if (!await manager.isLoggedIn()) {
-      throw Exception('请先登录落雪账号');
+      throw Exception(appL10n.svcSignInToYourLXNSAccountFirst);
     }
     final player = await manager.getPlayerInfo();
     final scores = await manager.getPlayerRecords();
     if (player == null || scores == null) {
-      throw Exception('读取你的落雪成绩失败，请稍后重试');
+      throw Exception(appL10n.svcCouldNotReadYourLXNSScoresTry);
     }
     final songs = await _songsByTitleAndType();
-    if (songs.isEmpty) throw Exception('曲库还没有加载好，请稍后重试');
+    if (songs.isEmpty) throw Exception(appL10n.svcTheSongLibraryHasNotLoadedYet);
     return {
       'rating': player.rating,
       'records': [
@@ -222,13 +223,13 @@ class FriendCompareService {
   /// 这份数据来自好友同步到 ChiffonMai 的成绩，上面的曲目 ID 已经是曲库 ID。
   Future<Map<String, dynamic>> _fetchLuoXueFriend(String friendCode) async {
     if (!RegExp(r'^\d+$').hasMatch(friendCode)) {
-      throw Exception('好友码只能是数字，请检查后重试');
+      throw Exception(appL10n.svcTheFriendCodeMustContainOnlyDigits);
     }
     final playerId = 'luoxue:$friendCode';
     final response = await ApiClient.get(
         Uri.parse('${ApiUrls.SongRankingsPlayerUrl}/$playerId'));
     if (response.statusCode != 200) {
-      throw Exception('查询好友成绩失败（HTTP ${response.statusCode}）');
+      throw Exception(appL10n.svcCouldNotLookUpTheFriendS(response.statusCode.toString()));
     }
     final body = json.decode(utf8.decode(response.bodyBytes));
     final rows = body is Map ? body['data'] : null;
@@ -247,7 +248,7 @@ class FriendCompareService {
           },
     ];
     if (records.isEmpty) {
-      throw Exception('没有这位好友的落雪成绩，好友需要在 ChiffonMai 参与排行榜并刷新过数据');
+      throw Exception(appL10n.svcNoLXNSScoresForThisFriendThey);
     }
 
     // 接口按玩家的公开设置返回；旧版后端没有这个字段时显示好友码

@@ -1,4 +1,7 @@
 import 'utils/CurrentDataSourceNotifier.dart';
+import 'utils/AppLanguagePreferences.dart';
+import 'utils/SongDetailPreferences.dart';
+import 'l10n/app_localizations.dart';
 import 'service/PlayerExperienceService.dart';
 import 'dart:async';
 
@@ -31,16 +34,15 @@ import 'utils/WindowDiagnostics.dart';
 import 'widgets/AppToast.dart';
 import 'package:my_first_flutter_app/widgets/Best50Ui.dart';
 import 'package:my_first_flutter_app/service/BackgroundExportService.dart';
+import 'package:my_first_flutter_app/service/CrashReportService.dart';
+import 'service/BackgroundAppUpdateService.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   LogExportService.instance.install();
   GoogleFonts.config.allowRuntimeFetching = true;
   runApp(MyApp());
-  // 凭据迁移和媒体会话属于后台准备工作，不能挡住首页首帧和点击事件。
-  // 尤其是 debug 模式下网络字体/插件初始化较慢，启动阶段等待它们会让
-  // 用户连续点击到尚未挂载完成的路由，表现为卡顿甚至闪退。
-  unawaited(_initStartupServices());
+  // 首次引导只准备主题和引导状态，其他服务由入口页在引导结束后启动。
 }
 
 Future<void> _initStartupServices() async {
@@ -48,18 +50,25 @@ Future<void> _initStartupServices() async {
     await SecureCredentialStore.migrateLegacy();
     await AccountSwitchService.ensureMigrated();
     await CurrentDataSourceNotifier.load();
-    await Best50DisplayPreference.load();
-    unawaited(PlayerExperienceService.instance.start());
-    await _initBackgroundAudio();
+    await Future.wait([
+      Best50DisplayPreference.load(),
+      FavoriteFeaturesNotifier.load(),
+      LoginStateNotifier.load(),
+      UserProfileNotifier.load(),
+      ExportSettings.load(),
+      NavigationPreferences.instance.load(),
+      SongDetailPreferences.instance.load(),
+    ]);
   } catch (e) {
     debugPrint('[Startup] 后台初始化失败（不影响首页交互）: $e');
   }
+  await _initBackgroundAudio();
 }
 
 /// 初始化随身听的后台播放（通知栏 / 锁屏 / 耳机按键控制）。
 ///
-/// 必须在 `runApp` 之前完成：它要在 Android 侧注册 MediaSession 与前台服务，
-/// 晚于第一个 `AudioPlayer` 创建就会「能播但没有通知栏」。
+/// 必须先于任何 `AudioPlayer` 创建：先在 Android 侧注册 MediaSession 与前台服务。
+/// 引导期间不创建播放器；进入主界面前完成初始化，确保通知栏仍能正常控制播放。
 ///
 /// 依赖三处 Android 配置同时到位，缺一都会静默降级：
 ///   1. `AndroidManifest.xml` 声明 `com.ryanheise.audioservice.AudioService`
@@ -94,10 +103,13 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   final GlobalKey<NavigatorState> _navigatorKey = BackgroundExport.navigatorKey;
-  bool _fontsLoaded = false;
+  Future<void>? _mainPreparation;
+  bool _backgroundServicesStarted = false;
   bool _themeLoaded = false;
+  bool _fontsPrepared = false;
   Size? _lastWindowPhysicalSize;
   double? _lastWindowPixelRatio;
+  String? _lastWindowPadding;
   bool _windowMetricsReportScheduled = false;
   Timer? _windowRepaintTimer;
 
@@ -115,17 +127,23 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _initTheme();
-    ConnectivityService().start();
-    // 应用启动时一次性加载跨页面共享状态，
-    // 保证首页 / 4 个 Hub 页 / 收藏管理页能立刻读到收藏列表、登录态与个人信息。
-    FavoriteFeaturesNotifier.load();
-    LoginStateNotifier.load();
-    UserProfileNotifier.load();
-    // 导出相关偏好（收藏夹自定义后缀）
-    ExportSettings.load();
-    NavigationPreferences.instance.load();
-    _initFileOpenHandling();
-    _checkUpdateForBadge();
+  }
+
+  Future<void> _prepareMain() => _mainPreparation ??= _initStartupServices();
+
+  void _startMainBackgroundServices() {
+    if (!mounted || _backgroundServicesStarted) return;
+    setState(() => _backgroundServicesStarted = true);
+    // 主界面已呈现后再开启轮询、更新和导入监听，不与首次引导争用平台线程。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ConnectivityService().start();
+      unawaited(PlayerExperienceService.instance.start());
+      unawaited(_initFileOpenHandling());
+      _checkUpdateForBadge();
+      unawaited(CrashReportService.checkPreviousCrash());
+      BackgroundAppUpdateService.instance.initialize();
+    });
   }
 
   @override
@@ -149,8 +167,17 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     final view = WidgetsBinding.instance.platformDispatcher.implicitView;
     if (view == null) return;
     // 只关注实际窗口尺寸/像素比；键盘动画仅改变 inset，不逐帧刷诊断日志。
+    // 尺寸不变时安全区也可能变（issue #4：小窗恢复后报出比窗口还高的顶部安全区）。
+    final padding = WindowDiagnostics.padding(view.padding);
     if (view.physicalSize == _lastWindowPhysicalSize &&
-        view.devicePixelRatio == _lastWindowPixelRatio) return;
+        view.devicePixelRatio == _lastWindowPixelRatio) {
+      if (padding != _lastWindowPadding) {
+        _lastWindowPadding = padding;
+        debugPrint('[Window] 安全区变化 ${WindowDiagnostics.view(view)}');
+      }
+      return;
+    }
+    _lastWindowPadding = padding;
     final isResize = _lastWindowPhysicalSize != null;
     _lastWindowPhysicalSize = view.physicalSize;
     _lastWindowPixelRatio = view.devicePixelRatio;
@@ -269,34 +296,45 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   }
 
   Future<void> _initTheme() async {
-    await ThemeManager().loadThemePreference();
-    // 预加载背景图片到图像缓存，避免首帧缺失导致闪烁
-    await _precacheBackgroundImages();
+    await Future.wait([
+      ThemeManager().loadThemePreference(),
+      AppLanguagePreferences.instance.load(),
+    ]);
     if (mounted) {
       setState(() => _themeLoaded = true);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_prepareStartupFonts());
+      });
     }
   }
 
-  /// 预加载全屏背景图片到 Flutter 图像缓存
-  Future<void> _precacheBackgroundImages() async {
-    try {
-      await Future.wait([
-        precacheImage(const AssetImage('assets/background.png'), context),
-        precacheImage(const AssetImage('assets/chiffon2.png'), context),
-      ]);
-    } catch (e) {
-      debugPrint('预加载背景图片失败: $e');
+  Future<void> _prepareStartupFonts() async {
+    if (!AppTheme.debugLocalFontFamily) {
+      try {
+        // 保留在线字体；先准备常用字重，避免引导刚出现就开始替换字体。
+        final styles = <TextStyle>[
+          for (final weight in [
+            FontWeight.w400,
+            FontWeight.w500,
+            FontWeight.w600,
+            FontWeight.w700,
+            FontWeight.w800,
+          ]) ...[
+            GoogleFonts.outfit(fontWeight: weight),
+            GoogleFonts.notoSansSc(fontWeight: weight),
+          ],
+        ];
+        await GoogleFonts.pendingFonts(styles)
+            .timeout(const Duration(milliseconds: 1200));
+      } catch (error) {
+        debugPrint('[Startup] 在线字体准备未完成，继续启动: $error');
+      }
     }
-  }
-
-  void _loadFonts() {
-    if (!_fontsLoaded) {
-      setState(() => _fontsLoaded = true);
-    }
+    if (mounted) setState(() => _fontsPrepared = true);
   }
 
   ThemeData _buildThemeWithFonts(ThemeData base) {
-    if (!_fontsLoaded) return base;
+    if (!_fontsPrepared) return base;
     // 统一走 AppTheme.withGlobalFonts：除了 textTheme，它还会给
     // appBarTheme.titleTextStyle 补上字体族 —— 否则标准 AppBar 的标题会被
     // AppBar 自己那层 DefaultTextStyle 顶回系统字体。详见 AppTheme.font 注释。
@@ -305,28 +343,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    if (!_themeLoaded) {
-      // 偏好读取前跟随系统；读取后在背景预加载期间立即切换到用户主题。
-      return ListenableBuilder(
-        listenable: Listenable.merge([
-          ThemeManager().notifier,
-          ThemeManager().pureBlackNotifier,
-          ThemeManager().seedColorNotifier,
-        ]),
-        builder: (context, _) => MaterialApp(
-          debugShowCheckedModeBanner: false,
-          theme: AppTheme.lightTheme(seedColor: ThemeManager().seedColor),
-          darkTheme: ThemeManager().pureBlackEnabled
-              ? AppTheme.pureBlackTheme(seedColor: ThemeManager().seedColor)
-              : AppTheme.darkTheme(seedColor: ThemeManager().seedColor),
-          themeMode: ThemeManager().isLoaded
-              ? ThemeManager().themeMode
-              : ThemeMode.system,
-          home: const SplashPage(),
-        ),
-      );
-    }
-
     return ListenableBuilder(
       listenable: Listenable.merge([
         ThemeManager().notifier,
@@ -334,9 +350,12 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         ThemeManager().seedColorNotifier,
         ThemeManager().customBackgroundPathNotifier,
         NavigationPreferences.instance,
+        AppLanguagePreferences.instance,
       ]),
       builder: (context, _) {
-        final themeMode = ThemeManager().themeMode;
+        final themeMode = ThemeManager().isLoaded
+            ? ThemeManager().themeMode
+            : ThemeMode.system;
         final pureBlack = ThemeManager().pureBlackEnabled;
         final seedColor = ThemeManager().seedColor;
         final lightThemeData =
@@ -349,31 +368,41 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         return MaterialApp(
           debugShowCheckedModeBanner: false,
           navigatorKey: _navigatorKey,
-          navigatorObservers: [_FocusClearingNavigatorObserver()],
-          home: AppEntryPage(
-              onFirstFrameRendered: _loadFonts,
-              canPresentStartup: () =>
-                  _initialImportChecked && !_handlingIncoming),
+          navigatorObservers: [
+            _FocusClearingNavigatorObserver(),
+            BackgroundAppUpdateService.instance.navigationObserver,
+          ],
+          home: !_themeLoaded || !_fontsPrepared
+              ? const SplashPage(showBrand: false)
+              : AppEntryPage(
+                  prepareMain: _prepareMain,
+                  onFirstFrameRendered: _startMainBackgroundServices,
+                  canPresentStartup: () =>
+                      _initialImportChecked && !_handlingIncoming),
           theme: lightThemeData,
           darkTheme: darkThemeData,
           themeMode: themeMode,
+          locale: AppLanguagePreferences.instance.locale,
+          localeListResolutionCallback: AppLanguagePreferences.resolveLocales,
           localizationsDelegates: const [
+            AppLocalizations.delegate,
             GlobalMaterialLocalizations.delegate,
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          supportedLocales: const [Locale('zh', 'CN'), Locale('en', 'US')],
+          supportedLocales: AppLocalizations.supportedLocales,
           builder: (context, child) {
             final theme = Theme.of(context);
             return MediaQuery(
-              data: MediaQuery.of(context).copyWith(textScaleFactor: 1.0),
+              data: WindowDiagnostics.sanitizePadding(MediaQuery.of(context))
+                  .copyWith(textScaleFactor: 1.0),
               child: AnnotatedRegion<SystemUiOverlayStyle>(
                 value: AppTheme.systemUiOverlayStyle(
                   theme.brightness,
                   navigationBarColor: theme.colorScheme.surface,
                 ),
                 child: DefaultTextStyle(
-                  style: _fontsLoaded ? AppTheme.font() : const TextStyle(),
+                  style: _fontsPrepared ? AppTheme.font() : const TextStyle(),
                   // 随身听悬浮球挂在**这里**（MaterialApp.builder），而不是
                   // AppShell 的 body 里 —— 这是关键：
                   //   MaterialApp.builder 包住的是 Navigator，所以悬浮球在**所有
@@ -387,25 +416,26 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                       if (child != null) child,
                       // 随身听悬浮球：自己判断该不该显示（没在放歌、
                       // 或随身听页面正开着时都返回空盒子）。
-                      Positioned.fill(
-                        child: PortablePlayerBall(
-                          // 这里的 context（builder 的）在 Navigator **之上**，
-                          // 弹层/跳转都得用 Navigator 自己的 overlay context，
-                          // 否则 `Navigator.of` 会抛「does not include a
-                          // Navigator」—— 表现就是「点球没反应」。
-                          navigatorKey: _navigatorKey,
-                          onOpenLibrary: () {
-                            final navigatorContext =
-                                _navigatorKey.currentState?.overlay?.context;
-                            if (navigatorContext == null) {
-                              return Future<void>.value();
-                            }
-                            return AppShell.openPortablePlayerPage(
-                              navigatorContext,
-                            );
-                          },
+                      if (_backgroundServicesStarted)
+                        Positioned.fill(
+                          child: PortablePlayerBall(
+                            // 这里的 context（builder 的）在 Navigator **之上**，
+                            // 弹层/跳转都得用 Navigator 自己的 overlay context，
+                            // 否则 `Navigator.of` 会抛「does not include a
+                            // Navigator」—— 表现就是「点球没反应」。
+                            navigatorKey: _navigatorKey,
+                            onOpenLibrary: () {
+                              final navigatorContext =
+                                  _navigatorKey.currentState?.overlay?.context;
+                              if (navigatorContext == null) {
+                                return Future<void>.value();
+                              }
+                              return AppShell.openPortablePlayerPage(
+                                navigatorContext,
+                              );
+                            },
+                          ),
                         ),
-                      ),
                       // 轻提示同样挂在 Navigator 之上，对话框打开时也看得到。
                       const Positioned(
                         top: 0,

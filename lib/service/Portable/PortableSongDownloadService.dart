@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import '../../utils/AppTaskActivity.dart';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 
@@ -35,19 +37,20 @@ class PortableSongDownloadService {
           onFallback: onFallback);
 
   Future<File> download(PortableSong song,
-      {void Function(double? progress)? onProgress,
-      void Function(double bytesPerSecond)? onSpeed,
-      void Function(String fallbackPath)? onFallback}) async {
-    final existing = _inFlight[song.audioId];
-    if (existing != null) return existing;
-    final task = _download(song, onProgress, onSpeed, onFallback);
-    _inFlight[song.audioId] = task;
-    try {
-      return await task;
-    } finally {
-      _inFlight.remove(song.audioId);
-    }
-  }
+          {void Function(double? progress)? onProgress,
+          void Function(double bytesPerSecond)? onSpeed,
+          void Function(String fallbackPath)? onFallback}) =>
+      AppTaskActivity.run(() async {
+        final existing = _inFlight[song.audioId];
+        if (existing != null) return existing;
+        final task = _download(song, onProgress, onSpeed, onFallback);
+        _inFlight[song.audioId] = task;
+        try {
+          return await task;
+        } finally {
+          _inFlight.remove(song.audioId);
+        }
+      });
 
   Future<File> _download(PortableSong song, void Function(double?)? onProgress,
       void Function(double)? onSpeed, void Function(String)? onFallback) async {
@@ -67,7 +70,7 @@ class PortableSongDownloadService {
     } on FileSystemException {
       rethrow;
     } catch (error) {
-      throw AudioDownloadSourceException('音源保存失败：$error');
+      throw AudioDownloadSourceException(appL10n.flowCouldNotSaveAudioP0((error).toString()));
     }
   }
 }

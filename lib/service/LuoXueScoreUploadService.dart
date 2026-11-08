@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -173,10 +174,10 @@ class LuoXueScoreUploadService {
     // 落雪的 Score 用它自己的 LevelIndex 枚举（0-4），与水鱼一致。
     // 宴会场不在 0-4 体系里，直接传会写错谱面，所以这里挡掉。
     if (type == 'utage') {
-      throw const LuoXueUploadException('宴会场谱面不支持同步：落雪的难度索引体系与宴会场不通用');
+      throw LuoXueUploadException(appL10n.svcUTAGEChartsCannotBeSyncedLXNSDifficulty);
     }
     if (levelIndex < 0 || levelIndex > 4) {
-      throw LuoXueUploadException('难度索引 $levelIndex 超出落雪值域（0-4）');
+      throw LuoXueUploadException(appL10n.svcDifficultyIndexP0IsOutsideTheLXNS(levelIndex.toString()));
     }
 
     final record = <String, dynamic>{
@@ -205,8 +206,8 @@ class LuoXueScoreUploadService {
     } else {
       final apiKey = await _getApiKey();
       if (apiKey == null) {
-        throw const LuoXueUploadException(
-            '落雪账号未认证：在「账号管理」完成 OAuth 授权，或在 OCR 页的落雪状态条里粘贴个人 API 密钥');
+        throw LuoXueUploadException(
+            appL10n.svcYourLXNSAccountIsNotAuthorizedComplete);
       }
       headers = {
         'X-User-Token': apiKey,
@@ -228,7 +229,7 @@ class LuoXueScoreUploadService {
     } on LuoXueUploadException {
       rethrow;
     } catch (e) {
-      throw LuoXueUploadException('无法连接落雪咖啡屋：$e');
+      throw LuoXueUploadException(appL10n.svcCouldNotConnectToLXNSP0(e.toString()));
     }
 
     // ── 解析响应（鉴权错误优先按 HTTP 状态码判断） ──────
@@ -243,24 +244,24 @@ class LuoXueScoreUploadService {
       if (resp.statusCode == 401) {
         // token 拿到了但被拒。OAuth 写权限缺失/过期、个人密钥错误或过期
         // 都会走这里 —— 用户得重新授权或粘一个新密钥。
-        throw LuoXueUploadException(detail ?? '落雪授权已失效或密钥无效，请重新授权或粘贴密钥');
+        throw LuoXueUploadException(detail ?? appL10n.svcLXNSAuthorizationExpiredOrTheKeyIs);
       }
       if (resp.statusCode == 403) {
-        throw LuoXueUploadException(detail ?? '落雪拒绝了这次写入（权限不足）');
+        throw LuoXueUploadException(detail ?? appL10n.svcLXNSRejectedThisWriteInsufficientPermissions);
       }
       throw LuoXueUploadException(
-          '同步失败（HTTP ${resp.statusCode}）${detail == null ? '' : '：$detail'}');
+          appL10n.svcSyncFailedHTTPP0P1(resp.statusCode.toString(), (detail == null ? '' : '：$detail').toString()));
     }
 
     // ── 取 data[0] 里的 old/new 对比 ────────────────────
     final data = body['data'];
     if (data is! List || data.isEmpty) {
       // HTTP 200、success=true 但 data 缺 —— 没见过，但万一就崩在明面上。
-      throw const LuoXueUploadException('落雪返回格式异常：data 为空');
+      throw LuoXueUploadException(appL10n.svcLXNSReturnedAnUnexpectedFormatDataIs);
     }
     final first = data.first;
     if (first is! Map) {
-      throw const LuoXueUploadException('落雪返回格式异常：data[0] 不是对象');
+      throw LuoXueUploadException(appL10n.svcLXNSReturnedAnUnexpectedFormatData0);
     }
     final m = Map<String, dynamic>.from(first);
 

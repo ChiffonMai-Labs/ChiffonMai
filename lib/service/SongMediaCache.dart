@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import '../utils/AppTaskActivity.dart';
 import 'dart:async';
 import 'dart:io';
 
@@ -144,32 +146,33 @@ class SongMediaCache {
           () => existingPv(songId), onProgress);
 
   Future<File> _ensure(
-      String kind,
-      String key,
-      List<String> urls,
-      Map<String, String> headers,
-      Future<File?> Function() existing,
-      MediaCacheProgress? onProgress) async {
-    final taskKey = '$kind/$key';
-    final running = _inFlight[taskKey];
-    if (running != null) return running;
-    final generation = _generation[kind]!;
-    final task = () async {
-      final cached = await existing();
-      if (_generation[kind] != generation) throw StateError('缓存已清理');
-      if (cached != null) {
-        onProgress?.call(1, 0, '已从本地缓存读取${kind == 'audio' ? '音频' : 'PV'}');
-        return cached;
-      }
-      return _download(kind, key, urls, headers, generation, onProgress);
-    }();
-    _inFlight[taskKey] = task;
-    try {
-      return await task;
-    } finally {
-      _inFlight.remove(taskKey);
-    }
-  }
+          String kind,
+          String key,
+          List<String> urls,
+          Map<String, String> headers,
+          Future<File?> Function() existing,
+          MediaCacheProgress? onProgress) =>
+      AppTaskActivity.run(() async {
+        final taskKey = '$kind/$key';
+        final running = _inFlight[taskKey];
+        if (running != null) return running;
+        final generation = _generation[kind]!;
+        final task = () async {
+          final cached = await existing();
+          if (_generation[kind] != generation) throw StateError('缓存已清理');
+          if (cached != null) {
+            onProgress?.call(1, 0, appL10n.svcLoadedP0FromTheLocalCache((kind == 'audio' ? appL10n.svcAudio : 'PV').toString()));
+            return cached;
+          }
+          return _download(kind, key, urls, headers, generation, onProgress);
+        }();
+        _inFlight[taskKey] = task;
+        try {
+          return await task;
+        } finally {
+          _inFlight.remove(taskKey);
+        }
+      });
 
   Future<File> _download(
       String kind,
@@ -183,7 +186,7 @@ class SongMediaCache {
     for (final url in urls) {
       final part = File('${target.path}.part');
       try {
-        onProgress?.call(null, 0, '正在下载${kind == 'audio' ? '音频文件' : 'PV'}…');
+        onProgress?.call(null, 0, appL10n.svcDownloadingP0((kind == 'audio' ? appL10n.svcAudioFile : 'PV').toString()));
         // MP3/MP4 已压缩，避免媒体传输再走 gzip 解压，也便于校验文件长度。
         final response = await _fetch(
                 Uri.parse(url), {'Accept-Encoding': 'identity', ...headers})
@@ -195,7 +198,7 @@ class SongMediaCache {
         final type = response.headers['content-type']?.toLowerCase() ?? '';
         if (type.contains('text/html') || type.contains('application/json')) {
           await response.stream.drain<void>();
-          throw const FormatException('响应不是媒体文件');
+          throw FormatException(appL10n.svcTheResponseIsNotAMediaFile);
         }
         final encoding = response.headers['content-encoding'];
         final total = encoding == null || encoding == 'identity'
@@ -229,7 +232,7 @@ class SongMediaCache {
                       ? (received / total).clamp(0.0, 1.0)
                       : null,
                   speed,
-                  '正在下载${kind == 'audio' ? '音频文件' : 'PV'}…');
+                  appL10n.svcDownloadingP0((kind == 'audio' ? appL10n.svcAudioFile : 'PV').toString()));
             },
           )));
           await sink.close();
@@ -243,11 +246,11 @@ class SongMediaCache {
         if (_generation[kind] != generation) throw StateError('缓存已清理');
         if ((total != null && total > 0 && received != total) ||
             !await _valid(part, kind)) {
-          throw const FormatException('媒体文件不完整或格式无效');
+          throw FormatException(appL10n.svcTheMediaFileIsIncompleteOrHas);
         }
         if (await target.exists()) await target.delete();
         final saved = await part.rename(target.path);
-        onProgress?.call(1, 0, '文件已缓存');
+        onProgress?.call(1, 0, appL10n.svcFileCached);
         return saved;
       } catch (error) {
         lastError = error;
@@ -256,7 +259,7 @@ class SongMediaCache {
         if (await part.exists()) await part.delete();
       }
     }
-    throw StateError('媒体下载失败：$lastError');
+    throw StateError(appL10n.svcMediaDownloadFailedP0(lastError.toString()));
   }
 
   Future<(int, int)> audioUsage() async {

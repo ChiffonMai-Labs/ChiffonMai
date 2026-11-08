@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -59,8 +60,8 @@ class _AccountSyncPageState extends State<AccountSyncPage> {
     if (token.isEmpty) {
       await showErrorMessageDialog(
         context,
-        title: '无法保存',
-        message: '请输入 AWMC NET 成绩导入 Token。',
+        title: context.l10n.flowCannotSave,
+        message: context.l10n.flowEnterYourAWMCNETScoreImportToken,
       );
       return;
     }
@@ -68,7 +69,7 @@ class _AccountSyncPageState extends State<AccountSyncPage> {
         CacheKeyConstant.awmcNetImportToken, token);
     if (!mounted) return;
     setState(() => _awmcToken = token);
-    AppToast.show('AWMC NET 成绩导入 Token 已保存');
+    AppToast.show(context.l10n.flowAWMCNETScoreImportTokenSaved);
   }
 
   Future<void> _clearAwmcToken() async {
@@ -76,7 +77,7 @@ class _AccountSyncPageState extends State<AccountSyncPage> {
     if (!mounted) return;
     _awmcTokenController.clear();
     setState(() => _awmcToken = null);
-    AppToast.show('AWMC NET 成绩导入 Token 已清除');
+    AppToast.show(context.l10n.flowAWMCNETScoreImportTokenCleared);
   }
 
   Future<void> _login() async {
@@ -90,7 +91,7 @@ class _AccountSyncPageState extends State<AccountSyncPage> {
             password,
           );
           if (response == null) {
-            return manager.lastLoginFailure?.message ?? '登录失败，请稍后再试';
+            return manager.lastLoginFailure?.message ?? context.l10n.flowSignInFailedTryAgainLater;
           }
           final bindQQ = response.tryGet<String>('bind_qq')?.trim() ?? '';
           if (bindQQ.isEmpty) return divingFishMissingBindQqMessage;
@@ -101,7 +102,8 @@ class _AccountSyncPageState extends State<AccountSyncPage> {
     if (loggedIn != true || !mounted) return;
     await _loadAccountState();
     if (mounted) {
-      AppToast.show('水鱼账号登录成功');
+      AppToast.show(context.l10n.flowSignedInToDivingFish,
+          tone: AppToastTone.success);
     }
   }
 
@@ -110,7 +112,8 @@ class _AccountSyncPageState extends State<AccountSyncPage> {
       await UserProfileNotifier.clearShuiyuAccountCache();
     } catch (e) {
       if (mounted) {
-        await showErrorMessageDialog(context, message: '登出失败：$e');
+        await showErrorMessageDialog(context,
+            message: context.l10n.flowSignOutFailedP0((e).toString()));
       }
       return;
     }
@@ -141,9 +144,10 @@ class _AccountSyncPageState extends State<AccountSyncPage> {
                 ),
                 if (_loggedIn)
                   HubActionTile(
-                    title: '登出账号',
-                    subtitle:
-                        _cachedQQ.isEmpty ? '清除当前登录状态' : '当前绑定 QQ：$_cachedQQ',
+                    title: context.l10n.flowSignOut,
+                    subtitle: _cachedQQ.isEmpty
+                        ? context.l10n.flowClearSignIn
+                        : context.l10n.flowBoundQq(_cachedQQ),
                     icon: Icons.logout,
                     iconColor: Theme.of(context).colorScheme.error,
                     onTap: _logout,
@@ -164,12 +168,12 @@ class _AccountSyncPageState extends State<AccountSyncPage> {
                     autocorrect: false,
                     enableSuggestions: false,
                     decoration: InputDecoration(
-                      labelText: '成绩导入 Token',
-                      hintText: '粘贴 AWMC NET 设置页生成的 Token',
+                      labelText: context.l10n.flowScoreImportToken,
+                      hintText: context.l10n.flowPasteATokenGeneratedInAWMCNET,
                       suffixIcon: _awmcToken == null
                           ? null
                           : IconButton(
-                              tooltip: '清除 Token',
+                              tooltip: context.l10n.flowClearToken,
                               icon: const Icon(Icons.clear),
                               onPressed: _clearAwmcToken,
                             ),
@@ -184,7 +188,7 @@ class _AccountSyncPageState extends State<AccountSyncPage> {
                       FilledButton.icon(
                         onPressed: _saveAwmcToken,
                         icon: const Icon(Icons.save_outlined),
-                        label: const Text('保存 Token'),
+                        label: Text(context.l10n.flowSaveToken),
                       ),
                     ],
                   ),
@@ -201,13 +205,15 @@ class _AccountSyncPageState extends State<AccountSyncPage> {
                   title: '同步成绩到水鱼',
                   subtitle: '扫码抓取并同步最新成绩',
                   icon: Icons.cloud_upload_outlined,
-                  onTap: () => _showUnavailableMessage('请从首页的同步入口开始扫码同步'),
+                  onTap: () => _showUnavailableMessage(
+                      context.l10n.flowStartQRSyncFromHome),
                 ),
                 HubActionTile(
                   title: '同步成绩到落雪',
                   subtitle: '将本地成绩同步到落雪咖啡屋',
                   icon: Icons.cloud_sync_outlined,
-                  onTap: () => _showUnavailableMessage('请从首页的同步入口开始同步'),
+                  onTap: () => _showUnavailableMessage(
+                      context.l10n.flowStartSyncFromHome),
                 ),
               ],
             ),
@@ -249,7 +255,7 @@ class _LoginDialogState extends State<_LoginDialog> {
     final username = _usernameController.text.trim();
     final password = _passwordController.text.trim();
     if (username.isEmpty || password.isEmpty) {
-      setState(() => _errorMessage = '请输入用户名和密码');
+      setState(() => _errorMessage = context.l10n.flowEnterUsernameAndPassword);
       return;
     }
     setState(() {
@@ -271,19 +277,21 @@ class _LoginDialogState extends State<_LoginDialog> {
   @override
   Widget build(BuildContext context) {
     return AppAlertDialog(
-      title: const Text('登录水鱼'),
+      title: Text(context.l10n.featureSignInToDivingFish),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           TextField(
             controller: _usernameController,
-            decoration: InputDecoration(labelText: '用户名').insetLabel(context),
+            decoration: InputDecoration(labelText: context.l10n.flowUsername)
+                .insetLabel(context),
           ),
           const SizedBox(height: 12),
           TextField(
             controller: _passwordController,
             obscureText: true,
-            decoration: InputDecoration(labelText: '密码').insetLabel(context),
+            decoration: InputDecoration(labelText: context.l10n.flowPassword)
+                .insetLabel(context),
           ),
           if (_errorMessage != null) ...[
             const SizedBox(height: 8),
@@ -300,7 +308,7 @@ class _LoginDialogState extends State<_LoginDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('取消'),
+          child: Text(context.l10n.featureCancel),
         ),
         FilledButton(
           onPressed: _isLoggingIn ? null : _submit,
@@ -310,7 +318,7 @@ class _LoginDialogState extends State<_LoginDialog> {
                   height: 18,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : const Text('登录'),
+              : Text(context.l10n.flowSignIn),
         ),
       ],
     );

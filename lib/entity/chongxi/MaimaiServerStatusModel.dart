@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 // mai.chongxi.us/api/bot 返回的舞萌服务器状态。
 
 class MaimaiServiceStatus {
@@ -23,7 +24,7 @@ class MaimaiServiceStatus {
       key: json['key']?.toString() ?? '',
       name: json['name']?.toString() ?? '',
       state: json['state']?.toString() ?? 'unknown',
-      stateText: json['state_text']?.toString() ?? '未知',
+      stateText: json['state_text']?.toString() ?? appL10n.flowUnknown,
       latency:
           rawLatency is num ? rawLatency.round() : int.tryParse('$rawLatency'),
       durationText: json['duration_text']?.toString() ?? '',
@@ -147,7 +148,7 @@ class MaimaiServerStatusEntity {
       version: json['version']?.toString() ?? '',
       timestamp: json['timestamp']?.toString() ?? '',
       status: json['status']?.toString() ?? 'unknown',
-      statusText: json['status_text']?.toString() ?? '未知',
+      statusText: json['status_text']?.toString() ?? appL10n.flowUnknown,
       incidentLevel: json['incident_level']?.toString() ?? 'unknown',
       verdict: json['verdict']?.toString() ?? 'unknown',
       verdictText: json['verdict_text']?.toString() ?? '暂无状态说明',

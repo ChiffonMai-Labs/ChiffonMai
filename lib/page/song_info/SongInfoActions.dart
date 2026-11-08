@@ -4,7 +4,6 @@ part of '../SongInfoPage.dart';
 ///
 /// 2026-11 从 SongInfoPage.dart 原样拆出（方法体未改，仅 setState → _update）。
 extension _SongInfoActions on _SongInfoPageState {
-
   Future<void> _addToNextPlayQueue() async {
     final basic = _songData?['basic_info'];
     if (basic is! Map) return;
@@ -41,7 +40,8 @@ extension _SongInfoActions on _SongInfoPageState {
         coverId: int.tryParse(widget.songId),
         difficulties: difficulties);
     if (mounted && added)
-      AppToast.show('已加入下次想玩');
+      AppToast.show(context.l10n.flowAddedToPlayNext,
+          tone: AppToastTone.success);
   }
 
   /// 显示 BV 号上传对话框
@@ -65,7 +65,7 @@ extension _SongInfoActions on _SongInfoPageState {
           builder: (context, setDialogState) {
             final brightness = Theme.of(context).brightness;
             return AppAlertDialog(
-              title: const Text('B站谱面确认播放量'),
+              title: Text(context.l10n.flowBilibiliChartVideoViews),
               content: SingleChildScrollView(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -89,12 +89,18 @@ extension _SongInfoActions on _SongInfoPageState {
                                 fontWeight: FontWeight.w700,
                                 color: Theme.of(context).colorScheme.onSurface),
                           ),
-                          Text('难度: $diffLabel'),
+                          Text(context.l10n
+                              .flowDifficultyP02((diffLabel).toString())),
                           const SizedBox(height: 6),
                           if (_biliPlayCount != null) ...[
-                            Text('当前播放量: ${_formatBiliPlayCount()}'),
-                            if (_biliBvid != null) Text('BV号: ${_biliBvid}'),
-                            Text('来源: ${_getBiliSourceLabel()}',
+                            Text(context.l10n.flowCurrentViewsP0(
+                                (_formatBiliPlayCount()).toString())),
+                            if (_biliBvid != null)
+                              Text(context.l10n
+                                  .flowBVIDP0((_biliBvid).toString())),
+                            Text(
+                                context.l10n.flowSourceP0(
+                                    (_getBiliSourceLabel()).toString()),
                                 style: TextStyle(
                                   color: _biliFromUser
                                       ? AppColors.linkBlue(brightness)
@@ -104,9 +110,9 @@ extension _SongInfoActions on _SongInfoPageState {
                                   fontSize: 12,
                                 )),
                           ] else if (_biliPlayCountLoading)
-                            const Text('正在加载播放量...')
+                            Text(context.l10n.flowLoadingViews)
                           else
-                            Text('暂无播放量数据',
+                            Text(context.l10n.flowNoViewDataYet,
                                 style: TextStyle(
                                     color: AppColors.errorRed(brightness))),
                         ],
@@ -114,13 +120,13 @@ extension _SongInfoActions on _SongInfoPageState {
                     ),
                     const SizedBox(height: 14),
                     // 手动上传区域
-                    Text('手动上传 BV 号',
+                    Text(context.l10n.flowEnterBVIDManually,
                         style: TextStyle(
                             fontWeight: FontWeight.w700,
                             color: Theme.of(context).colorScheme.onSurface)),
                     const SizedBox(height: 4),
                     Text(
-                      '当自动获取播放量失败时，可手动输入该歌曲谱面确认视频的 BV 号',
+                      context.l10n.flowIfViewsCannotBeFetchedAutomaticallyEnter,
                       style: TextStyle(
                           fontSize: 12,
                           color:
@@ -130,7 +136,7 @@ extension _SongInfoActions on _SongInfoPageState {
                     TextField(
                       controller: bvController,
                       decoration: InputDecoration(
-                        hintText: '例如: BV1xx411c7mD',
+                        hintText: context.l10n.flowExampleBV1xx411c7mD,
                         suffixIcon: bvController.text.isNotEmpty
                             ? IconButton(
                                 icon: const Icon(Icons.clear),
@@ -161,7 +167,8 @@ extension _SongInfoActions on _SongInfoPageState {
                           color: validationPassed == true
                               ? AppColors.successGreen(brightness)
                               : AppColors.errorRed(brightness),
-                          borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+                          borderRadius: BorderRadius.circular(
+                              AppDesignTokens.radiusSmall),
                         ),
                         child: Row(
                           children: [
@@ -191,7 +198,13 @@ extension _SongInfoActions on _SongInfoPageState {
                         validationPassed == true) ...[
                       const SizedBox(height: 4),
                       Text(
-                        '播放量: ${validatedPlayCount! >= 10000 ? "${(validatedPlayCount! / 10000).toStringAsFixed(1)}万" : validatedPlayCount.toString()}',
+                        context.l10n.flowViewsP0((validatedPlayCount! >= 10000
+                                ? context.l10n.flowP010000(
+                                    ((validatedPlayCount! / 10000)
+                                            .toStringAsFixed(1))
+                                        .toString())
+                                : validatedPlayCount.toString())
+                            .toString()),
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           color: AppColors.successGreen(brightness),
@@ -204,7 +217,7 @@ extension _SongInfoActions on _SongInfoPageState {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(dialogContext).pop(),
-                  child: const Text('取消'),
+                  child: Text(context.l10n.featureCancel),
                 ),
                 // 校验按钮
                 TextButton(
@@ -214,14 +227,15 @@ extension _SongInfoActions on _SongInfoPageState {
                           final bvid = bvController.text.trim();
                           if (bvid.isEmpty) {
                             setDialogState(() {
-                              validationMessage = '请输入 BV 号';
+                              validationMessage = context.l10n.flowEnterABVID;
                               validationPassed = false;
                             });
                             return;
                           }
                           if (!RegExp(r'^BV[a-zA-Z0-9]{10}$').hasMatch(bvid)) {
                             setDialogState(() {
-                              validationMessage = 'BV 号格式不正确（应为 BV + 10位字符）';
+                              validationMessage = context
+                                  .l10n.flowInvalidBVIDExpectedBVFollowedBy;
                               validationPassed = false;
                             });
                             return;
@@ -235,29 +249,34 @@ extension _SongInfoActions on _SongInfoPageState {
 
                             if (result == null) {
                               setDialogState(() {
-                                validationMessage = '校验失败: 无法获取视频信息（BV 号可能不存在）';
+                                validationMessage = context.l10n
+                                    .flowCheckFailedVideoInformationUnavailableTheBV;
                                 validationPassed = false;
                                 isValidating = false;
                               });
                             } else if (result.passed) {
                               setDialogState(() {
-                                validationMessage =
-                                    '校验通过！视频标题: "${result.videoInfo.title}"';
+                                validationMessage = context.l10n
+                                    .flowVerifiedVideoTitleP0(
+                                        (result.videoInfo.title).toString());
                                 validationPassed = true;
                                 validatedPlayCount = result.videoInfo.playCount;
                                 isValidating = false;
                               });
                             } else {
                               setDialogState(() {
-                                validationMessage =
-                                    '校验失败: 视频标题 "${result.videoInfo.title}" 不包含歌曲名 "$songTitle"';
+                                validationMessage = context.l10n
+                                    .flowCheckFailedVideoTitleP0DoesNot(
+                                        (result.videoInfo.title).toString(),
+                                        (songTitle).toString());
                                 validationPassed = false;
                                 isValidating = false;
                               });
                             }
                           } catch (e) {
                             setDialogState(() {
-                              validationMessage = '校验异常: $e';
+                              validationMessage = context.l10n
+                                  .flowVerificationErrorP0((e).toString());
                               validationPassed = false;
                               isValidating = false;
                             });
@@ -269,7 +288,7 @@ extension _SongInfoActions on _SongInfoPageState {
                           height: 16,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Text('校验 BV 号'),
+                      : Text(context.l10n.flowCheckBVID),
                 ),
                 // 确认上传按钮（只有校验通过后才可点击）
                 TextButton(
@@ -296,10 +315,11 @@ extension _SongInfoActions on _SongInfoPageState {
                           );
 
                           Navigator.of(dialogContext).pop();
-                          AppToast.show('BV 号已上传', duration: Duration(seconds: 2));
+                          AppToast.show(context.l10n.flowBVIDUploaded,
+                              duration: Duration(seconds: 2));
                         }
                       : null,
-                  child: const Text('确认上传'),
+                  child: Text(context.l10n.flowConfirmUpload),
                 ),
               ],
             );
@@ -388,8 +408,9 @@ extension _SongInfoActions on _SongInfoPageState {
     final quality = await ExportQualitySelector.show(context,
         estimatedPngSize: ImageEncodeUtil.estimatePngSize(
             songCount: 1, hasHeader: false, cardsPerRow: 1),
-        exportingLabel: '谱面成绩卡',
-        previewBuilder: (previewContext, previewQuality) => _buildScoreSharePreview(
+        exportingLabel: context.l10n.flowChartScoreCard,
+        previewBuilder: (previewContext, previewQuality) =>
+            _buildScoreSharePreview(
               theme: previewQuality.theme,
               context: previewContext,
               userRecord: userRecord,
@@ -397,7 +418,6 @@ extension _SongInfoActions on _SongInfoPageState {
               levels: levels,
             ));
     if (quality == null) return;
-
 
     try {
       // 获取数据（安全类型转换，处理API可能返回String的情况）
@@ -426,31 +446,32 @@ extension _SongInfoActions on _SongInfoPageState {
       // 调用导出服务
       final levelIndex = _currentDiffIndex;
       BackgroundExport.run(
-        label: '成绩分享卡片',
+        label: context.l10n.flowScoreShareCard,
         task: (exportContext) => SongScoreShareService.convertToImage(
           exportContext,
-        songId: songId,
-        songTitle: songTitle,
-        artist: artist,
-        songType: songType,
-        levelIndex: levelIndex,
-        levelStr: levelStr,
-        ds: ds,
-        genre: genre,
-        bpm: bpm,
-        achievements: achievements,
-        ra: ra,
-        dxScore: dxScore,
-        maxDxScore: maxDxScore,
-        fc: fc,
-        fs: fs,
-        rawRate: rawRate,
-        jpegQuality: quality.jpegQuality,
-        theme: quality.theme,
-      ),
+          songId: songId,
+          songTitle: songTitle,
+          artist: artist,
+          songType: songType,
+          levelIndex: levelIndex,
+          levelStr: levelStr,
+          ds: ds,
+          genre: genre,
+          bpm: bpm,
+          achievements: achievements,
+          ra: ra,
+          dxScore: dxScore,
+          maxDxScore: maxDxScore,
+          fc: fc,
+          fs: fs,
+          rawRate: rawRate,
+          jpegQuality: quality.jpegQuality,
+          theme: quality.theme,
+        ),
       );
     } catch (e) {
-      AppToast.show('导出失败：$e');
+      AppToast.show(context.l10n.flowExportFailedP02((e).toString()),
+          tone: AppToastTone.error);
     }
   }
 
@@ -485,11 +506,10 @@ extension _SongInfoActions on _SongInfoPageState {
     final quality = await ExportQualitySelector.show(context,
         estimatedPngSize: ImageEncodeUtil.estimatePngSize(
             songCount: 1, hasHeader: false, cardsPerRow: 1),
-        exportingLabel: '歌曲信息',
+        exportingLabel: context.l10n.flowSongInformation,
         previewBuilder: (previewContext, previewQuality) =>
             _buildSongInfoExportPreview(previewContext, previewQuality.theme));
     if (quality == null) return;
-
 
     try {
       final basicInfo = _songData!['basic_info'];
@@ -507,28 +527,29 @@ extension _SongInfoActions on _SongInfoPageState {
       final decoded = _maidataDecodedSuccessfully;
       final isExtra = _isExtraSong;
       BackgroundExport.run(
-        label: '曲目信息图片',
+        label: context.l10n.flowSongInformationImage,
         task: (exportContext) => SongInfoExportToImgService.convertToImage(
           exportContext,
-        songId: songId,
-        basicInfo: basicInfo,
-        charts: charts,
-        levels: levels,
-        ds: ds,
-        songType: songType,
-        diffData: diffData,
-        bpm: bpm,
-        maidataNoteCounts: noteCounts,
-        maidataBreakCounts: breakCounts,
-        maidataDecodedSuccessfully: decoded,
-        isExtra: isExtra,
-        referenceDuration: referenceDuration,
-        jpegQuality: quality.jpegQuality,
-        theme: quality.theme,
-      ),
+          songId: songId,
+          basicInfo: basicInfo,
+          charts: charts,
+          levels: levels,
+          ds: ds,
+          songType: songType,
+          diffData: diffData,
+          bpm: bpm,
+          maidataNoteCounts: noteCounts,
+          maidataBreakCounts: breakCounts,
+          maidataDecodedSuccessfully: decoded,
+          isExtra: isExtra,
+          referenceDuration: referenceDuration,
+          jpegQuality: quality.jpegQuality,
+          theme: quality.theme,
+        ),
       );
     } catch (e) {
-      AppToast.show('导出失败：$e');
+      AppToast.show(context.l10n.flowExportFailedP02((e).toString()),
+          tone: AppToastTone.error);
     }
   }
 
@@ -538,7 +559,8 @@ extension _SongInfoActions on _SongInfoPageState {
       // 请求存储权限
       PermissionStatus status = await _requestStoragePermission();
       if (!status.isGranted) {
-        AppToast.show('需要存储权限才能保存图片', tone: AppToastTone.warning);
+        AppToast.show(context.l10n.flowStoragePermissionIsRequiredToSaveImages,
+            tone: AppToastTone.warning);
         return;
       }
 
@@ -558,14 +580,16 @@ extension _SongInfoActions on _SongInfoPageState {
             String coverPath = CoverUtil.getLocalCoverPathRetry1(songId);
             byteData = await rootBundle.load(coverPath);
           } catch (e3) {
-            AppToast.show('无法加载封面图片', tone: AppToastTone.error);
+            AppToast.show(context.l10n.flowCouldNotLoadCoverArt,
+                tone: AppToastTone.error);
             return;
           }
         }
       }
 
       if (byteData == null) {
-        AppToast.show('无法加载封面图片', tone: AppToastTone.error);
+        AppToast.show(context.l10n.flowCouldNotLoadCoverArt,
+            tone: AppToastTone.error);
         return;
       }
 
@@ -599,9 +623,11 @@ extension _SongInfoActions on _SongInfoPageState {
         await MediaScanner.loadMedia(path: file.path);
       }
 
-      AppToast.show('曲绘已保存到相册', tone: AppToastTone.success);
+      AppToast.show(context.l10n.flowCoverArtSavedToPhotos,
+          tone: AppToastTone.success);
     } catch (e) {
-      AppToast.show('保存失败: $e', tone: AppToastTone.error);
+      AppToast.show(context.l10n.flowSaveFailedP02((e).toString()),
+          tone: AppToastTone.error);
     }
   }
 
@@ -644,20 +670,21 @@ extension _SongInfoActions on _SongInfoPageState {
   // 播放歌曲 PV
   Future<void> _playPv() async {
     if (_songData == null) return;
-    final title = _songData!['basic_info']?['title']?.toString() ?? '歌曲 PV';
+    final title = _songData!['basic_info']?['title']?.toString() ??
+        context.l10n.flowSongPV;
     final openBilibili = await showDialog<bool>(
       context: context,
       builder: (ctx) => AppAlertDialog(
-        title: const Text('播放 PV'),
-        content: const Text('请选择 PV 的播放方式'),
+        title: Text(context.l10n.flowPlayPV),
+        content: Text(context.l10n.flowChooseHowToPlayThePV),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('前往 B 站'),
+            child: Text(context.l10n.flowOpenBilibili),
           ),
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('APP 内播放'),
+            child: Text(context.l10n.flowPlayInApp),
           ),
         ],
       ),
@@ -700,7 +727,8 @@ extension _SongInfoActions on _SongInfoPageState {
     try {
       // 显示加载对话框
       showAppProgressDialog(context,
-          title: '请稍候', message: '正在加载相关收藏品...');
+          title: appL10n.flowPleaseWait,
+          message: appL10n.flowLoadingRelatedCollectibles);
 
       // 获取歌曲类型
       final songType = _songData!['type'] ?? '';
@@ -723,14 +751,14 @@ extension _SongInfoActions on _SongInfoPageState {
         context: context,
         builder: (BuildContext context) {
           return AppAlertDialog(
-            title: Text('错误'),
-            content: Text('获取相关收藏品时出错，请稍后重试'),
+            title: Text(appL10n.flowError),
+            content: Text(appL10n.flowCouldNotLoadRelatedCollectiblesTryAgain),
             actions: [
               TextButton(
                 onPressed: () {
                   Navigator.of(context).pop();
                 },
-                child: Text('关闭'),
+                child: Text(appL10n.featureClose),
               ),
             ],
           );
@@ -794,12 +822,15 @@ extension _SongInfoActions on _SongInfoPageState {
                 children: [
                   Icon(
                     isEditing ? Icons.note : Icons.note_add_outlined,
-                    color: AppColors.warningOrange(Theme.of(context).brightness),
+                    color:
+                        AppColors.warningOrange(Theme.of(context).brightness),
                   ),
                   SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      isEditing ? '谱面笔记' : '添加谱面笔记',
+                      isEditing
+                          ? context.l10n.flowChartNotes
+                          : context.l10n.flowAddChartNotes,
                       style: TextStyle(fontSize: 18),
                     ),
                   ),
@@ -816,7 +847,8 @@ extension _SongInfoActions on _SongInfoPageState {
                       Row(
                         children: [
                           ClipRRect(
-                            borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+                            borderRadius: BorderRadius.circular(
+                                AppDesignTokens.radiusSmall),
                             child: CoverUtil.buildCoverWidgetWithContext(
                                 context, widget.songId, 60),
                           ),
@@ -863,13 +895,18 @@ extension _SongInfoActions on _SongInfoPageState {
                         maxLines: 4,
                         maxLength: 2000,
                         decoration: InputDecoration(
-                          hintText: '在这里写下你对这个谱面的笔记...\n例如：结尾的滑星要注意手顺',
+                          hintText:
+                              context.l10n.flowWriteYourNotesForThisChartHere,
                           border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall)),
+                              borderRadius: BorderRadius.circular(
+                                  AppDesignTokens.radiusSmall)),
                           focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+                              borderRadius: BorderRadius.circular(
+                                  AppDesignTokens.radiusSmall),
                               borderSide: BorderSide(
-                                  color: AppColors.warningOrange(Theme.of(context).brightness), width: 2)),
+                                  color: AppColors.warningOrange(
+                                      Theme.of(context).brightness),
+                                  width: 2)),
                         ),
                         onChanged: (_) => setDialogState(() {}),
                       ),
@@ -877,8 +914,17 @@ extension _SongInfoActions on _SongInfoPageState {
                       if (existingNote != null) ...[
                         SizedBox(height: 8),
                         Text(
-                            '创建于: ${_formatTimestamp(existingNote.createdAt)}'
-                            '${existingNote.updatedAt != existingNote.createdAt ? '\n更新于: ${_formatTimestamp(existingNote.updatedAt)}' : ''}',
+                            context.l10n.flowCreatedP0P1(
+                                (_formatTimestamp(existingNote.createdAt))
+                                    .toString(),
+                                (existingNote.updatedAt !=
+                                            existingNote.createdAt
+                                        ? context.l10n.flowUpdatedP0(
+                                            (_formatTimestamp(
+                                                    existingNote.updatedAt))
+                                                .toString())
+                                        : '')
+                                    .toString()),
                             style: TextStyle(
                                 fontSize: 11,
                                 color: AppColors.greyHint(brightness))),
@@ -895,13 +941,14 @@ extension _SongInfoActions on _SongInfoPageState {
                       final confirm = await showDialog<bool>(
                         context: ctx,
                         builder: (confirmCtx) => AppAlertDialog(
-                          title: Text('确认删除'),
-                          content: Text('确定要删除这个谱面的笔记吗？此操作不可撤销。'),
+                          title: Text(context.l10n.flowConfirmDeletion),
+                          content: Text(
+                              context.l10n.flowDeleteTheNotesForThisChartThis),
                           actions: [
                             TextButton(
                               onPressed: () =>
                                   Navigator.of(confirmCtx).pop(false),
-                              child: Text('取消'),
+                              child: Text(context.l10n.featureCancel),
                             ),
                             TextButton(
                               onPressed: () =>
@@ -909,7 +956,7 @@ extension _SongInfoActions on _SongInfoPageState {
                               style: TextButton.styleFrom(
                                 foregroundColor: AppColors.errorRed(brightness),
                               ),
-                              child: Text('删除'),
+                              child: Text(context.l10n.flowDelete),
                             ),
                           ],
                         ),
@@ -927,13 +974,14 @@ extension _SongInfoActions on _SongInfoPageState {
                         Navigator.of(ctx).pop();
                       }
                     },
-                    style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
-                    child: Text('删除'),
+                    style: TextButton.styleFrom(
+                        foregroundColor: Theme.of(context).colorScheme.error),
+                    child: Text(context.l10n.flowDelete),
                   ),
                 // 取消按钮
                 TextButton(
                   onPressed: () => Navigator.of(ctx).pop(),
-                  child: Text('取消'),
+                  child: Text(context.l10n.featureCancel),
                 ),
                 // 保存按钮
                 ElevatedButton(
@@ -957,10 +1005,11 @@ extension _SongInfoActions on _SongInfoPageState {
                         }
                       : null,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.warningOrange(Theme.of(context).brightness),
+                    backgroundColor:
+                        AppColors.warningOrange(Theme.of(context).brightness),
                     foregroundColor: Colors.white,
                   ),
-                  child: Text('保存'),
+                  child: Text(context.l10n.save),
                 ),
               ],
             );
@@ -1093,12 +1142,12 @@ extension _SongInfoActions on _SongInfoPageState {
       context: context,
       builder: (BuildContext context) {
         return AppAlertDialog(
-          title: const Text('相关收藏品'),
+          title: Text(context.l10n.flowRelatedCollectibles),
           subtitle: songTitle,
           content: relatedCollections.isEmpty
-              ? const AppDialogEmpty(
+              ? AppDialogEmpty(
                   icon: Icons.workspace_premium_outlined,
-                  message: '未找到与该歌曲相关的收藏品',
+                  message: context.l10n.flowNoCollectiblesLinkedToThisSong,
                 )
               : SingleChildScrollView(
                   child: Column(
@@ -1145,7 +1194,7 @@ extension _SongInfoActions on _SongInfoPageState {
               onPressed: () {
                 Navigator.of(context).pop();
               },
-              child: const Text('关闭'),
+              child: Text(context.l10n.featureClose),
             ),
           ],
         );

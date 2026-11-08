@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'dart:convert';
 
 import '../../api/ApiUrls.dart';
@@ -13,7 +14,7 @@ class KaleidXScopeGateService {
     if (response.statusCode != 200 ||
         body['success'] != true ||
         body['data'] is! List) {
-      throw StateError('门列表暂时无法读取');
+      throw StateError(appL10n.svcCouldNotLoadTheGateListRight);
     }
     return (body['data'] as List)
         .map((item) =>
@@ -28,11 +29,11 @@ class KaleidXScopeGateService {
     if (response.statusCode != 200 ||
         body['success'] != true ||
         body['data'] is! Map) {
-      throw StateError('攻略暂时无法读取');
+      throw StateError(appL10n.svcCouldNotLoadTheGuideRightNow);
     }
     final gate = KaleidXScopeGate.fromJson(
         Map<String, dynamic>.from(body['data'] as Map));
-    if (gate.color != color) throw StateError('攻略数据不匹配');
+    if (gate.color != color) throw StateError(appL10n.svcTheGuideDataDoesNotMatch);
     return gate;
   }
 }

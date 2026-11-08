@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'dart:convert';
 import 'dart:async';
 import 'dart:math';
@@ -149,30 +150,49 @@ class AutoSyncProgress {
       skipped: (data['skipped'] as num?)?.toInt() ?? 0);
   double? get value => total > 0 ? (completed / total).clamp(0.0, 1.0) : null;
   String get label => switch (stage) {
-        'target_records' => '正在读取目标账号已有成绩…',
-        'catalog' => '正在核对目标源支持的谱面…',
-        'reading' => completed > 0 ? '正在读取机台成绩，已读取 $completed 页' : '正在读取机台成绩…',
-        'preparing' => '正在整理谱面与连击、同步标记…',
-        'uploading' =>
-          '正在上传成绩（$completed / $total 条${submitted > 0 ? '，已提交 $submitted 条' : ''}）',
-        'complete' => '同步完成',
-        'waiting_quota' => '等待上游配额恢复…',
-        'waiting_upstream' => '等待上游服务恢复…',
-        _ => '正在准备快速同步…',
+        'target_records' => appL10n.flowReadingExistingScoresOnTheTargetAccount,
+        'catalog' => appL10n.flowCheckingChartsSupportedByTheTarget,
+        'reading' => completed > 0
+            ? appL10n
+                .flowReadingCabinetScoresP0PagesRead((completed).toString())
+            : appL10n.flowReadingCabinetScores,
+        'preparing' => appL10n.flowPreparingChartsComboAndSyncMarkers,
+        'uploading' => appL10n.flowUploadingScoresP0P1P2(
+            (completed).toString(),
+            (total).toString(),
+            (submitted > 0
+                    ? appL10n.flowP0Submitted((submitted).toString())
+                    : '')
+                .toString()),
+        'complete' => appL10n.flowSyncComplete2,
+        'waiting_quota' => appL10n.flowWaitingForUpstreamQuota2,
+        'waiting_upstream' => appL10n.flowWaitingForUpstreamService2,
+        _ => appL10n.flowPreparingQuickSync,
       };
 
   /// 按目标源细化的进度文案（页面详情用）：区分读取目标成绩、曲库、上传等阶段。
   String detailLabel(String platformLabel) => switch (stage) {
-        'target_records' => '正在读取 $platformLabel 已有成绩…',
-        'catalog' => '正在核对 $platformLabel 支持的谱面…',
-        'reading' => completed > 0 ? '正在读取机台成绩，已读取 $completed 页' : '正在读取机台成绩…',
-        'preparing' => '正在比对差异并整理上传内容…',
-        'uploading' => '正在上传到$platformLabel：$completed / $total 条'
-            '${submitted > 0 ? '，已提交 $submitted 条' : ''}',
-        'complete' => '同步完成',
-        'waiting_quota' => '等待上游配额恢复…',
-        'waiting_upstream' => '等待上游服务恢复…',
-        _ => '正在准备快速同步…',
+        'target_records' => appL10n
+            .flowReadingExistingScoresOnP0(appLocalizeLabel(platformLabel)),
+        'catalog' => appL10n
+            .flowCheckingChartsSupportedByP0(appLocalizeLabel(platformLabel)),
+        'reading' => completed > 0
+            ? appL10n
+                .flowReadingCabinetScoresP0PagesRead((completed).toString())
+            : appL10n.flowReadingCabinetScores,
+        'preparing' => appL10n.flowComparingChangesAndPreparingUploads,
+        'uploading' => appL10n.flowUploadingToP0P1P2P3(
+            appLocalizeLabel(platformLabel),
+            (completed).toString(),
+            (total).toString(),
+            (submitted > 0
+                    ? appL10n.flowP0Submitted((submitted).toString())
+                    : '')
+                .toString()),
+        'complete' => appL10n.flowSyncComplete2,
+        'waiting_quota' => appL10n.flowWaitingForUpstreamQuota2,
+        'waiting_upstream' => appL10n.flowWaitingForUpstreamService2,
+        _ => appL10n.flowPreparingQuickSync,
       };
 }
 
@@ -316,11 +336,11 @@ class AutoSyncService {
           data is! Map ||
           data['success'] != true ||
           data['queue'] is! Map) {
-        throw const AutoSyncException('队列统计暂不可用，请稍后重试');
+        throw AutoSyncException(appL10n.svcQueueStatisticsAreUnavailableTryAgainLater);
       }
       return AutoSyncQueue.fromJson(data['queue']);
     } catch (_) {
-      throw const AutoSyncException('队列统计暂不可用，请稍后重试');
+      throw AutoSyncException(appL10n.svcQueueStatisticsAreUnavailableTryAgainLater);
     }
   }
 
@@ -355,7 +375,7 @@ class AutoSyncService {
       if (decoded is Map<String, dynamic>) return decoded;
     } catch (_) {}
     // 损坏的管理令牌不能被静默覆盖，否则会留下无法关闭的服务端任务。
-    throw const AutoSyncException('自动同步设置读取失败，请保留本机数据后重试');
+    throw AutoSyncException(appL10n.svcCouldNotReadTheAutoSyncSettings);
   }
 
   Future<void> _store(
@@ -394,7 +414,7 @@ class AutoSyncService {
         !RegExp(r'^[A-Za-z0-9_-]{43}$').hasMatch(value['token']) ||
         value['source'] is! String ||
         value['accountId'] is! String) {
-      throw const AutoSyncException('自动同步凭据读取失败，请保留本机数据后重试');
+      throw AutoSyncException(appL10n.svcCouldNotReadTheAutoSyncCredentials);
     }
     return AutoSyncRegistration(
         platform, value['source'], value['accountId'], value['token'],
@@ -463,7 +483,7 @@ class AutoSyncService {
       rethrow;
     } catch (_) {
       // 不把 HTTP 异常或服务端原始响应带到 UI/日志中。
-      throw const AutoSyncException('自动同步服务暂不可用，请检查网络后重试；设置状态尚未确认');
+      throw AutoSyncException(appL10n.svcTheAutoSyncServiceIsUnavailableCheck);
     }
   }
 
@@ -518,7 +538,7 @@ class AutoSyncService {
       _queuedRefreshes.remove(stamp);
     }, onError: (Object _) {
       _queuedRefreshes.remove(stamp);
-      _refreshErrors[entry.platform] = '同步成功，本地数据刷新未完成，请手动刷新';
+      _refreshErrors[entry.platform] = appL10n.svcSyncedButTheLocalDataRefreshDid;
     });
   }
 
@@ -533,7 +553,7 @@ class AutoSyncService {
         if (!latest.credentialPending) return _request('GET', latest);
         if (_retryAfter[platform]?.isAfter(DateTime.now()) == true) {
           throw AutoSyncException(
-              _credentialErrors[platform] ?? '个人 key 已保存在本机，定时任务待更新');
+              _credentialErrors[platform] ?? appL10n.svcPersonalKeySavedOnThisDeviceThe);
         }
         return _updatePersonalCredential(latest);
       });
@@ -583,12 +603,12 @@ class AutoSyncService {
     try {
       final account = (await AccountStore.loadAll())[entry.source];
       if (account != null && account.id != entry.accountId) {
-        throw const AutoSyncException('账号已切换，请先关闭旧账号自动同步后重新开启');
+        throw AutoSyncException(appL10n.svcTheAccountChangedTurnOffAutoSync);
       }
       final credential =
           await SecureCredentialStore.read(_personalKeys[entry.platform]!);
       if (credential == null || credential.trim().isEmpty) {
-        throw const AutoSyncException('请重新保存该数据源的个人 key');
+        throw AutoSyncException(appL10n.svcSaveThePersonalKeyForThisData);
       }
       final task = await _request('POST', entry, body: {
         'platform': entry.platform.key,
@@ -600,7 +620,7 @@ class AutoSyncService {
       return task;
     } catch (error) {
       final message =
-          '个人 key 已保存在本机，定时任务待更新：${error is AutoSyncException ? error.message : '请检查网络后重试'}';
+          appL10n.svcPersonalKeySavedOnThisDeviceThe2((error is AutoSyncException ? error.message : appL10n.svcCheckYourNetworkAndTryAgain).toString());
       _credentialErrors[entry.platform] = message;
       _retryAfter[entry.platform] =
           DateTime.now().add(const Duration(seconds: 30));
@@ -656,7 +676,7 @@ class AutoSyncService {
   Future<String> savePersonalCredential(SyncPlatform platform, String value) =>
       _mutate(platform, () async {
         final credential = value.trim();
-        if (credential.isEmpty) throw const AutoSyncException('请输入个人 key');
+        if (credential.isEmpty) throw AutoSyncException(appL10n.svcEnterThePersonalKey);
         final entry = await registration(platform);
         if (entry != null) {
           await _store(
@@ -667,10 +687,10 @@ class AutoSyncService {
                   credentialPending: true));
         }
         await SecureCredentialStore.write(_personalKeys[platform]!, credential);
-        if (entry == null) return '个人 key 已保存';
+        if (entry == null) return appL10n.svcPersonalKeySaved;
         try {
           final task = await _updatePersonalCredential(entry);
-          return task.enabled ? '个人 key 已保存，并已更新定时任务' : '个人 key 已保存，自动同步保持关闭';
+          return task.enabled ? appL10n.svcPersonalKeySavedAndTheScheduledTask : appL10n.svcPersonalKeySavedAutoSyncStaysOff;
         } on AutoSyncException catch (error) {
           changes.value++;
           return error.message;
@@ -689,7 +709,7 @@ class AutoSyncService {
         await SecureCredentialStore.delete(_personalKeys[platform]!);
         _retryAfter.remove(platform);
         _credentialErrors.remove(platform);
-        return entry == null ? '个人 key 已清除' : '个人 key 已清除，并已关闭对应自动同步';
+        return entry == null ? appL10n.svcPersonalKeyCleared : appL10n.svcPersonalKeyClearedAndTheMatchingAuto;
       });
 
   Future<AutoSyncTask> enable(
@@ -757,28 +777,28 @@ class AutoSyncService {
   }
 
   static String errorMessage(String? code) => switch (code) {
-        'target_records_failed' => '目标账号成绩或同步凭据校验失败，请检查该数据源的账号状态',
-        'already_registered' => '已有自动同步任务，正在尝试恢复当前用户的管理权限',
-        'task_not_found' => '没有找到匹配的自动同步任务，请重新开启',
-        'task_running' => '任务正在执行中，请稍后再恢复管理权限',
-        'account_changed' => '任务绑定的账号已变化，请先关闭自动同步再重新开启',
-        'invalid_config' => '快速同步凭据不完整，请先输入二维码绑定机台身份',
-        'rate_limited' => '操作过于频繁，请稍后重试',
-        'catalog_failed' => '目标数据源曲库读取失败，本次未继续同步',
-        'upload_failed' => '成绩上传失败，部分批次可能已提交；本次不自动重试',
+        'target_records_failed' => appL10n.svcCouldNotVerifyTheTargetAccountScores,
+        'already_registered' => appL10n.svcAnAutoSyncTaskAlreadyExistsTrying,
+        'task_not_found' => appL10n.svcNoMatchingAutoSyncTaskWasFound,
+        'task_running' => appL10n.svcTheTaskIsRunningRestoreManagementAccess,
+        'account_changed' => appL10n.svcTheAccountLinkedToTheTaskChanged,
+        'invalid_config' => appL10n.svcQuickSyncCredentialsAreIncompleteEnterA,
+        'rate_limited' => appL10n.svcTooManyRequestsTryAgainLater,
+        'catalog_failed' => appL10n.svcCouldNotReadTheSongLibraryOf,
+        'upload_failed' => appL10n.svcScoreUploadFailedSomeBatchesMayHave,
         'upload_credential_invalid' =>
-          'AWMC NET 的 Import-Token 无效，请在账号管理重新保存有效 Token，已开启的定时任务会自动更新',
-        'gateway_failed' => '机台成绩读取失败，请稍后重试',
-        'unexpected_pagination' => '上游返回了分页成绩，本轮已停止读取，避免连续请求',
-        'no_scores' || 'no_matching_scores' => '未读取到目标数据源支持的有效成绩',
-        'interrupted' => '服务重启中断了上次同步，将在下次定时时间继续',
-        'cancelled' => '自动同步设置已变化，请刷新状态',
-        'run_timeout' => '本次同步处理超时，已停止并将在下次定时时间继续',
-        'capacity_reached' => '当前自动同步容量已满，请稍后再开启',
-        'quota_unavailable' || 'quota_wait' => '上游配额暂不可确认或已用尽，任务会在恢复后继续',
-        'upstream_wait' || 'gateway_suspended' => '上游服务暂不可用，任务已暂停，恢复后继续',
-        'window_expired' => '本次上午处理窗口已结束，将在下一轮继续',
-        'upload_uncertain' => '上传结果暂不确定，下一轮会先核对后处理',
-        _ => '自动同步服务暂不可用，请稍后重试',
+          appL10n.svcTheAWMCNETImportTokenIsInvalid,
+        'gateway_failed' => appL10n.svcCouldNotReadCabinetScoresTryAgain,
+        'unexpected_pagination' => appL10n.svcTheUpstreamReturnedPagedScoresReadingStopped,
+        'no_scores' || 'no_matching_scores' => appL10n.svcNoValidScoresSupportedByTheTarget,
+        'interrupted' => appL10n.svcAServiceRestartInterruptedTheLastSync,
+        'cancelled' => appL10n.svcTheAutoSyncSettingChangedRefreshThe,
+        'run_timeout' => appL10n.svcThisSyncTimedOutAndStoppedIt,
+        'capacity_reached' => appL10n.svcAutoSyncCapacityIsFullTurnIt,
+        'quota_unavailable' || 'quota_wait' => appL10n.svcTheUpstreamQuotaCannotBeConfirmedOr,
+        'upstream_wait' || 'gateway_suspended' => appL10n.svcTheUpstreamServiceIsUnavailableTheTask,
+        'window_expired' => appL10n.svcThisMorningSProcessingWindowHasEnded,
+        'upload_uncertain' => appL10n.svcTheUploadResultIsUncertainTheNext,
+        _ => appL10n.svcTheAutoSyncServiceIsUnavailableTry,
       };
 }

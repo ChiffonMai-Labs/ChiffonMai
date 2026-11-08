@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 
 import '../utils/AppDesignTokens.dart';
@@ -176,7 +177,7 @@ class GuessMultiSelectTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final chosen = selected.where(items.contains).map(_format).toList();
-    final summary = chosen.isEmpty ? '全部' : chosen.join('、');
+    final summary = chosen.isEmpty ? context.l10n.flowAll : chosen.join('、');
     return PressScale(
       scale: 0.98,
       child: Semantics(
@@ -215,7 +216,7 @@ class GuessMultiSelectTile extends StatelessWidget {
                 Expanded(
                   child: Text(
                     chosen.length > 2
-                        ? '已选 ${chosen.length} 项'
+                        ? context.l10n.flowP0Selected((chosen.length).toString())
                         : summary,
                     textAlign: TextAlign.end,
                     style: TextStyle(
@@ -291,12 +292,12 @@ class _GuessMultiSelectSheetState extends State<_GuessMultiSelectSheet> {
                 ),
                 TextButton(
                   onPressed: _selected.isEmpty ? null : () => _update(const []),
-                  child: const Text('选择全部'),
+                  child:  Text(context.l10n.flowSelectAll2),
                 ),
               ],
             ),
             Text(
-              _selected.isEmpty ? '当前：全部' : '已选 ${_selected.length} 项，不选表示全部',
+              _selected.isEmpty ? context.l10n.flowCurrentAll : context.l10n.flowP0SelectedNoneMeansAll((_selected.length).toString()),
               style: TextStyle(fontSize: 12.5, color: scheme.onSurfaceVariant),
             ),
             const SizedBox(height: 12),
@@ -323,7 +324,7 @@ class _GuessMultiSelectSheetState extends State<_GuessMultiSelectSheet> {
               height: 48,
               child: FilledButton(
                 onPressed: () => Navigator.of(context).pop(),
-                child: const Text('完成'),
+                child:  Text(context.l10n.featureDone),
               ),
             ),
           ],
@@ -402,7 +403,7 @@ class GuessSettingsResetButton extends StatelessWidget {
       child: TextButton.icon(
         onPressed: onPressed,
         icon: const Icon(Icons.restart_alt_rounded, size: 18),
-        label: const Text('恢复默认设置'),
+        label:  Text(context.l10n.flowRestoreDefaults),
       ),
     );
   }

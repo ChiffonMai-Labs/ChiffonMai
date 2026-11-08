@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -8,15 +9,15 @@ enum NavigationBarStyle {
   expandingPill;
 
   String get label => switch (this) {
-        standard => '经典悬浮',
-        liquidGlass => '液态玻璃',
-        expandingPill => '伸缩胶囊',
+        standard => appL10n.navigationClassic,
+        liquidGlass => appL10n.navigationGlass,
+        expandingPill => appL10n.navigationPill,
       };
 
   String get description => switch (this) {
-        standard => '图标与文字上下排列，常驻显示全部分类名称',
-        liquidGlass => '通透的玻璃质感，选中项带柔和高光',
-        expandingPill => '选中项展开文字，其余项保留图标，切换时平滑伸缩',
+        standard => appL10n.navigationClassicHint,
+        liquidGlass => appL10n.navigationGlassHint,
+        expandingPill => appL10n.navigationPillHint,
       };
 }
 

@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:my_first_flutter_app/entity/Multiplayer/GameType.dart';
@@ -41,6 +42,7 @@ class _RoomCreatePageState extends State<RoomCreatePage> {
 
   // 模式专属设置
   int _blurLevel = 50; // 模糊程度 (blurred 模式)
+  int _pixelationLevel = GuessChartCommonSettingsService.defaultPixelationLevel;
   double _audioRate = 1.25;
   int _playDuration = 5; // 音频播放时长秒 (audio 模式)
   int _songCount = 3; // 抽取歌曲数 (letters 模式)
@@ -102,6 +104,7 @@ class _RoomCreatePageState extends State<RoomCreatePage> {
     _masterMinDx = (settings['masterMinDx'] as num?)?.toDouble() ?? 1;
     _masterMaxDx = (settings['masterMaxDx'] as num?)?.toDouble() ?? 15;
     _blurLevel = (settings['blurLevel'] ?? _blurLevel).clamp(0, 100);
+    _pixelationLevel = (settings['pixelationLevel'] ?? _pixelationLevel).clamp(0, 100);
     _playDuration =
         (settings['playDurationSeconds'] ?? _playDuration).clamp(1, 30);
     _songCount = (settings['songCount'] ?? _songCount).clamp(1, 10);
@@ -131,7 +134,7 @@ class _RoomCreatePageState extends State<RoomCreatePage> {
       _applySettings(GuessChartCommonSettingsService().defaultSettings());
       _maxPlayers = 4;
     });
-    AppToast.show('已恢复默认设置');
+    AppToast.show(context.l10n.flowDefaultSettingsRestored, tone: AppToastTone.success);
   }
 
   Future<void> _loadSongData() async {
@@ -164,7 +167,7 @@ class _RoomCreatePageState extends State<RoomCreatePage> {
 
     try {
       debugPrint(
-          '[DEBUG][RoomCreatePage] 创建房间 - 选择的游戏模式: ${_gameType.name} (${_gameType.description})');
+          '[DEBUG][RoomCreatePage] 创建房间 - 选择的游戏模式: ${_gameType.localizedName} (${_gameType.localizedDescription})');
 
       final room = await _manager.createRoom(
         gameType: _gameType,
@@ -176,6 +179,7 @@ class _RoomCreatePageState extends State<RoomCreatePage> {
         masterMaxDx: _masterMaxDx,
         selectedGenres: _selectedGenres,
         blurLevel: _blurLevel,
+        pixelationLevel: _pixelationLevel,
         playDuration: _playDuration,
         audioRate: _audioRate,
         songCount: _songCount,
@@ -193,11 +197,11 @@ class _RoomCreatePageState extends State<RoomCreatePage> {
       if (room != null) {
         Navigator.pop(context, room);
       } else {
-        AppToast.show('创建房间失败');
+        AppToast.show(context.l10n.flowCouldNotCreateRoom, tone: AppToastTone.error);
       }
     } catch (e) {
       if (!mounted) return;
-      AppToast.show('创建房间失败: $e');
+      AppToast.show(context.l10n.flowCouldNotCreateRoomP02((e).toString()), tone: AppToastTone.error);
     } finally {
       if (mounted) setState(() => _isCreating = false);
     }
@@ -206,6 +210,7 @@ class _RoomCreatePageState extends State<RoomCreatePage> {
   /// 当前游戏模式是否需要模式专属设置
   bool get _needsModeSettings {
     return _gameType == GameType.blurred ||
+        _gameType == GameType.pixelated ||
         _gameType.isAudio ||
         _gameType == GameType.letters ||
         _gameType == GameType.flash ||
@@ -217,6 +222,7 @@ class _RoomCreatePageState extends State<RoomCreatePage> {
         GameType.info => Icons.quiz_rounded,
         GameType.cover => Icons.image_rounded,
         GameType.blurred => Icons.blur_on_rounded,
+        GameType.pixelated => Icons.grid_view_rounded,
         GameType.reverseAudio => Icons.history_rounded,
         GameType.pitchAudio => Icons.speed_rounded,
         GameType.audio => Icons.graphic_eq_rounded,
@@ -239,7 +245,7 @@ class _RoomCreatePageState extends State<RoomCreatePage> {
       child: Semantics(
         button: true,
         selected: selected,
-        label: type.name,
+        label: type.localizedName,
         excludeSemantics: true,
         child: GestureDetector(
           onTap: selected || _isCreating
@@ -260,7 +266,7 @@ class _RoomCreatePageState extends State<RoomCreatePage> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    type.name,
+                    type.localizedName,
                     maxLines: 2,
                     style: TextStyle(
                       fontSize: 13.5,
@@ -299,15 +305,22 @@ class _RoomCreatePageState extends State<RoomCreatePage> {
         );
     return [
       if (_gameType == GameType.blurred)
-        slider('模糊程度', _blurLevel, 0, 100, 100, '%', (v) => _blurLevel = v),
+        slider(context.l10n.flowBlur, _blurLevel, 0, 100, 100, '%', (v) => _blurLevel = v),
+      if (_gameType == GameType.pixelated) ...[
+        slider(context.l10n.flowDestruction, _pixelationLevel, 0, 100, 100, '%',
+            (v) => _pixelationLevel = v),
+        Text(context.l10n.flow0ShowsTheOriginalHigherValuesCreate2,
+            style: TextStyle(fontSize: 12,
+                color: Theme.of(context).colorScheme.onSurfaceVariant)),
+      ],
       if (_gameType.isAudio)
-        slider('播放时长', _playDuration, 1, 30, 29, ' 秒',
+        slider(context.l10n.flowPlaybackLength, _playDuration, 1, 30, 29, context.l10n.flowS,
             (v) => _playDuration = v),
       if (_gameType == GameType.pitchAudio)
         Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text('变速变调倍率', style: TextStyle(fontSize: 13.5)),
+             Text(context.l10n.flowSpeedPitchMultiplier, style: TextStyle(fontSize: 13.5)),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
@@ -324,21 +337,21 @@ class _RoomCreatePageState extends State<RoomCreatePage> {
           ],
         ),
       if (_gameType == GameType.letters) ...[
-        slider('每次抽取歌曲数', _songCount, 1, 10, 9, ' 首', (v) => _songCount = v),
-        slider('非英文字符过滤阈值', _nonEnglishCharThreshold, 0, 100, 100, '%',
+        slider(context.l10n.flowSongsPerGame, _songCount, 1, 10, 9, context.l10n.flowSongs3, (v) => _songCount = v),
+        slider(context.l10n.flowNonEnglishCharacterThreshold, _nonEnglishCharThreshold, 0, 100, 100, '%',
             (v) => _nonEnglishCharThreshold = v),
       ],
       if (_gameType == GameType.flash)
         // 100ms 步进
-        slider('快闪时长', _flashDurationMs, 100, 3000, 29, ' ms',
+        slider(context.l10n.flowFlashDuration, _flashDurationMs, 100, 3000, 29, ' ms',
             (v) => _flashDurationMs = (v / 100).round() * 100),
       if (_gameType == GameType.tileReveal) ...[
-        slider('切块数量', _tileCount, 100, 10000, 99, ' 块', (v) => _tileCount = v),
-        slider('揭示间隔', _tileRevealIntervalMs, 100, 10000, 99, ' ms',
+        slider(context.l10n.flowTileCount, _tileCount, 100, 10000, 99, context.l10n.flowTiles, (v) => _tileCount = v),
+        slider(context.l10n.flowRevealInterval, _tileRevealIntervalMs, 100, 10000, 99, ' ms',
             (v) => _tileRevealIntervalMs = (v / 100).round() * 100),
       ],
       if (_gameType == GameType.chartPeek) ...[
-        slider('片段时长', _peekDurationSeconds, 3, 60, 57, ' 秒',
+        slider(context.l10n.flowExcerptLength, _peekDurationSeconds, 3, 60, 57, context.l10n.flowS,
             (v) => _peekDurationSeconds = v),
         ChartPeekPlaybackSettings(
           speed: _peekFlowSpeed,
@@ -362,11 +375,11 @@ class _RoomCreatePageState extends State<RoomCreatePage> {
     final motion =
         AppDesignTokens.motion(context, AppDesignTokens.mediumMotion);
     return BackgroundPageScaffold(
-      title: '创建房间',
+      title: context.l10n.flowCreateRoom,
       resizeToAvoidBottomInset: false,
       actions: [
         IconButton(
-          tooltip: '恢复默认设置',
+          tooltip: context.l10n.flowRestoreDefaults,
           onPressed: _isCreating ? null : _resetSettings,
           icon: const Icon(Icons.restart_alt_rounded),
         ),
@@ -388,7 +401,7 @@ class _RoomCreatePageState extends State<RoomCreatePage> {
                       children: [
                         GuessSettingSection(
                           card: true,
-                          title: '游戏模式',
+                          title: context.l10n.flowGameMode,
                           icon: Icons.sports_esports_rounded,
                           children: [
                             LayoutBuilder(
@@ -419,7 +432,7 @@ class _RoomCreatePageState extends State<RoomCreatePage> {
                                 value: _gameType,
                                 sizeFollowsCurrent: true,
                                 child: Text(
-                                  _gameType.description,
+                                  _gameType.localizedDescription,
                                   style: TextStyle(
                                     fontSize: 13,
                                     height: 1.45,
@@ -433,17 +446,17 @@ class _RoomCreatePageState extends State<RoomCreatePage> {
                         gap,
                         GuessSettingSection(
                           card: true,
-                          title: '最大玩家数',
+                          title: context.l10n.flowMaximumPlayers,
                           icon: Icons.group_rounded,
                           children: [
                             SegmentedTabs(
                               height: 42,
-                              items: const [
-                                SegmentedTabItem('2 人'),
-                                SegmentedTabItem('3 人'),
-                                SegmentedTabItem('4 人'),
-                                SegmentedTabItem('5 人'),
-                                SegmentedTabItem('6 人'),
+                              items:  [
+                                SegmentedTabItem(context.l10n.flow2Players),
+                                SegmentedTabItem(context.l10n.flow3Players),
+                                SegmentedTabItem(context.l10n.flow4Players),
+                                SegmentedTabItem(context.l10n.flow5Players),
+                                SegmentedTabItem(context.l10n.flow6Players),
                               ],
                               selectedIndex: _maxPlayers - 2,
                               onChanged: (index) =>
@@ -462,7 +475,7 @@ class _RoomCreatePageState extends State<RoomCreatePage> {
                                       top: AppDesignTokens.cardGap),
                                   child: GuessSettingSection(
                                     card: true,
-                                    title: '${_gameType.name}设置',
+                                    title: context.l10n.flowP0Settings((_gameType.localizedName).toString()),
                                     icon: _iconOf(_gameType),
                                     children: _buildModeTiles(),
                                   ),
@@ -511,8 +524,8 @@ class _RoomCreatePageState extends State<RoomCreatePage> {
                                     color: scheme.onPrimary,
                                   ),
                                 )
-                              : const Text(
-                                  '创建房间',
+                              :  Text(
+                                  context.l10n.flowCreateRoom,
                                   style: TextStyle(
                                       fontSize: 15,
                                       fontWeight: FontWeight.w700),

@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import '../../widgets/GuessCoverImage.dart';
 import '../../widgets/GuessGameStatusPanel.dart';
 import '../../widgets/GuessBpmHistoryFields.dart';
@@ -298,7 +299,7 @@ class _GuessSongByOpenLettersPageState
 
     String letter = _openLetterController.text.trim();
     if (letter.isEmpty || letter.length > 1) {
-      AppToast.show('请输入一个字符！', duration: Duration(seconds: 2));
+      AppToast.show(context.l10n.flowEnterOneCharacter, duration: Duration(seconds: 2), tone: AppToastTone.warning);
       return;
     }
 
@@ -319,7 +320,7 @@ class _GuessSongByOpenLettersPageState
     if (_isGameOver || _targetSongs.isEmpty) return;
 
     if (answer.isEmpty) {
-      AppToast.show('请输入歌曲名称！', duration: Duration(seconds: 2));
+      AppToast.show(context.l10n.flowEnterASongTitle, duration: Duration(seconds: 2), tone: AppToastTone.warning);
       return;
     }
 
@@ -351,7 +352,7 @@ class _GuessSongByOpenLettersPageState
         }
       });
 
-      AppToast.show('猜对了！', duration: Duration(seconds: 2));
+      AppToast.show(context.l10n.flowCorrect, duration: Duration(seconds: 2));
     } else {
       // 找到猜错的歌曲
       Song? guessedSong = null;
@@ -625,7 +626,7 @@ class _GuessSongByOpenLettersPageState
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '猜测 #${originalIndex + 1}',
+              context.l10n.flowGuessP0((originalIndex + 1).toString()),
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.bold,
@@ -730,22 +731,22 @@ class _GuessSongByOpenLettersPageState
       context: context,
       builder: (BuildContext context) {
         return AppAlertDialog(
-          title: const Text('规则说明'),
+          title:  Text(context.l10n.flowHowToPlay),
           content: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('1. 游戏开始时，系统会随机从舞萌曲库中抽取${_songCount}首歌曲。'),
+                Text(context.l10n.flow1TheGameRandomlySelectsP0Songs((_songCount).toString())),
                 const SizedBox(height: 8),
-                const Text('2. 玩家可以发送 "开字母 X"（X 为任意汉字、日文、数字或符号，只能输入一个字符）。'),
+                 Text(context.l10n.flow2SendXWhereXIsOne),
                 const SizedBox(height: 8),
-                const Text('3. 若某首歌曲名包含该字，则揭示该字在歌名中的位置。'),
+                 Text(context.l10n.flow3IfATitleContainsThatCharacter),
                 const SizedBox(height: 8),
-                const Text('4. 若不包含，则无提示。'),
+                 Text(context.l10n.flow4IfNoTitleContainsItNo),
                 const SizedBox(height: 8),
-                const Text('5. 玩家根据揭示的文字碎片，推理完整曲名，发送 "回答 曲名/别名" 作答。'),
+                 Text(context.l10n.flow5UseTheRevealedCharactersToInfer),
                 const SizedBox(height: 8),
-                const Text('6. 猜中所有歌曲或点击投降结束游戏，会公布游戏结果。'),
+                 Text(context.l10n.flow6GuessEverySongOrSurrenderTo),
               ],
             ),
           ),
@@ -754,7 +755,7 @@ class _GuessSongByOpenLettersPageState
               onPressed: () {
                 Navigator.of(context).pop();
               },
-              child: const Text('确定'),
+              child:  Text(context.l10n.featureOK),
             ),
           ],
         );
@@ -792,7 +793,7 @@ class _GuessSongByOpenLettersPageState
         nonEnglishCharThreshold: nonEnglishCharThreshold,
       );
       if (testSongs.isNotEmpty || !mounted) return;
-      AppToast.show('当前筛选条件抽不到曲目，请放宽筛选条件', duration: Duration(seconds: 4));
+      AppToast.show(context.l10n.flowNoSongsMatchTheseFiltersBroadenYour, duration: Duration(seconds: 4), tone: AppToastTone.warning);
     } catch (e) {
       debugPrint('校验筛选条件失败: $e');
     }
@@ -843,8 +844,8 @@ class _GuessSongByOpenLettersPageState
       context: context,
       builder: (BuildContext context) {
         return AppAlertDialog(
-          title: const Text('游戏设置'),
-          subtitle: '保存后下局生效',
+          title:  Text(context.l10n.flowGameSettings),
+          subtitle: context.l10n.flowAppliesFromTheNextGame,
           contentPadding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
           content: StatefulBuilder(
             builder: (BuildContext context, StateSetter setState) {
@@ -890,12 +891,12 @@ class _GuessSongByOpenLettersPageState
                       },
                     ),
                     GuessSettingSection(
-                      title: '本模式设置',
+                      title: context.l10n.flowModeSettings,
                       icon: Icons.abc_rounded,
                       children: [
                         GuessSliderTile(
-                          label: '每次抽取歌曲数',
-                          valueText: '$tempSongCount 首',
+                          label: context.l10n.flowSongsPerGame,
+                          valueText: context.l10n.flowP0Songs2((tempSongCount).toString()),
                           value: tempSongCount.toDouble(),
                           min: 1,
                           max: 10,
@@ -904,7 +905,7 @@ class _GuessSongByOpenLettersPageState
                               setState(() => tempSongCount = value.toInt()),
                         ),
                         GuessSliderTile(
-                          label: '非英文字符过滤百分比',
+                          label: context.l10n.flowNonEnglishCharacterFilterPercentage,
                           valueText: '$tempNonEnglishCharThreshold%',
                           value: tempNonEnglishCharThreshold.toDouble(),
                           min: 0,
@@ -912,7 +913,7 @@ class _GuessSongByOpenLettersPageState
                           divisions: 100,
                           onChanged: (value) =>
                               setState(() => tempNonEnglishCharThreshold = value.toInt()),
-                          hint: '过滤日语+除空格以外的非英文字符在歌名中的占比大于等于此值的歌曲',
+                          hint: context.l10n.flowExcludeSongsWhoseShareOfJapaneseAnd,
                         ),
                       ],
                     ),
@@ -929,7 +930,7 @@ class _GuessSongByOpenLettersPageState
               onPressed: () {
                 Navigator.of(context).pop();
               },
-              child: const Text('取消'),
+              child:  Text(context.l10n.featureCancel),
             ),
             TextButton(
               onPressed: () async {
@@ -953,7 +954,7 @@ class _GuessSongByOpenLettersPageState
 
                 if (!navigator.mounted) return;
                 navigator.pop();
-                AppToast.show('设置已保存，将在下局游戏生效',
+                AppToast.show(context.l10n.flowSettingsSavedTheyApplyFromTheNext,
                     tone: AppToastTone.success);
 
                 _warnIfNoSongMatches(
@@ -965,7 +966,7 @@ class _GuessSongByOpenLettersPageState
                   nonEnglishCharThreshold: tempNonEnglishCharThreshold,
                 );
               },
-              child: const Text('确定'),
+              child:  Text(context.l10n.featureOK),
             ),
           ],
         );
@@ -982,7 +983,7 @@ class _GuessSongByOpenLettersPageState
     // 自定义常量
 
     return BackgroundPageScaffold(
-      title: '舞萌开字母',
+      title: context.l10n.featureMaimaiLetterReveal,
       resizeToAvoidBottomInset: false,
       contentPadding:
           EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom + 10),
@@ -1012,12 +1013,12 @@ class _GuessSongByOpenLettersPageState
                                 children: [
                                     // 本局状态与每日统计共用布局。
                                     GuessGameStatusPanel(
-                                      roundLabel: '剩余歌曲',
+                                      roundLabel: context.l10n.flowRemainingSongs,
                                       roundValue: (_targetSongs.length - _guessedSongs.length)
                                           .clamp(0, _targetSongs.length)
                                           .toString(),
                                       roundTotal: '${_targetSongs.length}',
-                                      winMessage: '恭喜你猜对了所有歌曲！',
+                                      winMessage: context.l10n.flowYouGuessedEverySong,
                                       stats: _stats,
                                       onResetStats: _resetAndRefreshStats,
                                       timeLimit: _timeLimit,
@@ -1050,8 +1051,8 @@ class _GuessSongByOpenLettersPageState
                                                         _openLetterController,
                                                     enabled: !_isGameOver,
                                                     decoration:
-                                                        const InputDecoration(
-                                                      hintText: '输入一个字符',
+                                                         InputDecoration(
+                                                      hintText: context.l10n.flowEnterOneCharacter2,
                                                       border: OutlineInputBorder(
                                                         borderRadius:
                                                             BorderRadius.all(Radius.circular(8)),
@@ -1070,7 +1071,7 @@ class _GuessSongByOpenLettersPageState
                                                   onPressed: _isGameOver
                                                       ? null
                                                       : _handleOpenLetter,
-                                                  child: const Text('开字母'),
+                                                  child:  Text(context.l10n.flowRevealLetters),
                                                 ),
                                               ],
                                             ),
@@ -1096,7 +1097,7 @@ class _GuessSongByOpenLettersPageState
                                               onChanged: _handleSearchInput,
                                               enabled: !_isGameOver,
                                               decoration: InputDecoration(
-                                                hintText: '搜索歌名、别名、编号等',
+                                                hintText: context.l10n.flowSearchTitleAliasIDAndMore,
                                                 prefixIcon: GuessSearchIcon(
                                                     searching: _isSearching),
                                                 border: const OutlineInputBorder(
@@ -1216,13 +1217,13 @@ class _GuessSongByOpenLettersPageState
                                                   _recordGameResult(false);
                                                 });
                                               },
-                                              child: const Text('投降'),
+                                              child:  Text(context.l10n.flowSurrender),
                                             ),
                                           // 开始新游戏按钮
                                           if (_isGameOver)
                                             ElevatedButton(
                                               onPressed: _startNewGame,
-                                              child: const Text('新游戏'),
+                                              child:  Text(context.l10n.flowNewGame),
                                             ),
                                         ],
                                       ),
@@ -1246,7 +1247,7 @@ class _GuessSongByOpenLettersPageState
                                               CrossAxisAlignment.start,
                                           children: [
                                             Text(
-                                              '猜测历史',
+                                              context.l10n.flowGuessHistory,
                                               style: TextStyle(
                                                 fontSize: 16,
                                                 fontWeight: FontWeight.bold,

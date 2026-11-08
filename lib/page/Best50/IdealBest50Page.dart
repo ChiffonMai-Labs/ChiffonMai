@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
+import '../../utils/ChartDifficulty.dart';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -121,7 +123,7 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('确定'),
+            child: Text(context.l10n.featureOK),
           ),
         ],
       ),
@@ -130,14 +132,15 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
 
   Future<void> _exportToImage() async {
     if (_data == null || _sdSongs.isEmpty && _dxSongs.isEmpty) {
-      _showMessage('提示', '没有数据可导出');
+      _showMessage(context.l10n.featureNotice, context.l10n.flowNoDataToExport);
       return;
     }
 
     final hasPermission = await _requestStoragePermission();
     if (!mounted) return;
     if (!hasPermission) {
-      _showMessage('权限不足', '需要存储权限才能导出图片到相册，请在设置中开启权限');
+      _showMessage(context.l10n.flowPermissionRequired,
+          context.l10n.flowStoragePermissionIsRequiredToExportImages);
       return;
     }
 
@@ -146,7 +149,7 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
       estimatedPngSize: ImageEncodeUtil.estimatePngSize(
         songCount: _sdSongs.length + _dxSongs.length,
       ),
-      exportingLabel: '理想 Best50',
+      exportingLabel: context.l10n.featureIdealBest50,
       enableThunderMode: true,
       previewBuilder: (previewContext, previewQuality) =>
           B50ConvertToImg.buildPreviewWidget(
@@ -172,18 +175,18 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
       'charts': {'sd': _sdSongs, 'dx': _dxSongs},
     };
     BackgroundExport.run(
-      label: '理想 Best50',
+      label: context.l10n.featureIdealBest50,
       task: (exportContext) => B50ConvertToImg.convertToImage(
         exportContext,
-      b50Data,
-      _sdSongs,
-      _dxSongs,
-      _maimaiMusicData,
-      jpegQuality: quality.jpegQuality,
-      theme: quality.theme,
-      thunderMode: quality.thunderMode,
-      thunderVertical: quality.thunderVertical,
-    ),
+        b50Data,
+        _sdSongs,
+        _dxSongs,
+        _maimaiMusicData,
+        jpegQuality: quality.jpegQuality,
+        theme: quality.theme,
+        thunderMode: quality.thunderMode,
+        thunderVertical: quality.thunderVertical,
+      ),
     );
   }
 
@@ -192,21 +195,21 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const BackgroundPageScaffold(
-        title: '理想 Best50',
+      return BackgroundPageScaffold(
+        title: context.l10n.featureIdealBest50,
         resizeToAvoidBottomInset: false,
         child: Center(child: CircularProgressIndicator()),
       );
     }
 
     return BackgroundPageScaffold(
-      title: '理想 Best50',
+      title: context.l10n.featureIdealBest50,
       resizeToAvoidBottomInset: false,
       actionsEndInset: 4,
       actions: [
         if (_data != null) ...[
           Best50IconAction(
-            tooltip: '导出为图片',
+            tooltip: context.l10n.flowExportAsImage,
             icon: Icons.image_outlined,
             onPressed: _exportToImage,
           ),
@@ -230,12 +233,12 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
                 size: 64, color: scheme.onSurfaceVariant),
             const SizedBox(height: 16),
             Text(
-              '暂无游玩数据缓存',
+              context.l10n.flowNoCachedPlayData,
               style: TextStyle(fontSize: 18, color: scheme.onSurfaceVariant),
             ),
             const SizedBox(height: 8),
             Text(
-              '请返回首页点击"刷新数据"按钮获取',
+              context.l10n.flowReturnHomeAndTapRefreshData,
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 14, color: scheme.onSurfaceVariant),
             ),
@@ -269,7 +272,10 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
             onChanged: (i) => setState(() => _segment = i),
           ),
           const SizedBox(height: 8),
-          Best50MetaLine(best50MetaText(_segment == 0 ? '非当前版本' : '当前版本',
+          Best50MetaLine(best50MetaText(
+              _segment == 0
+                  ? context.l10n.flowOlderVersions
+                  : context.l10n.flowCurrentVersion,
               songs.map((m) => (m['ra'] ?? 0) as int))),
           const SizedBox(height: AppDesignTokens.cardGap),
           _buildGrid(songs),
@@ -299,7 +305,7 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
       children: [
         Best50Hero(
           total: idealRating,
-          label: '理想 Rating · 非 SSS+ 成绩升到上一档的下限',
+          label: context.l10n.flowIdealRatingRaiseNonSSSScoresTo,
           delta: delta,
           best35Sum: sumOf(_sdSongs),
           best15Sum: sumOf(_dxSongs),
@@ -309,13 +315,16 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
           child: Row(
             children: [
               Expanded(
-                  child: StatTile(label: '原 Rating', value: '$originalRating')),
+                  child: StatTile(
+                      label: context.l10n.flowOriginalRating,
+                      value: '$originalRating')),
               Expanded(
                   child: StatTile(
-                      label: '新进榜', value: '${_newEntries.length}')),
+                      label: context.l10n.flowNewEntries,
+                      value: '${_newEntries.length}')),
               Expanded(
                   child: StatTile(
-                      label: '平均达成率',
+                      label: context.l10n.featureAverageAchievement,
                       value: '${avgAchievement.toStringAsFixed(2)}%')),
             ],
           ),
@@ -327,12 +336,13 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
   Widget _buildNewEntriesSection() {
     final scheme = Theme.of(context).colorScheme;
     return CollapsibleCard(
-      title: '本次新进榜（${_newEntries.length} 首）',
+      title: context.l10n
+          .flowNewEntriesThisTimeP0Songs((_newEntries.length).toString()),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 4),
         child: _newEntries.isEmpty
             ? Text(
-                '无新歌进榜（升档后榜单成员不变）',
+                context.l10n.flowNoNewEntriesTheSameChartsRemain,
                 style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
               )
             : Column(
@@ -354,7 +364,11 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
                           ),
                           const SizedBox(height: 1),
                           Text(
-                            '定数 ${(e['ds'] as num).toStringAsFixed(1)} · RA ${e['oldRa']} → ${e['newRa']}',
+                            context.l10n.flowConstantP0RAP1P2(
+                                ((e['ds'] as num).toStringAsFixed(1))
+                                    .toString(),
+                                (e['oldRa']).toString(),
+                                (e['newRa']).toString()),
                             style: TextStyle(
                                 fontSize: 12, color: scheme.onSurfaceVariant),
                           ),
@@ -367,14 +381,12 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
     );
   }
 
-
-
   Widget _buildGrid(List<Map<String, dynamic>> songs) {
     if (songs.isEmpty) {
       return Padding(
         padding: const EdgeInsets.all(16.0),
         child: Center(
-          child: Text('无数据',
+          child: Text(context.l10n.flowNoData2,
               style: TextStyle(
                   color: Theme.of(context).colorScheme.onSurfaceVariant)),
         ),
@@ -400,7 +412,7 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
     final score = (m['dxScore'] ?? 0) as int;
     return Best50CardData(
       songId: songId,
-      title: m['title'] ?? '未知歌曲',
+      title: m['title'] ?? context.l10n.flowUnknownSong,
       levelIndex: levelIndex,
       type: m['type'] ?? '',
       rating: (m['ra'] ?? 0) as int,
@@ -416,12 +428,11 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
         MaterialPageRoute(
           builder: (context) => SongInfoPage(
             songId: songId.toString(),
-            initialLevelIndex: levelIndex,
-            isDefaultLevelIndex: false,
+            initialLevelIndex:
+                ChartDifficulty.parseStandardIndex(m['level_index']),
           ),
         ),
       ),
     );
   }
-
 }

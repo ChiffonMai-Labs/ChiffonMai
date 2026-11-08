@@ -138,7 +138,7 @@
     android:includeFontPadding="false"
     android:textSize="14sp"
     android:textColor="@color/widget_ink"
-    android:text="暂时未知"
+    android:text="@string/native_text_58"
     android:fontFamily="@font/outfit_medium"
      />
 
@@ -180,7 +180,7 @@
     android:includeFontPadding="false"
     android:textSize="12sp"
     android:textColor="@color/widget_ink"
-    android:text="自动同步"
+    android:text="@string/native_text_72"
     android:fontFamily="@font/outfit_medium"
      />
 
@@ -341,7 +341,7 @@
     android:background="@drawable/widget_btn_primary"
     android:fontFamily="@font/outfit_medium"
     android:gravity="center"
-    android:text="立即同步"
+    android:text="@string/native_text_73"
     android:textColor="@color/widget_on_primary"
     android:textSize="13sp" />
 
@@ -354,7 +354,7 @@
     android:background="@drawable/widget_inset_bg"
     android:fontFamily="@font/outfit_medium"
     android:gravity="center"
-    android:text="识别成绩"
+    android:text="@string/native_text_74"
     android:textColor="@color/widget_ink"
     android:textSize="13sp" />
 
@@ -367,7 +367,7 @@
     android:background="@drawable/widget_inset_bg"
     android:fontFamily="@font/outfit_medium"
     android:gravity="center"
-    android:text="随身听"
+    android:text="@string/native_text_68"
     android:textColor="@color/widget_ink"
     android:textSize="13sp" />
 

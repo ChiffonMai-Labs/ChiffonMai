@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'TrophyTitleBadge.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -12,7 +14,7 @@ import 'LxnsAssetImage.dart';
 import 'PlayerExperienceStrip.dart';
 import 'SmoothLinearProgressIndicator.dart';
 
-/// 玩家行的点击入口。匿名行不请求、不打开信息面板。
+/// 玩家行的点击入口。匿名行不请求接口，只提示不展示简要信息。
 class RankingPlayerRow extends StatelessWidget {
   final String playerId;
   final String? nickname;
@@ -31,22 +33,69 @@ class RankingPlayerRow extends StatelessWidget {
     return Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: enabled
-              ? () {
-                  FocusManager.instance.primaryFocus?.unfocus();
-                  showModalBottomSheet<void>(
-                      context: context,
-                      isScrollControlled: true,
-                      showDragHandle: true,
-                      useSafeArea: true,
-                      constraints: const BoxConstraints(maxWidth: 560),
-                      builder: (_) =>
-                          RankingPlayerBriefSheet(playerId: playerId));
-                }
-              : null,
+          onTap: () {
+            FocusManager.instance.primaryFocus?.unfocus();
+            showModalBottomSheet<void>(
+                context: context,
+                isScrollControlled: true,
+                showDragHandle: true,
+                useSafeArea: true,
+                constraints: const BoxConstraints(maxWidth: 560),
+                builder: (_) => enabled
+                    ? RankingPlayerBriefSheet(playerId: playerId)
+                    : const _AnonymousPlayerSheet());
+          },
           child: child,
         ));
   }
+}
+
+class _AnonymousPlayerSheet extends StatelessWidget {
+  const _AnonymousPlayerSheet();
+
+  @override
+  Widget build(BuildContext context) => _BriefNoticeFrame(children: [
+        _BriefNotice(
+            icon: Icons.lock_outline_rounded,
+            message:
+                context.l10n.flowBriefProfilesAreHiddenForAnonymousPlayers),
+      ]);
+}
+
+/// 简要信息还没有内容时的抽屉：加载中、读取失败、玩家关闭展示、匿名用户。
+class _BriefNoticeFrame extends StatelessWidget {
+  final List<Widget> children;
+  const _BriefNoticeFrame({required this.children});
+
+  @override
+  Widget build(BuildContext context) => Padding(
+      padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Row(children: [
+          Expanded(
+              child: Text(context.l10n.flowPlayerBriefProfile,
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
+          IconButton(
+              tooltip: context.l10n.featureClose,
+              onPressed: () => Navigator.pop(context),
+              icon: const Icon(Icons.close))
+        ]),
+        ...children,
+      ]));
+}
+
+class _BriefNotice extends StatelessWidget {
+  final IconData icon;
+  final String message;
+  const _BriefNotice({required this.icon, required this.message});
+
+  @override
+  Widget build(BuildContext context) =>
+      Column(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 40, color: Theme.of(context).colorScheme.primary),
+        const SizedBox(height: 16),
+        Text(message, textAlign: TextAlign.center),
+      ]);
 }
 
 class RankingPlayerBriefSheet extends StatefulWidget {
@@ -72,7 +121,8 @@ class _RankingPlayerBriefSheetState extends State<RankingPlayerBriefSheet> {
         timeout: const Duration(seconds: 15));
     final body = jsonDecode(response.body) as Map;
     if (response.statusCode != 200 || body['success'] != true) {
-      throw _BriefError(body['error']?.toString() ?? '暂时无法读取简要信息',
+      throw _BriefError(
+          body['error']?.toString() ?? appL10n.flowBriefProfileUnavailable,
           private: body['code'] == 'PROFILE_PRIVATE');
     }
     return Map<String, dynamic>.from(body['data'] as Map);
@@ -92,44 +142,27 @@ class _RankingPlayerBriefSheetState extends State<RankingPlayerBriefSheet> {
                     child: RankingPlayerBriefContent(data: snapshot.data!));
               final error = snapshot.error;
               final closed = error is _BriefError && error.private;
-              return Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
-                  child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    Row(children: [
-                      const Expanded(
-                          child: Text('玩家简要信息',
-                              style: TextStyle(
-                                  fontSize: 18, fontWeight: FontWeight.bold))),
-                      IconButton(
-                          tooltip: '关闭',
-                          onPressed: () => Navigator.pop(context),
-                          icon: const Icon(Icons.close))
-                    ]),
-                    if (!snapshot.hasError) ...[
-                      const SizedBox(height: 20),
-                      const SmoothLinearProgressIndicator(),
-                      const Padding(
-                          padding: EdgeInsets.all(20),
-                          child: Text('正在读取简要信息…')),
-                    ] else ...[
-                      Icon(
-                          closed
-                              ? Icons.lock_outline_rounded
-                              : Icons.cloud_off_rounded,
-                          size: 40,
-                          color: Theme.of(context).colorScheme.primary),
-                      const SizedBox(height: 16),
-                      Text(
-                          error is _BriefError
-                              ? error.message
-                              : '暂时无法读取简要信息，请稍后重试',
-                          textAlign: TextAlign.center),
-                      if (!closed)
-                        TextButton(
-                            onPressed: () => setState(() => _request = _load()),
-                            child: const Text('重新加载')),
-                    ],
-                  ]));
+              return _BriefNoticeFrame(children: [
+                if (!snapshot.hasError) ...[
+                  const SizedBox(height: 20),
+                  const SmoothLinearProgressIndicator(),
+                  Padding(
+                      padding: EdgeInsets.all(20),
+                      child: Text(context.l10n.flowLoadingBriefProfile)),
+                ] else ...[
+                  _BriefNotice(
+                      icon: closed
+                          ? Icons.lock_outline_rounded
+                          : Icons.cloud_off_rounded,
+                      message: error is _BriefError
+                          ? error.message
+                          : context.l10n.flowCouldNotLoadTheBriefProfileTry),
+                  if (!closed)
+                    TextButton(
+                        onPressed: () => setState(() => _request = _load()),
+                        child: Text(context.l10n.flowReload)),
+                ],
+              ]);
             }),
       );
 }
@@ -166,24 +199,27 @@ class RankingPlayerBriefContent extends StatelessWidget {
       Padding(
           padding: const EdgeInsets.fromLTRB(20, 0, 8, 8),
           child: Row(children: [
-            const Expanded(
-                child: Text('玩家简要信息',
+            Expanded(
+                child: Text(context.l10n.flowPlayerBriefProfile,
                     style:
                         TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
             IconButton(
-                tooltip: '关闭',
+                tooltip: context.l10n.featureClose,
                 onPressed: () => Navigator.maybePop(context),
                 icon: const Icon(Icons.close)),
           ])),
       SizedBox(
           height: 104,
           child: frameId == null
-              ? missing('未设置背景', Icons.landscape_outlined)
+              ? missing(
+                  context.l10n.flowNoBackgroundSet, Icons.landscape_outlined)
               : LxnsAssetImage(
                   url: lxnsFrameUrl(frameId),
                   fit: BoxFit.cover,
-                  placeholder: missing('背景加载中', Icons.landscape_outlined),
-                  errorWidget: missing('背景暂不可用', Icons.landscape_outlined))),
+                  placeholder: missing(context.l10n.flowLoadingBackground,
+                      Icons.landscape_outlined),
+                  errorWidget: missing(context.l10n.flowBackgroundUnavailable,
+                      Icons.landscape_outlined))),
       Padding(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
           child:
@@ -196,7 +232,9 @@ class RankingPlayerBriefContent extends StatelessWidget {
                   child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                    Text(data['nickname']?.toString() ?? '未知玩家',
+                    Text(
+                        data['nickname']?.toString() ??
+                            context.l10n.flowUnknownPlayer,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
@@ -214,22 +252,26 @@ class RankingPlayerBriefContent extends StatelessWidget {
                 child: SizedBox(
                     height: 54,
                     child: plateId == null
-                        ? missing('未设置姓名框', Icons.badge_outlined)
+                        ? missing(context.l10n.flowNoNameplateSet,
+                            Icons.badge_outlined)
                         : LxnsAssetImage(
                             url: lxnsPlateUrl(plateId),
                             fit: BoxFit.contain,
-                            placeholder:
-                                missing('姓名框加载中', Icons.badge_outlined),
-                            errorWidget:
-                                missing('姓名框暂不可用', Icons.badge_outlined)))),
+                            placeholder: missing(
+                                context.l10n.flowLoadingNameplate,
+                                Icons.badge_outlined),
+                            errorWidget: missing(
+                                context.l10n.flowNameplateUnavailable,
+                                Icons.badge_outlined)))),
             const SizedBox(height: 12),
             if (trophy != null)
               TrophyTitleBadge(
-                  name: trophy['name']?.toString() ?? '称号 #${trophy['id']}',
+                  name: trophy['name']?.toString() ??
+                      context.l10n.flowTitleP0((trophy['id']).toString()),
                   color: trophy['color'] as String?,
                   trophyId: trophy['id'] as int?)
             else
-              Text('未设置称号',
+              Text(context.l10n.flowNoTitleSet,
                   style:
                       TextStyle(color: scheme.onSurfaceVariant, fontSize: 13)),
             const SizedBox(height: 18),
@@ -270,7 +312,7 @@ class RankingPlayerBriefContent extends StatelessWidget {
             _b1(context, 'Best35 · B1', data['best35B1']),
             const Divider(height: 1),
             _b1(context, 'Best15 · B1', data['best15B1']),
-            Text('B1 为对应 Best 列表中单曲 Rating 最高的谱面。',
+            Text(context.l10n.flowB1IsTheChartWithTheHighest,
                 style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 11)),
           ])),
     ]);
@@ -288,7 +330,8 @@ class RankingPlayerBriefContent extends StatelessWidget {
                   color: scheme.primary)),
           const SizedBox(height: 8),
           if (value is! Map)
-            Text('暂无成绩', style: TextStyle(color: scheme.onSurfaceVariant))
+            Text(context.l10n.flowNoScoresYet,
+                style: TextStyle(color: scheme.onSurfaceVariant))
           else
             Row(children: [
               ClipRRect(
@@ -300,7 +343,9 @@ class RankingPlayerBriefContent extends StatelessWidget {
                   child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                    Text(value['title']?.toString() ?? '未知歌曲',
+                    Text(
+                        value['title']?.toString() ??
+                            context.l10n.flowUnknownSong,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(

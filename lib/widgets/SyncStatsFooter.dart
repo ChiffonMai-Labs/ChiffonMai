@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 
 import '../service/SyncStatsService.dart';
@@ -34,9 +35,12 @@ class SyncStatsFooter extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        for (final (label, line) in [('普通', slot.$1), ('快速', SyncLine.quick)])
+        for (final (label, line) in [
+          (context.l10n.flowNormal, slot.$1),
+          (context.l10n.flowQuick, SyncLine.quick)
+        ])
           AnimatedReveal(
-            key: ValueKey(label),
+            key: ValueKey((slot.$2, line)),
             visible: line != SyncLine.quick || slot.$1 != SyncLine.scoreHub,
             child: SyncStatsView.summaryLine(
               context,
@@ -45,7 +49,8 @@ class SyncStatsFooter extends StatelessWidget {
               loading: notifier.statsLoading,
               // 长按/悬停看数据新鲜度（那行字本身必须够短，塞不下）。
               tooltip: notifier.statsRefreshFailed
-                  ? '${notifier.statsAgeText} · 上次刷新失败，显示的是旧数据'
+                  ? context.l10n.flowP0LastRefreshFailedShowingOlderData(
+                      (notifier.statsAgeText).toString())
                   : notifier.statsAgeText,
               onTap: () => SyncStatsView.showDetail(context),
             ),

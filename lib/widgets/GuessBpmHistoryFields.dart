@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import '../manager/MaidataManager.dart';
 import '../utils/ChartBpmInfo.dart';
@@ -113,23 +114,23 @@ class _GuessBpmHistoryFieldsState extends State<GuessBpmHistoryFields> {
               padding: EdgeInsets.zero,
               child: Row(children: [
                 field(
-                    '是否变 BPM',
+                    context.l10n.flowBPMChanges,
                     loading
-                        ? '加载中…'
+                        ? context.l10n.flowLoading2
                         : info == null
-                            ? '未提供'
+                            ? context.l10n.flowNotProvided
                             : info.hasChanges
-                                ? '是'
-                                : '否',
+                                ? context.l10n.flowYes
+                                : context.l10n.flowNo2,
                     hasChangesColor),
                 const SizedBox(width: 8),
                 field(
-                    'BPM 变化次数',
+                    context.l10n.flowBPMChangeCount,
                     loading
                         ? '…'
                         : info == null
                             ? '—'
-                            : '${info.changeCount} 次',
+                            : context.l10n.flowP0Times((info.changeCount).toString()),
                     countColor,
                     arrow: arrow),
               ]));

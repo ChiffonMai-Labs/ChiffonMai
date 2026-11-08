@@ -1,3 +1,5 @@
+import '../l10n/LocalizationsExtension.dart';
+import '../l10n/FeatureLocalizations.dart';
 import 'package:flutter/material.dart';
 import 'HubComponents.dart';
 import '../utils/FavoriteFeaturesNotifier.dart';
@@ -52,11 +54,11 @@ class _AttendanceHubPageState extends State<AttendanceHubPage> {
       if (await ExternalLaunchUtil.open(uri)) {
         return;
       } else if (context.mounted) {
-        AppToast.show('无法打开链接：$fallbackHint');
+        AppToast.show(context.l10n.hubLinkUnavailable(context.featureText(fallbackHint)), tone: AppToastTone.error);
       }
     } catch (e) {
       if (context.mounted) {
-        AppToast.show('打开失败：$e');
+        AppToast.show(context.l10n.hubOpenFailed(e.toString()), tone: AppToastTone.error);
       }
     }
   }
@@ -158,6 +160,7 @@ class _AttendanceHubPageState extends State<AttendanceHubPage> {
             ),
           };
 
+          // 分类键固定，只有展示文案随语言切换。
           final sections = FeatureRegistry.sections['出勤']!;
           return HubPageScaffold(
             title: widget.title,

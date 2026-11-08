@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -51,19 +52,23 @@ class _AccountRegistrationGuideDialogState
   Future<void> _copyCommand(String command) async {
     await Clipboard.setData(ClipboardData(text: command));
     if (!mounted) return;
-    AppToast.show('已复制：$command');
+    AppToast.show(context.l10n.flowCopiedP0((command).toString()),
+        tone: AppToastTone.success);
   }
 
   Future<void> _copyBotQq() async {
     await Clipboard.setData(const ClipboardData(text: AppLinks.awmcBotNumber));
     if (!mounted) return;
-    AppToast.show('已复制 AWMC BOT QQ 号：${AppLinks.awmcBotNumber}');
+    AppToast.show(
+        context.l10n
+            .flowAWMCBOTQQIDCopiedP0((AppLinks.awmcBotNumber).toString()),
+        tone: AppToastTone.success);
   }
 
   Widget _copyButton(String command) => OutlinedButton.icon(
         onPressed: () => _copyCommand(command),
         icon: const Icon(Icons.copy_outlined, size: 16),
-        label: Text('复制 $command'),
+        label: Text(context.l10n.flowCopyP0((command).toString())),
       );
 
   Widget _buildDivingFish() => Column(
@@ -71,39 +76,39 @@ class _AccountRegistrationGuideDialogState
         children: [
           _GuideStep(
             index: 1,
-            body: const GuideLinkText(
-              before: '访问 ',
+            body: GuideLinkText(
+              before: context.l10n.flowVisit2,
               label: AppLinks.divingFishRegistrationUrl,
               url: AppLinks.divingFishRegistrationUrl,
-              after: '，点击右侧“快捷操作”区域的“注册”。',
+              after: context.l10n.flowThenChooseRegisterUnderQuickActionsOn,
             ),
             image: const _GuideImage(
                 'assets/guide/divingfish-homepage.webp', 1400 / 752),
             action: FilledButton.tonalIcon(
               onPressed: () => _openSite(AppLinks.divingFishRegistrationUrl),
               icon: const Icon(Icons.open_in_new, size: 16),
-              label: const Text('打开水鱼查分器'),
+              label: Text(context.l10n.flowOpenDivingFish),
             ),
           ),
-          const _GuideStep(
+          _GuideStep(
             index: 2,
-            body: Text('随页面引导填写信息，即可注册水鱼账号。'),
+            body: Text(context.l10n.flowFollowThePageInstructionsToRegisterA),
             image: _GuideImage(
                 'assets/guide/divingfish-register.webp', 1400 / 752),
           ),
-          const _GuideStep(
+          _GuideStep(
             index: 3,
             isLast: true,
             body: _GuideDetails(
-              intro: '登录后点页面右上角的“编辑个人资料”，按下面的说明设置：',
+              intro: context.l10n.flowAfterSigningInOpenEditProfileAt,
               items: [
-                '成绩导入 Token：必须轮换！点 Token 右边的刷新图标即可，否则无法在 App 内登录。',
-                '绑定 QQ 号：必须填写。如果有小号，尽量不要和小号重复。',
-                '昵称：建议填写。不填的话，App 内会默认以“shuiyu:QQ 号”的形式保存。',
-                '绑定频道 ID 和段位：没有特别要求。',
-                '“禁止公开接口使用我的成绩”：必须关闭。',
-                '“对非网页查询的成绩使用掩码”：建议关闭，开启掩码会影响排行榜排名。',
-                '全部改好后，记得点“保存”。',
+                context.l10n.flowScoreImportTokenRotateItUsingThe,
+                context.l10n.flowLinkedQQRequiredAvoidUsingTheSame,
+                context.l10n.flowNicknameRecommendedWithoutOneTheAppSaves,
+                context.l10n.flowChannelIDAndRankNoSpecificRequirements,
+                context.l10n.flowDisablePreventPublicAPIsFromUsingMy,
+                context.l10n.flowDisableMaskingScoresForNonWebQueries,
+                context.l10n.flowRememberToSaveAfterMakingChanges,
               ],
             ),
             image: _GuideImage(
@@ -117,34 +122,34 @@ class _AccountRegistrationGuideDialogState
         children: [
           _GuideStep(
             index: 1,
-            body: const GuideLinkText(
-              before: '访问 ',
+            body: GuideLinkText(
+              before: context.l10n.flowVisit2,
               label: AppLinks.luoXueRegistrationUrl,
               url: AppLinks.luoXueRegistrationUrl,
-              after: '，点击左侧边栏的“新用户注册”或页面中间处的“注册 maimai DX 查分器账号”。',
+              after: context.l10n.flowThenChooseNewUserRegistrationInThe,
             ),
             image: const _GuideImage(
                 'assets/guide/lxns-homepage.webp', 1400 / 752),
             action: FilledButton.tonalIcon(
               onPressed: () => _openSite(AppLinks.luoXueRegistrationUrl),
               icon: const Icon(Icons.open_in_new, size: 16),
-              label: const Text('打开落雪咖啡屋'),
+              label: Text(context.l10n.flowOpenLXNS),
             ),
           ),
-          const _GuideStep(
+          _GuideStep(
             index: 2,
-            body: Text('随页面引导填写信息，即可注册落雪咖啡屋账号。'),
+            body: Text(context.l10n.flowFollowThePageInstructionsToRegisterAn),
             image: _GuideImage('assets/guide/lxns-register.webp', 1400 / 752),
           ),
-          const _GuideStep(
+          _GuideStep(
             index: 3,
             isLast: true,
             body: _GuideDetails(
-              intro: '登录后在侧边栏点“账号详情”，再点页面上方的“第三方应用”：',
+              intro: context.l10n.flowAfterSigningInOpenAccountDetailsIn,
               items: [
-                'OAuth 授权：在 App 的“我的 → 数据刷新 → 刷新数据 / 刷新数据（高级）”对话框里把数据源切换到落雪，按引导完成授权。授权后，这里的 OAuth 应用列表会出现 ChiffonMai。',
-                '个人 API 密钥：点“重置 API 密钥”，然后到 App 的“我的 → 账号管理”，下滑找到“落雪 API 密钥”并填入。',
-                '也欢迎支持一下中二查歌，在“首页游玩 → 出勤”的轮播图里可以跳转过去。',
+                context.l10n.flowOAuthInMeRefreshDataChooseLXNS,
+                context.l10n.flowPersonalAPIKeyResetItThenPaste,
+                context.l10n.flowYouCanAlsoVisitChiffonChuFromThe,
               ],
             ),
             image: _GuideImage('assets/guide/lxns-settings.webp', 1400 / 752),
@@ -156,70 +161,70 @@ class _AccountRegistrationGuideDialogState
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           GuideLinkText(
-            before: '私聊 ',
+            before: context.l10n.flowMessage,
             label: AppLinks.awmcBotName,
             onTap: _copyBotQq,
-            after: '，或在有机器人的群中，依次完成以下步骤：',
+            after: context.l10n.flowPrivatelyOrFollowTheseStepsInA,
           ),
           const SizedBox(height: 12),
           _GuideStep(
             index: 1,
-            body: const Text('先发送 mymai。尚未建立账号记录时，机器人会回复操作步骤。'),
+            body: Text(context.l10n.flowSendMymaiFirstIfNoAccountRecord),
             image:
                 const _GuideImage('assets/guide/awmcbot-mymai.webp', 620 / 282),
             action: _copyButton('mymai'),
           ),
           _GuideStep(
             index: 2,
-            body: const Text('再发送 mai绑定，按提示创建档案。'),
+            body: Text(context.l10n.flowThenSendMaiAndFollowTheInstructions),
             image: const _GuideImage(
                 'assets/guide/awmcbot-maibind.webp', 624 / 298),
             action: _copyButton('mai绑定'),
           ),
-          const _GuideStep(
+          _GuideStep(
             index: 3,
-            body: Text('按提示发送 SGWCMAID 字符串或舞萌二维码，等机器人回复上传完成就好了。'),
+            body: Text(context.l10n.flowSendTheSGWCMAIDStringOrMaimaiQR),
             image: _GuideImage('assets/guide/awmcbot-qrcode.webp', 620 / 578),
           ),
           _GuideStep(
             index: 4,
             isLast: true,
-            body: const _GuideDetails(
+            body: _GuideDetails(
               introWidget: GuideLinkText(
-                before: '访问 ',
+                before: context.l10n.flowVisit2,
                 label: AppLinks.awmcNetSettingsUrl,
                 url: AppLinks.awmcNetSettingsUrl,
-                after: '，按下面的说明设置：',
+                after: context.l10n.flowAndConfigureTheseSettings,
               ),
               items: [
-                '“公开我的成绩”：必须开启，否则无法获取成绩。',
-                'Import-Token：点“重新生成”轮换，然后到 App 的“我的 → 账号与授权 → 账号管理”，在对话框里下滑到“AWMC 成绩导入 Token”并填入。',
-                '注意：已有 Token 时，轮换会覆盖之前的 Token。轮换后请在 App 内手动更新，否则无法同步成绩。',
+                context.l10n.flowEnableMakeMyScoresPublicOrScores,
+                context.l10n.flowImportTokenRegenerateItThenPasteIt,
+                context.l10n.flowRotatingATokenReplacesTheOldOne,
               ],
             ),
-            image:
-                const _GuideImage('assets/guide/awmcnet-settings.webp', 1400 / 752),
+            image: const _GuideImage(
+                'assets/guide/awmcnet-settings.webp', 1400 / 752),
             action: FilledButton.tonalIcon(
               onPressed: () => _openSite(AppLinks.awmcNetUrl),
               icon: const Icon(Icons.open_in_new, size: 16),
-              label: const Text('打开 AWMC NET'),
+              label: Text(context.l10n.flowOpenAWMCNET),
             ),
           ),
           const SizedBox(height: 4),
-          const GuideLinkText(
-            before: '加入 ',
+          GuideLinkText(
+            before: context.l10n.flowJoin,
             label: AppLinks.awmcGroupOneName,
             url: AppLinks.awmcGroupOneJoinUrl,
             fallbackText: AppLinks.awmcGroupOneNumber,
-            fallbackMessage: '无法打开 QQ，已复制 AWMC 交流 1 群的群号，请在 QQ 中搜索加入',
+            fallbackMessage: context.l10n.flowCouldNotOpenQQAWMCGroup1,
           ),
           const SizedBox(height: 6),
-          const GuideLinkText(
-            before: '加入 ',
+          GuideLinkText(
+            before: context.l10n.flowJoin,
             label: AppLinks.awmcGroupTwoName,
             url: AppLinks.awmcGroupTwoJoinUrl,
             fallbackText: AppLinks.awmcGroupTwoNumber,
-            fallbackMessage: '无法打开 QQ，已复制 AWMC 交流 2 群的群号，请在 QQ 中搜索加入',
+            fallbackMessage: context.l10n.flowCouldNotOpenQQAWMCGroup2,
           ),
         ],
       );
@@ -229,8 +234,8 @@ class _AccountRegistrationGuideDialogState
     final motion =
         AppDesignTokens.motion(context, AppDesignTokens.mediumMotion);
     return AppAlertDialog(
-      title: const Text('账号注册引导'),
-      subtitle: '点开图片可以放大查看哦',
+      title: Text(context.l10n.featureAccountSetupGuide),
+      subtitle: context.l10n.flowTapAnImageToEnlargeIt,
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -239,10 +244,10 @@ class _AccountRegistrationGuideDialogState
             height: 42,
             selectedIndex: _tab,
             onChanged: _selectTab,
-            items: const [
-              SegmentedTabItem('水鱼'),
-              SegmentedTabItem('落雪'),
-              SegmentedTabItem('AWMC NET'),
+            items: [
+              SegmentedTabItem(context.l10n.featureFish),
+              SegmentedTabItem(context.l10n.featureLxns),
+              const SegmentedTabItem('AWMC NET'),
             ],
           ),
           const SizedBox(height: 14),
@@ -271,7 +276,7 @@ class _AccountRegistrationGuideDialogState
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('知道了'),
+          child: Text(context.l10n.featureGotIt),
         ),
       ],
     );
@@ -408,7 +413,7 @@ class _GuideImage extends StatelessWidget {
     final radius = BorderRadius.circular(AppDesignTokens.radiusSmall);
     return Semantics(
       button: true,
-      label: '放大查看图片',
+      label: context.l10n.flowEnlargeImage,
       child: PressScale(
         child: GestureDetector(
           onTap: () => _showGuideImageViewer(context, asset),
@@ -455,7 +460,7 @@ Future<void> _showGuideImageViewer(BuildContext context, String asset) {
   return showGeneralDialog<void>(
     context: context,
     barrierDismissible: true,
-    barrierLabel: '关闭图片',
+    barrierLabel: context.l10n.flowCloseImage,
     barrierColor: Colors.black.withValues(alpha: 0.88),
     transitionDuration:
         AppDesignTokens.motion(context, const Duration(milliseconds: 200)),
@@ -477,7 +482,7 @@ Future<void> _showGuideImageViewer(BuildContext context, String asset) {
             top: topInset + 8,
             right: 12,
             child: IconButton.filledTonal(
-              tooltip: '关闭',
+              tooltip: context.l10n.featureClose,
               onPressed: () => Navigator.of(context).pop(),
               icon: const Icon(Icons.close_rounded),
             ),

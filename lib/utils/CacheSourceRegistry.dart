@@ -1,3 +1,4 @@
+import '../l10n/AppMessages.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../api/ApiUrls.dart';
 import '../constant/CacheKeyConstant.dart';
@@ -204,20 +205,20 @@ class CacheSourceRegistry {
 ///   - 在 TTL 内                           → "剩余 X 天 Y 小时"（按粒度截断到天/小时/分钟）
 ///   - 已过期                              → "已过期 X 天 Y 小时"
 Future<String> formatRemainingValidity(CacheSourceInfo source) async {
-  if (source.ttlDays == -1) return '永不过期';
+  if (source.ttlDays == -1) return appL10n.flowCacheNeverExpires;
   final prefs = await SharedPreferences.getInstance();
   final ts = prefs.getInt(source.timestampKey);
   if (ts == null) {
     final hasCache = prefs.getString(source.cacheKey) != null;
-    return hasCache ? '无缓存时间戳' : '无缓存';
+    return hasCache ? appL10n.flowCacheNoTimestamp : appL10n.flowCacheAbsent;
   }
   final now = DateTime.now().millisecondsSinceEpoch;
   final ttlMs = source.ttlDays * 24 * 60 * 60 * 1000;
   final remainingMs = ts + ttlMs - now;
   if (remainingMs <= 0) {
-    return '已过期 ${_formatDurationShort(-remainingMs)}';
+    return appL10n.flowCacheExpired(_formatDurationShort(-remainingMs));
   }
-  return '剩余 ${_formatDurationShort(remainingMs)}';
+  return appL10n.flowCacheRemaining(_formatDurationShort(remainingMs));
 }
 
 String _formatDurationShort(int ms) {
@@ -225,10 +226,14 @@ String _formatDurationShort(int ms) {
   final hours = (ms % (24 * 60 * 60 * 1000)) ~/ (60 * 60 * 1000);
   final minutes = (ms % (60 * 60 * 1000)) ~/ (60 * 1000);
   if (days > 0) {
-    return hours > 0 ? '$days 天 $hours 小时' : '$days 天';
+    return hours > 0
+        ? appL10n.flowCacheDaysHours(days.toString(), hours.toString())
+        : appL10n.flowCacheDays(days.toString());
   }
   if (hours > 0) {
-    return minutes > 0 ? '$hours 小时 $minutes 分钟' : '$hours 小时';
+    return minutes > 0
+        ? appL10n.flowCacheHoursMinutes(hours.toString(), minutes.toString())
+        : appL10n.flowCacheHours(hours.toString());
   }
-  return '$minutes 分钟';
+  return appL10n.flowCacheMinutes(minutes.toString());
 }

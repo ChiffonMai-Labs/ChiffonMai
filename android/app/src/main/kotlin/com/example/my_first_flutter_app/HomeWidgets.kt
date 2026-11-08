@@ -117,7 +117,7 @@ object HomeWidgetStore {
         }
     }
 
-    private fun timeLabel(ms: Long): String {
+    private fun timeLabel(context: Context, ms: Long): String {
         val time = Calendar.getInstance().apply { timeInMillis = ms }
         val now = Calendar.getInstance()
         val clock = "%02d:%02d".format(
@@ -127,9 +127,9 @@ object HomeWidgetStore {
         val sameDay = time.get(Calendar.YEAR) == now.get(Calendar.YEAR) &&
             time.get(Calendar.DAY_OF_YEAR) == now.get(Calendar.DAY_OF_YEAR)
         return if (sameDay) {
-            "今天 $clock"
+            NativeL10n.text(context, "今天 $clock")
         } else {
-            "${time.get(Calendar.MONTH) + 1}月${time.get(Calendar.DAY_OF_MONTH)}日 $clock"
+            NativeL10n.text(context, "${time.get(Calendar.MONTH) + 1}月${time.get(Calendar.DAY_OF_MONTH)}日 $clock")
         }
     }
 
@@ -199,6 +199,14 @@ object HomeWidgetStore {
     private fun build(context: Context, layout: Int, options: Bundle): RemoteViews {
         val store = prefs(context)
         val views = RemoteViews(context.packageName, layout)
+        val labels = when (layout) {
+            R.layout.home_widget_large -> listOf(R.id.w_server to R.string.native_text_58, R.id.w_sync_title to R.string.native_text_72, R.id.w_btn_sync to R.string.native_text_73, R.id.w_btn_ocr to R.string.native_text_74, R.id.w_btn_player to R.string.native_text_68)
+            R.layout.home_widget_medium -> listOf(R.id.w_label_w_server_dot to R.string.native_text_75, R.id.w_server to R.string.native_text_58, R.id.w_server_detail to R.string.native_text_61, R.id.w_label_w_sync_dot to R.string.native_text_72, R.id.w_sync to R.string.native_text_58, R.id.w_sync_detail to R.string.native_text_61)
+            R.layout.home_widget_rating -> listOf(R.id.w_rating_note to R.string.native_text_59)
+            R.layout.home_widget_status -> listOf(R.id.w_label_w_server_dot to R.string.native_text_75, R.id.w_server to R.string.native_text_58, R.id.w_server_detail to R.string.native_text_61, R.id.w_label_w_sync_dot to R.string.native_text_72, R.id.w_sync to R.string.native_text_58, R.id.w_sync_detail to R.string.native_text_61)
+            else -> emptyList()
+        }
+        for ((view, text) in labels) views.setTextViewText(view, NativeL10n.localizedContext(context).getString(text))
 
         views.setTextViewText(R.id.w_nickname, store.getString("nickname", "ChiffonMai"))
         val avatar = loadAvatar(store.getString("avatar_path", null))
@@ -224,20 +232,20 @@ object HomeWidgetStore {
         val ratingMs = store.getLong("rating_ms", 0)
         views.setTextViewText(
             R.id.w_rating_note,
-            if (hasRating && ratingMs > 0) "${timeLabel(ratingMs)} 更新" else "打开 App 刷新数据"
+            NativeL10n.text(context, if (hasRating && ratingMs > 0) "${timeLabel(context, ratingMs)} 更新" else "打开 App 刷新数据")
         )
 
-        views.setTextViewText(R.id.w_server, store.getString("server", "暂时未知"))
+        views.setTextViewText(R.id.w_server, NativeL10n.text(context, store.getString("server", "暂时未知").orEmpty()))
         views.setTextViewText(
             R.id.w_server_detail,
-            store.getString("server_detail", "联网后自动更新")
+            NativeL10n.text(context, store.getString("server_detail", "联网后自动更新").orEmpty())
         )
         setDot(context, views, R.id.w_server_dot, store.getString("server_tone", null))
 
         val syncMs = store.getLong("sync_ms", 0)
-        val syncTime = if (syncMs > 0) timeLabel(syncMs) else ""
-        val syncDetail = store.getString("sync_detail", "打开 App 更新").orEmpty()
-        views.setTextViewText(R.id.w_sync, store.getString("sync", "暂时未知"))
+        val syncTime = if (syncMs > 0) timeLabel(context, syncMs) else ""
+        val syncDetail = NativeL10n.text(context, store.getString("sync_detail", "打开 App 更新").orEmpty())
+        views.setTextViewText(R.id.w_sync, NativeL10n.text(context, store.getString("sync", "暂时未知").orEmpty()))
         views.setTextViewText(
             R.id.w_sync_detail,
             listOf(syncDetail, syncTime).filter { it.isNotEmpty() }.joinToString(" · ")
@@ -255,8 +263,8 @@ object HomeWidgetStore {
         )
         for ((index, row) in rows.withIndex()) {
             val n = index + 1
-            views.setTextViewText(row.first, store.getString("src${n}_name", "-"))
-            views.setTextViewText(row.second, store.getString("src${n}_value", "-"))
+            views.setTextViewText(row.first, NativeL10n.text(context, store.getString("src${n}_name", "-").orEmpty()))
+            views.setTextViewText(row.second, NativeL10n.text(context, store.getString("src${n}_value", "-").orEmpty()))
             setDot(context, views, row.third, store.getString("src${n}_tone", null))
         }
 

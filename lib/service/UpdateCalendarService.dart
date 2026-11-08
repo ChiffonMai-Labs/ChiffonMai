@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'dart:convert';
 
 import '../api/ApiUrls.dart';
@@ -92,11 +93,11 @@ Future<List<CalendarDelivery>> fetchCalendarDeliveries() async {
   final response = await ApiClient.get(Uri.parse(ApiUrls.UpdateCalendarUrl),
       timeout: const Duration(seconds: 5));
   if (response.statusCode != 200) {
-    throw StateError('配信数据读取失败 (${response.statusCode})');
+    throw StateError(appL10n.svcCouldNotLoadReleaseDataP0(response.statusCode.toString()));
   }
   final body = await decodeJsonInBackground(utf8.decode(response.bodyBytes));
   if (body is! Map || body['success'] != true || body['waves'] is! List) {
-    throw const FormatException('无效的配信数据');
+    throw FormatException(appL10n.svcInvalidReleaseData);
   }
   return (body['waves'] as List)
       .map((item) => CalendarDelivery.fromJson(item as Map<String, dynamic>))

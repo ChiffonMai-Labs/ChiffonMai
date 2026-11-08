@@ -29,7 +29,7 @@ class ConnectivityService {
 
   /// 需要网络连接的功能名称集合
   static const Set<String> onlineRequiredFeatures = {
-    '刷新数据',
+    '拉取成绩并更新数据',
     '同步成绩',
     '登录水鱼',
     '登出账号',

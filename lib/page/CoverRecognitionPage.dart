@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
@@ -73,12 +74,14 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
       );
       if (mounted) {
         setState(() => _isPrecomputing = false);
-        AppToast.show('曲绘索引建立完成！共处理 $_precomputeTotal 张曲绘');
+        AppToast.show(context.l10n.flowCoverIndexReadyProcessedP0Covers(
+            (_precomputeTotal).toString()));
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isPrecomputing = false);
-        AppToast.show('索引建立失败: $e');
+        AppToast.show(context.l10n.flowCouldNotBuildIndexP0((e).toString()),
+            tone: AppToastTone.error);
       }
     }
   }
@@ -92,13 +95,13 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('选择图片来源',
+            Text(context.l10n.flowChooseImageSource,
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
             ListTile(
               leading: const Icon(Icons.camera_alt, size: 28),
-              title: const Text('拍照'),
-              subtitle: const Text('使用相机拍摄曲绘'),
+              title: Text(context.l10n.flowTakePhoto),
+              subtitle: Text(context.l10n.flowPhotographCoverArt),
               onTap: () {
                 Navigator.pop(ctx);
                 _pickImage(ImageSource.camera);
@@ -106,8 +109,9 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
             ),
             ListTile(
               leading: const Icon(Icons.photo_library, size: 28),
-              title: const Text('从相册选择'),
-              subtitle: const Text('从相册中选取曲绘截图'),
+              title: Text(context.l10n.chooseFromGallery),
+              subtitle:
+                  Text(context.l10n.flowChooseACoverScreenshotFromYourGallery),
               onTap: () {
                 Navigator.pop(ctx);
                 _pickImage(ImageSource.gallery);
@@ -125,7 +129,7 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
       final status = await Permission.camera.request();
       if (!status.isGranted) {
         if (mounted) {
-          AppToast.show('需要相机权限');
+          AppToast.show(context.l10n.flowCameraPermissionRequired);
           openAppSettings();
         }
         return;
@@ -159,7 +163,8 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
         }
       }
     } catch (e) {
-      AppToast.show('选取图片失败: $e');
+      AppToast.show(context.l10n.flowCouldNotSelectImageP0((e).toString()),
+          tone: AppToastTone.error);
     }
   }
 
@@ -173,11 +178,14 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
           _result = result;
           _isRecognizing = false;
         });
-        if (result == null) AppToast.show('识别失败，请重试');
+        if (result == null)
+          AppToast.show(context.l10n.flowRecognitionFailedTryAgain,
+              tone: AppToastTone.error);
       }
     } catch (e) {
       if (mounted) setState(() => _isRecognizing = false);
-      AppToast.show('识别出错: $e');
+      AppToast.show(context.l10n.flowRecognitionErrorP0((e).toString()),
+          tone: AppToastTone.error);
     }
   }
 
@@ -190,15 +198,15 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AppAlertDialog(
-        title: const Text('重建曲绘索引'),
-        content: const Text('将清除现有索引并重新为全部曲绘计算哈希。这可能需要数十秒，确定继续吗？'),
+        title: Text(context.l10n.flowRebuildCoverIndex),
+        content: Text(context.l10n.flowThisClearsTheIndexAndRecalculatesHashes),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('取消')),
+              child: Text(context.l10n.featureCancel)),
           ElevatedButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('确定重建')),
+              child: Text(context.l10n.flowRebuild)),
         ],
       ),
     );
@@ -213,9 +221,10 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
     final sw = MediaQuery.of(context).size.width;
     final c = Theme.of(context).colorScheme.onSurface;
     return BackgroundPageScaffold(
-      title: '曲绘识别',
+      title: context.l10n.featureCoverRecognition,
       resizeToAvoidBottomInset: false,
-      contentPadding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom + 10),
+      contentPadding:
+          EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom + 10),
       child: _buildContent(sw, c),
     );
   }
@@ -228,7 +237,8 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
           child: Column(mainAxisSize: MainAxisSize.min, children: [
         const CircularProgressIndicator(),
         const SizedBox(height: 16),
-        Text('正在加载...', style: TextStyle(color: c, fontSize: sw * 0.04)),
+        Text(context.l10n.flowLoading3,
+            style: TextStyle(color: c, fontSize: sw * 0.04)),
       ]));
     }
     return SingleChildScrollView(
@@ -271,14 +281,16 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
             children: [
               Icon(Icons.image_search, size: 44, color: scheme.primary),
               const SizedBox(height: 14),
-              Text('正在建立曲绘索引...',
+              Text(context.l10n.flowBuildingCoverIndex,
                   textAlign: TextAlign.center,
                   style: TextStyle(
                       color: scheme.onSurface,
                       fontSize: 17,
                       fontWeight: FontWeight.w800)),
               const SizedBox(height: 4),
-              Text('为 $_precomputeTotal 张曲绘计算特征',
+              Text(
+                  context.l10n.flowComputingFeaturesForP0Covers(
+                      (_precomputeTotal).toString()),
                   textAlign: TextAlign.center,
                   style:
                       TextStyle(color: scheme.onSurfaceVariant, fontSize: 13)),
@@ -297,7 +309,7 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
                       fontWeight: FontWeight.w700,
                       color: scheme.onSurface)),
               const SizedBox(height: 4),
-              Text('仅首次需要，请耐心等待',
+              Text(context.l10n.flowNeededOnlyOncePleaseWait,
                   textAlign: TextAlign.center,
                   style:
                       TextStyle(color: scheme.onSurfaceVariant, fontSize: 11)),
@@ -308,11 +320,15 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
     );
   }
 
-  Widget _buildPhotoGuide(double sw, Color c) => const RecognitionGuideCard(
+  Widget _buildPhotoGuide(double sw, Color c) => RecognitionGuideCard(
         icon: Icons.image_search,
-        title: '拍摄或选择一张曲绘图片',
-        description: '选取后可手动框选曲绘区域，提高识别准确率',
-        steps: ['拍照或从相册选择图片', '框选图片里的曲绘区域', '开始识别，查看最接近的曲目'],
+        title: context.l10n.flowTakeOrChooseACoverImage,
+        description: context.l10n.flowCropTheCoverRegionAfterSelectingFor,
+        steps: [
+          context.l10n.flowTakeAPhotoOrChooseAnImage,
+          context.l10n.flowCropTheCoverArtInTheImage,
+          context.l10n.flowRecognizeAndViewTheClosestSongs
+        ],
       );
 
   Widget _buildPhotoPreview(double sw, Color c) {
@@ -337,10 +353,9 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.check_circle_outline,
-                  size: 16, color: scheme.primary),
+              Icon(Icons.check_circle_outline, size: 16, color: scheme.primary),
               const SizedBox(width: 6),
-              Text('图片已就绪',
+              Text(context.l10n.flowImageReady,
                   style:
                       TextStyle(color: scheme.onSurfaceVariant, fontSize: 13)),
             ],
@@ -393,7 +408,7 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
                     color: AppColors.errorRed(brightness), size: 20),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text('匹配度过低，可能不是曲绘照片，请重新框选裁剪区域后再试',
+                  child: Text(context.l10n.flowMatchConfidenceIsTooLowThisMay,
                       style: TextStyle(
                           color: AppColors.errorRed(brightness), fontSize: 12)),
                 ),
@@ -406,7 +421,7 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
               // 左侧：用户输入图片
               _buildSideImage(
                 size: imageSize,
-                label: '输入图片',
+                label: context.l10n.flowInputImage,
                 image: _photoPath != null
                     ? Image.file(
                         File(_photoPath!),
@@ -432,7 +447,7 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
               // —— 表现就是「识别结果里的曲绘不显示」。统一走 CoverUtil 的多级兜底。
               _buildSideImage(
                 size: imageSize,
-                label: '匹配曲绘',
+                label: context.l10n.flowMatchedCover,
                 image: CoverUtil.buildCoverWidget(songId, imageSize),
                 borderColor: mc,
               ),
@@ -460,16 +475,19 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
                   style: AppTheme.number(
                       fontSize: 28, fontWeight: FontWeight.w800, color: mc)),
               const SizedBox(width: 8),
-              Text(lowConf ? '综合匹配（不可靠）' : '综合匹配',
+              Text(
+                  lowConf
+                      ? context.l10n.flowCombinedMatchUnreliable
+                      : context.l10n.flowCombinedMatch,
                   style:
                       TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
             ],
           ),
           const SizedBox(height: 10),
           // 纹理相似度 + 颜色相似度 分解
-          _buildSimRow('纹理', hashSim),
+          _buildSimRow(context.l10n.flowTexture, hashSim),
           const SizedBox(height: 6),
-          _buildSimRow('颜色', colorSim),
+          _buildSimRow(context.l10n.flowColor, colorSim),
         ],
       ),
     );
@@ -571,8 +589,8 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
     return AppCard(
       padding: EdgeInsets.zero,
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        const AppSectionHeader(
-          title: '识别结果 Top 10',
+        AppSectionHeader(
+          title: context.l10n.flowTop10Matches,
           padding: EdgeInsets.fromLTRB(14, 14, 14, 8),
         ),
         ...validMatches.asMap().entries.map((e) {
@@ -617,7 +635,9 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       MarqueeText(
-                        text: title.isNotEmpty ? title : '歌曲 #$sid',
+                        text: title.isNotEmpty
+                            ? title
+                            : context.l10n.flowSongP0((sid).toString()),
                         style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
@@ -654,7 +674,7 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
       content = FilledButton.icon(
         onPressed: _showSourcePicker,
         icon: const Icon(Icons.add_a_photo),
-        label: const Text('选择图片'),
+        label: Text(context.l10n.flowChooseImage),
       );
     } else if (_result == null) {
       content = Column(
@@ -669,7 +689,9 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.search),
-            label: Text(_isRecognizing ? '识别中...' : '开始识别'),
+            label: Text(_isRecognizing
+                ? context.l10n.flowRecognizing
+                : context.l10n.flowStartRecognition),
           ),
           const SizedBox(height: 8),
           Row(
@@ -690,7 +712,7 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
                       });
                   },
                   icon: const Icon(Icons.crop),
-                  label: const Text('重新裁剪'),
+                  label: Text(context.l10n.flowCropAgain),
                 ),
               ),
               const SizedBox(width: 8),
@@ -698,7 +720,7 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
                 child: FilledButton.tonalIcon(
                   onPressed: _reset,
                   icon: const Icon(Icons.refresh),
-                  label: const Text('重选'),
+                  label: Text(context.l10n.flowChooseAgain),
                 ),
               ),
             ],
@@ -712,7 +734,7 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
             child: FilledButton.icon(
               onPressed: _reset,
               icon: const Icon(Icons.refresh),
-              label: const Text('重新识别'),
+              label: Text(context.l10n.flowRecognizeAgain),
             ),
           ),
           const SizedBox(width: 8),
@@ -720,7 +742,7 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
             child: FilledButton.tonalIcon(
               onPressed: _showSourcePicker,
               icon: const Icon(Icons.add_a_photo),
-              label: const Text('再选一张'),
+              label: Text(context.l10n.flowChooseAnother),
             ),
           ),
         ],
@@ -741,7 +763,10 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
                     ? AppColors.successGreen(brightness)
                     : AppColors.warningOrange(brightness)),
             const SizedBox(width: 4),
-            Text(ok ? '曲绘索引就绪' : '索引未建立',
+            Text(
+                ok
+                    ? context.l10n.flowCoverIndexReady
+                    : context.l10n.flowIndexNotBuilt,
                 style: TextStyle(
                     fontSize: 11,
                     color: ok
@@ -751,7 +776,7 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
               const SizedBox(width: 8),
               GestureDetector(
                 onTap: _rebuildIndex,
-                child: Text('重建索引',
+                child: Text(context.l10n.flowRebuildIndex,
                     style: TextStyle(
                         fontSize: 11,
                         color: c.withValues(alpha: 0.6),
@@ -825,7 +850,8 @@ class _ImageCropPageState extends State<_ImageCropPage> {
       debugPrint('曲绘裁剪页加载图片失败: $e');
       if (!mounted) return;
       setState(() => _loading = false);
-      AppToast.show('图片无法读取，请换一张图片重试');
+      AppToast.show(context.l10n.flowCannotReadThisImageTryAnother,
+          tone: AppToastTone.error);
       Navigator.of(context).pop();
     }
   }
@@ -1036,7 +1062,8 @@ class _ImageCropPageState extends State<_ImageCropPage> {
         height: crop.height / _imageRect.height,
       );
       if (encoded == null) {
-        AppToast.show('裁剪失败，将使用原图继续');
+        AppToast.show(context.l10n.flowCropFailedContinuingWithTheOriginalImage,
+            tone: AppToastTone.error);
         return widget.imagePath;
       }
       final outPath =
@@ -1045,7 +1072,8 @@ class _ImageCropPageState extends State<_ImageCropPage> {
       return outPath;
     } catch (e) {
       debugPrint('裁剪出错: $e');
-      AppToast.show('裁剪失败，将使用原图继续');
+      AppToast.show(context.l10n.flowCropFailedContinuingWithTheOriginalImage,
+          tone: AppToastTone.error);
       return widget.imagePath;
     }
   }
@@ -1073,10 +1101,11 @@ class _ImageCropPageState extends State<_ImageCropPage> {
               TextButton.icon(
                 onPressed: () => Navigator.pop(context),
                 icon: const Icon(Icons.close, color: Colors.white, size: 20),
-                label: const Text('取消', style: TextStyle(color: Colors.white)),
+                label: Text(context.l10n.featureCancel,
+                    style: TextStyle(color: Colors.white)),
               ),
               const Spacer(),
-              const Text('拖动角点框选曲绘区域',
+              Text(context.l10n.flowDragTheCornersToSelectCoverArt,
                   style: TextStyle(color: Colors.white70, fontSize: 14)),
               const Spacer(),
               TextButton.icon(
@@ -1092,7 +1121,10 @@ class _ImageCropPageState extends State<_ImageCropPage> {
                   }
                 },
                 icon: const Icon(Icons.check, color: Colors.green, size: 20),
-                label: Text(_cropping ? '处理中...' : '确认',
+                label: Text(
+                    _cropping
+                        ? context.l10n.flowProcessing
+                        : context.l10n.flowConfirm,
                     style: const TextStyle(
                         color: Colors.green, fontWeight: FontWeight.bold)),
               ),
@@ -1152,7 +1184,7 @@ class _ImageCropPageState extends State<_ImageCropPage> {
             color: Colors.black87,
             alignment: Alignment.center,
             child: Text(
-              '拖拽四角调整范围  |  拖拽框内移动位置',
+              context.l10n.flowDragCornersToResizeDragInsideTo,
               style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.6), fontSize: 13),
             ),

@@ -10,11 +10,42 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:my_first_flutter_app/constant/CacheKeyConstant.dart';
 import 'package:my_first_flutter_app/service/GuessChartGame/GuessChartCommonSettingsService.dart';
+import 'package:my_first_flutter_app/utils/GuessPixelation.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   final service = GuessChartCommonSettingsService();
+
+  test('像素破坏程度默认 50%，独立保存、兼容其他模式写入并可重置', () async {
+    SharedPreferences.setMockInitialValues({});
+    expect((await service.loadSettings())['pixelationLevel'], 50);
+    await service.saveSettings(selectedVersions: [], masterMinDx: 1, masterMaxDx: 15,
+        selectedGenres: [], maxGuesses: 10, timeLimit: 0, pixelationLevel: 85);
+    await service.saveSettings(selectedVersions: [], masterMinDx: 1, masterMaxDx: 15,
+        selectedGenres: [], maxGuesses: 10, timeLimit: 0, blurLevel: 30);
+    final loaded = await service.loadSettings();
+    expect(loaded['pixelationLevel'], 85);
+    expect(loaded['blurLevel'], 30);
+    await service.resetToDefault();
+    expect((await service.loadSettings())['pixelationLevel'], 50);
+    expect(service.validateSettings({'pixelationLevel': -1}), isFalse);
+    expect(service.validateSettings({'pixelationLevel': 101}), isFalse);
+    expect(service.validateSettings({'pixelationLevel': 0}), isTrue);
+    expect(service.validateSettings({'pixelationLevel': 100}), isTrue);
+  });
+
+  test('马赛克采样网格随破坏程度单调减小，50% 保持原来的 16×16', () {
+    expect(GuessPixelation.pixelsForLevel(50), 16);
+    expect(GuessPixelation.pixelsForLevel(100), 1);
+    expect(GuessPixelation.normalize(null), 50);
+    expect(GuessPixelation.normalize(-1), 0);
+    expect(GuessPixelation.normalize(101), 100);
+    for (var level = 1; level <= 100; level++) {
+      expect(GuessPixelation.pixelsForLevel(level),
+          lessThanOrEqualTo(GuessPixelation.pixelsForLevel(level - 1)));
+    }
+  });
 
   group('播放时长持久化（回归：原先重启即丢）', () {
     test('saveSettings 写入后能 loadSettings 读回', () async {
@@ -106,6 +137,7 @@ void main() {
         maxGuesses: 1,
         timeLimit: 1,
         blurLevel: 1,
+        pixelationLevel: 1,
         songCount: 1,
         nonEnglishCharThreshold: 1,
         flashDurationMs: 100,

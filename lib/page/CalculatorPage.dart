@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
@@ -238,7 +239,7 @@ class _CalculatorPageState extends State<CalculatorPage> {
     final colors = AppColors.difficultyBadge(
         widget.difficultyIndex, Theme.of(context).brightness);
     return BackgroundPageScaffold(
-      title: '计算工具',
+      title: context.l10n.featureCalculators2,
       // 防止键盘弹起时挤压背景导致卡顿
       resizeToAvoidBottomInset: false,
       contentPadding:
@@ -298,7 +299,7 @@ class _CalculatorPageState extends State<CalculatorPage> {
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
-                                  '定数 ${widget.ds.toStringAsFixed(1)}',
+                                  context.l10n.flowConstantP0((widget.ds.toStringAsFixed(1)).toString()),
                                   style: AppTheme.number(
                                     fontSize: 12.5,
                                     fontWeight: FontWeight.w600,
@@ -315,9 +316,9 @@ class _CalculatorPageState extends State<CalculatorPage> {
                 ),
                 const SizedBox(height: AppDesignTokens.cardGap),
                 SegmentedTabs(
-                  items: const [
-                    SegmentedTabItem('分数线 / 绝赞分布'),
-                    SegmentedTabItem('Rating 线'),
+                  items:  [
+                    SegmentedTabItem(context.l10n.flowScoreTargetsBREAKDistribution),
+                    SegmentedTabItem(context.l10n.flowRatingTargets),
                   ],
                   selectedIndex: _tab,
                   onChanged: (index) => setState(() => _tab = index),
@@ -443,13 +444,13 @@ class _RatingLineTabState extends State<_RatingLineTab> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildSectionTitle('计算模式', screenWidth, brightness),
+              _buildSectionTitle(context.l10n.flowCalculationMode, screenWidth, brightness),
               const SizedBox(height: 8),
               PillTabs(
-                items: const [
-                  SegmentedTabItem('按定数'),
-                  SegmentedTabItem('按达成率'),
-                  SegmentedTabItem('按 Rating'),
+                items:  [
+                  SegmentedTabItem(context.l10n.flowByConstant),
+                  SegmentedTabItem(context.l10n.flowByAchievement),
+                  SegmentedTabItem(context.l10n.flowByRating),
                 ],
                 selectedIndex: _mode,
                 onChanged: (mode) {
@@ -491,7 +492,7 @@ class _RatingLineTabState extends State<_RatingLineTab> {
                   // mode 2：误差输入
                   if (_mode == 2) ...[
                     const SizedBox(width: 8),
-                    const Text('误差 +'),
+                     Text(context.l10n.flowError3),
                     const SizedBox(width: 8),
                     SizedBox(
                       width: screenWidth * 0.22,
@@ -501,8 +502,8 @@ class _RatingLineTabState extends State<_RatingLineTab> {
                         inputFormatters: [
                           FilteringTextInputFormatter.digitsOnly,
                         ],
-                        decoration: const InputDecoration(
-                          hintText: '如 5',
+                        decoration:  InputDecoration(
+                          hintText: context.l10n.flowEG5,
                           isDense: true,
                         ),
                         textAlign: TextAlign.center,
@@ -525,7 +526,7 @@ class _RatingLineTabState extends State<_RatingLineTab> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildSectionTitle('计算结果', screenWidth, brightness),
+              _buildSectionTitle(context.l10n.flowResult2, screenWidth, brightness),
               const SizedBox(height: 8),
               _buildResultTable(screenWidth),
             ],
@@ -539,22 +540,22 @@ class _RatingLineTabState extends State<_RatingLineTab> {
   String _inputLabel() {
     switch (_mode) {
       case 0:
-        return '定数';
+        return context.l10n.flowConstant;
       case 1:
-        return '达成率';
+        return context.l10n.flowAchievement2;
       default:
-        return '目标Rating';
+        return context.l10n.flowTargetRating2;
     }
   }
 
   String _inputHint() {
     switch (_mode) {
       case 0:
-        return '如 14.3';
+        return context.l10n.flowEG143;
       case 1:
-        return '如 100.5667';
+        return context.l10n.flowEG1005667;
       default:
-        return '如 321';
+        return context.l10n.flowEG321;
     }
   }
 
@@ -665,7 +666,7 @@ class _RatingLineTabState extends State<_RatingLineTab> {
     if (rows.isEmpty) {
       return Padding(
         padding: const EdgeInsets.all(16),
-        child: Text('没有符合条件的结果',
+        child: Text(context.l10n.flowNoMatchingResults,
             style: TextStyle(color: AppColors.secondaryText(brightness))),
       );
     }
@@ -701,12 +702,12 @@ class _RatingLineTabState extends State<_RatingLineTab> {
         TableRow(
           decoration: const BoxDecoration(color: Color(0x1A808080)),
           children: [
-            _cell('定数', screenWidth, brightness, bold: true),
+            _cell(context.l10n.flowConstant, screenWidth, brightness, bold: true),
             // 达成率表头：可点击切换正/倒序
             InkWell(
               onTap: () =>
                   setState(() => _sortDescending = !_sortDescending),
-              child: _cell('达成率$arrow', screenWidth, brightness, bold: true),
+              child: _cell(context.l10n.flowAchievementP02((arrow).toString()), screenWidth, brightness, bold: true),
             ),
             _cell('Rating', screenWidth, brightness, bold: true),
           ],
@@ -811,7 +812,7 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildSectionTitle('物量分布（可编辑）', screenWidth, brightness),
+              _buildSectionTitle(context.l10n.flowNoteDistributionEditable, screenWidth, brightness),
               const SizedBox(height: 8),
               Row(
                 children: [
@@ -858,7 +859,7 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildSectionTitle('得分 / 失分详细', screenWidth, brightness),
+              _buildSectionTitle(context.l10n.flowScoreLossDetails, screenWidth, brightness),
               const SizedBox(height: 8),
               PillTabs(
                 items: const [
@@ -896,7 +897,7 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
 
         // ---- 绝赞分布：与「达成率反推」同一套输入和结果 ----
         AchievementReversePanel(
-          title: '绝赞分布计算',
+          title: context.l10n.flowBREAKDistributionCalculator,
           initialCounts: widget.noteCounts,
           initialRate: widget.userAchievement?.toStringAsFixed(4) ?? '101.0000',
         ),
@@ -1374,7 +1375,7 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
         Row(
           children: [
             Expanded(
-              child: _buildSectionTitle('目标达成率', screenWidth, brightness),
+              child: _buildSectionTitle(context.l10n.flowTargetAchievement, screenWidth, brightness),
             ),
             _buildTargetStatusBadge(screenWidth, brightness),
           ],
@@ -1429,7 +1430,7 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  '个 TAP GREAT 的容错',
+                  context.l10n.flowTAPGREATAllowance,
                   style: TextStyle(fontSize: 12, color: scheme.primary),
                 ),
               ),
@@ -1450,7 +1451,7 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
         ? AppColors.successForeground(brightness)
         : AppColors.warningOrange(brightness);
     return AppBadge(
-      text: isUserData ? '用户数据' : '自定义',
+      text: isUserData ? context.l10n.flowUserData : context.l10n.featureCreate,
       background: color.withValues(alpha: 0.14),
       foreground: color,
       fontSize: 11,
@@ -1501,7 +1502,7 @@ class _ScoreLineTabState extends State<_ScoreLineTab> {
                 ),
               ),
               Text(
-                '${equivalent.toStringAsFixed(3)} 个 TAP GREAT',
+                context.l10n.flowP0TAPGREATs((equivalent.toStringAsFixed(3)).toString()),
                 style: AppTheme.number(
                   fontSize: 12.5,
                   fontWeight: FontWeight.w600,

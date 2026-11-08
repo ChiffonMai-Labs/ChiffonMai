@@ -4,7 +4,6 @@ part of '../SongInfoPage.dart';
 ///
 /// 2026-11 从 SongInfoPage.dart 原样拆出（方法体未改，仅 setState → _update）。
 extension _SongInfoLoaders on _SongInfoPageState {
-
   /// 游玩次数缓存（AWMC 网关 `/v1/user/music` 拉到的 playCount）。
   ///
   /// 缓存是懒加载的：这里读一次 prefs，读到就重建页面把「游玩次数」显示出来；
@@ -63,9 +62,8 @@ extension _SongInfoLoaders on _SongInfoPageState {
 
   void _toggleSongDrawer() {
     if (!_songScrollController.hasClients) return;
-    _animateSongDrawer(_songScrollController.offset > 0.5
-        ? 0
-        : _songDrawerOpenOffset);
+    _animateSongDrawer(
+        _songScrollController.offset > 0.5 ? 0 : _songDrawerOpenOffset);
   }
 
   /// 松手时抽屉停在半路就吸附到收起或拉开；拉开之后是正常的内容滚动。
@@ -96,7 +94,8 @@ extension _SongInfoLoaders on _SongInfoPageState {
     if (_songSwitching) return;
     _update(() => _songSwitching = true);
     try {
-      _preloadedSong = await SongInfoService().loadData(songId);
+      _preloadedSong = await SongInfoService()
+          .loadData(songId, includeSupplementaryData: false);
     } catch (error) {
       debugPrint('预读另一种谱面失败: $error');
       _preloadedSong = null;
@@ -127,6 +126,7 @@ extension _SongInfoLoaders on _SongInfoPageState {
     _alternativeSongId = previousSongId;
     _maidataNoteCounts = {};
     _maidataBreakCounts = {};
+    _maidataProtectionStats = {};
     _maidataBpmByDiffIndex = {};
     _maidataBpmChangesByDiffIndex = {};
     _maidataDecodedSuccessfully = false;
@@ -145,6 +145,9 @@ extension _SongInfoLoaders on _SongInfoPageState {
     _chartUserScore = null;
     _chartUserRatingData = null;
     _chartRatingDistribution = null;
+    _chartRatingRequest++;
+    _chartRatingLoading = false;
+    _chartRatingError = null;
     _best50OpportunityText = null;
     _best50OpportunityGain = null;
     _best50OpportunityTiers = const [];
@@ -163,66 +166,40 @@ extension _SongInfoLoaders on _SongInfoPageState {
   void _startSongLoaders() {
     runZoned(() {
       _loadData();
-      _loadDxData();
-      _loadAwmcPlayCounts();
     }, zoneValues: {_songLoadZoneKey: _songGeneration});
   }
 
   // 加载所有数据
   Future<void> _loadData() async {
+    final stopwatch = Stopwatch()..start();
     try {
+      final applyDefault =
+          widget.isDefaultLevelIndex && !_defaultDifficultyApplied;
+      // 偏好读取与本地歌曲、成绩同时准备，显示页面前再应用最终难度。
+      final preferenceLoad =
+          applyDefault ? SongDetailPreferences.instance.load() : null;
       // 使用SongInfoService加载数据
       final preloaded = _preloadedSong;
       _preloadedSong = null;
-      final result =
-          preloaded ?? await SongInfoService().loadData(widget.songId);
+      final result = preloaded ??
+          await SongInfoService()
+              .loadData(widget.songId, includeSupplementaryData: false);
+      if (preferenceLoad != null) await preferenceLoad;
       if (!mounted || _isStaleSongLoad) return;
+      if (applyDefault) {
+        _currentDiffIndex = SongDetailPreferences.instance.difficulty;
+        _defaultDifficultyApplied = true;
+      }
       _applySongResult(result);
 
-      // 单曲缺失时后台补齐，网络请求不阻塞详情页；解析完成后即时刷新统计。
-      unawaited(_loadMaidataNoteCounts());
-
-      // 加载相关收藏品数量
-      if (_songData != null) {
-        final songTitle = _songData!['basic_info']['title'];
-        final songType = _songData!['type'] ?? '';
-        await _loadRelatedCollectionsCount(songTitle, songType);
-
-        // 检测是否存在另一种谱面
-        await _checkAlternativeSong(songTitle, songType);
-      }
-
-      if (!mounted) return;
-
-      // 加载参考时长
-      _loadReferenceDuration();
-
-      // 加载B站谱面确认播放量
-      _loadBiliPlayCount();
-
-      // 加载评论者身份信息
-      final identity = await SongInfoService.getCommentIdentity();
-      if (!mounted) return;
-      if (identity != null) {
-        _update(() {
-          _commentDataSource = identity.dataSource;
-          _commentOriginalId = identity.originalId;
-          _commentNickname = identity.nickname;
-        });
-      }
-
-      // 加载评论
-      _loadComments();
-
-      // 加载 union uni 元数据（cn/jp 可游玩地区）
-      _loadUniInfo();
-      _loadCnReleaseDate();
-
-      // 加载谱面评分数据
-      _loadChartRating();
-
-      // 预加载用户总Rating和理论Rating
-      _preloadRatingData();
+      // 在加载评分、视频和成绩前确定有效难度；宴谱不套用普通谱面的四档偏好。
+      final levels = _songData?['level'];
+      if (applyDefault &&
+          ChartDifficulty.isUtageSong(widget.songId,
+              type: _songData?['type']?.toString())) _currentDiffIndex = 0;
+      _currentDiffIndex = levels is List && levels.isNotEmpty
+          ? _currentDiffIndex.clamp(0, levels.length - 1).toInt()
+          : 0;
     } catch (e) {
       debugPrint('加载数据失败: $e');
     } finally {
@@ -231,13 +208,7 @@ extension _SongInfoLoaders on _SongInfoPageState {
       if (_songData != null) {
         final levels = _songData!['level'];
         if (levels != null && levels is List) {
-          // 对于难度数量大于等于4个的歌曲，默认选择第4个难度（仅当使用默认值时）
-          if (levels.length >= 4 &&
-              widget.isDefaultLevelIndex &&
-              widget.initialLevelIndex == 0 &&
-              _currentDiffIndex == 0) {
-            _currentDiffIndex = 3; // 第4个难度（索引为3）
-          } else if (_currentDiffIndex >= levels.length) {
+          if (_currentDiffIndex >= levels.length) {
             _currentDiffIndex = levels.length - 1;
           }
           // 确保索引不为负数
@@ -257,23 +228,71 @@ extension _SongInfoLoaders on _SongInfoPageState {
         }
       }
 
-      // 如果 _currentDiffIndex 在 finally 中被调整了，重新加载 B站播放量
-      if (_currentDiffIndex != (_biliLoadedDiffIndex ?? -1)) {
-        _update(() {
-          _isLoading = false;
-        });
-        _loadBiliPlayCount();
-      } else {
-        _update(() {
-          _isLoading = false;
+      _update(() => _isLoading = false);
+      debugPrint('[SongInfo] core-ready: ${stopwatch.elapsedMilliseconds}ms');
+      if (_songData != null) {
+        final generation = _songGeneration;
+        // 先呈现歌曲和正确的默认难度，再启动可能联网的附加信息加载。
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted || generation != _songGeneration) return;
+          runZoned(() {
+            unawaited(_loadSecondaryData());
+          }, zoneValues: {_songLoadZoneKey: generation});
         });
       }
-      // 检查当前谱面是否已被收藏
-      _checkBookmarkStatus();
-      // 检查当前谱面是否有笔记
-      _checkNoteStatus();
-      _loadBest50Opportunity();
     }
+  }
+
+  Future<void> _loadSecondaryData() async {
+    unawaited(_loadChartMetadata());
+    unawaited(_loadDxData());
+    unawaited(_loadAwmcPlayCounts());
+    unawaited(_loadMaidataNoteCounts());
+    unawaited(_loadReferenceDuration());
+    final songTitle = _songData!['basic_info']['title'];
+    final songType = _songData!['type'] ?? '';
+    unawaited(_loadRelatedCollectionsCount(songTitle, songType));
+    unawaited(_checkAlternativeSong(songTitle, songType));
+    _loadBiliPlayCount();
+    _loadUniInfo();
+    _loadCnReleaseDate();
+    _loadChartRating();
+    _preloadRatingData();
+    _checkBookmarkStatus();
+    _checkNoteStatus();
+    _loadBest50Opportunity();
+    try {
+      final identity = await SongInfoService.getCommentIdentity();
+      if (!mounted || _isStaleSongLoad) return;
+      if (identity != null) {
+        _update(() {
+          _commentDataSource = identity.dataSource;
+          _commentOriginalId = identity.originalId;
+          _commentNickname = identity.nickname;
+        });
+      }
+      _loadComments();
+    } catch (error) {
+      debugPrint('加载评论身份失败: $error');
+    }
+  }
+
+  Future<void> _loadChartMetadata() async {
+    final stopwatch = Stopwatch()..start();
+    final result =
+        await SongInfoService().loadSupplementaryData(widget.songId);
+    if (!mounted || _isStaleSongLoad) return;
+    _update(() {
+      _diffData = result['diffData'];
+      // 双难度谱面沿用第一份分布数据，与首屏加载时的处理保持一致。
+      if ((_songData?['level'] as List?)?.length == 2 &&
+          _diffData != null && _diffData!.isNotEmpty) {
+        _diffData = [_diffData![0], _diffData![0]];
+      }
+      _tagData = result['tagData'];
+      _tagSongsData = result['tagSongsData'];
+    });
+    debugPrint('[SongInfo] chart-metadata: ${stopwatch.elapsedMilliseconds}ms');
   }
 
   /// 判断当前谱面在理论上能否挤进对应的 Best35 / Best15。
@@ -301,7 +320,7 @@ extension _SongInfoLoaders on _SongInfoPageState {
         song?['basic_info']?['genre']?.toString() == '宴会场' ||
         song?['genre']?.toString() == '宴会场';
     if (isUtage) {
-      publish('宴会场歌曲不参与Best50');
+      publish(appL10n.flowUTAGESongsAreExcludedFromBest50);
       return;
     }
     final user = _userData;
@@ -333,7 +352,7 @@ extension _SongInfoLoaders on _SongInfoPageState {
       return;
     }
     if (sourceSong.basicInfo.genre == '宴会场') {
-      publish('宴会场歌曲不参与Best50');
+      publish(appL10n.flowUTAGESongsAreExcludedFromBest50);
       return;
     }
     final isNew = sourceSong.basicInfo.isNew;
@@ -369,7 +388,8 @@ extension _SongInfoLoaders on _SongInfoPageState {
     final alreadyInBest = current != null && currentRa >= cutoff;
     final maxRa = _calculateSingleRating(ds, 100.5);
     if (alreadyInBest && maxRa <= currentRa) {
-      publish('该谱面已在${bestLabel}区间内且无提升空间');
+      publish(
+          appL10n.flowThisChartIsAlreadyWithinP0With((bestLabel).toString()));
       return;
     }
     final targetAchievement = _findMinimumAchievementForRating(
@@ -378,7 +398,9 @@ extension _SongInfoLoaders on _SongInfoPageState {
       currentAchievement,
     );
     if (targetAchievement == null) {
-      publish(alreadyInBest ? '该谱面已在${bestLabel}区间内且无提升空间' : '该谱面无法进入$bestLabel');
+      publish(alreadyInBest
+          ? appL10n.flowThisChartIsAlreadyWithinP0With((bestLabel).toString())
+          : appL10n.flowThisChartCannotEnterP0((bestLabel).toString()));
       return;
     }
     final targetRa = _calculateSingleRating(ds, targetAchievement);
@@ -386,14 +408,20 @@ extension _SongInfoLoaders on _SongInfoPageState {
     final baseline = alreadyInBest ? currentRa : cutoff;
     final increase = targetRa - baseline;
     publish(
-      '推到 ${targetAchievement.toStringAsFixed(4)}% 可${alreadyInBest ? '提升' : '进入'} $bestLabel',
+      appL10n.flowReachP0ToP1P2(
+          (targetAchievement.toStringAsFixed(4)).toString(),
+          (alreadyInBest ? appL10n.flowImprovement : appL10n.flowEnter)
+              .toString(),
+          (bestLabel).toString()),
       increase < 0 ? 0 : increase,
       increase > 0
           ? _buildOpportunityTiers(ds, targetAchievement, baseline)
           : const [],
       alreadyInBest
-          ? '这张谱面当前 RA $currentRa，推到下面的达成率时 $bestLabel 总分能加：'
-          : '这张谱面还不在 $bestLabel，末位是 RA $cutoff。推到下面的达成率替换末位后，总分能加：',
+          ? appL10n.flowThisChartHasRAP0ReachingThe(
+              (currentRa).toString(), (bestLabel).toString())
+          : appL10n.flowThisChartIsNotInP0The(
+              (bestLabel).toString(), (cutoff).toString()),
     );
   }
 
@@ -578,6 +606,7 @@ extension _SongInfoLoaders on _SongInfoPageState {
   // 加载相关收藏品数量
   Future<void> _loadRelatedCollectionsCount(
       String songTitle, String songType) async {
+    final stopwatch = Stopwatch()..start();
     try {
       final relatedCollections =
           await SongInfoService().fetchRelatedCollections(songTitle, songType);
@@ -589,6 +618,9 @@ extension _SongInfoLoaders on _SongInfoPageState {
       _update(() {
         _relatedCollectionsCount = 0;
       });
+    } finally {
+      debugPrint('[SongInfo] related-collections: '
+          '${stopwatch.elapsedMilliseconds}ms');
     }
   }
 
@@ -598,8 +630,9 @@ extension _SongInfoLoaders on _SongInfoPageState {
     try {
       // 获取所有歌曲数据
       final songs = await MaimaiMusicDataManager().getCachedSongs();
+      if (!mounted || _isStaleSongLoad) return;
       if (songs == null || songs.isEmpty) {
-        _alternativeSongId = null;
+        _update(() => _alternativeSongId = null);
         return;
       }
 
@@ -633,14 +666,13 @@ extension _SongInfoLoaders on _SongInfoPageState {
       );
 
       // 如果找到另一种谱面，设置其ID
-      if (alternativeSong.id.isNotEmpty) {
-        _alternativeSongId = alternativeSong.id;
-      } else {
-        _alternativeSongId = null;
-      }
+      _update(() {
+        _alternativeSongId =
+            alternativeSong.id.isNotEmpty ? alternativeSong.id : null;
+      });
     } catch (e) {
       debugPrint('检测另一种谱面时出错: $e');
-      _alternativeSongId = null;
+      _update(() => _alternativeSongId = null);
     }
   }
 
@@ -678,6 +710,7 @@ extension _SongInfoLoaders on _SongInfoPageState {
 
         Map<int, List<int>> newNoteCounts = {};
         Map<int, List<int>> newBreakCounts = {};
+        final newProtectionStats = <int, NoteStats>{};
         Map<int, String> newBpmByDiffIndex = {};
         final newBpmChanges = <int, List<double>>{};
         for (ChartData chart in maidata.charts) {
@@ -716,6 +749,7 @@ extension _SongInfoLoaders on _SongInfoPageState {
 
           if (index >= 0 && index <= 5 && chart.stats != null) {
             NoteStats stats = chart.stats!;
+            newProtectionStats[index] = stats;
             newNoteCounts[index] = [
               stats.tap,
               stats.hold,
@@ -725,6 +759,7 @@ extension _SongInfoLoaders on _SongInfoPageState {
             ];
             // 特殊处理6位数ID的UTAGE歌曲：只有一个难度(index=0)，但maidata中是index=5
             if (widget.songId.length == 6 && index == 5) {
+              newProtectionStats[0] = stats;
               newNoteCounts[0] = [
                 stats.tap,
                 stats.hold,
@@ -761,6 +796,7 @@ extension _SongInfoLoaders on _SongInfoPageState {
           _update(() {
             _maidataNoteCounts = newNoteCounts;
             _maidataBreakCounts = newBreakCounts;
+            _maidataProtectionStats = newProtectionStats;
             _maidataBpmByDiffIndex = newBpmByDiffIndex;
             _maidataBpmChangesByDiffIndex = newBpmChanges;
             _maidataDecodedSuccessfully = true;
@@ -814,7 +850,7 @@ extension _SongInfoLoaders on _SongInfoPageState {
   String _exportBpm(dynamic basicInfo) {
     final defaultBpm = _defaultBpm(basicInfo);
     return _hasBpmChanges
-        ? '$_bpmRangeLabel：${_displayBpm(basicInfo)}\n$_defaultBpmLabel：$defaultBpm'
+        ? '${context.featureText(_bpmRangeLabel)}: ${_displayBpm(basicInfo)}\n${context.featureText(_defaultBpmLabel)}: $defaultBpm'
         : _displayBpmWithBase(basicInfo);
   }
 
@@ -872,131 +908,38 @@ extension _SongInfoLoaders on _SongInfoPageState {
     final bpm = _displayBpm(basicInfo);
     final base = _defaultBpm(basicInfo);
     if (_hasBpmChanges) return '$bpm($base)';
-    return bpm == base ? bpm : '$bpm(基准 $base)';
+    return bpm == base
+        ? bpm
+        : context.l10n.flowP0BaseP1((bpm).toString(), (base).toString());
   }
 
-  // 加载参考时长（从落雪音频获取；落雪失败时尝试 wmc 兜底）
-  //
-  // 优先级：本地 Redis 缓存 > 落雪 (assets2.lxns.net) > wmc.pub
-  // 任意一条路拿到 mp3，都走 [AudioPlayer.getDuration] 读时长，再走
-  // [BiliRedisService.saveReferenceDuration] 上传到 Redis 缓存 30 天。
+  // 服务端没有时长时，由客户端读取音源并上报解析结果。
   Future<void> _loadReferenceDuration() async {
-    if (_referenceDurationLoading) return;
-    _referenceDurationLoading = true;
-
+    if (!mounted || _isStaleSongLoad || _referenceDurationLoading) return;
+    final songId = widget.songId;
+    _update(() => _referenceDurationLoading = true);
+    int? seconds;
     try {
-      final songId = widget.songId;
-      final songTitle = _songData!['basic_info']['title'];
-
-      // 1. 先查 Redis 缓存
-      final cached = await BiliRedisService().getCachedReferenceDuration(
-        songId: songId,
-      );
-
-      if (cached != null && mounted) {
-        _update(() {
-          _referenceDurationSeconds = cached;
-          _referenceDurationLoading = false;
-        });
-        debugPrint('[RefDuration] Redis 缓存命中: ${cached}s');
-        return;
+      try {
+        seconds = await SongInfoService.fetchReferenceDuration(songId);
+      } catch (error) {
+        debugPrint('加载参考时长失败: $error');
       }
+      if (seconds != null || !mounted || _isStaleSongLoad) return;
 
-      // 2. 解析落雪 song id（与之前一样）
-      final songType = _songData!['type'] ?? '';
-      final songPlayService = SongPlayService();
-      String? luoXueSongId;
-
-      // 宴会场歌曲（6 位数 songId）：曲绘实际用的是 cover id，
-      // 落雪那边的歌曲 ID 与曲绘 ID 一致，所以用 cover id 就能找到对应的落雪歌曲。
-      // 例如: songId=100018 -> coverId=18 -> 落雪歌曲 id=18
-      if (widget.songId.length == 6) {
-        final coverId = CoverUtil.extractCoverId(widget.songId);
-        if (coverId.isNotEmpty && coverId != '0') {
-          luoXueSongId =
-              await songPlayService.findLuoXueSongIdByCoverId(coverId);
-        }
+      seconds = await SongInfoService.parseReferenceDuration(songId);
+      if (seconds != null) {
+        unawaited(SongInfoService.reportReferenceDuration(songId, seconds));
       }
-
-      // 兜底：通过 title 和 type 查找（非宴会场歌曲，或宴会场 cover id 查不到时）
-      luoXueSongId ??=
-          await songPlayService.findLuoXueSongId(songTitle, songType);
-
-      // 3. 落雪 → wmc 兜底：拿到一个 mp3 本地路径就停手
-      String? localMp3 = await _downloadAudioForDuration(
-        source: 'luoXue',
-        url: luoXueSongId != null
-            ? 'https://assets2.lxns.net/maimai/music/$luoXueSongId.mp3'
-            : null,
-        cacheFileName: luoXueSongId != null ? '$luoXueSongId.mp3' : null,
-      );
-      if (localMp3 == null) {
-        // 落雪走不通（luoXueSongId 解析失败 / 下载非 200） → 试 wmc.pub 兜底
-        debugPrint('[RefDuration] 落雪失败，尝试 wmc.pub 兜底: $songId');
-        localMp3 = await _downloadAudioForDuration(
-          source: 'wmc',
-          url: ApiUrls.wmcAudioUrl(songId),
-          cacheFileName: 'wmc_$songId.mp3',
-        );
-      }
-
-      if (localMp3 == null) {
-        debugPrint('[RefDuration] 落雪 + wmc 两条路都没拿到音频');
-        _update(() {
-          _referenceDurationLoading = false;
-        });
-        return;
-      }
-
-      // 4. 用 AudioPlayer 取时长
-      final audioPlayer = AudioPlayer();
-      await audioPlayer.setSource(DeviceFileSource(localMp3));
-
-      final duration = await audioPlayer.getDuration();
-      audioPlayer.dispose();
-
-      if (duration != null && mounted) {
-        final seconds = duration.inSeconds;
+    } catch (error) {
+      debugPrint('解析参考时长失败: $error');
+    } finally {
+      if (mounted && !_isStaleSongLoad) {
         _update(() {
           _referenceDurationSeconds = seconds;
           _referenceDurationLoading = false;
         });
-
-        // 5. 保存到 Redis（30 天）—— 不管走的是落雪还是 wmc，存的都是同一份数据
-        BiliRedisService().saveReferenceDuration(
-          songId: songId,
-          songTitle: songTitle,
-          durationSeconds: seconds,
-        );
-      } else {
-        _update(() {
-          _referenceDurationLoading = false;
-        });
       }
-    } catch (e) {
-      debugPrint('加载参考时长失败: $e');
-      if (mounted) {
-        _update(() {
-          _referenceDurationLoading = false;
-        });
-      }
-    }
-  }
-
-  /// 参考时长、播放和导出复用同一份音源，缓存命中时不联网。
-  Future<String?> _downloadAudioForDuration({
-    required String source,
-    required String? url,
-    required String? cacheFileName,
-  }) async {
-    if (url == null || cacheFileName == null) return null;
-    try {
-      final file =
-          await SongMediaCache.instance.ensureAudio(widget.songId, urls: [url]);
-      return file.path;
-    } catch (error) {
-      debugPrint('[RefDuration] $source 音源准备失败: $error');
-      return null;
     }
   }
 
@@ -1029,7 +972,10 @@ extension _SongInfoLoaders on _SongInfoPageState {
                     ? difficulties.dx ?? const []
                     : difficulties.standard ?? const [])
                 .map((d) => d.releaseDate);
-        final sorted = dates.whereType<String>().where((d) => d.isNotEmpty).toList()
+        final sorted = dates
+            .whereType<String>()
+            .where((d) => d.isNotEmpty)
+            .toList()
           ..sort();
         if (mounted && sorted.isNotEmpty) {
           _update(() => _cnReleaseDate = sorted.first);
@@ -1114,7 +1060,7 @@ extension _SongInfoLoaders on _SongInfoPageState {
   }
 
   String _formatReleaseDate(String raw) {
-    if (raw.isEmpty) return '未知';
+    if (raw.isEmpty) return context.l10n.flowUnknown;
     // 支持 YYYYMMDD 格式
     if (raw.length == 8) {
       try {
@@ -1213,16 +1159,17 @@ extension _SongInfoLoaders on _SongInfoPageState {
     }
     final n = _biliPlayCount!;
     if (n >= 10000) {
-      return '${(n / 10000).toStringAsFixed(1)}万';
+      return context.l10n
+          .flowP010000(((n / 10000).toStringAsFixed(1)).toString());
     }
     return n.toString();
   }
 
   /// 获取来源标签（仅在对话框中显示）
   String _getBiliSourceLabel() {
-    if (_biliFromUser) return '用户上传';
-    if (_biliFromRedis) return 'Redis 缓存';
-    return '自动获取';
+    if (_biliFromUser) return context.l10n.flowUserUpload;
+    if (_biliFromRedis) return context.l10n.flowRedisCache;
+    return context.l10n.flowAutomaticLookup;
   }
 
   // 获取音符数量，优先使用Maidata解析的结果
@@ -1321,21 +1268,15 @@ extension _SongInfoLoaders on _SongInfoPageState {
 
         if (tag != null) {
           int groupId = tag['group_id'] ?? 0;
-          String groupName;
-
-          switch (groupId) {
-            case 1:
-              groupName = '配置';
-              break;
-            case 2:
-              groupName = '难度';
-              break;
-            case 3:
-              groupName = '评价';
-              break;
-            default:
-              groupName = '配置';
-          }
+          // 自定义标签在下方单独显示（带用户颜色），这里只处理 DXRating 标签。
+          if (groupId == CustomTagStore.groupId) continue;
+          // 分组键只用于取配色（AppColors.tagGroup*），界面不显示分组名，
+          // 所以固定用中文键；原先用本地化名称，英文等语言下键对不上，标签整组消失。
+          final String groupName = switch (groupId) {
+            2 => '难度',
+            3 => '评价',
+            _ => '配置',
+          };
 
           if (groupedTags.containsKey(groupName)) {
             groupedTags[groupName]!.add(tag);
@@ -1667,7 +1608,7 @@ extension _SongInfoLoaders on _SongInfoPageState {
 
     // 如果已经是最高星级，显示已满
     if (currentIndex >= starOrder.length - 1) {
-      return '\u2726 6 已满';
+      return context.l10n.flow6MaximumReached;
     }
 
     // 获取下一星级和对应的最低分数
@@ -1691,7 +1632,6 @@ extension _SongInfoLoaders on _SongInfoPageState {
   // 的卡片底上几乎看不见；而且 `default` 分支兜底是 `Colors.white` —— 纯白叠
   // 纯白，无论何时都看不见，是个**潜伏 bug**。这里统一改成跟主题走。
 
-
   // 获取当前难度的定数
   double _getCurrentDs() {
     if (_songData != null && _songData!['ds'] != null) {
@@ -1714,15 +1654,15 @@ extension _SongInfoLoaders on _SongInfoPageState {
   String _getCollectionTypeName(String type) {
     switch (type) {
       case 'trophies':
-        return '称号';
+        return context.l10n.flowTitleCollectible;
       case 'icons':
-        return '头像';
+        return context.l10n.flowIconCollectible;
       case 'plates':
-        return '姓名框';
+        return context.l10n.flowPlateCollectible;
       case 'frames':
-        return '背景';
+        return context.l10n.flowFrameCollectible;
       default:
-        return '未知类型';
+        return context.l10n.flowUnknownType;
     }
   }
 

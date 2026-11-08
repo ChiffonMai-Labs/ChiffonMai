@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'dart:async';
 import 'dart:io';
 
@@ -72,7 +73,8 @@ class ImagePreviewDialog extends StatelessWidget {
     try {
       if (!await _requestStoragePermission()) {
         if (context.mounted) {
-          _showMessage(context, '需要存储权限才能保存版本图，请在设置中开启权限');
+          _showMessage(
+              context, context.l10n.flowStoragePermissionIsNeededToSaveVersion);
         }
         return;
       }
@@ -93,9 +95,12 @@ class ImagePreviewDialog extends StatelessWidget {
       if (Platform.isAndroid) {
         await MediaScanner.loadMedia(path: file.path);
       }
-      if (context.mounted) _showMessage(context, '图片已保存到相册');
+      if (context.mounted)
+        _showMessage(context, context.l10n.flowImageSavedToGallery);
     } catch (error) {
-      if (context.mounted) _showMessage(context, '保存失败：$error');
+      if (context.mounted)
+        _showMessage(
+            context, context.l10n.flowSaveFailedP0((error).toString()));
     }
   }
 
@@ -131,11 +136,11 @@ class ImagePreviewDialog extends StatelessWidget {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('关闭'),
+          child: Text(context.l10n.featureClose),
         ),
         FilledButton(
           onPressed: () => _saveImage(context),
-          child: const Text('保存图片'),
+          child: Text(context.l10n.flowSaveImage),
         ),
       ],
     );
@@ -388,7 +393,7 @@ class _VersionViewState extends State<VersionView> {
     final versions = _versions;
 
     return BackgroundPageScaffold(
-      title: '版本对照',
+      title: context.l10n.featureVersionComparison,
       contentPadding: EdgeInsets.only(
         bottom: MediaQuery.paddingOf(context).bottom,
       ),
@@ -405,7 +410,9 @@ class _VersionViewState extends State<VersionView> {
               AnimatedChoiceBar<bool>(
                 values: const [false, true],
                 value: _isJapaneseVersion,
-                label: (isJapanese) => isJapanese ? '日服' : '国服',
+                label: (isJapanese) => isJapanese
+                    ? context.l10n.flowJapan
+                    : context.l10n.flowChina,
                 onChanged: (value) =>
                     setState(() => _isJapaneseVersion = value),
               ),
@@ -414,7 +421,8 @@ class _VersionViewState extends State<VersionView> {
                 padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
                 decoration: BoxDecoration(
                   color: AppSurfaces.card(context),
-                  borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
+                  borderRadius:
+                      BorderRadius.circular(AppDesignTokens.radiusCard),
                 ),
                 child: Row(
                   children: [
@@ -426,7 +434,9 @@ class _VersionViewState extends State<VersionView> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            _isJapaneseVersion ? '日服版本' : '国服版本',
+                            _isJapaneseVersion
+                                ? context.l10n.flowJapanVersion
+                                : context.l10n.flowChinaVersion,
                             style: Theme.of(context)
                                 .textTheme
                                 .titleMedium
@@ -434,7 +444,8 @@ class _VersionViewState extends State<VersionView> {
                           ),
                           const SizedBox(height: 3),
                           Text(
-                            '共 ${versions.length} 个版本，按发行顺序排列。点击版本图可放大查看或保存。',
+                            context.l10n.flowP0VersionsInReleaseOrderTapAn(
+                                (versions.length).toString()),
                             style: Theme.of(context)
                                 .textTheme
                                 .bodySmall
@@ -485,7 +496,9 @@ class _VersionViewState extends State<VersionView> {
     final code = version.codeFor(_isJapaneseVersion);
     return Semantics(
       button: true,
-      label: imagePath.isEmpty ? '$name，版本图待补充' : '$name，点击查看版本图',
+      label: imagePath.isEmpty
+          ? context.l10n.flowP0VersionImageNotAvailableYet((name).toString())
+          : context.l10n.flowP0ViewVersionImage((name).toString()),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
@@ -538,7 +551,7 @@ class _VersionViewState extends State<VersionView> {
                   child: Center(
                     child: imagePath.isEmpty
                         ? Text(
-                            '图片待补',
+                            context.l10n.flowImagePending,
                             style: TextStyle(
                               color: scheme.onSurfaceVariant,
                               fontSize: 12,
@@ -567,7 +580,9 @@ class _VersionViewState extends State<VersionView> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  imagePath.isEmpty ? '等待补充版本图' : '点击查看大图',
+                  imagePath.isEmpty
+                      ? context.l10n.flowVersionImageNotAvailableYet
+                      : context.l10n.flowTapToEnlarge,
                   style: Theme.of(context)
                       .textTheme
                       .bodySmall

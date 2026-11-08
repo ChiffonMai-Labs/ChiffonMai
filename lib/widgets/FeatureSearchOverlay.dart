@@ -15,6 +15,7 @@ class FeatureSearchOverlay {
     required Rect sourceRect,
     required String initialQuery,
     required bool reduceMotion,
+    String hintText = '搜索功能名称或关键词',
     Widget Function(BuildContext, String, VoidCallback)? queryResultsBuilder,
   }) =>
       SongSearchOverlay.route(
@@ -22,7 +23,7 @@ class FeatureSearchOverlay {
         initialQuery: initialQuery,
         titleOnly: false,
         reduceMotion: reduceMotion,
-        hintText: '搜索功能名称或关键词',
+        hintText: hintText,
         historyStore: historyStore,
         queryResultsBuilder: queryResultsBuilder,
       );

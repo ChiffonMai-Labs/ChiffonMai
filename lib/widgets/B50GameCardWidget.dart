@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import '../utils/AppDesignTokens.dart';
 import '../utils/CoverUtil.dart';
@@ -393,7 +394,7 @@ class B50GameCardWidget extends StatelessWidget {
           ? CoverUtil.buildCoverWidgetWithContext(
               context, songId.toString(), coverSize)
           : Center(
-              child: Text('曲绘',
+              child: Text(context.l10n.flowCoverArt,
                   style: TextStyle(
                       fontSize: coverSize * 0.22, color: palette.muted)),
             ),

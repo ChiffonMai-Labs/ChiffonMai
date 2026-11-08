@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../api/ApiUrls.dart';
@@ -18,6 +19,11 @@ class SpecialRankingEntry {
   final int breakCount;
   final int updateTime;
 
+  /// 服务端保留的完整度量，避免占比截成整数后显示和排序不一致。
+  final double? metric;
+  final int? fromDifficultyIndex;
+  final double? fromDs;
+
   SpecialRankingEntry({
     required this.rank,
     required this.songId,
@@ -28,6 +34,9 @@ class SpecialRankingEntry {
     required this.ds,
     required this.breakCount,
     required this.updateTime,
+    this.metric,
+    this.fromDifficultyIndex,
+    this.fromDs,
   });
 
   Map<String, dynamic> toJson() {
@@ -41,6 +50,10 @@ class SpecialRankingEntry {
       'ds': ds,
       'breakCount': breakCount,
       'updateTime': updateTime,
+      if (metric != null) 'metric': metric,
+      if (fromDifficultyIndex != null)
+        'fromDifficultyIndex': fromDifficultyIndex,
+      if (fromDs != null) 'fromDs': fromDs,
     };
   }
 }
@@ -52,6 +65,7 @@ class SpecialRankingListService {
   factory SpecialRankingListService() => _instance;
   SpecialRankingListService._();
   bool lastReadWasCached = false;
+
   /// 手动刷新时让下一次请求绕过服务端 Redis 的短期 HTTP 响应缓存。
   bool forceRefreshNextRead = false;
 
@@ -61,7 +75,15 @@ class SpecialRankingListService {
     bool reverse = false,
     Function(int)? onProgress,
   }) async {
-    final cacheKey = 'special_http_v1_${type}_${reverse}_$limit';
+    // 纳入宴谱并兼容上游 SD 标记后，避免离线回退到旧统计口径。
+    final cacheVersion = type == 'breakRatio' ||
+            type == 'slideRatio' ||
+            type == 'touchRatio' ||
+            type == 'tapRatio' ||
+            type == 'holdRatio'
+        ? 'v3'
+        : 'v1';
+    final cacheKey = 'special_http_${cacheVersion}_${type}_${reverse}_$limit';
     final prefs = await SharedPreferences.getInstance();
     Map<String, dynamic> payload;
     onProgress?.call(0);
@@ -79,12 +101,13 @@ class SpecialRankingListService {
       final response =
           await ApiClient.get(uri, timeout: const Duration(seconds: 45));
       if (response.statusCode != 200) {
-        throw Exception('排行榜服务暂不可用（${response.statusCode}）');
+        throw Exception(
+            appL10n.rankingServiceUnavailable(response.statusCode.toString()));
       }
       payload =
           jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
       if (payload['success'] != true || payload['data'] is! List) {
-        throw const FormatException('排行榜响应格式无效');
+        throw FormatException(appL10n.rankingInvalidResponse);
       }
       lastReadWasCached = payload['stale'] == true;
       await prefs.setString(cacheKey, jsonEncode(payload));
@@ -105,7 +128,10 @@ class SpecialRankingListService {
           difficultyLabel: item['difficultyLabel'] as String,
           ds: (item['ds'] as num).toDouble(),
           breakCount: (item['breakCount'] as num).toInt(),
-          updateTime: (item['updateTime'] as num).toInt());
+          updateTime: (item['updateTime'] as num).toInt(),
+          metric: (item['metric'] as num?)?.toDouble(),
+          fromDifficultyIndex: (item['fromDifficultyIndex'] as num?)?.toInt(),
+          fromDs: (item['fromDs'] as num?)?.toDouble());
     }).toList();
     onProgress?.call(100);
     return entries;
@@ -114,9 +140,42 @@ class SpecialRankingListService {
   Future<List<SpecialRankingEntry>> getBreakCountRanking(
           {int limit = 100, bool ascending = false}) =>
       _get('breakCount', limit: limit, reverse: ascending);
+
+  Future<List<SpecialRankingEntry>> getBreakRatioRanking(
+          {int limit = 100, bool reverse = false}) =>
+      _get('breakRatio', limit: limit, reverse: reverse);
+
+  Future<List<SpecialRankingEntry>> getDifficultyGapRanking(
+          {int limit = 100, bool reverse = false}) =>
+      _get('difficultyGap', limit: limit, reverse: reverse);
+
+  Future<List<SpecialRankingEntry>> getSlideRatioRanking(
+          {int limit = 100, bool reverse = false}) =>
+      _get('slideRatio', limit: limit, reverse: reverse);
+
+  Future<List<SpecialRankingEntry>> getTapRatioRanking(
+          {int limit = 100, bool reverse = false}) =>
+      _get('tapRatio', limit: limit, reverse: reverse);
+
+  Future<List<SpecialRankingEntry>> getHoldRatioRanking(
+          {int limit = 100, bool reverse = false}) =>
+      _get('holdRatio', limit: limit, reverse: reverse);
+
+  /// TOUCH 占比由服务端统计 DX/UT 谱面，ST 不参与正反榜。
+  Future<List<SpecialRankingEntry>> getTouchRatioRanking(
+          {int limit = 100, bool reverse = false}) =>
+      _get('touchRatio', limit: limit, reverse: reverse);
   Future<List<SpecialRankingEntry>> getReverseBreakCountRanking(
           {int limit = 100}) =>
       _get('breakCount', limit: limit, reverse: true);
+
+  /// 常规谱绝赞数：和绝赞数榜同一口径，但宴会场不参与。
+  Future<List<SpecialRankingEntry>> getRegularBreakCountRanking(
+          {int limit = 100}) =>
+      _get('regularBreakCount', limit: limit);
+  Future<List<SpecialRankingEntry>> getReverseRegularBreakCountRanking(
+          {int limit = 100}) =>
+      _get('regularBreakCount', limit: limit, reverse: true);
   Future<List<SpecialRankingEntry>> getDifficultyDiffRanking(
           {int limit = 100, Function(int)? onProgress}) =>
       _get('difficultyDiff',

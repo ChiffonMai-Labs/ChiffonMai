@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 
 import '../entity/GuessChartGame/GuessSong.dart';
@@ -182,18 +183,18 @@ class GuessHistoryCard extends StatelessWidget {
                         fontWeight: FontWeight.w700,
                         color: scheme.onSurfaceVariant)),
                 const SizedBox(width: 8),
-                cell(1, 0, '曲名', s.title, s.titleBgColor),
+                cell(1, 0, context.l10n.flowTitle2, s.title, s.titleBgColor),
               ],
             ),
             rowGap,
             Row(
               children: [
-                cell(1, 1, '类型', s.type == 'SD' ? 'ST' : s.type, s.typeBgColor),
+                cell(1, 1, context.l10n.flowType, s.type == 'SD' ? 'ST' : s.type, s.typeBgColor),
                 gap,
                 cell(1, 2, 'BPM', s.bpm.toString(), s.bpmBgColor,
                     arrow: s.bpmArrow),
                 gap,
-                cell(2, 3, '曲师', s.artist, s.artistBgColor),
+                cell(2, 3, context.l10n.flowArtist, s.artist, s.artistBgColor),
               ],
             ),
             if (showBpmHistory) ...[
@@ -204,10 +205,10 @@ class GuessHistoryCard extends StatelessWidget {
             rowGap,
             Row(
               children: [
-                cell(2, 4, 'MASTER定数', s.masterDs, s.masterLevelBgColor,
+                cell(2, 4, context.l10n.flowMASTERConstant, s.masterDs, s.masterLevelBgColor,
                     arrow: s.masterLevelArrow),
                 gap,
-                cell(3, 5, 'MASTER谱师', s.masterCharter,
+                cell(3, 5, context.l10n.flowMASTERChartDesigner, s.masterCharter,
                     s.masterCharterBgColor),
               ],
             ),
@@ -217,7 +218,7 @@ class GuessHistoryCard extends StatelessWidget {
                 cell(
                     2,
                     6,
-                    'Re:MASTER定数',
+                    context.l10n.flowReMASTERConstant,
                     s.remasterDs.isNotEmpty ? s.remasterDs : '-',
                     s.remasterLevelBgColor,
                     arrow: s.remasterLevelArrow),
@@ -225,7 +226,7 @@ class GuessHistoryCard extends StatelessWidget {
                 cell(
                     3,
                     7,
-                    'Re:MASTER谱师',
+                    context.l10n.flowReMASTERChartDesigner,
                     s.remasterCharter.isNotEmpty ? s.remasterCharter : '-',
                     s.remasterCharterBgColor),
               ],
@@ -233,16 +234,16 @@ class GuessHistoryCard extends StatelessWidget {
             rowGap,
             Row(
               children: [
-                cell(3, 8, '流派', s.genre, s.genreBgColor),
+                cell(3, 8, context.l10n.flowGenre, s.genre, s.genreBgColor),
                 gap,
-                cell(4, 9, '版本', StringUtil.formatVersion2(s.version),
+                cell(4, 9, context.l10n.flowVersion, StringUtil.formatVersion2(s.version),
                     s.versionBgColor,
                     arrow: s.versionArrow),
               ],
             ),
             if (s.masterTags?.isNotEmpty ?? false) ...[
               const SizedBox(height: 10),
-              Text('MASTER标签',
+              Text(context.l10n.flowMASTERTags,
                   style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
@@ -329,7 +330,7 @@ class GuessHistoryHeader extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: Text(count == null ? '猜测历史' : '猜测历史 ($count)',
+                child: Text(count == null ? context.l10n.flowGuessHistory : context.l10n.flowGuessHistoryP0((count).toString()),
                     style: const TextStyle(
                         fontSize: 15, fontWeight: FontWeight.w700)),
               ),
@@ -341,7 +342,7 @@ class GuessHistoryHeader extends StatelessWidget {
                       : Icons.arrow_upward_rounded,
                   size: 16,
                 ),
-                label: Text(ascending ? '从早到晚' : '从晚到早',
+                label: Text(ascending ? context.l10n.flowOldestFirst : context.l10n.flowNewestFirst,
                     style: const TextStyle(fontSize: 13)),
               ),
             ],
@@ -350,9 +351,9 @@ class GuessHistoryHeader extends StatelessWidget {
             spacing: 10,
             runSpacing: 4,
             children: [
-              legend(AppColors.guessCorrectBg(brightness), '一致'),
-              legend(AppColors.guessCloseBg(brightness), '接近（箭头指向答案）'),
-              legend(AppColors.guessWrongBg(brightness), '不符'),
+              legend(AppColors.guessCorrectBg(brightness), context.l10n.flowMatch),
+              legend(AppColors.guessCloseBg(brightness), context.l10n.flowCloseArrowsPointToTheAnswer),
+              legend(AppColors.guessWrongBg(brightness), context.l10n.flowNoMatch),
             ],
           ),
         ],
@@ -514,7 +515,7 @@ class GuessInputBar extends StatelessWidget {
                     height: 50,
                     child: FilledButton(
                       onPressed: onNewGame,
-                      child: const Text('新游戏',
+                      child:  Text(context.l10n.flowNewGame,
                           style: TextStyle(
                               fontSize: 15, fontWeight: FontWeight.w700)),
                     ),
@@ -533,7 +534,7 @@ class GuessInputBar extends StatelessWidget {
                                 onClear == null || controller.text.isEmpty
                                     ? null
                                     : IconButton(
-                                        tooltip: '清空',
+                                        tooltip: context.l10n.featureClear,
                                         onPressed: onClear,
                                         icon: const Icon(Icons.close_rounded,
                                             size: 18),
@@ -566,7 +567,7 @@ class GuessInputBar extends StatelessWidget {
                               padding:
                                   const EdgeInsets.symmetric(horizontal: 14),
                             ),
-                            child: const Text('投降',
+                            child:  Text(context.l10n.flowSurrender,
                                 style: TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w700)),

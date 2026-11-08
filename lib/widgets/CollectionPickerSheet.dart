@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'TrophyTitleBadge.dart';
 import 'package:flutter/material.dart';
 import '../entity/LuoXue/Collection.dart';
@@ -100,7 +102,7 @@ class _CollectionPickerSheetState extends State<CollectionPickerSheet> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          '每行',
+          context.l10n.flowPerRow,
           style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
         ),
         const SizedBox(width: 6),
@@ -114,7 +116,7 @@ class _CollectionPickerSheetState extends State<CollectionPickerSheet> {
             children: [
               _buildStepperButton(
                 icon: Icons.remove,
-                tooltip: '减少每行头像数',
+                tooltip: context.l10n.flowFewerAvatarsPerRow,
                 // 到下限就禁用（click 不会再进 _setAvatarColumns）
                 onPressed: _avatarColumns > _kMinAvatarColumns
                     ? () => _setAvatarColumns(_avatarColumns - 1)
@@ -139,7 +141,7 @@ class _CollectionPickerSheetState extends State<CollectionPickerSheet> {
               ),
               _buildStepperButton(
                 icon: Icons.add,
-                tooltip: '增加每行头像数',
+                tooltip: context.l10n.flowMoreAvatarsPerRow,
                 onPressed: _avatarColumns < _kMaxAvatarColumns
                     ? () => _setAvatarColumns(_avatarColumns + 1)
                     : null,
@@ -166,7 +168,12 @@ class _CollectionPickerSheetState extends State<CollectionPickerSheet> {
     );
   }
 
-  static const _labels = ['头像', '姓名框', '背景', '称号'];
+  static List<String> get _labels => [
+        appL10n.flowIconCollectible,
+        appL10n.flowPlateCollectible,
+        appL10n.flowFrameCollectible,
+        appL10n.flowTitleCollectible
+      ];
   void _pick(Collection? item) {
     FocusManager.instance.primaryFocus?.unfocus();
     switch (_activeTab) {
@@ -258,7 +265,7 @@ class _CollectionPickerSheetState extends State<CollectionPickerSheet> {
                   padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
                   child: Row(children: [
                     Expanded(
-                        child: Text('选择装扮',
+                        child: Text(context.l10n.flowChooseAppearance,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
@@ -267,7 +274,7 @@ class _CollectionPickerSheetState extends State<CollectionPickerSheet> {
                                 color: scheme.onSurface))),
                     if (_activeTab == 0) _buildColumnStepper(context),
                     IconButton(
-                        tooltip: '关闭',
+                        tooltip: context.l10n.featureClose,
                         icon: const Icon(Icons.close),
                         onPressed: () => Navigator.pop(context)),
                   ])),
@@ -284,13 +291,15 @@ class _CollectionPickerSheetState extends State<CollectionPickerSheet> {
                       controller: _searchController,
                       onChanged: (_) => setState(() {}),
                       decoration: InputDecoration(
-                          hintText: '搜索$label名称、描述或编号',
+                          hintText: context.l10n
+                              .flowSearchP0ByNameDescriptionOrID(
+                                  (label).toString()),
                           prefixIcon: const Icon(Icons.search, size: 20),
                           isDense: true,
                           suffixIcon: _searchController.text.isEmpty
                               ? null
                               : IconButton(
-                                  tooltip: '清空搜索',
+                                  tooltip: context.l10n.featureClearSearch,
                                   icon: const Icon(Icons.clear, size: 18),
                                   onPressed: () =>
                                       setState(_searchController.clear)),
@@ -299,7 +308,8 @@ class _CollectionPickerSheetState extends State<CollectionPickerSheet> {
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Align(
                       alignment: Alignment.centerLeft,
-                      child: Text('共 ${items.length} 项',
+                      child: Text(
+                          context.l10n.flowP0Items3((items.length).toString()),
                           style: TextStyle(
                               fontSize: 12, color: scheme.onSurfaceVariant)))),
               if (widget.isLoading) const SmoothLinearProgressIndicator(),
@@ -310,9 +320,13 @@ class _CollectionPickerSheetState extends State<CollectionPickerSheet> {
                           child: Text(
                               keyword.isEmpty
                                   ? (widget.isLoading
-                                      ? '正在加载$label…'
-                                      : '暂无$label，请先刷新收藏品数据')
-                                  : '未找到匹配的$label',
+                                      ? context.l10n
+                                          .flowLoadingP0((label).toString())
+                                      : context.l10n
+                                          .flowNoP0YetRefreshCollectibleDataFirst(
+                                              (label).toString()))
+                                  : context.l10n
+                                      .flowNoMatchingP0((label).toString()),
                               style: TextStyle(color: scheme.onSurfaceVariant)))
                       : _activeTab == 3
                           ? ListView.separated(

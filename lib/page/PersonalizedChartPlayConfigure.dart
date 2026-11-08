@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'dart:convert';
 import 'dart:io';
@@ -265,11 +266,12 @@ class _PersonalizedChartPlayConfigureState
     return inoteList;
   }
 
-  /// 获取（或创建）自定义谱面播放的临时工作目录
+  /// 获取（或创建）解压工作目录，与 archives 历史归档分开。
+  /// 再次导入或清空选择时只清理 work，不能删除它们共用的父目录。
   Future<Directory> _getWorkDir() async {
     if (_workDir != null) return _workDir!;
     final appDir = await getApplicationDocumentsDirectory();
-    _workDir = Directory('${appDir.path}/custom_chart_play');
+    _workDir = Directory('${appDir.path}/custom_chart_play/work');
     if (!_workDir!.existsSync()) {
       _workDir!.createSync(recursive: true);
     }
@@ -305,16 +307,22 @@ class _PersonalizedChartPlayConfigureState
             _maidataContent = content;
             _inoteList = _parseInoteList(content);
           });
-          AppToast.show('已加载maidata，解析到 ${_inoteList.length} 个难度');
+          AppToast.show(
+              context.l10n.flowLoadedMaidataWithP0Difficulties(
+                  (_inoteList.length).toString()),
+              tone: AppToastTone.success);
         } catch (e) {
-          AppToast.show('读取失败: 文件编码不受支持，请使用UTF-8或Shift-JIS编码');
+          AppToast.show(context.l10n.flowUnsupportedEncodingUseUTF8OrShift,
+              tone: AppToastTone.error);
           debugPrint('maidata read error: $e');
         }
       }
     } catch (e) {
       debugPrint('文件选择失败: $e');
       if (mounted) {
-        AppToast.show('无法打开文件选择器: $e');
+        AppToast.show(
+            context.l10n.flowCouldNotOpenTheFilePickerP0((e).toString()),
+            tone: AppToastTone.error);
       }
     }
   }
@@ -329,18 +337,22 @@ class _PersonalizedChartPlayConfigureState
         try {
           final appPath = await _copyToAppDir(sourceFile, 'bg');
           setState(() => _bgImagePath = appPath);
-          AppToast.show('已选择曲绘');
+          AppToast.show(context.l10n.flowCoverArtSelected,
+              tone: AppToastTone.success);
         } catch (e) {
           debugPrint('bg image copy error: $e');
           // fallback：直接使用原始路径
           setState(() => _bgImagePath = sourceFile.path);
-          AppToast.show('已选择曲绘（使用原始路径）');
+          AppToast.show(context.l10n.flowCoverArtSelectedUsingItsOriginalPath,
+              tone: AppToastTone.success);
         }
       }
     } catch (e) {
       debugPrint('图片选择失败: $e');
       if (mounted) {
-        AppToast.show('无法打开图片选择器: $e');
+        AppToast.show(
+            context.l10n.flowCouldNotOpenTheImagePickerP0((e).toString()),
+            tone: AppToastTone.error);
       }
     }
   }
@@ -355,18 +367,22 @@ class _PersonalizedChartPlayConfigureState
         try {
           final appPath = await _copyToAppDir(sourceFile, 'audio');
           setState(() => _audioFilePath = appPath);
-          AppToast.show('已选择音源');
+          AppToast.show(context.l10n.flowAudioSelected,
+              tone: AppToastTone.success);
         } catch (e) {
           debugPrint('audio file copy error: $e');
           // fallback：直接使用原始路径
           setState(() => _audioFilePath = sourceFile.path);
-          AppToast.show('已选择音源（使用原始路径）');
+          AppToast.show(context.l10n.flowAudioSelectedUsingItsOriginalPath,
+              tone: AppToastTone.success);
         }
       }
     } catch (e) {
       debugPrint('音频选择失败: $e');
       if (mounted) {
-        AppToast.show('无法打开音频选择器: $e');
+        AppToast.show(
+            context.l10n.flowCouldNotOpenTheAudioPickerP0((e).toString()),
+            tone: AppToastTone.error);
       }
     }
   }
@@ -383,7 +399,8 @@ class _PersonalizedChartPlayConfigureState
         if (!mounted) return;
         setState(() =>
             _history.removeWhere((e) => e.archivedPath == entry.archivedPath));
-        AppToast.show('「${entry.displayName}」的文件已不存在，已从列表移除');
+        AppToast.show(context.l10n
+            .flowTheFileForP0IsMissingAnd((entry.displayName).toString()));
         return;
       }
       final bytes = await file.readAsBytes();
@@ -393,7 +410,8 @@ class _PersonalizedChartPlayConfigureState
     } catch (e) {
       debugPrint('从历史重新解析失败: $e');
       if (mounted) {
-        AppToast.show('重新解析失败：$e');
+        AppToast.show(context.l10n.flowCouldNotParseAgainP0((e).toString()),
+            tone: AppToastTone.error);
       }
     } finally {
       if (mounted) setState(() => _historyBusyPath = null);
@@ -405,12 +423,13 @@ class _PersonalizedChartPlayConfigureState
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AppAlertDialog(
-        title: const Text('删除这条记录'),
-        content: Text('将从「最近解析」中移除「${entry.displayName}」，并删除它的存档文件。'),
+        title: Text(context.l10n.flowDeleteThisRecord),
+        content: Text(context.l10n.flowRemoveP0FromRecentlyParsedChartsAnd(
+            (entry.displayName).toString())),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('取消'),
+            child: Text(context.l10n.featureCancel),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -418,7 +437,7 @@ class _PersonalizedChartPlayConfigureState
               backgroundColor: AppColors.errorRed(Theme.of(context).brightness),
               foregroundColor: Colors.white,
             ),
-            child: const Text('删除'),
+            child: Text(context.l10n.flowDelete),
           ),
         ],
       ),
@@ -454,7 +473,8 @@ class _PersonalizedChartPlayConfigureState
       if (bytes == null) {
         final path = picked.path;
         if (path == null) {
-          AppToast.show('读不到这个文件的内容，请换一个来源重试');
+          AppToast.show(context.l10n.flowCouldNotReadThisFileTryAnother,
+              tone: AppToastTone.warning);
           return;
         }
         bytes = await File(path).readAsBytes();
@@ -467,7 +487,8 @@ class _PersonalizedChartPlayConfigureState
     } catch (e) {
       debugPrint('谱面包导入失败: $e');
       if (mounted) {
-        AppToast.show('导入失败：$e');
+        AppToast.show(context.l10n.flowImportFailedP0((e).toString()),
+            tone: AppToastTone.error);
       }
     }
   }
@@ -483,7 +504,7 @@ class _PersonalizedChartPlayConfigureState
       final extracted = _extractChartPackage(bytes);
       if (extracted == null) {
         if (mounted) {
-          AppToast.show('这个压缩包里没找到 maidata.txt，不是有效的谱面包');
+          AppToast.show(context.l10n.flowNoMaidataTxtFoundThisIsNot);
         }
         return;
       }
@@ -493,13 +514,14 @@ class _PersonalizedChartPlayConfigureState
         maidataContent = _decodeMaidataBytes(extracted.maidataBytes);
       } catch (e) {
         if (mounted) {
-          AppToast.show('maidata.txt 编码不受支持，请使用 UTF-8 或 Shift-JIS 编码的谱面包');
+          AppToast.show(context.l10n.flowUnsupportedMaidataTxtEncodingUseAUTF,
+              tone: AppToastTone.warning);
         }
         debugPrint('maidata decode error: $e');
         return;
       }
 
-      // 复用同一个工作目录：导入会覆盖上一轮的文件，先清掉避免累积
+      // 只清理解压工作目录，保留同级 archives 中的历史谱面包。
       final workDir = await _getWorkDir();
       try {
         if (workDir.existsSync()) {
@@ -550,13 +572,18 @@ class _PersonalizedChartPlayConfigureState
       }
 
       final missing = <String>[
-        if (bgPath == null) '曲绘',
-        if (audioPath == null) '音源',
+        if (bgPath == null) context.l10n.flowCoverArt,
+        if (audioPath == null) context.l10n.flowAudio,
       ];
       if (!mounted) return;
-      AppToast.show(missing.isEmpty
-              ? '已从 $fileName 导入三件套，解析到 ${_inoteList.length} 个难度'
-              : '已导入 maidata（${_inoteList.length} 个难度）；包内没有${missing.join('和')}，可手动补选');
+      AppToast.show(
+          missing.isEmpty
+              ? context.l10n.flowImportedAllThreeFilesFromP0Found(
+                  (fileName).toString(), (_inoteList.length).toString())
+              : context.l10n.flowImportedMaidataP0DifficultiesNoP1In(
+                  (_inoteList.length).toString(),
+                  (missing.join(context.l10n.flowAnd)).toString()),
+          tone: AppToastTone.success);
     } finally {
       // 页面已销毁时 _isImporting 随 State 一起消失，不必再赋值
       if (mounted) setState(() => _isImporting = false);
@@ -582,7 +609,7 @@ class _PersonalizedChartPlayConfigureState
             children: [
               Icon(Icons.history, color: scheme.onSurfaceVariant),
               const SizedBox(width: 8),
-              Text('最近解析',
+              Text(context.l10n.flowRecentlyParsed,
                   style: TextStyle(
                       color: scheme.onSurface,
                       fontSize: 16,
@@ -594,7 +621,7 @@ class _PersonalizedChartPlayConfigureState
             ],
           ),
           const SizedBox(height: 4),
-          Text('点击即可按存档重新解析；长按可删除',
+          Text(context.l10n.flowTapToParseTheArchivedFilesAgain,
               style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12)),
           const SizedBox(height: 8),
           ..._history.map((entry) {
@@ -655,34 +682,39 @@ class _PersonalizedChartPlayConfigureState
   /// 相对时间：刚刚 / N 分钟前 / N 小时前 / N 天前 / 具体日期
   String _formatHistoryTime(DateTime t) {
     final diff = DateTime.now().difference(t);
-    if (diff.inMinutes < 1) return '刚刚';
-    if (diff.inMinutes < 60) return '${diff.inMinutes} 分钟前';
-    if (diff.inHours < 24) return '${diff.inHours} 小时前';
-    if (diff.inDays < 30) return '${diff.inDays} 天前';
+    if (diff.inMinutes < 1) return context.l10n.flowJustNow;
+    if (diff.inMinutes < 60)
+      return context.l10n.flowP0MinutesAgo((diff.inMinutes).toString());
+    if (diff.inHours < 24)
+      return context.l10n.flowP0HoursAgo((diff.inHours).toString());
+    if (diff.inDays < 30)
+      return context.l10n.flowP0DaysAgo((diff.inDays).toString());
     return '${t.year}-${t.month.toString().padLeft(2, '0')}-${t.day.toString().padLeft(2, '0')}';
   }
 
   void _startPlayback() {
     if (_maidataContent == null || _maidataContent!.isEmpty) {
-      AppToast.show('请先选择maidata文件');
+      AppToast.show(context.l10n.flowSelectAMaidataFileFirst,
+          tone: AppToastTone.warning);
       return;
     }
     if (_inoteList.isEmpty) {
-      AppToast.show('未找到有效难度');
+      AppToast.show(context.l10n.flowNoValidDifficultiesFound,
+          tone: AppToastTone.warning);
       return;
     }
 
     // 播放页要显示的曲名取自 maidata 的 &title，而不是写死一个「自定义谱面」：
     // maidata 里没有 &title 时才退回这个名字。
-    final songTitle =
-        MaidataDecodeUtil.quickExtractTitle(_maidataContent!) ?? '自定义谱面';
+    final songTitle = MaidataDecodeUtil.quickExtractTitle(_maidataContent!) ??
+        context.l10n.flowCustomChart2;
 
     var loadAudio = _loadAudio;
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AppAlertDialog(
-          title: const Text('选择难度'),
+          title: Text(context.l10n.flowSelectDifficulty),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -702,7 +734,7 @@ class _PersonalizedChartPlayConfigureState
                 Padding(
                   padding: const EdgeInsets.only(bottom: 16),
                   child: Text(
-                    '渲染出的谱面仅供参考，不代表官方谱面。对于高密度谱面，请勿频繁拖动进度条，以免造成应用闪退或卡死。',
+                    context.l10n.flowRenderedChartsAreForReferenceAndMay,
                     style: TextStyle(
                         fontSize: 12,
                         color: Theme.of(context).colorScheme.onSurfaceVariant),
@@ -713,8 +745,9 @@ class _PersonalizedChartPlayConfigureState
                   builder: (context, setDialogState) => CheckboxListTile(
                     contentPadding: EdgeInsets.zero,
                     value: loadAudio,
-                    title: const Text('加载音频'),
-                    subtitle: const Text('取消勾选可直接加载谱面，跳过音源加载'),
+                    title: Text(context.l10n.flowLoadAudio),
+                    subtitle:
+                        Text(context.l10n.flowTurnOffToLoadTheChartWithout2),
                     onChanged: (value) {
                       if (value == null) return;
                       setDialogState(() => loadAudio = value);
@@ -754,7 +787,8 @@ class _PersonalizedChartPlayConfigureState
                             horizontal: 24, vertical: 12),
                         textStyle: AppTheme.font(fontSize: 16),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+                          borderRadius: BorderRadius.circular(
+                              AppDesignTokens.radiusSmall),
                         ),
                       ),
                       child: Text(difficultyName),
@@ -777,7 +811,7 @@ class _PersonalizedChartPlayConfigureState
       _inoteList = [];
       _isImporting = false;
     });
-    // 清理临时工作目录
+    // 只清理解压工作目录，历史记录及其归档文件继续保留。
     if (_workDir != null && _workDir!.existsSync()) {
       try {
         _workDir!.deleteSync(recursive: true);
@@ -786,7 +820,8 @@ class _PersonalizedChartPlayConfigureState
         debugPrint('cleanup work dir error: $e');
       }
     }
-    AppToast.show('已清除选择');
+    AppToast.show(context.l10n.flowSelectionCleared,
+        tone: AppToastTone.success);
   }
 
   @override
@@ -811,7 +846,7 @@ class _PersonalizedChartPlayConfigureState
             children: [
               // 标题栏（与 DataBackupPage / SongMaidataPage 同款写法）
               AppHeader(
-                title: '自定义谱面播放',
+                title: context.l10n.featureCustomChartPlayback,
               ),
 
               // 主内容
@@ -821,7 +856,7 @@ class _PersonalizedChartPlayConfigureState
                   child: Column(
                     children: [
                       Text(
-                        '上传自定义谱面',
+                        context.l10n.flowCustomChart,
                         style: TextStyle(
                             color: Theme.of(context).colorScheme.onSurface,
                             fontSize: 20,
@@ -846,7 +881,7 @@ class _PersonalizedChartPlayConfigureState
                                 Icon(Icons.folder_zip_outlined,
                                     color: AppColors.linkBlue(brightness)),
                                 const SizedBox(width: 8),
-                                Text('从谱面包导入',
+                                Text(context.l10n.flowImportAChartPackage,
                                     style: TextStyle(
                                         color: Theme.of(context)
                                             .colorScheme
@@ -856,8 +891,7 @@ class _PersonalizedChartPlayConfigureState
                               ],
                             ),
                             const SizedBox(height: 4),
-                            Text(
-                                '选择一个 .adx 或 .zip 谱面包，自动解出 maidata.txt / 曲绘 / 音源',
+                            Text(context.l10n.flowSelectAnAdxOrZipPackageTo,
                                 style: TextStyle(
                                     color: Theme.of(context)
                                         .colorScheme
@@ -878,7 +912,9 @@ class _PersonalizedChartPlayConfigureState
                                             color: Colors.white),
                                       )
                                     : const Icon(Icons.unarchive_outlined),
-                                label: Text(_isImporting ? '正在解压...' : '选择谱面包'),
+                                label: Text(_isImporting
+                                    ? context.l10n.flowExtracting
+                                    : context.l10n.flowSelectChartPackage),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor:
                                       AppColors.linkBlue(brightness),
@@ -886,7 +922,8 @@ class _PersonalizedChartPlayConfigureState
                                   padding:
                                       const EdgeInsets.symmetric(vertical: 12),
                                   shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall)),
+                                      borderRadius: BorderRadius.circular(
+                                          AppDesignTokens.radiusSmall)),
                                 ),
                               ),
                             ),
@@ -901,7 +938,7 @@ class _PersonalizedChartPlayConfigureState
                       ],
 
                       Text(
-                        '或分别选择下面三个文件',
+                        context.l10n.flowOrSelectTheThreeFilesSeparately,
                         style: TextStyle(
                             color:
                                 Theme.of(context).colorScheme.onSurfaceVariant,
@@ -910,19 +947,22 @@ class _PersonalizedChartPlayConfigureState
                       const SizedBox(height: 12),
 
                       _buildFileSelector(
-                        title: '选择maidata.txt',
-                        description: '必须选择，包含谱面数据的txt文件',
+                        title: context.l10n.flowSelectMaidataTxt,
+                        description: context
+                            .l10n.flowRequiredATextFileContainingChartData,
                         icon: Icons.description,
-                        selectedFile:
-                            _maidataContent != null ? '已选择maidata文件' : null,
+                        selectedFile: _maidataContent != null
+                            ? context.l10n.flowMaidataFileSelected
+                            : null,
                         onPressed: _selectMaidataFile,
                         required: true,
                       ),
                       const SizedBox(height: 16),
 
                       _buildFileSelector(
-                        title: '选择曲绘图片',
-                        description: '可选，谱面背景图片（png/jpg）',
+                        title: context.l10n.flowSelectCoverArt,
+                        description:
+                            context.l10n.flowOptionalChartBackgroundImagePNGJPG,
                         icon: Icons.image,
                         selectedFile: _bgImagePath?.split('\\').last,
                         onPressed: _selectBgImage,
@@ -931,8 +971,9 @@ class _PersonalizedChartPlayConfigureState
                       const SizedBox(height: 16),
 
                       _buildFileSelector(
-                        title: '选择音源文件',
-                        description: '可选，谱面背景音乐（mp3/wav/ogg）',
+                        title: context.l10n.flowSelectAudio,
+                        description:
+                            context.l10n.flowOptionalChartMusicMP3WAVOGG,
                         icon: Icons.audio_file,
                         selectedFile: _audioFilePath?.split('\\').last,
                         onPressed: _selectAudioFile,
@@ -945,13 +986,13 @@ class _PersonalizedChartPlayConfigureState
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
                             color: AppSurfaces.card(context),
-                            borderRadius:
-                                BorderRadius.circular(AppDesignTokens.radiusCard),
+                            borderRadius: BorderRadius.circular(
+                                AppDesignTokens.radiusCard),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('解析到的难度:',
+                              Text(context.l10n.flowParsedDifficulties,
                                   style: TextStyle(
                                       color: Theme.of(context)
                                           .colorScheme
@@ -991,9 +1032,10 @@ class _PersonalizedChartPlayConfigureState
                                 padding:
                                     const EdgeInsets.symmetric(vertical: 16),
                                 shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall)),
+                                    borderRadius: BorderRadius.circular(
+                                        AppDesignTokens.radiusSmall)),
                               ),
-                              child: const Text('清除选择'),
+                              child: Text(context.l10n.flowClearSelection),
                             ),
                           ),
                           const SizedBox(width: 16),
@@ -1007,9 +1049,10 @@ class _PersonalizedChartPlayConfigureState
                                 padding:
                                     const EdgeInsets.symmetric(vertical: 16),
                                 shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall)),
+                                    borderRadius: BorderRadius.circular(
+                                        AppDesignTokens.radiusSmall)),
                               ),
-                              child: const Text('开始播放'),
+                              child: Text(context.l10n.flowStartPlayback),
                             ),
                           ),
                         ],
@@ -1026,39 +1069,46 @@ class _PersonalizedChartPlayConfigureState
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('使用说明:',
+                            Text(context.l10n.flowInstructions,
                                 style: TextStyle(
                                     color:
                                         Theme.of(context).colorScheme.onSurface,
                                     fontSize: 16,
                                     fontWeight: FontWeight.bold)),
                             const SizedBox(height: 8),
-                            Text('方式一：点「选择谱面包」直接选一个 .adx / .zip，三件套一次填好',
+                            Text(context.l10n.flowOption1SelectAnAdxOrZip,
                                 style: TextStyle(
                                     color: Theme.of(context)
                                         .colorScheme
                                         .onSurfaceVariant)),
-                            Text('方式二：点「最近解析」里的记录，一键重新解析之前用过的谱面包',
+                            Text(
+                                context.l10n.flowOption2TapARecentlyParsedEntry,
                                 style: TextStyle(
                                     color: Theme.of(context)
                                         .colorScheme
                                         .onSurfaceVariant)),
-                            Text('方式三：分别选择 maidata.txt、曲绘、音源三个文件',
+                            Text(
+                                context
+                                    .l10n.flowOption3SelectMaidataTxtCoverArt,
                                 style: TextStyle(
                                     color: Theme.of(context)
                                         .colorScheme
                                         .onSurfaceVariant)),
-                            Text('1. maidata.txt 为必选，其余两个可留空',
+                            Text(context.l10n.flow1MaidataTxtIsRequiredTheOther,
                                 style: TextStyle(
                                     color: Theme.of(context)
                                         .colorScheme
                                         .onSurfaceVariant)),
-                            Text('2. 系统会自动解析谱面中的难度',
+                            Text(
+                                context.l10n
+                                    .flow2DifficultiesAreDetectedAutomatically,
                                 style: TextStyle(
                                     color: Theme.of(context)
                                         .colorScheme
                                         .onSurfaceVariant)),
-                            Text('3. 选择想要渲染的难度后即可开始播放',
+                            Text(
+                                context.l10n
+                                    .flow3SelectADifficultyThenStartPlayback,
                                 style: TextStyle(
                                     color: Theme.of(context)
                                         .colorScheme
@@ -1138,7 +1188,8 @@ class _PersonalizedChartPlayConfigureState
           if (selectedFile != null)
             Padding(
               padding: const EdgeInsets.only(top: 8),
-              child: Text('已选择: $selectedFile',
+              child: Text(
+                  context.l10n.flowSelectedP0((selectedFile).toString()),
                   style: TextStyle(
                       color: AppColors.successGreen(fsBrightness),
                       fontSize: 12),
@@ -1152,9 +1203,12 @@ class _PersonalizedChartPlayConfigureState
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall)),
+                  borderRadius:
+                      BorderRadius.circular(AppDesignTokens.radiusSmall)),
             ),
-            child: Text(selectedFile != null ? '重新选择' : '选择文件'),
+            child: Text(selectedFile != null
+                ? context.l10n.flowChooseAgain2
+                : context.l10n.flowChooseFile),
           ),
         ],
       ),

@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'AnimatedChoiceBar.dart';
 import 'package:flutter/material.dart';
 
@@ -34,14 +35,17 @@ class SyncStatsView {
     final prefix = label == null ? '' : '$label ';
     final String text;
     if (loading) {
-      text = '${prefix}统计加载中…';
+      text = context.l10n.flowLoadingP0Statistics((prefix).toString());
     } else if (stats == null) {
-      text = '${prefix}统计不可用';
+      text = context.l10n.flowP0StatisticsUnavailable((prefix).toString());
     } else if (!stats.hasData) {
-      text = '${prefix}近100次 / 暂无记录';
+      text = context.l10n.flowP0Last100NoRecords((prefix).toString());
     } else {
-      text = '${prefix}近100次 / ${stats.count}样本 / 平均${stats.avgText} / '
-          '成功${stats.successRateText}';
+      text = context.l10n.flowP0Last100P1SamplesAvgP22(
+          (prefix).toString(),
+          (stats.count).toString(),
+          (stats.avgText).toString(),
+          (stats.successRateText).toString());
     }
 
     final line = InkWell(
@@ -80,7 +84,12 @@ class SyncStatsView {
                                   : const Duration(milliseconds: 450),
                               curve: Curves.easeOutCubic,
                               builder: (_, rate, __) => Text(
-                                '${prefix}近100次 / ${count.round()}样本 / 平均${SyncStats.formatDuration(avgMs.round())} / 成功${rate.round()}%',
+                                context.l10n.flowP0Last100P1SamplesAvgP2(
+                                    (prefix).toString(),
+                                    (count.round()).toString(),
+                                    (SyncStats.formatDuration(avgMs.round()))
+                                        .toString(),
+                                    (rate.round()).toString()),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 softWrap: false,
@@ -120,15 +129,15 @@ class SyncStatsView {
       builder: (ctx) {
         final scheme = Theme.of(ctx).colorScheme;
         return AppAlertDialog(
-          title: const Text('同步统计'),
+          title: Text(context.l10n.flowSyncStatistics),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '记录最近 ${SyncStatsService.windowSize} 次同步的耗时与成败'
-                  '（所有使用者共享，仅含耗时/成败，不含二维码与账号信息）。',
+                  context.l10n.flowTracksDurationAndOutcomeForTheLatest(
+                      (SyncStatsService.windowSize).toString()),
                   style:
                       TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
                 ),
@@ -140,7 +149,8 @@ class SyncStatsView {
                     Text(
                       line == SyncLine.quick
                           ? line.label
-                          : '普通同步 · ${line.label}',
+                          : context.l10n
+                              .flowNormalSyncP0((line.label).toString()),
                       style: const TextStyle(
                           fontSize: 13, fontWeight: FontWeight.w700),
                     ),
@@ -161,7 +171,7 @@ class SyncStatsView {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('关闭'),
+              child: Text(context.l10n.featureClose),
             ),
           ],
         );
@@ -198,7 +208,9 @@ class SyncStatsView {
             const SizedBox(height: 6),
             if (!s.hasData)
               Text(
-                stats == null ? '统计不可用' : '暂无记录',
+                stats == null
+                    ? context.l10n.flowStatisticsUnavailable
+                    : context.l10n.flowNoRecordsYet,
                 style: TextStyle(
                   fontSize: 12.5,
                   color: scheme.onSurfaceVariant,
@@ -209,11 +221,13 @@ class SyncStatsView {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
-                    child: _metricTile(context, '平均时长', s.avgText),
+                    child: _metricTile(
+                        context, context.l10n.flowAverageDuration, s.avgText),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: _metricTile(context, '成功率', s.successRateText),
+                    child: _metricTile(context, context.l10n.flowSuccessRate,
+                        s.successRateText),
                   ),
                 ],
               ),
@@ -227,7 +241,9 @@ class SyncStatsView {
                   const SizedBox(width: 8),
                   Expanded(
                     child: _metricTile(
-                        context, '成功样本', '${s.successCount}/${s.count}'),
+                        context,
+                        context.l10n.flowSuccessfulSamples,
+                        '${s.successCount}/${s.count}'),
                   ),
                 ],
               ),
@@ -260,7 +276,7 @@ class SyncStatsView {
     final scheme = Theme.of(context).colorScheme;
     return _metricTileFrame(
       context,
-      '最近一次',
+      context.l10n.flowLatestRun,
       Row(
         children: [
           Flexible(
@@ -284,7 +300,7 @@ class SyncStatsView {
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Text(
-                '失败',
+                context.l10n.flowFailed,
                 style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.w700,

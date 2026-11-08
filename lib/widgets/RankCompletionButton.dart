@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import '../service/RankTable/RankCompletionStore.dart';
 import '../utils/AppTheme.dart';
@@ -16,10 +18,10 @@ class RankCompletionButton extends StatelessWidget {
   });
 
   static String label(RankCompletion status) => switch (status) {
-        RankCompletion.unplayed => '未挑战',
-        RankCompletion.failed => '不合格',
-        RankCompletion.passed => '合格',
-        RankCompletion.redPassed => '赤合格',
+        RankCompletion.unplayed => appL10n.flowNotAttempted,
+        RankCompletion.failed => appL10n.flowFailed2,
+        RankCompletion.passed => appL10n.flowPassed,
+        RankCompletion.redPassed => appL10n.flowRedPass,
       };
 
   static Color color(BuildContext context, RankCompletion status) {
@@ -113,10 +115,13 @@ class _RankCompletionDialogState extends State<_RankCompletionDialog> {
     final text = raw.trim();
     if (text.isEmpty) return null;
     final value = double.tryParse(text);
-    if (value == null || !value.isFinite) return '请输入有效的总达成率';
-    if (value < 0 || value > 404) return '总达成率必须在 0～404% 之间';
+    if (value == null || !value.isFinite)
+      return context.l10n.flowEnterAValidTotalAchievement;
+    if (value < 0 || value > 404)
+      return context.l10n.flowTotalAchievementMustBeBetween0And;
     final fraction = text.contains('.') ? text.split('.').last : '';
-    if (fraction.length > 4) return '总达成率最多保留 4 位小数';
+    if (fraction.length > 4)
+      return context.l10n.flowTotalAchievementSupportsUpToFourDecimal;
     return null;
   }
 
@@ -124,7 +129,7 @@ class _RankCompletionDialogState extends State<_RankCompletionDialog> {
   Widget build(BuildContext context) {
     final canInput = _status != RankCompletion.unplayed;
     return AppAlertDialog(
-      title: const Text('段位完成情况'),
+      title: Text(context.l10n.flowDanCompletion),
       content: SingleChildScrollView(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
         for (final option in RankCompletion.values)
@@ -144,7 +149,8 @@ class _RankCompletionDialogState extends State<_RankCompletionDialog> {
                 color: option == _status
                     ? Theme.of(context).colorScheme.primaryContainer
                     : Colors.transparent,
-                borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+                borderRadius:
+                    BorderRadius.circular(AppDesignTokens.radiusSmall),
               ),
               child: Row(children: [
                 Expanded(child: Text(RankCompletionButton.label(option))),
@@ -160,16 +166,18 @@ class _RankCompletionDialogState extends State<_RankCompletionDialog> {
               setState(() => _achievementError = _validateAchievement(value)),
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           decoration: InputDecoration(
-              labelText: '总达成率（最高 404.0000%）',
-              suffixText: '%',
-              errorText: canInput ? _achievementError : null,
-              errorMaxLines: 2).insetLabel(context),
+                  labelText: context.l10n.flowTotalAchievementUpTo4040000,
+                  suffixText: '%',
+                  errorText: canInput ? _achievementError : null,
+                  errorMaxLines: 2)
+              .insetLabel(context),
         ),
       ])),
       actions: [
         TextButton(
-            onPressed: () => Navigator.pop(context), child: const Text('取消')),
-        FilledButton(onPressed: _save, child: const Text('保存')),
+            onPressed: () => Navigator.pop(context),
+            child: Text(context.l10n.featureCancel)),
+        FilledButton(onPressed: _save, child: Text(context.l10n.save)),
       ],
     );
   }

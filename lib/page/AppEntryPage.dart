@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../service/OnboardingStateStore.dart';
@@ -6,14 +8,21 @@ import '../widgets/AnnouncementDialog.dart';
 import '../manager/LZYCheckUpdateManager.dart';
 import 'AppShell.dart';
 import 'OnboardingPage.dart';
+import 'SplashPage.dart';
 
-/// 首帧后依次展示引导、公告、更新提示，等待文件导入和其它路由退出。
+/// 先完成引导再创建主界面，首帧后依次展示公告和更新提示。
 class AppEntryPage extends StatefulWidget {
   final VoidCallback? onFirstFrameRendered;
   final bool Function()? canPresentStartup;
 
+  /// 引导完成后再准备主界面状态，首次引导不与账号、播放器初始化竞争。
+  final Future<void> Function()? prepareMain;
+
   const AppEntryPage(
-      {super.key, this.onFirstFrameRendered, this.canPresentStartup});
+      {super.key,
+      this.onFirstFrameRendered,
+      this.canPresentStartup,
+      this.prepareMain});
 
   @override
   State<AppEntryPage> createState() => _AppEntryPageState();
@@ -21,6 +30,36 @@ class AppEntryPage extends StatefulWidget {
 
 class _AppEntryPageState extends State<AppEntryPage> {
   bool _checked = false;
+  bool? _needsOnboarding;
+  bool _preparingMain = false;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_resolveInitialPage());
+  }
+
+  Future<void> _resolveInitialPage() async {
+    final needsOnboarding = await OnboardingStateStore.instance.shouldShow();
+    if (!mounted) return;
+    if (needsOnboarding) {
+      setState(() => _needsOnboarding = true);
+    } else {
+      await _openMain();
+    }
+  }
+
+  Future<void> _openMain() async {
+    if (_preparingMain) return;
+    _preparingMain = true;
+    setState(() => _needsOnboarding = null);
+    try {
+      await widget.prepareMain?.call();
+    } catch (error) {
+      debugPrint('[Startup] 主界面准备失败，继续启动: $error');
+    }
+    if (mounted) setState(() => _needsOnboarding = false);
+  }
 
   // 只有入口路由在前台且导入流程空闲时才弹启动内容。
   Future<bool> _waitForPresentation() async {
@@ -37,21 +76,14 @@ class _AppEntryPageState extends State<AppEntryPage> {
     return false;
   }
 
-  Future<void> _checkOnboarding() async {
+  Future<void> _checkStartupNotices() async {
     if (_checked) return;
     _checked = true;
     widget.onFirstFrameRendered?.call();
     final service = AnnouncementService();
-    // 提前联网，等待引导时也可以把新公告准备好；网络失败有缓存回退。
+    // 主界面就绪后再加载公告，不在引导期间触发额外请求和解析。
     final announcement = service.load().onError((error, stackTrace) => null);
     try {
-      if (await OnboardingStateStore.instance.shouldShow()) {
-        if (!await _waitForPresentation() || !mounted) return;
-        final route =
-            MaterialPageRoute<void>(builder: (_) => const OnboardingPage());
-        await Navigator.of(context).push<void>(route);
-        await route.completed;
-      }
       final value = await announcement;
       if (!mounted) return;
       if (value != null && await service.shouldShow(value)) {
@@ -79,6 +111,13 @@ class _AppEntryPageState extends State<AppEntryPage> {
 
   @override
   Widget build(BuildContext context) {
-    return AppShell(onFirstFrameRendered: _checkOnboarding);
+    if (_needsOnboarding == null) return const SplashPage();
+    if (_needsOnboarding!) {
+      // 不在引导背后创建五个 Hub：首页首次拉取全量曲库会严重干扰引导动画。
+      return OnboardingPage(
+        onCompleted: () => unawaited(_openMain()),
+      );
+    }
+    return AppShell(onFirstFrameRendered: _checkStartupNotices);
   }
 }

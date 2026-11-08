@@ -1,3 +1,4 @@
+import '../l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../widgets/AppDialogs.dart';
@@ -6,13 +7,14 @@ import '../widgets/AppDialogs.dart';
 Future<Color?> showAppColorPicker(
   BuildContext context, {
   required Color initial,
-  String title = '自定义颜色',
+  String? title,
 }) {
   FocusManager.instance.primaryFocus?.unfocus();
   return showDialog<Color>(
     context: context,
     useSafeArea: true,
-    builder: (_) => _ColorPickerDialog(initial: initial, title: title),
+    builder: (_) => _ColorPickerDialog(
+        initial: initial, title: title ?? context.l10n.customColor),
   );
 }
 
@@ -83,7 +85,7 @@ class _HexColorInputDialogState extends State<_HexColorInputDialog> {
   void _submit() {
     final value = _parseHexColor(_controller.text);
     if (value == null) {
-      setState(() => _error = '格式应为 #RRGGBB 或 #AARRGGBB');
+      setState(() => _error = context.l10n.hexFormatError);
       return;
     }
     _close(value);
@@ -91,12 +93,12 @@ class _HexColorInputDialogState extends State<_HexColorInputDialog> {
 
   @override
   Widget build(BuildContext context) => AppAlertDialog(
-        title: const Text('输入十六进制颜色'),
+        title: Text(context.l10n.enterHexColor),
         content: TextField(
           controller: _controller,
           autofocus: true,
           decoration: InputDecoration(
-            hintText: '#RRGGBB 或 #AARRGGBB',
+            hintText: context.l10n.hexColorHint,
             errorText: _error,
           ),
           inputFormatters: [
@@ -106,8 +108,9 @@ class _HexColorInputDialogState extends State<_HexColorInputDialog> {
           onSubmitted: (_) => _submit(),
         ),
         actions: [
-          TextButton(onPressed: () => _close(), child: const Text('取消')),
-          TextButton(onPressed: _submit, child: const Text('确定')),
+          TextButton(
+              onPressed: () => _close(), child: Text(context.l10n.cancel)),
+          TextButton(onPressed: _submit, child: Text(context.l10n.confirm)),
         ],
       );
 }
@@ -162,7 +165,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
                 ),
               ),
               const SizedBox(height: 12),
-              Text('色相',
+              Text(context.l10n.hue,
                   style:
                       TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
               const SizedBox(height: 4),
@@ -200,7 +203,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '拖动上方方块选色，或直接输入十六进制',
+                          context.l10n.colorPickerHint,
                           style: TextStyle(
                               fontSize: 11, color: scheme.onSurfaceVariant),
                         ),
@@ -216,15 +219,15 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('取消'),
+          child: Text(context.l10n.cancel),
         ),
         TextButton(
           onPressed: _openHexInput,
-          child: const Text('输入十六进制'),
+          child: Text(context.l10n.enterHex),
         ),
         TextButton(
           onPressed: () => Navigator.pop(context, _color),
-          child: const Text('确定'),
+          child: Text(context.l10n.confirm),
         ),
       ],
     );

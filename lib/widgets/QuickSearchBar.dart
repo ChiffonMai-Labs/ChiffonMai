@@ -1,3 +1,4 @@
+import '../l10n/FeatureLocalizations.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 
@@ -11,12 +12,16 @@ class QuickSearchBar extends StatefulWidget {
   final String? query;
   final EdgeInsetsGeometry padding;
 
+  /// 输入框提示，默认「搜点什么...」。
+  final String? hintText;
+
   const QuickSearchBar({
     super.key,
     required this.onChanged,
     this.onTap,
     this.query,
     this.padding = const EdgeInsets.only(bottom: 8),
+    this.hintText,
   });
 
   @override
@@ -82,12 +87,12 @@ class _QuickSearchBarState extends State<QuickSearchBar> {
           color: scheme.onSurface,
         ),
         decoration: InputDecoration(
-          hintText: '搜点什么...',
+          hintText: context.featureText(widget.hintText ?? '搜点什么...'),
           hintStyle: TextStyle(color: hintColor, fontSize: 15),
           prefixIcon: Icon(Icons.search_rounded, color: hintColor, size: 20),
           suffixIcon: _controller.text.isNotEmpty
               ? IconButton(
-                  tooltip: '清空',
+                  tooltip: context.featureText('清空'),
                   icon: Icon(Icons.close_rounded, color: hintColor, size: 18),
                   onPressed: () {
                     _debounceTimer?.cancel();

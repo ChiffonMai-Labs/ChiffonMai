@@ -2,18 +2,20 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:my_first_flutter_app/constant/CacheKeyConstant.dart';
 import 'CurrentDataSourceNotifier.dart';
+import 'CollectionAssetUrls.dart';
 
 /// 导出图片共用的个人信息（头部 `ExportPosterHeader` 和雷霆长图在用）。
 class ExportUserInfoWidget {
   /// 在截图前读取账号数据。
-  static Future<Map<String, dynamic>> loadUserInfo() => _loadUserInfo(DateTime.now());
+  static Future<Map<String, dynamic>> loadUserInfo() =>
+      _loadUserInfo(DateTime.now());
 
   /// 从 SharedPreferences 加载用户信息
   static Future<Map<String, dynamic>> _loadUserInfo(DateTime exportTime) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final avatarId = prefs.getInt('selectedAvatarId') ?? 1;
-      final avatarUrl = 'https://assets2.lxns.net/maimai/icon/$avatarId.png';
+      final avatarUrl = lxnsIconUrl(avatarId);
       final nickname = prefs.getString('userNickname') ?? '';
       final best35Rating = prefs.getInt('best35TotalRA') ?? 0;
       final best15Rating = prefs.getInt('best15TotalRA') ?? 0;

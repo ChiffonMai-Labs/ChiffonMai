@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import 'package:my_first_flutter_app/entity/chongxi/MaimaiServerStatusModel.dart';
 import 'package:my_first_flutter_app/service/chongxi/MaimaiServerStatusService.dart';
@@ -42,7 +44,7 @@ class _MaimaiServerStatusPageState extends State<MaimaiServerStatusPage> {
       if (status == null) {
         setState(() {
           _isLoading = false;
-          _errorMessage = '暂时无法获取服务器状态';
+          _errorMessage = appL10n.flowServerStatusIsTemporarilyUnavailable;
         });
         return;
       }
@@ -55,7 +57,7 @@ class _MaimaiServerStatusPageState extends State<MaimaiServerStatusPage> {
       if (!mounted) return;
       setState(() {
         _isLoading = false;
-        _errorMessage = '加载服务器状态失败';
+        _errorMessage = appL10n.flowCouldNotLoadServerStatus;
       });
     }
   }
@@ -63,7 +65,7 @@ class _MaimaiServerStatusPageState extends State<MaimaiServerStatusPage> {
   @override
   Widget build(BuildContext context) {
     return BackgroundPageScaffold(
-      title: '服务器状态',
+      title: context.l10n.featureServerStatus,
       contentPadding: EdgeInsets.only(
         bottom: MediaQuery.paddingOf(context).bottom,
       ),
@@ -103,7 +105,7 @@ class _MaimaiServerStatusPageState extends State<MaimaiServerStatusPage> {
           const SizedBox(height: 12),
           FilledButton.tonal(
             onPressed: _loadServerStatus,
-            child: const Text('重试'),
+            child:  Text(context.l10n.flowRetry),
           ),
         ],
       ),
@@ -124,7 +126,7 @@ class _MaimaiServerStatusPageState extends State<MaimaiServerStatusPage> {
               Uri.parse('https://mai.chongxi.us/'),
             ),
             icon: const Icon(Icons.open_in_new_rounded, size: 17),
-            label: const Text('数据来源于 isMaiDown by Chongxi'),
+            label:  Text(context.l10n.flowDataFromIsMaiDownByChongxi),
             style: TextButton.styleFrom(
               alignment: Alignment.centerLeft,
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
@@ -133,7 +135,7 @@ class _MaimaiServerStatusPageState extends State<MaimaiServerStatusPage> {
           _buildOverviewCard(status),
           const SizedBox(height: 16),
           Text(
-            '服务状态',
+            context.l10n.flowServiceStatus,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w700,
                 ),
@@ -153,7 +155,7 @@ class _MaimaiServerStatusPageState extends State<MaimaiServerStatusPage> {
         TextButton.icon(
           onPressed: null,
           icon: const Icon(Icons.open_in_new_rounded, size: 17),
-          label: const Text('数据来源于 isMaiDown by Chongxi'),
+          label:  Text(context.l10n.flowDataFromIsMaiDownByChongxi),
           style: TextButton.styleFrom(
             alignment: Alignment.centerLeft,
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
@@ -171,7 +173,7 @@ class _MaimaiServerStatusPageState extends State<MaimaiServerStatusPage> {
               children: [
                 CircularProgressIndicator(color: scheme.primary),
                 const SizedBox(height: 12),
-                Text('正在读取服务器状态…',
+                Text(context.l10n.flowReadingServerStatus,
                     style: TextStyle(color: scheme.onSurfaceVariant)),
               ],
             ),
@@ -179,7 +181,7 @@ class _MaimaiServerStatusPageState extends State<MaimaiServerStatusPage> {
         ),
         const SizedBox(height: 16),
         Text(
-          '服务状态',
+          context.l10n.flowServiceStatus,
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w700,
               ),
@@ -213,7 +215,7 @@ class _MaimaiServerStatusPageState extends State<MaimaiServerStatusPage> {
     final latency = status.latency.currentMs;
     final reports = status.reports;
     final statusLabel = status.statusText.isEmpty
-        ? (status.isHealthy ? '好' : '坏')
+        ? (status.isHealthy ? context.l10n.flowHealthy : context.l10n.flowUnhealthy)
         : status.statusText;
 
     return Card(
@@ -265,7 +267,7 @@ class _MaimaiServerStatusPageState extends State<MaimaiServerStatusPage> {
               children: [
                 _buildMetricChip(
                   Icons.speed_outlined,
-                  latency == null ? '延迟 --' : '延迟 $latency ms',
+                  latency == null ? context.l10n.flowLatency : context.l10n.flowLatencyP0Ms((latency).toString()),
                   _latencyColor(latency),
                 ),
                 if (status.latency.loadText.isNotEmpty)
@@ -276,12 +278,12 @@ class _MaimaiServerStatusPageState extends State<MaimaiServerStatusPage> {
                   ),
                 _buildMetricChip(
                   Icons.check_circle_outline,
-                  '正常 ${reports.normalCount}',
+                  context.l10n.flowHealthyP0((reports.normalCount).toString()),
                   AppColors.successGreen(Theme.of(context).brightness),
                 ),
                 _buildMetricChip(
                   Icons.warning_amber_rounded,
-                  '异常 ${reports.anomalyCount}',
+                  context.l10n.flowIssuesP0((reports.anomalyCount).toString()),
                   AppColors.warningOrange(Theme.of(context).brightness),
                 ),
               ],
@@ -289,7 +291,7 @@ class _MaimaiServerStatusPageState extends State<MaimaiServerStatusPage> {
             if (status.timestamp.isNotEmpty) ...[
               const SizedBox(height: 12),
               Text(
-                '更新时间：${status.timestamp}',
+                context.l10n.flowUpdatedP02((status.timestamp).toString()),
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),

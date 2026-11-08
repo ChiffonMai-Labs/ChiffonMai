@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'dart:async';
 import 'dart:math';
 
@@ -134,7 +136,7 @@ class _RecommendByTagsState extends State<RecommendByTags> {
 
       if (!mounted || _isDisposed) return;
       setState(() {
-        _errorMessage = '获取推荐结果失败：$e';
+        _errorMessage = appL10n.flowCouldNotFetchRecommendationsP0((e).toString());
         _isLoading = false;
       });
     }
@@ -206,14 +208,14 @@ class _RecommendByTagsState extends State<RecommendByTags> {
                 children: [
                   Icon(Icons.tune_rounded, size: 19, color: scheme.primary),
                   const SizedBox(width: 8),
-                  const Text('推荐范围',
+                   Text(context.l10n.flowRecommendationRange,
                       style: TextStyle(fontWeight: FontWeight.w700)),
                   const SizedBox(width: 6),
                   Expanded(
                     child: FittedBox(
                       fit: BoxFit.scaleDown,
                       alignment: Alignment.centerLeft,
-                      child: Text('范围内谱面优先',
+                      child: Text(context.l10n.flowPrioritizeChartsInRange,
                           style: TextStyle(
                               fontSize: 11, color: scheme.onSurfaceVariant)),
                     ),
@@ -255,9 +257,9 @@ class _RecommendByTagsState extends State<RecommendByTags> {
                             Expanded(
                               child: SegmentedTabs(
                                 height: 38,
-                                items: const [
-                                  SegmentedTabItem('目标Rating'),
-                                  SegmentedTabItem('定数区间'),
+                                items:  [
+                                  SegmentedTabItem(context.l10n.flowTargetRating2),
+                                  SegmentedTabItem(context.l10n.flowConstantRange2),
                                 ],
                                 selectedIndex: _rangeMode == 'rating' ? 0 : 1,
                                 onChanged: (index) {
@@ -300,7 +302,7 @@ class _RecommendByTagsState extends State<RecommendByTags> {
                                     FilteringTextInputFormatter.digitsOnly
                                   ],
                                   decoration: fieldDecoration.copyWith(
-                                    labelText: '目标 Rating',
+                                    labelText: context.l10n.flowTargetRating,
                                   ),
                                   onSubmitted: (_) {
                                     _targetRating =
@@ -313,7 +315,7 @@ class _RecommendByTagsState extends State<RecommendByTags> {
                               ),
                               const SizedBox(width: 8),
                               IconButton.filledTonal(
-                                tooltip: '按目标 Rating 重新计算',
+                                tooltip: context.l10n.flowRecalculateByTargetRating,
                                 visualDensity: VisualDensity.compact,
                                 onPressed: () {
                                   _targetRating =
@@ -335,13 +337,13 @@ class _RecommendByTagsState extends State<RecommendByTags> {
                                       const TextInputType.numberWithOptions(
                                           decimal: true),
                                   decoration: fieldDecoration.copyWith(
-                                      labelText: '最低定数'),
+                                      labelText: context.l10n.flowMinimumConstant),
                                 ),
                               ),
                               Padding(
                                 padding:
                                     const EdgeInsets.symmetric(horizontal: 8),
-                                child: Text('至',
+                                child: Text(context.l10n.flowTo,
                                     style: TextStyle(
                                         color: scheme.onSurfaceVariant)),
                               ),
@@ -352,12 +354,12 @@ class _RecommendByTagsState extends State<RecommendByTags> {
                                       const TextInputType.numberWithOptions(
                                           decimal: true),
                                   decoration: fieldDecoration.copyWith(
-                                      labelText: '最高定数'),
+                                      labelText: context.l10n.flowMaximumConstant),
                                 ),
                               ),
                               const SizedBox(width: 8),
                               IconButton.filledTonal(
-                                tooltip: '按定数区间重新计算',
+                                tooltip: context.l10n.flowRecalculateByConstantRange,
                                 visualDensity: VisualDensity.compact,
                                 onPressed: () {
                                   _applyManualRange();
@@ -385,7 +387,7 @@ class _RecommendByTagsState extends State<RecommendByTags> {
     final screenHeight = MediaQuery.of(context).size.height;
 
     return BackgroundPageScaffold(
-      title: '基于标签推荐',
+      title: context.l10n.featureTagRecommendations,
       resizeToAvoidBottomInset: false,
       contentPadding: EdgeInsets.only(
         bottom: MediaQuery.paddingOf(context).bottom,
@@ -416,7 +418,7 @@ class _RecommendByTagsState extends State<RecommendByTags> {
                                       color: scheme.primary),
                                   SizedBox(
                                       height: screenHeight * 0.02),
-                                  Text('正在计算推荐结果...',
+                                  Text(context.l10n.flowCalculatingRecommendations,
                                       style: TextStyle(
                                           color: scheme
                                               .onSurfaceVariant)),
@@ -457,7 +459,7 @@ class _RecommendByTagsState extends State<RecommendByTags> {
                                   FilledButton.tonal(
                                       onPressed:
                                           _fetchRecommendations,
-                                      child: const Text('重试')),
+                                      child:  Text(context.l10n.flowRetry)),
                                 ],
                               ),
                             ),
@@ -522,10 +524,11 @@ class _RecommendByTagsState extends State<RecommendByTags> {
       level: result.level,
       ds: result.ds,
       metricValue: '${(result.similarity * 100).toStringAsFixed(1)}%',
-      metricLabel: '相似度',
+      metricLabel: context.l10n.flowSimilarity,
       highlight: result.ableRiseTotalRating ? result.riseTotalRating : null,
+      singleLineDetails: true,
       details: [
-        '当前 ${result.nowAchievement.toStringAsFixed(4)}% → 目标 ${result.minAchievement.toStringAsFixed(4)}%',
+        context.l10n.flowCurrentP0TargetP1((result.nowAchievement.toStringAsFixed(4)).toString(), (result.minAchievement.toStringAsFixed(4)).toString()),
         if (!result.ableRiseTotalRating) result.riseTotalRating,
       ],
       onTap: () {

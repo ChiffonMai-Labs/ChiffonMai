@@ -66,14 +66,14 @@ extension _SongInfoLayout on _SongInfoPageState {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('关闭'),
+              child: Text(dialogContext.l10n.featureClose),
             ),
             FilledButton(
               onPressed: () async {
                 await _saveCoverToGallery(widget.songId.toString(),
                     basicInfo['title']?.toString() ?? 'cover');
               },
-              child: const Text('保存到相册'),
+              child: Text(dialogContext.l10n.flowSaveToGallery),
             ),
           ],
         );
@@ -107,17 +107,29 @@ extension _SongInfoLayout on _SongInfoPageState {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                item(Icons.ondemand_video_outlined, '跳转到B站', _jumpToBilibili),
-                item(Icons.leaderboard_outlined, '达成率排行榜',
+                item(Icons.ondemand_video_outlined,
+                    context.l10n.flowOpenBilibili2, _jumpToBilibili),
+                item(
+                    Icons.leaderboard_outlined,
+                    context.l10n.flowAchievementRanking2,
                     _viewAchievementRanking),
-                item(Icons.emoji_events_outlined, 'DX分数排行榜',
-                    _viewDxScoreRanking),
-                item(Icons.collections_bookmark_outlined,
-                    '相关收藏品 $_relatedCollectionsCount', _viewRelatedCollectibles),
-                item(Icons.playlist_add_outlined, '加入下次想玩',
+                item(Icons.emoji_events_outlined,
+                    context.l10n.flowDXScoreRanking2, _viewDxScoreRanking),
+                item(
+                    Icons.collections_bookmark_outlined,
+                    context.l10n.flowRelatedCollectiblesP0(
+                        (_relatedCollectionsCount).toString()),
+                    _viewRelatedCollectibles),
+                item(
+                    Icons.playlist_add_outlined,
+                    context.l10n.flowAddToPlayNext,
                     _isLoading ? null : _addToNextPlayQueue),
-                item(Icons.image_outlined, '导出歌曲信息', _exportSongInfoToImage),
-                item(Icons.calculate_outlined, '计算工具', _openCalculator),
+                item(
+                    Icons.image_outlined,
+                    context.l10n.flowExportSongInformation,
+                    _exportSongInfoToImage),
+                item(Icons.calculate_outlined, context.l10n.featureCalculators2,
+                    _openCalculator),
                 const SizedBox(height: 8),
               ],
             ),
@@ -206,22 +218,24 @@ extension _SongInfoLayout on _SongInfoPageState {
             Row(
               children: [
                 circleButton(
-                  tooltip:
-                      MaterialLocalizations.of(context).backButtonTooltip,
+                  tooltip: MaterialLocalizations.of(context).backButtonTooltip,
                   icon: const Icon(Icons.arrow_back),
                   onPressed: () => Navigator.of(context).maybePop(),
                 ),
                 const Spacer(),
                 circleButton(
-                  tooltip: _hasNote ? '查看笔记' : '添加笔记',
-                  icon: Icon(
-                      _hasNote ? Icons.note : Icons.note_add_outlined,
+                  tooltip: _hasNote
+                      ? context.l10n.flowViewNotes
+                      : context.l10n.flowAddNotes,
+                  icon: Icon(_hasNote ? Icons.note : Icons.note_add_outlined,
                       size: 20),
                   onPressed: () => _showNoteDialog(),
                 ),
                 const SizedBox(width: 8),
                 circleButton(
-                  tooltip: _isBookmarked ? '已收藏' : '收藏到收藏夹',
+                  tooltip: _isBookmarked
+                      ? context.l10n.flowFavorited
+                      : context.l10n.flowAddToAFavoritesFolder,
                   // 收藏状态变化时心跳一下
                   icon: TweenAnimationBuilder<double>(
                     key: ValueKey(_isBookmarked),
@@ -242,7 +256,9 @@ extension _SongInfoLayout on _SongInfoPageState {
                 ),
                 const SizedBox(width: 8),
                 circleButton(
-                  tooltip: userRecord == null ? '导出歌曲信息' : '分享成绩',
+                  tooltip: userRecord == null
+                      ? context.l10n.flowExportSongInformation
+                      : context.l10n.flowShareScore,
                   icon: const Icon(Icons.ios_share_rounded, size: 20),
                   onPressed: () {
                     if (userRecord == null) {
@@ -278,7 +294,8 @@ extension _SongInfoLayout on _SongInfoPageState {
                       if (artist.isNotEmpty) ...[
                         const SizedBox(height: 4),
                         GestureDetector(
-                          onTap: () => _showStatDialog('曲师', artist),
+                          onTap: () =>
+                              _showStatDialog(context.l10n.flowArtist, artist),
                           child: MarqueeText(
                             text: artist,
                             style: TextStyle(
@@ -309,12 +326,11 @@ extension _SongInfoLayout on _SongInfoPageState {
   }
 
   Widget _buildHeroCover(dynamic basicInfo, Color accentColor) {
-    final size = (MediaQuery.sizeOf(context).width * 0.3)
-        .clamp(96.0, 128.0)
-        .toDouble();
+    final size =
+        (MediaQuery.sizeOf(context).width * 0.3).clamp(96.0, 128.0).toDouble();
     return Semantics(
       button: true,
-      label: '放大曲绘',
+      label: context.l10n.flowEnlargeCoverArt,
       child: GestureDetector(
         onTap: () => _showCoverDialog(basicInfo, accentColor),
         child: Container(
@@ -414,12 +430,15 @@ extension _SongInfoLayout on _SongInfoPageState {
   Widget _buildHeroTypeRow() {
     final isUtage = widget.songId.length == 6;
     final type = _songData!['type'];
-    final label = isUtage
-        ? ChartDifficulty.utageLabel
-        : (type == 'SD' ? 'ST' : '$type');
+    final label =
+        isUtage ? ChartDifficulty.utageLabel : (type == 'SD' ? 'ST' : '$type');
+    final theme = Theme.of(context);
+    final dark = theme.brightness == Brightness.dark;
     final labelColor = isUtage
-        ? const Color(0xFFB0164A)
-        : (type == 'SD' ? const Color(0xFF1F5FA8) : const Color(0xFFA34E00));
+        ? (dark ? const Color(0xFFFF8FB1) : const Color(0xFFB0164A))
+        : type == 'SD'
+            ? (dark ? const Color(0xFF8FC1FF) : const Color(0xFF1F5FA8))
+            : (dark ? const Color(0xFFFFB877) : const Color(0xFFA34E00));
     return Wrap(
       spacing: 8,
       runSpacing: 6,
@@ -428,7 +447,7 @@ extension _SongInfoLayout on _SongInfoPageState {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: dark ? theme.colorScheme.surfaceContainerHigh : Colors.white,
             borderRadius: BorderRadius.circular(8),
           ),
           child: Text(
@@ -455,8 +474,7 @@ extension _SongInfoLayout on _SongInfoPageState {
             shape: const StadiumBorder(),
             clipBehavior: Clip.antiAlias,
             child: InkWell(
-              onTap: () =>
-                  _switchSong(_alternativeSongId!, _currentDiffIndex),
+              onTap: () => _switchSong(_alternativeSongId!, _currentDiffIndex),
               child: Padding(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
@@ -474,7 +492,9 @@ extension _SongInfoLayout on _SongInfoPageState {
                             size: 14, color: Colors.white),
                     const SizedBox(width: 4),
                     Text(
-                      type == 'SD' ? '切换 DX' : '切换 ST',
+                      type == 'SD'
+                          ? context.l10n.flowSwitchToDX
+                          : context.l10n.flowSwitchToST,
                       style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
@@ -510,24 +530,33 @@ extension _SongInfoLayout on _SongInfoPageState {
     );
   }
 
-  Widget _buildDifficultyButton(int index, String level, Brightness brightness) {
+  Widget _buildDifficultyButton(
+      int index, String level, Brightness brightness) {
     final selected = index == _currentDiffIndex;
     final dot = _getAccentColor(index, brightness);
+    final dark = brightness == Brightness.dark;
+    // 深色下选中块用深色底配提亮的难度色，不用刺眼的白块。
     final selectedFg = Color.lerp(
-        _getAccentColor(_currentDiffIndex, brightness), Colors.black, 0.35)!;
+        _getAccentColor(_currentDiffIndex, brightness),
+        dark ? Colors.white : Colors.black,
+        dark ? 0.45 : 0.35)!;
     final fg = selected ? selectedFg : Colors.white;
     final radius = BorderRadius.circular(14);
     return Semantics(
       button: true,
       selected: selected,
-      label: '${_getDiffLabel(index)} 等级 $level',
+      label: context.l10n
+          .flowP0LevelP1((_getDiffLabel(index)).toString(), (level).toString()),
       excludeSemantics: true,
       child: AnimatedContainer(
-        duration:
-            AppDesignTokens.motion(context, AppDesignTokens.mediumMotion),
+        duration: AppDesignTokens.motion(context, AppDesignTokens.mediumMotion),
         curve: AppDesignTokens.emphasizedCurve,
         decoration: BoxDecoration(
-          color: selected ? Colors.white : Colors.white.withValues(alpha: 0.14),
+          color: selected
+              ? (dark
+                  ? Theme.of(context).colorScheme.surfaceContainerHigh
+                  : Colors.white)
+              : Colors.white.withValues(alpha: 0.14),
           borderRadius: radius,
         ),
         child: Material(
@@ -600,9 +629,11 @@ extension _SongInfoLayout on _SongInfoPageState {
       Map<String, dynamic>? userRecord, dynamic basicInfo, dynamic levels) {
     final scheme = Theme.of(context).colorScheme;
     final muted = TextStyle(fontSize: 12, color: scheme.onSurfaceVariant);
-    final title = '我的成绩 · ${_getDiffLabel(_currentDiffIndex)}';
-    final plays =
-        _currentPlayCount == null ? '' : '游玩 ${_currentPlayCount!} 次';
+    final title = context.l10n
+        .flowMyScoreP0((_getDiffLabel(_currentDiffIndex)).toString());
+    final plays = _currentPlayCount == null
+        ? ''
+        : context.l10n.flowPlayedP0Times((_currentPlayCount!).toString());
     final motion =
         AppDesignTokens.motion(context, AppDesignTokens.mediumMotion);
     return AppCard(
@@ -650,7 +681,9 @@ extension _SongInfoLayout on _SongInfoPageState {
                                 fit: BoxFit.scaleDown,
                                 alignment: Alignment.centerLeft,
                                 child: Text(
-                                  '还没有 ${_getDiffLabel(_currentDiffIndex)} 的成绩',
+                                  context.l10n.flowNoScoreForP0Yet(
+                                      (_getDiffLabel(_currentDiffIndex))
+                                          .toString()),
                                   maxLines: 1,
                                   style: const TextStyle(
                                       fontSize: 15,
@@ -658,7 +691,8 @@ extension _SongInfoLayout on _SongInfoPageState {
                                 ),
                               ),
                               const SizedBox(height: 2),
-                              Text('打完同步一下就会显示在这里', style: muted),
+                              Text(context.l10n.flowPlayAndSyncToSeeYourScore,
+                                  style: muted),
                             ],
                           ),
                         ),
@@ -669,14 +703,13 @@ extension _SongInfoLayout on _SongInfoPageState {
                             backgroundColor: AppSurfaces.inset(context),
                             foregroundColor: scheme.onSurface,
                             minimumSize: const Size(0, 40),
-                            padding:
-                                const EdgeInsets.symmetric(horizontal: 14),
+                            padding: const EdgeInsets.symmetric(horizontal: 14),
                             shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(14)),
                             textStyle: AppTheme.font(
                                 fontSize: 13, fontWeight: FontWeight.w600),
                           ),
-                          child: const Text('加入下次想玩'),
+                          child: Text(context.l10n.flowAddToPlayNext),
                         ),
                       ],
                     ),
@@ -783,7 +816,8 @@ extension _SongInfoLayout on _SongInfoPageState {
           children: [
             Expanded(
               child: StatTile(
-                label: 'DX分数（MAX -${maxDx - dxScore}）',
+                label:
+                    context.l10n.flowDXScoreMAXP0((maxDx - dxScore).toString()),
                 value: '$dxScore / $maxDx',
                 valueWidget: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -798,13 +832,15 @@ extension _SongInfoLayout on _SongInfoPageState {
             Expanded(
               child: Semantics(
                 button: true,
-                label: _showNextStarDiff ? '显示星级加成' : '显示距下一星还差多少',
+                label: _showNextStarDiff
+                    ? context.l10n.flowShowStarBonus
+                    : context.l10n.flowShowPointsNeededForTheNextStar,
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onTap: () =>
                       _update(() => _showNextStarDiff = !_showNextStarDiff),
                   child: StatTile(
-                    label: 'DX分数达成率',
+                    label: context.l10n.flowDXScoreRate,
                     value: '${(dxScore / maxDx * 100).toStringAsFixed(2)}%',
                     valueWidget: RollingNumber(
                       value: dxScore / maxDx * 100,
@@ -856,7 +892,7 @@ extension _SongInfoLayout on _SongInfoPageState {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '上分潜力',
+                  context.l10n.flowRatingPotential,
                   style: AppTheme.number(
                     fontSize: 11,
                     fontWeight: FontWeight.w500,
@@ -943,7 +979,10 @@ extension _SongInfoLayout on _SongInfoPageState {
     final onSurface = Theme.of(context).colorScheme.onSurface;
     // 有数值的格子切难度时数字滚动，没有数值时显示「-」。
     Widget tile(String label, String value,
-            {Color? color, double? number, int digits = 1, String suffix = ''}) =>
+            {Color? color,
+            double? number,
+            int digits = 1,
+            String suffix = ''}) =>
         Expanded(
           child: StatTile(
             label: label,
@@ -969,12 +1008,13 @@ extension _SongInfoLayout on _SongInfoPageState {
 
     return Row(
       children: [
-        tile('定数', ds.toStringAsFixed(1), number: ds),
+        tile(context.l10n.flowConstant, ds.toStringAsFixed(1), number: ds),
         const SizedBox(width: 8),
         tile(
           diff == null
-              ? '拟合'
-              : '拟合 ${diff >= 0 ? "+" : ""}${diff.toStringAsFixed(2)}',
+              ? context.l10n.featureFitted
+              : context.l10n.flowFittedP0P1((diff >= 0 ? "+" : "").toString(),
+                  (diff.toStringAsFixed(2)).toString()),
           fit == null ? '-' : fit.toStringAsFixed(2),
           number: fit,
           digits: 2,
@@ -985,10 +1025,11 @@ extension _SongInfoLayout on _SongInfoPageState {
                   : AppColors.errorRed(brightness)),
         ),
         const SizedBox(width: 8),
-        tile('平均达成', avg == null ? '-' : '${avg.toStringAsFixed(2)}%',
+        tile(context.l10n.flowAvgAchievement,
+            avg == null ? '-' : '${avg.toStringAsFixed(2)}%',
             number: avg, digits: 2, suffix: '%'),
         const SizedBox(width: 8),
-        tile('时长', _formatReferenceDuration()),
+        tile(context.l10n.flowDuration3, _formatReferenceDuration()),
       ],
     );
   }
@@ -999,7 +1040,12 @@ extension _SongInfoLayout on _SongInfoPageState {
 
   Widget _buildDetailTabBar(Color accentColor) {
     return UnderlineTabs(
-      labels: const ['成绩历史', '数据', '社区', '工具'],
+      labels: [
+        context.l10n.songTabHistory,
+        context.l10n.flowData,
+        context.l10n.songTabCommunity,
+        context.l10n.flowTools
+      ],
       selectedIndex: _detailTab,
       indicatorColor: _heroColor(accentColor),
       onChanged: (index) => _update(() => _detailTab = index),
@@ -1074,7 +1120,12 @@ extension _SongInfoLayout on _SongInfoPageState {
       ('BREAK', 4),
       ('TOUCH', 3),
     ];
-    const breakLabels = ['真绝赞TAP', '真绝赞HOLD', '保护套绝赞', '绝赞星星'];
+    final breakLabels = [
+      context.l10n.flowTrueBREAKTAP,
+      context.l10n.flowTrueBREAKHOLD,
+      context.l10n.flowProtectedBREAK,
+      context.l10n.flowBREAKStar
+    ];
     final ordered = [for (final n in noteOrder) noteCounts[n.$2]];
     // 没有解析结果时是「-」，不计入比例条
     final breakCounts = [
@@ -1083,20 +1134,21 @@ extension _SongInfoLayout on _SongInfoPageState {
     ];
     final breakValues = [for (final c in breakCounts) c ?? 0];
     final totalBreaks = breakValues.fold<int>(0, (sum, n) => sum + n);
+    final protectionStats = _maidataProtectionStats[_currentDiffIndex];
 
     return [
       AppCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const AppSectionHeader(
-              title: '基础信息',
+            AppSectionHeader(
+              title: context.l10n.flowBasicInformation,
               padding: EdgeInsets.only(bottom: 12),
             ),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildStatItem('类别', basicInfo['genre']),
+                _buildStatItem(context.l10n.flowCategory2, basicInfo['genre']),
                 _buildVersionStat(basicInfo),
               ],
             ),
@@ -1112,8 +1164,8 @@ extension _SongInfoLayout on _SongInfoPageState {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildStatItem(
-                    '谱师', currentChart['charter']?.toString() ?? '-'),
+                _buildStatItem(context.l10n.flowCharter,
+                    currentChart['charter']?.toString() ?? '-'),
                 _buildBiliPlayCountStat(),
               ],
             ),
@@ -1128,11 +1180,11 @@ extension _SongInfoLayout on _SongInfoPageState {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             AppSectionHeader(
-              title: '物量分布',
+              title: context.l10n.flowNoteDistribution,
               padding: const EdgeInsets.only(bottom: 10),
               trailing: RollingNumber(
                 value: totalNotes,
-                prefix: '共 ',
+                prefix: context.l10n.flowTotal,
                 style: AppTheme.number(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
@@ -1147,29 +1199,33 @@ extension _SongInfoLayout on _SongInfoPageState {
               [for (final n in noteOrder) n.$1],
               ordered,
               AppColors.noteDistribution,
+              dotOffsetY: 0.5,
             ),
-            const SizedBox(height: 16),
-            // Break统计区域
-            AppSectionHeader(
-              title: '绝赞分布',
-              padding: const EdgeInsets.only(bottom: 10),
-              trailing: RollingNumber(
-                value: totalBreaks,
-                prefix: '共 ',
-                style: AppTheme.number(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: scheme.onSurfaceVariant,
+            // 全部缺少解析数据时，标题、比例条和图例一起隐藏。
+            if (breakCounts.any((count) => count != null)) ...[
+              const SizedBox(height: 16),
+              AppSectionHeader(
+                title: context.l10n.flowBREAKDistribution,
+                padding: const EdgeInsets.only(bottom: 10),
+                trailing: RollingNumber(
+                  value: totalBreaks,
+                  prefix: context.l10n.flowTotal,
+                  style: AppTheme.number(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: scheme.onSurfaceVariant,
+                  ),
                 ),
               ),
-            ),
-            _buildDistributionBar(breakValues, AppColors.breakDistribution),
-            const SizedBox(height: 10),
-            _buildDistributionLegend(
-              breakLabels,
-              breakCounts,
-              AppColors.breakDistribution,
-            ),
+              _buildDistributionBar(breakValues, AppColors.breakDistribution),
+              const SizedBox(height: 10),
+              _buildDistributionLegend(
+                breakLabels,
+                breakCounts,
+                AppColors.breakDistribution,
+              ),
+            ],
+            _buildProtectionDistributions(protectionStats, breakCounts),
           ],
         ),
       ),
@@ -1208,7 +1264,7 @@ extension _SongInfoLayout on _SongInfoPageState {
       if (!hasRating && !hasCombo) ...[
         AppCard(
           child: Text(
-            '这张谱面暂时没有全站评级与连击分布数据',
+            context.l10n.flowNoGlobalGradeOrComboDistributionData,
             style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
           ),
         ),
@@ -1232,8 +1288,7 @@ extension _SongInfoLayout on _SongInfoPageState {
         counts[3] * _touchWeight +
         counts[4] * _breakWeight;
     // 一个 TAP GREAT 丢掉的达成率（百分点）
-    final tapGreatLoss =
-        weight == 0 ? 0.0 : 0.2 * _tapWeight / weight * 100;
+    final tapGreatLoss = weight == 0 ? 0.0 : 0.2 * _tapWeight / weight * 100;
     Widget toleranceTile(String label, double margin) => Expanded(
           child: AppCard(
             radius: 18,
@@ -1250,7 +1305,7 @@ extension _SongInfoLayout on _SongInfoPageState {
                         fontSize: 22,
                         fontWeight: FontWeight.w700,
                         color: scheme.onSurface)),
-                Text('个 TAP GREAT（绝赞全 CP）',
+                Text(context.l10n.flowTAPGREATsAllBREAKsCriticalPerfect,
                     style: TextStyle(
                         fontSize: 11, color: scheme.onSurfaceVariant)),
               ],
@@ -1262,9 +1317,9 @@ extension _SongInfoLayout on _SongInfoPageState {
       if (tapGreatLoss > 0 && widget.songId.length != 6) ...[
         Row(
           children: [
-            toleranceTile('SSS+ 容错', 0.5),
+            toleranceTile(context.l10n.flowSSSAllowance, 0.5),
             const SizedBox(width: 10),
-            toleranceTile('SSS 容错', 1.0),
+            toleranceTile(context.l10n.flowSSSAllowance2, 1.0),
           ],
         ),
         const SizedBox(height: 12),
@@ -1291,11 +1346,11 @@ extension _SongInfoLayout on _SongInfoPageState {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('计算工具',
+                  Text(context.l10n.featureCalculators2,
                       style:
                           TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 2),
-                  Text('带上这张谱面的物量与成绩打开计算器',
+                  Text(context.l10n.flowOpenCalculatorWithThisChartSNotes,
                       style: TextStyle(
                           fontSize: 12, color: scheme.onSurfaceVariant)),
                 ],
@@ -1315,10 +1370,10 @@ extension _SongInfoLayout on _SongInfoPageState {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
+        Padding(
           padding: EdgeInsets.symmetric(vertical: 8),
           child: Text(
-            '谱面标签(仅供参考)',
+            context.l10n.flowChartTagsReferenceOnly,
             style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w700,
@@ -1328,7 +1383,7 @@ extension _SongInfoLayout on _SongInfoPageState {
         // 不分行显示分类，所有标签按顺序铺开，满了换行
         if (groupedTags.values.every((tags) => tags.isEmpty))
           Text(
-            '暂无标签',
+            context.l10n.flowNoTagsYet,
             style: TextStyle(
               fontSize: 12,
               color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -1345,7 +1400,66 @@ extension _SongInfoLayout on _SongInfoPageState {
             ],
           ),
         const SizedBox(height: 12),
+        _buildCustomTagsRow(),
       ],
+    );
+  }
+
+  /// 当前谱面的自定义标签：用户颜色显示，末尾一个入口可增删标签。
+  CustomTagChart? _currentCustomTagChart() {
+    final data = _songData;
+    final title = data?['basic_info']?['title']?.toString() ?? '';
+    if (data == null || title.isEmpty) return null;
+    return CustomTagChart(
+      songId: widget.songId,
+      title: title,
+      sheetType:
+          CustomTagChart.sheetTypeOf(widget.songId, data['type']?.toString() ?? ''),
+      levelIndex: _currentDiffIndex,
+    );
+  }
+
+  Widget _buildCustomTagsRow() {
+    final chart = _currentCustomTagChart();
+    if (chart == null) return const SizedBox.shrink();
+    final store = CustomTagStore.instance;
+    store.ensureLoaded();
+    return ListenableBuilder(
+      listenable: store,
+      builder: (context, _) {
+        final tags = store.tagsOf(chart.songId, chart.levelIndex);
+        final scheme = Theme.of(context).colorScheme;
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(context.l10n.customTagTitle,
+                  style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: scheme.onSurfaceVariant)),
+              const SizedBox(height: 8),
+              Wrap(spacing: 8, runSpacing: 8, children: [
+                for (final tag in tags)
+                  CustomTagChip(
+                    name: tag.name,
+                    color: tag.color,
+                    onTap: () => showCustomTagChartSheet(context, chart),
+                  ),
+                CustomTagChip(
+                  name: tags.isEmpty
+                      ? context.l10n.customTagAddToChart
+                      : context.l10n.customTagManage,
+                  color: scheme.primary.toARGB32(),
+                  icon: tags.isEmpty ? Icons.add_rounded : Icons.tune_rounded,
+                  onTap: () => showCustomTagChartSheet(context, chart),
+                ),
+              ]),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -1360,7 +1474,8 @@ extension _SongInfoLayout on _SongInfoPageState {
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall)),
+                borderRadius:
+                    BorderRadius.circular(AppDesignTokens.radiusSmall)),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1387,7 +1502,7 @@ extension _SongInfoLayout on _SongInfoPageState {
                     style: const TextStyle(fontSize: 11),
                     children: [
                       TextSpan(
-                        text: '标签数据来源自 ',
+                        text: context.l10n.flowTagDataFrom,
                         style: TextStyle(color: AppColors.greyHint(brightness)),
                       ),
                       TextSpan(
@@ -1410,7 +1525,7 @@ extension _SongInfoLayout on _SongInfoPageState {
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(ctx).pop(),
-                child: const Text('关闭'),
+                child: Text(context.l10n.featureClose),
               ),
             ],
           ),
@@ -1424,7 +1539,7 @@ extension _SongInfoLayout on _SongInfoPageState {
           border: Border.all(color: _getTagBorderColor(groupKey), width: 1),
         ),
         child: Text(
-          tag['name']?.toString() ?? '未知标签',
+          tag['name']?.toString() ?? context.l10n.flowUnknownTag,
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w500,
@@ -1474,9 +1589,11 @@ extension _SongInfoLayout on _SongInfoPageState {
 
     return BottomActionBar(
       children: [
-        iconAction(Icons.music_note_rounded, '试听', _playMusic),
+        iconAction(
+            Icons.music_note_rounded, context.l10n.flowPreview, _playMusic),
         iconAction(Icons.play_circle_outline_rounded, 'PV', _playPv),
-        iconAction(Icons.more_horiz_rounded, '更多', _showMoreSongActions),
+        iconAction(Icons.more_horiz_rounded, context.l10n.flowMore,
+            _showMoreSongActions),
         Expanded(
           child: SizedBox(
             height: 52,
@@ -1490,12 +1607,13 @@ extension _SongInfoLayout on _SongInfoPageState {
                       BorderRadius.circular(AppDesignTokens.radiusMedium),
                 ),
                 textStyle:
-                    const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                    AppTheme.font(fontSize: 15, fontWeight: FontWeight.w700),
               ),
               icon: const Icon(Icons.code_rounded, size: 18),
-              label: const FittedBox(
+              label: FittedBox(
                 fit: BoxFit.scaleDown,
-                child: Text('查看谱面代码', maxLines: 1, softWrap: false),
+                child: Text(context.l10n.flowViewChartCode,
+                    maxLines: 1, softWrap: false),
               ),
             ),
           ),

@@ -99,7 +99,7 @@
     android:includeFontPadding="false"
     android:textSize="11sp"
     android:textColor="@color/widget_muted"
-    android:text="打开 App 刷新数据"
+    android:text="@string/native_text_59"
     
     android:autoSizeTextType="uniform"
     android:autoSizeMinTextSize="9sp"

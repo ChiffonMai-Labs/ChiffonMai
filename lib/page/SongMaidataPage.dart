@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'dart:convert';
 import 'dart:io';
@@ -23,6 +25,7 @@ import '../widgets/AppUi.dart';
 import '../widgets/MarqueeText.dart';
 import '../widgets/AppDialogs.dart';
 import '../widgets/AppToast.dart';
+import '../utils/ChartCodeFontPreference.dart';
 
 class SongMaidataPage extends StatefulWidget {
   final String songId;
@@ -70,7 +73,65 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
       songType: widget.songType,
     );
     _loadAudioPreference();
+    _loadCodeFont();
     _loadMaidata();
+  }
+
+  /// 记住的谱面代码字体；读取完成前先用默认字体。
+  ChartCodeFont _codeFont = ChartCodeFont.standard;
+
+  Future<void> _loadCodeFont() async {
+    final font = await ChartCodeFontPreference.load();
+    if (mounted) setState(() => _codeFont = font);
+  }
+
+  Future<void> _chooseCodeFont() async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    final picked = await showDialog<ChartCodeFont>(
+      context: context,
+      builder: (ctx) => AppAlertDialog(
+        title: Text(ctx.l10n.chartCodeFont),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (final font in ChartCodeFont.values)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: AppDialogOption(
+                  title: font == ChartCodeFont.standard
+                      ? ctx.l10n.chartCodeFontDefault
+                      : 'Inconsolata',
+                  // 选项标题用对应字体预览效果。
+                  titleWidget: Text(
+                    font == ChartCodeFont.standard
+                        ? ctx.l10n.chartCodeFontDefault
+                        : 'Inconsolata',
+                    style: font.apply(const TextStyle(
+                        fontSize: 14.5, fontWeight: FontWeight.w600)),
+                  ),
+                  selected: font == _codeFont,
+                  leading: Icon(font == _codeFont
+                      ? Icons.radio_button_checked_rounded
+                      : Icons.radio_button_off_rounded),
+                  onTap: () => Navigator.pop(ctx, font),
+                ),
+              ),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(ctx.l10n.featureCancel)),
+        ],
+      ),
+    );
+    if (picked == null || !mounted || picked == _codeFont) return;
+    setState(() => _codeFont = picked);
+    if (!await ChartCodeFontPreference.save(picked) && mounted) {
+      AppToast.show(context.l10n.chartCodeFontSaveFailed,
+          tone: AppToastTone.warning);
+    }
   }
 
   Future<void> _loadAudioPreference() async {
@@ -110,13 +171,13 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
         });
       } else {
         setState(() {
-          _errorMessage = '未找到匹配的谱面代码';
+          _errorMessage = appL10n.flowNoMatchingChartCodeFound;
         });
       }
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = '获取谱面代码失败: $e';
+        _errorMessage = appL10n.flowCouldNotFetchChartCodeP0((e).toString());
       });
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -128,7 +189,8 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
 
     Clipboard.setData(ClipboardData(text: _maidataContent));
 
-    AppToast.show('已复制到剪贴板');
+    AppToast.show(context.l10n.flowCopiedToClipboard,
+        tone: AppToastTone.success);
   }
 
   /// 谱面导出：先让用户选目标格式
@@ -144,14 +206,14 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
           children: [
             ListTile(
               leading: const Icon(Icons.folder_zip_outlined),
-              title: const Text('导出压缩包 (.zip)'),
-              subtitle: const Text('maidata.txt + 曲绘 + 音源，通用谱面包'),
+              title: Text(context.l10n.flowExportZIPZip),
+              subtitle: Text(context.l10n.flowMaidataTxtCoverArtAndAudioIn),
               onTap: () => Navigator.of(ctx).pop('zip'),
             ),
             ListTile(
               leading: const Icon(Icons.sports_esports_outlined),
-              title: const Text('导出 AstroDX 谱面 (.adx)'),
-              subtitle: const Text('用 AstroDX 打开即可自动安装谱面'),
+              title: Text(context.l10n.flowExportAstroDXChartAdx),
+              subtitle: Text(context.l10n.flowOpenInAstroDXToInstallTheChart),
               onTap: () => Navigator.of(ctx).pop('adx'),
             ),
             const SizedBox(height: 8),
@@ -192,7 +254,8 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
   Future<void> _exportToZip() async {
     if (_maidataContent.isEmpty || _isExporting) return;
     if (!await ExportPathUtil.prepareForExport(context,
-        subDir: '谱面', title: '选择谱面包保存位置')) {
+        subDir: '谱面',
+        title: context.l10n.flowChooseWhereToSaveTheChartPackage)) {
       return;
     }
     await _runExport(() async {
@@ -229,7 +292,8 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
   Future<void> _exportAstroDx() async {
     if (_maidataContent.isEmpty || _isExporting) return;
     if (!await ExportPathUtil.prepareForExport(context,
-        subDir: '谱面', title: '选择 AstroDX 谱面保存位置')) {
+        subDir: '谱面',
+        title: context.l10n.flowChooseWhereToSaveTheAstroDXChart)) {
       return;
     }
     await _runExport(() async {
@@ -270,13 +334,13 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => const AppAlertDialog(
+        builder: (context) => AppAlertDialog(
           content: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               CircularProgressIndicator(),
               SizedBox(width: 16),
-              Text('正在导出...'),
+              Text(context.l10n.flowExporting2),
             ],
           ),
         ),
@@ -298,7 +362,8 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
         Navigator.of(context).pop();
       }
       if (mounted) {
-        AppToast.show('导出失败: $e', tone: AppToastTone.error, duration: const Duration(seconds: 3));
+        AppToast.show(context.l10n.flowExportFailedP0((e).toString()),
+            tone: AppToastTone.error, duration: const Duration(seconds: 3));
       }
       debugPrint('[DEBUG][SongMaidataPage] 导出失败: $e');
     } finally {
@@ -439,7 +504,7 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
       context: context,
       builder: (BuildContext context) {
         return AppAlertDialog(
-          title: const Text('选择难度'),
+          title: Text(context.l10n.flowSelectDifficulty),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -447,7 +512,7 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
                 Padding(
                   padding: const EdgeInsets.only(bottom: 16),
                   child: Text(
-                    '渲染出的谱面仅供参考，不代表官方谱面。对于高密度谱面，请勿频繁拖动进度条，以免造成应用闪退或卡死。',
+                    context.l10n.flowRenderedChartsAreForReferenceAndMay,
                     style: TextStyle(
                         fontSize: 12,
                         color: Theme.of(context).colorScheme.onSurfaceVariant),
@@ -458,8 +523,9 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
                   builder: (context, setDialogState) => CheckboxListTile(
                     contentPadding: EdgeInsets.zero,
                     value: loadAudio,
-                    title: const Text('加载音频'),
-                    subtitle: const Text('取消勾选可直接加载谱面，跳过音源下载'),
+                    title: Text(context.l10n.flowLoadAudio),
+                    subtitle:
+                        Text(context.l10n.flowTurnOffToLoadTheChartWithout),
                     onChanged: (value) {
                       if (value == null) return;
                       setDialogState(() => loadAudio = value);
@@ -499,7 +565,8 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
                         ),
                         textStyle: AppTheme.font(fontSize: 16),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+                          borderRadius: BorderRadius.circular(
+                              AppDesignTokens.radiusSmall),
                         ),
                       ),
                       child: Text(difficultyName),
@@ -600,7 +667,9 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
       future: _service.getSongDsList(),
       builder: (context, snapshot) {
         return Text(
-          snapshot.hasData ? snapshot.data!.join(' / ') : '获取定数中...',
+          snapshot.hasData
+              ? snapshot.data!.join(' / ')
+              : context.l10n.flowFetchingChartConstants,
           style: AppTheme.number(
             fontSize: 13,
             fontWeight: FontWeight.w600,
@@ -668,7 +737,7 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '歌曲ID ${widget.songId}',
+                      context.l10n.flowSongIDP0((widget.songId).toString()),
                       style: TextStyle(
                           fontSize: 12, color: scheme.onSurfaceVariant),
                     ),
@@ -705,7 +774,14 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
     final hasCode = !_isLoading && _maidataContent.isNotEmpty;
 
     return BackgroundPageScaffold(
-      title: '谱面代码',
+      title: context.l10n.flowChartCode,
+      actions: [
+        IconButton(
+          tooltip: context.l10n.chartCodeFont,
+          icon: const Icon(Icons.text_fields_rounded),
+          onPressed: _chooseCodeFont,
+        ),
+      ],
       contentPadding: hasCode
           ? EdgeInsets.zero
           : EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
@@ -744,15 +820,15 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
                               const SizedBox(height: 16),
                               FilledButton(
                                 onPressed: _fetchMaidata,
-                                child: const Text('重试'),
+                                child: Text(context.l10n.flowRetry),
                               ),
                             ],
                           ),
                         ),
                       )
                     : _maidataContent.isEmpty
-                        ? const Center(
-                            child: Text('暂无谱面代码数据'),
+                        ? Center(
+                            child: Text(context.l10n.flowNoChartCodeAvailable),
                           )
                         : Padding(
                             padding: const EdgeInsets.fromLTRB(
@@ -769,12 +845,11 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
                                   padding: const EdgeInsets.all(14),
                                   child: SelectableText(
                                     _getFilteredMaidata(),
-                                    style: TextStyle(
-                                      fontFamily: 'Courier New',
+                                    style: _codeFont.apply(TextStyle(
                                       fontSize: 12,
                                       color: scheme.onSurface,
                                       height: 1.4,
-                                    ),
+                                    )),
                                     textAlign: TextAlign.left,
                                   ),
                                 ),
@@ -789,7 +864,7 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
                 child: FilledButton.tonalIcon(
                   onPressed: _copyToClipboard,
                   icon: const Icon(Icons.copy, size: 18),
-                  label: const Text('复制'),
+                  label: Text(context.l10n.flowCopy),
                 ),
               ),
               const SizedBox(width: 8),
@@ -800,7 +875,9 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
                     _isExporting ? Icons.hourglass_empty : Icons.download,
                     size: 18,
                   ),
-                  label: Text(_isExporting ? '导出中' : '导出'),
+                  label: Text(_isExporting
+                      ? context.l10n.flowExporting
+                      : context.l10n.flowExport),
                 ),
               ),
               const SizedBox(width: 8),
@@ -808,7 +885,7 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
                 child: FilledButton.icon(
                   onPressed: _navigateToChartPlay,
                   icon: const Icon(Icons.play_circle_outline, size: 18),
-                  label: const Text('渲染'),
+                  label: Text(context.l10n.flowRender),
                 ),
               ),
             ],
@@ -834,10 +911,10 @@ class _ChartExportAssets {
   /// 所以这里不阻断导出，只在成功弹窗里提醒。
   String? get missingHint {
     final missing = <String>[];
-    if (coverBytes == null) missing.add('曲绘');
-    if (audioBytes == null) missing.add('音源');
+    if (coverBytes == null) missing.add(appL10n.flowCoverArt);
+    if (audioBytes == null) missing.add(appL10n.flowAudio);
     if (missing.isEmpty) return null;
-    return '未能获取${missing.join('、')}，压缩包里只有谱面数据，'
-        '导入后需要自行补齐才能正常游玩。';
+    return appL10n
+        .flowCouldNotFetchP0ThePackageOnly((missing.join('、')).toString());
   }
 }

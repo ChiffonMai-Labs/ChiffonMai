@@ -4,7 +4,6 @@ part of '../SongInfoPage.dart';
 ///
 /// 2026-11 从 SongInfoPage.dart 原样拆出（方法体未改，仅 setState → _update）。
 extension _SongInfoTables on _SongInfoPageState {
-
   /// 成绩趋势（达成率 / DX 分曲线）板块。
   ///
   /// **它是一块独立于「玩家最佳成绩」的卡片**，排在后者下方 —— 以前这条曲线
@@ -101,7 +100,7 @@ extension _SongInfoTables on _SongInfoPageState {
         SizedBox(
           width: double.infinity,
           child: Text(
-            '定数历史',
+            context.l10n.flowConstantHistory,
             textAlign: TextAlign.center,
             style: AppTheme.number(
               fontSize: 13,
@@ -239,7 +238,7 @@ extension _SongInfoTables on _SongInfoPageState {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  '星数-DX分数对照表',
+                  context.l10n.flowStarsDXScoreTable,
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -279,7 +278,7 @@ extension _SongInfoTables on _SongInfoPageState {
                       children: [
                         Expanded(
                           flex: 3, // 星数列占3份
-                          child: Text('星数',
+                          child: Text(context.l10n.flowStars,
                               style: TextStyle(
                                   fontSize: 16,
                                   color: Theme.of(context)
@@ -288,7 +287,7 @@ extension _SongInfoTables on _SongInfoPageState {
                         ),
                         Expanded(
                           flex: 2, // DX分数列占2份
-                          child: Text('DX分数',
+                          child: Text(context.l10n.flowDXScore2,
                               style: TextStyle(
                                   fontSize: 16,
                                   color: Theme.of(context)
@@ -338,8 +337,8 @@ extension _SongInfoTables on _SongInfoPageState {
                               child: Row(
                                 children: [
                                   Text(
-                                    star == "玩家"
-                                        ? '玩家'
+                                    star == '玩家'
+                                        ? context.l10n.flowPlayers
                                         : '\u2726 ${star.toString()}',
                                     style: TextStyle(
                                       fontSize: 20,
@@ -594,7 +593,7 @@ extension _SongInfoTables on _SongInfoPageState {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  '达成率-得分对照表',
+                  context.l10n.flowAchievementScoreTable,
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -633,13 +632,13 @@ extension _SongInfoTables on _SongInfoPageState {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('达成率',
+                        Text(context.l10n.flowAchievement2,
                             style: TextStyle(
                                 fontSize: 16,
                                 color: Theme.of(context)
                                     .colorScheme
                                     .onSurfaceVariant)),
-                        Text('得分',
+                        Text(context.l10n.flowScore,
                             style: TextStyle(
                                 fontSize: 16,
                                 color: Theme.of(context)
@@ -662,7 +661,7 @@ extension _SongInfoTables on _SongInfoPageState {
                       // 获取评级颜色
                       Color ratingColor =
                           Theme.of(context).colorScheme.onSurface;
-                      if (rating == "玩家") {
+                      if (rating == '玩家') {
                         ratingColor = Colors.white;
                       } else {
                         switch (rating) {
@@ -710,7 +709,9 @@ extension _SongInfoTables on _SongInfoPageState {
                             Row(
                               children: [
                                 Text(
-                                  rating.toString(),
+                                  isUserRecord
+                                      ? context.l10n.flowPlayers
+                                      : rating.toString(),
                                   style: TextStyle(
                                     fontSize: 20,
                                     fontWeight: FontWeight.bold,
@@ -951,12 +952,13 @@ extension _SongInfoTables on _SongInfoPageState {
         _break50gCount < 0 ||
         _breakGoodCount < 0 ||
         _breakMissCount < 0) {
-      breakInputError = '数量不能为负数';
+      breakInputError = context.l10n.flowCountCannotBeNegative;
     } else if (totalInputCount > totalBreak) {
-      breakInputError = '已打出总数（$totalInputCount）不能超过BREAK总数（$totalBreak）';
+      breakInputError = context.l10n.flowPlayedCountP0CannotExceedTheTotal(
+          (totalInputCount).toString(), (totalBreak).toString());
     } else if (breakInputLoss >= 2.0) {
-      breakInputError =
-          'BREAK损失已达${breakInputLoss.toStringAsFixed(2)}%，超过SS(-2%)上限，无法继续容错';
+      breakInputError = context.l10n.flowBREAKLossIsP0BeyondTheSS(
+          (breakInputLoss.toStringAsFixed(2)).toString());
     }
 
     return Column(
@@ -976,7 +978,7 @@ extension _SongInfoTables on _SongInfoPageState {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  '容错计算',
+                  context.l10n.flowJudgmentAllowance,
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -1049,11 +1051,12 @@ extension _SongInfoTables on _SongInfoPageState {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text('音符类型:',
-                                style: TextStyle(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurfaceVariant)),
+                            Flexible(
+                                child: Text(context.l10n.flowNoteType,
+                                    style: TextStyle(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onSurfaceVariant))),
                             Text(_selectedNoteType,
                                 style: TextStyle(fontWeight: FontWeight.bold)),
                           ],
@@ -1062,11 +1065,12 @@ extension _SongInfoTables on _SongInfoPageState {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text('占总权重比例:',
-                                style: TextStyle(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurfaceVariant)),
+                            Flexible(
+                                child: Text(context.l10n.flowShareOfTotalWeight,
+                                    style: TextStyle(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onSurfaceVariant))),
                             Text('${(weightRatio * 100).toStringAsFixed(2)}%',
                                 style: TextStyle(fontWeight: FontWeight.bold)),
                           ],
@@ -1087,7 +1091,7 @@ extension _SongInfoTables on _SongInfoPageState {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('已打出的BREAK损失',
+                                Text(context.l10n.flowBREAKLossSoFar,
                                     style: TextStyle(
                                         fontWeight: FontWeight.bold,
                                         fontSize: 13,
@@ -1100,14 +1104,15 @@ extension _SongInfoTables on _SongInfoPageState {
                                         controller: _break50Controller,
                                         keyboardType: TextInputType.number,
                                         decoration: InputDecoration(
-                                          labelText: '50落数量',
+                                          labelText:
+                                              context.l10n.flow50PointLosses,
                                           hintText: '0',
                                           isDense: true,
                                           contentPadding: EdgeInsets.symmetric(
                                               horizontal: 8, vertical: 8),
                                           errorText: _break50Count < 0 ||
                                                   totalInputCount > totalBreak
-                                              ? '无效'
+                                              ? context.l10n.flowInvalid
                                               : null,
                                         ).insetLabel(context),
                                         onChanged: (value) {
@@ -1124,14 +1129,15 @@ extension _SongInfoTables on _SongInfoPageState {
                                         controller: _break100Controller,
                                         keyboardType: TextInputType.number,
                                         decoration: InputDecoration(
-                                          labelText: '100落数量',
+                                          labelText:
+                                              context.l10n.flow100PointLosses,
                                           hintText: '0',
                                           isDense: true,
                                           contentPadding: EdgeInsets.symmetric(
                                               horizontal: 8, vertical: 8),
                                           errorText: _break100Count < 0 ||
                                                   totalInputCount > totalBreak
-                                              ? '无效'
+                                              ? context.l10n.flowInvalid
                                               : null,
                                         ).insetLabel(context),
                                         onChanged: (value) {
@@ -1152,14 +1158,15 @@ extension _SongInfoTables on _SongInfoPageState {
                                         controller: _break80Controller,
                                         keyboardType: TextInputType.number,
                                         decoration: InputDecoration(
-                                          labelText: '80%GREAT数量',
+                                          labelText:
+                                              context.l10n.flow80GREATCount,
                                           hintText: '0',
                                           isDense: true,
                                           contentPadding: EdgeInsets.symmetric(
                                               horizontal: 8, vertical: 8),
                                           errorText: _break80Count < 0 ||
                                                   totalInputCount > totalBreak
-                                              ? '无效'
+                                              ? context.l10n.flowInvalid
                                               : null,
                                         ).insetLabel(context),
                                         onChanged: (value) {
@@ -1176,14 +1183,15 @@ extension _SongInfoTables on _SongInfoPageState {
                                         controller: _break60Controller,
                                         keyboardType: TextInputType.number,
                                         decoration: InputDecoration(
-                                          labelText: '60%GREAT数量',
+                                          labelText:
+                                              context.l10n.flow60GREATCount,
                                           hintText: '0',
                                           isDense: true,
                                           contentPadding: EdgeInsets.symmetric(
                                               horizontal: 8, vertical: 8),
                                           errorText: _break60Count < 0 ||
                                                   totalInputCount > totalBreak
-                                              ? '无效'
+                                              ? context.l10n.flowInvalid
                                               : null,
                                         ).insetLabel(context),
                                         onChanged: (value) {
@@ -1200,14 +1208,15 @@ extension _SongInfoTables on _SongInfoPageState {
                                         controller: _break50gController,
                                         keyboardType: TextInputType.number,
                                         decoration: InputDecoration(
-                                          labelText: '50%GREAT数量',
+                                          labelText:
+                                              context.l10n.flow50GREATCount,
                                           hintText: '0',
                                           isDense: true,
                                           contentPadding: EdgeInsets.symmetric(
                                               horizontal: 8, vertical: 8),
                                           errorText: _break50gCount < 0 ||
                                                   totalInputCount > totalBreak
-                                              ? '无效'
+                                              ? context.l10n.flowInvalid
                                               : null,
                                         ).insetLabel(context),
                                         onChanged: (value) {
@@ -1228,14 +1237,14 @@ extension _SongInfoTables on _SongInfoPageState {
                                         controller: _breakGoodController,
                                         keyboardType: TextInputType.number,
                                         decoration: InputDecoration(
-                                          labelText: 'GOOD数量',
+                                          labelText: context.l10n.flowGOODCount,
                                           hintText: '0',
                                           isDense: true,
                                           contentPadding: EdgeInsets.symmetric(
                                               horizontal: 8, vertical: 8),
                                           errorText: _breakGoodCount < 0 ||
                                                   totalInputCount > totalBreak
-                                              ? '无效'
+                                              ? context.l10n.flowInvalid
                                               : null,
                                         ).insetLabel(context),
                                         onChanged: (value) {
@@ -1252,14 +1261,14 @@ extension _SongInfoTables on _SongInfoPageState {
                                         controller: _breakMissController,
                                         keyboardType: TextInputType.number,
                                         decoration: InputDecoration(
-                                          labelText: 'MISS数量',
+                                          labelText: context.l10n.flowMISSCount,
                                           hintText: '0',
                                           isDense: true,
                                           contentPadding: EdgeInsets.symmetric(
                                               horizontal: 8, vertical: 8),
                                           errorText: _breakMissCount < 0 ||
                                                   totalInputCount > totalBreak
-                                              ? '无效'
+                                              ? context.l10n.flowInvalid
                                               : null,
                                         ).insetLabel(context),
                                         onChanged: (value) {
@@ -1291,12 +1300,14 @@ extension _SongInfoTables on _SongInfoPageState {
                                   const SizedBox(height: 6),
                                   Row(
                                     children: [
-                                      Text('BREAK总损失: ',
-                                          style: TextStyle(
-                                              color: Theme.of(context)
-                                                  .colorScheme
-                                                  .onSurfaceVariant,
-                                              fontSize: 12)),
+                                      Flexible(
+                                          child: Text(
+                                              context.l10n.flowTotalBREAKLoss,
+                                              style: TextStyle(
+                                                  color: Theme.of(context)
+                                                      .colorScheme
+                                                      .onSurfaceVariant,
+                                                  fontSize: 12))),
                                       Text(
                                           '${breakInputLoss.toStringAsFixed(4)}%',
                                           style: TextStyle(
@@ -1311,12 +1322,15 @@ extension _SongInfoTables on _SongInfoPageState {
                                   ),
                                   Row(
                                     children: [
-                                      Text('剩余预算(SSS+): ',
-                                          style: TextStyle(
-                                              color: Theme.of(context)
-                                                  .colorScheme
-                                                  .onSurfaceVariant,
-                                              fontSize: 12)),
+                                      Flexible(
+                                          child: Text(
+                                              context
+                                                  .l10n.flowRemainingBudgetSSS,
+                                              style: TextStyle(
+                                                  color: Theme.of(context)
+                                                      .colorScheme
+                                                      .onSurfaceVariant,
+                                                  fontSize: 12))),
                                       Text(
                                           '${remainingBudget05.toStringAsFixed(4)}%',
                                           style: TextStyle(
@@ -1331,12 +1345,15 @@ extension _SongInfoTables on _SongInfoPageState {
                                   ),
                                   Row(
                                     children: [
-                                      Text('剩余预算(SSS): ',
-                                          style: TextStyle(
-                                              color: Theme.of(context)
-                                                  .colorScheme
-                                                  .onSurfaceVariant,
-                                              fontSize: 12)),
+                                      Flexible(
+                                          child: Text(
+                                              context
+                                                  .l10n.flowRemainingBudgetSSS2,
+                                              style: TextStyle(
+                                                  color: Theme.of(context)
+                                                      .colorScheme
+                                                      .onSurfaceVariant,
+                                                  fontSize: 12))),
                                       Text(
                                           '${remainingBudget10.toStringAsFixed(4)}%',
                                           style: TextStyle(
@@ -1351,12 +1368,15 @@ extension _SongInfoTables on _SongInfoPageState {
                                   ),
                                   Row(
                                     children: [
-                                      Text('剩余预算(SS+): ',
-                                          style: TextStyle(
-                                              color: Theme.of(context)
-                                                  .colorScheme
-                                                  .onSurfaceVariant,
-                                              fontSize: 12)),
+                                      Flexible(
+                                          child: Text(
+                                              context
+                                                  .l10n.flowRemainingBudgetSS,
+                                              style: TextStyle(
+                                                  color: Theme.of(context)
+                                                      .colorScheme
+                                                      .onSurfaceVariant,
+                                                  fontSize: 12))),
                                       Text(
                                           '${remainingBudget15.toStringAsFixed(4)}%',
                                           style: TextStyle(
@@ -1371,12 +1391,15 @@ extension _SongInfoTables on _SongInfoPageState {
                                   ),
                                   Row(
                                     children: [
-                                      Text('剩余预算(SS): ',
-                                          style: TextStyle(
-                                              color: Theme.of(context)
-                                                  .colorScheme
-                                                  .onSurfaceVariant,
-                                              fontSize: 12)),
+                                      Flexible(
+                                          child: Text(
+                                              context
+                                                  .l10n.flowRemainingBudgetSS2,
+                                              style: TextStyle(
+                                                  color: Theme.of(context)
+                                                      .colorScheme
+                                                      .onSurfaceVariant,
+                                                  fontSize: 12))),
                                       Text(
                                           '${remainingBudget20.toStringAsFixed(4)}%',
                                           style: TextStyle(
@@ -1399,21 +1422,21 @@ extension _SongInfoTables on _SongInfoPageState {
                           Row(
                             children: [
                               Expanded(
-                                  child: Text('GREAT损失',
+                                  child: Text(context.l10n.flowGREATLoss,
                                       style: TextStyle(
                                           color: Theme.of(context)
                                               .colorScheme
                                               .onSurfaceVariant),
                                       textAlign: TextAlign.center)),
                               Expanded(
-                                  child: Text('GOOD损失',
+                                  child: Text(context.l10n.flowGOODLoss,
                                       style: TextStyle(
                                           color: Theme.of(context)
                                               .colorScheme
                                               .onSurfaceVariant),
                                       textAlign: TextAlign.center)),
                               Expanded(
-                                  child: Text('MISS损失',
+                                  child: Text(context.l10n.flowMISSLoss,
                                       style: TextStyle(
                                           color: Theme.of(context)
                                               .colorScheme
@@ -1449,21 +1472,22 @@ extension _SongInfoTables on _SongInfoPageState {
                           Row(
                             children: [
                               Expanded(
-                                  child: Text('SSS+容错(GREAT)',
+                                  child: Text(
+                                      context.l10n.flowSSSGREATAllowance,
                                       style: TextStyle(
                                           color: Theme.of(context)
                                               .colorScheme
                                               .onSurfaceVariant),
                                       textAlign: TextAlign.center)),
                               Expanded(
-                                  child: Text('SSS+容错(GOOD)',
+                                  child: Text(context.l10n.flowSSSGOODAllowance,
                                       style: TextStyle(
                                           color: Theme.of(context)
                                               .colorScheme
                                               .onSurfaceVariant),
                                       textAlign: TextAlign.center)),
                               Expanded(
-                                  child: Text('SSS+容错(MISS)',
+                                  child: Text(context.l10n.flowSSSMISSAllowance,
                                       style: TextStyle(
                                           color: Theme.of(context)
                                               .colorScheme
@@ -1476,7 +1500,10 @@ extension _SongInfoTables on _SongInfoPageState {
                           Row(
                             children: [
                               Expanded(
-                                  child: Text('${adjustedTolerance05Great}个',
+                                  child: Text(
+                                      context.l10n.flowP0(
+                                          (adjustedTolerance05Great)
+                                              .toString()),
                                       style: TextStyle(
                                           fontWeight: FontWeight.bold,
                                           color: (_break50Count > 0 ||
@@ -1486,7 +1513,9 @@ extension _SongInfoTables on _SongInfoPageState {
                                               : null),
                                       textAlign: TextAlign.center)),
                               Expanded(
-                                  child: Text('${adjustedTolerance05Good}个',
+                                  child: Text(
+                                      context.l10n.flowP0(
+                                          (adjustedTolerance05Good).toString()),
                                       style: TextStyle(
                                           fontWeight: FontWeight.bold,
                                           color: (_break50Count > 0 ||
@@ -1496,7 +1525,9 @@ extension _SongInfoTables on _SongInfoPageState {
                                               : null),
                                       textAlign: TextAlign.center)),
                               Expanded(
-                                  child: Text('${adjustedTolerance05Miss}个',
+                                  child: Text(
+                                      context.l10n.flowP0(
+                                          (adjustedTolerance05Miss).toString()),
                                       style: TextStyle(
                                           fontWeight: FontWeight.bold,
                                           color: (_break50Count > 0 ||
@@ -1513,21 +1544,24 @@ extension _SongInfoTables on _SongInfoPageState {
                           Row(
                             children: [
                               Expanded(
-                                  child: Text('SSS容错(GREAT)',
+                                  child: Text(
+                                      context.l10n.flowSSSGREATAllowance2,
                                       style: TextStyle(
                                           color: Theme.of(context)
                                               .colorScheme
                                               .onSurfaceVariant),
                                       textAlign: TextAlign.center)),
                               Expanded(
-                                  child: Text('SSS容错(GOOD)',
+                                  child: Text(
+                                      context.l10n.flowSSSGOODAllowance2,
                                       style: TextStyle(
                                           color: Theme.of(context)
                                               .colorScheme
                                               .onSurfaceVariant),
                                       textAlign: TextAlign.center)),
                               Expanded(
-                                  child: Text('SSS容错(MISS)',
+                                  child: Text(
+                                      context.l10n.flowSSSMISSAllowance2,
                                       style: TextStyle(
                                           color: Theme.of(context)
                                               .colorScheme
@@ -1540,7 +1574,10 @@ extension _SongInfoTables on _SongInfoPageState {
                           Row(
                             children: [
                               Expanded(
-                                  child: Text('${adjustedTolerance10Great}个',
+                                  child: Text(
+                                      context.l10n.flowP0(
+                                          (adjustedTolerance10Great)
+                                              .toString()),
                                       style: TextStyle(
                                           fontWeight: FontWeight.bold,
                                           color: (_break50Count > 0 ||
@@ -1550,7 +1587,9 @@ extension _SongInfoTables on _SongInfoPageState {
                                               : null),
                                       textAlign: TextAlign.center)),
                               Expanded(
-                                  child: Text('${adjustedTolerance10Good}个',
+                                  child: Text(
+                                      context.l10n.flowP0(
+                                          (adjustedTolerance10Good).toString()),
                                       style: TextStyle(
                                           fontWeight: FontWeight.bold,
                                           color: (_break50Count > 0 ||
@@ -1560,7 +1599,9 @@ extension _SongInfoTables on _SongInfoPageState {
                                               : null),
                                       textAlign: TextAlign.center)),
                               Expanded(
-                                  child: Text('${adjustedTolerance10Miss}个',
+                                  child: Text(
+                                      context.l10n.flowP0(
+                                          (adjustedTolerance10Miss).toString()),
                                       style: TextStyle(
                                           fontWeight: FontWeight.bold,
                                           color: (_break50Count > 0 ||
@@ -1577,21 +1618,21 @@ extension _SongInfoTables on _SongInfoPageState {
                           Row(
                             children: [
                               Expanded(
-                                  child: Text('SS+容错(GREAT)',
+                                  child: Text(context.l10n.flowSSGREATAllowance,
                                       style: TextStyle(
                                           color: Theme.of(context)
                                               .colorScheme
                                               .onSurfaceVariant),
                                       textAlign: TextAlign.center)),
                               Expanded(
-                                  child: Text('SS+容错(GOOD)',
+                                  child: Text(context.l10n.flowSSGOODAllowance,
                                       style: TextStyle(
                                           color: Theme.of(context)
                                               .colorScheme
                                               .onSurfaceVariant),
                                       textAlign: TextAlign.center)),
                               Expanded(
-                                  child: Text('SS+容错(MISS)',
+                                  child: Text(context.l10n.flowSSMISSAllowance,
                                       style: TextStyle(
                                           color: Theme.of(context)
                                               .colorScheme
@@ -1604,7 +1645,10 @@ extension _SongInfoTables on _SongInfoPageState {
                           Row(
                             children: [
                               Expanded(
-                                  child: Text('${adjustedTolerance15Great}个',
+                                  child: Text(
+                                      context.l10n.flowP0(
+                                          (adjustedTolerance15Great)
+                                              .toString()),
                                       style: TextStyle(
                                           fontWeight: FontWeight.bold,
                                           color: (_break50Count > 0 ||
@@ -1614,7 +1658,9 @@ extension _SongInfoTables on _SongInfoPageState {
                                               : null),
                                       textAlign: TextAlign.center)),
                               Expanded(
-                                  child: Text('${adjustedTolerance15Good}个',
+                                  child: Text(
+                                      context.l10n.flowP0(
+                                          (adjustedTolerance15Good).toString()),
                                       style: TextStyle(
                                           fontWeight: FontWeight.bold,
                                           color: (_break50Count > 0 ||
@@ -1624,7 +1670,9 @@ extension _SongInfoTables on _SongInfoPageState {
                                               : null),
                                       textAlign: TextAlign.center)),
                               Expanded(
-                                  child: Text('${adjustedTolerance15Miss}个',
+                                  child: Text(
+                                      context.l10n.flowP0(
+                                          (adjustedTolerance15Miss).toString()),
                                       style: TextStyle(
                                           fontWeight: FontWeight.bold,
                                           color: (_break50Count > 0 ||
@@ -1641,21 +1689,22 @@ extension _SongInfoTables on _SongInfoPageState {
                           Row(
                             children: [
                               Expanded(
-                                  child: Text('SS容错(GREAT)',
+                                  child: Text(
+                                      context.l10n.flowSSGREATAllowance2,
                                       style: TextStyle(
                                           color: Theme.of(context)
                                               .colorScheme
                                               .onSurfaceVariant),
                                       textAlign: TextAlign.center)),
                               Expanded(
-                                  child: Text('SS容错(GOOD)',
+                                  child: Text(context.l10n.flowSSGOODAllowance2,
                                       style: TextStyle(
                                           color: Theme.of(context)
                                               .colorScheme
                                               .onSurfaceVariant),
                                       textAlign: TextAlign.center)),
                               Expanded(
-                                  child: Text('SS容错(MISS)',
+                                  child: Text(context.l10n.flowSSMISSAllowance2,
                                       style: TextStyle(
                                           color: Theme.of(context)
                                               .colorScheme
@@ -1668,7 +1717,10 @@ extension _SongInfoTables on _SongInfoPageState {
                           Row(
                             children: [
                               Expanded(
-                                  child: Text('${adjustedTolerance20Great}个',
+                                  child: Text(
+                                      context.l10n.flowP0(
+                                          (adjustedTolerance20Great)
+                                              .toString()),
                                       style: TextStyle(
                                           fontWeight: FontWeight.bold,
                                           color: (_break50Count > 0 ||
@@ -1678,7 +1730,9 @@ extension _SongInfoTables on _SongInfoPageState {
                                               : null),
                                       textAlign: TextAlign.center)),
                               Expanded(
-                                  child: Text('${adjustedTolerance20Good}个',
+                                  child: Text(
+                                      context.l10n.flowP0(
+                                          (adjustedTolerance20Good).toString()),
                                       style: TextStyle(
                                           fontWeight: FontWeight.bold,
                                           color: (_break50Count > 0 ||
@@ -1688,7 +1742,9 @@ extension _SongInfoTables on _SongInfoPageState {
                                               : null),
                                       textAlign: TextAlign.center)),
                               Expanded(
-                                  child: Text('${adjustedTolerance20Miss}个',
+                                  child: Text(
+                                      context.l10n.flowP0(
+                                          (adjustedTolerance20Miss).toString()),
                                       style: TextStyle(
                                           fontWeight: FontWeight.bold,
                                           color: (_break50Count > 0 ||
@@ -1708,14 +1764,14 @@ extension _SongInfoTables on _SongInfoPageState {
                           Row(
                             children: [
                               Expanded(
-                                  child: Text('50落损失',
+                                  child: Text(context.l10n.flow50PointLoss,
                                       style: TextStyle(
                                           color: Theme.of(context)
                                               .colorScheme
                                               .onSurfaceVariant),
                                       textAlign: TextAlign.center)),
                               Expanded(
-                                  child: Text('100落损失',
+                                  child: Text(context.l10n.flow100PointLoss,
                                       style: TextStyle(
                                           color: Theme.of(context)
                                               .colorScheme
@@ -1746,21 +1802,21 @@ extension _SongInfoTables on _SongInfoPageState {
                           Row(
                             children: [
                               Expanded(
-                                  child: Text('80%GREAT损失',
+                                  child: Text(context.l10n.flow80GREATLoss,
                                       style: TextStyle(
                                           color: Theme.of(context)
                                               .colorScheme
                                               .onSurfaceVariant),
                                       textAlign: TextAlign.center)),
                               Expanded(
-                                  child: Text('60%GREAT损失',
+                                  child: Text(context.l10n.flow60GREATLoss,
                                       style: TextStyle(
                                           color: Theme.of(context)
                                               .colorScheme
                                               .onSurfaceVariant),
                                       textAlign: TextAlign.center)),
                               Expanded(
-                                  child: Text('50%GREAT损失',
+                                  child: Text(context.l10n.flow50GREATLoss,
                                       style: TextStyle(
                                           color: Theme.of(context)
                                               .colorScheme
@@ -1797,14 +1853,14 @@ extension _SongInfoTables on _SongInfoPageState {
                           Row(
                             children: [
                               Expanded(
-                                  child: Text('GOOD损失',
+                                  child: Text(context.l10n.flowGOODLoss,
                                       style: TextStyle(
                                           color: Theme.of(context)
                                               .colorScheme
                                               .onSurfaceVariant),
                                       textAlign: TextAlign.center)),
                               Expanded(
-                                  child: Text('MISS损失',
+                                  child: Text(context.l10n.flowMISSLoss,
                                       style: TextStyle(
                                           color: Theme.of(context)
                                               .colorScheme
@@ -1835,21 +1891,24 @@ extension _SongInfoTables on _SongInfoPageState {
                           Row(
                             children: [
                               Expanded(
-                                  child: Text('-0.5%容错80%GREAT',
+                                  child: Text(
+                                      context.l10n.flow0580GREATAllowance,
                                       style: TextStyle(
                                           color: Theme.of(context)
                                               .colorScheme
                                               .onSurfaceVariant),
                                       textAlign: TextAlign.center)),
                               Expanded(
-                                  child: Text('-0.5%容错60%GREAT',
+                                  child: Text(
+                                      context.l10n.flow0560GREATAllowance,
                                       style: TextStyle(
                                           color: Theme.of(context)
                                               .colorScheme
                                               .onSurfaceVariant),
                                       textAlign: TextAlign.center)),
                               Expanded(
-                                  child: Text('-0.5%容错50%GREAT',
+                                  child: Text(
+                                      context.l10n.flow0550GREATAllowance,
                                       style: TextStyle(
                                           color: Theme.of(context)
                                               .colorScheme
@@ -1862,17 +1921,23 @@ extension _SongInfoTables on _SongInfoPageState {
                           Row(
                             children: [
                               Expanded(
-                                  child: Text('${tolerance05Break80}个',
+                                  child: Text(
+                                      context.l10n.flowP0(
+                                          (tolerance05Break80).toString()),
                                       style: TextStyle(
                                           fontWeight: FontWeight.bold),
                                       textAlign: TextAlign.center)),
                               Expanded(
-                                  child: Text('${tolerance05Break60}个',
+                                  child: Text(
+                                      context.l10n.flowP0(
+                                          (tolerance05Break60).toString()),
                                       style: TextStyle(
                                           fontWeight: FontWeight.bold),
                                       textAlign: TextAlign.center)),
                               Expanded(
-                                  child: Text('${tolerance05Break50g}个',
+                                  child: Text(
+                                      context.l10n.flowP0(
+                                          (tolerance05Break50g).toString()),
                                       style: TextStyle(
                                           fontWeight: FontWeight.bold),
                                       textAlign: TextAlign.center)),
@@ -1885,7 +1950,7 @@ extension _SongInfoTables on _SongInfoPageState {
                               Expanded(
                                 child: Column(
                                   children: [
-                                    Text('-0.5%容错',
+                                    Text(context.l10n.flow05Allowance,
                                         style: TextStyle(
                                             color: Theme.of(context)
                                                 .colorScheme
@@ -1903,7 +1968,7 @@ extension _SongInfoTables on _SongInfoPageState {
                               Expanded(
                                 child: Column(
                                   children: [
-                                    Text('-0.5%容错',
+                                    Text(context.l10n.flow05Allowance,
                                         style: TextStyle(
                                             color: Theme.of(context)
                                                 .colorScheme
@@ -1925,12 +1990,16 @@ extension _SongInfoTables on _SongInfoPageState {
                           Row(
                             children: [
                               Expanded(
-                                  child: Text('${tolerance05BreakGo}个',
+                                  child: Text(
+                                      context.l10n.flowP0(
+                                          (tolerance05BreakGo).toString()),
                                       style: TextStyle(
                                           fontWeight: FontWeight.bold),
                                       textAlign: TextAlign.center)),
                               Expanded(
-                                  child: Text('${tolerance05Miss}个',
+                                  child: Text(
+                                      context.l10n
+                                          .flowP0((tolerance05Miss).toString()),
                                       style: TextStyle(
                                           fontWeight: FontWeight.bold),
                                       textAlign: TextAlign.center)),
@@ -1942,21 +2011,24 @@ extension _SongInfoTables on _SongInfoPageState {
                           Row(
                             children: [
                               Expanded(
-                                  child: Text('-1%容错80%GREAT',
+                                  child: Text(
+                                      context.l10n.flow180GREATAllowance,
                                       style: TextStyle(
                                           color: Theme.of(context)
                                               .colorScheme
                                               .onSurfaceVariant),
                                       textAlign: TextAlign.center)),
                               Expanded(
-                                  child: Text('-1%容错60%GREAT',
+                                  child: Text(
+                                      context.l10n.flow160GREATAllowance,
                                       style: TextStyle(
                                           color: Theme.of(context)
                                               .colorScheme
                                               .onSurfaceVariant),
                                       textAlign: TextAlign.center)),
                               Expanded(
-                                  child: Text('-1%容错50%GREAT',
+                                  child: Text(
+                                      context.l10n.flow150GREATAllowance,
                                       style: TextStyle(
                                           color: Theme.of(context)
                                               .colorScheme
@@ -1969,17 +2041,23 @@ extension _SongInfoTables on _SongInfoPageState {
                           Row(
                             children: [
                               Expanded(
-                                  child: Text('${tolerance10Break80}个',
+                                  child: Text(
+                                      context.l10n.flowP0(
+                                          (tolerance10Break80).toString()),
                                       style: TextStyle(
                                           fontWeight: FontWeight.bold),
                                       textAlign: TextAlign.center)),
                               Expanded(
-                                  child: Text('${tolerance10Break60}个',
+                                  child: Text(
+                                      context.l10n.flowP0(
+                                          (tolerance10Break60).toString()),
                                       style: TextStyle(
                                           fontWeight: FontWeight.bold),
                                       textAlign: TextAlign.center)),
                               Expanded(
-                                  child: Text('${tolerance10Break50g}个',
+                                  child: Text(
+                                      context.l10n.flowP0(
+                                          (tolerance10Break50g).toString()),
                                       style: TextStyle(
                                           fontWeight: FontWeight.bold),
                                       textAlign: TextAlign.center)),
@@ -1992,7 +2070,7 @@ extension _SongInfoTables on _SongInfoPageState {
                               Expanded(
                                 child: Column(
                                   children: [
-                                    Text('-1%容错',
+                                    Text(context.l10n.flow1Allowance,
                                         style: TextStyle(
                                             color: Theme.of(context)
                                                 .colorScheme
@@ -2010,7 +2088,7 @@ extension _SongInfoTables on _SongInfoPageState {
                               Expanded(
                                 child: Column(
                                   children: [
-                                    Text('-1%容错',
+                                    Text(context.l10n.flow1Allowance,
                                         style: TextStyle(
                                             color: Theme.of(context)
                                                 .colorScheme
@@ -2032,12 +2110,16 @@ extension _SongInfoTables on _SongInfoPageState {
                           Row(
                             children: [
                               Expanded(
-                                  child: Text('${tolerance10BreakGo}个',
+                                  child: Text(
+                                      context.l10n.flowP0(
+                                          (tolerance10BreakGo).toString()),
                                       style: TextStyle(
                                           fontWeight: FontWeight.bold),
                                       textAlign: TextAlign.center)),
                               Expanded(
-                                  child: Text('${tolerance10Miss}个',
+                                  child: Text(
+                                      context.l10n
+                                          .flowP0((tolerance10Miss).toString()),
                                       style: TextStyle(
                                           fontWeight: FontWeight.bold),
                                       textAlign: TextAlign.center)),
@@ -2113,7 +2195,7 @@ extension _SongInfoTables on _SongInfoPageState {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  '评级分布(仅供参考)',
+                  context.l10n.flowGradeDistributionReferenceOnly,
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -2206,7 +2288,13 @@ extension _SongInfoTables on _SongInfoPageState {
     if (fcDist.isEmpty) return Container();
 
     // 连击标签
-    List<String> comboLabels = ['无', 'FC', 'FC+', 'AP', 'AP+'];
+    List<String> comboLabels = [
+      context.l10n.flowNone2,
+      'FC',
+      'FC+',
+      'AP',
+      'AP+'
+    ];
 
     // 确保fcDist长度与标签长度匹配
     if (fcDist.length > comboLabels.length) {
@@ -2237,7 +2325,7 @@ extension _SongInfoTables on _SongInfoPageState {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  '连击分布(仅供参考)',
+                  context.l10n.flowComboDistributionReferenceOnly,
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,

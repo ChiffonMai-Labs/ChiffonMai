@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 // 随身听的两个共享小部件：
 //   * [PortableCover] —— 随身听专用的曲绘（本地 assets 优先，网络多级兜底）
 //   * [PortablePlayerBall] —— 全 App 悬浮球 + 底部迷你播放卡片
@@ -483,8 +484,8 @@ class _PortableMiniCardState extends State<PortableMiniCard> {
         (totalMs > 0 ? (positionMs / totalMs).clamp(0.0, 1.0) : 0.0);
 
     final position = Duration(milliseconds: (value * totalMs).round());
-    final timeStyle = AppTheme.number(
-        fontSize: 11.5, color: scheme.onSurfaceVariant);
+    final timeStyle =
+        AppTheme.number(fontSize: 11.5, color: scheme.onSurfaceVariant);
 
     return SafeArea(
       top: false,
@@ -544,7 +545,9 @@ class _PortableMiniCardState extends State<PortableMiniCard> {
                               ),
                               const SizedBox(width: 4),
                               Text(
-                                _player.isPlaying ? '正在播放' : '已暂停',
+                                _player.isPlaying
+                                    ? context.l10n.flowNowPlaying
+                                    : context.l10n.flowPaused,
                                 style: TextStyle(
                                   fontSize: 11.5,
                                   fontWeight: FontWeight.w600,
@@ -564,7 +567,9 @@ class _PortableMiniCardState extends State<PortableMiniCard> {
                           ),
                           const SizedBox(height: 2),
                           MarqueeText(
-                            text: song.artist.isEmpty ? '未知艺术家' : song.artist,
+                            text: song.artist.isEmpty
+                                ? context.l10n.flowUnknownArtist
+                                : song.artist,
                             style: TextStyle(
                               fontSize: 12.5,
                               color: scheme.onSurfaceVariant,
@@ -589,9 +594,8 @@ class _PortableMiniCardState extends State<PortableMiniCard> {
               ),
               child: Slider(
                 value: value,
-                onChanged: totalMs <= 0
-                    ? null
-                    : (v) => setState(() => _dragValue = v),
+                onChanged:
+                    totalMs <= 0 ? null : (v) => setState(() => _dragValue = v),
                 onChangeEnd: (v) async {
                   final target = Duration(milliseconds: (v * totalMs).round());
                   setState(() => _dragValue = null);
@@ -621,7 +625,7 @@ class _PortableMiniCardState extends State<PortableMiniCard> {
                 ),
                 const Spacer(),
                 IconButton(
-                  tooltip: '上一首',
+                  tooltip: context.l10n.flowPrevious2,
                   iconSize: 30,
                   icon: Icon(Icons.skip_previous_rounded,
                       color: _player.hasPrevious
@@ -634,9 +638,13 @@ class _PortableMiniCardState extends State<PortableMiniCard> {
                 PressScale(
                   child: Semantics(
                     button: true,
-                    label: _player.isPlaying ? '暂停' : '播放',
+                    label: _player.isPlaying
+                        ? context.l10n.flowPause
+                        : context.l10n.flowPlay,
                     child: Tooltip(
-                      message: _player.isPlaying ? '暂停' : '播放',
+                      message: _player.isPlaying
+                          ? context.l10n.flowPause
+                          : context.l10n.flowPlay,
                       child: GestureDetector(
                         onTap: () => _player.togglePlayPause(),
                         child: Container(
@@ -647,8 +655,8 @@ class _PortableMiniCardState extends State<PortableMiniCard> {
                             shape: BoxShape.circle,
                           ),
                           child: AnimatedSwitcher(
-                            duration: AppDesignTokens.motion(context,
-                                const Duration(milliseconds: 180)),
+                            duration: AppDesignTokens.motion(
+                                context, const Duration(milliseconds: 180)),
                             transitionBuilder: (child, animation) =>
                                 ScaleTransition(scale: animation, child: child),
                             child: Icon(
@@ -667,7 +675,7 @@ class _PortableMiniCardState extends State<PortableMiniCard> {
                 ),
                 const SizedBox(width: 4),
                 IconButton(
-                  tooltip: '下一首',
+                  tooltip: context.l10n.flowNext2,
                   iconSize: 30,
                   icon: Icon(Icons.skip_next_rounded,
                       color: _player.hasNext
@@ -677,7 +685,7 @@ class _PortableMiniCardState extends State<PortableMiniCard> {
                 ),
                 const Spacer(),
                 IconButton(
-                  tooltip: '隐藏悬浮球',
+                  tooltip: context.l10n.flowHideFloatingPlayer,
                   iconSize: 22,
                   visualDensity: VisualDensity.compact,
                   icon: Icon(Icons.visibility_off_outlined,
@@ -710,7 +718,7 @@ class _PortableMiniCardState extends State<PortableMiniCard> {
                             size: 18, color: scheme.primary),
                         const SizedBox(width: 6),
                         Text(
-                          '播放列表',
+                          context.l10n.flowPlaylist,
                           style: TextStyle(
                             fontSize: 13.5,
                             fontWeight: FontWeight.w600,
@@ -740,18 +748,18 @@ class _PortableMiniCardState extends State<PortableMiniCard> {
     final choice = await showDialog<_BallHideChoice>(
       context: context,
       builder: (dialogContext) => AppAlertDialog(
-        title: const Text('隐藏悬浮球'),
-        content: const Text('可以继续播放并稍后回到随身听重新唤起，或同时暂停播放并移除通知栏音乐。'),
+        title: Text(context.l10n.flowHideFloatingPlayer),
+        content: Text(context.l10n.flowKeepPlayingAndReopenTheFloatingPlayer),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext)
                 .pop(_BallHideChoice.continuePlaying),
-            child: const Text('继续播放'),
+            child: Text(context.l10n.flowKeepPlaying),
           ),
           FilledButton.tonal(
             onPressed: () =>
                 Navigator.of(dialogContext).pop(_BallHideChoice.pausePlaying),
-            child: const Text('暂停并移除'),
+            child: Text(context.l10n.flowPauseAndRemove),
           ),
         ],
       ),

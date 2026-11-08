@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import '../utils/AppTaskActivity.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -144,20 +146,20 @@ class DivingFishLoginFailure {
   const DivingFishLoginFailure(this.kind, {this.statusCode});
 
   String get message => switch (kind) {
-        DivingFishLoginFailureKind.invalidCredentials => '用户名或密码错误，请检查后重试',
-        DivingFishLoginFailureKind.rateLimited => '登录请求过于频繁，请稍后再试',
-        DivingFishLoginFailureKind.serverUnavailable => '水鱼登录服务暂时不可用，请稍后再试',
-        DivingFishLoginFailureKind.network => '网络连接失败，请检查网络后重试',
-        DivingFishLoginFailureKind.malformedResponse => '水鱼登录接口返回异常，请稍后再试',
-        DivingFishLoginFailureKind.sessionUnavailable => '登录成功但未建立会话，请稍后再试',
-        DivingFishLoginFailureKind.profileUnavailable => '登录成功但无法获取账号资料，请稍后再试',
+        DivingFishLoginFailureKind.invalidCredentials => appL10n.svcIncorrectUsernameOrPasswordCheckAndTry,
+        DivingFishLoginFailureKind.rateLimited => appL10n.svcTooManySignInAttemptsTryAgain,
+        DivingFishLoginFailureKind.serverUnavailable => appL10n.svcTheDivingFishSignInServiceIs,
+        DivingFishLoginFailureKind.network => appL10n.svcNetworkConnectionFailedCheckYourNetworkAnd,
+        DivingFishLoginFailureKind.malformedResponse => appL10n.svcTheDivingFishSignInServiceReturned,
+        DivingFishLoginFailureKind.sessionUnavailable => appL10n.svcSignedInButNoSessionWasCreated,
+        DivingFishLoginFailureKind.profileUnavailable => appL10n.svcSignedInButCouldNotGetThe,
         DivingFishLoginFailureKind.missingImportToken =>
-          '登录成功但未获取到 ImportToken，请前往水鱼官网轮换并保存',
+          appL10n.svcSignedInButNoImportTokenWasReturned,
       };
 }
 
 /// 账号密码正确、但水鱼资料尚未绑定 QQ 时的页面提示。
-const String divingFishMissingBindQqMessage = '登录成功但未获取到绑定QQ号，请前往水鱼官网填入并保存';
+String get divingFishMissingBindQqMessage => appL10n.svcSignedInButNoLinkedQQNumber;
 
 // =============================================================================
 // DivingFishProbeManager（单例）
@@ -331,7 +333,7 @@ class DivingFishProbeManager {
     // ---- 防并发 ----
     if (_isSyncing) {
       _log('⚠ 拒绝：同步已在进行中');
-      return SyncResult.failure('同步已在进行中，请稍后重试');
+      return SyncResult.failure(appL10n.svcASyncIsAlreadyInProgressTry);
     }
     _isSyncing = true;
     _cancelled = false;
@@ -342,9 +344,9 @@ class DivingFishProbeManager {
       _log('── Step 1: QR 码认证 ──');
       _emit(
           onProgress,
-          const SyncProgress(
+          SyncProgress(
             stage: SyncStage.authenticating,
-            message: '正在验证二维码...',
+            message: appL10n.flowValidatingQRCode2,
           ));
 
       final loginBefore = DateTime.now();
@@ -354,7 +356,7 @@ class DivingFishProbeManager {
 
       if (loginData == null) {
         _log('✗ Step 1 失败: loginData 为 null');
-        return SyncResult.failure('二维码无效或已过期，请重新扫描');
+        return SyncResult.failure(appL10n.svcTheQRCodeIsInvalidOrHas);
       }
       _log('  loginData 已返回（响应正文已隐藏）');
 
@@ -369,7 +371,7 @@ class DivingFishProbeManager {
       if (_authToken == null || _friendCode == null) {
         _log('✗ Step 1 失败: token 或 friendCode 为 null');
         return SyncResult.failure(
-            'maimai Score Hub 响应异常——缺少 token 或 friendCode，请稍后重试');
+            appL10n.svcMaimaiScoreHubReturnedAnUnexpectedResponse);
       }
 
       _log('✓ 认证成功，friendCode=$_friendCode');
@@ -378,9 +380,9 @@ class DivingFishProbeManager {
       _log('── Step 2: 创建抓取任务 ──');
       _emit(
           onProgress,
-          const SyncProgress(
+          SyncProgress(
             stage: SyncStage.requesting,
-            message: '正在创建抓取任务...',
+            message: appL10n.flowCreatingScoreFetchTask,
           ));
 
       final requestBefore = DateTime.now();
@@ -390,7 +392,7 @@ class DivingFishProbeManager {
 
       if (jobData == null) {
         _log('✗ Step 2 失败: jobData 为 null');
-        return SyncResult.failure('创建抓取任务失败，请稍后重试');
+        return SyncResult.failure(appL10n.svcCouldNotCreateTheFetchTaskTry);
       }
       _log('  jobData 完整响应: $jobData');
 
@@ -402,22 +404,22 @@ class DivingFishProbeManager {
         // Step 2a: 创建好友请求 job
         _emit(
             onProgress,
-            const SyncProgress(
+            SyncProgress(
               stage: SyncStage.sendingFriendRequest,
-              message: 'Bot 正在发送好友申请...',
+              message: appL10n.flowBotIsSendingAFriendRequest,
             ));
 
         final friendResult =
             await _createDxnetJob(jobType: 'send_friend_request');
         if (friendResult == null || friendResult['_needsFriendship'] == true) {
           _log('✗ Step 2a 失败: 创建好友请求 job 失败');
-          return SyncResult.failure('创建好友请求失败，请稍后重试');
+          return SyncResult.failure(appL10n.svcCouldNotCreateTheFriendRequestTry);
         }
 
         final friendJobId = friendResult['jobId'] as String?;
         _log('  好友请求 jobId: $friendJobId');
         if (friendJobId == null) {
-          return SyncResult.failure('maimai Score Hub 未返回好友请求任务 ID');
+          return SyncResult.failure(appL10n.svcMaimaiScoreHubDidNotReturnA);
         }
 
         // Step 2b: 等待好友关系建立
@@ -435,14 +437,14 @@ class DivingFishProbeManager {
         if (friendResult2 == null) {
           _log('✗ 好友请求超时');
           return SyncResult.failure(
-            '好友请求超时——请在 NET / 机台上通过好友申请后重试',
+            appL10n.svcFriendRequestTimedOutAcceptTheRequest,
           );
         }
 
         final friendServerStatus = friendResult2.tryGet<String>('status') ?? '';
         if (friendServerStatus == 'failed' ||
             friendServerStatus == 'canceled') {
-          final errMsg = friendResult2.tryGet<String>('message') ?? '好友请求失败';
+          final errMsg = friendResult2.tryGet<String>('message') ?? appL10n.svcFriendRequestFailed;
           _log('✗ 好友请求终止: status=$friendServerStatus, msg=$errMsg');
           return SyncResult.failure(errMsg);
         }
@@ -453,9 +455,9 @@ class DivingFishProbeManager {
         // Step 2c: 好友就绪后重试 update_score
         _emit(
             onProgress,
-            const SyncProgress(
+            SyncProgress(
               stage: SyncStage.requesting,
-              message: '好友已添加，正在创建抓取任务...',
+              message: appL10n.flowFriendAddedCreatingScoreFetchTask,
             ));
 
         jobData = await _createDxnetJob(
@@ -465,7 +467,7 @@ class DivingFishProbeManager {
 
         if (jobData == null || jobData['_needsFriendship'] == true) {
           _log('✗ Step 2c 失败: 重试 update_score 失败');
-          return SyncResult.failure('创建抓取任务失败，请稍后重试');
+          return SyncResult.failure(appL10n.svcCouldNotCreateTheFetchTaskTry);
         }
         _log('  jobData (retry) 完整响应: $jobData');
       }
@@ -475,7 +477,7 @@ class DivingFishProbeManager {
 
       if (jobId == null) {
         _log('✗ Step 2 失败: jobId 为 null');
-        return SyncResult.failure('maimai Score Hub 未返回任务 ID');
+        return SyncResult.failure(appL10n.svcMaimaiScoreHubDidNotReturnA2);
       }
 
       _log('✓ 任务创建成功，jobId=$jobId');
@@ -496,8 +498,7 @@ class DivingFishProbeManager {
         if (elapsed > timeout) {
           _log('✗ 轮询超时: 已耗时 ${elapsed.inSeconds}s, 共轮询 $_pollCount 次');
           return SyncResult.failure(
-            '同步超时——成绩抓取耗时超过 ${timeout.inMinutes} 分钟，'
-            '可能是 Bot 好友申请未被通过。请在 NET 上确认好友申请后重试。',
+            appL10n.svcSyncTimedOutFetchingScoresTookMore(timeout.inMinutes.toString()),
           );
         }
 
@@ -508,7 +509,7 @@ class DivingFishProbeManager {
 
         if (status == null) {
           _log('✗ 轮询 #$_pollCount 失败: status 为 null (耗时 ${pollTime}ms)');
-          return SyncResult.failure('查询任务状态失败，请检查网络后重试');
+          return SyncResult.failure(appL10n.svcCouldNotCheckTheTaskStatusCheck);
         }
 
         final serverStatus = status.tryGet<String>('status') ?? '';
@@ -543,7 +544,7 @@ class DivingFishProbeManager {
 
         // 失败
         if (serverStatus == 'failed' || serverStatus == 'canceled') {
-          final msg = status.tryGet<String>('message') ?? '任务失败';
+          final msg = status.tryGet<String>('message') ?? appL10n.svcTaskFailed;
           _log('✗ 任务终止: status=$serverStatus, msg="$msg"');
           _log('  完整 status 响应: $status');
           return SyncResult.failure(msg);
@@ -603,9 +604,9 @@ class DivingFishProbeManager {
 
       _emit(
           onProgress,
-          const SyncProgress(
+          SyncProgress(
             stage: SyncStage.exporting,
-            message: '正在同步到水鱼...',
+            message: appL10n.flowSyncingToDivingFish,
           ));
 
       final exportBefore = DateTime.now();
@@ -616,7 +617,7 @@ class DivingFishProbeManager {
       if (exportData == null) {
         _log('✗ Step 4 失败: exportData 为 null');
         return SyncResult.failure(
-          '成绩抓取成功，但同步水鱼失败。可稍后手动重试导出。',
+          appL10n.svcScoresWereFetchedButSyncingToDiving,
           friendCode: _friendCode,
         );
       }
@@ -647,7 +648,8 @@ class DivingFishProbeManager {
             onProgress,
             SyncProgress(
               stage: SyncStage.completed,
-              message: '同步完成！共同步 $exported 条成绩',
+              message:
+                  appL10n.flowSyncCompleteP0ScoresSynced((exported).toString()),
               completedDiffs: 1,
               totalDiffs: 1,
             ));
@@ -659,7 +661,7 @@ class DivingFishProbeManager {
       } else {
         _log('✗ 水鱼导出失败 (diveStatus=$diveStatus): $exportMsg');
         return SyncResult.failure(
-          '水鱼导出失败：${exportMsg.isNotEmpty ? exportMsg : diveStatus}',
+          appL10n.svcDivingFishExportFailedP0((exportMsg.isNotEmpty ? exportMsg : diveStatus).toString()),
           friendCode: _friendCode,
         );
       }
@@ -668,7 +670,7 @@ class DivingFishProbeManager {
       _log('  异常类型: ${e.runtimeType}');
       _log('  异常信息: $e');
       _log('  堆栈跟踪: $stack');
-      return SyncResult.failure('同步异常：$e');
+      return SyncResult.failure(appL10n.svcSyncErrorP0(e.toString()));
     } finally {
       _isSyncing = false;
       _log('  最终状态: isSyncing=$_isSyncing, cancelled=$_cancelled');
@@ -693,172 +695,177 @@ class DivingFishProbeManager {
     String qrCode, {
     void Function(SyncProgress progress)? onProgress,
     Duration timeout = const Duration(minutes: 5),
-  }) async {
-    final methodStart = DateTime.now();
-    _log('══════════════════════════════════════════');
-    _log('syncByCabinetQr 开始');
-    _log('  QR长度: ${qrCode.length} 字符');
-    _log(
-        '  QR前30字符: ${qrCode.length > 30 ? '${qrCode.substring(0, 30)}...' : qrCode}');
-    _log('  超时设置: ${timeout.inMinutes} 分钟');
-
-    if (_isSyncing) {
-      _log('⚠ 拒绝：同步已在进行中');
-      return SyncResult.failure('同步已在进行中，请稍后重试');
-    }
-
-    // 线路2 必须复用已有的 maimai Score Hub 登录态。
-    //
-    // 上游已限制「一张机台二维码只能处理一个请求」：本次二维码只能用于创建
-    // cabinet job 这一次请求，不能再拿它去调用 /auth/qr-login。未登录时
-    // 由调用方先通过独立登录框完成登录（那张二维码单独计一次请求）。
-    if (!await _ensureAuthToken()) {
-      _log('✗ maimai Score Hub 未登录，拒绝复用本次二维码登录');
-      return SyncResult.failure(
-        '尚未登录 maimai Score Hub，请先完成登录后再使用线路2同步',
-        hubLoginRequired: true,
-      );
-    }
-
-    _isSyncing = true;
-    _cancelled = false;
-    _pollCount = 0;
-
-    try {
-      // ===== Step 1: 创建 Cabinet Score Job =====
-      _log('── Step 1: 创建 Cabinet Score Job ──');
-      _emit(
-          onProgress,
-          const SyncProgress(
-            stage: SyncStage.requesting,
-            message: '正在提交二维码...',
-          ));
-
-      final createResult = await _createCabinetScoreJob(qrCode);
-      if (createResult == null) {
-        _log('✗ 创建 Cabinet Job 失败');
-        return SyncResult.failure('提交二维码失败，请检查网络后重试');
-      }
-
-      final jobId = createResult['jobId'] as String?;
-      if (jobId == null) {
-        _log('✗ 创建响应缺少 jobId');
-        return SyncResult.failure('maimai Score Hub 未返回任务 ID');
-      }
-      _log('✓ Cabinet Job 创建成功，jobId=$jobId');
-
-      // 检查是否已完成
-      final initialJob = createResult.tryGet<Map<String, dynamic>>('job');
-      final initialStatus = initialJob?.tryGet<String>('status') ?? '';
-      if (initialStatus == 'completed') {
+  }) =>
+      AppTaskActivity.run(() async {
+        final methodStart = DateTime.now();
+        _log('══════════════════════════════════════════');
+        _log('syncByCabinetQr 开始');
+        _log('  QR长度: ${qrCode.length} 字符');
         _log(
-            '✓ Cabinet Job 已完成（即时返回），scoreCount=${initialJob?.tryGet<int>('scoreCount')}');
+            '  QR前30字符: ${qrCode.length > 30 ? '${qrCode.substring(0, 30)}...' : qrCode}');
+        _log('  超时设置: ${timeout.inMinutes} 分钟');
 
-        // 导出到水鱼
-        return await _doExportPhase(onProgress, methodStart);
-      }
+        if (_isSyncing) {
+          _log('⚠ 拒绝：同步已在进行中');
+          return SyncResult.failure(appL10n.svcASyncIsAlreadyInProgressTry);
+        }
 
-      // ===== Step 2: 轮询等待完成 =====
-      _log('── Step 2: 开始轮询 Cabinet Job ──');
-      final startTime = DateTime.now();
-      String? lastStage;
-      String? lastStatus;
-      int lastDetailsFetched = -1;
-
-      while (!_cancelled) {
-        _pollCount++;
-
-        final elapsed = DateTime.now().difference(startTime);
-        if (elapsed > timeout) {
-          _log('✗ Cabinet Job 轮询超时: ${elapsed.inSeconds}s, 共 $_pollCount 次');
+        // 线路2 必须复用已有的 maimai Score Hub 登录态。
+        //
+        // 上游已限制「一张机台二维码只能处理一个请求」：本次二维码只能用于创建
+        // cabinet job 这一次请求，不能再拿它去调用 /auth/qr-login。未登录时
+        // 由调用方先通过独立登录框完成登录（那张二维码单独计一次请求）。
+        if (!await _ensureAuthToken()) {
+          _log('✗ maimai Score Hub 未登录，拒绝复用本次二维码登录');
           return SyncResult.failure(
-            '同步超时——成绩抓取耗时超过 ${timeout.inMinutes} 分钟，请稍后重试',
+            appL10n.svcNotSignedInToMaimaiScoreHub,
+            hubLoginRequired: true,
           );
         }
 
-        final pollBefore = DateTime.now();
-        final job = await _pollCabinetJobStatus(jobId);
-        final pollTime = DateTime.now().difference(pollBefore).inMilliseconds;
+        _isSyncing = true;
+        _cancelled = false;
+        _pollCount = 0;
 
-        if (job == null) {
-          _log('✗ Cabinet 轮询 #$_pollCount 失败 (耗时 ${pollTime}ms)');
-          return SyncResult.failure('查询任务状态失败，请检查网络后重试');
-        }
+        try {
+          // ===== Step 1: 创建 Cabinet Score Job =====
+          _log('── Step 1: 创建 Cabinet Score Job ──');
+          _emit(
+              onProgress,
+              SyncProgress(
+                stage: SyncStage.requesting,
+                message: appL10n.flowSubmittingQRCode,
+              ));
 
-        final status = job.tryGet<String>('status') ?? '';
-        final stage = job.tryGet<String>('stage') ?? '';
-        final cp = job.tryGet<Map<String, dynamic>>('progress');
-        final detailsFetched = cp?.tryGet<int>('detailsFetched') ?? 0;
-        final errorObj = job.tryGet<Map<String, dynamic>>('error');
-        final errorMsg = errorObj?.tryGet<String>('message') ?? '';
-
-        final stageChanged = stage != lastStage || status != lastStatus;
-        final progressChanged = detailsFetched != lastDetailsFetched;
-        final shouldLog = stageChanged ||
-            progressChanged ||
-            (_pollCount % _pollCountLogEvery == 1);
-
-        if (shouldLog) {
-          _log('  Cabinet 轮询 #$_pollCount (耗时${pollTime}ms): status=$status, '
-              'stage=$stage, detailsFetched=$detailsFetched'
-              '${errorMsg.isNotEmpty ? ', error="$errorMsg"' : ''}');
-        }
-
-        lastStage = stage;
-        lastStatus = status;
-        lastDetailsFetched = detailsFetched;
-
-        // 失败
-        if (status == 'failed') {
-          _log('✗ Cabinet Job 失败: $errorMsg');
-          _log('  完整 job 响应: $job');
-          return SyncResult.failure(errorMsg.isNotEmpty ? errorMsg : '同步失败');
-        }
-
-        // 完毕
-        if (status == 'completed') {
-          final scoreCount = job.tryGet<int>('scoreCount') ?? 0;
-          _log('✓ Cabinet Job 完成: 共轮询 $_pollCount 次, '
-              '总耗时 ${elapsed.inSeconds}s, scoreCount=$scoreCount');
-          break;
-        }
-
-        // 进度更新
-        if (stageChanged) {
-          final progress = _mapStage(stage, job);
-          if (progress != null) {
-            _log('  → 阶段切换: $stage → ${progress.message}');
-            _emit(onProgress, progress);
+          final createResult = await _createCabinetScoreJob(qrCode);
+          if (createResult == null) {
+            _log('✗ 创建 Cabinet Job 失败');
+            return SyncResult.failure(appL10n.svcCouldNotSubmitTheQRCodeCheck);
           }
-        } else if (progressChanged) {
-          _log('  → 抓取进度: detailsFetched=$detailsFetched');
-          final progress = _mapStage(stage, job);
-          if (progress != null) {
-            _emit(onProgress, progress);
+
+          final jobId = createResult['jobId'] as String?;
+          if (jobId == null) {
+            _log('✗ 创建响应缺少 jobId');
+            return SyncResult.failure(appL10n.svcMaimaiScoreHubDidNotReturnA2);
           }
+          _log('✓ Cabinet Job 创建成功，jobId=$jobId');
+
+          // 检查是否已完成
+          final initialJob = createResult.tryGet<Map<String, dynamic>>('job');
+          final initialStatus = initialJob?.tryGet<String>('status') ?? '';
+          if (initialStatus == 'completed') {
+            _log(
+                '✓ Cabinet Job 已完成（即时返回），scoreCount=${initialJob?.tryGet<int>('scoreCount')}');
+
+            // 导出到水鱼
+            return await _doExportPhase(onProgress, methodStart);
+          }
+
+          // ===== Step 2: 轮询等待完成 =====
+          _log('── Step 2: 开始轮询 Cabinet Job ──');
+          final startTime = DateTime.now();
+          String? lastStage;
+          String? lastStatus;
+          int lastDetailsFetched = -1;
+
+          while (!_cancelled) {
+            _pollCount++;
+
+            final elapsed = DateTime.now().difference(startTime);
+            if (elapsed > timeout) {
+              _log(
+                  '✗ Cabinet Job 轮询超时: ${elapsed.inSeconds}s, 共 $_pollCount 次');
+              return SyncResult.failure(
+                appL10n.svcSyncTimedOutFetchingScoresTookMore2(timeout.inMinutes.toString()),
+              );
+            }
+
+            final pollBefore = DateTime.now();
+            final job = await _pollCabinetJobStatus(jobId);
+            final pollTime =
+                DateTime.now().difference(pollBefore).inMilliseconds;
+
+            if (job == null) {
+              _log('✗ Cabinet 轮询 #$_pollCount 失败 (耗时 ${pollTime}ms)');
+              return SyncResult.failure(appL10n.svcCouldNotCheckTheTaskStatusCheck);
+            }
+
+            final status = job.tryGet<String>('status') ?? '';
+            final stage = job.tryGet<String>('stage') ?? '';
+            final cp = job.tryGet<Map<String, dynamic>>('progress');
+            final detailsFetched = cp?.tryGet<int>('detailsFetched') ?? 0;
+            final errorObj = job.tryGet<Map<String, dynamic>>('error');
+            final errorMsg = errorObj?.tryGet<String>('message') ?? '';
+
+            final stageChanged = stage != lastStage || status != lastStatus;
+            final progressChanged = detailsFetched != lastDetailsFetched;
+            final shouldLog = stageChanged ||
+                progressChanged ||
+                (_pollCount % _pollCountLogEvery == 1);
+
+            if (shouldLog) {
+              _log(
+                  '  Cabinet 轮询 #$_pollCount (耗时${pollTime}ms): status=$status, '
+                  'stage=$stage, detailsFetched=$detailsFetched'
+                  '${errorMsg.isNotEmpty ? ', error="$errorMsg"' : ''}');
+            }
+
+            lastStage = stage;
+            lastStatus = status;
+            lastDetailsFetched = detailsFetched;
+
+            // 失败
+            if (status == 'failed') {
+              _log('✗ Cabinet Job 失败: $errorMsg');
+              _log('  完整 job 响应: $job');
+              return SyncResult.failure(
+                  errorMsg.isNotEmpty ? errorMsg : appL10n.featureSyncFailed);
+            }
+
+            // 完毕
+            if (status == 'completed') {
+              final scoreCount = job.tryGet<int>('scoreCount') ?? 0;
+              _log('✓ Cabinet Job 完成: 共轮询 $_pollCount 次, '
+                  '总耗时 ${elapsed.inSeconds}s, scoreCount=$scoreCount');
+              break;
+            }
+
+            // 进度更新
+            if (stageChanged) {
+              final progress = _mapStage(stage, job);
+              if (progress != null) {
+                _log('  → 阶段切换: $stage → ${progress.message}');
+                _emit(onProgress, progress);
+              }
+            } else if (progressChanged) {
+              _log('  → 抓取进度: detailsFetched=$detailsFetched');
+              final progress = _mapStage(stage, job);
+              if (progress != null) {
+                _emit(onProgress, progress);
+              }
+            }
+
+            await Future.delayed(_cabinetPollInterval);
+          }
+
+          if (_cancelled) {
+            _log('⊗ 用户取消 (Cabinet): 已轮询 $_pollCount 次');
+            return SyncResult.cancelled();
+          }
+
+          // ===== Step 3: 导出到水鱼 =====
+          return await _doExportPhase(onProgress, methodStart);
+        } catch (e, stack) {
+          _log('✗ Cabinet 同步异常');
+          _log('  异常类型: ${e.runtimeType}');
+          _log('  异常信息: $e');
+          _log('  堆栈跟踪: $stack');
+          return SyncResult.failure(appL10n.svcSyncErrorP0(e.toString()));
+        } finally {
+          _isSyncing = false;
+          _log('  最终状态: isSyncing=$_isSyncing, cancelled=$_cancelled');
         }
-
-        await Future.delayed(_cabinetPollInterval);
-      }
-
-      if (_cancelled) {
-        _log('⊗ 用户取消 (Cabinet): 已轮询 $_pollCount 次');
-        return SyncResult.cancelled();
-      }
-
-      // ===== Step 3: 导出到水鱼 =====
-      return await _doExportPhase(onProgress, methodStart);
-    } catch (e, stack) {
-      _log('✗ Cabinet 同步异常');
-      _log('  异常类型: ${e.runtimeType}');
-      _log('  异常信息: $e');
-      _log('  堆栈跟踪: $stack');
-      return SyncResult.failure('同步异常：$e');
-    } finally {
-      _isSyncing = false;
-      _log('  最终状态: isSyncing=$_isSyncing, cancelled=$_cancelled');
-    }
-  }
+      });
 
   /// 导出到水鱼 + 缓存（syncByQrCode 和 syncByCabinetQr 共用）
   Future<SyncResult> _doExportPhase(
@@ -875,9 +882,9 @@ class DivingFishProbeManager {
 
     _emit(
         onProgress,
-        const SyncProgress(
+        SyncProgress(
           stage: SyncStage.exporting,
-          message: '正在同步到水鱼...',
+          message: appL10n.flowSyncingToDivingFish,
         ));
 
     final exportBefore = DateTime.now();
@@ -888,7 +895,7 @@ class DivingFishProbeManager {
     if (exportData == null) {
       _log('✗ 导出失败: exportData 为 null');
       return SyncResult.failure(
-        '成绩抓取成功，但同步水鱼失败。可稍后手动重试导出。',
+        appL10n.svcScoresWereFetchedButSyncingToDiving,
         friendCode: _friendCode,
       );
     }
@@ -918,7 +925,8 @@ class DivingFishProbeManager {
           onProgress,
           SyncProgress(
             stage: SyncStage.completed,
-            message: '同步完成！共同步 $exported 条成绩',
+            message:
+                appL10n.flowSyncCompleteP0ScoresSynced((exported).toString()),
             completedDiffs: 1,
             totalDiffs: 1,
           ));
@@ -930,7 +938,7 @@ class DivingFishProbeManager {
     } else {
       _log('✗ 水鱼导出失败 (diveStatus=$diveStatus): $exportMsg');
       return SyncResult.failure(
-        '水鱼导出失败：${exportMsg.isNotEmpty ? exportMsg : diveStatus}',
+        appL10n.svcDivingFishExportFailedP0((exportMsg.isNotEmpty ? exportMsg : diveStatus).toString()),
         friendCode: _friendCode,
       );
     }
@@ -990,22 +998,23 @@ class DivingFishProbeManager {
   Future<SyncResult> exportLatestToDivingFish({
     void Function(SyncProgress progress)? onProgress,
     bool bindCachedImportToken = true,
-  }) async {
-    final start = DateTime.now();
-    if (_isSyncing) {
-      return _doExportPhase(
-        onProgress,
-        start,
-        bindCachedImportToken: bindCachedImportToken,
-      );
-    }
-    _log('exportLatestToDivingFish 被调用 (hasToken: ${_authToken != null})');
-    return _doExportPhase(
-      onProgress,
-      start,
-      bindCachedImportToken: bindCachedImportToken,
-    );
-  }
+  }) =>
+      AppTaskActivity.run(() async {
+        final start = DateTime.now();
+        if (_isSyncing) {
+          return _doExportPhase(
+            onProgress,
+            start,
+            bindCachedImportToken: bindCachedImportToken,
+          );
+        }
+        _log('exportLatestToDivingFish 被调用 (hasToken: ${_authToken != null})');
+        return _doExportPhase(
+          onProgress,
+          start,
+          bindCachedImportToken: bindCachedImportToken,
+        );
+      });
 
   // ===========================================================================
   // 水鱼账号绑定
@@ -1022,191 +1031,194 @@ class DivingFishProbeManager {
   Future<Map<String, dynamic>?> loginDivingFishDirect(
     String username,
     String password,
-  ) async {
-    _log('loginDivingFishDirect: username=$username');
-    lastLoginFailure = null;
+  ) =>
+      AppTaskActivity.run(() async {
+        _log('loginDivingFishDirect: username=$username');
+        lastLoginFailure = null;
 
-    // ===== Step 1: 登录拿 JWT =====
-    _log('── Step 1: 登录 ──');
-    _log('  POST ${ApiUrls.DivingFishLoginApi}');
+        // ===== Step 1: 登录拿 JWT =====
+        _log('── Step 1: 登录 ──');
+        _log('  POST ${ApiUrls.DivingFishLoginApi}');
 
-    String? jwtToken;
+        String? jwtToken;
 
-    try {
-      final loginResponse = await ApiClient.post(
-        Uri.parse(ApiUrls.DivingFishLoginApi),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'username': username,
-          'password': password,
-        }),
-      );
+        try {
+          final loginResponse = await ApiClient.post(
+            Uri.parse(ApiUrls.DivingFishLoginApi),
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode({
+              'username': username,
+              'password': password,
+            }),
+          );
 
-      _log(
-          '  ← HTTP ${loginResponse.statusCode} (${loginResponse.body.length} 字节)');
+          _log(
+              '  ← HTTP ${loginResponse.statusCode} (${loginResponse.body.length} 字节)');
 
-      if (loginResponse.statusCode != 200) {
-        _log('  ✗ 登录失败: HTTP ${loginResponse.statusCode}');
-        _setLoginFailure(
-          loginResponse.statusCode == 429
-              ? const DivingFishLoginFailure(
-                  DivingFishLoginFailureKind.rateLimited)
-              : loginResponse.statusCode >= 500
+          if (loginResponse.statusCode != 200) {
+            _log('  ✗ 登录失败: HTTP ${loginResponse.statusCode}');
+            _setLoginFailure(
+              loginResponse.statusCode == 429
                   ? const DivingFishLoginFailure(
-                      DivingFishLoginFailureKind.serverUnavailable)
-                  : (loginResponse.statusCode == 401 ||
-                          loginResponse.statusCode == 403)
+                      DivingFishLoginFailureKind.rateLimited)
+                  : loginResponse.statusCode >= 500
                       ? const DivingFishLoginFailure(
-                          DivingFishLoginFailureKind.invalidCredentials)
-                      : DivingFishLoginFailure(
-                          DivingFishLoginFailureKind.serverUnavailable,
-                          statusCode: loginResponse.statusCode),
-        );
-        return null;
-      }
+                          DivingFishLoginFailureKind.serverUnavailable)
+                      : (loginResponse.statusCode == 401 ||
+                              loginResponse.statusCode == 403)
+                          ? const DivingFishLoginFailure(
+                              DivingFishLoginFailureKind.invalidCredentials)
+                          : DivingFishLoginFailure(
+                              DivingFishLoginFailureKind.serverUnavailable,
+                              statusCode: loginResponse.statusCode),
+            );
+            return null;
+          }
 
-      final dynamic decoded;
-      try {
-        decoded = json.decode(loginResponse.body);
-      } catch (e) {
-        _log('  ✗ 登录响应解析失败: $e');
-        _setLoginFailure(const DivingFishLoginFailure(
-            DivingFishLoginFailureKind.malformedResponse));
-        return null;
-      }
-      if (decoded is! Map<String, dynamic>) {
-        _setLoginFailure(const DivingFishLoginFailure(
-            DivingFishLoginFailureKind.malformedResponse));
-        return null;
-      }
-      final data = decoded;
-      final errcode = data.tryGet<int>('errcode');
-      if (errcode != null && errcode != 0) {
-        final msg = data.tryGet<String>('message') ?? '未知错误';
-        _log('  ✗ 登录失败 (errcode=$errcode): $msg');
-        final credentialMessage = RegExp(
-          r'用户名|密码|账号|password|credential|username',
-          caseSensitive: false,
-        ).hasMatch(msg);
-        _setLoginFailure(
-          credentialMessage
-              ? const DivingFishLoginFailure(
-                  DivingFishLoginFailureKind.invalidCredentials)
-              : const DivingFishLoginFailure(
-                  DivingFishLoginFailureKind.serverUnavailable),
-        );
-        return null;
-      }
+          final dynamic decoded;
+          try {
+            decoded = json.decode(loginResponse.body);
+          } catch (e) {
+            _log('  ✗ 登录响应解析失败: $e');
+            _setLoginFailure(const DivingFishLoginFailure(
+                DivingFishLoginFailureKind.malformedResponse));
+            return null;
+          }
+          if (decoded is! Map<String, dynamic>) {
+            _setLoginFailure(const DivingFishLoginFailure(
+                DivingFishLoginFailureKind.malformedResponse));
+            return null;
+          }
+          final data = decoded;
+          final errcode = data.tryGet<int>('errcode');
+          if (errcode != null && errcode != 0) {
+            final msg = data.tryGet<String>('message') ?? appL10n.featureUnknownError;
+            _log('  ✗ 登录失败 (errcode=$errcode): $msg');
+            final credentialMessage = RegExp(
+              r'用户名|密码|账号|password|credential|username',
+              caseSensitive: false,
+            ).hasMatch(msg);
+            _setLoginFailure(
+              credentialMessage
+                  ? const DivingFishLoginFailure(
+                      DivingFishLoginFailureKind.invalidCredentials)
+                  : const DivingFishLoginFailure(
+                      DivingFishLoginFailureKind.serverUnavailable),
+            );
+            return null;
+          }
 
-      // 从 Set-Cookie 提取 jwt_token
-      final setCookie = loginResponse.headers['set-cookie'] ?? '';
-      _log('  Set-Cookie 已收到（${setCookie.length} 字节，正文已隐藏）');
-      jwtToken = _extractJwtFromCookie(setCookie);
+          // 从 Set-Cookie 提取 jwt_token
+          final setCookie = loginResponse.headers['set-cookie'] ?? '';
+          _log('  Set-Cookie 已收到（${setCookie.length} 字节，正文已隐藏）');
+          jwtToken = _extractJwtFromCookie(setCookie);
 
-      if (jwtToken == null) {
-        _log('  ✗ 登录成功但未在 Cookie 中找到 jwt_token');
-        _setLoginFailure(const DivingFishLoginFailure(
-            DivingFishLoginFailureKind.sessionUnavailable));
-        return null;
-      }
-      _log('  ✓ JWT 提取成功 (长度: ${jwtToken.length})');
-    } catch (e, stack) {
-      _log('  ✗ 登录异常: $e');
-      _log('  Stack: $stack');
-      _setLoginFailure(DivingFishLoginFailure(
-        e is FormatException || e is TypeError
-            ? DivingFishLoginFailureKind.malformedResponse
-            : DivingFishLoginFailureKind.network,
-      ));
-      return null;
-    }
-
-    // ===== Step 2: 用 JWT 拿 profile =====
-    _log('── Step 2: 获取 importToken ──');
-    _log('  GET ${ApiUrls.DivingFishProfileApi}');
-
-    try {
-      final profileResponse = await ApiClient.get(
-        Uri.parse(ApiUrls.DivingFishProfileApi),
-        headers: {
-          'Content-Type': 'application/json',
-          'Cookie': 'jwt_token=$jwtToken',
-        },
-      );
-
-      _log(
-          '  ← HTTP ${profileResponse.statusCode} (${profileResponse.body.length} 字节)');
-      _log('  Response: ${_truncateBody(profileResponse.body)}');
-
-      if (profileResponse.statusCode == 200) {
-        final profile =
-            json.decode(profileResponse.body) as Map<String, dynamic>;
-        final importToken = profile.tryGet<String>('import_token') ?? '';
-        final nickname = profile.tryGet<String>('nickname') ?? '';
-        final plate = profile.tryGet<String>('plate') ?? '';
-        final additionalRating = profile.tryGet<int>('additional_rating') ?? 0;
-
-        _log(
-            '  importToken: ${importToken.isNotEmpty ? "*** (长度: ${importToken.length})" : "空!"}');
-        _log(
-            '  nickname=$nickname, plate=$plate, additionalRating=$additionalRating');
-
-        if (importToken.isEmpty) {
-          _log('  ✗ 未找到 import_token');
-          _setLoginFailure(const DivingFishLoginFailure(
-              DivingFishLoginFailureKind.missingImportToken));
+          if (jwtToken == null) {
+            _log('  ✗ 登录成功但未在 Cookie 中找到 jwt_token');
+            _setLoginFailure(const DivingFishLoginFailure(
+                DivingFishLoginFailureKind.sessionUnavailable));
+            return null;
+          }
+          _log('  ✓ JWT 提取成功 (长度: ${jwtToken.length})');
+        } catch (e, stack) {
+          _log('  ✗ 登录异常: $e');
+          _log('  Stack: $stack');
+          _setLoginFailure(DivingFishLoginFailure(
+            e is FormatException || e is TypeError
+                ? DivingFishLoginFailureKind.malformedResponse
+                : DivingFishLoginFailureKind.network,
+          ));
           return null;
         }
 
-        // 缓存到本地
-        final prefs = await SharedPreferences.getInstance();
-        await SecureCredentialStore.write(
-            CacheKeyConstant.probeDivingFishToken, jwtToken);
-        await SecureCredentialStore.write(
-            CacheKeyConstant.probeDivingFishImportToken, importToken);
-        final bindQQ = profile.tryGet<String>('bind_qq') ?? '';
-        if (bindQQ.isNotEmpty) {
-          await prefs.setString(CacheKeyConstant.probeDivingFishBindQQ, bindQQ);
-          unawaited(PlayerExperienceService.instance
-              .onAccountAuthenticated('shuiyu:$bindQQ'));
-          _log('  bind_qq 已缓存: $bindQQ');
-        } else {
-          await prefs.remove(CacheKeyConstant.probeDivingFishBindQQ);
-        }
-        _log('  ✓ JWT 和 importToken 已缓存');
+        // ===== Step 2: 用 JWT 拿 profile =====
+        _log('── Step 2: 获取 importToken ──');
+        _log('  GET ${ApiUrls.DivingFishProfileApi}');
 
-        // 返回合并结果
-        return {
-          ...profile,
-          'jwtToken': jwtToken,
-          'importToken': importToken,
-        };
-      } else {
-        _log('  ✗ profile 请求失败: ${profileResponse.statusCode}');
-        _setLoginFailure(
-          profileResponse.statusCode >= 500
-              ? const DivingFishLoginFailure(
-                  DivingFishLoginFailureKind.serverUnavailable)
-              : profileResponse.statusCode == 401 ||
-                      profileResponse.statusCode == 403
+        try {
+          final profileResponse = await ApiClient.get(
+            Uri.parse(ApiUrls.DivingFishProfileApi),
+            headers: {
+              'Content-Type': 'application/json',
+              'Cookie': 'jwt_token=$jwtToken',
+            },
+          );
+
+          _log(
+              '  ← HTTP ${profileResponse.statusCode} (${profileResponse.body.length} 字节)');
+          _log('  Response: ${_truncateBody(profileResponse.body)}');
+
+          if (profileResponse.statusCode == 200) {
+            final profile =
+                json.decode(profileResponse.body) as Map<String, dynamic>;
+            final importToken = profile.tryGet<String>('import_token') ?? '';
+            final nickname = profile.tryGet<String>('nickname') ?? '';
+            final plate = profile.tryGet<String>('plate') ?? '';
+            final additionalRating =
+                profile.tryGet<int>('additional_rating') ?? 0;
+
+            _log(
+                '  importToken: ${importToken.isNotEmpty ? "*** (长度: ${importToken.length})" : "空!"}');
+            _log(
+                '  nickname=$nickname, plate=$plate, additionalRating=$additionalRating');
+
+            if (importToken.isEmpty) {
+              _log('  ✗ 未找到 import_token');
+              _setLoginFailure(const DivingFishLoginFailure(
+                  DivingFishLoginFailureKind.missingImportToken));
+              return null;
+            }
+
+            // 缓存到本地
+            final prefs = await SharedPreferences.getInstance();
+            await SecureCredentialStore.write(
+                CacheKeyConstant.probeDivingFishToken, jwtToken);
+            await SecureCredentialStore.write(
+                CacheKeyConstant.probeDivingFishImportToken, importToken);
+            final bindQQ = profile.tryGet<String>('bind_qq') ?? '';
+            if (bindQQ.isNotEmpty) {
+              await prefs.setString(
+                  CacheKeyConstant.probeDivingFishBindQQ, bindQQ);
+              unawaited(PlayerExperienceService.instance
+                  .onAccountAuthenticated('shuiyu:$bindQQ'));
+              _log('  bind_qq 已缓存: $bindQQ');
+            } else {
+              await prefs.remove(CacheKeyConstant.probeDivingFishBindQQ);
+            }
+            _log('  ✓ JWT 和 importToken 已缓存');
+
+            // 返回合并结果
+            return {
+              ...profile,
+              'jwtToken': jwtToken,
+              'importToken': importToken,
+            };
+          } else {
+            _log('  ✗ profile 请求失败: ${profileResponse.statusCode}');
+            _setLoginFailure(
+              profileResponse.statusCode >= 500
                   ? const DivingFishLoginFailure(
-                      DivingFishLoginFailureKind.sessionUnavailable)
-                  : const DivingFishLoginFailure(
-                      DivingFishLoginFailureKind.profileUnavailable),
-        );
-        return null;
-      }
-    } catch (e, stack) {
-      _log('  ✗ profile 请求异常: $e');
-      _log('  Stack: $stack');
-      _setLoginFailure(DivingFishLoginFailure(
-        e is FormatException || e is TypeError
-            ? DivingFishLoginFailureKind.malformedResponse
-            : DivingFishLoginFailureKind.network,
-      ));
-      return null;
-    }
-  }
+                      DivingFishLoginFailureKind.serverUnavailable)
+                  : profileResponse.statusCode == 401 ||
+                          profileResponse.statusCode == 403
+                      ? const DivingFishLoginFailure(
+                          DivingFishLoginFailureKind.sessionUnavailable)
+                      : const DivingFishLoginFailure(
+                          DivingFishLoginFailureKind.profileUnavailable),
+            );
+            return null;
+          }
+        } catch (e, stack) {
+          _log('  ✗ profile 请求异常: $e');
+          _log('  Stack: $stack');
+          _setLoginFailure(DivingFishLoginFailure(
+            e is FormatException || e is TypeError
+                ? DivingFishLoginFailureKind.malformedResponse
+                : DivingFishLoginFailureKind.network,
+          ));
+          return null;
+        }
+      });
 
   /// 获取本地缓存的水鱼 importToken（如果有）
   Future<String?> getCachedDivingFishImportToken() async {
@@ -1416,48 +1428,50 @@ class DivingFishProbeManager {
   /// [username] 水鱼用户名
   /// [password] 水鱼密码
   /// 返回 true 表示绑定成功
-  Future<bool> bindDivingFishAccount(String username, String password) async {
-    _log('bindDivingFishAccount: username=$username');
-    if (_authToken == null) {
-      _log('  ✗ authToken 为 null，无法绑定');
-      return false;
-    }
+  Future<bool> bindDivingFishAccount(String username, String password) =>
+      AppTaskActivity.run(() async {
+        _log('bindDivingFishAccount: username=$username');
+        if (_authToken == null) {
+          _log('  ✗ authToken 为 null，无法绑定');
+          return false;
+        }
 
-    try {
-      // Step A: 用水鱼账号换取 importToken
-      _log('  POST ${ApiUrls.MaimaiHubDivingFishTokenUrl}');
-      final tokenResponse = await _postFollowRedirects(
-        Uri.parse(ApiUrls.MaimaiHubDivingFishTokenUrl),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $_authToken',
-        },
-        body: json.encode({
-          'username': username,
-          'password': password,
-        }),
-      );
+        try {
+          // Step A: 用水鱼账号换取 importToken
+          _log('  POST ${ApiUrls.MaimaiHubDivingFishTokenUrl}');
+          final tokenResponse = await _postFollowRedirects(
+            Uri.parse(ApiUrls.MaimaiHubDivingFishTokenUrl),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $_authToken',
+            },
+            body: json.encode({
+              'username': username,
+              'password': password,
+            }),
+          );
 
-      _log('  ← HTTP ${tokenResponse.statusCode}');
-      if (tokenResponse.statusCode == 201) {
-        final data = json.decode(tokenResponse.body) as Map<String, dynamic>;
-        _log(
-            '  ✓ importToken 获取成功: ${data['importToken'] != null ? "***" : "null"}');
-      } else {
-        _log('  ✗ 换取 token 失败: ${tokenResponse.body}');
-        return false;
-      }
+          _log('  ← HTTP ${tokenResponse.statusCode}');
+          if (tokenResponse.statusCode == 201) {
+            final data =
+                json.decode(tokenResponse.body) as Map<String, dynamic>;
+            _log(
+                '  ✓ importToken 获取成功: ${data['importToken'] != null ? "***" : "null"}');
+          } else {
+            _log('  ✗ 换取 token 失败: ${tokenResponse.body}');
+            return false;
+          }
 
-      // Step B: 验证绑定状态
-      final hasToken = await hasDivingFishImportToken();
-      _log('  绑定后验证: hasToken=$hasToken');
-      return hasToken == true;
-    } catch (e, stack) {
-      _log('  ✗ 异常: $e');
-      _log('  Stack: $stack');
-      return false;
-    }
-  }
+          // Step B: 验证绑定状态
+          final hasToken = await hasDivingFishImportToken();
+          _log('  绑定后验证: hasToken=$hasToken');
+          return hasToken == true;
+        } catch (e, stack) {
+          _log('  ✗ 异常: $e');
+          _log('  Stack: $stack');
+          return false;
+        }
+      });
 
   // ===========================================================================
   // 内部实现
@@ -2036,190 +2050,194 @@ class DivingFishProbeManager {
     void Function(SyncProgress progress)? onProgress,
     Duration timeout = const Duration(minutes: 5),
     String? lxnsImportToken,
-  }) async {
-    _log('══════════════════════════════════════════');
-    _log('syncByCabinetQrToLxns 开始');
-    _log('  QR长度: ${qrCode.length} 字符');
+  }) =>
+      AppTaskActivity.run(() async {
+        _log('══════════════════════════════════════════');
+        _log('syncByCabinetQrToLxns 开始');
+        _log('  QR长度: ${qrCode.length} 字符');
 
-    if (_isSyncing) {
-      _log('⚠ 拒绝：同步已在进行中');
-      return SyncResult.failure('同步已在进行中，请稍后重试');
-    }
-
-    _isSyncing = true;
-    _cancelled = false;
-    _pollCount = 0;
-
-    try {
-      // ===== Step 0: 复用 maimai Score Hub 登录态 =====
-      // 本次二维码只用于 Step 1 的 cabinet job；未登录时不能用它去登录，
-      // 否则同一张二维码会被两个上游请求使用（新限制下第二个请求会失败）。
-      if (!await _ensureAuthToken()) {
-        _log('✗ maimai Score Hub 未登录，拒绝复用本次二维码登录');
-        return SyncResult.failure(
-          '尚未登录 maimai Score Hub，请先完成登录后再使用线路2同步',
-          hubLoginRequired: true,
-        );
-      }
-
-      // ===== Step 0.5: 设置落雪 importToken（如果有新传入的）=====
-      if (lxnsImportToken != null && lxnsImportToken.isNotEmpty) {
-        _log('── Step 0.5: 绑定落雪 importToken ──');
-        final setOk = await setLxnsImportToken(lxnsImportToken);
-        if (!setOk) {
-          _log('✗ 落雪 importToken 绑定失败');
-          return SyncResult.failure('落雪 API 密钥设置失败，请检查网络后重试');
+        if (_isSyncing) {
+          _log('⚠ 拒绝：同步已在进行中');
+          return SyncResult.failure(appL10n.svcASyncIsAlreadyInProgressTry);
         }
-        _log('✓ 落雪 importToken 已绑定');
-      }
 
-      // ===== Step 1: 创建 Cabinet Score Job =====
-      _emit(
-          onProgress,
-          const SyncProgress(
-            stage: SyncStage.requesting,
-            message: '正在提交二维码...',
-          ));
+        _isSyncing = true;
+        _cancelled = false;
+        _pollCount = 0;
 
-      final createResult = await _createCabinetScoreJob(qrCode);
-      if (createResult == null) {
-        return SyncResult.failure('提交二维码失败，请检查网络后重试');
-      }
-
-      final jobId = createResult['jobId'] as String?;
-      if (jobId == null) {
-        return SyncResult.failure('maimai Score Hub 未返回任务 ID');
-      }
-      _log('✓ Cabinet Job 创建成功，jobId=$jobId');
-
-      final initialJob = createResult.tryGet<Map<String, dynamic>>('job');
-      final initialStatus = initialJob?.tryGet<String>('status') ?? '';
-
-      if (initialStatus != 'completed') {
-        // ===== Step 2: 轮询等待完成 =====
-        final startTime = DateTime.now();
-        String? lastStage;
-        String? lastStatus;
-        int lastDetailsFetched = -1;
-
-        while (!_cancelled) {
-          _pollCount++;
-          final elapsed = DateTime.now().difference(startTime);
-          if (elapsed > timeout) {
+        try {
+          // ===== Step 0: 复用 maimai Score Hub 登录态 =====
+          // 本次二维码只用于 Step 1 的 cabinet job；未登录时不能用它去登录，
+          // 否则同一张二维码会被两个上游请求使用（新限制下第二个请求会失败）。
+          if (!await _ensureAuthToken()) {
+            _log('✗ maimai Score Hub 未登录，拒绝复用本次二维码登录');
             return SyncResult.failure(
-                '同步超时——机台成绩抓取耗时超过 ${timeout.inMinutes} 分钟');
+              appL10n.svcNotSignedInToMaimaiScoreHub,
+              hubLoginRequired: true,
+            );
           }
 
-          final job = await _pollCabinetJobStatus(jobId);
-          if (job == null) {
-            return SyncResult.failure('查询任务状态失败，请检查网络后重试');
+          // ===== Step 0.5: 设置落雪 importToken（如果有新传入的）=====
+          if (lxnsImportToken != null && lxnsImportToken.isNotEmpty) {
+            _log('── Step 0.5: 绑定落雪 importToken ──');
+            final setOk = await setLxnsImportToken(lxnsImportToken);
+            if (!setOk) {
+              _log('✗ 落雪 importToken 绑定失败');
+              return SyncResult.failure(appL10n.svcCouldNotSetTheLXNSAPIKey);
+            }
+            _log('✓ 落雪 importToken 已绑定');
           }
 
-          final status = job.tryGet<String>('status') ?? '';
-          final stage = job.tryGet<String>('stage') ?? '';
-          final cp = job.tryGet<Map<String, dynamic>>('progress');
-          final detailsFetched = cp?.tryGet<int>('detailsFetched') ?? 0;
-          final errorObj = job.tryGet<Map<String, dynamic>>('error');
-          final errorMsg = errorObj?.tryGet<String>('message') ?? '';
+          // ===== Step 1: 创建 Cabinet Score Job =====
+          _emit(
+              onProgress,
+              SyncProgress(
+                stage: SyncStage.requesting,
+                message: appL10n.flowSubmittingQRCode,
+              ));
 
-          final stageChanged = stage != lastStage || status != lastStatus;
-          final progressChanged = detailsFetched != lastDetailsFetched;
-
-          if (stageChanged ||
-              progressChanged ||
-              (_pollCount % _pollCountLogEvery == 1)) {
-            _log(
-                '  Cabinet 轮询 #$_pollCount: status=$status, stage=$stage, detailsFetched=$detailsFetched');
+          final createResult = await _createCabinetScoreJob(qrCode);
+          if (createResult == null) {
+            return SyncResult.failure(appL10n.svcCouldNotSubmitTheQRCodeCheck);
           }
 
-          lastStage = stage;
-          lastStatus = status;
-          lastDetailsFetched = detailsFetched;
+          final jobId = createResult['jobId'] as String?;
+          if (jobId == null) {
+            return SyncResult.failure(appL10n.svcMaimaiScoreHubDidNotReturnA2);
+          }
+          _log('✓ Cabinet Job 创建成功，jobId=$jobId');
 
-          if (status == 'failed') {
-            return SyncResult.failure(errorMsg.isNotEmpty ? errorMsg : '同步失败');
+          final initialJob = createResult.tryGet<Map<String, dynamic>>('job');
+          final initialStatus = initialJob?.tryGet<String>('status') ?? '';
+
+          if (initialStatus != 'completed') {
+            // ===== Step 2: 轮询等待完成 =====
+            final startTime = DateTime.now();
+            String? lastStage;
+            String? lastStatus;
+            int lastDetailsFetched = -1;
+
+            while (!_cancelled) {
+              _pollCount++;
+              final elapsed = DateTime.now().difference(startTime);
+              if (elapsed > timeout) {
+                return SyncResult.failure(
+                    appL10n.svcSyncTimedOutFetchingCabinetScoresTook(timeout.inMinutes.toString()));
+              }
+
+              final job = await _pollCabinetJobStatus(jobId);
+              if (job == null) {
+                return SyncResult.failure(appL10n.svcCouldNotCheckTheTaskStatusCheck);
+              }
+
+              final status = job.tryGet<String>('status') ?? '';
+              final stage = job.tryGet<String>('stage') ?? '';
+              final cp = job.tryGet<Map<String, dynamic>>('progress');
+              final detailsFetched = cp?.tryGet<int>('detailsFetched') ?? 0;
+              final errorObj = job.tryGet<Map<String, dynamic>>('error');
+              final errorMsg = errorObj?.tryGet<String>('message') ?? '';
+
+              final stageChanged = stage != lastStage || status != lastStatus;
+              final progressChanged = detailsFetched != lastDetailsFetched;
+
+              if (stageChanged ||
+                  progressChanged ||
+                  (_pollCount % _pollCountLogEvery == 1)) {
+                _log(
+                    '  Cabinet 轮询 #$_pollCount: status=$status, stage=$stage, detailsFetched=$detailsFetched');
+              }
+
+              lastStage = stage;
+              lastStatus = status;
+              lastDetailsFetched = detailsFetched;
+
+              if (status == 'failed') {
+                return SyncResult.failure(
+                    errorMsg.isNotEmpty ? errorMsg : appL10n.featureSyncFailed);
+              }
+
+              if (status == 'completed') {
+                final scoreCount = job.tryGet<int>('scoreCount') ?? 0;
+                _log('✓ Cabinet Job 完成，scoreCount=$scoreCount');
+                break;
+              }
+
+              if (stageChanged) {
+                final progress = _mapStage(stage, job);
+                if (progress != null) _emit(onProgress, progress);
+              } else if (progressChanged) {
+                final progress = _mapStage(stage, job);
+                if (progress != null) _emit(onProgress, progress);
+              }
+
+              await Future.delayed(_cabinetPollInterval);
+            }
+
+            if (_cancelled) return SyncResult.cancelled();
           }
 
-          if (status == 'completed') {
-            final scoreCount = job.tryGet<int>('scoreCount') ?? 0;
-            _log('✓ Cabinet Job 完成，scoreCount=$scoreCount');
-            break;
+          // ===== Step 3: 导出到落雪 =====
+          _log('── 检查落雪 token ──');
+          // 若本次同步刚通过 setLxnsImportToken 设置成功，则无需再联网校验一次；
+          // 仅当本次没有传入 token 时才回退到查询 maimai Score Hub 是否已绑定。
+          final bool? hasLxns;
+          if (lxnsImportToken != null && lxnsImportToken.isNotEmpty) {
+            hasLxns = true;
+          } else {
+            hasLxns = await hasLxnsImportToken();
+          }
+          if (hasLxns != true) {
+            _log('✗ 未设置落雪 importToken');
+            return SyncResult.failure('尚未设置落雪个人 API 密钥，请先在「成绩导入凭据」中设置');
           }
 
-          if (stageChanged) {
-            final progress = _mapStage(stage, job);
-            if (progress != null) _emit(onProgress, progress);
-          } else if (progressChanged) {
-            final progress = _mapStage(stage, job);
-            if (progress != null) _emit(onProgress, progress);
+          _log('── 导出到落雪 ──');
+          _emit(
+              onProgress,
+              SyncProgress(
+                stage: SyncStage.exporting,
+                message: appL10n.flowSyncingToLXNS,
+              ));
+
+          final exportData = await _exportToLxns();
+          if (exportData == null) {
+            return SyncResult.failure(appL10n.svcScoresWereFetchedButSyncingToLXNS);
           }
 
-          await Future.delayed(_cabinetPollInterval);
+          final exportJob = exportData.tryGet<Map<String, dynamic>>('job');
+          final exportResult =
+              exportJob?.tryGet<Map<String, dynamic>>('result');
+          final lxns = exportResult?.tryGet<Map<String, dynamic>>('lxns');
+          final lxnsStatus = lxns?.tryGet<String>('status') ?? '';
+          final exported = lxns?.tryGet<int>('exported') ?? 0;
+          final exportMsg = lxns?.tryGet<String>('message') ?? '';
+
+          if (lxnsStatus == 'success') {
+            await _cacheSyncState();
+            _log('✓ 落雪导出成功: exported=$exported');
+            _emit(
+                onProgress,
+                SyncProgress(
+                  stage: SyncStage.completed,
+                  message: appL10n.flowSyncCompleteP0ScoresSyncedToLXNS(
+                      (exported).toString()),
+                  completedDiffs: 1,
+                  totalDiffs: 1,
+                ));
+            return SyncResult.success(exportedCount: exported);
+          } else {
+            return SyncResult.failure(
+              appL10n.svcLXNSExportFailedP0((exportMsg.isNotEmpty ? exportMsg : lxnsStatus).toString()),
+            );
+          }
+        } catch (e, stack) {
+          _log('✗ LXNS 同步异常: $e');
+          _log('  Stack: $stack');
+          return SyncResult.failure(appL10n.svcSyncErrorP0(e.toString()));
+        } finally {
+          _isSyncing = false;
         }
-
-        if (_cancelled) return SyncResult.cancelled();
-      }
-
-      // ===== Step 3: 导出到落雪 =====
-      _log('── 检查落雪 token ──');
-      // 若本次同步刚通过 setLxnsImportToken 设置成功，则无需再联网校验一次；
-      // 仅当本次没有传入 token 时才回退到查询 maimai Score Hub 是否已绑定。
-      final bool? hasLxns;
-      if (lxnsImportToken != null && lxnsImportToken.isNotEmpty) {
-        hasLxns = true;
-      } else {
-        hasLxns = await hasLxnsImportToken();
-      }
-      if (hasLxns != true) {
-        _log('✗ 未设置落雪 importToken');
-        return SyncResult.failure('尚未设置落雪个人 API 密钥，请先在「账号管理」中设置');
-      }
-
-      _log('── 导出到落雪 ──');
-      _emit(
-          onProgress,
-          const SyncProgress(
-            stage: SyncStage.exporting,
-            message: '正在同步到落雪...',
-          ));
-
-      final exportData = await _exportToLxns();
-      if (exportData == null) {
-        return SyncResult.failure('成绩抓取成功，但同步落雪失败。可稍后手动重试导出。');
-      }
-
-      final exportJob = exportData.tryGet<Map<String, dynamic>>('job');
-      final exportResult = exportJob?.tryGet<Map<String, dynamic>>('result');
-      final lxns = exportResult?.tryGet<Map<String, dynamic>>('lxns');
-      final lxnsStatus = lxns?.tryGet<String>('status') ?? '';
-      final exported = lxns?.tryGet<int>('exported') ?? 0;
-      final exportMsg = lxns?.tryGet<String>('message') ?? '';
-
-      if (lxnsStatus == 'success') {
-        await _cacheSyncState();
-        _log('✓ 落雪导出成功: exported=$exported');
-        _emit(
-            onProgress,
-            SyncProgress(
-              stage: SyncStage.completed,
-              message: '同步完成！共同步 $exported 条成绩到落雪',
-              completedDiffs: 1,
-              totalDiffs: 1,
-            ));
-        return SyncResult.success(exportedCount: exported);
-      } else {
-        return SyncResult.failure(
-          '落雪导出失败：${exportMsg.isNotEmpty ? exportMsg : lxnsStatus}',
-        );
-      }
-    } catch (e, stack) {
-      _log('✗ LXNS 同步异常: $e');
-      _log('  Stack: $stack');
-      return SyncResult.failure('同步异常：$e');
-    } finally {
-      _isSyncing = false;
-    }
-  }
+      });
 
   /// POST /me/sync/latest/exports/diving-fish → 轮询至完成
   ///
@@ -2351,14 +2369,14 @@ class DivingFishProbeManager {
       case 'send_request':
         return SyncProgress(
           stage: SyncStage.sendingFriendRequest,
-          message: 'Bot 正在发送好友申请...',
+          message: appL10n.flowBotIsSendingAFriendRequest,
           completedDiffs: completedDiffs,
           totalDiffs: totalDiffs,
         );
       case 'wait_acceptance':
         return SyncProgress(
           stage: SyncStage.waitingAcceptance,
-          message: '等待你在 NET / 机台上通过好友申请',
+          message: appL10n.flowAcceptTheFriendRequestOnNETOr,
           completedDiffs: completedDiffs,
           totalDiffs: totalDiffs,
         );
@@ -2366,15 +2384,16 @@ class DivingFishProbeManager {
         return SyncProgress(
           stage: SyncStage.scraping,
           message: totalDiffs > 0
-              ? '正在抓取成绩... ($completedDiffs/$totalDiffs)'
-              : '正在抓取成绩...',
+              ? appL10n.flowFetchingScoresP0P1(
+                  (completedDiffs).toString(), (totalDiffs).toString())
+              : appL10n.flowFetchingScores,
           completedDiffs: completedDiffs,
           totalDiffs: totalDiffs,
         );
       case 'get_full_friend_list':
         return SyncProgress(
           stage: SyncStage.scraping,
-          message: '正在拉取好友列表...',
+          message: appL10n.flowFetchingFriendList,
           completedDiffs: completedDiffs,
           totalDiffs: totalDiffs,
         );
@@ -2383,48 +2402,50 @@ class DivingFishProbeManager {
       case 'queued':
         return SyncProgress(
           stage: SyncStage.requesting,
-          message: '任务已排队，等待处理...',
+          message: appL10n.flowTaskQueuedWaitingForProcessing,
         );
       case 'qr_auth':
         return SyncProgress(
           stage: SyncStage.authenticating,
-          message: '正在验证二维码...',
+          message: appL10n.flowValidatingQRCode2,
         );
       case 'preview':
         return SyncProgress(
           stage: SyncStage.scraping,
-          message: '正在预览数据...',
+          message: appL10n.flowPreviewingData,
         );
       case 'login':
         return SyncProgress(
           stage: SyncStage.scraping,
-          message: '正在登录...',
+          message: appL10n.flowSigningIn3,
         );
       case 'get_music':
         return SyncProgress(
           stage: SyncStage.scraping,
           message: detailsFetched > 0
-              ? '正在获取谱面成绩... ($detailsFetched 条)'
-              : '正在获取谱面成绩...',
+              ? appL10n
+                  .flowReadingChartScoresP0Records((detailsFetched).toString())
+              : appL10n.flowReadingChartScores,
           completedDiffs: detailsFetched,
           totalDiffs: cabinetScoreCount,
         );
       case 'logout':
         return SyncProgress(
           stage: SyncStage.scraping,
-          message: '正在登出...',
+          message: appL10n.flowSigningOut,
         );
       case 'cleanup':
         return SyncProgress(
           stage: SyncStage.scraping,
-          message: '正在清理...',
+          message: appL10n.flowCleaningUp,
         );
       case 'persist':
         return SyncProgress(
           stage: SyncStage.exporting,
           message: cabinetScoreCount > 0
-              ? '正在保存成绩... ($cabinetScoreCount 条)'
-              : '正在保存成绩...',
+              ? appL10n
+                  .flowSavingScoresP0Records((cabinetScoreCount).toString())
+              : appL10n.flowSavingScores,
           completedDiffs: cabinetScoreCount,
           totalDiffs: cabinetScoreCount,
         );

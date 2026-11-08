@@ -1,3 +1,5 @@
+import '../l10n/LocalizationsExtension.dart';
+import '../l10n/FeatureLocalizations.dart';
 import 'package:flutter/material.dart';
 
 import '../utils/AppDesignTokens.dart';
@@ -48,8 +50,7 @@ class AppDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AppAlertDialog(
-      icon: appDialogIconTile(
-          icon ?? toneIcon(tone), toneColor(context, tone)),
+      icon: appDialogIconTile(icon ?? toneIcon(tone), toneColor(context, tone)),
       title: Text(title),
       content: content,
       scrollable: true,
@@ -118,6 +119,19 @@ class AppAlertDialog extends StatelessWidget {
     '不了',
     '不用了',
     '继续游戏',
+    '關閉',
+    '稍後',
+    '稍後再說',
+    '暫不',
+    '繼續遊戲',
+    'Cancel',
+    'Close',
+    'Back',
+    'Later',
+    'キャンセル',
+    '閉じる',
+    '戻る',
+    '後で',
   };
 
   static String? _textOf(Widget? widget) {
@@ -128,11 +142,17 @@ class AppAlertDialog extends StatelessWidget {
 
   /// 按标题的意思选语气。
   static AppDialogTone? _toneOf(String title) {
-    if (RegExp('失败|错误|异常').hasMatch(title)) return AppDialogTone.error;
-    if (RegExp('删除|清空|清除|移除|登出|离开|覆盖|重置|重建').hasMatch(title)) {
+    if (RegExp('失败|失敗|错误|錯誤|异常|異常|failed|error|エラー', caseSensitive: false)
+        .hasMatch(title)) return AppDialogTone.error;
+    if (RegExp(
+            '删除|刪除|清空|清除|移除|登出|离开|離開|覆盖|覆蓋|重置|重建|delete|clear|sign out|reset|overwrite|削除|ログアウト|上書き',
+            caseSensitive: false)
+        .hasMatch(title)) {
       return AppDialogTone.warning;
     }
-    if (RegExp('成功|完成|已保存|已导出').hasMatch(title)) {
+    if (RegExp('成功|完成|已保存|已导出|已匯出|success|complete|saved|exported|完了|保存済み',
+            caseSensitive: false)
+        .hasMatch(title)) {
       return AppDialogTone.success;
     }
     if (RegExp('提示|确认|说明|注意|权限|版本信息|公告').hasMatch(title)) {
@@ -210,8 +230,10 @@ class AppAlertDialog extends StatelessWidget {
     final text = _textOf(split?.text ?? title);
     Widget? leading = icon;
     if (leading is Icon) {
-      leading = appDialogIconTile(leading.icon!,
-          AppDialog.toneColor(context, _toneOfColor(leading.color) ?? AppDialogTone.info));
+      leading = appDialogIconTile(
+          leading.icon!,
+          AppDialog.toneColor(
+              context, _toneOfColor(leading.color) ?? AppDialogTone.info));
     }
     if (leading == null && split != null) {
       final tone = (text == null ? null : _toneOf(text)) ??
@@ -260,7 +282,10 @@ class AppAlertDialog extends StatelessWidget {
   static bool _isDestructive(Widget item) {
     if (item is! ButtonStyleButton) return false;
     final label = _textOf(_labelWidget(item));
-    if (label != null && RegExp('删除|清空|清除(?!选择)|移除|登出|覆盖|重置').hasMatch(label)) {
+    if (label != null &&
+        RegExp('删除|刪除|清空|清除(?!选择|選擇)|移除|登出|覆盖|覆蓋|重置|\\b(delete|clear|sign out|reset|overwrite)\\b|削除|ログアウト|上書き|リセット',
+                caseSensitive: false)
+            .hasMatch(label)) {
       return true;
     }
     final color = item.style?.foregroundColor?.resolve(const {}) ??
@@ -295,8 +320,8 @@ class AppAlertDialog extends StatelessWidget {
       elevation: const WidgetStatePropertyAll(0),
       shadowColor: const WidgetStatePropertyAll(Colors.transparent),
       minimumSize: const WidgetStatePropertyAll(Size(0, 46)),
-      padding: const WidgetStatePropertyAll(
-          EdgeInsets.symmetric(horizontal: 14)),
+      padding:
+          const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 14)),
       side: const WidgetStatePropertyAll(BorderSide.none),
       textStyle: WidgetStatePropertyAll(
           AppTheme.font(fontSize: 14, fontWeight: FontWeight.w700)),
@@ -308,34 +333,23 @@ class AppAlertDialog extends StatelessWidget {
     final Widget unified = switch (action) {
       TextButton(:final onPressed, :final child) when child != null =>
         TextButton(
-            key: action.key,
-            onPressed: onPressed,
-            style: style,
-            child: child),
+            key: action.key, onPressed: onPressed, style: style, child: child),
       FilledButton(:final onPressed, :final child) when child != null =>
         FilledButton(
-            key: action.key,
-            onPressed: onPressed,
-            style: style,
-            child: child),
+            key: action.key, onPressed: onPressed, style: style, child: child),
       ElevatedButton(:final onPressed, :final child) when child != null =>
         ElevatedButton(
-            key: action.key,
-            onPressed: onPressed,
-            style: style,
-            child: child),
+            key: action.key, onPressed: onPressed, style: style, child: child),
       OutlinedButton(:final onPressed, :final child) when child != null =>
         OutlinedButton(
-            key: action.key,
-            onPressed: onPressed,
-            style: style,
-            child: child),
+            key: action.key, onPressed: onPressed, style: style, child: child),
       _ => action,
     };
     return PressScale(scale: 0.97, child: unified);
   }
 
-  Widget _buildActions(BuildContext context, List<Widget> items) {
+  Widget _buildActions(
+      BuildContext context, List<Widget> items, double availableWidth) {
     // 最后一个不是「取消」的按钮是主按钮
     var primary = -1;
     for (var i = items.length - 1; i >= 0; i--) {
@@ -370,9 +384,28 @@ class AppAlertDialog extends StatelessWidget {
     }
     final labels = [for (final item in items) _textOf(_labelWidget(item))];
     final longest = labels.fold<int>(
-        0, (longest, label) => label != null && label.length > longest ? label.length : longest);
+        0,
+        (longest, label) =>
+            label != null && label.length > longest ? label.length : longest);
+    final buttonWidth =
+        (availableWidth - 8 * (items.length - 1)) / items.length;
+    final labelStyle = DefaultTextStyle.of(context)
+        .style
+        .merge(AppTheme.font(fontSize: 14, fontWeight: FontWeight.w700));
+    // 按实际字体和系统缩放检查译文宽度，避免日语等短字数文案也被挤换行。
+    final labelsTooWide = labels.whereType<String>().any((label) {
+      final painter = TextPainter(
+        text: TextSpan(text: label, style: labelStyle),
+        textDirection: Directionality.of(context),
+        textScaler: MediaQuery.textScalerOf(context),
+      )..layout();
+      final tooWide = painter.width + 28 > buttonWidth;
+      painter.dispose();
+      return tooWide;
+    });
     // 放不下就竖排，主按钮在上；不要把「使用默认路径」挤成两行。
-    final stacked = items.length > 3 ||
+    final stacked = (items.length > 1 && labelsTooWide) ||
+        items.length > 3 ||
         (items.length == 3 && longest > 3) ||
         (items.length == 2 && longest > 7);
     if (stacked) {
@@ -420,7 +453,9 @@ class AppAlertDialog extends StatelessWidget {
         selectedTileColor: scheme.primary.withValues(alpha: 0.1),
         // ListTile 的样式会整个替换默认文字样式，不带字体就会退回系统字体
         titleTextStyle: AppTheme.font(
-            fontSize: 14.5, fontWeight: FontWeight.w600, color: scheme.onSurface),
+            fontSize: 14.5,
+            fontWeight: FontWeight.w600,
+            color: scheme.onSurface),
         subtitleTextStyle:
             AppTheme.font(fontSize: 12.5, color: scheme.onSurfaceVariant),
       ),
@@ -458,8 +493,7 @@ class AppAlertDialog extends StatelessWidget {
         backgroundColor: backgroundColor,
         shape: shape,
         clipBehavior: Clip.antiAlias,
-        insetPadding:
-            const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
         child: ConstrainedBox(
           constraints: BoxConstraints(
             maxWidth: constraints?.maxWidth ?? 420,
@@ -469,7 +503,7 @@ class AppAlertDialog extends StatelessWidget {
             scopesRoute: true,
             explicitChildNodes: true,
             namesRoute: true,
-            label: _textOf(title) ?? '对话框',
+            label: _textOf(title) ?? context.featureText('对话框'),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -502,7 +536,10 @@ class AppAlertDialog extends StatelessWidget {
                       20, items.isEmpty ? 20 : 18, 20, items.isEmpty ? 0 : 20),
                   child: items.isEmpty
                       ? const SizedBox.shrink()
-                      : _buildActions(context, items),
+                      : LayoutBuilder(
+                          builder: (context, constraints) => _buildActions(
+                              context, items, constraints.maxWidth),
+                        ),
                 ),
               ],
             ),
@@ -687,7 +724,7 @@ Future<void> showAppNoticeDialog(
   required String title,
   required String message,
   AppDialogTone tone = AppDialogTone.info,
-  String confirmLabel = '确定',
+  String? confirmLabel,
 }) {
   return showDialog<void>(
     context: context,
@@ -698,7 +735,7 @@ Future<void> showAppNoticeDialog(
       actions: [
         FilledButton(
           onPressed: () => Navigator.of(dialogContext).pop(),
-          child: Text(confirmLabel),
+          child: Text(confirmLabel ?? context.l10n.confirm),
         ),
       ],
     ),

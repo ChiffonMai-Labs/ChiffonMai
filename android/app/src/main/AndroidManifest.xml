@@ -2,6 +2,12 @@
     xmlns:tools="http://schemas.android.com/tools">
 <!-- 必须添加：允许网络访问 -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- 用户点击安装更新时，由系统安装器确认；Android 8+ 还需用户单独允许。 -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
+    <!-- Android 12+ 的自更新免确认请求，仅在用户主动开启测试功能后使用。 -->
+    <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION"/>
+    <!-- 允许系统在重启后保留已安排的空闲安装任务。 -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <!-- 可选：允许访问网络状态（判断是否联网） -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <!-- 可选：允许访问WiFi状态 -->
@@ -55,6 +61,29 @@
         android:label="ChiffonMai"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        <!-- 接收本应用的系统下载完成事件；自动安装另由用户开关和空闲任务控制。 -->
+        <receiver android:name=".AppUpdateDownloadReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.DOWNLOAD_COMPLETE" />
+            </intent-filter>
+        </receiver>
+        <service android:name=".AppUpdateAutoInstallJob"
+            android:permission="android.permission.BIND_JOB_SERVICE"
+            android:exported="true" />
+        <receiver android:name=".AppUpdateInstallReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.app_update"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/app_update_paths" />
+        </provider>
         <!--
           关于下面两个属性，改动原因说明（不要再改回 Flutter 模板的默认值）：
 

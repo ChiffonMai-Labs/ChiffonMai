@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import '../../widgets/GuessCoverImage.dart';
 import '../../widgets/GuessGameStatusPanel.dart';
 import '../../service/GuessChartGame/GuessAudioService.dart';
@@ -468,7 +469,7 @@ class _GuessChartBySongExcerptPageState
         _guessHistory.any((guess) => guess.songId == int.parse(guessedSong.id));
     if (hasGuessed) {
       // 显示提示
-      AppToast.show('已经猜过这首歌了！', duration: Duration(seconds: 2));
+      AppToast.show(context.l10n.flowYouAlreadyGuessedThisSong, duration: Duration(seconds: 2), tone: AppToastTone.success);
       // 清空输入框
       _searchController.clear();
       _searchResults = [];
@@ -633,27 +634,27 @@ class _GuessChartBySongExcerptPageState
       context: context,
       builder: (BuildContext context) {
         return AppAlertDialog(
-          title: const Text('规则说明'),
+          title:  Text(context.l10n.flowHowToPlay),
           content: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('绿色 - 该属性与你猜的完全一致。'),
+                 Text(context.l10n.flowGreenTheAttributeMatchesTheTargetExactly),
                 const SizedBox(height: 8),
-                const Text('橙色 - 该属性与你猜的"接近"：'),
+                 Text(context.l10n.flowOrangeTheAttributeIsCloseToThe),
                 const SizedBox(height: 4),
-                const Text('BPM 相差在 ±20 范围内；'),
-                const Text('MASTER 难度或 Re:MASTER 难度相差在 ±0.4范围内；'),
-                const Text('版本相差一个世代（例如 maimai ← maimai PLUS → maimai GreeN）。'),
+                 Text(context.l10n.flowBPMDiffersByNoMoreThan20),
+                 Text(context.l10n.flowMASTEROrReMASTERDifficultyDiffersBy),
+                 Text(context.l10n.flowVersionsAreOneGenerationApartEG),
                 const SizedBox(height: 8),
-                const Text('灰色 - 该属性与你猜的"差距较大"。'),
+                 Text(context.l10n.flowGrayTheAttributeIsFarFromThe),
                 const SizedBox(height: 16),
-                const Text('箭头：'),
+                 Text(context.l10n.flowArrows),
                 const SizedBox(height: 4),
-                const Text('↑ - 目标值比你猜的更高'),
-                const Text('↓ - 目标值比你猜的更低'),
+                 Text(context.l10n.flowTargetValueIsHigherThanYourGuess),
+                 Text(context.l10n.flowTargetValueIsLowerThanYourGuess),
                 const SizedBox(height: 16),
-                const Text('设计思路借鉴：'),
+                 Text(context.l10n.flowDesignInspiration2),
                 GestureDetector(
                   onTap: () async {
                     final url = Uri.parse('https://maimai.yukineko2233.top/');
@@ -663,7 +664,7 @@ class _GuessChartBySongExcerptPageState
                       await ExternalLaunchUtil.copyFallback(
                         context,
                         url.toString(),
-                        message: '无法打开该链接，链接已复制到剪贴板',
+                        message: context.l10n.flowCouldNotOpenThisLinkLinkCopied,
                       );
                     }
                   },
@@ -683,7 +684,7 @@ class _GuessChartBySongExcerptPageState
               onPressed: () {
                 Navigator.of(context).pop();
               },
-              child: const Text('确定'),
+              child:  Text(context.l10n.featureOK),
             ),
           ],
         );
@@ -718,7 +719,7 @@ class _GuessChartBySongExcerptPageState
         selectedGenres: selectedGenres,
       );
       if ((testResult != null && testResult.isNotEmpty) || !mounted) return;
-      AppToast.show('当前筛选条件抽不到曲目，请放宽筛选条件', duration: Duration(seconds: 4));
+      AppToast.show(context.l10n.flowNoSongsMatchTheseFiltersBroadenYour, duration: Duration(seconds: 4), tone: AppToastTone.warning);
     } catch (e) {
       debugPrint('校验筛选条件失败: $e');
     }
@@ -770,8 +771,8 @@ class _GuessChartBySongExcerptPageState
       context: context,
       builder: (BuildContext context) {
         return AppAlertDialog(
-          title: const Text('游戏设置'),
-          subtitle: '保存后下局生效',
+          title:  Text(context.l10n.flowGameSettings),
+          subtitle: context.l10n.flowAppliesFromTheNextGame,
           contentPadding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
           content: StatefulBuilder(
             builder: (BuildContext context, StateSetter setState) {
@@ -817,12 +818,12 @@ class _GuessChartBySongExcerptPageState
                       },
                     ),
                     GuessSettingSection(
-                      title: '本模式设置',
+                      title: context.l10n.flowModeSettings,
                       icon: Icons.graphic_eq_rounded,
                       children: [
                         GuessSliderTile(
-                          label: '播放时长',
-                          valueText: '$tempPlayDuration 秒',
+                          label: context.l10n.flowPlaybackLength,
+                          valueText: context.l10n.flowP0Seconds2((tempPlayDuration).toString()),
                           value: tempPlayDuration.toDouble(),
                           min: 1,
                           max: 30,
@@ -851,7 +852,7 @@ class _GuessChartBySongExcerptPageState
               onPressed: () {
                 Navigator.of(context).pop();
               },
-              child: const Text('取消'),
+              child:  Text(context.l10n.featureCancel),
             ),
             TextButton(
               onPressed: () async {
@@ -887,7 +888,7 @@ class _GuessChartBySongExcerptPageState
 
                 if (!navigator.mounted) return;
                 navigator.pop();
-                AppToast.show('设置已保存，将在下局游戏生效',
+                AppToast.show(context.l10n.flowSettingsSavedTheyApplyFromTheNext,
                     tone: AppToastTone.success);
 
                 _warnIfNoSongMatches(
@@ -897,7 +898,7 @@ class _GuessChartBySongExcerptPageState
                   selectedGenres: tempSelectedGenres,
                 );
               },
-              child: const Text('确定'),
+              child:  Text(context.l10n.featureOK),
             ),
           ],
         );
@@ -937,7 +938,7 @@ class _GuessChartBySongExcerptPageState
         final original =
             await LuoXueSongUtil().getMusicFile(_luoXueSongId.toString());
         if (!current()) return;
-        if (original == null) throw StateError('暂时无法获取音源');
+        if (original == null) throw StateError(context.l10n.flowAudioIsTemporarilyUnavailable);
         log('普通模式原音源文件就绪');
         final durationEvent = player.onDurationChanged.first
             .timeout(const Duration(seconds: 3))
@@ -947,7 +948,7 @@ class _GuessChartBySongExcerptPageState
         final duration = await player.getDuration() ?? await durationEvent;
         if (!current()) return;
         if (duration == null || duration <= Duration.zero)
-          throw StateError('无法读取音源时长');
+          throw StateError(context.l10n.flowCouldNotReadAudioDuration);
         _audioStartTime ??= GuessChartBySongExcerptPage.pickAudioStartTime(
             totalSeconds: duration.inSeconds,
             playDuration: _currentPlayDuration);
@@ -975,7 +976,7 @@ class _GuessChartBySongExcerptPageState
         if (!current()) return;
         log('播放器音源装载完成');
       }
-      if (actualDuration <= 0) throw StateError('音频片段为空');
+      if (actualDuration <= 0) throw StateError(context.l10n.flowAudioExcerptIsEmpty);
       await player.seek(Duration(seconds: _playbackOffset));
       log('播放器定位完成');
       if (!current()) return;
@@ -993,7 +994,7 @@ class _GuessChartBySongExcerptPageState
       log('播放准备失败：$error');
       if (current()) {
         setState(() => _isPlaying = false);
-        AppToast.show('音频播放失败：$error');
+        AppToast.show(context.l10n.flowAudioPlaybackFailedP0((error).toString()), tone: AppToastTone.error);
       }
     } finally {
       if (!current() && player != null && identical(player, _audioPlayer)) {
@@ -1050,7 +1051,7 @@ class _GuessChartBySongExcerptPageState
     } catch (error) {
       if (current()) {
         setState(() => _isPlaying = false);
-        AppToast.show('音频播放失败：$error');
+        AppToast.show(context.l10n.flowAudioPlaybackFailedP0((error).toString()), tone: AppToastTone.error);
       }
     }
   }
@@ -1136,12 +1137,12 @@ class _GuessChartBySongExcerptPageState
     final total =
         _totalDuration > 0 ? _totalDuration : _currentPlayDuration.toDouble();
     final label = _audioLoading
-        ? '正在准备音频…'
+        ? context.l10n.flowPreparingAudio2
         : _isPlaying
-            ? '暂停'
+            ? context.l10n.flowPause
             : _isPaused
-                ? '继续播放'
-                : (_hasPlayed ? '重新播放' : '播放歌曲片段');
+                ? context.l10n.flowKeepPlaying
+                : (_hasPlayed ? context.l10n.flowReplay : context.l10n.flowPlaySongExcerpt);
     final timeStyle =
         AppTheme.number(fontSize: 11.5, color: scheme.onSurfaceVariant);
     return AppCard(
@@ -1247,9 +1248,9 @@ class _GuessChartBySongExcerptPageState
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('${_currentPosition.toStringAsFixed(1)} 秒',
+                    Text(context.l10n.flowP0Seconds2((_currentPosition.toStringAsFixed(1)).toString()),
                         style: timeStyle),
-                    Text('${total.toStringAsFixed(1)} 秒', style: timeStyle),
+                    Text(context.l10n.flowP0Seconds2((total.toStringAsFixed(1)).toString()), style: timeStyle),
                   ],
                 ),
               ],
@@ -1271,17 +1272,17 @@ class _GuessChartBySongExcerptPageState
     return BackgroundPageScaffold(
       actions: [
         IconButton(
-          tooltip: '规则',
+          tooltip: context.l10n.flowRules,
           icon: const Icon(Icons.info_outline_rounded, size: 20),
           onPressed: _showRulesDialog,
         ),
         IconButton(
-          tooltip: '设置',
+          tooltip: context.l10n.flowSettings,
           icon: const Icon(Icons.settings_outlined, size: 20),
           onPressed: _showSettingsDialog,
         ),
         IconButton(
-          tooltip: '换一题',
+          tooltip: context.l10n.flowNewQuestion,
           icon: const Icon(Icons.refresh_rounded, size: 20),
           onPressed: _startNewGame,
         ),
@@ -1314,7 +1315,7 @@ class _GuessChartBySongExcerptPageState
                                 children: [
                                     // 本局状态与每日统计共用布局。
                                     GuessGameStatusPanel(
-                                      roundLabel: '剩余次数',
+                                      roundLabel: context.l10n.flowGuessesLeft,
                                       roundValue: _maxGuesses > 0
                                           ? (_maxGuesses - _guessCount)
                                               .clamp(0, _maxGuesses)
@@ -1389,7 +1390,7 @@ class _GuessChartBySongExcerptPageState
                                                 CrossAxisAlignment.start,
                                             children: [
                                               Text(
-                                                _isWon ? '恭喜你猜对了！' : '本局答案',
+                                                _isWon ? context.l10n.flowYouGotIt : context.l10n.flowThisGameSAnswer,
                                                 style: TextStyle(
                                                   fontSize: 16,
                                                   fontWeight: FontWeight.bold,
@@ -1562,7 +1563,7 @@ class _GuessChartBySongExcerptPageState
                   GuessInputBar(
                     controller: _searchController,
                     onChanged: _handleSearchInput,
-                    hintText: '搜索歌名、别名、编号等',
+                    hintText: context.l10n.flowSearchTitleAliasIDAndMore,
                     isGameOver: _isGameOver,
                     onSurrender: () async {
                                                 setState(() {

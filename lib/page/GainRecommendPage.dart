@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 
 import '../service/GainRecommend/GainFeedbackStore.dart';
@@ -75,7 +77,7 @@ class _GainRecommendPageState extends State<GainRecommendPage> {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error = e is GainRecommendLoadException ? e.message : '生成推荐失败：$e';
+        _error = e is GainRecommendLoadException ? e.message : appL10n.flowCouldNotGenerateRecommendationsP0((e).toString());
       });
     }
   }
@@ -135,7 +137,7 @@ class _GainRecommendPageState extends State<GainRecommendPage> {
     if (page == null) return;
     _page = GainPage(
       page.items.where((c) => c.key != key).toList(),
-      page.fillNote,
+      page.partialCount,
       page.remaining,
     );
   }
@@ -147,7 +149,7 @@ class _GainRecommendPageState extends State<GainRecommendPage> {
         _skipped.add(c.key);
         _removeFromPage(c.key);
       });
-      AppToast.show('已跳过 $label（仅本次）');
+      AppToast.show(context.l10n.flowSkippedP0ForThisSession((label).toString()), tone: AppToastTone.success);
       return;
     }
     final kind =
@@ -156,7 +158,7 @@ class _GainRecommendPageState extends State<GainRecommendPage> {
       await GainFeedbackStore.instance
           .record(c.key, kind, title: c.title, level: c.level);
     } catch (e) {
-      AppToast.show('保存反馈失败：$e');
+      AppToast.show(context.l10n.flowCouldNotSaveFeedbackP0((e).toString()), tone: AppToastTone.error);
       return;
     }
     if (!mounted) return;
@@ -165,8 +167,8 @@ class _GainRecommendPageState extends State<GainRecommendPage> {
       _removeFromPage(c.key);
     });
     AppToast.show(kind == GainFeedbackKind.dislike
-          ? '不再推荐 $label（可在反馈管理里撤销）'
-          : '$label 暂停推荐 14 天', actionLabel: '撤销', onAction: () => _undoFeedback(c.key));
+          ? context.l10n.flowStoppedRecommendingP0UndoInFeedbackManagement((label).toString())
+          : context.l10n.flowPausedRecommendationsForP0For14Days((label).toString()), actionLabel: context.l10n.flowUndo, onAction: () => _undoFeedback(c.key));
   }
 
   /// 撤销后谱面不会自动插回当前批，下一次换批 / 重新开始时才可能再出现。
@@ -198,10 +200,10 @@ class _GainRecommendPageState extends State<GainRecommendPage> {
   @override
   Widget build(BuildContext context) {
     return BackgroundPageScaffold(
-      title: '吃分推荐',
+      title: context.l10n.featureRatingGainRecommendations,
       actions: [
         IconButton(
-          tooltip: '反馈管理',
+          tooltip: context.l10n.flowManageFeedback,
           icon: const Icon(Icons.rule_rounded),
           onPressed: _openFeedbackManager,
         ),
@@ -221,7 +223,7 @@ class _GainRecommendPageState extends State<GainRecommendPage> {
     if (error != null) {
       return _CenteredMessage(
         message: error,
-        actionLabel: '重试',
+        actionLabel: context.l10n.flowRetry,
         onAction: _load,
       );
     }
@@ -242,9 +244,9 @@ class _GainRecommendPageState extends State<GainRecommendPage> {
               if (page.items.isEmpty)
                 _CenteredMessage(
                   message: _route == null && snapshot.result.candidates.isEmpty
-                      ? '暂时没有能直接涨 Rating 的谱面。\n刷新成绩后再来看看吧。'
-                      : '暂无符合条件的未见候选。\n可以重新开始，或在反馈管理里撤销屏蔽。',
-                  actionLabel: '重新开始',
+                      ? context.l10n.flowNoChartsCanDirectlyRaiseYourRating
+                      : context.l10n.flowNoUnseenCandidatesMatchStartOverOr,
+                  actionLabel: context.l10n.flowStartOver,
                   onAction: _restart,
                 )
               else ...[
@@ -270,11 +272,15 @@ class _GainRecommendPageState extends State<GainRecommendPage> {
                       onFeedback: (action) => _onFeedback(c, action),
                     ),
                   ),
-                if (page.fillNote.isNotEmpty)
+                if (page.partialCount != null)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 4),
                     child: Text(
-                      page.fillNote,
+                      page.remaining == 0
+                          ? context.l10n.gainFillNoteExhausted(
+                              page.partialCount.toString())
+                          : context.l10n.gainFillNoteFiltered(
+                              page.partialCount.toString()),
                       textAlign: TextAlign.center,
                       style: _hintStyle(context),
                     ),
@@ -294,9 +300,9 @@ class _GainRecommendPageState extends State<GainRecommendPage> {
       BuildContext context, GainRecommendSnapshot snapshot) {
     final result = snapshot.result;
     final options = <(_RouteFilter, String)>[
-      (null, '混合'),
+      (null, context.l10n.flowMixed),
       for (final route in GainRoute.values)
-        (route, '${route.label} ${result.count(route)}'),
+        (route, '${_routeLabel(context, route)} ${result.count(route)}'),
     ];
     return PillTabs(
       items: [for (final (_, label) in options) SegmentedTabItem(label)],
@@ -337,7 +343,7 @@ class _GainRecommendPageState extends State<GainRecommendPage> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      '本页全部达成的合计（按 B50 逐步重算，已扣除互相顶替）',
+                      context.l10n.flowTotalGainIfAllTargetsOnThis,
                       style: TextStyle(fontSize: 12, color: scheme.primary),
                     ),
                   ),
@@ -347,7 +353,7 @@ class _GainRecommendPageState extends State<GainRecommendPage> {
             const SizedBox(height: 8),
           ],
           Text(
-            '第 $_batch 批 · ${page.items.length} 条（每条为独立净收益，不可直接相加）',
+            context.l10n.flowBatchP0P1EntriesEachGainIs((_batch).toString(), (page.items.length).toString()),
             style: _hintStyle(context),
           ),
         ],
@@ -362,7 +368,7 @@ class _GainRecommendPageState extends State<GainRecommendPage> {
           child: OutlinedButton.icon(
             onPressed: _restart,
             icon: const Icon(Icons.restart_alt_rounded),
-            label: const Text('重新开始'),
+            label:  Text(context.l10n.flowStartOver),
           ),
         ),
         const SizedBox(width: 12),
@@ -371,7 +377,7 @@ class _GainRecommendPageState extends State<GainRecommendPage> {
             onPressed:
                 page.items.isEmpty || page.remaining == 0 ? null : _nextBatch,
             icon: const Icon(Icons.autorenew_rounded),
-            label: Text(page.remaining == 0 ? '已无更多' : '换一批'),
+            label: Text(page.remaining == 0 ? context.l10n.flowNoMore : context.l10n.flowAnotherBatch),
           ),
         ),
       ],
@@ -402,15 +408,15 @@ class _SummaryCard extends StatelessWidget {
     final b15Sum = baseline.b15.fold<int>(0, (s, r) => s + r.ra);
     final notes = <String>[
       if (snapshot.sourceRating > 0 && snapshot.sourceRating != baseline.raSum)
-        '数据源 Rating ${snapshot.sourceRating}，与本地按成绩重算的结果不同，以重算为准',
+        context.l10n.flowSourceRatingP0DiffersFromTheLocally((snapshot.sourceRating).toString()),
       if (snapshot.unmatchedRecords > 0)
-        '${snapshot.unmatchedRecords} 条成绩在曲库里找不到，按旧曲处理；刷新曲库后更准确',
+        context.l10n.flowP0ScoresAreMissingFromTheSong((snapshot.unmatchedRecords).toString()),
     ];
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('当前 B50', style: _hintStyle(context)),
+          Text(context.l10n.flowCurrentB50, style: _hintStyle(context)),
           RollingNumber(
             value: baseline.raSum,
             style: AppTheme.number(
@@ -426,7 +432,7 @@ class _SummaryCard extends StatelessWidget {
               Expanded(
                 child: StatTile(
                   card: true,
-                  label: 'B35 · 底线 ${baseline.floor(false)}',
+                  label: context.l10n.flowB35CutoffP0((baseline.floor(false)).toString()),
                   value: '$b35Sum',
                 ),
               ),
@@ -434,7 +440,7 @@ class _SummaryCard extends StatelessWidget {
               Expanded(
                 child: StatTile(
                   card: true,
-                  label: 'B15 · 底线 ${baseline.floor(true)}',
+                  label: context.l10n.flowB15CutoffP0((baseline.floor(true)).toString()),
                   value: '$b15Sum',
                 ),
               ),
@@ -442,7 +448,7 @@ class _SummaryCard extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            '已计入 B35 ${baseline.b35.length}/$gainB35Size · B15 ${baseline.b15.length}/$gainB15Size',
+            context.l10n.flowCountedB35P0P1B15P2P3((baseline.b35.length).toString(), (gainB35Size).toString(), (baseline.b15.length).toString(), (gainB15Size).toString()),
             style: _hintStyle(context),
           ),
           for (final note in notes)
@@ -517,7 +523,7 @@ class _CandidateCard extends StatelessWidget {
                         spacing: 4,
                         runSpacing: 4,
                         children: [
-                          _Tag(text: c.route.label, color: routeColor),
+                          _Tag(text: _routeLabel(context, c.route), color: routeColor),
                           _Tag(
                             text:
                                 '${StringUtil.formatSongType(c.type)} ${c.ds.toStringAsFixed(1)}',
@@ -543,19 +549,19 @@ class _CandidateCard extends StatelessWidget {
                         color: routeColor,
                       ),
                     ),
-                    Text('净收益', style: _hintStyle(context)),
+                    Text(context.l10n.flowNetGain, style: _hintStyle(context)),
                   ],
                 ),
                 PopupMenuButton<String>(
-                  tooltip: '反馈',
+                  tooltip: context.l10n.flowFeedback,
                   padding: EdgeInsets.zero,
                   icon: Icon(Icons.more_vert_rounded,
                       size: 20, color: scheme.onSurfaceVariant),
                   onSelected: onFeedback,
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(value: 'skip', child: Text('这次跳过')),
-                    PopupMenuItem(value: 'stuck', child: Text('暂时卡住（14 天）')),
-                    PopupMenuItem(value: 'dislike', child: Text('不喜欢这张谱')),
+                  itemBuilder: (_) =>  [
+                    PopupMenuItem(value: 'skip', child: Text(context.l10n.flowSkipThisTime)),
+                    PopupMenuItem(value: 'stuck', child: Text(context.l10n.flowTemporarilyStuck14Days)),
+                    PopupMenuItem(value: 'dislike', child: Text(context.l10n.flowDislikeThisChart)),
                   ],
                 ),
               ],
@@ -576,9 +582,8 @@ class _CandidateCard extends StatelessWidget {
                     alignment: Alignment.centerLeft,
                     child: Text(
                       achv == null
-                          ? '未记录成绩 → 参考目标 ${c.target.toStringAsFixed(4)}%'
-                          : '${achv.toStringAsFixed(4)}% → ${c.target.toStringAsFixed(4)}%'
-                              '（提升 ${c.need.toStringAsFixed(4)}%）',
+                          ? context.l10n.flowNoScoreRecordedReferenceTargetP0((c.target.toStringAsFixed(4)).toString())
+                          : context.l10n.flowP0P1GainP2((achv.toStringAsFixed(4)).toString(), (c.target.toStringAsFixed(4)).toString(), (c.need.toStringAsFixed(4)).toString()),
                       maxLines: 1,
                       style: AppTheme.number(
                         fontSize: 13,
@@ -588,7 +593,7 @@ class _CandidateCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 2),
-                  Text(c.reason, style: _hintStyle(context)),
+                  Text(_reasonText(context, c), style: _hintStyle(context)),
                 ],
               ),
             ),
@@ -624,15 +629,13 @@ class _Disclaimer extends StatelessWidget {
     return Column(
       children: [
         Text(
-          '稳妥 = 目标提升 ≤ 0.20%，挑战 = 提升 ≤ 0.80%，探索 = 未记录成绩、'
-          '按你同定数档的中位成绩估算。「稳妥」指差距小，不是成功率。\n'
-          '基于本地缓存的成绩计算，刷新数据后结果会更新。',
+          context.l10n.flowSteadyTargetImprovement020Challenge0,
           textAlign: TextAlign.center,
           style: style,
         ),
         const SizedBox(height: 8),
         Text(
-          '吃分推荐算法由 AWMC 提供支持',
+          context.l10n.flowRatingGainRecommendationsPoweredByAWMC,
           textAlign: TextAlign.center,
           style: style.copyWith(fontWeight: FontWeight.w600),
         ),
@@ -698,17 +701,17 @@ class _FeedbackSheetState extends State<_FeedbackSheet> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('反馈管理',
+            Text(context.l10n.flowManageFeedback,
                 style: Theme.of(context).textTheme.titleMedium),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-              child: Text('撤销后谱面不会插回当前这一批，换批或重新开始时才会再出现。',
+              child: Text(context.l10n.flowUndoingDoesNotInsertChartsBackInto,
                   textAlign: TextAlign.center, style: style),
             ),
             if (_records.isEmpty)
               Padding(
                 padding: const EdgeInsets.all(24),
-                child: Text('还没有反馈记录', style: style),
+                child: Text(context.l10n.flowNoFeedbackYet, style: style),
               )
             else
               Flexible(
@@ -720,8 +723,8 @@ class _FeedbackSheetState extends State<_FeedbackSheet> {
                         title: Text('${r.title} [${r.level}]',
                             maxLines: 1, overflow: TextOverflow.ellipsis),
                         subtitle: Text(r.kind == GainFeedbackKind.dislike
-                            ? '不喜欢 · 直到撤销'
-                            : '暂时卡住 · ${_formatDate(r.expiresAt!)} 自动解除'),
+                            ? context.l10n.flowDislikedUntilUndone
+                            : context.l10n.flowTemporarilyStuckClearsAutomaticallyOnP0((_formatDate(r.expiresAt!)).toString())),
                         trailing: TextButton(
                           onPressed: () async {
                             await widget.onUndo(r.key);
@@ -731,7 +734,7 @@ class _FeedbackSheetState extends State<_FeedbackSheet> {
                                   _records.where((e) => e.key != r.key).toList();
                             });
                           },
-                          child: const Text('撤销'),
+                          child:  Text(context.l10n.flowUndo),
                         ),
                       ),
                   ],
@@ -744,5 +747,42 @@ class _FeedbackSheetState extends State<_FeedbackSheet> {
   }
 
   static String _formatDate(DateTime d) =>
-      '${d.month}月${d.day}日';
+      appL10n.flowP0P12((d.month).toString(), (d.day).toString());
+}
+
+/// 推荐路线的显示名；枚举本身不带译文。
+String _routeLabel(BuildContext context, GainRoute route) => switch (route) {
+      GainRoute.stable => context.l10n.gainRouteStable,
+      GainRoute.challenge => context.l10n.gainRouteChallenge,
+      GainRoute.explore => context.l10n.gainRouteExplore,
+    };
+
+/// 推分理由：核心只给数据，这里按当前语言拼句。
+String _reasonText(BuildContext context, GainCandidate c) {
+  final l10n = context.l10n;
+  final basis = c.basis;
+  if (basis == null) {
+    return l10n.gainExploreReason(
+        c.target.toStringAsFixed(4), c.netGain.toString());
+  }
+  final grade = basis.targetGrade ?? l10n.gainBelowS;
+  final gradeText =
+      basis.raisesGrade ? l10n.gainRaiseTo(grade) : l10n.gainWithinGrade(grade);
+  final String basisText;
+  if (basis.memberRa != null) {
+    basisText = l10n.gainBasisMember(gradeText, basis.zone,
+        basis.memberRa.toString(), basis.targetRa.toString());
+  } else if (basis.floorTitle != null) {
+    basisText = l10n.gainBasisReplace(gradeText, basis.targetRa.toString(),
+        basis.zone, basis.floorTitle!, basis.floorRa.toString());
+  } else {
+    basisText =
+        l10n.gainBasisFill(gradeText, basis.targetRa.toString(), basis.zone);
+  }
+  final text = l10n.gainNetGainReason(c.netGain.toString(), basisText);
+  final alt = c.alternativeTarget;
+  if (alt == null) return text;
+  return text +
+      l10n.gainAlternativeChallenge(
+          alt.toStringAsFixed(4), c.alternativeGain.toString());
 }

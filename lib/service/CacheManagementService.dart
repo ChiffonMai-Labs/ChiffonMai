@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import '../utils/AppTaskActivity.dart';
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
@@ -38,29 +40,30 @@ class CacheManagementService extends ChangeNotifier {
   String reloadText = '';
   double? reloadProgress;
 
-  Future<void> reloadBaseMaidata() async {
-    if (reloadingBase) return;
-    reloadingBase = true;
-    reloadText = '正在发现基础量 maidata…';
-    reloadProgress = null;
-    notifyListeners();
-    try {
-      await MaidataManager().initialize();
-      await MaidataManager().fetchAndCacheFullMaidata(
-          onProgress: (current, total) {
-        reloadText = total > 0
-            ? '正在拉取 maidata：$current/$total'
-            : '已发现 $current 份 maidata';
-        reloadProgress = total > 0 ? (current / total).clamp(0.0, 1.0) : null;
+  Future<void> reloadBaseMaidata() => AppTaskActivity.run(() async {
+        if (reloadingBase) return;
+        reloadingBase = true;
+        reloadText = appL10n.svcDiscoveringBaseMaidata;
+        reloadProgress = null;
         notifyListeners();
+        try {
+          await MaidataManager().initialize();
+          await MaidataManager().fetchAndCacheFullMaidata(
+              onProgress: (current, total) {
+            reloadText = total > 0
+                ? appL10n.svcFetchingMaidataP0P1(current.toString(), total.toString())
+                : appL10n.svcFoundP0MaidataFiles(current.toString());
+            reloadProgress =
+                total > 0 ? (current / total).clamp(0.0, 1.0) : null;
+            notifyListeners();
+          });
+        } finally {
+          reloadingBase = false;
+          reloadText = '';
+          reloadProgress = null;
+          notifyListeners();
+        }
       });
-    } finally {
-      reloadingBase = false;
-      reloadText = '';
-      reloadProgress = null;
-      notifyListeners();
-    }
-  }
 
   Future<CacheUsage> inspect() async {
     final maidataManager = MaidataManager();
@@ -102,26 +105,27 @@ class CacheManagementService extends ChangeNotifier {
   Future<void> clear(
     AppCacheKind kind, {
     required void Function(double progress) onProgress,
-  }) async {
-    onProgress(0);
-    final documents = await getApplicationDocumentsDirectory();
-    switch (kind) {
-      case AppCacheKind.audio:
-        await SongMediaCache.instance.clear('audio');
-      case AppCacheKind.pv:
-        await SongMediaCache.instance.clear('pv');
-      case AppCacheKind.maidata:
-        await MaidataManager().clearCache();
-        final urlMap = File('${documents.path}/maidata_url_map.json');
-        if (await urlMap.exists()) await urlMap.delete();
-    }
-    // 删除通常瞬间完成，保留几个平滑的阶段，让用户明确看到操作已完成。
-    onProgress(.55);
-    await Future<void>.delayed(const Duration(milliseconds: 90));
-    onProgress(.82);
-    await Future<void>.delayed(const Duration(milliseconds: 90));
-    onProgress(1);
-  }
+  }) =>
+      AppTaskActivity.run(() async {
+        onProgress(0);
+        final documents = await getApplicationDocumentsDirectory();
+        switch (kind) {
+          case AppCacheKind.audio:
+            await SongMediaCache.instance.clear('audio');
+          case AppCacheKind.pv:
+            await SongMediaCache.instance.clear('pv');
+          case AppCacheKind.maidata:
+            await MaidataManager().clearCache();
+            final urlMap = File('${documents.path}/maidata_url_map.json');
+            if (await urlMap.exists()) await urlMap.delete();
+        }
+        // 删除通常瞬间完成，保留几个平滑的阶段，让用户明确看到操作已完成。
+        onProgress(.55);
+        await Future<void>.delayed(const Duration(milliseconds: 90));
+        onProgress(.82);
+        await Future<void>.delayed(const Duration(milliseconds: 90));
+        onProgress(1);
+      });
 
   Future<(int, int)> _measureDirectory(Directory directory) async {
     if (!await directory.exists()) return (0, 0);

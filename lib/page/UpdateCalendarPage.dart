@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 
 import '../constant/AppLinks.dart';
@@ -140,7 +141,10 @@ class UpdateCalendarPage extends StatefulWidget {
 }
 
 class _UpdateCalendarPageState extends State<UpdateCalendarPage> {
-  static const _weekdays = ['一', '二', '三', '四', '五', '六', '日'];
+  List<String> get _weekdays {
+    final days = MaterialLocalizations.of(context).narrowWeekdays;
+    return [...days.skip(1), days.first];
+  }
 
   Map<String, List<UpdateCalendarEntry>> _calendar = const {};
   Map<String, List<CalendarDelivery>> _deliveries = const {};
@@ -149,6 +153,10 @@ class _UpdateCalendarPageState extends State<UpdateCalendarPage> {
   /// 有更新的月份，从早到晚。切换月份时跳过没有更新的月份。
   List<DateTime> _months = const [];
   int _monthIndex = 0;
+
+  /// 切换方向：1 是新月份从右边滑入，-1 是从左边滑入。
+  int _slideDirection = 1;
+  double _monthDragDistance = 0;
   String? _selectedDate;
   bool _loading = true;
   bool _loadingDeliveries = false;
@@ -274,6 +282,7 @@ class _UpdateCalendarPageState extends State<UpdateCalendarPage> {
 
   /// 切到另一个月份时选中该月最后一次更新。
   void _switchMonth(int index) {
+    _slideDirection = index > _monthIndex ? 1 : -1;
     final month = _months[index];
     final prefix = _dateKey(month).substring(0, 8);
     final dates = _dates.where((d) => d.startsWith(prefix)).toList();
@@ -287,7 +296,7 @@ class _UpdateCalendarPageState extends State<UpdateCalendarPage> {
   @override
   Widget build(BuildContext context) {
     return BackgroundPageScaffold(
-      title: '更新日历',
+      title: context.l10n.featureUpdateCalendar,
       child: _months.isNotEmpty
           ? _buildContent()
           : _loading || _loadingDeliveries
@@ -311,7 +320,7 @@ class _UpdateCalendarPageState extends State<UpdateCalendarPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('暂时读不到更新数据',
+                Text(context.l10n.flowUpdateDataTemporarilyUnavailable,
                     style: TextStyle(color: scheme.onSurfaceVariant)),
                 const SizedBox(height: 8),
                 TextButton(
@@ -319,7 +328,7 @@ class _UpdateCalendarPageState extends State<UpdateCalendarPage> {
                     _load();
                     _loadDeliveries();
                   },
-                  child: const Text('重试'),
+                  child: Text(context.l10n.flowRetry),
                 ),
               ],
             ),
@@ -350,7 +359,7 @@ class _UpdateCalendarPageState extends State<UpdateCalendarPage> {
                 if (deliveries.isNotEmpty) ...[
                   CollapsibleCard(
                     key: ValueKey(_selectedDate),
-                    title: '配信内容',
+                    title: context.l10n.flowReleaseContents,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
@@ -366,7 +375,8 @@ class _UpdateCalendarPageState extends State<UpdateCalendarPage> {
                     alignment: Alignment.centerLeft,
                     child: TextButton(
                       onPressed: _loadDeliveries,
-                      child: const Text('配信数据读取失败，重试'),
+                      child:
+                          Text(context.l10n.flowCouldNotLoadReleaseDataRetry),
                     ),
                   ),
               ],
@@ -405,7 +415,7 @@ class _UpdateCalendarPageState extends State<UpdateCalendarPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (summary.sections.isEmpty && summary.counted.isEmpty)
-            Text('暂无内容明细', style: secondary),
+            Text(context.l10n.flowNoContentDetails, style: secondary),
           for (final section in summary.sections) ...[
             Padding(
               padding: const EdgeInsets.only(top: 4, bottom: 4),
@@ -434,7 +444,10 @@ class _UpdateCalendarPageState extends State<UpdateCalendarPage> {
             if (section.hidden > 0)
               Padding(
                 padding: const EdgeInsets.only(bottom: 6),
-                child: Text('其余 ${section.hidden} 项未列出', style: secondary),
+                child: Text(
+                    context.l10n
+                        .flowP0OtherItemsNotShown((section.hidden).toString()),
+                    style: secondary),
               ),
           ],
           if (summary.counted.isNotEmpty)
@@ -455,14 +468,14 @@ class _UpdateCalendarPageState extends State<UpdateCalendarPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         GuideLinkText(
-          before: '谱面日期来源：',
-          label: '落雪咖啡屋 maimai DX 查分器',
+          before: context.l10n.flowChartDateSource,
+          label: context.l10n.flowLXNSMaimaiDXScoreTracker,
           url: AppLinks.luoXueRegistrationUrl,
           style: style,
         ),
         const SizedBox(height: 4),
         GuideLinkText(
-          before: '配信数据来源：',
+          before: context.l10n.flowReleaseDataSource,
           label: 'Michaelwucoc',
           url: AppLinks.michaelwucocGitHubUrl,
           style: style,
@@ -483,7 +496,7 @@ class _UpdateCalendarPageState extends State<UpdateCalendarPage> {
           Row(
             children: [
               IconButton(
-                tooltip: '上一个有更新的月份',
+                tooltip: context.l10n.flowPreviousMonthWithUpdates,
                 onPressed: _monthIndex > 0
                     ? () => _switchMonth(_monthIndex - 1)
                     : null,
@@ -493,7 +506,8 @@ class _UpdateCalendarPageState extends State<UpdateCalendarPage> {
                 child: PressScale(
                   child: Semantics(
                     button: true,
-                    label: '选择年月，当前 ${month.year} 年 ${month.month} 月',
+                    label: context.l10n.flowChooseYearAndMonthCurrentP0P1(
+                        (month.year).toString(), (month.month).toString()),
                     excludeSemantics: true,
                     child: GestureDetector(
                       behavior: HitTestBehavior.opaque,
@@ -507,7 +521,9 @@ class _UpdateCalendarPageState extends State<UpdateCalendarPage> {
                                 child: FittedBox(
                                   fit: BoxFit.scaleDown,
                                   child: Text(
-                                    '${month.year} 年 ${month.month} 月',
+                                    context.l10n.flowP0P1(
+                                        (month.year).toString(),
+                                        (month.month).toString()),
                                     style: AppTheme.number(
                                       fontSize: 17,
                                       fontWeight: FontWeight.w800,
@@ -522,8 +538,10 @@ class _UpdateCalendarPageState extends State<UpdateCalendarPage> {
                           ),
                           Text(
                             stats.updates == 0
-                                ? '仅有配信记录'
-                                : '${stats.updates} 次谱面更新 ${stats.songs} 首歌曲',
+                                ? context.l10n.flowReleaseRecordOnly
+                                : context.l10n.flowP0UpdatesP1Songs(
+                                    (stats.updates).toString(),
+                                    (stats.songs).toString()),
                             style: TextStyle(
                                 fontSize: 11, color: scheme.onSurfaceVariant),
                           ),
@@ -534,7 +552,7 @@ class _UpdateCalendarPageState extends State<UpdateCalendarPage> {
                 ),
               ),
               IconButton(
-                tooltip: '下一个有更新的月份',
+                tooltip: context.l10n.flowNextMonthWithUpdates,
                 onPressed: _monthIndex < _months.length - 1
                     ? () => _switchMonth(_monthIndex + 1)
                     : null,
@@ -556,8 +574,64 @@ class _UpdateCalendarPageState extends State<UpdateCalendarPage> {
             ],
           ),
           const SizedBox(height: 4),
-          FadeSwitcher(value: month, child: _buildMonthGrid(month)),
+          _buildSlidingMonth(month),
         ],
+      ),
+    );
+  }
+
+  /// 月份切换用横向滑动，高度随周数平滑变化；左右滑动日历也能切换。
+  Widget _buildSlidingMonth(DateTime month) {
+    final duration =
+        AppDesignTokens.motion(context, AppDesignTokens.mediumMotion);
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onHorizontalDragStart: (_) => _monthDragDistance = 0,
+      onHorizontalDragUpdate: (details) =>
+          _monthDragDistance += details.primaryDelta ?? 0,
+      onHorizontalDragEnd: (details) {
+        final velocity = details.primaryVelocity ?? 0;
+        if (_monthDragDistance.abs() < 40 && velocity.abs() < 300) return;
+        // 手指向左滑看下一个月。
+        final swipeLeft =
+            velocity.abs() >= 300 ? velocity < 0 : _monthDragDistance < 0;
+        final target = _monthIndex + (swipeLeft ? 1 : -1);
+        if (target >= 0 && target < _months.length) _switchMonth(target);
+      },
+      child: ClipRect(
+        child: AnimatedSize(
+          duration: duration,
+          curve: AppDesignTokens.emphasizedCurve,
+          alignment: Alignment.topCenter,
+          child: AnimatedSwitcher(
+            duration: duration,
+            switchInCurve: AppDesignTokens.emphasizedCurve,
+            // 离场用翻转的同一条曲线，新旧两个月始终相隔整整一屏，不会叠在一起。
+            switchOutCurve: AppDesignTokens.emphasizedCurve.flipped,
+            layoutBuilder: (current, previous) => Stack(
+              alignment: Alignment.topCenter,
+              children: [...previous, if (current != null) current],
+            ),
+            // AnimatedSwitcher 不会为离场的月份重新调用这里，
+            // 方向和进退场要在动画里实时取，否则离场方向是它入场时的旧值。
+            transitionBuilder: (child, animation) => AnimatedBuilder(
+              animation: animation,
+              child: child,
+              builder: (context, child) {
+                final incoming = child?.key == ValueKey(_months[_monthIndex]);
+                final side = _slideDirection * (incoming ? 1 : -1);
+                return FractionalTranslation(
+                  translation: Offset(side * (1 - animation.value), 0),
+                  child: child,
+                );
+              },
+            ),
+            child: KeyedSubtree(
+              key: ValueKey(month),
+              child: _buildMonthGrid(month),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -627,7 +701,7 @@ class _UpdateCalendarPageState extends State<UpdateCalendarPage> {
                 ),
                 if (hasUpdate)
                   Text(
-                    count > 0 ? '$count' : '配信',
+                    count > 0 ? '$count' : context.l10n.flowRelease,
                     style: AppTheme.number(
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
@@ -645,9 +719,12 @@ class _UpdateCalendarPageState extends State<UpdateCalendarPage> {
       child: Semantics(
         button: true,
         selected: selected,
-        label: '${date.month} 月 ${date.day} 日'
-            '${count > 0 ? '，$count 首歌曲' : ''}'
-            '${hasDelivery ? '，有配信记录' : ''}',
+        label: context.l10n.flowP0P1P2P3(
+            (date.month).toString(),
+            (date.day).toString(),
+            (count > 0 ? context.l10n.flowP0Songs((count).toString()) : '')
+                .toString(),
+            (hasDelivery ? context.l10n.flowReleaseRecorded : '').toString()),
         excludeSemantics: true,
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
@@ -668,8 +745,9 @@ class _UpdateCalendarPageState extends State<UpdateCalendarPage> {
     final scheme = Theme.of(context).colorScheme;
     final date = DateTime.tryParse(_selectedDate ?? '');
     final title = date == null
-        ? '当天更新'
-        : '${date.month} 月 ${date.day} 日 周${_weekdays[date.weekday - 1]}';
+        ? context.l10n.flowUpdatesOnThisDay
+        : context.l10n.flowP0P1P2((date.month).toString(),
+            (date.day).toString(), (_weekdays[date.weekday - 1]).toString());
     final charts = entries.fold<int>(0, (sum, e) => sum + e.chartCount);
     // 落雪会提前录入下一次更新的日期。
     final upcoming =
@@ -685,7 +763,7 @@ class _UpdateCalendarPageState extends State<UpdateCalendarPage> {
               children: [
                 if (upcoming)
                   TextSpan(
-                    text: '  尚未上线',
+                    text: context.l10n.flowNotReleasedYet,
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -702,7 +780,10 @@ class _UpdateCalendarPageState extends State<UpdateCalendarPage> {
           ),
         ),
         Text(
-          entries.isEmpty ? '配信记录' : '${_countSongs(entries)} 首歌曲 $charts 张谱面',
+          entries.isEmpty
+              ? context.l10n.flowReleaseRecord
+              : context.l10n.flowP0SongsP1Charts(
+                  (_countSongs(entries)).toString(), (charts).toString()),
           style: AppTheme.number(fontSize: 12, color: scheme.onSurfaceVariant),
         ),
       ],
@@ -813,7 +894,8 @@ class _MonthPickerDialog extends StatelessWidget {
         child: Semantics(
           button: true,
           selected: selected,
-          label: '${months[index].year} 年 ${months[index].month} 月',
+          label: context.l10n.flowP0P1((months[index].year).toString(),
+              (months[index].month).toString()),
           excludeSemantics: true,
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
@@ -832,7 +914,8 @@ class _MonthPickerDialog extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      '${months[index].month} 月',
+                      context.l10n
+                          .flowMonthP0((months[index].month).toString()),
                       style: AppTheme.number(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
@@ -841,8 +924,10 @@ class _MonthPickerDialog extends StatelessWidget {
                     ),
                     Text(
                       stats[index].updates == 0
-                          ? '仅有配信记录'
-                          : '${stats[index].updates} 次谱面更新 ${stats[index].songs} 首歌曲',
+                          ? context.l10n.flowReleaseRecordOnly
+                          : context.l10n.flowP0UpdatesP1Songs(
+                              (stats[index].updates).toString(),
+                              (stats[index].songs).toString()),
                       maxLines: 1,
                       style: AppTheme.number(
                         fontSize: 11,
@@ -863,7 +948,7 @@ class _MonthPickerDialog extends StatelessWidget {
     // 每格要放下「x 次更新 y 首歌曲」，两列。
     const columns = 2;
     return AppAlertDialog(
-      title: const Text('选择年月'),
+      title: Text(context.l10n.flowChooseYearAndMonth),
       scrollable: true,
       content: Column(
         mainAxisSize: MainAxisSize.min,
@@ -874,7 +959,7 @@ class _MonthPickerDialog extends StatelessWidget {
               padding:
                   EdgeInsets.only(top: year == years.first ? 0 : 14, bottom: 6),
               child: Text(
-                '$year 年',
+                context.l10n.flowYearP0((year).toString()),
                 style: AppTheme.number(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
@@ -906,7 +991,7 @@ class _MonthPickerDialog extends StatelessWidget {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('取消'),
+          child: Text(context.l10n.featureCancel),
         ),
       ],
     );

@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -64,8 +65,7 @@ class CommonWidgetUtil {
     Function(double, double) onMasterDxRangeChanged,
     Function(List<String>) onGenresChanged,
     Function(int) onMaxGuessesChanged,
-    Function(int) onTimeLimitChanged,
-    {
+    Function(int) onTimeLimitChanged, {
     // 定数范围这一节的标题。
     //
     // 默认面向「按 MASTER 难度定数筛选」的模式（无提示 / 曲绘 / 模糊曲绘 /
@@ -80,26 +80,26 @@ class CommonWidgetUtil {
     bool card = false,
   }) {
     final maxGuessesText =
-        maxGuesses == 0 || maxGuesses == 20 ? '无限制' : '$maxGuesses 次';
+        maxGuesses == 0 || maxGuesses == 20 ? context.l10n.flowUnlimited2 : context.l10n.flowP0Times((maxGuesses).toString());
     final timeLimitText =
-        timeLimit == 0 || timeLimit == 180 ? '无限制' : '$timeLimit 秒';
+        timeLimit == 0 || timeLimit == 180 ? context.l10n.flowUnlimited2 : context.l10n.flowP0Seconds2((timeLimit).toString());
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         GuessSettingSection(
           card: card,
-          title: '题库范围',
+          title: context.l10n.flowQuestionPool,
           icon: Icons.library_music_rounded,
           children: [
             GuessMultiSelectTile(
-              label: '版本',
+              label: context.l10n.flowVersion,
               items: allVersions,
               selected: selectedVersions,
               formatter: StringUtil.formatVersion2,
               onChanged: onVersionsChanged,
             ),
             GuessMultiSelectTile(
-              label: '流派',
+              label: context.l10n.flowGenre,
               items: allGenres.where((genre) => genre != '宴会場').toList(),
               selected:
                   selectedGenres.where((genre) => genre != '宴会場').toList(),
@@ -117,11 +117,11 @@ class CommonWidgetUtil {
         SizedBox(height: card ? AppDesignTokens.cardGap : 4),
         GuessSettingSection(
           card: card,
-          title: '对局规则',
+          title: context.l10n.flowGameRules,
           icon: Icons.flag_rounded,
           children: [
             GuessSliderTile(
-              label: '最大猜测次数',
+              label: context.l10n.flowMaximumGuesses,
               valueText: maxGuessesText,
               value: maxGuesses == 0 ? 20.0 : maxGuesses.toDouble(),
               min: 1,
@@ -133,7 +133,7 @@ class CommonWidgetUtil {
               },
             ),
             GuessSliderTile(
-              label: '时间限制',
+              label: context.l10n.flowTimeLimit,
               valueText: timeLimitText,
               value: timeLimit == 0 ? 180.0 : timeLimit.toDouble(),
               min: 30,
@@ -232,12 +232,12 @@ class _MasterDxRangeInputState extends State<_MasterDxRangeInput> {
   /// 提交一个输入框的值。非法输入（空/非数字/越界）一律**回滚成当前外部值**，
   /// 而不是悄悄丢弃——否则用户会看着一个和实际生效值不一致的数字。
   void _commit({required bool isMin}) {
-    final TextEditingController controller = isMin ? _minController : _maxController;
+    final TextEditingController controller =
+        isMin ? _minController : _maxController;
     final double fallback = isMin ? widget.minValue : widget.maxValue;
     final double? parsed = double.tryParse(controller.text.trim());
-    final bool valid = parsed != null &&
-        parsed >= _absoluteMin &&
-        parsed <= _absoluteMax;
+    final bool valid =
+        parsed != null && parsed >= _absoluteMin && parsed <= _absoluteMax;
     if (!valid) {
       controller.text = _fmt(fallback);
       return;
@@ -316,9 +316,9 @@ class _MasterDxRangeInputState extends State<_MasterDxRangeInput> {
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 10),
-              child: Text('至',
-                  style: TextStyle(
-                      fontSize: 13, color: scheme.onSurfaceVariant)),
+              child: Text(context.l10n.flowTo,
+                  style:
+                      TextStyle(fontSize: 13, color: scheme.onSurfaceVariant)),
             ),
             Expanded(
               child: _field(
@@ -331,7 +331,7 @@ class _MasterDxRangeInputState extends State<_MasterDxRangeInput> {
           ],
         ),
         const SizedBox(height: 6),
-        Text('可填 1.0 至 15.0，点其它位置或按回车生效', style: hintStyle),
+        Text(context.l10n.flowEnter10150ThenTap, style: hintStyle),
         if (widget.hint != null)
           Padding(
             padding: const EdgeInsets.only(top: 4),
@@ -495,10 +495,12 @@ class _ThemeAwareBackButtonWidget extends StatefulWidget {
   const _ThemeAwareBackButtonWidget();
 
   @override
-  State<_ThemeAwareBackButtonWidget> createState() => _ThemeAwareBackButtonWidgetState();
+  State<_ThemeAwareBackButtonWidget> createState() =>
+      _ThemeAwareBackButtonWidgetState();
 }
 
-class _ThemeAwareBackButtonWidgetState extends State<_ThemeAwareBackButtonWidget> {
+class _ThemeAwareBackButtonWidgetState
+    extends State<_ThemeAwareBackButtonWidget> {
   @override
   Widget build(BuildContext context) {
     final brightness = Theme.of(context).brightness;

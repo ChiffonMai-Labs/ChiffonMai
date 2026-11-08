@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import '../utils/AppTaskActivity.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
@@ -17,10 +19,13 @@ import '../utils/ExportPathUtil.dart';
 import '../utils/CommonCacheUtil.dart';
 import '../utils/NavigationPreferences.dart';
 import '../utils/SearchInteractionPreferences.dart';
+import '../utils/SongDetailPreferences.dart';
+import '../utils/AppLanguagePreferences.dart';
 import '../utils/ConfettiPreferences.dart';
 import 'History/ChartHistoryStore.dart';
 import 'RankTable/RankCompletionStore.dart';
 import 'NextPlayQueueStore.dart';
+import 'CustomTagStore.dart';
 import 'LoadingTipsStore.dart';
 import 'UserFileBackupService.dart';
 import 'GainRecommend/GainFeedbackStore.dart';
@@ -153,157 +158,161 @@ class DataBackupService {
   /// 导出所有数据到 JSON 文件
   /// 返回保存的文件路径，null 表示用户取消或失败
   Future<String?> exportToFile(
-      {void Function(String fallbackPath)? onFallback}) async {
-    try {
-      // 1. 读取所有 SharedPreferences 数据（跳过可重新拉取的缓存）
-      //
-      // ⚠️ **必须先 reload**：legacy `SharedPreferences` 的值是 `getInstance()`
-      // 那一刻的**内存快照**，之后只跟着自己的 setter 更新。而本项目里
-      // 猜歌设置（`GuessChartSettingsStore`）走的是 `SharedPreferencesAsync`
-      // 的 `apply()` 通道 —— 它写的是同一个 `FlutterSharedPreferences` 文件，
-      // 但不会更新这份 legacy 快照。不 reload 的话：本次启动后改过的猜歌设置
-      // 会导出成**旧值**，本次首次写入的键甚至整条不出现在备份里。
-      final prefs = await SharedPreferences.getInstance();
-      await CommonCacheUtil().flush();
-      await NextPlayQueueStore.instance.flush();
-      await NavigationPreferences.instance.flush();
-      await SearchInteractionPreferences.instance.flush();
-      await prefs.reload();
-      final keys = prefs.getKeys();
-      final data = <String, dynamic>{};
-      var skipped = 0;
-      var secretSkipped = 0;
+          {void Function(String fallbackPath)? onFallback}) =>
+      AppTaskActivity.run(() async {
+        try {
+          // 1. 读取所有 SharedPreferences 数据（跳过可重新拉取的缓存）
+          //
+          // ⚠️ **必须先 reload**：legacy `SharedPreferences` 的值是 `getInstance()`
+          // 那一刻的**内存快照**，之后只跟着自己的 setter 更新。而本项目里
+          // 猜歌设置（`GuessChartSettingsStore`）走的是 `SharedPreferencesAsync`
+          // 的 `apply()` 通道 —— 它写的是同一个 `FlutterSharedPreferences` 文件，
+          // 但不会更新这份 legacy 快照。不 reload 的话：本次启动后改过的猜歌设置
+          // 会导出成**旧值**，本次首次写入的键甚至整条不出现在备份里。
+          final prefs = await SharedPreferences.getInstance();
+          await CommonCacheUtil().flush();
+          await NextPlayQueueStore.instance.flush();
+          await NavigationPreferences.instance.flush();
+          await SearchInteractionPreferences.instance.flush();
+          await SongDetailPreferences.instance.flush();
+          await AppLanguagePreferences.instance.flush();
+          await prefs.reload();
+          final keys = prefs.getKeys();
+          final data = <String, dynamic>{};
+          var skipped = 0;
+          var secretSkipped = 0;
 
-      for (final key in keys) {
-        // 敏感凭据（AWMC 网关令牌等）永远不进备份文件
-        if (isNeverBackupKey(key) ||
-            SecureCredentialStore.isCredentialKey(key)) {
-          secretSkipped++;
-          continue;
+          for (final key in keys) {
+            // 敏感凭据（AWMC 网关令牌等）永远不进备份文件
+            if (isNeverBackupKey(key) ||
+                SecureCredentialStore.isCredentialKey(key)) {
+              secretSkipped++;
+              continue;
+            }
+            if (isCacheKey(key)) {
+              skipped++;
+              continue;
+            }
+            final value = prefs.get(key);
+            if (value is String) {
+              data[key] = {'type': 'String', 'value': value};
+            } else if (value is int) {
+              data[key] = {'type': 'int', 'value': value};
+            } else if (value is double) {
+              data[key] = {'type': 'double', 'value': value};
+            } else if (value is bool) {
+              data[key] = {'type': 'bool', 'value': value};
+            } else if (value is List<String>) {
+              data[key] = {'type': 'List<String>', 'value': value};
+            }
+          }
+
+          debugPrint('DataBackup: 导出 ${data.length} 个用户数据键，跳过 $skipped 个缓存键、'
+              '$secretSkipped 个敏感凭据键');
+
+          // 2. 构建备份元数据
+          final files = await UserFileBackupService.collect(prefs);
+          final backup = {
+            'version': 3,
+            'appName': 'ChiffonMai',
+            'exportedAt': DateTime.now().toIso8601String(),
+            'exportedAtTimestamp': DateTime.now().millisecondsSinceEpoch,
+            'keyCount': data.length,
+            'skippedCacheKeys': skipped,
+            'skippedSecretKeys': secretSkipped,
+            'data': data,
+            'files': files,
+            'fileCount': files.length,
+          };
+
+          // 3. 序列化为 JSON
+          final jsonStr = const JsonEncoder.withIndent('  ').convert(backup);
+          final bytes = utf8.encode(jsonStr);
+          if (bytes.length > maxImportBytes)
+            throw StateError(appL10n.svcTheBackupExceedsThe50MBLimit);
+
+          // 4. 文件名带时分秒：同一天导出多次不再互相覆盖
+          final now = DateTime.now();
+          final dateStr = '${now.year}'
+              '${now.month.toString().padLeft(2, '0')}'
+              '${now.day.toString().padLeft(2, '0')}_'
+              '${now.hour.toString().padLeft(2, '0')}'
+              '${now.minute.toString().padLeft(2, '0')}'
+              '${now.second.toString().padLeft(2, '0')}';
+          final suggestedName = 'ChiffonMai_backup_$dateStr.json';
+
+          final file = await ExportPathUtil.writeExportFile(
+            fileName: suggestedName,
+            bytes: bytes,
+            subDir: '备份',
+            onFallback: onFallback,
+          );
+
+          debugPrint('DataBackup: 导出成功 → ${file.path}');
+          return file.path;
+        } catch (e) {
+          debugPrint('DataBackup: 导出失败: $e');
+          rethrow;
         }
-        if (isCacheKey(key)) {
-          skipped++;
-          continue;
-        }
-        final value = prefs.get(key);
-        if (value is String) {
-          data[key] = {'type': 'String', 'value': value};
-        } else if (value is int) {
-          data[key] = {'type': 'int', 'value': value};
-        } else if (value is double) {
-          data[key] = {'type': 'double', 'value': value};
-        } else if (value is bool) {
-          data[key] = {'type': 'bool', 'value': value};
-        } else if (value is List<String>) {
-          data[key] = {'type': 'List<String>', 'value': value};
-        }
-      }
-
-      debugPrint('DataBackup: 导出 ${data.length} 个用户数据键，跳过 $skipped 个缓存键、'
-          '$secretSkipped 个敏感凭据键');
-
-      // 2. 构建备份元数据
-      final files = await UserFileBackupService.collect(prefs);
-      final backup = {
-        'version': 3,
-        'appName': 'ChiffonMai',
-        'exportedAt': DateTime.now().toIso8601String(),
-        'exportedAtTimestamp': DateTime.now().millisecondsSinceEpoch,
-        'keyCount': data.length,
-        'skippedCacheKeys': skipped,
-        'skippedSecretKeys': secretSkipped,
-        'data': data,
-        'files': files,
-        'fileCount': files.length,
-      };
-
-      // 3. 序列化为 JSON
-      final jsonStr = const JsonEncoder.withIndent('  ').convert(backup);
-      final bytes = utf8.encode(jsonStr);
-      if (bytes.length > maxImportBytes)
-        throw StateError('备份超过 50 MB 上限，请精简自定义谱面归档后重试');
-
-      // 4. 文件名带时分秒：同一天导出多次不再互相覆盖
-      final now = DateTime.now();
-      final dateStr = '${now.year}'
-          '${now.month.toString().padLeft(2, '0')}'
-          '${now.day.toString().padLeft(2, '0')}_'
-          '${now.hour.toString().padLeft(2, '0')}'
-          '${now.minute.toString().padLeft(2, '0')}'
-          '${now.second.toString().padLeft(2, '0')}';
-      final suggestedName = 'ChiffonMai_backup_$dateStr.json';
-
-      final file = await ExportPathUtil.writeExportFile(
-        fileName: suggestedName,
-        bytes: bytes,
-        subDir: '备份',
-        onFallback: onFallback,
-      );
-
-      debugPrint('DataBackup: 导出成功 → ${file.path}');
-      return file.path;
-    } catch (e) {
-      debugPrint('DataBackup: 导出失败: $e');
-      rethrow;
-    }
-  }
+      });
 
   /// 从 JSON 文件导入数据
   /// 返回解析后的备份数据供调用者确认，null 表示用户取消或失败
-  Future<Map<String, dynamic>?> importFromFile() async {
-    try {
-      // 1. 让用户选择文件
-      final result = await FilePicker.pickFiles(
-        dialogTitle: '选择备份文件',
-        type: FileType.custom,
-        allowedExtensions: ['json'],
-        allowMultiple: false,
-      );
+  Future<Map<String, dynamic>?> importFromFile() =>
+      AppTaskActivity.run(() async {
+        try {
+          // 1. 让用户选择文件
+          final result = await FilePicker.pickFiles(
+            dialogTitle: appL10n.flowChooseBackupFile,
+            type: FileType.custom,
+            allowedExtensions: ['json'],
+            allowMultiple: false,
+          );
 
-      if (result == null || result.files.isEmpty) {
-        debugPrint('DataBackup: 用户取消了导入');
-        return null;
-      }
+          if (result == null || result.files.isEmpty) {
+            debugPrint('DataBackup: 用户取消了导入');
+            return null;
+          }
 
-      // 2. 读取文件
-      final file = File(result.files.single.path!);
-      final fileLength = await file.length();
-      if (fileLength > maxImportBytes) {
-        throw Exception('备份文件过大（上限 ${maxImportBytes ~/ (1024 * 1024)} MB）');
-      }
-      final jsonStr = await file.readAsString();
+          // 2. 读取文件
+          final file = File(result.files.single.path!);
+          final fileLength = await file.length();
+          if (fileLength > maxImportBytes) {
+            throw Exception(appL10n.svcTheBackupFileIsTooLargeLimit((maxImportBytes ~/ (1024 * 1024)).toString()));
+          }
+          final jsonStr = await file.readAsString();
 
-      // 3. 解析 JSON
-      final backup = json.decode(jsonStr) as Map<String, dynamic>;
+          // 3. 解析 JSON
+          final backup = json.decode(jsonStr) as Map<String, dynamic>;
 
-      // 4. 验证结构
-      if (!backup.containsKey('data')) {
-        throw Exception('无效的备份文件：缺少 data 字段');
-      }
-      if (!backup.containsKey('version')) {
-        throw Exception('无效的备份文件：缺少 version 字段');
-      }
-      if (backup['version'] is! int ||
-          (backup['version'] as int) < 1 ||
-          (backup['version'] as int) > 3 ||
-          backup['appName'] != null && backup['appName'] != 'ChiffonMai') {
-        throw const FormatException('不支持的备份版本或应用格式');
-      }
+          // 4. 验证结构
+          if (!backup.containsKey('data')) {
+            throw Exception(appL10n.svcInvalidBackupFileMissingTheDataField);
+          }
+          if (!backup.containsKey('version')) {
+            throw Exception(appL10n.svcInvalidBackupFileMissingTheVersionField);
+          }
+          if (backup['version'] is! int ||
+              (backup['version'] as int) < 1 ||
+              (backup['version'] as int) > 3 ||
+              backup['appName'] != null && backup['appName'] != 'ChiffonMai') {
+            throw FormatException(appL10n.svcUnsupportedBackupVersionOrAppFormat);
+          }
 
-      final data = backup['data'] as Map<String, dynamic>;
-      if (data.isEmpty) {
-        throw Exception('备份文件为空，无数据可恢复');
-      }
+          final data = backup['data'] as Map<String, dynamic>;
+          if (data.isEmpty) {
+            throw Exception(appL10n.svcTheBackupFileIsEmptyThereIs);
+          }
 
-      debugPrint(
-          'DataBackup: 导入解析成功，${data.length} 个键，版本 ${backup['version']}');
+          debugPrint(
+              'DataBackup: 导入解析成功，${data.length} 个键，版本 ${backup['version']}');
 
-      return backup;
-    } catch (e) {
-      debugPrint('DataBackup: 导入失败: $e');
-      rethrow;
-    }
-  }
+          return backup;
+        } catch (e) {
+          debugPrint('DataBackup: 导入失败: $e');
+          rethrow;
+        }
+      });
 
   /// 将备份数据恢复到 SharedPreferences。
   ///
@@ -335,74 +344,77 @@ class DataBackupService {
   Future<int> restoreData(
     Map<String, dynamic> backupData, {
     bool clearFirst = true,
-  }) async {
-    if (_restoring) throw StateError('已有数据恢复正在进行');
-    _restoring = true;
-    // 服务是单例，先清掉上一次可能残留的快照。
-    _rollbackSnapshot = null;
+  }) =>
+      AppTaskActivity.run(() async {
+        if (_restoring) throw StateError(appL10n.svcADataRestoreIsAlreadyInProgress);
+        _restoring = true;
+        // 服务是单例，先清掉上一次可能残留的快照。
+        _rollbackSnapshot = null;
 
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await CommonCacheUtil().flush();
-      await NextPlayQueueStore.instance.flush();
-      await NavigationPreferences.instance.flush();
-      await SearchInteractionPreferences.instance.flush();
-      // 与导出同理：先让 legacy 快照与磁盘一致，否则回滚会丢掉
-      // 「本会话里用 async 通道新写的猜歌设置」。
-      await prefs.reload();
-      // 先完成旧凭据迁移；安全存储不可用时中止，避免覆盖恢复清掉本机授权。
-      await SecureCredentialStore.migrateLegacy();
-      if (prefs.getKeys().any(SecureCredentialStore.isCredentialKey)) {
-        throw StateError('安全凭据尚未完成迁移，请稍后重试恢复');
-      }
-      final data = backupData;
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await CommonCacheUtil().flush();
+          await NextPlayQueueStore.instance.flush();
+          await NavigationPreferences.instance.flush();
+          await SearchInteractionPreferences.instance.flush();
+          await SongDetailPreferences.instance.flush();
+          await AppLanguagePreferences.instance.flush();
+          // 与导出同理：先让 legacy 快照与磁盘一致，否则回滚会丢掉
+          // 「本会话里用 async 通道新写的猜歌设置」。
+          await prefs.reload();
+          // 先完成旧凭据迁移；安全存储不可用时中止，避免覆盖恢复清掉本机授权。
+          await SecureCredentialStore.migrateLegacy();
+          if (prefs.getKeys().any(SecureCredentialStore.isCredentialKey)) {
+            throw StateError(appL10n.svcSecureCredentialsHaveNotFinishedMigratingTry);
+          }
+          final data = backupData;
 
-      _rollbackSnapshot = {
-        for (final key in prefs.getKeys()) key: prefs.get(key)
-      };
+          _rollbackSnapshot = {
+            for (final key in prefs.getKeys()) key: prefs.get(key)
+          };
 
-      if (clearFirst) {
-        final before = prefs.getKeys().length;
-        if (!await prefs.clear()) throw StateError('清空旧设置失败');
-        debugPrint('DataBackup: 已清空原有 $before 个键');
-      }
+          if (clearFirst) {
+            final before = prefs.getKeys().length;
+            if (!await prefs.clear()) throw StateError(appL10n.svcCouldNotClearTheOldSettings);
+            debugPrint('DataBackup: 已清空原有 $before 个键');
+          }
 
-      var restoredCount = 0;
-      for (final entry in data.entries) {
-        final key = entry.key;
-        final value = entry.value;
+          var restoredCount = 0;
+          for (final entry in data.entries) {
+            final key = entry.key;
+            final value = entry.value;
 
-        // 敏感凭据不允许由备份写入（防止别人分享的备份里塞一个令牌进来）
-        if (isNeverBackupKey(key) ||
-            SecureCredentialStore.isCredentialKey(key)) {
-          debugPrint('DataBackup: 跳过敏感键 $key（不随备份恢复）');
-          continue;
+            // 敏感凭据不允许由备份写入（防止别人分享的备份里塞一个令牌进来）
+            if (isNeverBackupKey(key) ||
+                SecureCredentialStore.isCredentialKey(key)) {
+              debugPrint('DataBackup: 跳过敏感键 $key（不随备份恢复）');
+              continue;
+            }
+            if (isCacheKey(key)) continue;
+            if (value is! Map<String, dynamic> || !value.containsKey('type')) {
+              continue;
+            }
+
+            if (value['type'] is! String) continue;
+            final type = value['type'] as String;
+            final rawValue = value['value'];
+            if (!_validValue(type, rawValue)) continue;
+            if (!await _writeOne(prefs, key, type, rawValue))
+              throw StateError(appL10n.svcCouldNotWriteTheBackupSettingP0(key.toString()));
+            restoredCount++;
+          }
+
+          _rollbackSnapshot = null;
+          debugPrint('DataBackup: 成功恢复 $restoredCount / ${data.length} 个键');
+          return restoredCount;
+        } catch (e) {
+          debugPrint('DataBackup: 恢复失败: $e');
+          await _rollbackToSnapshot();
+          rethrow;
+        } finally {
+          _restoring = false;
         }
-        if (isCacheKey(key)) continue;
-        if (value is! Map<String, dynamic> || !value.containsKey('type')) {
-          continue;
-        }
-
-        if (value['type'] is! String) continue;
-        final type = value['type'] as String;
-        final rawValue = value['value'];
-        if (!_validValue(type, rawValue)) continue;
-        if (!await _writeOne(prefs, key, type, rawValue))
-          throw StateError('写入备份设置失败：$key');
-        restoredCount++;
-      }
-
-      _rollbackSnapshot = null;
-      debugPrint('DataBackup: 成功恢复 $restoredCount / ${data.length} 个键');
-      return restoredCount;
-    } catch (e) {
-      debugPrint('DataBackup: 恢复失败: $e');
-      await _rollbackToSnapshot();
-      rethrow;
-    } finally {
-      _restoring = false;
-    }
-  }
+      });
 
   static bool _validValue(String type, Object? value) => switch (type) {
         'String' => value is String,
@@ -415,27 +427,32 @@ class DataBackupService {
       };
 
   /// v1/v2 仅含偏好；v3 同时恢复用户文件，并将跨设备路径改写到当前沙箱。
-  Future<int> restoreBackup(Map<String, dynamic> backup) async {
-    final data = Map<String, dynamic>.from(backup['data'] as Map);
-    if (data.isNotEmpty && !data.entries.any((entry) {
-      final value = entry.value;
-      return !isCacheKey(entry.key) && !isNeverBackupKey(entry.key) &&
-          !SecureCredentialStore.isCredentialKey(entry.key) && value is Map &&
-          value['type'] is String && _validValue(value['type'] as String, value['value']);
-    })) {
-      throw const FormatException('备份没有可恢复的用户设置，已保留当前数据');
-    }
-    if (backup['version'] != 3) return restoreData(data);
-    final files =
-        await UserFileBackupService.prepare(backup['files'], clearFirst: true);
-    try {
-      await files.apply();
-      return await restoreData(files.rewritePaths(data));
-    } catch (_) {
-      await files.rollback();
-      rethrow;
-    }
-  }
+  Future<int> restoreBackup(Map<String, dynamic> backup) =>
+      AppTaskActivity.run(() async {
+        final data = Map<String, dynamic>.from(backup['data'] as Map);
+        if (data.isNotEmpty &&
+            !data.entries.any((entry) {
+              final value = entry.value;
+              return !isCacheKey(entry.key) &&
+                  !isNeverBackupKey(entry.key) &&
+                  !SecureCredentialStore.isCredentialKey(entry.key) &&
+                  value is Map &&
+                  value['type'] is String &&
+                  _validValue(value['type'] as String, value['value']);
+            })) {
+          throw FormatException(appL10n.svcTheBackupHasNoUserSettingsTo);
+        }
+        if (backup['version'] != 3) return restoreData(data);
+        final files = await UserFileBackupService.prepare(backup['files'],
+            clearFirst: true);
+        try {
+          await files.apply();
+          return await restoreData(files.rewritePaths(data));
+        } catch (_) {
+          await files.rollback();
+          rethrow;
+        }
+      });
 
   /// 写单个键；成功返回 true，类型不认识返回 false。
   Future<bool> _writeOne(
@@ -527,9 +544,12 @@ class DataBackupService {
     await ChartHistoryStore.instance.invalidateCache();
     await NavigationPreferences.instance.reload();
     await SearchInteractionPreferences.instance.reload();
+    await SongDetailPreferences.instance.reload();
+    await AppLanguagePreferences.instance.reload();
     await ConfettiPreferences.instance.reload();
     await RankCompletionStore.instance.reload();
     await NextPlayQueueStore.instance.reload();
+    await CustomTagStore.instance.reload();
     await LoadingTipsStore.instance.reloadPreferences();
     await GainFeedbackStore.instance.reload();
 

@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -206,7 +207,7 @@ class MultiplayerCloudBaseService {
         if (event is ErrorEvent) {
           completer.completeError(Exception(event.message));
         } else {
-          completer.completeError(Exception('初始化失败'));
+          completer.completeError(Exception(appL10n.flowInitializationFailed));
         }
         subscription?.cancel();
       }
@@ -215,7 +216,7 @@ class MultiplayerCloudBaseService {
     // 设置超时
     final timer = Timer(const Duration(seconds: 10), () {
       if (!completer.isCompleted) {
-        completer.completeError(Exception('初始化超时'));
+        completer.completeError(Exception(appL10n.flowInitializationTimedOut));
         subscription?.cancel();
       }
     });
@@ -478,7 +479,7 @@ class MultiplayerCloudBaseService {
   }
 
   void _handleError(Map<String, dynamic> payload) {
-    String message = payload['message'] ?? '未知错误';
+    String message = payload['message'] ?? appL10n.featureUnknownError;
     _controller.add(MultiplayerEvent.error(message: message));
   }
 
@@ -501,6 +502,7 @@ class MultiplayerCloudBaseService {
     double masterMaxDx = 15.0,
     List<String> selectedGenres = const [],
     int blurLevel = 50,
+    int pixelationLevel = 50,
     int playDuration = 5,
     double audioRate = 1.25,
     int songCount = 3,
@@ -520,7 +522,7 @@ class MultiplayerCloudBaseService {
       if (currentPlayerId == null || !_wsBroadcast.isConnected) {
         debugPrint('[DEBUG][CloudService] 当前没有玩家ID或连接断开，尝试重新初始化...');
         if (_envId == null) {
-          _controller.add(MultiplayerEvent.error(message: '创建房间失败: 环境ID未设置'));
+          _controller.add(MultiplayerEvent.error(message: appL10n.flowCouldNotCreateRoomEnvironmentIDIs));
           return;
         }
         // 清除旧的玩家ID，确保重新初始化能获取新的ID
@@ -529,7 +531,7 @@ class MultiplayerCloudBaseService {
       }
 
       if (currentPlayerId == null) {
-        _controller.add(MultiplayerEvent.error(message: '创建房间失败: 用户未登录'));
+        _controller.add(MultiplayerEvent.error(message: appL10n.flowCouldNotCreateRoomNotSignedIn));
         return;
       }
 
@@ -546,6 +548,7 @@ class MultiplayerCloudBaseService {
         'masterMaxDx': masterMaxDx,
         'selectedGenres': selectedGenres,
         'blurLevel': blurLevel,
+        'pixelationLevel': pixelationLevel,
         'playDuration': playDuration,
         'audioRate': audioRate,
         'songCount': songCount,
@@ -559,7 +562,7 @@ class MultiplayerCloudBaseService {
         'peekMirror': peekMirror,
       });
     } catch (e) {
-      _controller.add(MultiplayerEvent.error(message: '创建房间失败: $e'));
+      _controller.add(MultiplayerEvent.error(message: appL10n.flowCouldNotCreateRoomP02((e).toString())));
     }
   }
 
@@ -573,7 +576,7 @@ class MultiplayerCloudBaseService {
       // 由服务端按房间码或 ID 原子加入，不能依赖可能过期的房间列表缓存。
       await _wsBroadcast.sendJoinRoom(roomId.trim(), currentNickname);
     } catch (e) {
-      _controller.add(MultiplayerEvent.error(message: '加入房间失败: $e'));
+      _controller.add(MultiplayerEvent.error(message: appL10n.flowCouldNotJoinRoomP02((e).toString())));
     }
   }
 
@@ -661,7 +664,7 @@ class MultiplayerCloudBaseService {
       await operation();
     } catch (e) {
       debugPrint('[DEBUG][CloudService] _rejoinAndRetry 失败: $e');
-      _controller.add(MultiplayerEvent.error(message: '重新加入房间失败: $e'));
+      _controller.add(MultiplayerEvent.error(message: appL10n.flowCouldNotRejoinRoomP0((e).toString())));
       // 清除房间状态
       currentRoomId = null;
     }
@@ -685,7 +688,7 @@ class MultiplayerCloudBaseService {
         debugPrint('[DEBUG][CloudService] 检测到不在房间中，尝试重新加入');
         await _rejoinAndRetry(() => setReady(ready));
       } else {
-        _controller.add(MultiplayerEvent.error(message: '设置准备状态失败: $e'));
+        _controller.add(MultiplayerEvent.error(message: appL10n.flowCouldNotChangeReadyStatusP0((e).toString())));
       }
     }
   }
@@ -697,7 +700,7 @@ class MultiplayerCloudBaseService {
       await _wsBroadcast.sendSurrender();
       // 等待服务端确认投降后再改变本地状态。
     } catch (e) {
-      _controller.add(MultiplayerEvent.error(message: '设置投降状态失败: $e'));
+      _controller.add(MultiplayerEvent.error(message: appL10n.flowCouldNotChangeSurrenderStatusP0((e).toString())));
     }
   }
 
@@ -715,7 +718,7 @@ class MultiplayerCloudBaseService {
         debugPrint('[DEBUG][CloudService] 检测到不在房间中，尝试重新加入');
         await _rejoinAndRetry(() => startGame());
       } else {
-        _controller.add(MultiplayerEvent.error(message: '开始游戏失败: $e'));
+        _controller.add(MultiplayerEvent.error(message: appL10n.flowCouldNotStartGameP0((e).toString())));
       }
     }
   }
@@ -726,7 +729,7 @@ class MultiplayerCloudBaseService {
 
       await _wsBroadcast.sendStartNextRound();
     } catch (e) {
-      _controller.add(MultiplayerEvent.error(message: '开始下一回合失败: $e'));
+      _controller.add(MultiplayerEvent.error(message: appL10n.flowCouldNotStartNextRoundP0((e).toString())));
     }
   }
 
@@ -736,8 +739,15 @@ class MultiplayerCloudBaseService {
 
       await _wsBroadcast.sendGuess(songId, songName);
     } catch (e) {
-      _controller.add(MultiplayerEvent.error(message: '提交猜测失败: $e'));
+      _controller.add(MultiplayerEvent.error(message: appL10n.flowCouldNotSubmitGuessP0((e).toString())));
     }
+  }
+
+  Future<void> sendCoverPreparation(String action, String roomId, String roundId,
+      {Map<String, double>? crop, bool failed = false}) async {
+    if (currentRoomId != roomId) return;
+    await _wsBroadcast.sendCoverPreparation(action, roomId, roundId,
+        crop: crop, failed: failed);
   }
 
   /// 开字母（letters 模式，房间共享）
@@ -747,7 +757,7 @@ class MultiplayerCloudBaseService {
 
       await _wsBroadcast.sendOpenLetter(letter);
     } catch (e) {
-      _controller.add(MultiplayerEvent.error(message: '开字母失败: $e'));
+      _controller.add(MultiplayerEvent.error(message: appL10n.flowCouldNotRevealLetterP0((e).toString())));
     }
   }
 
@@ -847,7 +857,7 @@ class MultiplayerCloudBaseService {
 
       await _wsBroadcast.sendSurrender();
     } catch (e) {
-      _controller.add(MultiplayerEvent.error(message: '投降失败: $e'));
+      _controller.add(MultiplayerEvent.error(message: appL10n.flowCouldNotSurrenderP0((e).toString())));
     }
   }
 
@@ -857,7 +867,7 @@ class MultiplayerCloudBaseService {
       await _wsBroadcast.sendUploadSongs(songs);
       debugPrint('[DEBUG][CloudService] 已发送上传歌曲请求，数量: ${songs.length}');
     } catch (e) {
-      _controller.add(MultiplayerEvent.error(message: '上传歌曲失败: $e'));
+      _controller.add(MultiplayerEvent.error(message: appL10n.flowCouldNotUploadSongsP0((e).toString())));
     }
   }
 
@@ -866,7 +876,7 @@ class MultiplayerCloudBaseService {
     try {
       await _wsBroadcast.sendGetSongCount();
     } catch (e) {
-      _controller.add(MultiplayerEvent.error(message: '获取歌曲数量失败: $e'));
+      _controller.add(MultiplayerEvent.error(message: appL10n.flowCouldNotGetSongCountP0((e).toString())));
     }
   }
 }

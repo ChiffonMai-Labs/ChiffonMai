@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/FeatureLocalizations.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:simai_flutter/simai_flutter.dart';
@@ -47,8 +49,8 @@ class ChartPeekPlaybackTag extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final mirrorText = mirror == SimaiMirrorMode.none
-        ? '无镜像'
-        : ChartPeekPlayback.mirrorLabels[mirror]!;
+        ? context.l10n.flowNoMirror
+        : context.featureText(ChartPeekPlayback.mirrorLabels[mirror]!);
     return IgnorePointer(
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -57,7 +59,7 @@ class ChartPeekPlaybackTag extends StatelessWidget {
           borderRadius: BorderRadius.circular(999),
         ),
         child: Text(
-          '流速 ${ChartPeekPlayback.speedLabel(speed)} · $mirrorText',
+          context.l10n.flowNoteSpeedP0P1((ChartPeekPlayback.speedLabel(speed)).toString(), (mirrorText).toString()),
           style: AppTheme.number(
             fontSize: 11,
             fontWeight: FontWeight.w600,
@@ -132,7 +134,7 @@ class ChartPeekPlaybackSettings extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         GuessSliderTile(
-          label: '流速',
+          label: context.l10n.flowNoteSpeed,
           valueText: ChartPeekPlayback.speedLabel(speed),
           value: speed,
           min: ChartPeekPlayback.minFlowSpeed,
@@ -141,14 +143,14 @@ class ChartPeekPlaybackSettings extends StatelessWidget {
           onChanged: onSpeedChanged,
         ),
         const SizedBox(height: 4),
-        Text('镜像',
+        Text(context.l10n.flowMirror,
             style: TextStyle(fontSize: 13.5, color: scheme.onSurface)),
         const SizedBox(height: 8),
         SegmentedTabs(
           height: 40,
           items: [
             for (final mode in modes)
-              SegmentedTabItem(ChartPeekPlayback.mirrorLabels[mode]!),
+              SegmentedTabItem(context.featureText(ChartPeekPlayback.mirrorLabels[mode]!)),
           ],
           selectedIndex: modes.indexOf(mirror),
           onChanged: (index) => onMirrorChanged(modes[index]),
@@ -176,7 +178,7 @@ class ChartPeekDifficultyPool extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('难度随机池',
+        Text(context.l10n.flowRandomDifficultyPool,
             style: TextStyle(fontSize: 13.5, color: scheme.onSurface)),
         const SizedBox(height: 8),
         Wrap(

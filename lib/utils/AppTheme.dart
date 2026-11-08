@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -160,6 +161,9 @@ class AppTheme {
 
   /// 主题文字：Outfit，每一档的中文回落都用同字重的思源黑体。
   static TextTheme _outfitTextTheme(TextTheme base) {
+    if (debugLocalFontFamily) {
+      return base.apply(fontFamily: 'NotoSansSC_regular');
+    }
     final outfit = GoogleFonts.outfitTextTheme(base);
     final noto = GoogleFonts.notoSansScTextTheme(base);
     TextStyle? merge(TextStyle? style, TextStyle? cjk) =>
@@ -1497,7 +1501,7 @@ class AppColors {
     const light = Color(0xFFFFFFFF);
     if (rating >= 15000) {
       return (
-        label: '彩',
+        label: appL10n.featureRainbow,
         colors: const [
           Color(0xFFFF5A5A),
           Color(0xFFFFB23F),
@@ -1510,69 +1514,69 @@ class AppColors {
     }
     if (rating >= 14500) {
       return (
-        label: '白金',
+        label: appL10n.featurePlatinum,
         colors: const [Color(0xFFEDE8D8), Color(0xFFC9C2A8)],
         foreground: dark
       );
     }
     if (rating >= 14000) {
       return (
-        label: '金',
+        label: appL10n.featureGold,
         colors: const [Color(0xFFF5C542), Color(0xFFD9A21B)],
         foreground: dark
       );
     }
     if (rating >= 13000) {
       return (
-        label: '银',
+        label: appL10n.featureSilver,
         colors: const [Color(0xFFDDE3E8), Color(0xFFA9B3BC)],
         foreground: dark
       );
     }
     if (rating >= 12000) {
       return (
-        label: '铜',
+        label: appL10n.featureBronze,
         colors: const [Color(0xFFD9A27A), Color(0xFFA86B43)],
         foreground: dark
       );
     }
     if (rating >= 10000) {
       return (
-        label: '紫',
+        label: appL10n.featurePurple,
         colors: const [Color(0xFF9C76E0), Color(0xFF6A45A8)],
         foreground: light
       );
     }
     if (rating >= 7000) {
       return (
-        label: '红',
+        label: appL10n.featureRed,
         colors: const [Color(0xFFE06060), Color(0xFFB03030)],
         foreground: light
       );
     }
     if (rating >= 4000) {
       return (
-        label: '黄',
+        label: appL10n.flowYellow,
         colors: const [Color(0xFFF5D45A), Color(0xFFE0B020)],
         foreground: dark
       );
     }
     if (rating >= 2000) {
       return (
-        label: '绿',
+        label: appL10n.featureGreen,
         colors: const [Color(0xFF5FBF7E), Color(0xFF2F8F55)],
         foreground: light
       );
     }
     if (rating >= 1000) {
       return (
-        label: '蓝',
+        label: appL10n.featureBlue,
         colors: const [Color(0xFF5E9BE0), Color(0xFF2F6FB8)],
         foreground: light
       );
     }
     return (
-      label: '白',
+      label: appL10n.featureWhite,
       colors: const [Color(0xFFF2F2F2), Color(0xFFD0D0D0)],
       foreground: dark
     );

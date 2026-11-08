@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 
 import '../../service/AWMC/AwmcApiService.dart';
@@ -42,10 +43,11 @@ class AwmcPlayCountSyncFlow {
       token: '',
       timeout: probeTimeout,
     );
-    await AwmcAuditLog.record(health, note: '读取游玩次数前的网关探活');
+    await AwmcAuditLog.record(health, note: context.l10n.flowGatewayCheckBeforeReadingPlayCounts);
     if (!health.ok) {
       return AwmcPlayCountSyncOutcome(
-        message: 'AWMC 网关当前不可用：${health.displayMessage}',
+        message: context.l10n
+            .flowAWMCGatewayUnavailableP0((health.displayMessage).toString()),
       );
     }
 
@@ -53,7 +55,7 @@ class AwmcPlayCountSyncFlow {
     final qrCode = await _askQrCode(context);
     if (qrCode == null) return AwmcPlayCountSyncOutcome.userCancelled;
 
-    onBusy?.call('正在读取机台游玩次数…');
+    onBusy?.call(context.l10n.flowReadingCabinetPlayCount);
     try {
       final source = AwmcPlayCountStore.activeSource;
       final result = await AwmcPlayCountStore.refreshFromGateway(
@@ -61,7 +63,7 @@ class AwmcPlayCountSyncFlow {
         qrcode: qrCode,
         source: source,
       );
-      await AwmcAuditLog.record(result, note: '独立读取游玩次数');
+      await AwmcAuditLog.record(result, note: context.l10n.flowReadPlayCountsSeparately);
       if (!result.ok) {
         return AwmcPlayCountSyncOutcome(message: result.displayMessage);
       }
@@ -99,7 +101,7 @@ class AwmcPlayCountSyncFlow {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '本功能只读取当前活动账号的游玩次数。请使用一张刚生成的二维码；本次操作只会请求一次上游接口。',
+                  context.l10n.flowThisReadsOnlyTheActiveAccountPlay,
                   style: TextStyle(
                     fontSize: 13,
                     color: AppColors.greyHint(brightness),
@@ -112,9 +114,10 @@ class AwmcPlayCountSyncFlow {
                   controller: controller,
                   maxLines: 3,
                   decoration: InputDecoration(
-                    hintText: '舞萌DX | 中二节奏登入二维码（SGWCMAID...）',
+                    hintText: context.l10n.flowMaimaiDXCHUNITHMLoginQRSGWCMAID2,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+                      borderRadius:
+                          BorderRadius.circular(AppDesignTokens.radiusSmall),
                     ),
                   ),
                 ),
@@ -123,13 +126,15 @@ class AwmcPlayCountSyncFlow {
                   onPressed: () {
                     final qr = controller.text.trim();
                     if (qr.isEmpty || !qr.startsWith('SGWCMAID')) {
-                      AppToast.show('请输入有效的 SGWCMAID 机台登入二维码');
+                      AppToast.show(
+                          context.l10n.flowEnterAValidSGWCMAIDCabinetLoginQR,
+                          tone: AppToastTone.warning);
                       return;
                     }
                     Navigator.of(dialogContext).pop(qr);
                   },
                   icon: const Icon(Icons.refresh_rounded),
-                  label: const Text('开始读取'),
+                  label: Text(context.l10n.flowReadPlayCount),
                   style: FilledButton.styleFrom(
                     minimumSize: const Size.fromHeight(44),
                   ),
@@ -140,7 +145,7 @@ class AwmcPlayCountSyncFlow {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('取消'),
+              child: Text(context.l10n.featureCancel),
             ),
           ],
         );

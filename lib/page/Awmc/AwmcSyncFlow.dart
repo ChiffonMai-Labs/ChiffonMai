@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -165,7 +167,7 @@ class AwmcSyncFlow {
               ? RefreshDataSource.shuiyu
               : RefreshDataSource.luoxue,
           request: input.refreshRequest);
-      onBusy?.call('正在快速同步…');
+      onBusy?.call(context.l10n.flowQuickSyncing);
       try {
         final result = await AwmcQuickSyncService.run(
           platform: target == AwmcSyncTarget.divingFish
@@ -219,7 +221,7 @@ class AwmcSyncFlow {
     VoidCallback? onIdle,
   }) async {
     if (!qrCode.startsWith('SGWCMAID')) {
-      return const AwmcSyncOutcome(message: '无效的机台登入二维码');
+      return AwmcSyncOutcome(message: appL10n.flowInvalidCabinetLoginQRCode);
     }
     try {
       final credential = await _resolveCredential(target);
@@ -244,7 +246,7 @@ class AwmcSyncFlow {
   static Future<String?> _checkGateway({
     void Function(String label)? onBusy,
   }) async {
-    onBusy?.call('正在检查 AWMC 网关...');
+    onBusy?.call(appL10n.flowCheckingAWMCGateway);
     // 短超时探活在任何付费写入之前完成，失败时不自动切换线路或重试。
     // 超时阈值用户可调（设置页「同步与网关」，默认 15 秒）。
     final probeTimeout = await AwmcGatewaySettings.loadProbeTimeout();
@@ -255,7 +257,8 @@ class AwmcSyncFlow {
     await AwmcAuditLog.record(health, note: '同步前的网关探活');
     if (health.ok) return null;
     debugPrint('[AWMC] 网关探活失败，已取消同步: ${health.displayMessage}');
-    return 'AWMC 网关当前不可用（${_shortReason(health)}），已取消同步、未消耗 Token';
+    return appL10n.flowAWMCGatewayUnavailableP0SyncCancelledNo(
+        (_shortReason(health)).toString());
   }
 
   /// 两个入口共用读取次数、推送、刷新和统计流程，避免线路1行为分叉。
@@ -280,7 +283,8 @@ class AwmcSyncFlow {
     final stopwatch = Stopwatch()..start();
 
     // 6. 推送
-    onBusy?.call('正在通过 AWMC 网关同步到${target.label}...');
+    onBusy?.call(appL10n
+        .flowSyncingToP0ThroughAWMCGateway(appLocalizeLabel(target.label)));
     final AwmcCallResult result;
     if (target == AwmcSyncTarget.divingFish) {
       result = await AwmcApiService.updateFish(
@@ -322,7 +326,9 @@ class AwmcSyncFlow {
       ok: result.ok,
       syncResult: result,
       cachedRecords: cached,
-      message: result.ok ? null : '同步失败：${result.displayMessage}',
+      message: result.ok
+          ? null
+          : appL10n.flowSyncFailedP0((result.displayMessage).toString()),
       refreshError: refreshError,
     );
   }
@@ -331,15 +337,19 @@ class AwmcSyncFlow {
   static String successToast(AwmcSyncTarget target, AwmcSyncOutcome outcome) {
     if (outcome.quickUpdate) {
       return outcome.cachedRecords == 0
-          ? '${target.label}成绩已是最新，无需上传'
-          : '快速同步完成，已向${target.label}提交 ${outcome.cachedRecords} 条变化成绩';
+          ? appL10n.flowP0ScoresAreUpToDateNo(appLocalizeLabel(target.label))
+          : appL10n.flowQuickSyncCompleteSubmittedP1ChangedScores(
+              appLocalizeLabel(target.label),
+              (outcome.cachedRecords).toString());
     }
-    final prefix =
-        outcome.cachedRecords > 0 ? '共 ${outcome.cachedRecords} 条成绩' : '成绩';
+    final prefix = outcome.cachedRecords > 0
+        ? appL10n.flowP0ScoresTotal((outcome.cachedRecords).toString())
+        : appL10n.featureScores;
     final suffix = target == AwmcSyncTarget.divingFish
-        ? '已通过 AWMC 网关推送到水鱼'
-        : '已通过 AWMC 网关导出到落雪';
-    return '同步完成！$prefix$suffix';
+        ? appL10n.flowSentToDivingFishThroughAWMCGateway
+        : appL10n.flowExportedToLXNSThroughAWMCGateway;
+    return appL10n.flowSyncCompleteP0P1(
+        (prefix).toString(), (suffix).toString());
   }
 
   /// 复用输入对话框，仅线路1开放免二维码快速同步。
@@ -395,9 +405,8 @@ class AwmcSyncFlow {
   /// 凭证缺失时给用户的指引（如实说明去哪儿补）。
   static String _missingCredentialHint(AwmcSyncTarget target) {
     if (target == AwmcSyncTarget.divingFish) {
-      return '本机还没有缓存水鱼 ImportToken：请先用线路2（maimai Score Hub）'
-          '登录并同步一次，它会自动把 ImportToken 存到本机。';
+      return appL10n.flowNoCachedDivingFishImportTokenSignIn;
     }
-    return '本机还没有缓存落雪个人 API 密钥：请先同步一次并填好密钥（会保存在本机）。';
+    return appL10n.flowNoCachedLXNSPersonalAPIKeySync;
   }
 }

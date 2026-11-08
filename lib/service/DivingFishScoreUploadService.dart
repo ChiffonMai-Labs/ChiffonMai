@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -43,7 +44,7 @@ class DivingFishScoreUploadService {
     int? dxScore,
   }) async {
     if (importToken.trim().isEmpty) {
-      throw const ScoreUploadException('还没有水鱼 Import-Token，请先登录水鱼账号');
+      throw ScoreUploadException(appL10n.svcNoDivingFishImportTokenYetSign);
     }
 
     final normalizedType = type.toUpperCase() == 'DX' ? 'DX' : 'SD';
@@ -72,7 +73,7 @@ class DivingFishScoreUploadService {
         timeout: const Duration(seconds: 20),
       );
     } catch (e) {
-      throw ScoreUploadException('无法连接水鱼查分器：$e');
+      throw ScoreUploadException(appL10n.svcCouldNotConnectToDivingFishP0(e.toString()));
     }
 
     // 该端点的错误返回是 {status: 'error', message: '...'}，状态码可能非 200
@@ -88,14 +89,14 @@ class DivingFishScoreUploadService {
       final msg = body?['message']?.toString();
       if (resp.statusCode == 400) {
         throw ScoreUploadException(
-            msg == null || msg.isEmpty ? '导入 Token 有误或请求格式不对' : msg);
+            msg == null || msg.isEmpty ? appL10n.svcTheImportTokenIsWrongOrThe : msg);
       }
       if (resp.statusCode == 403) {
         throw ScoreUploadException(
-            msg == null || msg.isEmpty ? '登录状态无效，请重新登录水鱼' : msg);
+            msg == null || msg.isEmpty ? appL10n.svcYourSignInIsInvalidSignIn : msg);
       }
       throw ScoreUploadException(
-          '同步失败（HTTP ${resp.statusCode}）${msg == null ? '' : '：$msg'}');
+          appL10n.svcSyncFailedHTTPP0P1(resp.statusCode.toString(), (msg == null ? '' : '：$msg').toString()));
     }
 
     // 成功路径：{message, updates, creates}
@@ -106,8 +107,8 @@ class DivingFishScoreUploadService {
     if (updates == 0 && creates == 0) {
       // 服务端对「歌曲匹配不到」和「level_index 越界」都是静默 continue，
       // 响应依然是成功。所以这里必须自己把它当失败报出来，否则用户会以为同步成功了。
-      throw const ScoreUploadException(
-          '水鱼没有接受这条成绩（歌曲没匹配上，或难度索引对该歌曲不存在），请检查曲名和难度');
+      throw ScoreUploadException(
+          appL10n.svcDivingFishDidNotAcceptThisScore);
     }
 
     return ScoreUploadResult(updates: updates, creates: creates);

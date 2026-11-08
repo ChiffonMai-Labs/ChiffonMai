@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -184,7 +185,7 @@ class AwmcApiService {
       return AwmcCallResult.failure(
         method: method,
         path: path,
-        message: '拒绝请求非网关地址: ${uri.host}',
+        message: appL10n.flowRefusedRequestToANonGatewayAddress((uri.host).toString()),
       );
     }
 
@@ -218,7 +219,7 @@ class AwmcApiService {
           return AwmcCallResult.failure(
             method: method,
             path: path,
-            message: '不支持的方法: $method',
+            message: appL10n.flowUnsupportedMethodP0((method).toString()),
           );
       }
       final elapsed = sinceStart();
@@ -230,7 +231,7 @@ class AwmcApiService {
       return AwmcCallResult.failure(
         method: method,
         path: path,
-        message: '请求超时（${timeout.inSeconds}s）',
+        message: appL10n.flowRequestTimedOutP0S((timeout.inSeconds).toString()),
         // 超时是最需要看耗时的情况：不记的话审计日志里这一栏是空的
         elapsedMs: sinceStart(),
       );
@@ -257,10 +258,9 @@ class AwmcApiService {
   static String describeTransportError(Object error) {
     final text = error.toString();
     if (text.contains('Invalid media type')) {
-      return '网关回源失败：CDN 返回了非法响应头的错误页（SpeedOnline），'
-          '通常是网关/回源超时，稍后重试即可';
+      return appL10n.svcTheGatewayCouldNotReachItsOrigin;
     }
-    return '请求失败: ${redact(text)}';
+    return appL10n.svcRequestFailedP0((redact(text)).toString());
   }
 
   /// 写操作：串行 + 不重试。
@@ -280,7 +280,7 @@ class AwmcApiService {
         completer.complete(AwmcCallResult.failure(
           method: 'POST',
           path: path,
-          message: '写入调度失败: ${redact(e.toString())}',
+          message: appL10n.flowCouldNotScheduleWriteP0((redact(e.toString())).toString()),
         ));
       }
     });
@@ -408,7 +408,7 @@ class AwmcApiService {
       return Future.value(AwmcCallResult.failure(
         method: 'POST',
         path: '/v1/music/upsert',
-        message: 'musicList 长度必须为 1–4（当前 ${musicList.length}）',
+        message: appL10n.flowMusicListMustContain14EntriesCurrently((musicList.length).toString()),
       ));
     }
     return _write('/v1/music/upsert',
@@ -425,7 +425,7 @@ class AwmcApiService {
       return Future.value(AwmcCallResult.failure(
         method: 'POST',
         path: '/v1/music/delete',
-        message: 'musicList 长度必须为 1–4（当前 ${musicList.length}）',
+        message: appL10n.flowMusicListMustContain14EntriesCurrently((musicList.length).toString()),
       ));
     }
     return _write('/v1/music/delete',
@@ -442,7 +442,7 @@ class AwmcApiService {
       return Future.value(AwmcCallResult.failure(
         method: 'POST',
         path: '/v1/charge',
-        message: '仅支持 chargeId = 2 / 3 / 5（2 倍 / 3 倍 / 5 倍票）',
+        message: appL10n.flowOnlyChargeId235IsSupported,
       ));
     }
     return _write('/v1/charge',
@@ -564,16 +564,16 @@ class AwmcCallResult {
   /// **必须限长**：有的网关会把整页 HTML / 超长堆栈塞进 `msg`，
   /// 原样返回会让轻提示、对话框、结果抽屉被撑出屏幕（几十万像素的溢出）。
   String get displayMessage {
-    if (ok) return '成功';
+    if (ok) return appL10n.svcSuccess;
     if (errorMessage != null) {
       return _clip(AwmcApiService.redact(errorMessage!));
     }
     if (httpStatus == 503 && msg == 'awmc_gateway_not_configured') {
-      return '服务端尚未配置 AWMC 开发者密钥，请联系管理员';
+      return appL10n.svcTheServerHasNoAWMCDeveloperKey;
     }
-    if (httpStatus == 401) return 'HTTP 401：令牌缺失或无效';
-    if (httpStatus == 403) return 'HTTP 403：余额不足，请先在控制台兑换 Token';
-    if (httpStatus >= 500) return 'HTTP $httpStatus：网关或上游转发失败';
+    if (httpStatus == 401) return appL10n.svcHTTP401TokenMissingOrInvalid;
+    if (httpStatus == 403) return appL10n.svcHTTP403InsufficientBalanceRedeemTokensIn;
+    if (httpStatus >= 500) return appL10n.svcHTTPP0TheGatewayOrUpstreamFailed(httpStatus.toString());
     final parts = <String>[
       'HTTP $httpStatus',
       if (returnCode != null) 'returnCode=$returnCode',
@@ -593,7 +593,7 @@ class AwmcCallResult {
 
   /// 计费说明：只有「HTTP 2xx 且业务成功」才扣 Token。
   String get billingNote =>
-      ok ? '本次消耗 $costTokens Token' : '业务未成功，按官方规则不扣 Token';
+      ok ? appL10n.svcUsedP0Tokens(costTokens.toString()) : appL10n.svcTheRequestDidNotSucceedNoTokens;
 
   /// 完整的 businessData 文本（缩进 JSON）。**可能很大**，
   /// 只在用户主动「查看完整数据」时才调用，避免每次弹结果都序列化几 MB。

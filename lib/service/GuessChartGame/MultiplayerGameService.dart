@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 // lib/service/GuessChartGame/MultiplayerGameService.dart
 import 'dart:async';
 import 'dart:convert';
@@ -263,7 +264,7 @@ class MultiplayerGameService {
           break;
       }
     } catch (e) {
-      _eventController.add(MultiplayerEvent.error(message: '消息解析失败: $e'));
+      _eventController.add(MultiplayerEvent.error(message: appL10n.flowCouldNotParseMessageP0((e).toString())));
     }
   }
 

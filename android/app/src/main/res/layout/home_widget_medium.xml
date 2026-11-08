@@ -168,7 +168,7 @@
     android:includeFontPadding="false"
     android:textSize="12sp"
     android:textColor="@color/widget_muted"
-    android:text="舞萌状态"
+    android:text="@string/native_text_75"
     android:fontFamily="@font/outfit_medium"
      />
 
@@ -184,7 +184,7 @@
     android:includeFontPadding="false"
     android:textSize="16sp"
     android:textColor="@color/widget_ink"
-    android:text="暂时未知"
+    android:text="@string/native_text_58"
     android:fontFamily="@font/outfit_medium"
     android:autoSizeTextType="uniform"
     android:autoSizeMinTextSize="12sp"
@@ -202,7 +202,7 @@
     android:includeFontPadding="false"
     android:textSize="11sp"
     android:textColor="@color/widget_muted"
-    android:text="打开 App 更新"
+    android:text="@string/native_text_61"
     
     android:autoSizeTextType="uniform"
     android:autoSizeMinTextSize="9sp"
@@ -248,7 +248,7 @@
     android:includeFontPadding="false"
     android:textSize="12sp"
     android:textColor="@color/widget_muted"
-    android:text="自动同步"
+    android:text="@string/native_text_72"
     android:fontFamily="@font/outfit_medium"
      />
 
@@ -264,7 +264,7 @@
     android:includeFontPadding="false"
     android:textSize="16sp"
     android:textColor="@color/widget_ink"
-    android:text="暂时未知"
+    android:text="@string/native_text_58"
     android:fontFamily="@font/outfit_medium"
     android:autoSizeTextType="uniform"
     android:autoSizeMinTextSize="12sp"
@@ -282,7 +282,7 @@
     android:includeFontPadding="false"
     android:textSize="11sp"
     android:textColor="@color/widget_muted"
-    android:text="打开 App 更新"
+    android:text="@string/native_text_61"
     
     android:autoSizeTextType="uniform"
     android:autoSizeMinTextSize="9sp"

@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import '../widgets/SmoothLinearProgressIndicator.dart';
@@ -72,10 +73,10 @@ class _FavoriteFolderPageState extends State<FavoriteFolderPage> {
     // 会读到已释放的 controller 并炸出红屏。
     final result = await showDialog<String>(
       context: context,
-      builder: (_) => const _FolderNameDialog(
-        title: '新建收藏夹',
-        hintText: '请输入收藏夹名称',
-        confirmLabel: '创建',
+      builder: (_) =>  _FolderNameDialog(
+        title: context.l10n.flowNewFavoritesFolder,
+        hintText: context.l10n.flowEnterAFolderName,
+        confirmLabel: context.l10n.flowCreate,
       ),
     );
     if (result != null && result.isNotEmpty) {
@@ -89,9 +90,9 @@ class _FavoriteFolderPageState extends State<FavoriteFolderPage> {
     final result = await showDialog<String>(
       context: context,
       builder: (_) => _FolderNameDialog(
-        title: '重命名收藏夹',
-        hintText: '请输入新名称',
-        confirmLabel: '确认',
+        title: context.l10n.flowRenameFavoritesFolder,
+        hintText: context.l10n.flowEnterANewName,
+        confirmLabel: context.l10n.flowConfirm,
         initialName: folder.name,
       ),
     );
@@ -106,19 +107,19 @@ class _FavoriteFolderPageState extends State<FavoriteFolderPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AppAlertDialog(
-        title: const Text('删除收藏夹'),
+        title:  Text(context.l10n.flowDeleteFavoritesFolder),
         content: Text(
-          '确定要删除收藏夹「${folder.name}」吗？\n收藏夹内的谱面不会被删除，但将不再分组。',
+          context.l10n.flowDeleteP0ChartsWillRemainButWill((folder.name).toString()),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('取消'),
+            child:  Text(context.l10n.featureCancel),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
             style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
-            child: const Text('删除'),
+            child:  Text(context.l10n.flowDelete),
           ),
         ],
       ),
@@ -127,7 +128,7 @@ class _FavoriteFolderPageState extends State<FavoriteFolderPage> {
       await _service.deleteFolder(folder.id);
       await _loadData();
       if (mounted) {
-        AppToast.show('已删除收藏夹「${folder.name}」');
+        AppToast.show(context.l10n.flowDeletedP0((folder.name).toString()), tone: AppToastTone.success);
       }
     }
   }
@@ -148,7 +149,7 @@ class _FavoriteFolderPageState extends State<FavoriteFolderPage> {
   @override
   Widget build(BuildContext context) {
     return BackgroundPageScaffold(
-      title: '收藏夹',
+      title: context.l10n.featureFavoriteFolders,
       resizeToAvoidBottomInset: false,
       contentPadding:
           EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
@@ -165,7 +166,7 @@ class _FavoriteFolderPageState extends State<FavoriteFolderPage> {
                     child: ElevatedButton.icon(
                       onPressed: _createFolder,
                       icon: const Icon(Icons.add, size: 20),
-                      label: const Text('新建收藏夹'),
+                      label:  Text(context.l10n.flowNewFavoritesFolder),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Theme.of(context).colorScheme.primary,
                         foregroundColor:
@@ -183,7 +184,7 @@ class _FavoriteFolderPageState extends State<FavoriteFolderPage> {
                     child: OutlinedButton.icon(
                       onPressed: _importFolders,
                       icon: const Icon(Icons.file_download_outlined, size: 20),
-                      label: const Text('导入收藏夹'),
+                      label:  Text(context.l10n.flowImportFavorites),
                       style: OutlinedButton.styleFrom(
                         foregroundColor:
                             Theme.of(context).colorScheme.onSurface,
@@ -222,14 +223,14 @@ class _FavoriteFolderPageState extends State<FavoriteFolderPage> {
               color: AppColors.greyHint(Theme.of(context).brightness)),
           const SizedBox(height: 16),
           Text(
-            '还没有收藏夹',
+            context.l10n.flowNoFavoritesFoldersYet,
             style: TextStyle(
                 fontSize: 18,
                 color: Theme.of(context).colorScheme.onSurfaceVariant),
           ),
           const SizedBox(height: 8),
           Text(
-            '在乐曲详情页中可以将谱面收藏到收藏夹',
+            context.l10n.flowAddChartsToFavoritesFoldersFromSong,
             style: TextStyle(
                 fontSize: 14,
                 color: AppColors.greyHint(Theme.of(context).brightness)),
@@ -238,7 +239,7 @@ class _FavoriteFolderPageState extends State<FavoriteFolderPage> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Text(
-              '也可以点上方「导入收藏夹」按钮，${favoriteImportHint()}',
+              context.l10n.flowOrUseImportFavoritesAboveP0((favoriteImportHint()).toString()),
               textAlign: TextAlign.center,
               style: TextStyle(
                   fontSize: 12,
@@ -304,7 +305,7 @@ class _FavoriteFolderPageState extends State<FavoriteFolderPage> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '$chartCount 个谱面',
+                      context.l10n.flowP0Charts((chartCount).toString()),
                       style: TextStyle(
                           fontSize: 13,
                           color:
@@ -327,10 +328,10 @@ class _FavoriteFolderPageState extends State<FavoriteFolderPage> {
                   }
                 },
                 itemBuilder: (ctx) => [
-                  const PopupMenuItem(value: 'rename', child: Text('重命名')),
+                   PopupMenuItem(value: 'rename', child: Text(context.l10n.flowRename)),
                   PopupMenuItem(
                     value: 'delete',
-                    child: Text('删除', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                    child: Text(context.l10n.flowDelete, style: TextStyle(color: Theme.of(context).colorScheme.error)),
                   ),
                 ],
               ),
@@ -446,19 +447,19 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AppAlertDialog(
-        title: const Text('移除谱面'),
+        title:  Text(context.l10n.flowRemoveChart),
         content: Text(
-          '确定从「${widget.folderName}」中移除「${chart.songTitle}」吗？',
+          context.l10n.flowRemoveP1FromP0((widget.folderName).toString(), (chart.songTitle).toString()),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('取消'),
+            child:  Text(context.l10n.featureCancel),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
             style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
-            child: const Text('移除'),
+            child:  Text(context.l10n.flowRemove),
           ),
         ],
       ),
@@ -467,7 +468,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
       await _service.removeChartFromFolder(widget.folderId, chart.uniqueKey);
       await _loadData();
       if (mounted) {
-        AppToast.show('已移除');
+        AppToast.show(context.l10n.flowRemoved, tone: AppToastTone.success);
       }
     }
   }
@@ -489,37 +490,37 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
         // 排序按钮
         PopupMenuButton<FavoriteSortOption>(
           icon: const Icon(Icons.sort, size: 22),
-          tooltip: '排序方式',
+          tooltip: context.l10n.flowSortOrder,
           onSelected: (option) {
             setState(() => _sortOption = option);
           },
           itemBuilder: (ctx) => [
-            const PopupMenuItem(
+             PopupMenuItem(
               value: FavoriteSortOption.byDsDesc,
-              child: Text('按定数 (高→低)'),
+              child: Text(context.l10n.flowConstantHighLow),
             ),
-            const PopupMenuItem(
+             PopupMenuItem(
               value: FavoriteSortOption.byDsAsc,
-              child: Text('按定数 (低→高)'),
+              child: Text(context.l10n.flowConstantLowHigh),
             ),
-            const PopupMenuItem(
+             PopupMenuItem(
               value: FavoriteSortOption.byDateNewest,
-              child: Text('按添加时间 (新→旧)'),
+              child: Text(context.l10n.flowAddedNewOld),
             ),
-            const PopupMenuItem(
+             PopupMenuItem(
               value: FavoriteSortOption.byDateOldest,
-              child: Text('按添加时间 (旧→新)'),
+              child: Text(context.l10n.flowAddedOldNew),
             ),
-            const PopupMenuItem(
+             PopupMenuItem(
               value: FavoriteSortOption.byTitle,
-              child: Text('按歌曲名 (A-Z)'),
+              child: Text(context.l10n.flowSongTitleAZ),
             ),
           ],
         ),
         // 导出按钮
         IconButton(
           icon: const Icon(Icons.share, size: 22),
-          tooltip: '导出收藏夹',
+          tooltip: context.l10n.flowExportFavorites,
           onPressed: _exportFolder,
         ),
       ],
@@ -538,7 +539,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
                 child: ElevatedButton.icon(
                   onPressed: _showTagStatistics,
                   icon: const Icon(Icons.label_outline, size: 18),
-                  label: const Text('标签统计'),
+                  label:  Text(context.l10n.flowTagStatistics),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Theme.of(context).colorScheme.primary,
                     foregroundColor: Theme.of(context).colorScheme.onPrimary,
@@ -567,7 +568,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
   /// 显示标签统计对话框（基于 MaiTagsManager 的标签系统）
   void _showTagStatistics() {
     if (_tagStats.isEmpty) {
-      AppToast.show('暂无标签数据');
+      AppToast.show(context.l10n.flowNoTagData, tone: AppToastTone.warning);
       return;
     }
 
@@ -587,7 +588,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
             Icon(Icons.label,
                 size: 22, color: Theme.of(context).colorScheme.onSurface),
             const SizedBox(width: 8),
-            Text('标签统计',
+            Text(context.l10n.flowTagStatistics,
                 style: TextStyle(
                     fontWeight: FontWeight.bold,
                     color: Theme.of(context).colorScheme.onSurface)),
@@ -638,7 +639,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
                                   ),
                                   const SizedBox(width: 8),
                                   Text(
-                                    '共 $total 项',
+                                    context.l10n.flowP0Items3((total).toString()),
                                     style: TextStyle(
                                         fontSize: 12,
                                         color: AppColors.greyHint(
@@ -709,7 +710,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('关闭'),
+            child:  Text(context.l10n.featureClose),
           ),
         ],
       ),
@@ -751,7 +752,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
     // 构建标签ID → 分组名称 的映射
     Map<int, String> tagIdToGroupName = {};
     for (var tag in _tagsEntity!.tags) {
-      tagIdToGroupName[tag.id] = groupIdToNameMap[tag.groupId] ?? '未分类';
+      tagIdToGroupName[tag.id] = groupIdToNameMap[tag.groupId] ?? context.l10n.flowUncategorized;
     }
 
     // 获取所有歌曲标题到标签的映射
@@ -785,8 +786,8 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
 
       if (tagIds != null && tagIds.isNotEmpty) {
         for (int tagId in tagIds) {
-          String tagName = tagIdToNameMap[tagId] ?? '未知标签';
-          String groupName = tagIdToGroupName[tagId] ?? '未分类';
+          String tagName = tagIdToNameMap[tagId] ?? context.l10n.flowUnknownTag;
+          String groupName = tagIdToGroupName[tagId] ?? context.l10n.flowUncategorized;
 
           if (!stats.containsKey(groupName)) {
             stats[groupName] = {};
@@ -819,7 +820,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
               color: AppColors.greyHint(Theme.of(context).brightness)),
           const SizedBox(height: 16),
           Text(
-            '收藏夹为空',
+            context.l10n.flowFavoritesFolderIsEmpty,
             style: TextStyle(
                 fontSize: 16,
                 color: Theme.of(context).colorScheme.onSurfaceVariant),
@@ -962,7 +963,6 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
                 builder: (_) => SongInfoPage(
                   songId: chart.songId,
                   initialLevelIndex: chart.levelIndex,
-                  isDefaultLevelIndex: false,
                 ),
               ),
             );
@@ -1047,7 +1047,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
                 IconButton(
                   icon: Icon(Icons.remove_circle_outline,
                       color: Theme.of(context).colorScheme.error),
-                  tooltip: '从收藏夹移除',
+                  tooltip: context.l10n.flowRemoveFromFavoritesFolder,
                   onPressed: () => _removeChart(chart),
                 ),
             ],
@@ -1081,11 +1081,11 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
               _selectedKeys.clear();
             });
           },
-          child: const Text('取消'),
+          child:  Text(context.l10n.featureCancel),
         ),
         const SizedBox(width: 8),
         Text(
-          '已选 ${_selectedKeys.length} 项',
+          context.l10n.flowP0Selected((_selectedKeys.length).toString()),
           style: TextStyle(
             color: Theme.of(context).colorScheme.onSurface,
             fontWeight: FontWeight.w600,
@@ -1095,13 +1095,13 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
         TextButton.icon(
           onPressed: _selectedKeys.isEmpty ? null : _batchMoveCharts,
           icon: const Icon(Icons.drive_file_move, size: 18),
-          label: const Text('移动'),
+          label:  Text(context.l10n.flowMove),
         ),
         TextButton.icon(
           onPressed: _selectedKeys.isEmpty ? null : _batchRemoveCharts,
           icon: Icon(Icons.delete_outline,
               size: 18, color: Theme.of(context).colorScheme.error),
-          label: Text('删除', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+          label: Text(context.l10n.flowDelete, style: TextStyle(color: Theme.of(context).colorScheme.error)),
         ),
       ],
     );
@@ -1113,17 +1113,17 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AppAlertDialog(
-        title: const Text('批量移除谱面'),
-        content: Text('确定要从「${widget.folderName}」中移除 $count 个谱面吗？'),
+        title:  Text(context.l10n.flowRemoveMultipleCharts),
+        content: Text(context.l10n.flowRemoveP1ChartsFromP0((widget.folderName).toString(), (count).toString())),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('取消'),
+            child:  Text(context.l10n.featureCancel),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
             style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
-            child: const Text('移除'),
+            child:  Text(context.l10n.flowRemove),
           ),
         ],
       ),
@@ -1132,7 +1132,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
       await _service.removeChartsFromFolder(
           widget.folderId, _selectedKeys.toList());
       if (mounted) {
-        AppToast.show('已移除 $count 个谱面');
+        AppToast.show(context.l10n.flowRemovedP0Charts((count).toString()), tone: AppToastTone.success);
       }
       _selectedKeys.clear();
       _isBatchMode = false;
@@ -1147,7 +1147,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
         allFolders.where((f) => f.id != widget.folderId).toList();
     if (otherFolders.isEmpty) {
       if (mounted) {
-        AppToast.show('没有其他收藏夹可移动');
+        AppToast.show(context.l10n.flowNoOtherFoldersToMoveTo, tone: AppToastTone.warning);
       }
       return;
     }
@@ -1155,7 +1155,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
     final targetId = await showDialog<String>(
       context: context,
       builder: (ctx) => AppAlertDialog(
-        title: const Text('移动到...'),
+        title:  Text(context.l10n.flowMoveTo),
         content: SizedBox(
           width: double.maxFinite,
           child: ListView.builder(
@@ -1163,7 +1163,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
             itemCount: otherFolders.length,
             itemBuilder: (_, i) => ListTile(
               title: Text(otherFolders[i].name),
-              subtitle: Text('${otherFolders[i].charts.length} 个谱面'),
+              subtitle: Text(context.l10n.flowP0Charts((otherFolders[i].charts.length).toString())),
               onTap: () => Navigator.of(ctx).pop(otherFolders[i].id),
             ),
           ),
@@ -1171,7 +1171,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('取消'),
+            child:  Text(context.l10n.featureCancel),
           ),
         ],
       ),
@@ -1181,7 +1181,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
       final count = await _service.moveChartsBetweenFolders(
           widget.folderId, targetId, _selectedKeys.toList());
       if (mounted) {
-        AppToast.show('已移动 $count 个谱面');
+        AppToast.show(context.l10n.flowMovedP0Charts((count).toString()), tone: AppToastTone.success);
       }
       _selectedKeys.clear();
       _isBatchMode = false;
@@ -1195,12 +1195,12 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
   /// `Download/ChiffonMai/收藏夹/` 下，文件管理器可以直接找到。
   Future<void> _exportFolder() async {
     if (_charts.isEmpty) {
-      AppToast.show('这个收藏夹还是空的，没有可导出的谱面');
+      AppToast.show(context.l10n.flowThisFolderIsEmptyThereAreNo, tone: AppToastTone.warning);
       return;
     }
 
     if (!await ExportPathUtil.prepareForExport(context,
-        subDir: '收藏夹', title: '选择收藏夹导出位置')) {
+        subDir: '收藏夹', title: context.l10n.flowChooseWhereToExportFavorites)) {
       return;
     }
 
@@ -1224,7 +1224,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
     } catch (e) {
       debugPrint('导出收藏夹失败: $e');
       if (mounted) {
-        AppToast.show('导出失败: $e');
+        AppToast.show(context.l10n.flowExportFailedP0((e).toString()), tone: AppToastTone.error);
       }
     }
   }
@@ -1243,7 +1243,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
                 Icon(Icons.check_circle,
                     color: AppColors.successGreen(Theme.of(context).brightness), size: 22),
                 const SizedBox(width: 8),
-                const Text('导出成功'),
+                 Text(context.l10n.flowExportSuccessful),
               ],
             ),
             content: Column(
@@ -1252,15 +1252,14 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
               children: [
                 if (fileName != null) ...[
                   Text(
-                    '已导出 $fileName',
+                    context.l10n.flowExportedP02((fileName).toString()),
                     style: TextStyle(
                       fontSize: 13,
                       color: Theme.of(ctx).colorScheme.onSurfaceVariant,
                     ),
                   ),
                   Text(
-                    '可以直接在 App 内「导入收藏夹」，'
-                    '或在文件管理器里点开该文件一键导回',
+                    context.l10n.flowImportItInTheAppOrOpen,
                     style: TextStyle(
                       fontSize: 12,
                       color: Theme.of(ctx).colorScheme.onSurfaceVariant,
@@ -1269,7 +1268,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
                   const SizedBox(height: 8),
                 ],
                 Text(
-                  '文件已保存到：',
+                  context.l10n.flowFileSavedTo,
                   style: TextStyle(
                     fontSize: 13,
                     color: Theme.of(ctx).colorScheme.onSurfaceVariant,
@@ -1286,9 +1285,8 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
                       color: AppColors.warningOrange(Theme.of(context).brightness).withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                     ),
-                    child: const Text(
-                      '公开目录不可写，文件已保存到应用私有目录，'
-                      '可能无法在系统文件管理器中直接找到。',
+                    child:  Text(
+                      context.l10n.flowThePublicDirectoryIsNotWritableSaved,
                       style: TextStyle(fontSize: 12, height: 1.4),
                     ),
                   ),
@@ -1301,7 +1299,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
                   await Clipboard.setData(ClipboardData(text: filePath));
                   if (!ctx.mounted) return;
                   setLocalState(() => copied = true);
-                  AppToast.show('路径已复制到剪贴板');
+                  AppToast.show(context.l10n.flowPathCopiedToClipboard);
                 },
                 icon: Icon(
                   copied ? Icons.check : Icons.copy,
@@ -1309,14 +1307,14 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
                   color: copied ? AppColors.successGreen(Theme.of(context).brightness) : null,
                 ),
                 label: Text(
-                  copied ? '已复制' : '复制路径',
+                  copied ? context.l10n.flowCopied : context.l10n.flowCopyPath,
                   style:
                       copied ? TextStyle(color: AppColors.successGreen(Theme.of(context).brightness)) : null,
                 ),
               ),
               TextButton(
                 onPressed: () => Navigator.of(ctx).pop(),
-                child: const Text('关闭'),
+                child:  Text(context.l10n.featureClose),
               ),
             ],
           ),
@@ -1376,14 +1374,14 @@ class _FolderNameDialogState extends State<_FolderNameDialog> {
   void _confirm() {
     final name = _nameController.text.trim();
     if (name.isEmpty) {
-      setState(() => _nameError = '收藏夹名称不能为空');
+      setState(() => _nameError = context.l10n.flowFolderNameCannotBeEmpty);
       return;
     }
     Navigator.of(context).pop(name);
   }
 
   void _validateName(String value) {
-    final error = value.trim().isEmpty ? '收藏夹名称不能为空' : null;
+    final error = value.trim().isEmpty ? context.l10n.flowFolderNameCannotBeEmpty : null;
     if (error != _nameError) setState(() => _nameError = error);
   }
 
@@ -1407,7 +1405,7 @@ class _FolderNameDialogState extends State<_FolderNameDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('取消'),
+          child:  Text(context.l10n.featureCancel),
         ),
         TextButton(
           onPressed: _confirm,

@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import '../../widgets/GuessCoverImage.dart';
 import '../../widgets/GuessGameStatusPanel.dart';
 import 'dart:async';
@@ -25,9 +26,12 @@ import '../../utils/AppDesignTokens.dart';
 import '../../widgets/AppDialogs.dart';
 import '../../widgets/AppToast.dart';
 import '../../widgets/GuessSettingsUi.dart';
+import '../../utils/CoverUtil.dart';
 
+/// 高斯模糊和像素马赛克共用答题流程，各自保留独立统计。
 class GuessChartByBlurredCoverPage extends StatefulWidget {
-  const GuessChartByBlurredCoverPage({super.key});
+  const GuessChartByBlurredCoverPage({super.key, this.pixelated = false});
+  final bool pixelated;
 
   @override
   State<GuessChartByBlurredCoverPage> createState() =>
@@ -36,6 +40,10 @@ class GuessChartByBlurredCoverPage extends StatefulWidget {
 
 class _GuessChartByBlurredCoverPageState
     extends State<GuessChartByBlurredCoverPage> {
+  String get _gameId => widget.pixelated ? 'pixelated_cover' : '3';
+  int _roundGeneration = 0;
+  bool _guessPending = false;
+  ImageProvider? _pixelatedProvider;
   // 游戏状态
   bool _isGameStarted = false;
   Song? _targetSong;
@@ -54,6 +62,8 @@ class _GuessChartByBlurredCoverPageState
   // 模糊程度（0-100，默认50）
   int _blurLevel = 50;
   int _currentBlurLevel = 50;
+  int _pixelationLevel = GuessChartCommonSettingsService.defaultPixelationLevel;
+  int _currentPixelationLevel = GuessChartCommonSettingsService.defaultPixelationLevel;
 
   // 设置相关
   List<String> _selectedVersions = [];
@@ -100,21 +110,20 @@ class _GuessChartByBlurredCoverPageState
     super.initState();
     _songAliasManager = SongAliasManager.instance;
     _settingsService = GuessChartCommonSettingsService();
-    _loadSettings();
     _initCache();
     _initGame();
   }
 
   // 初始化缓存
   Future<void> _initCache() async {
-    await _cacheUtil.initCache('3');
+    await _cacheUtil.initCache(_gameId);
     await _loadStats();
   }
 
   // 加载统计数据
   Future<void> _loadStats() async {
     final generation = ++_statsGeneration;
-    final stats = await _cacheUtil.getStats('3');
+    final stats = await _cacheUtil.getStats(_gameId);
     if (!mounted || generation != _statsGeneration) return;
     setState(() => _stats = Map.from(stats));
   }
@@ -122,7 +131,7 @@ class _GuessChartByBlurredCoverPageState
   // 重置并刷新统计数据
   Future<void> _resetAndRefreshStats() async {
     final generation = ++_statsGeneration;
-    await _cacheUtil.resetStats('3', onUpdated: (stats) {
+    await _cacheUtil.resetStats(_gameId, onUpdated: (stats) {
       if (!mounted || generation != _statsGeneration) return;
       setState(() => _stats = Map.from(stats));
     });
@@ -148,6 +157,7 @@ class _GuessChartByBlurredCoverPageState
       _maxGuesses = settings['maxGuesses'] ?? 10;
       _timeLimit = settings['timeLimit'] ?? 0;
       _blurLevel = settings['blurLevel'] ?? 50;
+      _pixelationLevel = settings['pixelationLevel'] ?? GuessChartCommonSettingsService.defaultPixelationLevel;
     });
   }
 
@@ -159,6 +169,7 @@ class _GuessChartByBlurredCoverPageState
 
   // 开始新游戏
   Future<void> _startNewGame() async {
+    final generation = ++_roundGeneration;
     _searchTimer?.cancel();
     _searchGeneration++;
     // 取消之前的倒计时
@@ -166,7 +177,7 @@ class _GuessChartByBlurredCoverPageState
 
     // 加载最新的设置
     await _loadSettings();
-    if (!mounted) return;
+    if (!mounted || generation != _roundGeneration) return;
 
     setState(() {
       _isGameStarted = false;
@@ -181,20 +192,49 @@ class _GuessChartByBlurredCoverPageState
       _isSearching = false;
       _remainingTime = _timeLimit; // 重置倒计时
       _resultRecorded = false;
-      _gameStartTime = DateTime.now(); // 记录游戏开始时间
+      _gameStartTime = null; // 线索就绪后再计时。
+      _targetSong = null;
+      _pixelatedProvider = null;
+      _guessPending = false;
       // 应用新的模糊程度设置
       _currentBlurLevel = _blurLevel;
+      _currentPixelationLevel = _pixelationLevel;
     });
 
     // 随机选择目标歌曲（使用设置的筛选条件）
-    _targetSong = await GuessChartByBlurredCoverService.randomSelectSong(
+    final targetSong = await GuessChartByBlurredCoverService.randomSelectSong(
       selectedVersions: _selectedVersions,
       masterMinDx: _masterMinDx,
       masterMaxDx: _masterMaxDx,
       selectedGenres: _selectedGenres,
     );
-    if (_targetSong != null) {
+    if (!mounted || generation != _roundGeneration) return;
+    if (targetSong != null) {
+      ImageProvider? pixelated;
+      if (widget.pixelated) {
+        try {
+          final original = await CoverUtil.resolveCoverProvider(targetSong.id);
+          if (!mounted || generation != _roundGeneration) return;
+          pixelated = GuessPixelatedCover.provider(original,
+              destructionLevel: _currentPixelationLevel);
+          Object? error;
+          await precacheImage(pixelated, context,
+              onError: (e, _) => error = e).timeout(const Duration(seconds: 15));
+          if (!mounted || generation != _roundGeneration) return;
+          if (error != null) throw error!;
+        } catch (e) {
+          if (!mounted || generation != _roundGeneration) return;
+          setState(() {
+            _isGameStarted = true;
+            _loadFailureMessage = context.l10n.flowCouldNotLoadTheMosaicCoverTry;
+          });
+          return;
+        }
+      }
       setState(() {
+        _targetSong = targetSong;
+        _pixelatedProvider = pixelated;
+        _gameStartTime = DateTime.now();
         _isGameStarted = true;
         _loadFailureMessage = '';
       });
@@ -207,7 +247,7 @@ class _GuessChartByBlurredCoverPageState
     // 抽曲失败：**绝不能**就此留在加载态（详见 GuessChartLoadingView 注释）。
     // 原先这里没有 else 分支，曲库缓存为空时页面会永久转圈。
     final libraryEmpty = await GuessChartLoadingView.isSongLibraryEmpty();
-    if (!mounted) return;
+    if (!mounted || generation != _roundGeneration) return;
     setState(() {
       // 与谱面片段猜歌同一思路：照常进入游戏界面，只把题面区换成原因说明。
       // 停在 _isGameStarted == false 的话设置齿轮就点不到，用户只能退出去重进。
@@ -247,6 +287,7 @@ class _GuessChartByBlurredCoverPageState
     _countdownTimer?.cancel();
 
     _countdownTimer = Timer.periodic(Duration(seconds: 1), (timer) {
+      if (!mounted) { timer.cancel(); return; }
       setState(() {
         if (_isGameOver) {
           // 游戏已结束，取消倒计时
@@ -316,14 +357,14 @@ class _GuessChartByBlurredCoverPageState
   // 处理猜测
   Future<void> _handleGuess(Song guessedSong) async {
     // 抽不到曲时整页仍然可用（题面区显示原因），但猜是空操作
-    if (_isGameOver || _targetSong == null) return;
+    if (_isGameOver || _targetSong == null || _guessPending) return;
 
     // 检查是否已经猜过这首歌
     bool hasGuessed =
         _guessHistory.any((guess) => guess.songId == int.parse(guessedSong.id));
     if (hasGuessed) {
       // 显示提示
-      AppToast.show('已经猜过这首歌了！', duration: Duration(seconds: 2));
+      AppToast.show(context.l10n.flowYouAlreadyGuessedThisSong, duration: Duration(seconds: 2), tone: AppToastTone.success);
       // 清空输入框
       _searchController.clear();
       _searchResults = [];
@@ -332,12 +373,18 @@ class _GuessChartByBlurredCoverPageState
       return;
     }
 
+    final generation = _roundGeneration;
+    final target = _targetSong!;
+    _guessPending = true;
+    try {
     // 构建猜测实体
     var guessSong =
         await GuessChartByBlurredCoverService.buildGuessSongEntity(guessedSong);
+    if (!mounted || generation != _roundGeneration || _isGameOver) return;
     // 计算猜测结果
     guessSong = await GuessChartByBlurredCoverService.calculateGuessResult(
-        guessSong, _targetSong!, Theme.of(context).brightness);
+        guessSong, target, Theme.of(context).brightness);
+    if (!mounted || generation != _roundGeneration || _isGameOver) return;
 
     // 更新猜测历史
     setState(() {
@@ -369,6 +416,9 @@ class _GuessChartByBlurredCoverPageState
       // 记录失败
       await _recordGameResult(false);
     }
+    } finally {
+      if (generation == _roundGeneration) _guessPending = false;
+    }
   }
 
   // 记录游戏结果
@@ -379,7 +429,7 @@ class _GuessChartByBlurredCoverPageState
     final gameTime = DateTime.now().difference(_gameStartTime!).inSeconds;
     final generation = ++_statsGeneration;
     await _cacheUtil.recordGameResult(
-      '3',
+      _gameId,
       isWon: isWon,
       timeUsedInSeconds: gameTime,
       onUpdated: (stats) {
@@ -508,8 +558,7 @@ class _GuessChartByBlurredCoverPageState
   }) async {
     // 先取消之前可能存在的倒计时
     // use_build_context_synchronously
-    // Let the dialog pop animation and the save confirmation render before
-    // the full-library validation starts on the UI isolate.
+    // 等退出动画和保存提示完成后，再在后台校验整份曲库。
     await Future<void>.delayed(const Duration(milliseconds: 350));
     if (!mounted) return;
     try {
@@ -520,7 +569,7 @@ class _GuessChartByBlurredCoverPageState
         selectedGenres: selectedGenres,
       );
       if (testSong != null || !mounted) return;
-      AppToast.show('当前筛选条件抽不到曲目，请放宽筛选条件', duration: Duration(seconds: 4));
+      AppToast.show(context.l10n.flowNoSongsMatchTheseFiltersBroadenYour, duration: Duration(seconds: 4), tone: AppToastTone.warning);
     } catch (e) {
       debugPrint('校验筛选条件失败: $e');
     }
@@ -531,8 +580,11 @@ class _GuessChartByBlurredCoverPageState
     // 加载最新的设置
     await _loadSettings();
 
+    if (!mounted) return;
+
     // 加载所有版本和流派
     final allSongs = await GuessChartByBlurredCoverService.loadAllSongs();
+    if (!mounted) return;
     // 可选版本 / 可选流派统一走 SongFilterUtil.selectableFilters：
     // 它先剔除非正曲（SongFilterUtil.isExtra：宴会场 / maidata 追加 / union 独有），
     // 再单独挡掉「宴会场」流派，最后把版本过一遍官方世代白名单并按世代排序。
@@ -550,6 +602,7 @@ class _GuessChartByBlurredCoverPageState
     int tempMaxGuesses = _maxGuesses;
     int tempTimeLimit = _timeLimit;
     int tempBlurLevel = _blurLevel;
+    int tempPixelationLevel = _pixelationLevel;
 
     // 「重置所有设置」用：默认值统一取自设置服务，页面不再手写字面量。
     void applySettingsDefaults() {
@@ -563,14 +616,15 @@ class _GuessChartByBlurredCoverPageState
       tempMaxGuesses = defaults['maxGuesses'] as int;
       tempTimeLimit = defaults['timeLimit'] as int;
       tempBlurLevel = defaults['blurLevel'] as int;
+      tempPixelationLevel = defaults['pixelationLevel'] as int;
     }
 
     await showDialog(
       context: context,
       builder: (BuildContext context) {
         return AppAlertDialog(
-          title: const Text('游戏设置'),
-          subtitle: '保存后下局生效',
+          title:  Text(context.l10n.flowGameSettings),
+          subtitle: context.l10n.flowAppliesFromTheNextGame,
           contentPadding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
           content: StatefulBuilder(
             builder: (BuildContext context, StateSetter setState) {
@@ -618,18 +672,21 @@ class _GuessChartByBlurredCoverPageState
                       // 默认值走页面里的 applySettingsDefaults()
                     ),
                     GuessSettingSection(
-                      title: '本模式设置',
-                      icon: Icons.blur_on_rounded,
+                      title: context.l10n.flowModeSettings,
+                      icon: widget.pixelated ? Icons.grid_view_rounded : Icons.blur_on_rounded,
                       children: [
                         GuessSliderTile(
-                          label: '模糊程度',
-                          valueText: '$tempBlurLevel%',
-                          value: tempBlurLevel.toDouble(),
+                          label: widget.pixelated ? context.l10n.flowDestruction : context.l10n.flowBlur,
+                          valueText: '${widget.pixelated ? tempPixelationLevel : tempBlurLevel}%',
+                          value: (widget.pixelated ? tempPixelationLevel : tempBlurLevel).toDouble(),
                           min: 0,
                           max: 100,
                           divisions: 100,
-                          onChanged: (value) =>
-                              setState(() => tempBlurLevel = value.toInt()),
+                          onChanged: (value) => setState(() {
+                            if (widget.pixelated) tempPixelationLevel = value.toInt();
+                            else tempBlurLevel = value.toInt();
+                          }),
+                          hint: widget.pixelated ? context.l10n.flow0ShowsTheOriginalHigherValuesCreate3 : null,
                         ),
                       ],
                     ),
@@ -646,7 +703,7 @@ class _GuessChartByBlurredCoverPageState
               onPressed: () {
                 Navigator.of(context).pop();
               },
-              child: const Text('取消'),
+              child:  Text(context.l10n.featureCancel),
             ),
             TextButton(
               onPressed: () async {
@@ -664,12 +721,13 @@ class _GuessChartByBlurredCoverPageState
                   selectedGenres: tempSelectedGenres,
                   maxGuesses: tempMaxGuesses,
                   timeLimit: tempTimeLimit,
-                  blurLevel: tempBlurLevel,
+                  blurLevel: widget.pixelated ? null : tempBlurLevel,
+                  pixelationLevel: widget.pixelated ? tempPixelationLevel : null,
                 );
 
                 if (!navigator.mounted) return;
                 navigator.pop();
-                AppToast.show('设置已保存，将在下局游戏生效',
+                AppToast.show(context.l10n.flowSettingsSavedTheyApplyFromTheNext,
                     tone: AppToastTone.success);
 
                 _warnIfNoSongMatches(
@@ -679,7 +737,7 @@ class _GuessChartByBlurredCoverPageState
                   selectedGenres: tempSelectedGenres,
                 );
               },
-              child: const Text('确定'),
+              child:  Text(context.l10n.featureOK),
             ),
           ],
         );
@@ -693,27 +751,33 @@ class _GuessChartByBlurredCoverPageState
       context: context,
       builder: (BuildContext context) {
         return AppAlertDialog(
-          title: const Text('规则说明'),
+          title:  Text(context.l10n.flowHowToPlay),
           content: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('绿色 - 该属性与你猜的完全一致。'),
+                if (widget.pixelated) ...[
+                   Text(context.l10n.flowCoverArtIsTurnedIntoAPixel),
+                  const SizedBox(height: 8),
+                   Text(context.l10n.flowTheOriginalCoverAppearsAfterACorrect),
+                  const SizedBox(height: 16),
+                ],
+                 Text(context.l10n.flowGreenTheAttributeMatchesTheTargetExactly),
                 const SizedBox(height: 8),
-                const Text('橙色 - 该属性与你猜的"接近"：'),
+                 Text(context.l10n.flowOrangeTheAttributeIsCloseToThe),
                 const SizedBox(height: 4),
-                const Text('BPM 相差在 ±20 范围内；'),
-                const Text('MASTER 难度或 Re:MASTER 难度相差在 ±0.4范围内；'),
-                const Text('版本相差一个世代（例如 maimai ← maimai PLUS → maimai GreeN）。'),
+                 Text(context.l10n.flowBPMDiffersByNoMoreThan20),
+                 Text(context.l10n.flowMASTEROrReMASTERDifficultyDiffersBy),
+                 Text(context.l10n.flowVersionsAreOneGenerationApartEG),
                 const SizedBox(height: 8),
-                const Text('灰色 - 该属性与你猜的"差距较大"。'),
+                 Text(context.l10n.flowGrayTheAttributeIsFarFromThe),
                 const SizedBox(height: 16),
-                const Text('箭头：'),
+                 Text(context.l10n.flowArrows),
                 const SizedBox(height: 4),
-                const Text('↑ - 目标值比你猜的更高'),
-                const Text('↓ - 目标值比你猜的更低'),
+                 Text(context.l10n.flowTargetValueIsHigherThanYourGuess),
+                 Text(context.l10n.flowTargetValueIsLowerThanYourGuess),
                 const SizedBox(height: 16),
-                const Text('设计思路借鉴：'),
+                 Text(context.l10n.flowDesignInspiration2),
                 GestureDetector(
                   onTap: () async {
                     final url = Uri.parse('https://maimai.yukineko2233.top/');
@@ -723,7 +787,7 @@ class _GuessChartByBlurredCoverPageState
                       await ExternalLaunchUtil.copyFallback(
                         context,
                         url.toString(),
-                        message: '无法打开该链接，链接已复制到剪贴板',
+                        message: context.l10n.flowCouldNotOpenThisLinkLinkCopied,
                       );
                     }
                   },
@@ -743,7 +807,7 @@ class _GuessChartByBlurredCoverPageState
               onPressed: () {
                 Navigator.of(context).pop();
               },
-              child: const Text('确定'),
+              child:  Text(context.l10n.featureOK),
             ),
           ],
         );
@@ -762,6 +826,18 @@ class _GuessChartByBlurredCoverPageState
 
   // 显示模糊曲绘
   Widget _buildBlurredCover(String songId) {
+    if (widget.pixelated && !_isGameOver) {
+      final provider = _pixelatedProvider;
+      return provider == null ? const SizedBox.square(dimension: 200)
+          : Column(mainAxisSize: MainAxisSize.min, children: [
+              ClipRRect(borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+                  child: GuessPixelatedCover(image: provider)),
+              const SizedBox(height: 10),
+              Text(context.l10n.flowDestructionP0((_currentPixelationLevel).toString()),
+                  style: TextStyle(fontSize: 13,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            ]);
+    }
     return Container(
       width: 200,
       height: 200,
@@ -800,22 +876,22 @@ class _GuessChartByBlurredCoverPageState
     return BackgroundPageScaffold(
       actions: [
         IconButton(
-          tooltip: '规则',
+          tooltip: context.l10n.flowRules,
           icon: const Icon(Icons.info_outline_rounded, size: 20),
           onPressed: _showRulesDialog,
         ),
         IconButton(
-          tooltip: '设置',
+          tooltip: context.l10n.flowSettings,
           icon: const Icon(Icons.settings_outlined, size: 20),
           onPressed: _showSettingsDialog,
         ),
         IconButton(
-          tooltip: '换一题',
+          tooltip: context.l10n.flowNewQuestion,
           icon: const Icon(Icons.refresh_rounded, size: 20),
           onPressed: _startNewGame,
         ),
       ],
-      title: '根据模糊曲绘猜歌',
+      title: widget.pixelated ? context.l10n.featurePixelCoverQuiz : context.l10n.featureBlurredCoverQuiz,
       resizeToAvoidBottomInset: false,
       child: GestureDetector(
         onTap: () {
@@ -843,7 +919,7 @@ class _GuessChartByBlurredCoverPageState
                                 children: [
                                   // 本局状态与每日统计共用布局。
                                   GuessGameStatusPanel(
-                                    roundLabel: '剩余次数',
+                                    roundLabel: context.l10n.flowGuessesLeft,
                                     roundValue: _maxGuesses > 0
                                         ? (_maxGuesses - _guessCount)
                                             .clamp(0, _maxGuesses)
@@ -934,7 +1010,7 @@ class _GuessChartByBlurredCoverPageState
                                               CrossAxisAlignment.start,
                                           children: [
                                             Text(
-                                              _isWon ? '恭喜你猜对了！' : '本局答案',
+                                              _isWon ? context.l10n.flowYouGotIt : context.l10n.flowThisGameSAnswer,
                                               style: TextStyle(
                                                 fontSize: 16,
                                                 fontWeight: FontWeight.bold,
@@ -1107,7 +1183,7 @@ class _GuessChartByBlurredCoverPageState
                   GuessInputBar(
                     controller: _searchController,
                     onChanged: _handleSearchInput,
-                    hintText: '搜索歌名、别名、编号等',
+                    hintText: context.l10n.flowSearchTitleAliasIDAndMore,
                     isGameOver: _isGameOver,
                     onSurrender: () async {
                                               // 投降时取消倒计时

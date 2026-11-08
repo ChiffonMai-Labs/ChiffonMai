@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 
 import '../service/History/ScoreImprovementCore.dart';
@@ -37,8 +39,8 @@ class ScoreImprovementCard extends StatelessWidget {
               ClipRRect(
                 borderRadius:
                     BorderRadius.circular(AppDesignTokens.radiusSmall),
-                child: CoverUtil.buildCoverWidgetWithContext(
-                    context, songId, 64),
+                child:
+                    CoverUtil.buildCoverWidgetWithContext(context, songId, 64),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -96,8 +98,7 @@ class ScoreImprovementCard extends StatelessWidget {
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 9, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 2),
                 decoration: BoxDecoration(
                   color: statusColor.withValues(alpha: 0.13),
                   borderRadius:
@@ -113,12 +114,12 @@ class ScoreImprovementCard extends StatelessWidget {
                 ),
               ),
               if (entry.isNewChart)
-                Text('首次记录',
+                Text(context.l10n.flowFirstRecord,
                     style: TextStyle(
                         fontSize: 12, color: colors.onSurfaceVariant)),
               Text(
                 '${_time(entry.firstAtMs)}'
-                '${entry.changeCount > 1 ? '–${_time(entry.lastAtMs)} · ${entry.changeCount} 次变化' : ' 记录'}',
+                '${entry.changeCount > 1 ? context.l10n.flowP0P1Changes((_time(entry.lastAtMs)).toString(), (entry.changeCount).toString()) : context.l10n.flowRecorded}',
                 style: AppTheme.number(
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
@@ -143,7 +144,7 @@ class ScoreImprovementCard extends StatelessWidget {
               !ImprovementMetric.values.any(entry.changed))
             Padding(
               padding: const EdgeInsets.only(top: 6),
-              child: Text('日内成绩有过变化，最新值已回到当日初值。',
+              child: Text(context.l10n.flowTheScoreChangedDuringTheDayBut,
                   style:
                       TextStyle(fontSize: 12, color: colors.onSurfaceVariant)),
             ),
@@ -223,7 +224,10 @@ class ScoreImprovementCard extends StatelessWidget {
                 ],
                 value(entry.after, isBefore: false),
                 if (!changed)
-                  Text(metric.value(entry.after) == null ? '暂无数据' : '无变化',
+                  Text(
+                      metric.value(entry.after) == null
+                          ? context.l10n.flowNoData
+                          : context.l10n.flowNoChange,
                       style: TextStyle(
                           fontSize: 11, color: colors.onSurfaceVariant)),
                 if (changed && entry.before != null)
@@ -257,10 +261,10 @@ class ScoreImprovementCard extends StatelessWidget {
       return '${delta > 0 ? '+' : ''}$delta';
     }
     return direction > 0
-        ? '提升'
+        ? appL10n.flowImprovement
         : direction < 0
-            ? '回退'
-            : '变化';
+            ? appL10n.flowRegression
+            : appL10n.flowChange2;
   }
 
   static String _time(int atMs) {

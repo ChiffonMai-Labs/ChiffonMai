@@ -1,0 +1,4 @@
+"NSLocationWhenInUseUsageDescription" = "需要取得您的位置以顯示當地天氣";
+"NSCameraUsageDescription" = "需要使用相機拍攝曲繪以進行辨識";
+"NSPhotoLibraryUsageDescription" = "需要存取您的相簿以儲存匯出的圖片";
+"NSPhotoLibraryAddUsageDescription" = "需要存取您的相簿以儲存匯出的圖片";

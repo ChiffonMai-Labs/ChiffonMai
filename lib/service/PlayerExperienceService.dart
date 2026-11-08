@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import '../utils/UserProfileNotifier.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -31,7 +32,7 @@ class PlayerExperienceService extends ValueNotifier<Map<String, dynamic>?> {
       final player = await _currentPlayer();
       if (player != null) await _checkIn(player);
     } catch (_) {
-      message = '签到暂时不可用，下次启动会自动重试';
+      message = appL10n.svcCheckInIsUnavailableRightNowIt;
       notifyListeners();
     }
   }
@@ -41,7 +42,7 @@ class PlayerExperienceService extends ValueNotifier<Map<String, dynamic>?> {
     value = null;
     // 普通切换只读取缓存；登录或验证成功通过明确的入口补签。
     unawaited(_loadCurrentCache().catchError((Object _) {
-      message = '成长记录暂时无法读取，下次启动会自动重试';
+      message = appL10n.svcCouldNotReadGrowthRecordsItWill;
       notifyListeners();
     }));
   }
@@ -69,8 +70,14 @@ class PlayerExperienceService extends ValueNotifier<Map<String, dynamic>?> {
     } on FormatException {
       // 本地缓存损坏不能阻止本次服务端签到。
     }
-    message = cached?['date'] == _today() ? '今日已签到' : '';
+    // 没有成长记录时也要说明原因，否则卡片上只剩规则键。
+    message = cached != null
+        ? (cached['date'] == _today() ? appL10n.svcCheckedInToday : '')
+        : player == null
+            ? appL10n.svcSignInToCheckInAndEarn
+            : appL10n.svcNoGrowthRecordsYetYouWillBe;
     value = cached;
+    notifyListeners();
   }
 
   /// 本机登录或身份验证成功后调用，不依赖目标账号是否正在前台显示。
@@ -107,6 +114,10 @@ class PlayerExperienceService extends ValueNotifier<Map<String, dynamic>?> {
       } on FormatException {
         // 损坏的缓存不妨碍服务端签到。
       }
+      if (value == null && player == await _currentPlayer()) {
+        message = appL10n.svcCheckingIn;
+        notifyListeners();
+      }
       final response = await ApiClient.post(
           Uri.parse('${ApiUrls.BackendBaseUrl}/api/me/experience/checkin'),
           headers: await ownerHeaders(player),
@@ -114,16 +125,16 @@ class PlayerExperienceService extends ValueNotifier<Map<String, dynamic>?> {
           timeout: const Duration(seconds: 20));
       final body = jsonDecode(response.body) as Map;
       if (response.statusCode != 200 || body['success'] != true) {
-        throw StateError(body['error']?.toString() ?? '签到暂时不可用，下次启动自动重试');
+        throw StateError(body['error']?.toString() ?? appL10n.svcCheckInIsUnavailableRightNowIt);
       }
       final data = Map<String, dynamic>.from(body['data'] as Map);
-      if (data['playerId'] != player) throw StateError('签到账号不匹配');
+      if (data['playerId'] != player) throw StateError(appL10n.svcCheckInAccountDoesNotMatch);
       await prefs.setString('player_experience_v1:$player', jsonEncode(data));
       if (player != await _currentPlayer()) return;
       ++_cacheGeneration;
       message = (data['awarded'] as num) > 0
-          ? '今日签到 +${data['awarded']} 经验'
-          : '今日已签到';
+          ? appL10n.svcCheckedInTodayP0EXP((data['awarded']).toString())
+          : appL10n.svcCheckedInToday;
       value = data;
     } catch (e) {
       if (player != await _currentPlayer()) return;

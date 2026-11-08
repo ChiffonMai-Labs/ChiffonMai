@@ -1,3 +1,5 @@
+import '../l10n/LocalizationsExtension.dart';
+import '../l10n/FeatureLocalizations.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -9,7 +11,6 @@ import '../service/SyncStatsService.dart';
 import '../service/chongxi/MaimaiServerStatusService.dart';
 import '../utils/AppDesignTokens.dart';
 import '../utils/AppTheme.dart';
-import '../utils/AutoSyncDisplay.dart';
 import 'AppUi.dart';
 
 /// 首页小组件的外观：图标、标题、一行结论、一行说明。
@@ -218,49 +219,49 @@ class _HomeAutoSyncWidgetState extends _PollingState<HomeAutoSyncWidget> {
     final String tone;
     final result = task?.lastResult;
     if (task == null) {
-      value = '暂时未知';
+      value = context.featureText('暂时未知');
       tone = 'off';
     } else if (!task.enabled) {
-      value = '未开启';
+      value = context.featureText('未开启');
       tone = 'off';
     } else if (task.status == 'running') {
-      value = task.waiting ? '等待上游' : '同步中';
+      value = task.waiting ? context.featureText('等待上游') : context.featureText('同步中');
       tone = task.waiting ? 'warn' : 'active';
     } else if (result == null) {
-      value = '已开启';
+      value = context.featureText('已开启');
       tone = 'active';
     } else if (result.status == 'failed') {
-      value = '上次未完成';
+      value = context.featureText('上次未完成');
       tone = 'warn';
     } else if (result.submitted > 0) {
-      value = '提交 ${result.submitted} 条';
+      value = context.l10n.homeSyncSubmitted(result.submitted);
       tone = 'ok';
     } else {
-      value = '已是最新';
+      value = context.featureText('已是最新');
       tone = 'ok';
     }
-    return (platform.label, value, tone);
+    return (context.featureText(platform.label), value, tone);
   }
 
   /// 一句结论、一行说明、语气，以及不含时间的说明对应的时间。
   ({String headline, String detail, String tone, DateTime? time}) _summary() {
     final tasks = _tasks;
     if (tasks == null) {
-      return (headline: '读取中…', detail: '正在获取同步状态', tone: 'off', time: null);
+      return (headline: context.featureText('读取中…'), detail: context.featureText('正在获取同步状态'), tone: 'off', time: null);
     }
     if (_allFailed) {
-      return (headline: '状态未知', detail: '暂时读取不到', tone: 'warn', time: null);
+      return (headline: context.featureText('状态未知'), detail: context.featureText('暂时读取不到'), tone: 'warn', time: null);
     }
     final enabled = tasks.values.where((task) => task.enabled).toList();
     if (enabled.isEmpty) {
-      return (headline: '未开启', detail: '点这里设置', tone: 'off', time: null);
+      return (headline: context.featureText('未开启'), detail: context.featureText('点这里设置'), tone: 'off', time: null);
     }
     final running = enabled.where((task) => task.status == 'running');
     if (running.isNotEmpty) {
       final task = running.first;
       return (
-        headline: task.waiting ? '等待上游' : '同步中',
-        detail: AutoSyncDisplay.progressBrief(task),
+        headline: task.waiting ? context.featureText('等待上游') : context.featureText('同步中'),
+        detail: _progressBrief(task),
         tone: task.waiting ? 'warn' : 'active',
         time: null,
       );
@@ -279,26 +280,39 @@ class _HomeAutoSyncWidgetState extends _PollingState<HomeAutoSyncWidget> {
     final String headline;
     final String tone;
     if (results.isEmpty) {
-      headline = '已开启';
+      headline = context.featureText('已开启');
       tone = 'active';
     } else if (failed > 0) {
-      headline = '$failed 个未完成';
+      headline = context.l10n.homeSyncIncomplete(failed);
       tone = 'error';
     } else if (submitted > 0) {
-      headline = '提交 $submitted 条';
+      headline = context.l10n.homeSyncSubmitted(submitted);
       tone = 'ok';
     } else {
-      headline = '已是最新';
+      headline = context.featureText('已是最新');
       tone = 'ok';
     }
     return (
       headline: headline,
       detail: latest == null
-          ? '${enabled.length} 个数据源 · 等待执行'
-          : '${enabled.length} 个数据源',
+          ? context.l10n.homeSyncSourcesWaiting(enabled.length)
+          : context.l10n.homeSyncSources(enabled.length),
       tone: tone,
       time: latest,
     );
+  }
+
+  String _progressBrief(AutoSyncTask task) {
+    final progress = task.progress;
+    if (progress == null) return context.featureText('正在同步…');
+    return switch (progress.stage) {
+      'uploading' => context.l10n.homeSyncUpload(progress.completed, progress.total) +
+          (progress.submitted > 0 ? ' · ${context.l10n.homeSyncSubmitted(progress.submitted)}' : ''),
+      'reading' => progress.completed > 0
+          ? context.l10n.homeSyncReadPage(progress.completed)
+          : context.featureText('读取机台成绩…'),
+      _ => context.l10n.localeName.startsWith('zh') ? progress.label : context.featureText('正在同步…'),
+    };
   }
 
   String _timeLabel(DateTime time) {
@@ -309,7 +323,7 @@ class _HomeAutoSyncWidgetState extends _PollingState<HomeAutoSyncWidget> {
         local.month == now.month &&
         local.day == now.day;
     final clock = '${two(local.hour)}:${two(local.minute)}';
-    return sameDay ? '今天 $clock' : '${local.month}月${local.day}日 $clock';
+    return sameDay ? context.l10n.homeTodayAt(clock) : '${MaterialLocalizations.of(context).formatShortDate(local)} $clock';
   }
 
   @override
@@ -327,7 +341,7 @@ class _HomeAutoSyncWidgetState extends _PollingState<HomeAutoSyncWidget> {
     final time = summary.time;
     return _HomeStatusCard(
       icon: Icons.autorenew_rounded,
-      title: '自动同步',
+      title: context.featureText('自动同步'),
       headline: summary.headline,
       detail: time == null
           ? summary.detail
@@ -381,8 +395,13 @@ class _HomeServerStatusWidgetState
 
   /// 接口的 `status_text` 只有「好」「坏」一个字，`verdict_text` 才是一句描述。
   String _headlineOf(MaimaiServerStatusEntity status) {
+    if (!context.l10n.localeName.startsWith('zh')) {
+      if (status.isHealthy) return context.featureText('服务正常');
+      if (status.status == 'unknown') return context.featureText('暂时未知');
+      return context.featureText('服务异常');
+    }
     if (status.verdictText.isNotEmpty) return status.verdictText;
-    return status.statusText.isEmpty ? '暂时未知' : status.statusText;
+    return status.statusText.isEmpty ? context.featureText('暂时未知') : status.statusText;
   }
 
   String _detailOf(MaimaiServerStatusEntity status) {
@@ -390,11 +409,11 @@ class _HomeServerStatusWidgetState
     final healthy = status.services.where((s) => s.isHealthy).length;
     final latency = status.latency.currentMs;
     final speed = [
-      if (status.latency.loadText.isNotEmpty) status.latency.loadText,
+      if (context.l10n.localeName.startsWith('zh') && status.latency.loadText.isNotEmpty) status.latency.loadText,
       if (latency != null) '$latency ms',
     ].join(' ');
     return [
-      if (total > 0) '$healthy/$total 正常',
+      if (total > 0) context.l10n.homeServerHealthy(healthy, total),
       if (speed.isNotEmpty) speed,
     ].join(' · ');
   }
@@ -409,8 +428,8 @@ class _HomeServerStatusWidgetState
     String detail;
     Color accent;
     if (status == null) {
-      headline = _failed ? '状态未知' : '读取中…';
-      detail = _failed ? '暂时读取不到，稍后自动重试' : '正在获取服务器状态';
+      headline = _failed ? context.featureText('状态未知') : context.featureText('读取中…');
+      detail = _failed ? context.featureText('暂时读取不到，稍后自动重试') : context.featureText('正在获取服务器状态');
       accent = _failed
           ? AppColors.warningOrange(theme.brightness)
           : scheme.outline;
@@ -423,9 +442,9 @@ class _HomeServerStatusWidgetState
     }
     return _HomeStatusCard(
       icon: Icons.dns_outlined,
-      title: '服务器状态',
+      title: context.featureText('服务器状态'),
       headline: headline,
-      detail: detail.isEmpty ? '暂无详情' : detail,
+      detail: detail.isEmpty ? context.featureText('暂无详情') : detail,
       accent: accent,
       onTap: widget.onTap,
     );

@@ -1,27 +1,52 @@
+import '../l10n/LocalizationsExtension.dart';
+import '../l10n/FeatureLocalizations.dart';
 import 'package:flutter/material.dart';
 
 import '../utils/AppDesignTokens.dart';
 import 'AppUi.dart';
 
 class FavoriteEditItem {
+  /// 收藏键，排序和移除都按它。
   final String title;
   final IconData icon;
+  final VoidCallback? onTap;
 
-  const FavoriteEditItem({required this.title, required this.icon});
+  /// 显示的标题，默认是 [title]（「检查更新」发现新版本时会变）。
+  final String? displayTitle;
+  final Color? titleColor;
+  final bool loading;
+  final double? progress;
+
+  const FavoriteEditItem({
+    required this.title,
+    required this.icon,
+    this.onTap,
+    this.displayTitle,
+    this.titleColor,
+    this.loading = false,
+    this.progress,
+  });
 }
 
-/// 首页收藏的编辑模式：直接拖动图标换位置，点叉号或拖到删除区域移除。
+/// 首页「常用」：所有收藏都显示成图标。
+///
+/// 正常态和编辑态是同一棵树，切换时格子不重新入场，只有叉号和删除区域过渡。
+/// 编辑态直接拖动图标换位置，点叉号或拖到删除区域移除。
 ///
 /// 拖动时其它图标滑到新位置，松手才写盘。整个网格共用一个 [DragTarget]，
 /// 落点按手指位置算，不会因为格子移动而来回抖动。
 class FavoriteEditGrid extends StatefulWidget {
   final List<FavoriteEditItem> items;
+
+  /// 是否处于编辑态。
+  final bool editing;
   final ValueChanged<List<String>> onReorder;
   final ValueChanged<String> onRemove;
 
   const FavoriteEditGrid({
     super.key,
     required this.items,
+    required this.editing,
     required this.onReorder,
     required this.onRemove,
   });
@@ -131,29 +156,53 @@ class _FavoriteEditGridState extends State<FavoriteEditGrid> {
                             (cellHeight + _gap),
                         width: cellWidth,
                         height: cellHeight,
-                        child: _buildCell(item, cellWidth, cellHeight),
+                        // 只在首次挂载时入场，切换编辑态不会重播。
+                        child: EntranceAnimation(
+                          index: _order.indexOf(title),
+                          stagger: const Duration(milliseconds: 60),
+                          baseDelay: const Duration(milliseconds: 200),
+                          duration: const Duration(milliseconds: 500),
+                          offset: const Offset(0, 12),
+                          child: _buildCell(item, cellWidth, cellHeight),
+                        ),
                       ),
                 ],
               ),
             ),
           );
         }),
-        const SizedBox(height: 12),
-        _buildDeleteZone(),
+        AnimatedReveal(
+          visible: widget.editing,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: _buildDeleteZone(),
+          ),
+        ),
       ],
     );
   }
 
   Widget _buildCell(FavoriteEditItem item, double width, double height) {
     final scheme = Theme.of(context).colorScheme;
-    Widget tile() =>
-        FeatureIconTile(title: item.title, icon: item.icon, onTap: () {});
+    final editing = widget.editing;
+    Widget tile() => FeatureIconTile(
+          title: item.title,
+          displayTitle: context.featureText(item.displayTitle ?? item.title),
+          icon: item.icon,
+          loading: item.loading,
+          progress: item.progress,
+          titleColor: item.titleColor,
+          // 编辑态点击不打开功能，也不显示成禁用。
+          onTap: editing ? () {} : item.onTap,
+        );
     return Stack(
       clipBehavior: Clip.none,
       children: [
         Positioned.fill(
           child: Draggable<String>(
             data: item.title,
+            // 正常态不接管拖动，页面照常滚动。
+            maxSimultaneousDrags: editing ? null : 0,
             onDragStarted: () => setState(() => _dragging = item.title),
             onDragEnd: (_) => _endDrag(),
             onDraggableCanceled: (_, __) => _endDrag(),
@@ -172,13 +221,20 @@ class _FavoriteEditGridState extends State<FavoriteEditGrid> {
             child: tile(),
           ),
         ),
-        if (_dragging != item.title)
-          Positioned(
-            top: 0,
-            right: 2,
-            child: Semantics(
+        Positioned(
+          top: 0,
+          right: 2,
+          // 叉号弹入 / 缩回，不让格子重新入场。
+          child: IgnorePointer(
+            ignoring: !editing || _dragging == item.title,
+            child: AnimatedScale(
+              scale: editing && _dragging != item.title ? 1 : 0,
+              duration: AppDesignTokens.motion(
+                  context, AppDesignTokens.mediumMotion),
+              curve: AppDesignTokens.emphasizedCurve,
+              child: Semantics(
               button: true,
-              label: '移除收藏：${item.title}',
+              label: context.l10n.homeRemoveFavorite(context.featureText(item.title)),
               onTap: () => _remove(item.title),
               excludeSemantics: true,
               child: GestureDetector(
@@ -201,7 +257,9 @@ class _FavoriteEditGridState extends State<FavoriteEditGrid> {
                 ),
               ),
             ),
+            ),
           ),
+        ),
       ],
     );
   }
@@ -241,7 +299,7 @@ class _FavoriteEditGridState extends State<FavoriteEditGrid> {
                     : scheme.onSurfaceVariant),
             const SizedBox(width: 6),
             Text(
-              _overDelete ? '松手移除收藏' : '拖到这里移除收藏',
+              context.featureText(_overDelete ? '松手移除收藏' : '拖到这里移除收藏'),
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,

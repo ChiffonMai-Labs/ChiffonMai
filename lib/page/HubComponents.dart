@@ -1,3 +1,4 @@
+import '../l10n/FeatureLocalizations.dart';
 import 'package:flutter/material.dart';
 import '../widgets/AnimatedReveal.dart';
 import '../widgets/FavoriteStarButton.dart';
@@ -50,19 +51,13 @@ class HubQuickAction extends StatelessWidget {
           child: Column(children: [
             Icon(icon, color: scheme.primary, size: 25),
             const SizedBox(height: 9),
-            Text(title,
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+            MarqueeText(
+                text: context.featureText(title),
                 style:
                     const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
             const SizedBox(height: 3),
-            // 副标题统一是四个字（窄屏每格只有 40dp 左右可用宽度，
-            // 「Rating 构成」这种会直接变成省略号），省略号只作为兜底
-            Text(subtitle,
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+            MarqueeText(
+                text: context.featureText(subtitle),
                 style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 10)),
           ]),
         ),
@@ -116,7 +111,7 @@ class HubSection extends StatelessWidget {
                           child: Semantics(
                             header: true,
                             child: Text(
-                              title,
+                              context.featureText(title),
                               style: Theme.of(context)
                                   .textTheme
                                   .titleMedium
@@ -125,7 +120,7 @@ class HubSection extends StatelessWidget {
                                     fontSize: 15,
                                     letterSpacing: 0.2,
                                   ),
-                              overflow: TextOverflow.ellipsis,
+                              overflow: TextOverflow.visible,
                             ),
                           ),
                         ),
@@ -145,7 +140,7 @@ class HubSection extends StatelessWidget {
                     if (subtitle != null) ...[
                       const SizedBox(height: 2),
                       Text(
-                        subtitle!,
+                        context.featureText(subtitle!),
                         softWrap: true,
                         style: Theme.of(context)
                             .textTheme
@@ -183,6 +178,9 @@ class HubSection extends StatelessWidget {
 
 class HubActionTile extends StatelessWidget {
   final String title;
+
+  /// 可变状态标题，仅用于显示；配色和功能身份仍按 [title]。
+  final String? displayTitle;
   final String subtitle;
   final IconData icon;
   final VoidCallback onTap;
@@ -263,6 +261,7 @@ class HubActionTile extends StatelessWidget {
   /// 之前 hub 页单独传 13、收藏区走默认 14.5，同一个标题在两处观感不一致。
   static const Map<String, double> specialTitleFontSizes = {
     '登录 maimai Score Hub': 13,
+    '拉取成绩并更新数据（高级）': 13,
     '平均DX分数达成率排行榜': 13,
   };
 
@@ -272,6 +271,7 @@ class HubActionTile extends StatelessWidget {
   const HubActionTile({
     super.key,
     required this.title,
+    this.displayTitle,
     required this.subtitle,
     required this.icon,
     required this.onTap,
@@ -348,13 +348,12 @@ class HubActionTile extends StatelessWidget {
       leading: leading ??
           Builder(builder: (context) {
             // 没指定颜色时按标题取功能色，与首页「常用」的图标块同色。
-            final tint = AppColors.featureTint(
-                title, Theme.of(context).brightness);
+            final tint =
+                AppColors.featureTint(title, Theme.of(context).brightness);
             final useTint = iconColor == null && !awaitingConfirm;
             final fg = useTint ? tint.foreground : activeTint;
-            final bg = useTint
-                ? tint.background
-                : activeTint.withValues(alpha: 0.12);
+            final bg =
+                useTint ? tint.background : activeTint.withValues(alpha: 0.12);
             return Opacity(
               opacity: _isInactive ? 0.5 : 1,
               child: Container(
@@ -371,10 +370,9 @@ class HubActionTile extends StatelessWidget {
             );
           }),
       title: Text(
-        title,
-        maxLines: 2,
+        context.featureText(displayTitle ?? title),
         softWrap: true,
-        overflow: TextOverflow.ellipsis,
+        overflow: TextOverflow.visible,
         style: TextStyle(
           fontWeight: FontWeight.w600,
           fontSize: titleFontSize ?? titleFontSizeFor(title),
@@ -400,7 +398,7 @@ class HubActionTile extends StatelessWidget {
                     ),
                   if (!_hasProgress)
                     _MarqueeSubtitle(
-                      text: loadingText ?? subtitle,
+                      text: context.featureText(loadingText ?? subtitle),
                       color: scheme.primary,
                       fontWeight: FontWeight.w600,
                       fontSize: 12,
@@ -423,7 +421,8 @@ class HubActionTile extends StatelessWidget {
           : Padding(
               padding: const EdgeInsets.only(top: 2),
               child: _MarqueeSubtitle(
-                text: loading ? (loadingText ?? subtitle) : subtitle,
+                text: context.featureText(
+                    loading ? (loadingText ?? subtitle) : subtitle),
                 color: loading ? scheme.primary : scheme.onSurfaceVariant,
                 fontWeight: loading ? FontWeight.w600 : FontWeight.normal,
                 fontSize: 12,
@@ -472,7 +471,7 @@ class HubActionTile extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 child: SizedBox(
                   width: double.infinity,
-                  child: Text(disabledReason ?? '',
+                  child: Text(context.featureText(disabledReason ?? ''),
                       textAlign: TextAlign.center,
                       style: TextStyle(fontSize: 11, color: scheme.error)),
                 ),
@@ -575,7 +574,7 @@ class _MarqueeSubtitle extends StatelessWidget {
     return SizedBox(
       // 1.35 会把 Latin 字母的下行（例如 g）裁掉约 1~2px，
       // 尤其在副标题使用 12px 字号时很明显；给默认行高留出完整下行空间。
-      height: fontSize * 1.5,
+      height: fontSize * 1.5 * MediaQuery.textScalerOf(context).scale(1),
       child: MarqueeText(
         text: text,
         style: TextStyle(
@@ -601,7 +600,7 @@ class HubPageTitle extends StatelessWidget {
         child: Semantics(
           header: true,
           child: Text(
-            title,
+            context.featureText(title),
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                   fontSize: 30,
                   fontWeight: FontWeight.w800,

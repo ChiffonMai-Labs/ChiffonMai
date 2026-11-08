@@ -46,6 +46,9 @@ class RecommendResultCard extends StatelessWidget {
 
   /// 说明行，每条一行，放不下时换行。
   final List<String> details;
+
+  /// 每条说明都保持一行，放不下时等比缩小。
+  final bool singleLineDetails;
   final Color? detailColor;
 
   /// 紧跟在主要数值下面的高亮文字（可提升的 Rating）。
@@ -65,6 +68,7 @@ class RecommendResultCard extends StatelessWidget {
     required this.onTap,
     this.metricColor,
     this.details = const [],
+    this.singleLineDetails = false,
     this.detailColor,
     this.highlight,
   });
@@ -116,14 +120,25 @@ class RecommendResultCard extends StatelessWidget {
                 for (final detail in details)
                   Padding(
                     padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                      detail,
-                      style: TextStyle(
-                        fontSize: 11,
-                        height: 1.3,
-                        color: detailColor ?? scheme.onSurfaceVariant,
-                      ),
-                    ),
+                    child: () {
+                      final text = Text(
+                        detail,
+                        maxLines: singleLineDetails ? 1 : null,
+                        softWrap: !singleLineDetails,
+                        style: TextStyle(
+                          fontSize: 11,
+                          height: 1.3,
+                          color: detailColor ?? scheme.onSurfaceVariant,
+                        ),
+                      );
+                      return singleLineDetails
+                          ? FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerLeft,
+                              child: text,
+                            )
+                          : text;
+                    }(),
                   ),
               ],
             ),

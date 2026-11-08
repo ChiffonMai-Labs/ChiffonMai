@@ -8,6 +8,8 @@
 /// `_NumberInputField` 与 `_maxAchievementFor`），这里原样搬过来供它和新代码共用。
 library;
 
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+
 /// 达成率硬上限：游戏里不存在更高的成绩，输入框直接拒绝。
 const double achievementHardMax = 999.9999;
 
@@ -54,17 +56,21 @@ NumberCheck checkNumberInput(
   final text = raw.trim();
   if (text.isEmpty) return (value: null, error: null);
   final value = double.tryParse(text);
-  if (value == null) return (value: null, error: '请输入数字');
-  if (value < 0) return (value: null, error: '不能为负数');
-  if (!allowZero && value == 0) return (value: null, error: '必须大于 0');
+  if (value == null) return (value: null, error: appL10n.flowEnterANumber);
+  if (value < 0) return (value: null, error: appL10n.flowCannotBeNegative);
+  if (!allowZero && value == 0)
+    return (value: null, error: appL10n.flowMustBeGreaterThan0);
   if (value > hardMax) {
-    return (value: null, error: '不得超过 ${formatLimit(hardMax)}');
+    return (
+      value: null,
+      error: appL10n.flowMustNotExceedP0((formatLimit(hardMax)).toString())
+    );
   }
   if (limit != null && limit > 0 && value > limit) {
     return (
       value: null,
-      error: '不得超过 ${formatLimit(limit)}'
-          '${limitLabel.isEmpty ? '' : '（$limitLabel）'}',
+      error: appL10n.flowMustNotExceedP0P1((formatLimit(limit)).toString(),
+          (limitLabel.isEmpty ? '' : '（$limitLabel）').toString()),
     );
   }
   return (value: value, error: null);
@@ -80,5 +86,6 @@ String formatLimit(num value) => value == value.roundToDouble()
 /// 刻意写成"上限 X"而不是"不得超过 X"：**这是信息，不是错误** ——
 /// 与 [checkNumberInput] 给出的 errorText 用同一句话，用户会分不清
 /// 是在提示还是在拒绝。拿不到上限（[limit] <= 0）时返回 null。
-String? limitHelperText(num limit, String label) =>
-    limit > 0 ? '上限 ${formatLimit(limit)}（$label）' : null;
+String? limitHelperText(num limit, String label) => limit > 0
+    ? appL10n.flowLimitP0P1((formatLimit(limit)).toString(), (label).toString())
+    : null;

@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'dart:async';
 import 'dart:convert';
 
@@ -24,7 +25,9 @@ import 'package:my_first_flutter_app/page/AutoSyncPage.dart';
 import 'package:my_first_flutter_app/page/HomePage.dart';
 
 void main() {
-  TestWidgetsFlutterBinding.ensureInitialized();
+  // 断言的是简体中文提示，固定系统语言，不受跑测试机器的语言影响。
+  TestWidgetsFlutterBinding.ensureInitialized().platformDispatcher.localesTestValue =
+      const [Locale('zh')];
   final service = AutoSyncService.instance;
   final headers = <String>[];
   final methods = <String>[];

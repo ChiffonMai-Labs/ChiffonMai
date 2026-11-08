@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:my_first_flutter_app/entity/Multiplayer/PlayerEntity.dart';
 import 'package:my_first_flutter_app/entity/Multiplayer/GameType.dart';
+import '../../utils/GuessPixelation.dart';
 
 /// 房间实体类
 class RoomEntity {
@@ -55,6 +56,8 @@ class RoomEntity {
   // ==================== 游戏模式专属设置 ====================
   /// 模糊程度（0-100），用于 blurred 模式
   final int blurLevel;
+  /// 像素曲绘破坏程度（0–100），创建后整个房间保持一致。
+  final int pixelationLevel;
 
   /// 音频片段播放时长（秒），用于 audio 模式
   final int playDuration;
@@ -87,6 +90,7 @@ class RoomEntity {
 
   /// 模式专属设置的默认值（与构造参数默认值同一份，供 [withModeSettingsFallback] 判断）。
   static const int defaultFlashDurationMs = 300;
+  static const int defaultPixelationLevel = GuessPixelation.defaultLevel;
   static const int defaultTileCount = 1000;
   static const int defaultTileRevealIntervalMs = 1500;
   static const int defaultPeekDurationSeconds = 8;
@@ -112,6 +116,7 @@ class RoomEntity {
     this.masterMaxDx = 15.0,
     this.selectedGenres = const [],
     this.blurLevel = 50,
+    this.pixelationLevel = defaultPixelationLevel,
     this.playDuration = 5,
     this.audioRate = 1.25,
     this.songCount = 3,
@@ -137,8 +142,10 @@ class RoomEntity {
   /// 判定方式：本实体里仍是**默认值**、而 [fallback] 里是**非默认值**时，
   /// 采用 fallback 的值。房主真的用默认值建房时两边都是默认值，不受影响。
   RoomEntity withModeSettingsFallback(RoomEntity? fallback) {
-    if (fallback == null) return this;
+    if (fallback == null || fallback.roomId != roomId) return this;
     return copyWith(
+      pixelationLevel: pixelationLevel == defaultPixelationLevel
+          ? fallback.pixelationLevel : pixelationLevel,
       flashDurationMs: flashDurationMs == defaultFlashDurationMs
           ? fallback.flashDurationMs
           : flashDurationMs,
@@ -239,6 +246,8 @@ class RoomEntity {
       selectedGenres:
           parseStringList(json['selectedGenres'] ?? json['selected_genres']),
       blurLevel: parseInt(json['blur_level'] ?? json['blurLevel'], 50),
+      pixelationLevel: GuessPixelation.normalize(parseInt(
+          json['pixelation_level'] ?? json['pixelationLevel'], defaultPixelationLevel)),
       playDuration: parseInt(json['play_duration'] ?? json['playDuration'], 5),
       audioRate: parseDouble(json['audio_rate'] ?? json['audioRate'], 1.25),
       songCount: parseInt(json['song_count'] ?? json['songCount'], 3),
@@ -286,6 +295,7 @@ class RoomEntity {
       'master_max_dx': masterMaxDx,
       'selected_genres': selectedGenres,
       'blur_level': blurLevel,
+      'pixelation_level': pixelationLevel,
       'play_duration': playDuration,
       'audio_rate': audioRate,
       'song_count': songCount,
@@ -319,6 +329,7 @@ class RoomEntity {
     double? masterMaxDx,
     List<String>? selectedGenres,
     int? blurLevel,
+    int? pixelationLevel,
     int? playDuration,
     double? audioRate,
     int? songCount,
@@ -349,6 +360,7 @@ class RoomEntity {
       masterMaxDx: masterMaxDx ?? this.masterMaxDx,
       selectedGenres: selectedGenres ?? this.selectedGenres,
       blurLevel: blurLevel ?? this.blurLevel,
+      pixelationLevel: pixelationLevel ?? this.pixelationLevel,
       playDuration: playDuration ?? this.playDuration,
       audioRate: audioRate ?? this.audioRate,
       songCount: songCount ?? this.songCount,
@@ -373,6 +385,9 @@ class RoomEntity {
         return GameType.cover;
       case 'blurred':
         return GameType.blurred;
+      case 'pixelated':
+      case '像素曲绘':
+        return GameType.pixelated;
       case 'reverseAudio':
       case '倒放音频':
         return GameType.reverseAudio;

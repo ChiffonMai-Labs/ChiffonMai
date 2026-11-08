@@ -1,3 +1,5 @@
+import '../l10n/LocalizationsExtension.dart';
+import '../l10n/FeatureLocalizations.dart';
 import 'package:flutter/material.dart';
 import 'HubComponents.dart';
 import '../utils/AppDesignTokens.dart';
@@ -32,6 +34,7 @@ import '../service/History/ChartHistoryStore.dart';
 import '../utils/AppTheme.dart';
 import '../utils/CoverUtil.dart';
 import '../utils/CurrentDataSourceNotifier.dart';
+import '../widgets/MarqueeText.dart';
 
 class ScoreHubPage extends StatefulWidget {
   const ScoreHubPage({super.key});
@@ -140,7 +143,7 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('排行榜',
+              Text(context.featureText('排行榜'),
                   style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
               const SizedBox(height: 10),
               Wrap(
@@ -152,26 +155,26 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
                     onTap: () => _open(context, const RatingRankListPage()),
                   ),
                   LinkPill(
-                    label: '拟合总 Rating',
+                    label: context.featureText('拟合总 Rating'),
                     onTap: () =>
                         _open(context, const FittedRatingRankingListPage()),
                   ),
                   LinkPill(
-                    label: '平均达成率',
+                    label: context.featureText('平均达成率'),
                     onTap: () => _open(
                         context,
                         const AvgScoreRankingListPage(
                             initialMetric: AvgMetric.achievement)),
                   ),
                   LinkPill(
-                    label: '平均DX分数达成率',
+                    label: context.featureText('平均DX分数达成率'),
                     onTap: () => _open(
                         context,
                         const AvgScoreRankingListPage(
                             initialMetric: AvgMetric.dx)),
                   ),
                   LinkPill(
-                    label: '特殊',
+                    label: context.featureText('特殊'),
                     onTap: () =>
                         _open(context, const SpecialRankingListPage()),
                   ),
@@ -195,7 +198,7 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
             const SizedBox(width: gap),
             Expanded(
               child: _goalTile(
-                  context, '计算工具', Icons.calculate_outlined, null),
+                  context, context.l10n.featureCalculators2, Icons.calculate_outlined, null),
             ),
           ],
         ),
@@ -227,11 +230,11 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
           builder: (sheet, _, __) => Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              item(sheet, '单曲 Rating 计算', '根据达成率计算单首 rating',
+              item(sheet, '单曲 Rating 计算', context.l10n.featureCalculateASongRatingFromAchievement,
                   Icons.calculate_outlined, const SingleRatingCalculator()),
-              item(sheet, '达成率计算', '根据判定详情算出达成率', Icons.percent_rounded,
+              item(sheet, '达成率计算', context.l10n.featureCalculateAchievementFromJudgements, Icons.percent_rounded,
                   const AchievementRateCalculator()),
-              item(sheet, '达成率反推', '根据判定详情推出绝赞详情', Icons.replay_rounded,
+              item(sheet, '达成率反推', context.l10n.featureInferBREAKDetailsFromJudgements, Icons.replay_rounded,
                   const AchievementFullReverseCalculator()),
             ],
           ),
@@ -261,9 +264,7 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
             child: Icon(icon, size: 18, color: tint.foreground),
           ),
           const SizedBox(height: 8),
-          Text(title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+          MarqueeText(text: context.featureText(title),
               style:
                   const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
         ],
@@ -282,14 +283,14 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
           Icon(Icons.search_rounded, size: 20, color: scheme.onSurfaceVariant),
           const SizedBox(width: 10),
           Expanded(
-            child: Text('查成绩：曲名、定数、曲目 ID',
+            child: Text(context.featureText('查成绩：曲名、定数、曲目 ID'),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style:
                     TextStyle(fontSize: 15, color: scheme.onSurfaceVariant)),
           ),
           IconButton(
-            tooltip: '个性化成绩查询',
+            tooltip: context.featureText('个性化成绩查询'),
             onPressed: () => _open(context, const PersonalizedScorePage()),
             style: IconButton.styleFrom(
               backgroundColor: AppSurfaces.track(context),
@@ -320,7 +321,7 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
               children: [
                 SizedBox(
                   width: labelWidth,
-                  child: Text(label,
+                  child: Text(context.featureText(label),
                       style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
@@ -368,7 +369,7 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
           ),
           const SizedBox(height: 12),
           if (_b35Covers.isEmpty && _b15Covers.isEmpty)
-            Text('刷新数据后这里会显示 Best35 与 Best15',
+            Text(context.featureText('刷新数据后这里会显示 Best35 与 Best15'),
                 style:
                     TextStyle(fontSize: 12, color: scheme.onSurfaceVariant))
           else ...[
@@ -382,21 +383,21 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
             runSpacing: 6,
             children: [
               LinkPill(
-                  label: '拟合',
+                  label: context.featureText('拟合'),
                   onTap: () => _open(context, const DiffBest50Page())),
               LinkPill(
-                  label: '个性化',
+                  label: context.featureText('个性化'),
                   onTap: () =>
                       _open(context, const PersonalizedBest50Page())),
               LinkPill(
-                  label: '个性化拟合',
+                  label: context.featureText('个性化拟合'),
                   onTap: () =>
                       _open(context, const PersonalizedDiffBest50Page())),
               LinkPill(
-                  label: '理想',
+                  label: context.featureText('理想'),
                   onTap: () => _open(context, const IdealBest50Page())),
               LinkPill(
-                  label: '自定义',
+                  label: context.featureText('自定义'),
                   onTap: () => _open(context, const CustomBest50Page())),
             ],
           ),
@@ -414,7 +415,7 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text('Rating 历史',
+          Text(context.featureText('Rating 历史'),
               style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
           if (series.length >= 2) ...[
@@ -429,8 +430,8 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
           ],
           Text(
               series.isEmpty
-                  ? '同步后开始记录'
-                  : '最新 ${series.last} · 共 ${series.length} 次记录',
+                  ? context.featureText('同步后开始记录')
+                  : context.l10n.hubRatingRecords(series.last, series.length),
               style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
         ],
       ),
@@ -447,7 +448,7 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text('成绩提升',
+          Text(context.featureText('成绩提升'),
               style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
           if (days.isNotEmpty) ...[
@@ -477,7 +478,7 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
           ),
             const SizedBox(height: 8),
           ],
-          Text(days.isEmpty ? '同步后开始记录' : '按日回顾',
+          Text(days.isEmpty ? context.featureText('同步后开始记录') : context.featureText('按日回顾'),
               style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
         ],
       ),
@@ -689,9 +690,9 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
             icon: Icons.analytics_rounded,
             hero: _buildOverview(context),
             children: [
-              const AppSectionHeader(
-                title: '全部功能',
-                subtitle: '点星标加入首页「常用」',
+              AppSectionHeader(
+                title: context.featureText('全部功能'),
+                subtitle: context.featureText('点星标加入首页「常用」'),
               ),
               const SizedBox(height: 4),
               for (final section in sections) ...[

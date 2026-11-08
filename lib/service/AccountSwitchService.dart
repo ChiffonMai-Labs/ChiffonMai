@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -16,6 +17,7 @@ import 'History/ChartHistoryStore.dart';
 import 'PaiziProgressService.dart';
 import 'PersonalizedScoreService.dart';
 import 'PlayerExperienceService.dart';
+import '../utils/AppTaskActivity.dart';
 
 enum SwitchOutcome { switched, noCache, sameSource, busy, failed }
 
@@ -24,7 +26,20 @@ enum SwitchOutcome { switched, noCache, sameSource, busy, failed }
 class AccountSwitchService {
   AccountSwitchService._();
 
-  static bool _busy = false;
+  static bool _busyValue = false;
+  static VoidCallback? _finishAppTask;
+  static bool get _busy => _busyValue;
+  static set _busy(bool value) {
+    if (_busyValue == value) return;
+    _busyValue = value;
+    if (value) {
+      _finishAppTask = AppTaskActivity.begin();
+    } else {
+      _finishAppTask?.call();
+      _finishAppTask = null;
+    }
+  }
+
   static int revision = 0;
   static final Object _refreshScope = Object();
   static final Object _refreshGuard = Object();
@@ -33,7 +48,7 @@ class AccountSwitchService {
   static bool get isBusy => _busy;
 
   static void requireIdle() {
-    if (_busy) throw StateError('账号数据正在更新，请完成后重试');
+    if (_busy) throw StateError(appL10n.svcAccountDataIsUpdatingTryAgainWhen);
   }
 
   /// 同步等待期间允许切换账号；自动刷新在真正获取活动槽锁时再核对快照。
@@ -78,7 +93,7 @@ class AccountSwitchService {
     }
     if (!await prefs.setString(
         CacheKeyConstant.accountRotationPending, json.encode(checkpoint))) {
-      throw StateError('无法保存账号恢复信息');
+      throw StateError(appL10n.svcCouldNotSaveAccountRecoveryInformation);
     }
   }
 
@@ -127,7 +142,7 @@ class AccountSwitchService {
     final previous = CurrentDataSourceNotifier.instance.value;
     try {
       if (guard != null && !guard()) {
-        throw StateError('账号已切换，已跳过本次同步后的数据刷新');
+        throw StateError(appL10n.svcTheAccountChangedSoTheDataRefresh);
       }
       revision++;
       await AccountStore.writeActiveSlotToArchive(previous.key);
@@ -145,8 +160,8 @@ class AccountSwitchService {
         final prefs = await SharedPreferences.getInstance();
         final player = prefs.getString(source.userIdCacheKey);
         if (player != null) {
-          unawaited(PlayerExperienceService.instance
-              .onAccountAuthenticated(player));
+          unawaited(
+              PlayerExperienceService.instance.onAccountAuthenticated(player));
         }
       }
       return result;
@@ -172,7 +187,7 @@ class AccountSwitchService {
     if (id.isEmpty) throw StateError('账号 ID 不能为空');
     final expected = Zone.current[_expectedRefreshIdentity] as String?;
     if (expected != null && expected.isNotEmpty && id != expected) {
-      throw StateError('返回的数据属于其他账号，已取消本次自动刷新');
+      throw StateError(appL10n.svcTheReturnedDataBelongsToAnotherAccount);
     }
     final prefs = await SharedPreferences.getInstance();
     final oldId = RefreshDataSource.parseUserIdMarker(
@@ -245,12 +260,12 @@ class AccountSwitchService {
           final ok = entry.value == null
               ? await prefs.remove(entry.key)
               : await prefs.setString(entry.key, entry.value as String);
-          if (!ok) throw StateError('账号存档回滚失败');
+          if (!ok) throw StateError(appL10n.svcCouldNotRollBackTheAccountArchive);
         }
       }
     }
     if (!RefreshDataSource.values.any((s) => s.key == key)) {
-      throw StateError('无法识别待恢复的账号');
+      throw StateError(appL10n.svcCouldNotIdentifyTheAccountToRestore);
     }
     await _activate(RefreshDataSource.fromKey(key));
     await _finish();
@@ -285,7 +300,7 @@ class AccountSwitchService {
         rawOwners =
             json.encode({for (final e in metas.entries) e.key: e.value.id});
         if (!await prefs.setString(ownersKey, rawOwners)) {
-          throw StateError('无法保存历史迁移信息');
+          throw StateError(appL10n.svcCouldNotSaveHistoryMigrationInformation);
         }
       }
       final owners = Map<String, dynamic>.from(json.decode(rawOwners) as Map);

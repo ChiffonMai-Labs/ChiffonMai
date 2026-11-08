@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -30,11 +31,11 @@ enum RefreshDataSource {
   String get displayName {
     switch (this) {
       case RefreshDataSource.luoxue:
-        return '落雪';
+        return appL10n.featureLxns;
       case RefreshDataSource.awmc:
         return 'AWMC NET';
       case RefreshDataSource.shuiyu:
-        return '水鱼';
+        return appL10n.featureFish;
     }
   }
 
@@ -46,11 +47,11 @@ enum RefreshDataSource {
   String get shortDisplayName {
     switch (this) {
       case RefreshDataSource.luoxue:
-        return '落雪';
+        return appL10n.featureLxns;
       case RefreshDataSource.awmc:
         return 'AWMC';
       case RefreshDataSource.shuiyu:
-        return '水鱼';
+        return appL10n.featureFish;
     }
   }
 

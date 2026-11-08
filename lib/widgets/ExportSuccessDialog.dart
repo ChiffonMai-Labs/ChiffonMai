@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/FeatureLocalizations.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../utils/AppDesignTokens.dart';
@@ -25,8 +27,8 @@ Future<void> showExportSuccessDialog(
     builder: (dialogContext) => _ExportSuccessDialog(
       filePath: filePath,
       fileName: fileName,
-      title: title,
-      successPrefix: successPrefix,
+      title: context.featureText(title),
+      successPrefix: context.featureText(successPrefix),
       fallbackPath: fallbackPath,
       warning: warning,
       showViewImage: showViewImage,
@@ -64,7 +66,7 @@ class _ExportSuccessDialogState extends State<_ExportSuccessDialog> {
     await Clipboard.setData(ClipboardData(text: widget.filePath));
     if (!mounted) return;
     setState(() => _copied = true);
-    AppToast.show('路径已复制到剪贴板');
+    AppToast.show(context.l10n.flowPathCopiedToClipboard);
   }
 
   Future<void> _viewImage() async {
@@ -79,7 +81,8 @@ class _ExportSuccessDialogState extends State<_ExportSuccessDialog> {
       debugPrint('查看图片失败: $error');
     }
     if (!opened) {
-      AppToast.show('没有找到能查看图片的应用', tone: AppToastTone.error);
+      AppToast.show(context.l10n.flowNoAppAvailableToViewImages,
+          tone: AppToastTone.error);
       return;
     }
     if (mounted) Navigator.of(context).pop();
@@ -109,12 +112,15 @@ class _ExportSuccessDialogState extends State<_ExportSuccessDialog> {
               child: TextButton.icon(
                 onPressed: _copyPath,
                 icon: Icon(_copied ? Icons.check : Icons.copy, size: 14),
-                label: Text(_copied ? '已复制' : '复制路径'),
+                label: Text(_copied
+                    ? context.l10n.flowCopied
+                    : context.l10n.flowCopyPath),
                 style: TextButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   minimumSize: const Size(0, 32),
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  textStyle: AppTheme.font(fontSize: 12, fontWeight: FontWeight.w600),
+                  textStyle:
+                      AppTheme.font(fontSize: 12, fontWeight: FontWeight.w600),
                 ),
               ),
             ),
@@ -134,7 +140,8 @@ class _ExportSuccessDialogState extends State<_ExportSuccessDialog> {
                 children: [
                   if (widget.fallbackPath != null)
                     Text(
-                      '公开目录不可写，文件已保存到备用路径：${widget.fallbackPath}',
+                      context.l10n.flowPublicDirectoryIsNotWritableSavedTo(
+                          (widget.fallbackPath).toString()),
                       style: warnStyle,
                     ),
                   if (widget.fallbackPath != null && widget.warning != null)
@@ -151,22 +158,23 @@ class _ExportSuccessDialogState extends State<_ExportSuccessDialog> {
         if (widget.showViewImage) ...[
           FilledButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('关闭'),
+            child: Text(context.l10n.featureClose),
           ),
           FilledButton.icon(
             onPressed: _viewImage,
             icon: const Icon(Icons.image_outlined, size: 16),
-            label: const Text('查看图片'),
+            label: Text(context.l10n.flowViewImage),
           ),
         ] else ...[
           FilledButton.tonalIcon(
             onPressed: _copyPath,
             icon: Icon(_copied ? Icons.check : Icons.copy, size: 16),
-            label: Text(_copied ? '已复制' : '复制路径'),
+            label: Text(
+                _copied ? context.l10n.flowCopied : context.l10n.flowCopyPath),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('关闭'),
+            child: Text(context.l10n.featureClose),
           ),
         ],
       ],

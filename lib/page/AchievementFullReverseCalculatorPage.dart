@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -27,11 +28,11 @@ class _AchievementFullReverseCalculatorState
   @override
   Widget build(BuildContext context) {
     return BackgroundPageScaffold(
-      title: '达成率反推',
+      title: context.l10n.featureReverseAchievementCalculator,
       resizeToAvoidBottomInset: true,
       actions: [
         IconButton(
-          tooltip: '重置',
+          tooltip: context.l10n.flowReset,
           onPressed: () => _panelKey.currentState?.reset(),
           icon: const Icon(Icons.restart_alt_rounded),
         ),
@@ -175,12 +176,12 @@ class _AchievementReversePanelState extends State<AchievementReversePanel> {
     showDialog<void>(
       context: context,
       builder: (context) => AppAlertDialog(
-        title: const Text('输入错误'),
+        title:  Text(context.l10n.flowInputError),
         content: Text(message),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('确定'),
+            child:  Text(context.l10n.featureOK),
           ),
         ],
       ),
@@ -191,16 +192,16 @@ class _AchievementReversePanelState extends State<AchievementReversePanel> {
     FocusScope.of(context).unfocus();
     final input = _rateController.text;
     if (input.isEmpty) {
-      _showErrorDialog('请输入目标达成率');
+      _showErrorDialog(context.l10n.flowEnterTargetAchievement);
       return;
     }
     final targetRate = double.tryParse(input);
     if (targetRate == null) {
-      _showErrorDialog('达成率格式错误，请输入有效的数字（如100.5000）');
+      _showErrorDialog(context.l10n.flowInvalidAchievementEnterANumberSuchAs);
       return;
     }
     if (targetRate < 0 || targetRate > 101) {
-      _showErrorDialog('达成率请输入0~101之间的数值');
+      _showErrorDialog(context.l10n.flowEnterAchievementBetween0And101);
       return;
     }
 
@@ -345,14 +346,14 @@ class _AchievementReversePanelState extends State<AchievementReversePanel> {
                 title: widget.title!,
                 trailing: TextButton(
                   onPressed: reset,
-                  child: const Text('重置'),
+                  child:  Text(context.l10n.flowReset),
                 ),
               ),
             AppCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('目标达成率',
+                  Text(context.l10n.flowTargetAchievement,
                       style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
@@ -374,7 +375,7 @@ class _AchievementReversePanelState extends State<AchievementReversePanel> {
                         fontWeight: FontWeight.w600,
                         color: scheme.onSurface),
                     decoration: InputDecoration(
-                      hintText: '例如 100.5000',
+                      hintText: context.l10n.flowEG1005000,
                       hintStyle: TextStyle(
                           fontSize: 15,
                           color: scheme.onSurfaceVariant.withValues(alpha: 0.7)),
@@ -404,9 +405,9 @@ class _AchievementReversePanelState extends State<AchievementReversePanel> {
               ),
             ),
             const SizedBox(height: AppDesignTokens.cardGap),
-            const AppSectionHeader(
-              title: '判定详情',
-              subtitle: 'BREAK 只需填大类；50落 / 100落与 GREAT 细分由反推得出',
+             AppSectionHeader(
+              title: context.l10n.flowJudgmentDetails,
+              subtitle: context.l10n.flowForBREAKEnterTheMainJudgmentCounts,
             ),
             SegmentedTabs(
               items: [
@@ -459,10 +460,10 @@ class _AchievementReversePanelState extends State<AchievementReversePanel> {
                                 strokeWidth: 2, color: scheme.onPrimary),
                           ),
                           const SizedBox(width: 10),
-                          const Text('计算中...'),
+                           Text(context.l10n.flowCalculating2),
                         ],
                       )
-                    : const Text('计算绝赞详情'),
+                    :  Text(context.l10n.flowCalculateBREAKDetails),
               ),
             ),
             if (_result != null) ...[
@@ -475,7 +476,7 @@ class _AchievementReversePanelState extends State<AchievementReversePanel> {
 
   Widget _buildResult(_ReverseResult r) {
     final scheme = Theme.of(context).colorScheme;
-    final onCard = scheme.onInverseSurface;
+    final onCard = scheme.onSurface;
     final muted = onCard.withValues(alpha: 0.72);
     Widget cell(String label, int value) => Expanded(
           child: Column(
@@ -506,7 +507,7 @@ class _AchievementReversePanelState extends State<AchievementReversePanel> {
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
-                  r.found ? '找到可行解（误差 ≤ 0.0001%）' : '没有精确解，下面是最接近的结果',
+                  r.found ? context.l10n.flowSolutionFoundError00001 : context.l10n.flowNoExactSolutionShowingTheClosestResult,
                   style: const TextStyle(
                       fontSize: 13, fontWeight: FontWeight.w700),
                 ),
@@ -516,7 +517,7 @@ class _AchievementReversePanelState extends State<AchievementReversePanel> {
           const SizedBox(height: 14),
           Text('BREAK PERFECT', style: TextStyle(fontSize: 12, color: muted)),
           const SizedBox(height: 4),
-          Row(children: [cell('50落', r.p75), cell('100落', r.p50)]),
+          Row(children: [cell(context.l10n.flow50PointLoss2, r.p75), cell(context.l10n.flow100PointLoss2, r.p50)]),
           const SizedBox(height: 12),
           Text('BREAK GREAT', style: TextStyle(fontSize: 12, color: muted)),
           const SizedBox(height: 4),
@@ -529,12 +530,12 @@ class _AchievementReversePanelState extends State<AchievementReversePanel> {
           Divider(height: 1, color: onCard.withValues(alpha: 0.18)),
           const SizedBox(height: 10),
           Text(
-            '目标 ${r.target}% · 基础 ${r.base}% · 额外 ${r.extra}%',
+            context.l10n.flowTargetP0BaseP1ExtraP2((r.target).toString(), (r.base).toString(), (r.extra).toString()),
             style: TextStyle(fontSize: 12, color: muted),
           ),
           const SizedBox(height: 2),
           Text(
-            '总达成率 ${r.total}% · ${r.found ? '误差' : '最小误差'} ${r.error}%',
+            context.l10n.flowTotalAchievementP0P1P2((r.total).toString(), (r.found ? context.l10n.flowError2 : context.l10n.flowMinimumError).toString(), (r.error).toString()),
             style: TextStyle(fontSize: 12, color: muted),
           ),
         ],

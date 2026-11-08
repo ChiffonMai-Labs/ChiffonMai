@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -22,6 +23,9 @@ class LuoXueOAuthManager {
   // 刷新令牌会轮换，多个并发请求若同时刷新会让其中一个拿到失效的旧令牌。
   // 用单飞任务把同一时刻的刷新合并成一次。
   Future<OAuthTokenResponse?>? _refreshInFlight;
+  final ValueNotifier<bool> _authorizationState = ValueNotifier(false);
+  ValueListenable<bool> get authorizationState => _authorizationState;
+  int _credentialRevision = 0;
 
   // OAuth配置常量
   static const String _clientId = '56a76019-2e7b-4650-abeb-082b8d5dede6';
@@ -94,7 +98,7 @@ class LuoXueOAuthManager {
         _oauthLog('✅ 令牌获取成功，已保存到缓存');
         return tokenResponse;
       } else {
-        String errorMsg = '未知错误';
+        String errorMsg = appL10n.featureUnknownError;
         try {
           final errorData = json.decode(response.body);
           errorMsg = errorData['message'] as String? ?? errorMsg;
@@ -164,20 +168,26 @@ class LuoXueOAuthManager {
 
   /// 获取当前访问令牌
   Future<String?> getAccessToken() async {
+    final revision = _credentialRevision;
     final token = await _getAccessToken();
     final expiresAt = await _getExpiresAt();
     if (token == null ||
         (expiresAt != null &&
             DateTime.now().millisecondsSinceEpoch + 60000 >= expiresAt)) {
       final refreshed = await refreshToken();
-      return refreshed?.accessToken ??
+      final resolved = refreshed?.accessToken ??
           (token != null &&
                   expiresAt != null &&
                   DateTime.now().millisecondsSinceEpoch < expiresAt
               ? token
               : null);
+      if (revision == _credentialRevision) {
+        _authorizationState.value = resolved != null;
+      }
+      return resolved;
     }
 
+    if (revision == _credentialRevision) _authorizationState.value = true;
     return token;
   }
 
@@ -194,6 +204,8 @@ class LuoXueOAuthManager {
     await SecureCredentialStore.delete(_refreshTokenKey);
     await prefs.remove(_expiresAtKey);
     await prefs.remove(_tokenTypeKey);
+    _credentialRevision++;
+    _authorizationState.value = false;
   }
 
   /// 获取带Bearer授权头的请求头
@@ -221,6 +233,8 @@ class LuoXueOAuthManager {
         DateTime.now().millisecondsSinceEpoch + (token.expiresIn * 1000);
     await prefs.setInt(_expiresAtKey, expiresAt);
     await prefs.setString(_tokenTypeKey, token.tokenType);
+    _credentialRevision++;
+    _authorizationState.value = true;
   }
 
   Future<String?> _getAccessToken() async {

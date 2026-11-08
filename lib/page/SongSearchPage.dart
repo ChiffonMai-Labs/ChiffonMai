@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
+import 'package:my_first_flutter_app/service/CustomTagStore.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import 'package:my_first_flutter_app/manager/DivingFish/MaimaiMusicDataManager.dart';
@@ -39,6 +41,16 @@ class SongSearchPage extends StatefulWidget {
 }
 
 class _SongSearchPageState extends State<SongSearchPage> {
+  /// 使用数据源自带的名称；缺少译文时保留原名，不改变标签 ID。
+  String _tagName(LocalizedName name) {
+    final translated = switch (context.l10n.localeName.split('_').first) {
+      'en' => name.en,
+      'ja' => name.ja,
+      _ => name.zhHans,
+    };
+    return translated.trim().isEmpty ? name.zhHans : translated;
+  }
+
   // 状态变量
   List<dynamic> _allSearchResults = []; // 所有搜索结果
   List<dynamic> _currentPageResults = []; // 当前页的结果
@@ -86,6 +98,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
   bool _showVersionFilter = false;
   bool _showGenreFilter = false;
   bool _showTagFilter = false;
+
   /// 当前展开的筛选（胶囊的 key，见 [_filterShown]），null = 都收起。
   String? _activeFilter;
   bool _onlyDx = false;
@@ -435,7 +448,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                   child: Row(
                     children: [
                       Text(
-                        '难度筛选',
+                        context.l10n.flowDifficultyFilter,
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
@@ -533,7 +546,9 @@ class _SongSearchPageState extends State<SongSearchPage> {
             ? _difficultyConstantFilter
             : null;
     if (difficultyFilter != null && !difficultyFilter.isValid) {
-      setState(() => _resetSearchResultState(error: '请先修正按难度组合的定数输入'));
+      setState(() => _resetSearchResultState(
+          error:
+              context.l10n.flowCorrectTheDifficultyCombinationConstantsFirst));
       return;
     }
     // 检查是否所有筛选条件都为空
@@ -845,7 +860,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
     } catch (e) {
       if (!mounted || generation != _searchGeneration) return;
       setState(() {
-        _errorMessage = '搜索失败：$e';
+        _errorMessage = context.l10n.flowSearchFailedP0((e).toString());
         _isSearching = false;
       });
     }
@@ -959,7 +974,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
           Row(
             children: [
               Expanded(
-                child: Text('最近搜索',
+                child: Text(context.l10n.flowRecentSearches,
                     style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
@@ -970,7 +985,8 @@ class _SongSearchPageState extends State<SongSearchPage> {
                 style: TextButton.styleFrom(
                     minimumSize: const Size(44, 32),
                     padding: const EdgeInsets.symmetric(horizontal: 8)),
-                child: const Text('清空', style: TextStyle(fontSize: 12)),
+                child: Text(context.l10n.featureClear,
+                    style: TextStyle(fontSize: 12)),
               ),
             ],
           ),
@@ -1071,7 +1087,9 @@ class _SongSearchPageState extends State<SongSearchPage> {
     setState(() {
       _difficultyConstantFilter = _readDifficultyConstants();
       if (!_difficultyConstantFilter.isValid) {
-        _resetSearchResultState(error: '请先修正按难度组合的定数输入');
+        _resetSearchResultState(
+            error:
+                context.l10n.flowCorrectTheDifficultyCombinationConstantsFirst);
       } else if (!_hasSearchCriteria) {
         _resetSearchResultState();
       } else {
@@ -1102,14 +1120,13 @@ class _SongSearchPageState extends State<SongSearchPage> {
     final scheme = Theme.of(context).colorScheme;
     final utageActive = _difficultyConstantFilter.hasUtageInput;
     final standardActive = _difficultyConstantFilter.hasStandardInput;
-    final hintStyle = TextStyle(
-        fontSize: 12, height: 1.4, color: scheme.onSurfaceVariant);
+    final hintStyle =
+        TextStyle(fontSize: 12, height: 1.4, color: scheme.onSurfaceVariant);
     final motion = AppDesignTokens.motion(context, AppDesignTokens.fastMotion);
 
     Widget row(int index) {
-      final enabled = index == ChartDifficulty.utage
-          ? !standardActive
-          : !utageActive;
+      final enabled =
+          index == ChartDifficulty.utage ? !standardActive : !utageActive;
       final controller = _difficultyLevelControllers[index]!;
       final error = _difficultyConstantFilter.errors[index];
       final color = index == ChartDifficulty.utage
@@ -1183,7 +1200,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                           color: scheme.onSurface,
                         ),
                         decoration: InputDecoration(
-                          hintText: '如 13.7 或 13.4-14',
+                          hintText: context.l10n.flowEG137Or134,
                           isDense: true,
                           filled: false,
                           border: InputBorder.none,
@@ -1197,7 +1214,8 @@ class _SongSearchPageState extends State<SongSearchPage> {
                     ),
                     if (controller.text.isNotEmpty)
                       IconButton(
-                        tooltip: '清空$label定数',
+                        tooltip: context.l10n
+                            .flowClearP0Constant((label).toString()),
                         visualDensity: VisualDensity.compact,
                         onPressed: () {
                           controller.clear();
@@ -1229,7 +1247,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('填写的难度须全部满足，留空不限制。与上方「难度」及其它筛选条件取交集。',
+        Text(context.l10n.flowEveryEnteredDifficultyMustMatchBlankFields,
             style: hintStyle),
         for (final index in ChartDifficulty.indices)
           if (index != ChartDifficulty.utage) row(index),
@@ -1243,8 +1261,9 @@ class _SongSearchPageState extends State<SongSearchPage> {
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(
                       utageActive
-                          ? '已填写 UTAGE，普通难度暂不可用；清空后恢复。'
-                          : '已填写普通难度，UTAGE 暂不可用；全部清空后恢复。',
+                          ? context.l10n.flowUTAGEIsFilledInSoNormalDifficulties
+                          : context
+                              .l10n.flowNormalDifficultiesAreFilledInSoUTAGE,
                       style: hintStyle.copyWith(color: scheme.primary),
                     ),
                   )
@@ -1290,7 +1309,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                   child: Row(
                     children: [
                       Text(
-                        '定数筛选',
+                        context.l10n.flowConstantFilter,
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
@@ -1330,8 +1349,9 @@ class _SongSearchPageState extends State<SongSearchPage> {
                 AnimatedChoiceBar<_ConstantFilterMode>(
                   values: _ConstantFilterMode.values,
                   value: _constantFilterMode,
-                  label: (mode) =>
-                      mode == _ConstantFilterMode.anyChart ? '任意难度' : '按难度组合',
+                  label: (mode) => mode == _ConstantFilterMode.anyChart
+                      ? context.l10n.flowAnyDifficulty
+                      : context.l10n.flowDifficultyCombination,
                   onChanged: _setConstantFilterMode,
                 ),
                 if (_constantFilterMode == _ConstantFilterMode.anyChart) ...[
@@ -1345,7 +1365,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                           ? _clearActiveLevelFilter
                           : null,
                       icon: const Icon(Icons.clear, size: 16),
-                      label: const Text('清空定数'),
+                      label: Text(context.l10n.flowClearConstants),
                     )),
                 AnimatedSize(
                   duration: AppDesignTokens.motion(
@@ -1353,50 +1373,51 @@ class _SongSearchPageState extends State<SongSearchPage> {
                   curve: AppDesignTokens.emphasizedCurve,
                   alignment: Alignment.topCenter,
                   child: FadeSwitcher(
-                  value: _constantFilterMode,
-                  sizeFollowsCurrent: true,
-                  alignment: Alignment.topCenter,
-                  child: _constantFilterMode == _ConstantFilterMode.perDifficulty
-                  ? _buildDifficultyConstantFields()
-                  : Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _minLevelController,
-                          keyboardType: TextInputType.number,
-                          decoration: InputDecoration(
-                            hintText: '最小值',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(4.0),
-                            ),
-                            contentPadding: EdgeInsets.symmetric(
-                                vertical: 8, horizontal: 10),
+                    value: _constantFilterMode,
+                    sizeFollowsCurrent: true,
+                    alignment: Alignment.topCenter,
+                    child: _constantFilterMode ==
+                            _ConstantFilterMode.perDifficulty
+                        ? _buildDifficultyConstantFields()
+                        : Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _minLevelController,
+                                  keyboardType: TextInputType.number,
+                                  decoration: InputDecoration(
+                                    hintText: context.l10n.flowMinimum,
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(4.0),
+                                    ),
+                                    contentPadding: EdgeInsets.symmetric(
+                                        vertical: 8, horizontal: 10),
+                                  ),
+                                  onChanged: (value) {
+                                    _debouncedFilter();
+                                  },
+                                ),
+                              ),
+                              const Text(' - '),
+                              Expanded(
+                                child: TextField(
+                                  controller: _maxLevelController,
+                                  keyboardType: TextInputType.number,
+                                  decoration: InputDecoration(
+                                    hintText: context.l10n.flowMaximum,
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(4.0),
+                                    ),
+                                    contentPadding: EdgeInsets.symmetric(
+                                        vertical: 8, horizontal: 10),
+                                  ),
+                                  onChanged: (value) {
+                                    _debouncedFilter();
+                                  },
+                                ),
+                              ),
+                            ],
                           ),
-                          onChanged: (value) {
-                            _debouncedFilter();
-                          },
-                        ),
-                      ),
-                      const Text(' - '),
-                      Expanded(
-                        child: TextField(
-                          controller: _maxLevelController,
-                          keyboardType: TextInputType.number,
-                          decoration: InputDecoration(
-                            hintText: '最大值',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(4.0),
-                            ),
-                            contentPadding: EdgeInsets.symmetric(
-                                vertical: 8, horizontal: 10),
-                          ),
-                          onChanged: (value) {
-                            _debouncedFilter();
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
                   ),
                 ),
               ],
@@ -1414,7 +1435,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
     if (_minNotesController.text.isNotEmpty ||
         _maxNotesController.text.isNotEmpty) {
       selectedNotesText =
-          '${_minNotesController.text.isEmpty ? '0' : _minNotesController.text} - ${_maxNotesController.text.isEmpty ? '不限' : _maxNotesController.text}';
+          '${_minNotesController.text.isEmpty ? '0' : _minNotesController.text} - ${_maxNotesController.text.isEmpty ? context.l10n.flowAny : _maxNotesController.text}';
     }
 
     return Column(
@@ -1435,7 +1456,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                   child: Row(
                     children: [
                       Text(
-                        '物量筛选',
+                        context.l10n.flowNoteCountFilter,
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
@@ -1478,7 +1499,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                     controller: _minNotesController,
                     keyboardType: TextInputType.number,
                     decoration: InputDecoration(
-                      hintText: '最少物量',
+                      hintText: context.l10n.flowMinimumNotes,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(4.0),
                       ),
@@ -1496,7 +1517,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                     controller: _maxNotesController,
                     keyboardType: TextInputType.number,
                     decoration: InputDecoration(
-                      hintText: '最多物量',
+                      hintText: context.l10n.flowMaximumNotes,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(4.0),
                       ),
@@ -1523,7 +1544,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
     if (_minBpmController.text.isNotEmpty ||
         _maxBpmController.text.isNotEmpty) {
       selectedBpmText =
-          '${_minBpmController.text.isEmpty ? '0' : _minBpmController.text} - ${_maxBpmController.text.isEmpty ? '不限' : _maxBpmController.text}';
+          '${_minBpmController.text.isEmpty ? '0' : _minBpmController.text} - ${_maxBpmController.text.isEmpty ? context.l10n.flowAny : _maxBpmController.text}';
     }
 
     return Column(
@@ -1544,7 +1565,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                   child: Row(
                     children: [
                       Text(
-                        'BPM筛选',
+                        context.l10n.flowBPMFilter,
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
@@ -1587,7 +1608,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                     controller: _minBpmController,
                     keyboardType: TextInputType.number,
                     decoration: InputDecoration(
-                      hintText: '最小 BPM',
+                      hintText: context.l10n.flowMinimumBPM,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(4.0),
                       ),
@@ -1605,7 +1626,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                     controller: _maxBpmController,
                     keyboardType: TextInputType.number,
                     decoration: InputDecoration(
-                      hintText: '最大 BPM',
+                      hintText: context.l10n.flowMaximumBPM,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(4.0),
                       ),
@@ -1650,7 +1671,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                   child: Row(
                     children: [
                       Text(
-                        '版本筛选',
+                        context.l10n.flowVersionFilter,
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
@@ -1740,7 +1761,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                   child: Row(
                     children: [
                       Text(
-                        '流派筛选',
+                        context.l10n.flowGenreFilter,
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
@@ -1810,7 +1831,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
   Widget _buildTagFilter(double screenWidth, double screenHeight) {
     // 生成已选内容文本
     String selectedTagsText = _selectedTagIds
-        .map((tagId) => _tagIdToNameMap[tagId] ?? '未知标签')
+        .map((tagId) => _tagIdToNameMap[tagId] ?? context.l10n.flowUnknownTag)
         .join(', ');
 
     return Column(
@@ -1831,7 +1852,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                   child: Row(
                     children: [
                       Text(
-                        '标签筛选',
+                        context.l10n.flowTagFilter,
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
@@ -1881,7 +1902,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                         child: Padding(
                           padding: EdgeInsets.all(screenHeight * 0.02),
                           child: Text(
-                            '暂无标签数据',
+                            context.l10n.flowNoTagData,
                             style: TextStyle(
                               fontSize: 12,
                               color: Theme.of(context)
@@ -1916,7 +1937,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                                   bottom: screenHeight * 0.008,
                                 ),
                                 child: Text(
-                                  group.localizedName.zhHans,
+                                  _tagName(group.localizedName),
                                   style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,
@@ -1931,12 +1952,11 @@ class _SongSearchPageState extends State<SongSearchPage> {
                                 runSpacing: screenHeight * 0.008,
                                 children: tagsInGroup.map((tagId) {
                                   String tagName =
-                                      _tagIdToNameMap[tagId] ?? '未知标签';
+                                      _tagIdToNameMap[tagId] ?? context.l10n.flowUnknownTag;
                                   return FilterChip(
                                     label: Text(
                                       tagName,
-                                      style: TextStyle(
-                                          fontSize: 11),
+                                      style: TextStyle(fontSize: 11),
                                     ),
                                     selected: _selectedTagIds.contains(tagId),
                                     onSelected: (selected) {
@@ -1967,12 +1987,12 @@ class _SongSearchPageState extends State<SongSearchPage> {
   Widget _buildCharterFilter(double screenWidth, double screenHeight) {
     return _buildDialogFilterRow(
       screenWidth: screenWidth,
-      label: '谱师筛选',
+      label: context.l10n.flowCharterFilter,
       displayValue: _selectedCharter,
-      placeholder: '请选择谱师',
-      dialogTitle: '选择谱师',
-      searchHint: '搜索谱师',
-      dialogSearchHint: '输入谱师名称筛选...',
+      placeholder: context.l10n.flowChooseACharter,
+      dialogTitle: context.l10n.flowSelectCharter,
+      searchHint: context.l10n.flowSearchCharters,
+      dialogSearchHint: context.l10n.flowFilterByCharterName,
       isLoadingList: _isLoadingCharters,
       fullList: _charterList,
       onSelected: (value) {
@@ -1990,12 +2010,12 @@ class _SongSearchPageState extends State<SongSearchPage> {
   Widget _buildArtistFilter(double screenWidth, double screenHeight) {
     return _buildDialogFilterRow(
       screenWidth: screenWidth,
-      label: '曲师筛选',
+      label: context.l10n.flowArtistFilter,
       displayValue: _selectedArtist,
-      placeholder: '请选择曲师',
-      dialogTitle: '选择曲师',
-      searchHint: '搜索曲师',
-      dialogSearchHint: '输入曲师名称筛选...',
+      placeholder: context.l10n.flowChooseAnArtist,
+      dialogTitle: context.l10n.flowSelectArtist,
+      searchHint: context.l10n.flowSearchArtists,
+      dialogSearchHint: context.l10n.flowFilterByArtistName,
       isLoadingList: _isLoadingArtists,
       fullList: _artistList,
       onSelected: (value) {
@@ -2124,7 +2144,8 @@ class _SongSearchPageState extends State<SongSearchPage> {
                           hintText: searchHint,
                           prefixIcon: const Icon(Icons.search),
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+                            borderRadius: BorderRadius.circular(
+                                AppDesignTokens.radiusSmall),
                           ),
                           contentPadding: const EdgeInsets.symmetric(
                               vertical: 10, horizontal: 12),
@@ -2178,7 +2199,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                               onClear();
                               Navigator.pop(ctx);
                             },
-                            child: const Text('清除选择'),
+                            child: Text(context.l10n.flowClearSelection),
                           ),
                         ),
                       ],
@@ -2189,7 +2210,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(ctx),
-                  child: const Text('取消'),
+                  child: Text(context.l10n.featureCancel),
                 ),
               ],
             );
@@ -2202,7 +2223,9 @@ class _SongSearchPageState extends State<SongSearchPage> {
   @override
   Widget build(BuildContext context) {
     return BackgroundPageScaffold(
-      title: widget.extraOnly ? '非国服乐曲查询' : '乐曲查询',
+      title: widget.extraOnly
+          ? context.l10n.featureInternationalSongLookup
+          : context.l10n.featureSongLookup,
       resizeToAvoidBottomInset: false,
       child: GestureDetector(
         behavior: HitTestBehavior.translucent,
@@ -2298,7 +2321,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
             return Semantics(
               button: true,
               selected: selected,
-              label: '等级 $level',
+              label: context.l10n.flowLevelP0((level).toString()),
               onTap: () => _toggleQuickLevel(level),
               excludeSemantics: true,
               child: PressScale(
@@ -2347,7 +2370,8 @@ class _SongSearchPageState extends State<SongSearchPage> {
     return '${min.text}-${max.text}';
   }
 
-  String? _countText(int count) => count == 0 ? null : '$count 项';
+  String? _countText(int count) =>
+      count == 0 ? null : context.l10n.flowP0Items2((count).toString());
 
   // 筛选胶囊：点开后展开在下面，已选的条件直接显示在胶囊上
   Widget _buildFilterPillRow() {
@@ -2362,7 +2386,9 @@ class _SongSearchPageState extends State<SongSearchPage> {
         );
     final String? levelText =
         _constantFilterMode == _ConstantFilterMode.perDifficulty
-            ? (_difficultyConstantFilter.hasInput ? '按难度' : null)
+            ? (_difficultyConstantFilter.hasInput
+                ? context.l10n.flowByDifficulty
+                : null)
             : _rangeText(_minLevelController, _maxLevelController);
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -2372,7 +2398,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
           Padding(
             padding: const EdgeInsets.only(right: 6),
             child: FilterPill(
-              label: '仅 DX 谱面',
+              label: context.l10n.flowDXChartsOnly,
               selected: _onlyDx,
               onTap: () {
                 setState(() {
@@ -2386,7 +2412,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
           Padding(
             padding: const EdgeInsets.only(right: 6),
             child: FilterPill(
-              label: '只搜歌名',
+              label: context.l10n.flowTitlesOnly,
               selected: _searchByTitleOnly,
               onTap: () {
                 setState(() => _searchByTitleOnly = !_searchByTitleOnly);
@@ -2395,16 +2421,20 @@ class _SongSearchPageState extends State<SongSearchPage> {
               },
             ),
           ),
-          pill('difficulty', '难度', _selectedDifficulties.join('、')),
-          pill('level', '定数', levelText),
-          pill('version', '版本', _countText(_selectedVersions.length)),
-          pill('genre', '流派', _countText(_selectedGenres.length)),
+          pill('difficulty', context.l10n.flowDifficulty,
+              _selectedDifficulties.join('、')),
+          pill('level', context.l10n.flowConstant, levelText),
+          pill('version', context.l10n.flowVersion,
+              _countText(_selectedVersions.length)),
+          pill('genre', context.l10n.flowGenre,
+              _countText(_selectedGenres.length)),
           pill('bpm', 'BPM', _rangeText(_minBpmController, _maxBpmController)),
-          pill('notes', '物量',
+          pill('notes', context.l10n.flowNotes,
               _rangeText(_minNotesController, _maxNotesController)),
-          pill('tag', '标签', _countText(_selectedTagIds.length)),
-          pill('charter', '谱师', _selectedCharter),
-          pill('artist', '曲师', _selectedArtist),
+          pill(
+              'tag', context.l10n.flowTags, _countText(_selectedTagIds.length)),
+          pill('charter', context.l10n.flowCharter, _selectedCharter),
+          pill('artist', context.l10n.flowArtist, _selectedArtist),
         ],
       ),
     );
@@ -2423,7 +2453,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
         children: [
           CircularProgressIndicator(color: scheme.onSurface),
           const SizedBox(height: 12),
-          Text('正在搜索...',
+          Text(context.l10n.flowSearching,
               style: TextStyle(fontSize: 14, color: scheme.onSurfaceVariant)),
         ],
       ));
@@ -2442,7 +2472,10 @@ class _SongSearchPageState extends State<SongSearchPage> {
     }
     if (!_hasSearchCriteria) {
       return message(Text(
-          _songCount == null ? '请输入搜索关键词' : '曲库共 $_songCount 首，请输入搜索关键词',
+          _songCount == null
+              ? context.l10n.flowEnterASearchKeyword
+              : context.l10n
+                  .flowP0SongsInTheLibraryEnterA((_songCount).toString()),
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 14, color: scheme.onSurfaceVariant)));
     }
@@ -2454,7 +2487,9 @@ class _SongSearchPageState extends State<SongSearchPage> {
           child: Row(
             children: [
               Expanded(
-                child: Text('找到 $_totalItems 首乐曲，每页 15 首',
+                child: Text(
+                    context.l10n
+                        .flowP0SongsFound15PerPage((_totalItems).toString()),
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                         fontSize: 12, color: scheme.onSurfaceVariant)),
@@ -2464,7 +2499,8 @@ class _SongSearchPageState extends State<SongSearchPage> {
                 style: TextButton.styleFrom(
                     minimumSize: const Size(44, 32),
                     padding: const EdgeInsets.symmetric(horizontal: 8)),
-                child: const Text('重置', style: TextStyle(fontSize: 13)),
+                child: Text(context.l10n.flowReset,
+                    style: TextStyle(fontSize: 13)),
               ),
             ],
           ),
@@ -2472,10 +2508,10 @@ class _SongSearchPageState extends State<SongSearchPage> {
         if (_allSearchResults.isEmpty)
           message(Column(
             children: [
-              const Text('没有符合条件的歌曲',
+              Text(context.l10n.flowNoSongsMatchTheseFilters,
                   style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
               const SizedBox(height: 6),
-              Text('试试放宽定数或清空筛选',
+              Text(context.l10n.flowTryAWiderConstantRangeOrClear,
                   style:
                       TextStyle(fontSize: 13, color: scheme.onSurfaceVariant)),
             ],
@@ -2483,25 +2519,25 @@ class _SongSearchPageState extends State<SongSearchPage> {
         else
           AnimatedOpacity(
             opacity: _isSearching ? 0.55 : 1,
-            duration: AppDesignTokens.motion(
-                context, AppDesignTokens.fastMotion),
+            duration:
+                AppDesignTokens.motion(context, AppDesignTokens.fastMotion),
             child: AppCard(
-            padding: EdgeInsets.zero,
-            child: Column(
-              key: ValueKey('$_resultsRevision-$_currentPage'),
-              children: [
-                for (var i = 0; i < _currentPageResults.length; i++)
-                  EntranceAnimation(
-                    index: i,
-                    stagger: const Duration(milliseconds: 25),
-                    duration: const Duration(milliseconds: 320),
-                    offset: const Offset(-10, 0),
-                    child: _buildSongItem(_currentPageResults[i],
-                        showDivider: i > 0),
-                  ),
-              ],
+              padding: EdgeInsets.zero,
+              child: Column(
+                key: ValueKey('$_resultsRevision-$_currentPage'),
+                children: [
+                  for (var i = 0; i < _currentPageResults.length; i++)
+                    EntranceAnimation(
+                      index: i,
+                      stagger: const Duration(milliseconds: 25),
+                      duration: const Duration(milliseconds: 320),
+                      offset: const Offset(-10, 0),
+                      child: _buildSongItem(_currentPageResults[i],
+                          showDivider: i > 0),
+                    ),
+                ],
+              ),
             ),
-          ),
           ),
         if (_totalPages > 1)
           Padding(
@@ -2510,7 +2546,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 IconButton.filledTonal(
-                  tooltip: '上一页',
+                  tooltip: context.l10n.flowPrevious,
                   onPressed: _currentPage > 1
                       ? () => _goToPage(_currentPage - 1)
                       : null,
@@ -2524,7 +2560,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                         color: scheme.onSurface)),
                 const SizedBox(width: 12),
                 IconButton.filledTonal(
-                  tooltip: '下一页',
+                  tooltip: context.l10n.flowNext,
                   onPressed: _currentPage < _totalPages
                       ? () => _goToPage(_currentPage + 1)
                       : null,
@@ -2580,8 +2616,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             ClipRRect(
-              borderRadius:
-                  BorderRadius.circular(AppDesignTokens.radiusSmall),
+              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
               child: CoverUtil.buildCoverWidget(song.id, 52),
             ),
             const SizedBox(width: 12),
@@ -2667,7 +2702,11 @@ class _SongSearchPageState extends State<SongSearchPage> {
     // 获取标签名称映射
     Map<int, String> tagIdToNameMap = {};
     for (var tag in _cachedTagsEntity!.tags) {
-      tagIdToNameMap[tag.id] = tag.localizedName.zhHans;
+      final name = _tagName(tag.localizedName);
+      // 自定义标签可能与 DXRating 标签同名，命中信息里只显示名称，所以加标记区分。
+      tagIdToNameMap[tag.id] = CustomTagStore.instance.isCustomTagId(tag.id)
+          ? context.l10n.customTagMarked(name)
+          : name;
     }
 
     // 获取歌曲信息
@@ -2738,8 +2777,9 @@ class _SongSearchPageState extends State<SongSearchPage> {
     for (final info in infos) {
       final isChartValue = {'定数', '物量'}.contains(info['type']);
       final value = info['value']!;
-      merged.putIfAbsent(info['type']!, () => <String>{}).add(
-          isChartValue ? value.replaceFirst('：', ' ') : value);
+      merged
+          .putIfAbsent(info['type']!, () => <String>{})
+          .add(isChartValue ? value.replaceFirst('：', ' ') : value);
     }
     return [
       for (final entry in merged.entries)
@@ -2763,7 +2803,8 @@ class _SongSearchPageState extends State<SongSearchPage> {
         );
       }
       for (final difficulty in matchedDifficulties) {
-        matchInfos.add({'type': '难度', 'value': difficulty});
+        matchInfos
+            .add({'type': context.l10n.flowDifficulty, 'value': difficulty});
       }
     }
 
@@ -2778,7 +2819,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
               '${_getDifficultyDisplayNameForSong(song, index)}：${song.ds[index]}');
         }
         for (final value in matches) {
-          matchInfos.add({'type': '定数', 'value': value});
+          matchInfos.add({'type': context.l10n.flowConstant, 'value': value});
         }
       }
     } else if (_minLevelController.text.isNotEmpty ||
@@ -2795,7 +2836,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
         final meetsMax = maxLevel == null || level <= maxLevel;
         if (meetsMin && meetsMax) {
           matchInfos.add({
-            'type': '定数',
+            'type': context.l10n.flowConstant,
             'value': '${_getDifficultyDisplayNameForSong(song, index)}：$level',
           });
         }
@@ -2819,7 +2860,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
         bool meetsMax = maxNotes == null || total <= maxNotes;
         if (meetsMin && meetsMax) {
           matchInfos.add({
-            'type': '物量',
+            'type': context.l10n.flowNotes,
             'value': '${_getDifficultyDisplayNameForSong(song, i)}：$total',
           });
         }
@@ -2849,7 +2890,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
         final chart = song.charts[index];
         if (chart.charter == _selectedCharter) {
           matchInfos.add({
-            'type': '谱师',
+            'type': context.l10n.flowCharter,
             'value':
                 '${ChartDifficulty.labelOf(index, isUtage: _isUtageSong(song))} ${chart.charter}'
           });
@@ -2860,13 +2901,14 @@ class _SongSearchPageState extends State<SongSearchPage> {
     // 流派筛选：列出歌曲命中的流派
     if (_selectedGenres.isNotEmpty &&
         _selectedGenres.contains(song.basicInfo.genre)) {
-      matchInfos.add({'type': '流派', 'value': song.basicInfo.genre});
+      matchInfos
+          .add({'type': context.l10n.flowGenre, 'value': song.basicInfo.genre});
     }
 
     // 版本筛选：显示歌曲命中的版本。
     if (_selectedVersions.contains(song.basicInfo.from)) {
       matchInfos.add({
-        'type': '版本',
+        'type': context.l10n.flowVersion,
         'value':
             StringUtil.formatVersionWithFlag(song.basicInfo.from, song.isExtra),
       });
@@ -2874,22 +2916,26 @@ class _SongSearchPageState extends State<SongSearchPage> {
 
     // 曲师筛选：列出歌曲命中的曲师
     if (_selectedArtist != null && song.basicInfo.artist == _selectedArtist) {
-      matchInfos.add({'type': '曲师', 'value': song.basicInfo.artist});
+      matchInfos.add(
+          {'type': context.l10n.flowArtist, 'value': song.basicInfo.artist});
     }
 
     if (!hasQuery) return matchInfos;
 
     // 检查歌曲ID匹配
     if (song.id.toString() == _searchController.text) {
-      matchInfos.add({'type': '歌曲ID', 'value': song.id.toString()});
+      matchInfos
+          .add({'type': context.l10n.flowSongID, 'value': song.id.toString()});
     }
     // 检查标题匹配
     if (song.basicInfo.title.toLowerCase().contains(query)) {
-      matchInfos.add({'type': '歌名', 'value': song.basicInfo.title});
+      matchInfos.add(
+          {'type': context.l10n.flowSongTitle, 'value': song.basicInfo.title});
     }
     // 检查艺术家匹配
     if (song.basicInfo.artist.toLowerCase().contains(query)) {
-      matchInfos.add({'type': '艺术家', 'value': song.basicInfo.artist});
+      matchInfos.add(
+          {'type': context.l10n.flowArtist2, 'value': song.basicInfo.artist});
     }
     // 检查BPM匹配
     if (song.basicInfo.bpm.toString().contains(query)) {
@@ -2901,7 +2947,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
       final chart = song.charts[index];
       if (chart.charter.toLowerCase().contains(query)) {
         matchInfos.add({
-          'type': '谱师',
+          'type': context.l10n.flowCharter,
           'value':
               '${ChartDifficulty.labelOf(index, isUtage: _isUtageSong(song))} ${chart.charter}'
         });
@@ -2909,12 +2955,13 @@ class _SongSearchPageState extends State<SongSearchPage> {
     }
     // 检查流派匹配
     if (song.basicInfo.genre.toLowerCase().contains(query)) {
-      matchInfos.add({'type': '流派', 'value': song.basicInfo.genre});
+      matchInfos
+          .add({'type': context.l10n.flowGenre, 'value': song.basicInfo.genre});
     }
     // 检查版本匹配
     if (song.basicInfo.from.toLowerCase().contains(query)) {
       matchInfos.add({
-        'type': '版本',
+        'type': context.l10n.flowVersion,
         'value':
             StringUtil.formatVersionWithFlag(song.basicInfo.from, song.isExtra)
       });
@@ -2924,7 +2971,8 @@ class _SongSearchPageState extends State<SongSearchPage> {
     final matchingAliases =
         aliases.where((alias) => alias.toLowerCase().contains(query)).toList();
     if (matchingAliases.isNotEmpty) {
-      matchInfos.add({'type': '别名', 'value': matchingAliases.join('，')});
+      matchInfos.add(
+          {'type': context.l10n.flowAlias, 'value': matchingAliases.join('，')});
     }
     // 检查物量匹配（任意难度的总音符数包含 query）
     for (final i in _selectedDifficultyIndices(song)) {
@@ -2934,7 +2982,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
       int total = chart.notes.fold(0, (sum, n) => sum + n);
       if (total.toString().contains(query)) {
         matchInfos.add({
-          'type': '物量',
+          'type': context.l10n.flowNotes,
           'value': '${_getDifficultyDisplayNameForSong(song, i)}：$total',
         });
         break; // 只显示第一个匹配的难度

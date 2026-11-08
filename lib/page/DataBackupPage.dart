@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import 'package:my_first_flutter_app/service/DataBackupService.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
@@ -36,7 +37,7 @@ class _DataBackupPageState extends State<DataBackupPage> {
   Widget build(BuildContext context) {
     final brightness = Theme.of(context).brightness;
     return BackgroundPageScaffold(
-      title: '数据备份',
+      title: context.l10n.featureDataBackup,
       resizeToAvoidBottomInset: false,
       contentPadding: EdgeInsets.only(
         bottom: MediaQuery.paddingOf(context).bottom,
@@ -62,9 +63,7 @@ class _DataBackupPageState extends State<DataBackupPage> {
                   SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      '备份包含收藏夹、谱面笔记、账号资料、设置、猜歌统计、成绩与 Rating 历史、自定义背景及本地谱面包归档，导出为 JSON 文件。\n\n'
-                      '登录凭据、个人 key 和自动同步身份不会导出，换设备后需重新授权。曲库、maidata、音源、PV 和排行榜等可重新获取的缓存不备份。\n\n'
-                      '兼容旧版备份；旧备份仅能恢复其中原本包含的设置和资料。文件总大小上限为 50 MB。',
+                      context.l10n.flowBackupsExportFavoritesChartNotesAccountProfiles,
                       style: TextStyle(
                         color: Theme.of(context).colorScheme.onSurface,
                         fontSize: 14,
@@ -80,9 +79,9 @@ class _DataBackupPageState extends State<DataBackupPage> {
             // 导出区域
             _buildSectionCard(
               icon: Icons.file_upload,
-              title: '导出备份',
-              subtitle: '将当前所有本地数据导出为 JSON 文件',
-              buttonText: _isExporting ? '导出中...' : '导出备份文件',
+              title: context.l10n.flowExportBackup,
+              subtitle: context.l10n.flowExportLocalDataAsAJSONFile,
+              buttonText: _isExporting ? context.l10n.flowExporting3 : context.l10n.flowExportBackupFile,
               isLoading: _isExporting,
               onPressed: _busy ? null : _handleExport,
               emphasis: true,
@@ -105,7 +104,7 @@ class _DataBackupPageState extends State<DataBackupPage> {
                     SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        '已导出到: $_lastExportPath',
+                        context.l10n.flowExportedToP0((_lastExportPath).toString()),
                         style: TextStyle(
                           fontSize: 12,
                           color: Theme.of(context).colorScheme.onSurface,
@@ -122,16 +121,14 @@ class _DataBackupPageState extends State<DataBackupPage> {
             // 导入区域
             _buildSectionCard(
               icon: Icons.file_download,
-              title: '导入备份',
-              subtitle: '从 JSON 文件恢复之前备份的数据',
+              title: context.l10n.flowImportBackup,
+              subtitle: context.l10n.flowRestoreDataFromAJSONBackup,
               buttonText: _isRestoring
-                  ? '正在恢复数据...'
-                  : (_isImporting ? '导入中...' : '选择备份文件'),
+                  ? context.l10n.flowRestoringData
+                  : (_isImporting ? context.l10n.flowImporting : context.l10n.flowChooseBackupFile),
               isLoading: _isImporting || _isRestoring,
               onPressed: _busy ? null : _handleImport,
-              warningText: '⚠ 导入会先清空当前所有本地数据，再写入备份内容；\n'
-                  '　 备份里没有的项目（含各类缓存）会被一并抹掉。\n'
-                  '　 恢复过程中请不要退出页面。',
+              warningText: context.l10n.flowImportClearsAllCurrentLocalDataBefore,
             ),
           ],
         ),
@@ -248,7 +245,7 @@ class _DataBackupPageState extends State<DataBackupPage> {
 
   Future<void> _handleExport() async {
     if (!await ExportPathUtil.prepareForExport(context,
-        subDir: '备份', title: '选择备份保存位置')) {
+        subDir: '备份', title: context.l10n.flowChooseWhereToSaveTheBackup)) {
       return;
     }
     setState(() => _isExporting = true);
@@ -268,19 +265,19 @@ class _DataBackupPageState extends State<DataBackupPage> {
           filePath: path,
           fileName: '备份文件',
           warning: fallbackPath == null
-              ? '可在文件管理器的「下载/ChiffonMai/备份」文件夹中找到该文件。'
-              : '公开目录不可写，已保存到应用文档目录。',
+              ? context.l10n.flowFindTheFileInDownloadsChiffonMaiIn
+              : context.l10n.flowThePublicDirectoryIsNotWritableSaved3,
         );
       } else {
         if (mounted) {
           setState(() => _isExporting = false);
-          AppToast.show('导出已取消');
+          AppToast.show(context.l10n.flowExportCancelled);
         }
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isExporting = false);
-        AppToast.show('导出失败: ${e.toString().replaceFirst("Exception: ", "")}');
+        AppToast.show(context.l10n.flowExportFailedP0((e.toString().replaceFirst("Exception: ", "")).toString()), tone: AppToastTone.error);
       }
     }
   }
@@ -299,7 +296,7 @@ class _DataBackupPageState extends State<DataBackupPage> {
       }
 
       // 显示确认对话框
-      final exportedAt = backup['exportedAt'] ?? '未知';
+      final exportedAt = backup['exportedAt'] ?? context.l10n.flowUnknown;
       final keyCount = backup['keyCount'] ?? 0;
       final version = backup['version'] ?? '?';
       final fileCount = backup['files'] is Map ? (backup['files'] as Map).length : 0;
@@ -315,15 +312,14 @@ class _DataBackupPageState extends State<DataBackupPage> {
                   color: AppColors.warningOrange(Theme.of(context).brightness),
                   size: 28),
               SizedBox(width: 8),
-              Text('确认恢复数据'),
+              Text(context.l10n.flowConfirmRestore),
             ],
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('恢复将覆盖当前本地设置与用户资料。v3 备份还会恢复用户文件；'
-                  '旧版备份只能恢复它原本包含的内容。建议先导出当前备份。'),
+              Text(context.l10n.flowRestoringOverwritesCurrentLocalSettingsAndProfiles),
               SizedBox(height: 12),
               Container(
                 padding: EdgeInsets.all(10),
@@ -334,19 +330,19 @@ class _DataBackupPageState extends State<DataBackupPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('备份版本: v$version', style: TextStyle(fontSize: 13)),
-                    Text('导出时间: $exportedAt', style: TextStyle(fontSize: 13)),
-                    Text('包含 $keyCount 个数据项', style: TextStyle(fontSize: 13)),
-                    Text('用户文件：$fileCount 个', style: TextStyle(fontSize: 13)),
+                    Text(context.l10n.flowBackupVersionVP0((version).toString()), style: TextStyle(fontSize: 13)),
+                    Text(context.l10n.flowExportedP0((exportedAt).toString()), style: TextStyle(fontSize: 13)),
+                    Text(context.l10n.flowContainsP0DataItems((keyCount).toString()), style: TextStyle(fontSize: 13)),
+                    Text(context.l10n.flowUserFilesP0((fileCount).toString()), style: TextStyle(fontSize: 13)),
                     if (skippedCacheKeys != null)
-                      Text('已排除 $skippedCacheKeys 个缓存项',
+                      Text(context.l10n.flowExcludedP0CacheItems((skippedCacheKeys).toString()),
                           style: TextStyle(fontSize: 13)),
                   ],
                 ),
               ),
               SizedBox(height: 12),
               Text(
-                '曲库、maidata、排行榜等缓存不参与备份，恢复后按需重新获取，首次加载可能稍慢。登录凭据不会从备份恢复。',
+                context.l10n.flowSongMaidataAndLeaderboardCachesAreExcluded,
                 style: TextStyle(
                   fontSize: 12,
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -354,7 +350,7 @@ class _DataBackupPageState extends State<DataBackupPage> {
               ),
               SizedBox(height: 8),
               Text(
-                '此操作不可撤销，确定要继续吗？',
+                context.l10n.flowThisCannotBeUndoneContinue,
                 style: TextStyle(
                   color: AppColors.errorRed(Theme.of(context).brightness),
                   fontWeight: FontWeight.w500,
@@ -365,7 +361,7 @@ class _DataBackupPageState extends State<DataBackupPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(false),
-              child: Text('取消'),
+              child: Text(context.l10n.featureCancel),
             ),
             ElevatedButton(
               onPressed: () => Navigator.of(ctx).pop(true),
@@ -374,7 +370,7 @@ class _DataBackupPageState extends State<DataBackupPage> {
                     AppColors.warningOrange(Theme.of(context).brightness),
                 foregroundColor: Colors.white,
               ),
-              child: Text('确认恢复'),
+              child: Text(context.l10n.flowRestore),
             ),
           ],
         ),
@@ -390,7 +386,7 @@ class _DataBackupPageState extends State<DataBackupPage> {
           // 不重载的话用户恢复后随手改一下，就会用旧值把刚导入的数据盖掉。
           await _service.reloadAfterRestore();
           if (mounted) {
-            AppToast.show('数据恢复成功！共恢复 $count 项设置和 $fileCount 个用户文件。\n建议重启应用以确保完全生效。');
+            AppToast.show(context.l10n.flowRestoredP0SettingsAndP1UserFiles((count).toString(), (fileCount).toString()), tone: AppToastTone.success);
           }
         } finally {
           if (mounted) setState(() => _isRestoring = false);
@@ -402,7 +398,7 @@ class _DataBackupPageState extends State<DataBackupPage> {
           _isImporting = false;
           _isRestoring = false;
         });
-        AppToast.show('导入失败: ${e.toString().replaceFirst("Exception: ", "")}');
+        AppToast.show(context.l10n.flowImportFailedP02((e.toString().replaceFirst("Exception: ", "")).toString()), tone: AppToastTone.error);
       }
     }
   }

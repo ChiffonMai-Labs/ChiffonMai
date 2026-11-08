@@ -1,3 +1,5 @@
+import '../../l10n/FeatureLocalizations.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import '../../service/PaiziProgressService.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
@@ -57,14 +59,13 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
   // 获取图片URL
   String? _getImageUrl() {
     if (_collection == null) return null;
-    const String imageBaseUrl = 'https://assets2.lxns.net/maimai';
     switch (widget.collectionType) {
       case 'icons':
-        return '$imageBaseUrl/icon/${_collection!.id}.png';
+        return lxnsIconUrl(_collection!.id);
       case 'plates':
-        return '$imageBaseUrl/plate/${_collection!.id}.png';
+        return lxnsPlateUrl(_collection!.id);
       case 'frames':
-        return '$imageBaseUrl/frame/${_collection!.id}.png';
+        return lxnsFrameUrl(_collection!.id);
       default:
         return null;
     }
@@ -104,7 +105,7 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
   Future<void> _saveImageToGallery() async {
     String? imageUrl = _getImageUrl();
     if (imageUrl == null) {
-      _showToast('该收藏品没有图片');
+      _showToast(context.l10n.flowThisCollectibleHasNoImage);
       return;
     }
 
@@ -115,7 +116,10 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
     try {
       bool hasPermission = await _requestStoragePermission();
       if (!hasPermission) {
-        showAppNoticeDialog(context, title: '权限不足', message: '需要存储权限才能保存图片到相册，请在设置中开启权限', tone: AppDialogTone.warning);
+        showAppNoticeDialog(context,
+            title: context.l10n.flowPermissionRequired,
+            message: context.l10n.flowStoragePermissionIsNeededToSaveImages,
+            tone: AppDialogTone.warning);
         return;
       }
 
@@ -143,10 +147,10 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
         await MediaScanner.loadMedia(path: file.path);
       }
 
-      _showToast('图片已保存到相册');
+      _showToast(context.l10n.flowImageSavedToGallery);
     } catch (e) {
       debugPrint('保存图片失败: $e');
-      _showToast('保存图片失败: $e');
+      _showToast(context.l10n.flowCouldNotSaveImageP0((e).toString()));
     } finally {
       setState(() {
         _isSavingImage = false;
@@ -163,16 +167,16 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
   Future<void> _copyImageUrl() async {
     String? imageUrl = _getImageUrl();
     if (imageUrl == null) {
-      _showToast('该收藏品没有图片链接');
+      _showToast(context.l10n.flowThisCollectibleHasNoImageLink);
       return;
     }
 
     try {
       await Clipboard.setData(ClipboardData(text: imageUrl));
-      _showToast('链接已复制到剪贴板');
+      _showToast(context.l10n.flowLinkCopied);
     } catch (e) {
       debugPrint('复制链接失败: $e');
-      _showToast('复制链接失败');
+      _showToast(context.l10n.flowCouldNotCopyLink);
     }
   }
 
@@ -337,7 +341,7 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
       case 'plates':
         return '姓名框';
       case 'frames':
-        return '背景';
+        return context.l10n.flowFrameCollectible;
       default:
         return '';
     }
@@ -398,13 +402,13 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
     }
     return InkWell(
       onTap: () {
-        // 跳转到歌曲详情页面，默认选择MASTER难度
+        // 收藏品曲目没有指定谱面难度，使用系统设置的默认难度。
+        FocusManager.instance.primaryFocus?.unfocus();
         Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) => SongInfoPage(
               songId: songId,
-              initialLevelIndex: 3, // 3 代表 MASTER 难度
             ),
           ),
         );
@@ -478,8 +482,9 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
     entries.add((_) => Padding(
           padding: const EdgeInsets.only(top: 4),
           child: AppSectionHeader(
-            title: '条件外排除曲目',
-            subtitle: '共 ${_excludedSongs.length} 首，不计入所需条件',
+            title: context.l10n.flowExcludedSongs,
+            subtitle: context.l10n.flowP0SongsExcludedFromRequirements(
+                (_excludedSongs.length).toString()),
           ),
         ));
     _addSongRows(entries, [
@@ -510,8 +515,9 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
     }
     if (seenSongs.isEmpty) return;
     entries.add((_) => AppSectionHeader(
-          title: '歌曲列表',
-          subtitle: '总计 ${seenSongs.length} 首歌曲',
+          title: context.l10n.flowSongList,
+          subtitle:
+              context.l10n.flowP0SongsTotal((seenSongs.length).toString()),
         ));
     for (final songs in lists) {
       _addSongRows(entries, [
@@ -565,7 +571,8 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
     // 显示合并后的难度
     if (allDifficulties.isNotEmpty) {
       final sortedDifficulties = allDifficulties.toList()..sort();
-      mergedConditions.add(_buildConditionRow('所需难度', [
+      mergedConditions
+          .add(_buildConditionRow(context.l10n.flowRequiredDifficulty, [
         for (final d in sortedDifficulties)
           ChartDifficultyBadge(levelIndex: d, songId: '', fontSize: 14),
       ]));
@@ -620,7 +627,8 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
         } else if (['100%', '100.5%'].contains(requiredRate)) {
           rateColor = AppColors.warningOrange(brightness);
         }
-        mergedConditions.add(_buildConditionRow('所需最低达成率', [
+        mergedConditions
+            .add(_buildConditionRow(context.l10n.flowMinimumAchievement, [
           AppBadge(
             text: requiredRate,
             fontSize: 14,
@@ -633,7 +641,8 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
       // 检查是否包含 SPEED SONIC 字样
       if (description.toLowerCase().contains('speed sonic')) {
         final sonic = AppColors.linkBlue(brightness);
-        mergedConditions.add(_buildConditionRow('所需游玩流速', [
+        mergedConditions
+            .add(_buildConditionRow(context.l10n.flowRequiredNoteSpeed, [
           AppBadge(
             text: 'SONIC',
             fontSize: 14,
@@ -654,12 +663,12 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
       if (requiredItem.fs != null) fsValues.add(requiredItem.fs!);
     }
     if (fcValues.isNotEmpty) {
-      mergedConditions.add(_buildConditionRow('所需连击', [
+      mergedConditions.add(_buildConditionRow(context.l10n.flowRequiredCombo, [
         for (final fc in fcValues) ComboLabelBadge(raw: fc, fontSize: 14),
       ]));
     }
     if (fsValues.isNotEmpty) {
-      mergedConditions.add(_buildConditionRow('所需同步', [
+      mergedConditions.add(_buildConditionRow(context.l10n.flowRequiredSync, [
         for (final fs in fsValues) ComboLabelBadge(raw: fs, fontSize: 14),
       ]));
     }
@@ -723,7 +732,8 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
           Padding(
             padding: const EdgeInsets.only(top: 4),
             child: Text(
-              '由百度大模型翻译自$sourceLabel',
+              context.l10n.flowTranslatedFromP0ByBaiduSLanguage(
+                  (sourceLabel).toString()),
               style:
                   TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
             ),
@@ -737,7 +747,7 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               alignment: Alignment.centerLeft,
             ),
-            child: const Text('翻译为中文'),
+            child: Text(context.l10n.flowTranslateToChinese),
           ),
       ],
     );
@@ -836,10 +846,10 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
                   isTranslating: _isTranslatingName,
                   onTranslate: _translateName,
                   sourceLabel: _isEnglishAndJapanese(collection.name)
-                      ? '日语+英语'
+                      ? context.l10n.flowJapaneseEnglish
                       : _isEnglish(collection.name)
-                          ? '英语'
-                          : '日语',
+                          ? context.l10n.flowEnglish
+                          : context.l10n.flowJapanese,
                 ),
               ],
               if (!isTrophy) ...[
@@ -850,7 +860,9 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
                       child: FilledButton.icon(
                         onPressed: _isSavingImage ? null : _saveImageToGallery,
                         icon: const Icon(Icons.save_alt, size: 18),
-                        label: Text(_isSavingImage ? '保存中' : '保存到相册'),
+                        label: Text(_isSavingImage
+                            ? context.l10n.flowSaving2
+                            : context.l10n.flowSaveToGallery),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -858,7 +870,7 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
                       child: FilledButton.tonalIcon(
                         onPressed: _copyImageUrl,
                         icon: const Icon(Icons.link, size: 18),
-                        label: const Text('复制链接'),
+                        label: Text(context.l10n.flowCopyLink),
                       ),
                     ),
                   ],
@@ -873,8 +885,8 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const AppSectionHeader(
-                  title: '描述',
+                AppSectionHeader(
+                  title: context.l10n.flowDescription,
                   padding: EdgeInsets.only(bottom: 8),
                 ),
                 Text(
@@ -890,10 +902,10 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
                     isTranslating: _isTranslatingDescription,
                     onTranslate: _translateDescription,
                     sourceLabel: _isEnglishAndJapanese(collection.description!)
-                        ? '日语+英语'
+                        ? context.l10n.flowJapaneseEnglish
                         : _isEnglish(collection.description!)
-                            ? '英语'
-                            : '日语',
+                            ? context.l10n.flowEnglish
+                            : context.l10n.flowJapanese,
                   ),
                 ],
               ],
@@ -906,8 +918,8 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const AppSectionHeader(
-                  title: '所需条件',
+                AppSectionHeader(
+                  title: context.l10n.flowUnlockRequirements,
                   padding: EdgeInsets.zero,
                 ),
                 ..._getMergedRequiredConditions(collection.required!),
@@ -947,7 +959,7 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
   @override
   Widget build(BuildContext context) {
     return BackgroundPageScaffold(
-      title: '${_getTypeLabel()}详情',
+      title: context.l10n.flowP0Details(context.featureText(_getTypeLabel())),
       resizeToAvoidBottomInset: false,
       contentPadding:
           EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
@@ -964,7 +976,7 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                       const SizedBox(height: 12),
-                      const Text('未找到收藏品信息'),
+                      Text(context.l10n.flowCollectibleNotFound),
                     ],
                   ),
                 )

@@ -98,10 +98,16 @@ class _BgImage extends StatelessWidget {
         // 覆层取页面底色而不是纯白：纯白会把背景刷成白色，白卡片就看不出层次了。
         final lightOverlay =
             Theme.of(context).colorScheme.surface.withAlpha(overlayAlpha);
+        final darkOverlay = Color.fromARGB(overlayAlpha, 15, 15, 28);
+        // 全遮挡时直接画最终底色，首次引导不解码一张完全看不到的全屏图。
+        if (overlayAlpha == 255) {
+          return ColoredBox(color: isDark ? darkOverlay : lightOverlay);
+        }
 
         final ImageProvider<Object> backgroundImage =
             ThemeManager().customBackgroundPath == null
-                ? const AssetImage('assets/background.png') as ImageProvider<Object>
+                ? const AssetImage('assets/background.png')
+                    as ImageProvider<Object>
                 : FileImage(File(ThemeManager().customBackgroundPath!))
                     as ImageProvider<Object>;
 
@@ -116,7 +122,7 @@ class _BgImage extends StatelessWidget {
             if (isDark)
               Positioned.fill(
                 child: ColoredBox(
-                  color: Color.fromARGB(overlayAlpha, 15, 15, 28),
+                  color: darkOverlay,
                 ),
               )
             else

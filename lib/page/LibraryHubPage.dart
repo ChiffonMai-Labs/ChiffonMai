@@ -1,5 +1,7 @@
+import '../l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import 'HubComponents.dart';
+import 'CustomTagsPage.dart';
 import '../utils/FavoriteFeaturesNotifier.dart';
 import '../utils/FeatureRegistry.dart';
 import '../service/CoverRecognitionService.dart';
@@ -81,7 +83,7 @@ class _LibraryHubPageState extends State<LibraryHubPage> {
           setState(() {
             _coverIndexBuilding = false;
           });
-          AppToast.show('曲绘索引构建失败: $e');
+          AppToast.show(context.l10n.hubCoverIndexFailed(e.toString()), tone: AppToastTone.error);
         }
         return;
       }
@@ -112,6 +114,14 @@ class _LibraryHubPageState extends State<LibraryHubPage> {
               onToggleFavorite: () => _toggleFavorite('非国服乐曲查询'),
               onTap: () =>
                   _open(context, const SongSearchPage(extraOnly: true)),
+            ),
+            '自定义标签': HubActionTile(
+              title: '自定义标签',
+              subtitle: '自定义标签名称、颜色与谱面，接入标签筛选与统计',
+              icon: Icons.sell_outlined,
+              isFavorited: _isFavorited('自定义标签'),
+              onToggleFavorite: () => _toggleFavorite('自定义标签'),
+              onTap: () => _open(context, const CustomTagsPage()),
             ),
             '国服更新对照': HubActionTile(
               title: '国服更新对照',

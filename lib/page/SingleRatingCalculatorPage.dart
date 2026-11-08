@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -72,15 +73,15 @@ class _SingleRatingCalculatorState extends State<SingleRatingCalculator> {
   String? _validate(String text, double min, double max, String label) {
     if (text.trim().isEmpty) return null;
     final value = double.tryParse(text);
-    if (value == null || !value.isFinite) return '请输入有效的$label';
-    if (value < min || value > max) return '$label必须在$min到$max之间';
+    if (value == null || !value.isFinite) return context.l10n.flowEnterAValidP0((label).toString());
+    if (value < min || value > max) return context.l10n.flowP0MustBeBetweenP1AndP2((label).toString(), (min).toString(), (max).toString());
     return null;
   }
 
   void _onInputChanged() {
     setState(() {
-      _difficultyError = _validate(_difficultyController.text, 1, 15, '歌曲定数');
-      _completionError = _validate(_completionController.text, 0, 101, '达成率');
+      _difficultyError = _validate(_difficultyController.text, 1, 15, context.l10n.flowSongConstant);
+      _completionError = _validate(_completionController.text, 0, 101, context.l10n.flowAchievement2);
     });
   }
 
@@ -129,7 +130,7 @@ class _SingleRatingCalculatorState extends State<SingleRatingCalculator> {
     for (final (label, multiplier, completion) in tiers) {
       final equivalent = singleRating / (multiplier * completion);
       if (equivalent > 15.0) continue;
-      out.add('${equivalent.toStringAsFixed(1)} 的 $label');
+      out.add(context.l10n.flowP1ForP0((equivalent.toStringAsFixed(1)).toString(), (label).toString()));
     }
     return out;
   }
@@ -140,7 +141,7 @@ class _SingleRatingCalculatorState extends State<SingleRatingCalculator> {
     final bottomInset = MediaQuery.paddingOf(context).bottom;
 
     return BackgroundPageScaffold(
-      title: '单曲 Rating 计算',
+      title: context.l10n.featureSongRatingCalculator,
       resizeToAvoidBottomInset: true,
       child: GestureDetector(
         behavior: HitTestBehavior.translucent,
@@ -156,7 +157,7 @@ class _SingleRatingCalculatorState extends State<SingleRatingCalculator> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildNumberField(
-                    label: '歌曲定数',
+                    label: context.l10n.flowSongConstant,
                     hint: '1.0 – 15.0',
                     controller: _difficultyController,
                     error: _difficultyError,
@@ -164,7 +165,7 @@ class _SingleRatingCalculatorState extends State<SingleRatingCalculator> {
                   ),
                   const SizedBox(height: 16),
                   _buildNumberField(
-                    label: '达成率',
+                    label: context.l10n.flowAchievement2,
                     hint: '0 – 101',
                     suffix: '%',
                     controller: _completionController,
@@ -254,7 +255,7 @@ class _SingleRatingCalculatorState extends State<SingleRatingCalculator> {
       ({String rating, double multiplier, double singleRating, int row})?
           result) {
     final scheme = Theme.of(context).colorScheme;
-    final onCard = scheme.onInverseSurface;
+    final onCard = scheme.onSurface;
     final muted = onCard.withValues(alpha: 0.72);
     final equivalents = result != null && result.singleRating > 0
         ? _equivalents(result.singleRating)
@@ -264,7 +265,7 @@ class _SingleRatingCalculatorState extends State<SingleRatingCalculator> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('单曲 Rating', style: TextStyle(fontSize: 12, color: muted)),
+          Text(context.l10n.flowSongRating, style: TextStyle(fontSize: 12, color: muted)),
           const SizedBox(height: 8),
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
@@ -284,7 +285,7 @@ class _SingleRatingCalculatorState extends State<SingleRatingCalculator> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text('乘数', style: TextStyle(fontSize: 11, color: muted)),
+                    Text(context.l10n.flowMultiplier, style: TextStyle(fontSize: 11, color: muted)),
                     Text(result.multiplier.toString(),
                         style: AppTheme.number(
                             fontSize: 18,
@@ -297,13 +298,13 @@ class _SingleRatingCalculatorState extends State<SingleRatingCalculator> {
           const SizedBox(height: 8),
           Text(
             result == null
-                ? '填好定数和达成率后自动计算 · 单曲 Rating = 定数 × 乘数 × 达成率（取整）'
-                : '单曲 Rating = 定数 × 乘数 × 达成率（取整）',
+                ? context.l10n.flowEnterConstantAndAchievementToCalculateSong
+                : context.l10n.flowSongRatingConstantMultiplierAchievementRoundedDown,
             style: TextStyle(fontSize: 12, color: muted),
           ),
           if (equivalents.isNotEmpty) ...[
             const SizedBox(height: 12),
-            Text('等效定数对照', style: TextStyle(fontSize: 12, color: muted)),
+            Text(context.l10n.flowEquivalentConstants, style: TextStyle(fontSize: 12, color: muted)),
             const SizedBox(height: 6),
             Wrap(
               spacing: 6,
@@ -317,7 +318,7 @@ class _SingleRatingCalculatorState extends State<SingleRatingCalculator> {
                       color: onCard.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
                     ),
-                    child: Text('相当于 $e',
+                    child: Text(context.l10n.flowEquivalentToP0((e).toString()),
                         style: TextStyle(fontSize: 12, color: onCard)),
                   ),
               ],
@@ -337,9 +338,9 @@ class _SingleRatingCalculatorState extends State<SingleRatingCalculator> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const AppSectionHeader(
-          title: '乘数对照表',
-          subtitle: '达成率不低于左列时使用对应乘数；超过 100.5% 按 100.5% 计算',
+         AppSectionHeader(
+          title: context.l10n.flowMultiplierTable,
+          subtitle: context.l10n.flowUseTheMultiplierWhenAchievementMeetsThe,
         ),
         AppCard(
           padding: const EdgeInsets.symmetric(vertical: 6),
@@ -350,10 +351,10 @@ class _SingleRatingCalculatorState extends State<SingleRatingCalculator> {
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                 child: Row(
                   children: [
-                    Expanded(child: Text('达成率 ≥', style: head())),
-                    Expanded(child: Text('评级', style: head())),
+                    Expanded(child: Text(context.l10n.flowAchievement4, style: head())),
+                    Expanded(child: Text(context.l10n.flowGrade, style: head())),
                     Expanded(
-                        child: Text('乘数',
+                        child: Text(context.l10n.flowMultiplier,
                             style: head(), textAlign: TextAlign.end)),
                   ],
                 ),

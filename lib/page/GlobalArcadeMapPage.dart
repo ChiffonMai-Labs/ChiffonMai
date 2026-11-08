@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -295,7 +296,7 @@ class _GlobalArcadeMapPageState extends State<GlobalArcadeMapPage> {
             height: 44,
             child: Semantics(
                 button: true,
-                label: '${cluster.items.length} 家机厅，点击展开',
+                label: context.l10n.flowP0ArcadesTapToExpand((cluster.items.length).toString()),
                 child: GestureDetector(
                     onTap: () {
                       if (_zoom >= 18) {
@@ -385,7 +386,7 @@ class _GlobalArcadeMapPageState extends State<GlobalArcadeMapPage> {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
         if (mounted) {
-          AppToast.show('请先开启设备定位服务');
+          AppToast.show(context.l10n.flowTurnOnDeviceLocationServicesFirst, tone: AppToastTone.warning);
         }
         return;
       }
@@ -398,7 +399,7 @@ class _GlobalArcadeMapPageState extends State<GlobalArcadeMapPage> {
       }
       if (permission == LocationPermission.deniedForever) {
         if (mounted) {
-          AppToast.show('定位权限已被永久拒绝，请在系统设置中开启');
+          AppToast.show(context.l10n.flowLocationPermissionIsPermanentlyDeniedEnableIt, tone: AppToastTone.warning);
         }
         return;
       }
@@ -426,7 +427,7 @@ class _GlobalArcadeMapPageState extends State<GlobalArcadeMapPage> {
 
       if (position == null) {
         if (mounted) {
-          AppToast.show('无法获取当前位置，请确认已开启定位服务且信号良好');
+          AppToast.show(context.l10n.flowCouldNotGetYourLocationCheckThat, tone: AppToastTone.error);
         }
         return;
       }
@@ -436,7 +437,7 @@ class _GlobalArcadeMapPageState extends State<GlobalArcadeMapPage> {
     } catch (e) {
       debugPrint('定位失败: $e');
       if (mounted) {
-        AppToast.show('定位失败: $e');
+        AppToast.show(context.l10n.flowLocationFailedP0((e).toString()), tone: AppToastTone.error);
       }
     }
   }
@@ -462,9 +463,9 @@ class _GlobalArcadeMapPageState extends State<GlobalArcadeMapPage> {
     if (_lastFetchTime == null) return '';
     final now = DateTime.now();
     final diff = now.difference(_lastFetchTime!);
-    if (diff.inMinutes < 1) return '刚刚更新';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}分钟前';
-    if (diff.inHours < 24) return '${diff.inHours}小时前';
+    if (diff.inMinutes < 1) return context.l10n.flowStatsJustUpdated;
+    if (diff.inMinutes < 60) return context.l10n.flowP0MinutesAgo2((diff.inMinutes).toString());
+    if (diff.inHours < 24) return context.l10n.flowP0HoursAgo2((diff.inHours).toString());
     return '${_lastFetchTime!.month}/${_lastFetchTime!.day} ${_lastFetchTime!.hour.toString().padLeft(2, '0')}:${_lastFetchTime!.minute.toString().padLeft(2, '0')}';
   }
 
@@ -481,7 +482,7 @@ class _GlobalArcadeMapPageState extends State<GlobalArcadeMapPage> {
         : filtered.length;
     final isFiltering = _searchQuery.isNotEmpty || _selectedTitleIds.isNotEmpty;
     final countLabel =
-        isFiltering ? '${filtered.length}家' : '共${_shops.length}家';
+        isFiltering ? context.l10n.flowP0Arcades((filtered.length).toString()) : context.l10n.flowP0ArcadesTotal((_shops.length).toString());
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -495,7 +496,7 @@ class _GlobalArcadeMapPageState extends State<GlobalArcadeMapPage> {
           Column(
             children: [
               AppHeader(
-                title: '全球音游街机地图',
+                title: context.l10n.featureWorldwideArcadeMap,
                 actions: [
                   IconButton(
                     icon: Icon(Icons.refresh,
@@ -518,11 +519,11 @@ class _GlobalArcadeMapPageState extends State<GlobalArcadeMapPage> {
                                   .colorScheme
                                   .onSurfaceVariant)),
                       if (isFiltering)
-                        Text(' (筛选)',
+                        Text(context.l10n.flowFiltered,
                             style:
                                 TextStyle(fontSize: 10, color: Colors.orange)),
                       Expanded(
-                          child: Text(' 视野内 $visibleInBounds 家（邻近点自动合并）',
+                          child: Text(context.l10n.flowP0ArcadesInViewNearbyPointsGrouped((visibleInBounds).toString()),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
@@ -531,7 +532,7 @@ class _GlobalArcadeMapPageState extends State<GlobalArcadeMapPage> {
                                       .colorScheme
                                       .onSurfaceVariant))),
                       if (_lastFetchTime != null)
-                        Text('上次更新: ${_formatLastFetchTime()}',
+                        Text(context.l10n.flowLastUpdatedP0((_formatLastFetchTime()).toString()),
                             style: TextStyle(fontSize: 10, color: Colors.grey)),
                     ],
                   ),
@@ -613,7 +614,7 @@ class _GlobalArcadeMapPageState extends State<GlobalArcadeMapPage> {
                     focusNode: _searchFocusNode,
                     style: TextStyle(fontSize: 14),
                     decoration: InputDecoration(
-                      hintText: '搜索店名或地址',
+                      hintText: context.l10n.flowSearchArcadeNameOrAddress,
                       hintStyle: TextStyle(fontSize: 13),
                       border: InputBorder.none,
                       isDense: true,
@@ -763,7 +764,7 @@ class _GlobalArcadeMapPageState extends State<GlobalArcadeMapPage> {
                 children: [
                   Row(
                     children: [
-                      Text('机台筛选',
+                      Text(context.l10n.flowMachineFilters,
                           style: TextStyle(
                               fontSize: 13, fontWeight: FontWeight.bold)),
                       const Spacer(),
@@ -771,7 +772,7 @@ class _GlobalArcadeMapPageState extends State<GlobalArcadeMapPage> {
                         GestureDetector(
                           onTap: () =>
                               setState(() => _selectedTitleIds.clear()),
-                          child: Text('清除',
+                          child: Text(context.l10n.flowClear,
                               style:
                                   TextStyle(fontSize: 12, color: Colors.red)),
                         ),
@@ -837,12 +838,12 @@ class _GlobalArcadeMapPageState extends State<GlobalArcadeMapPage> {
           children: [
             Icon(Icons.error_outline, size: 48, color: Colors.red),
             SizedBox(height: 12),
-            Text('加载失败', style: TextStyle(fontSize: 16)),
+            Text(context.l10n.flowCouldNotLoad, style: TextStyle(fontSize: 16)),
             Text(_error!,
                 style: TextStyle(fontSize: 12, color: Colors.grey),
                 textAlign: TextAlign.center),
             SizedBox(height: 16),
-            ElevatedButton(onPressed: _refresh, child: Text('重试')),
+            ElevatedButton(onPressed: _refresh, child: Text(context.l10n.flowRetry)),
           ],
         ),
       );
@@ -850,7 +851,7 @@ class _GlobalArcadeMapPageState extends State<GlobalArcadeMapPage> {
 
     if (_shops.isEmpty) {
       return Center(
-          child: Text('暂无店铺数据', style: TextStyle(color: Colors.grey)));
+          child: Text(context.l10n.flowNoArcadeDataYet, style: TextStyle(color: Colors.grey)));
     }
 
     final markerList = _buildMarkers();
@@ -922,7 +923,7 @@ class _GlobalArcadeMapPageState extends State<GlobalArcadeMapPage> {
                 Text('📝 ${shop.comment}', style: TextStyle(fontSize: 13)),
               ],
               SizedBox(height: 8),
-              Text('🎮 机台:',
+              Text(context.l10n.flowMachines,
                   style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
               SizedBox(height: 4),
               Text(gameList, style: TextStyle(fontSize: 13)),

@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'dart:async';
 import 'dart:io';
@@ -62,9 +63,7 @@ class SongScoreShareService {
       final userNickname = prefs.getString('userNickname') ?? '';
       final totalRating = prefs.getInt('best50TotalRA') ?? 0;
       final avatarId = prefs.getInt('selectedAvatarId') ?? 1;
-      final avatarUrl = avatarId > 0
-          ? 'https://assets2.lxns.net/maimai/icon/$avatarId.png'
-          : null;
+      final avatarUrl = avatarId > 0 ? lxnsIconUrl(avatarId) : null;
 
       // 创建GlobalKey用于截图
       GlobalKey globalKey = GlobalKey();
@@ -73,7 +72,7 @@ class SongScoreShareService {
       Widget imageWidget = RepaintBoundary(
         key: globalKey,
         child: _buildShareCard(
-      theme: theme,
+          theme: theme,
           context: context,
           songId: songId,
           songTitle: songTitle,
@@ -123,8 +122,8 @@ class SongScoreShareService {
         return null;
       }
 
-      final encoded =
-          await ImageEncodeUtil.encodeBoundary(boundary, jpegQuality: jpegQuality);
+      final encoded = await ImageEncodeUtil.encodeBoundary(boundary,
+          jpegQuality: jpegQuality);
       final Uint8List finalBytes = encoded.bytes;
       final String extension = encoded.extension;
       overlayEntry.remove();
@@ -183,9 +182,7 @@ class SongScoreShareService {
       rawRate: rawRate,
       userNickname: prefs.getString('userNickname') ?? '',
       totalRating: prefs.getInt('best50TotalRA') ?? 0,
-      avatarUrl: avatarId > 0
-          ? 'https://assets2.lxns.net/maimai/icon/$avatarId.png'
-          : null,
+      avatarUrl: avatarId > 0 ? lxnsIconUrl(avatarId) : null,
     );
   }
 
@@ -231,7 +228,9 @@ class SongScoreShareService {
 
     // 难度名称（UTAGE 歌曲显示 ChartDifficulty.utageLabel，与 SongInfoPage 保持一致）
     final diffNames = ChartDifficulty.standardLabels;
-    final diffName = isUtage ? ChartDifficulty.utageLabel : diffNames[levelIndex.clamp(0, 4)];
+    final diffName = isUtage
+        ? ChartDifficulty.utageLabel
+        : diffNames[levelIndex.clamp(0, 4)];
 
     // 星星等级（与 SongInfoPage._calculateStars 保持一致：带空格格式 "✦ 6"）
     final scoreRate = maxDxScore > 0 ? dxScore / maxDxScore : 0.0;
@@ -313,11 +312,11 @@ class SongScoreShareService {
                         spacing: 8,
                         runSpacing: 8,
                         children: [
-                          heroChip(isUtage
-                              ? ChartDifficulty.utageLabel
-                              : typeLabel),
+                          heroChip(
+                              isUtage ? ChartDifficulty.utageLabel : typeLabel),
                           heroChip('$diffName $levelStr'),
-                          heroChip('定数 ${ds.toStringAsFixed(1)}'),
+                          heroChip(context.l10n.flowConstantP0(
+                              (ds.toStringAsFixed(1)).toString())),
                           heroChip('BPM $bpm'),
                           heroChip(genre),
                         ],
@@ -349,7 +348,8 @@ class SongScoreShareService {
                               Row(
                                 children: [
                                   Expanded(
-                                    child: Text('单曲达成率',
+                                    child: Text(
+                                        context.l10n.flowSongAchievement,
                                         style: TextStyle(
                                             fontSize: 26,
                                             fontWeight: FontWeight.w600,
@@ -423,7 +423,9 @@ class SongScoreShareService {
                                           fontWeight: FontWeight.w800,
                                           color: c.ink)),
                                 if (totalRating > 0)
-                                  Text('总 Rating $totalRating',
+                                  Text(
+                                      context.l10n.flowTotalRatingP0(
+                                          (totalRating).toString()),
                                       style: TextStyle(
                                           fontSize: 24,
                                           color: c.muted,
@@ -452,7 +454,7 @@ class SongScoreShareService {
                       _buildStatItem(
                         c: c,
                         icon: Icons.score_rounded,
-                        label: 'DX分数',
+                        label: context.l10n.flowDXScore2,
                         value: '$dxScore / $maxDxScore',
                         subtitle: '$dxScorePercent%',
                         accentColor: accentColor,
@@ -461,7 +463,7 @@ class SongScoreShareService {
                       _buildStatItem(
                         c: c,
                         icon: Icons.music_note_rounded,
-                        label: '连击',
+                        label: context.l10n.flowCombo,
                         value: fcColors.label,
                         accentColor: accentColor,
                         valueColor: onPanel(fcColors.fg),
@@ -470,7 +472,7 @@ class SongScoreShareService {
                       _buildStatItem(
                         c: c,
                         icon: Icons.auto_awesome_rounded,
-                        label: '同步',
+                        label: context.l10n.flowSync,
                         value: fsColors.label,
                         accentColor: accentColor,
                         valueColor: onPanel(fsColors.fg),
@@ -480,7 +482,7 @@ class SongScoreShareService {
                       _buildStatItem(
                         c: c,
                         icon: Icons.stars_rounded,
-                        label: '星数',
+                        label: context.l10n.flowStars,
                         value: starDisplay,
                         subtitle: starBonus,
                         accentColor: accentColor,

@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:my_first_flutter_app/page/SongInfoPage.dart';
@@ -114,7 +115,7 @@ class _DsRangeRecommendPageState extends State<DsRangeRecommendPage> {
     final paginatedResults = _results.sublist(startIndex, endIndex);
 
     return BackgroundPageScaffold(
-      title: '基于定数区间推荐',
+      title: context.l10n.featureConstantRangeRecommendations,
       resizeToAvoidBottomInset: false,
       contentPadding: EdgeInsets.only(
         bottom: MediaQuery.paddingOf(context).bottom,
@@ -143,8 +144,12 @@ class _DsRangeRecommendPageState extends State<DsRangeRecommendPage> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(
           AppDesignTokens.gutter, 4, AppDesignTokens.gutter, 10),
-      child: AppCard(
-        padding: const EdgeInsets.all(12),
+      child: CollapsibleCard(
+        title: context.l10n.flowRecommendationSettings,
+        subtitle: _results.isEmpty
+            ? null
+            : context.l10n.flowConstantsP0P1P2Results((_minDs.toStringAsFixed(1)).toString(), (_maxDs.toStringAsFixed(1)).toString(), (_results.length).toString()),
+        initiallyExpanded: true,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -161,7 +166,7 @@ class _DsRangeRecommendPageState extends State<DsRangeRecommendPage> {
                     ],
                     onChanged: _onMinDsChanged,
                     decoration:
-                        recommendInputDecoration(context, label: '最低定数'),
+                        recommendInputDecoration(context, label: context.l10n.flowMinimumConstant),
                   ),
                 ),
                 Padding(
@@ -185,29 +190,18 @@ class _DsRangeRecommendPageState extends State<DsRangeRecommendPage> {
                     ],
                     onChanged: _onMaxDsChanged,
                     decoration:
-                        recommendInputDecoration(context, label: '最高定数'),
+                        recommendInputDecoration(context, label: context.l10n.flowMaximumConstant),
                   ),
                 ),
                 const SizedBox(width: 8),
                 FilledButton(
                   onPressed: _loadRecommendations,
-                  child: const Text('推荐'),
+                  child:  Text(context.l10n.flowRecommend),
                 ),
               ],
             ),
             const SizedBox(height: 10),
             _buildSortTabs(),
-            if (_results.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  '定数范围 ${_minDs.toStringAsFixed(1)} ~ ${_maxDs.toStringAsFixed(1)} · 共 ${_results.length} 条结果',
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
           ],
         ),
       ),
@@ -218,9 +212,9 @@ class _DsRangeRecommendPageState extends State<DsRangeRecommendPage> {
     const modes = ['avg', 'diff'];
     return SegmentedTabs(
       height: 44,
-      items: const [
-        SegmentedTabItem('平均达成率推荐'),
-        SegmentedTabItem('定数差值推荐'),
+      items:  [
+        SegmentedTabItem(context.l10n.flowByAverageAchievement),
+        SegmentedTabItem(context.l10n.flowByConstantDifference),
       ],
       selectedIndex: modes.indexOf(_sortMode),
       onChanged: (index) {
@@ -244,7 +238,7 @@ class _DsRangeRecommendPageState extends State<DsRangeRecommendPage> {
             ),
             const SizedBox(height: 16),
             Text(
-              '正在加载推荐结果...',
+              context.l10n.flowLoadingRecommendations,
               style: TextStyle(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
@@ -260,7 +254,7 @@ class _DsRangeRecommendPageState extends State<DsRangeRecommendPage> {
       child: Padding(
         padding: EdgeInsets.all(screenHeight * 0.05),
         child: Text(
-          '暂无推荐结果，请检查定数区间输入是否正确',
+          context.l10n.flowNoRecommendationsCheckTheConstantRange,
           textAlign: TextAlign.center,
           style: TextStyle(
             color: AppColors.greyHint(brightness),
@@ -285,6 +279,8 @@ class _DsRangeRecommendPageState extends State<DsRangeRecommendPage> {
         // 只给首屏做入场，滚回来时不重播
         return index < 8
             ? EntranceAnimation(
+                // 换页时重新进场
+                key: ValueKey('$_currentPage-$index'),
                 index: index,
                 duration: const Duration(milliseconds: 300),
                 offset: const Offset(0, 8),
@@ -308,7 +304,7 @@ class _DsRangeRecommendPageState extends State<DsRangeRecommendPage> {
       metricValue: isAvg
           ? '${item.avg.toStringAsFixed(2)}%'
           : '${item.diffDifference >= 0 ? "+" : ""}${item.diffDifference.toStringAsFixed(2)}',
-      metricLabel: isAvg ? '平均达成' : '定数差值',
+      metricLabel: isAvg ? context.l10n.flowAvgAchievement : context.l10n.flowConstantDifference,
       metricColor: isAvg
           ? null
           : (item.diffDifference < 0
@@ -316,7 +312,7 @@ class _DsRangeRecommendPageState extends State<DsRangeRecommendPage> {
               : AppColors.errorRed(brightness)),
       details: [
         if (item.userAchievement != null)
-          '个人最佳 ${item.userAchievement!.toStringAsFixed(4)}%',
+          context.l10n.flowPersonalBestP0((item.userAchievement!.toStringAsFixed(4)).toString()),
       ],
       onTap: () {
         Navigator.push(

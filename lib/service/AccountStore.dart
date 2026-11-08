@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -177,8 +178,11 @@ class AccountStore {
   }
 
   static Future<void> _requireWrite(Future<bool> result) async {
-    if (!await result) throw StateError('账号存档写入失败');
+    if (!await result) throw StateError(appL10n.svcCouldNotWriteTheAccountArchive);
   }
+
+  /// 账号列表每次写入后递增，供「切换账号」下方的状态标签即时刷新。
+  static final ValueNotifier<int> revision = ValueNotifier(0);
 
   static Future<void> _persistAll(Map<String, AccountMeta> all) async {
     final prefs = await SharedPreferences.getInstance();
@@ -186,6 +190,7 @@ class AccountStore {
       CacheKeyConstant.accountStore,
       json.encode(all.map((k, v) => MapEntry(k, v.toJson()))),
     ));
+    revision.value++;
   }
 
   // ───────────────────────── 存档读写 ─────────────────────────
@@ -246,7 +251,7 @@ class AccountStore {
     for (final key in [_identityArchiveKey(source), _playArchiveKey(source)]) {
       final raw = prefs.getString(key);
       if (raw != null && json.decode(raw) is! Map) {
-        throw const FormatException('账号存档格式无效');
+        throw FormatException(appL10n.svcTheAccountArchiveHasAnInvalidFormat);
       }
     }
     await clearActiveSlot();
@@ -284,7 +289,7 @@ class AccountStore {
         }
       });
       for (final result in await Future.wait(writes)) {
-        if (!result) throw StateError('账号存档恢复失败');
+        if (!result) throw StateError(appL10n.svcCouldNotRestoreTheAccountArchive);
       }
     } catch (e) {
       debugPrint('读账号存档失败($archiveKey): $e');
@@ -374,12 +379,12 @@ class AccountStore {
       }
     }
     if (owner != accountId || raw == null) {
-      throw StateError('请先刷新${source.displayName}目标账号的数据，以保留该账号的连击与同步标记');
+      throw StateError(appL10n.svcRefreshTheTargetP0AccountSData((appLocalizeLabel(source.displayName)).toString()));
     }
     final data = jsonDecode(raw);
     final records = data is Map ? data['records'] : null;
     if (records is! List)
-      throw StateError('${source.displayName}成绩缓存无效，请先刷新数据');
+      throw StateError(appL10n.svcTheP0ScoreCacheIsInvalidRefresh((appLocalizeLabel(source.displayName)).toString()));
     return records;
   }
 

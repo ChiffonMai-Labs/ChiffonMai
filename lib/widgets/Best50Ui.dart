@@ -1,3 +1,6 @@
+import 'package:my_first_flutter_app/l10n/FeatureLocalizations.dart';
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -130,12 +133,18 @@ class Best50DisplayModeBar extends StatelessWidget {
       builder: (context, current, _) => Align(
         alignment: Alignment.centerRight,
         child: SizedBox(
-          width: 204,
+          width: 244,
           child: SegmentedTabs(
             height: 36,
             items: [
               for (final mode in Best50DisplayMode.values)
-                SegmentedTabItem(mode.label),
+                SegmentedTabItem(switch (mode) {
+                  Best50DisplayMode.cover => context.l10n.bestDisplayCover,
+                  Best50DisplayMode.twoColumns =>
+                    context.l10n.bestDisplayTwoColumns,
+                  Best50DisplayMode.oneColumn =>
+                    context.l10n.bestDisplayOneColumn,
+                }),
             ],
             selectedIndex: current.index,
             onChanged: (index) =>
@@ -434,11 +443,15 @@ class Best50MetaLine extends StatelessWidget {
 
 /// 把列表换算成分段下面的摘要：`往期版本 35 首 · 最低 301 · 平均 305.2`。
 String best50MetaText(String name, Iterable<int> ratings) {
-  if (ratings.isEmpty) return '$name 0 首';
+  if (ratings.isEmpty) return appL10n.flowP00Songs((name).toString());
   final list = ratings.toList();
   final min = list.reduce((a, b) => a < b ? a : b);
   final avg = list.fold<int>(0, (a, b) => a + b) / list.length;
-  return '$name ${list.length} 首 · 最低 $min · 平均 ${avg.toStringAsFixed(1)} · 点卡片看推分空间';
+  return appL10n.flowP0P1SongsMinP2AvgP3(
+      (name).toString(),
+      (list.length).toString(),
+      (min).toString(),
+      (avg.toStringAsFixed(1)).toString());
 }
 
 /// 平均达成率一行的数据。
@@ -488,7 +501,7 @@ class _Best50AveragesCardState extends State<Best50AveragesCard> {
                 child: Row(
                   children: [
                     Expanded(
-                      child: Text(widget.title,
+                      child: Text(context.featureText(widget.title),
                           style: const TextStyle(
                               fontSize: 14, fontWeight: FontWeight.w700)),
                     ),
@@ -564,9 +577,11 @@ class _AverageLine extends StatelessWidget {
                   Text('${row.achievement.toStringAsFixed(4)}%',
                       style: numStyle),
                   const SizedBox(width: 12),
-                  Text('DX分数 ${(row.scoreRate * 100).toStringAsFixed(2)}%',
-                      style:
-                          numStyle.copyWith(color: scheme.onSurfaceVariant)),
+                  Text(
+                      context.l10n.flowDXScoreP02(
+                          ((row.scoreRate * 100).toStringAsFixed(2))
+                              .toString()),
+                      style: numStyle.copyWith(color: scheme.onSurfaceVariant)),
                   const SizedBox(width: 8),
                   StarBadge(stars: StringUtil.formatStars(row.scoreRate)),
                 ],
@@ -700,8 +715,7 @@ class Best50Grid extends StatelessWidget {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               padding: EdgeInsets.zero,
-              gridDelegate:
-                  delegate(context, constraints.maxWidth, mode: mode),
+              gridDelegate: delegate(context, constraints.maxWidth, mode: mode),
               itemCount: count,
               itemBuilder: (context, index) {
                 if (index >= items.length) {
@@ -732,8 +746,8 @@ class Best50Grid extends StatelessWidget {
                       data: data,
                       rank: index + 1,
                       entranceIndex: index,
-                      maxIdLength: items.any(
-                              (item) => item.songId.toString().length == 6)
+                      maxIdLength: items
+                              .any((item) => item.songId.toString().length == 6)
                           ? 6
                           : 5,
                       onTap: open,
@@ -796,7 +810,8 @@ class Best50StripCard extends StatelessWidget {
         scale: 0.98,
         child: Semantics(
           button: true,
-          label: '第 $rank 名，${data.title}，Rating ${data.rating}',
+          label: context.l10n.flowRankP0P1RatingP2((rank).toString(),
+              (data.title).toString(), (data.rating).toString()),
           excludeSemantics: true,
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
@@ -862,8 +877,13 @@ class Best50StripCard extends StatelessWidget {
                       children: [
                         Row(
                           children: [
-                            SongTypeBadge(
-                                songId: songId, type: data.type, fontSize: 9.5),
+                            Transform.translate(
+                              offset: const Offset(0, 2),
+                              child: SongTypeBadge(
+                                  songId: songId,
+                                  type: data.type,
+                                  fontSize: 9.5),
+                            ),
                             const SizedBox(width: 5),
                             Expanded(
                               child: MarqueeText(
@@ -1020,7 +1040,8 @@ class Best50ScoreCard extends StatelessWidget {
       child: PressScale(
         child: Semantics(
           button: true,
-          label: '第 $rank 名，${data.title}，Rating ${data.rating}',
+          label: context.l10n.flowRankP0P1RatingP2((rank).toString(),
+              (data.title).toString(), (data.rating).toString()),
           excludeSemantics: true,
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
@@ -1036,8 +1057,8 @@ class Best50ScoreCard extends StatelessWidget {
                   IgnorePointer(
                     child: DecoratedBox(
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(
-                            AppDesignTokens.radiusSmall),
+                        borderRadius:
+                            BorderRadius.circular(AppDesignTokens.radiusSmall),
                         border: Border.all(color: outlineColor!, width: 2.5),
                       ),
                     ),
@@ -1077,7 +1098,8 @@ class Best50CoverCard extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final card = Semantics(
       button: true,
-      label: '第 $rank 名，${data.title}，Rating ${data.rating}',
+      label: context.l10n.flowRankP0P1RatingP2(
+          (rank).toString(), (data.title).toString(), (data.rating).toString()),
       excludeSemantics: true,
       child: Material(
         color: AppSurfaces.card(context),
@@ -1130,8 +1152,7 @@ class Best50CoverCard extends StatelessWidget {
                         spacing: 3,
                         runSpacing: 3,
                         children: [
-                          if (data.badge != null)
-                            _CoverPill(text: data.badge!),
+                          if (data.badge != null) _CoverPill(text: data.badge!),
                           if (data.fc.isNotEmpty)
                             ComboLabelBadge(raw: data.fc, fontSize: 10),
                           if (data.fs.isNotEmpty)
@@ -1308,7 +1329,11 @@ Future<void> showBest50SongSheet(BuildContext context, Best50CardData data) {
                             const SizedBox(width: 6),
                             Flexible(
                               child: Text(
-                                '${data.difficultyLabel} · ${StringUtil.formatSongType(data.type)} · 定数 ${data.dsText}',
+                                context.l10n.flowP0P1ConstantP2(
+                                    (data.difficultyLabel).toString(),
+                                    (StringUtil.formatSongType(data.type))
+                                        .toString(),
+                                    (data.dsText).toString()),
                                 style: TextStyle(
                                     fontSize: 12,
                                     color: scheme.onSurfaceVariant),
@@ -1328,12 +1353,17 @@ Future<void> showBest50SongSheet(BuildContext context, Best50CardData data) {
               const SizedBox(height: 14),
               Row(
                 children: [
-                  tile(label: '达成率', value: data.achievementText),
+                  tile(
+                      label: context.l10n.flowAchievement2,
+                      value: data.achievementText),
                   const SizedBox(width: 10),
                   next == null
-                      ? tile(label: '推分空间', value: '已到单曲上限')
+                      ? tile(
+                          label: context.l10n.flowRatingHeadroom,
+                          value: context.l10n.flowSongLimitReached)
                       : tile(
-                          label: '推到 ${next.$1}（${next.$2}%）',
+                          label: context.l10n.flowRaiseToP0P1(
+                              (next.$1).toString(), (next.$2).toString()),
                           value: '+${next.$3}',
                           background: success.background,
                           foreground: success.foreground,
@@ -1352,7 +1382,9 @@ Future<void> showBest50SongSheet(BuildContext context, Best50CardData data) {
                   if (data.fs.isNotEmpty) ComboLabelBadge(raw: data.fs),
                   if (data.stars.isNotEmpty) StarBadge(stars: data.stars),
                   if (data.maxDxScore > 0)
-                    Text('DX分数 ${data.dxScore} / ${data.maxDxScore}',
+                    Text(
+                        context.l10n.flowDXScoreP0P12((data.dxScore).toString(),
+                            (data.maxDxScore).toString()),
                         style: AppTheme.number(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
@@ -1373,9 +1405,9 @@ Future<void> showBest50SongSheet(BuildContext context, Best50CardData data) {
                     Navigator.of(sheetContext).pop();
                     data.onOpenSong();
                   },
-                  child: const Text('查看歌曲详情',
-                      style: TextStyle(
-                          fontSize: 15, fontWeight: FontWeight.w700)),
+                  child: Text(context.l10n.flowViewSongDetails,
+                      style:
+                          TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
                 ),
               ),
             ],
@@ -1408,7 +1440,7 @@ class _Best50RemainingCell extends StatelessWidget {
     final icon =
         Icon(Icons.queue_music_rounded, size: 26, color: scheme.primary);
     final countText = Text(
-      '剩余 $count 首',
+      context.l10n.flowP0SongsRemaining((count).toString()),
       maxLines: 1,
       style: TextStyle(
         fontSize: 13.5,
@@ -1470,8 +1502,8 @@ Future<void> showBest50RemainingDialog(
     context: context,
     builder: (dialogContext) => AppAlertDialog(
       icon: const Icon(Icons.queue_music_rounded),
-      title: Text('剩余 ${items.length} 首'),
-      subtitle: '$label，和榜单最后一首相同',
+      title: Text(context.l10n.flowP0SongsRemaining((items.length).toString())),
+      subtitle: context.l10n.flowP0EqualToTheLastChartOn((label).toString()),
       content: SizedBox(
         width: double.maxFinite,
         child: ListView.separated(
@@ -1501,8 +1533,10 @@ Future<void> showBest50RemainingDialog(
                   ),
                 ],
               ),
-              subtitle: '${data.difficultyLabel} · '
-                  '定数 ${data.dsText} · RA ${data.rating}',
+              subtitle: context.l10n.flowP0ConstantP1RAP2(
+                  (data.difficultyLabel).toString(),
+                  (data.dsText).toString(),
+                  (data.rating).toString()),
               subtitleSingleLine: true,
               leading: ClipRRect(
                 borderRadius:
@@ -1523,7 +1557,7 @@ Future<void> showBest50RemainingDialog(
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(dialogContext),
-          child: const Text('关闭'),
+          child: Text(context.l10n.featureClose),
         ),
       ],
     ),
@@ -1558,7 +1592,7 @@ Future<void> showBest50OpportunityDialog(
       final scheme = Theme.of(dialogContext).colorScheme;
       final green = AppColors.successGreen(scheme.brightness);
       return AppDialog(
-        title: '上分潜力',
+        title: context.l10n.flowRatingPotential,
         icon: Icons.trending_up_rounded,
         tone: AppDialogTone.success,
         content: Column(
@@ -1573,8 +1607,8 @@ Future<void> showBest50OpportunityDialog(
               child: ListView.separated(
                 padding: EdgeInsets.zero,
                 itemCount: tiers.length,
-                separatorBuilder: (_, __) =>
-                    Divider(height: 1, color: AppSurfaces.hairline(dialogContext)),
+                separatorBuilder: (_, __) => Divider(
+                    height: 1, color: AppSurfaces.hairline(dialogContext)),
                 itemBuilder: (_, index) {
                   final tier = tiers[index];
                   return SizedBox(
@@ -1628,7 +1662,7 @@ Future<void> showBest50OpportunityDialog(
         actions: [
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('关闭'),
+            child: Text(context.l10n.featureClose),
           ),
         ],
       );

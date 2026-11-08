@@ -1,3 +1,4 @@
+import '../l10n/FeatureLocalizations.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -137,7 +138,7 @@ class _SongSearchOverlayState extends State<SongSearchOverlay> {
         }
       }
       if (mounted && !_closing) {
-        AppToast.show('搜索历史更新失败，请重试');
+        AppToast.show(context.featureText('搜索历史更新失败，请重试'), tone: AppToastTone.error);
       }
     }
   }
@@ -198,11 +199,11 @@ class _SongSearchOverlayState extends State<SongSearchOverlay> {
             onSubmitted: (query) => _close(query: query),
             style: TextStyle(fontSize: screenWidth * .04),
             decoration: InputDecoration(
-              hintText: widget.hintText ??
-                  (widget.titleOnly ? '只按歌名搜索' : '歌名/BPM/谱师/曲师/别名/歌曲ID/...'),
+              hintText: widget.hintText == null ?
+                  (widget.titleOnly ? context.featureText('只按歌名搜索') : context.featureText('歌名/BPM/谱师/曲师/别名/歌曲ID/...')) : context.featureText(widget.hintText!),
               hintStyle: TextStyle(fontSize: screenWidth * .035),
               prefixIcon: IconButton(
-                tooltip: '收起搜索',
+                tooltip: context.featureText('收起搜索'),
                 onPressed: () => _close(submit: false),
                 icon: const Icon(Icons.arrow_back),
               ),
@@ -211,7 +212,7 @@ class _SongSearchOverlayState extends State<SongSearchOverlay> {
                 builder: (context, value, _) => value.text.isEmpty
                     ? const SizedBox.shrink()
                     : IconButton(
-                        tooltip: '清除输入',
+                        tooltip: context.featureText('清除输入'),
                         onPressed: _controller.clear,
                         icon: const Icon(Icons.close, size: 20),
                       ),
@@ -248,18 +249,18 @@ class _SongSearchOverlayState extends State<SongSearchOverlay> {
             children: [
               Icon(Icons.history, size: 18, color: colors.onSurfaceVariant),
               const SizedBox(width: 8),
-              const Expanded(child: Text('搜索历史')),
+              Expanded(child: Text(context.featureText('搜索历史'))),
               if (_history.isNotEmpty)
                 TextButton(
                   onPressed: () => _changeHistory(clear: true),
-                  child: const Text('清空'),
+                  child: Text(context.featureText('清空')),
                 ),
             ],
           ),
           const SizedBox(height: 8),
           if (_history.isEmpty)
             Text(
-              _loadingHistory ? '正在读取搜索历史…' : '暂无搜索历史',
+              _loadingHistory ? context.featureText('正在读取搜索历史…') : context.featureText('暂无搜索历史'),
               style: TextStyle(color: colors.onSurfaceVariant),
             )
           else
@@ -273,7 +274,7 @@ class _SongSearchOverlayState extends State<SongSearchOverlay> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis),
                 trailing: IconButton(
-                  tooltip: '删除这条搜索历史',
+                  tooltip: context.featureText('删除这条搜索历史'),
                   icon: const Icon(Icons.close_rounded),
                   onPressed: () => _changeHistory(remove: query),
                 ),

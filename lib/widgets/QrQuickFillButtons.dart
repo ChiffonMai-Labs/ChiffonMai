@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -57,11 +58,12 @@ class QrQuickFillButtons extends StatelessWidget {
     final text = data?.text ?? '';
     if (text.trim().startsWith('SGWCMAID')) {
       _fill(text);
-      AppToast.show('已识别到有效二维码字符串，已自动填入');
+      AppToast.show(context.l10n.flowValidQRStringDetectedAndFilledIn,
+          tone: AppToastTone.success);
       return;
     }
     if (text.trim().isEmpty) {
-      AppToast.show('剪贴板为空');
+      AppToast.show(context.l10n.flowClipboardIsEmpty);
       return;
     }
     // 不是标准二维码串：让用户自己确认，避免把乱七八糟的内容填进去
@@ -69,16 +71,16 @@ class QrQuickFillButtons extends StatelessWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AppAlertDialog(
-        title: const Text('提示'),
-        content: const Text('剪贴板内容不是有效的登入二维码，仍要填入吗？'),
+        title: Text(context.l10n.featureNotice),
+        content: Text(context.l10n.flowClipboardContentIsNotAValidLogin),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('取消'),
+            child: Text(context.l10n.featureCancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('填入'),
+            child: Text(context.l10n.flowFillIn),
           ),
         ],
       ),
@@ -102,22 +104,26 @@ class QrQuickFillButtons extends StatelessWidget {
       try {
         final barcodes = await scanner.analyzeImage(pickedFile.path);
         if (barcodes == null || barcodes.barcodes.isEmpty) {
-          AppToast.show('未在图片中检测到二维码');
+          AppToast.show(context.l10n.flowNoQRCodeFoundInTheImage,
+              tone: AppToastTone.warning);
           return;
         }
         final qrText = barcodes.barcodes.first.rawValue ?? '';
         if (qrText.isEmpty) {
-          AppToast.show('未能从图片中识别到二维码内容');
+          AppToast.show(context.l10n.flowCouldNotReadQRContentFromThe,
+              tone: AppToastTone.error);
           return;
         }
         _fill(qrText);
-        AppToast.show('已识别到二维码，已自动填入');
+        AppToast.show(context.l10n.flowQRCodeDetectedAndFilledIn,
+            tone: AppToastTone.success);
       } finally {
         scanner.dispose();
       }
     } catch (e) {
       debugPrint('[QrQuickFill] 相册识别失败: $e');
-      AppToast.show('识别失败: $e');
+      AppToast.show(context.l10n.flowRecognitionFailedP0((e).toString()),
+          tone: AppToastTone.error);
     }
   }
 
@@ -128,10 +134,12 @@ class QrQuickFillButtons extends StatelessWidget {
       );
       if (result == null || result.trim().isEmpty) return;
       _fill(result);
-      AppToast.show('已识别到二维码，已自动填入');
+      AppToast.show(context.l10n.flowQRCodeDetectedAndFilledIn,
+          tone: AppToastTone.success);
     } catch (e) {
       debugPrint('[QrQuickFill] 扫码失败: $e');
-      AppToast.show('扫描失败: $e');
+      AppToast.show(context.l10n.flowScanFailedP0((e).toString()),
+          tone: AppToastTone.error);
     }
   }
 
@@ -158,17 +166,17 @@ class QrQuickFillButtons extends StatelessWidget {
       children: [
         _button(
           icon: Icons.paste,
-          label: '读取剪贴板',
+          label: context.l10n.flowReadClipboard,
           onPressed: enabled ? () => _fromClipboard(context) : null,
         ),
         _button(
           icon: Icons.photo_library,
-          label: '从相册识别',
+          label: context.l10n.flowReadFromGallery,
           onPressed: enabled ? () => _fromGallery(context) : null,
         ),
         _button(
           icon: Icons.qr_code_scanner,
-          label: '扫描二维码',
+          label: context.l10n.flowScanQRCode,
           onPressed: enabled ? () => _fromCamera(context) : null,
         ),
       ],
@@ -197,7 +205,7 @@ class _QrScannerPageState extends State<QrScannerPage> {
       // 不能有别的 widget（AppHeader 放 body 的 Column 里也一样是 AppBar，
       // 只是相机预览要拿 `Expanded` 撑满剩余空间）。
       appBar: AppHeader(
-        title: '扫描二维码',
+        title: context.l10n.flowScanQRCode,
         barBackground: Theme.of(context).colorScheme.surface,
       ),
       body: MobileScanner(
@@ -218,11 +226,11 @@ class _QrScannerPageState extends State<QrScannerPage> {
               children: [
                 const Icon(Icons.error_outline, size: 48, color: Colors.red),
                 const SizedBox(height: 16),
-                Text('摄像头错误: $error'),
+                Text(context.l10n.flowCameraErrorP0((error).toString())),
                 const SizedBox(height: 16),
                 ElevatedButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('返回'),
+                  child: Text(context.l10n.flowBack),
                 ),
               ],
             ),

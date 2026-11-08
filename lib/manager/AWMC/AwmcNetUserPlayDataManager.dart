@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -77,7 +78,7 @@ class AwmcNetUserPlayDataManager {
   ) async {
     final id = qq.trim();
     if (id.isEmpty) {
-      throw const AwmcNetException('请输入 QQ 号');
+      throw AwmcNetException(appL10n.svcEnterAQQNumber);
     }
     if (!_qqPattern.hasMatch(id)) {
       throw const AwmcNetException('QQ 号格式不对（应为 5–12 位数字）');
@@ -88,7 +89,7 @@ class AwmcNetUserPlayDataManager {
 
     // 出口固定校验：任何拼装错误都在这里拦下。
     if (uri.host != Uri.parse(ApiUrls.BackendBaseUrl).host) {
-      throw AwmcNetException('拒绝请求非 AWMC NET 地址：${uri.host}');
+      throw AwmcNetException(appL10n.svcRefusedARequestToANonAWMC(uri.host.toString()));
     }
 
     final http.Response response;
@@ -98,9 +99,9 @@ class AwmcNetUserPlayDataManager {
         timeout: timeout,
       );
     } on TimeoutException {
-      throw AwmcNetException('AWMC NET 查询超时（${timeout.inSeconds} 秒），请检查网络后重试');
+      throw AwmcNetException(appL10n.svcAWMCNETQueryTimedOutP0S(timeout.inSeconds.toString()));
     } catch (e) {
-      throw AwmcNetException('AWMC NET 连接失败：$e');
+      throw AwmcNetException(appL10n.svcAWMCNETConnectionFailedP0(e.toString()));
     }
 
     if (response.statusCode != 200) {
@@ -112,10 +113,10 @@ class AwmcNetUserPlayDataManager {
       // 服务端明确返回 UTF-8；用 bodyBytes 解码以免依赖响应头里的 charset。
       data = normalizeRecords(json.decode(utf8.decode(response.bodyBytes)));
     } catch (e) {
-      throw AwmcNetException('AWMC NET 返回了无法解析的数据：$e');
+      throw AwmcNetException(appL10n.svcAWMCNETReturnedDataThatCouldNot(e.toString()));
     }
     if (data == null) {
-      throw const AwmcNetException('AWMC NET 返回的数据结构无法识别（缺少 records）');
+      throw AwmcNetException(appL10n.svcAWMCNETReturnedAnUnrecognizedDataStructure);
     }
 
     final count = (data['records'] as List).length;
@@ -141,27 +142,26 @@ class AwmcNetUserPlayDataManager {
         // 实测：不存在的 QQ → 400 {"message":"no such user"}
         if (detail.contains('no such user') || detail.contains('不存在')) {
           return AwmcNetException(
-            'AWMC NET 上没有 QQ $qq 的数据。\n'
-            '请确认该 QQ 已在 net.wmc.pub 绑定并上传过成绩。',
+            appL10n.svcAWMCNETHasNoDataForQQ(qq.toString()),
           );
         }
         return AwmcNetException(
-            'AWMC NET 拒绝了请求：${detail.isEmpty ? '参数不合法' : detail}');
+            appL10n.svcAWMCNETRejectedTheRequestP0((detail.isEmpty ? appL10n.svcInvalidParameters : detail).toString()));
       case 401:
       case 403:
         return AwmcNetException(
-          'AWMC NET 开发者密钥无效或已失效（HTTP $status）'
+          '${appL10n.svcTheAWMCNETDeveloperKeyIsInvalid(status.toString())}'
           '${detail.isEmpty ? '' : '：$detail'}',
         );
       case 429:
         return AwmcNetException(
-            'AWMC NET 请求过于频繁，请稍后重试\n${quotaRetryHint(body)}');
+            appL10n.svcTooManyAWMCNETRequestsTryAgain((quotaRetryHint(body)).toString()));
     }
     if (status >= 500) {
-      return AwmcNetException('AWMC NET 服务端异常（HTTP $status），请稍后重试');
+      return AwmcNetException(appL10n.svcAWMCNETServerErrorHTTPP0Try(status.toString()));
     }
     return AwmcNetException(
-        'AWMC NET 返回未知状态：HTTP $status${detail.isEmpty ? '' : '（$detail）'}');
+        appL10n.svcAWMCNETReturnedAnUnknownStatusHTTP(status.toString(), (detail.isEmpty ? '' : '（$detail）').toString()));
   }
 
   /// 归一化成水鱼 `/player/records` 结构。

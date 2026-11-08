@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 /*
  * 随身听曲库仓库：以「落雪曲库」为基础，再追加 AWMC/Union 独有曲目，交给
  * [buildPortableLibrary] 做映射，结果进程内缓存 + 落盘缓存。
@@ -253,7 +254,7 @@ class PortableSongLibrary {
       lxnsId: audioId,
       divingFishId: songId.trim(),
       audioId: audioId,
-      title: title?.trim().isNotEmpty == true ? title!.trim() : '未知歌曲',
+      title: title?.trim().isNotEmpty == true ? title!.trim() : appL10n.flowUnknownSong,
       artist: artist?.trim() ?? '',
       genre: genre?.trim() ?? '',
       bpm: bpm ?? 0,

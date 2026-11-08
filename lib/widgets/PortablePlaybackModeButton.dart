@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 /*
  * 播放模式切换按钮 —— **随身听曲库页底部那条**与**悬浮球的迷你卡片**共用同一个。
  *
@@ -87,7 +89,8 @@ class _PortablePlaybackModeButtonState
       child: IconButton(
         key: widget.iconButtonKey,
         visualDensity: widget.density,
-        tooltip: '播放模式：${_player.playbackModeLabel}（点一下切换并展开）',
+        tooltip: context.l10n.flowPlaybackModeP0TapToSwitchAnd(
+            (_player.playbackModeLabel).toString()),
         icon: Icon(
           _playbackModeIcon(_player.playbackMode),
           size: widget.iconSize,
@@ -109,7 +112,8 @@ class _PortablePlaybackModeButtonState
   /// 切到单曲循环时会沿用上次配置的次数（见 `setPlaybackMode` 的注释）。
   void _cyclePlaybackMode() {
     final modes = PortablePlaybackMode.values;
-    final next = modes[(modes.indexOf(_player.playbackMode) + 1) % modes.length];
+    final next =
+        modes[(modes.indexOf(_player.playbackMode) + 1) % modes.length];
     unawaited(_player.setPlaybackMode(next));
   }
 
@@ -240,7 +244,7 @@ class _PlaybackModeMenuRoute extends PopupRoute<_PlaybackModeMenuResult> {
   bool get barrierDismissible => true;
 
   @override
-  String? get barrierLabel => '关闭播放模式选择';
+  String? get barrierLabel => appL10n.flowClosePlaybackModeSelection;
 
   @override
   Widget buildModalBarrier() {
@@ -382,11 +386,11 @@ class _PlaybackModeMenu extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   _modeItem(context, PortablePlaybackMode.sequential,
-                      Icons.format_list_numbered, '顺序播放'),
+                      Icons.format_list_numbered, context.l10n.flowSequential),
                   _modeItem(context, PortablePlaybackMode.shuffle,
-                      Icons.shuffle, '随机播放'),
+                      Icons.shuffle, context.l10n.flowShuffle),
                   _modeItem(context, PortablePlaybackMode.single,
-                      Icons.repeat_one, '单曲循环'),
+                      Icons.repeat_one, context.l10n.flowRepeatOne),
                   Divider(
                     height: 1,
                     color: scheme.outlineVariant.withValues(alpha: 0.6),
@@ -477,17 +481,18 @@ class _PlaybackModeMenu extends StatelessWidget {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                '循环次数',
+                context.l10n.flowRepeatCount,
                 style: TextStyle(fontSize: 14, color: scheme.onSurface),
               ),
             ),
             Text(
-              loopCount == null ? '不设置' : '$loopCount 次',
+              loopCount == null
+                  ? context.l10n.flowNotSet2
+                  : context.l10n.flowP0Times((loopCount).toString()),
               style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
             ),
             const SizedBox(width: 2),
-            Icon(Icons.chevron_right,
-                size: 18, color: scheme.onSurfaceVariant),
+            Icon(Icons.chevron_right, size: 18, color: scheme.onSurfaceVariant),
           ],
         ),
       ),
@@ -552,7 +557,8 @@ class _LoopCountSheetState extends State<_LoopCountSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('循环次数', style: theme.textTheme.titleMedium),
+              Text(context.l10n.flowRepeatCount,
+                  style: theme.textTheme.titleMedium),
               const SizedBox(height: 4),
               RadioGroup<int>(
                 groupValue: _setCount ? 1 : 0,
@@ -560,16 +566,17 @@ class _LoopCountSheetState extends State<_LoopCountSheet> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const RadioListTile<int>(
+                    RadioListTile<int>(
                       value: 0,
                       contentPadding: EdgeInsets.zero,
-                      title: Text('不设置次数'),
-                      subtitle: Text('一直循环当前曲目'),
+                      title: Text(context.l10n.flowUnlimited),
+                      subtitle: Text(
+                          context.l10n.flowRepeatTheCurrentSongIndefinitely),
                     ),
                     RadioListTile<int>(
                       value: 1,
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('设置次数'),
+                      title: Text(context.l10n.flowSetCount),
                       subtitle: _buildStepper(),
                     ),
                   ],
@@ -581,7 +588,7 @@ class _LoopCountSheetState extends State<_LoopCountSheet> {
                   Expanded(
                     child: TextButton(
                       onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('取消'),
+                      child: Text(context.l10n.featureCancel),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -590,7 +597,7 @@ class _LoopCountSheetState extends State<_LoopCountSheet> {
                       onPressed: () => Navigator.of(context).pop(
                         _LoopCountChoice(_setCount ? _count : null),
                       ),
-                      child: const Text('确定'),
+                      child: Text(context.l10n.featureOK),
                     ),
                   ),
                 ],
@@ -614,7 +621,7 @@ class _LoopCountSheetState extends State<_LoopCountSheet> {
           children: [
             IconButton(
               key: const Key('loopCountMinus'),
-              tooltip: '减少次数',
+              tooltip: context.l10n.flowDecreaseCount,
               visualDensity: VisualDensity.compact,
               onPressed: _count > _minCount ? () => _step(-1) : null,
               icon: const Icon(Icons.remove_circle_outline),
@@ -622,7 +629,7 @@ class _LoopCountSheetState extends State<_LoopCountSheet> {
             SizedBox(
               width: 60,
               child: Text(
-                '$_count 次',
+                context.l10n.flowP0Times((_count).toString()),
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 16,
@@ -634,7 +641,7 @@ class _LoopCountSheetState extends State<_LoopCountSheet> {
             ),
             IconButton(
               key: const Key('loopCountPlus'),
-              tooltip: '增加次数',
+              tooltip: context.l10n.flowIncreaseCount,
               visualDensity: VisualDensity.compact,
               onPressed: _count < _maxCount ? () => _step(1) : null,
               icon: const Icon(Icons.add_circle_outline),

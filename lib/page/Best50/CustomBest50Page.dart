@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:my_first_flutter_app/widgets/NoRipple.dart';
 import 'dart:async';
@@ -160,7 +162,8 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
   String? get _warningText {
     final count = _illegalCount;
     if (count <= 0) return null;
-    return '⚠ 存在 $count 条非法数据（达成率或 DX 分数超过谱面上限）';
+    return context.l10n
+        .flowP0InvalidEntriesAchievementOrDXScore((count).toString());
   }
 
   // ───────────────────────── 编辑弹窗 ─────────────────────────
@@ -201,8 +204,9 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
                     child: TextField(
                       autofocus: false,
-                      decoration: const InputDecoration(
-                        hintText: '歌名/BPM/谱师/曲师/别名/歌曲ID/...',
+                      decoration: InputDecoration(
+                        hintText:
+                            context.l10n.featureTitleBPMCharterArtistAliasID,
                         prefixIcon: Icon(Icons.search),
                         isDense: true,
                         border: OutlineInputBorder(),
@@ -229,7 +233,9 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
                         : filtered.isEmpty
                             ? Center(
                                 child: Text(
-                                  q.isEmpty ? '暂无歌曲数据' : '未找到匹配的歌曲',
+                                  q.isEmpty
+                                      ? context.l10n.flowNoSongData
+                                      : context.l10n.flowNoMatchingSong,
                                   style:
                                       TextStyle(color: scheme.onSurfaceVariant),
                                 ),
@@ -253,8 +259,9 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
 
   Widget _buildPickerRow(BuildContext ctx, Song song, Brightness brightness) {
     final bool isUtage = song.id.length == 6;
-    final String typeLabel =
-        isUtage ? ChartDifficulty.utageLabel : (song.type == 'SD' ? 'ST' : 'DX');
+    final String typeLabel = isUtage
+        ? ChartDifficulty.utageLabel
+        : (song.type == 'SD' ? 'ST' : 'DX');
     final Color typeColor = isUtage
         ? const Color(0xFFFF6B8B)
         : (song.type == 'SD'
@@ -356,7 +363,7 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    '第 ${index + 1} 格',
+                    context.l10n.flowSlotP0((index + 1).toString()),
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -410,13 +417,13 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Text('歌曲',
+                                Text(context.l10n.featureSongs,
                                     style: TextStyle(
                                         fontSize: 12,
                                         color: scheme.onSurfaceVariant)),
                                 Text(
                                   effectiveTitle().isEmpty
-                                      ? '未选择'
+                                      ? context.l10n.flowNotSelected
                                       : effectiveTitle(),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
@@ -436,7 +443,7 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
 
                   // 难度
                   if (song != null) ...[
-                    Text('难度',
+                    Text(context.l10n.flowDifficulty,
                         style: TextStyle(
                             fontSize: 13, color: scheme.onSurfaceVariant)),
                     const SizedBox(height: 4),
@@ -457,15 +464,17 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${_difficultyName(levelIndex)} · '
-                      '${effectiveLevel().isEmpty ? '?' : effectiveLevel()} · '
-                      '定数 ${ds.toStringAsFixed(1)}',
+                      context.l10n.flowP0P1ConstantP2(
+                          (_difficultyName(levelIndex)).toString(),
+                          (effectiveLevel().isEmpty ? '?' : effectiveLevel())
+                              .toString(),
+                          (ds.toStringAsFixed(1)).toString()),
                       style: TextStyle(
                           fontSize: 12, color: scheme.onSurfaceVariant),
                     ),
                     const SizedBox(height: 12),
                   ] else ...[
-                    Text('请先选择歌曲',
+                    Text(context.l10n.flowSelectASongFirst,
                         style: TextStyle(
                             fontSize: 13, color: scheme.onSurfaceVariant)),
                     const SizedBox(height: 12),
@@ -477,12 +486,12 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
                     children: [
                       Expanded(
                         child: _NumberInputField(
-                          label: '达成率 (%)',
-                          hint: '如 100.5',
+                          label: context.l10n.flowAchievement,
+                          hint: context.l10n.flowEG1005,
                           initial: existing?.achievements.toString(),
                           hardMax: _achievementHardMax,
-                          helperText:
-                              '上限 ${maxAchievement.toStringAsFixed(0)}%',
+                          helperText: context.l10n.flowMaximumP0(
+                              (maxAchievement.toStringAsFixed(0)).toString()),
                           onChanged: (v) => setSheetState(() {
                             achievements = v;
                             saveError = null;
@@ -492,11 +501,13 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: _NumberInputField(
-                          label: 'DX 分数',
-                          hint: '如 3000',
+                          label: context.l10n.flowDXScore,
+                          hint: context.l10n.flowEG3000,
                           initial: existing?.dxScore.toString(),
                           hardMax: _dxScoreHardMax.toDouble(),
-                          helperText: maxDx > 0 ? '上限 $maxDx' : null,
+                          helperText: maxDx > 0
+                              ? context.l10n.flowMaximumP02((maxDx).toString())
+                              : null,
                           onChanged: (v) => setSheetState(() {
                             dxScore = v?.round();
                             saveError = null;
@@ -509,7 +520,8 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
                     Padding(
                       padding: const EdgeInsets.only(top: 4),
                       child: Text(
-                        '非法数据：达成率超过 ${maxAchievement.toStringAsFixed(0)}%',
+                        context.l10n.flowInvalidAchievementExceedsP0(
+                            (maxAchievement.toStringAsFixed(0)).toString()),
                         style: TextStyle(
                             fontSize: 12,
                             color: scheme.error,
@@ -520,7 +532,8 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
                     Padding(
                       padding: const EdgeInsets.only(top: 4),
                       child: Text(
-                        '非法数据：DX 分数超过谱面上限 $maxDx',
+                        context.l10n.flowInvalidDXScoreExceedsTheChartMaximum(
+                            (maxDx).toString()),
                         style: TextStyle(
                             fontSize: 12,
                             color: scheme.error,
@@ -532,20 +545,22 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
                   // FC / FS
                   _buildChoiceRow(
                     ctx,
-                    label: '连击',
+                    label: context.l10n.flowCombo,
                     options: const ['', 'fc', 'fcp', 'ap', 'app'],
                     current: fc,
-                    labelOf: (v) => v.isEmpty ? '无' : StringUtil.formatFC(v),
+                    labelOf: (v) => v.isEmpty
+                        ? context.l10n.flowNone2
+                        : StringUtil.formatFC(v),
                     onPick: (v) => setSheetState(() => fc = v),
                   ),
                   const SizedBox(height: 8),
                   _buildChoiceRow(
                     ctx,
-                    label: '同步',
+                    label: context.l10n.flowSync,
                     options: const ['', 'fs', 'fsp', 'fsd', 'fsdp', 'sync'],
                     current: fs,
                     labelOf: (v) => v.isEmpty
-                        ? '无'
+                        ? context.l10n.flowNone2
                         : (v == 'sync' ? 'SYNC' : StringUtil.formatFS(v)),
                     onPick: (v) => setSheetState(() => fs = v),
                   ),
@@ -591,23 +606,25 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
                             });
                             if (sheetCtx.mounted) Navigator.pop(sheetCtx);
                           },
-                          child: Text('清空本卡',
+                          child: Text(context.l10n.flowClearThisCard,
                               style: TextStyle(color: scheme.error)),
                         ),
                       const Spacer(),
                       TextButton(
                         onPressed: () => Navigator.pop(sheetCtx),
-                        child: const Text('取消'),
+                        child: Text(context.l10n.featureCancel),
                       ),
                       const SizedBox(width: 8),
                       FilledButton(
                         onPressed: () async {
                           if (song == null && snapshotTitle.isEmpty) {
-                            setSheetState(() => saveError = '请先选择歌曲');
+                            setSheetState(() =>
+                                saveError = context.l10n.flowSelectASongFirst);
                             return;
                           }
                           if (achievements == null) {
-                            setSheetState(() => saveError = '请输入达成率');
+                            setSheetState(() =>
+                                saveError = context.l10n.flowEnterAchievement);
                             return;
                           }
                           final entry = CustomBest50Entry(
@@ -633,7 +650,7 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
                           });
                           if (sheetCtx.mounted) Navigator.pop(sheetCtx);
                         },
-                        child: const Text('保存'),
+                        child: Text(context.l10n.save),
                       ),
                     ],
                   ),
@@ -659,7 +676,7 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         SizedBox(
-          width: 36,
+          width: 76,
           child: Text(label,
               style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant)),
         ),
@@ -685,7 +702,8 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
 
   static String _difficultyName(int index) {
     const names = ChartDifficulty.standardLabels;
-    if (index < 0 || index >= names.length) return '难度$index';
+    if (index < 0 || index >= names.length)
+      return appL10n.flowDifficultyP03((index).toString());
     return names[index];
   }
 
@@ -694,13 +712,13 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
   static String _sortLabelOf(_SortMode mode) {
     switch (mode) {
       case _SortMode.raDesc:
-        return 'RA 降序';
+        return appL10n.flowRADescending;
       case _SortMode.raAsc:
-        return 'RA 升序';
+        return appL10n.flowRAAscending;
       case _SortMode.dsDesc:
-        return '定数 降序';
+        return appL10n.flowConstantDescending;
       case _SortMode.dsAsc:
-        return '定数 升序';
+        return appL10n.flowConstantAscending;
     }
   }
 
@@ -717,7 +735,8 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
 
   Future<void> _showSortDialog() async {
     if (_filledEntries.isEmpty) {
-      _showMessage('提示', '还没有填写任何卡片');
+      _showMessage(
+          context.l10n.featureNotice, context.l10n.flowNoCardsFilledInYet);
       return;
     }
     final mode = await showModalBottomSheet<_SortMode>(
@@ -730,7 +749,8 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
             for (final m in _SortMode.values)
               ListTile(
                 leading: Icon(_sortIconOf(m)),
-                title: Text('按${_sortLabelOf(m)}'),
+                title:
+                    Text(context.l10n.flowByP0((_sortLabelOf(m)).toString())),
                 onTap: () => Navigator.pop(ctx, m),
               ),
           ],
@@ -824,14 +844,15 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
 
   Future<void> _exportToImage() async {
     if (_filledEntries.isEmpty) {
-      _showMessage('提示', '没有数据可导出');
+      _showMessage(context.l10n.featureNotice, context.l10n.flowNoDataToExport);
       return;
     }
 
     final hasPermission = await _requestStoragePermission();
     if (!mounted) return;
     if (!hasPermission) {
-      _showMessage('权限不足', '需要存储权限才能导出图片到相册，请在设置中开启权限');
+      _showMessage(context.l10n.flowPermissionRequired,
+          context.l10n.flowStoragePermissionIsRequiredToExportImages);
       return;
     }
 
@@ -840,12 +861,12 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
       estimatedPngSize: ImageEncodeUtil.estimatePngSize(
         songCount: _filledEntries.length,
       ),
-      exportingLabel: '自定义 Best50',
+      exportingLabel: context.l10n.featureCreateBest50,
       enableThunderMode: true,
       previewBuilder: (previewContext, previewQuality) =>
           PersonalizedB50ConvertToImg.buildPreviewWidget(
         previewContext,
-        '自定义 Best50',
+        context.l10n.featureCreateBest50,
         _buildExportMaps(),
         _maimaiMusicData,
         _warningText,
@@ -858,19 +879,19 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
     if (!mounted || quality == null) return;
 
     BackgroundExport.run(
-      label: '自定义 Best50',
+      label: context.l10n.featureCreateBest50,
       task: (exportContext) => PersonalizedB50ConvertToImg.convertToImage(
         exportContext,
-      '自定义 Best50',
-      _buildExportMaps(),
-      _maimaiMusicData,
-      jpegQuality: quality.jpegQuality,
-      theme: quality.theme,
-      warningText: _warningText,
-      sortLabel: _sortLabel,
-      thunderMode: quality.thunderMode,
-      thunderVertical: quality.thunderVertical,
-    ),
+        context.l10n.featureCreateBest50,
+        _buildExportMaps(),
+        _maimaiMusicData,
+        jpegQuality: quality.jpegQuality,
+        theme: quality.theme,
+        warningText: _warningText,
+        sortLabel: _sortLabel,
+        thunderMode: quality.thunderMode,
+        thunderVertical: quality.thunderVertical,
+      ),
     );
   }
 
@@ -883,7 +904,7 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('确定'),
+            child: Text(context.l10n.featureOK),
           ),
         ],
       ),
@@ -895,16 +916,16 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AppAlertDialog(
-        title: const Text('清空全部'),
-        content: const Text('确定要清空全部 50 个卡位吗？此操作不可撤销。'),
+        title: Text(context.l10n.flowClearAll),
+        content: Text(context.l10n.flowClearAll50SlotsThisCannotBe),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('取消'),
+            child: Text(context.l10n.featureCancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text('清空',
+            child: Text(context.l10n.featureClear,
                 style: TextStyle(color: Theme.of(context).colorScheme.error)),
           ),
         ],
@@ -924,20 +945,20 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const BackgroundPageScaffold(
-        title: '自定义 Best50',
+      return BackgroundPageScaffold(
+        title: context.l10n.featureCreateBest50,
         resizeToAvoidBottomInset: false,
         child: Center(child: CircularProgressIndicator()),
       );
     }
 
     return BackgroundPageScaffold(
-      title: '自定义 Best50',
+      title: context.l10n.featureCreateBest50,
       resizeToAvoidBottomInset: false,
       actionsEndInset: 4,
       actions: [
         Best50IconAction(
-          tooltip: '导出为图片',
+          tooltip: context.l10n.flowExportAsImage,
           icon: Icons.image_outlined,
           onPressed: _exportToImage,
         ),
@@ -975,7 +996,7 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Best50Hero(total: totalRa, label: '自定义 Best50 总 RA'),
+        Best50Hero(total: totalRa, label: context.l10n.flowCustomBest50TotalRA),
         const SizedBox(height: AppDesignTokens.cardGap),
         AppCard(
           child: Column(
@@ -983,17 +1004,19 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
             children: [
               Row(
                 children: [
+                  _statColumn(context.l10n.flowFilled,
+                      '$totalSongs / ${CustomBest50Store.slotCount}'),
                   _statColumn(
-                      '已填写', '$totalSongs / ${CustomBest50Store.slotCount}'),
-                  _statColumn('平均RA值', averageRa.toStringAsFixed(1)),
-                  _statColumn(
-                      '平均达成率', '${averageAchievement.toStringAsFixed(2)}%'),
+                      context.l10n.flowAverageRA, averageRa.toStringAsFixed(1)),
+                  _statColumn(context.l10n.featureAverageAchievement,
+                      '${averageAchievement.toStringAsFixed(2)}%'),
                 ],
               ),
               if (_sortLabel != null) ...[
                 const SizedBox(height: 8.0),
                 Text(
-                  '当前排序：$_sortLabel（卡片变动后自动清除）',
+                  context.l10n.flowCurrentOrderP0ClearedWhenCardsChange(
+                      (_sortLabel).toString()),
                   style: TextStyle(
                     fontSize: 12,
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -1028,7 +1051,7 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
         Expanded(
           child: Best50ActionButton(
             icon: Icons.sort_rounded,
-            label: '一键排序',
+            label: context.l10n.flowAutoSort,
             onPressed: _showSortDialog,
           ),
         ),
@@ -1036,7 +1059,8 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
         TextButton.icon(
           onPressed: _confirmClearAll,
           icon: Icon(Icons.delete_outline, color: error, size: 18),
-          label: Text('清空全部', style: TextStyle(color: error)),
+          label:
+              Text(context.l10n.flowClearAll, style: TextStyle(color: error)),
         ),
       ],
     );
@@ -1056,8 +1080,8 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               padding: EdgeInsets.zero,
-              gridDelegate:
-                  Best50Grid.delegate(context, constraints.maxWidth, mode: mode),
+              gridDelegate: Best50Grid.delegate(context, constraints.maxWidth,
+                  mode: mode),
               itemCount: CustomBest50Store.slotCount,
               itemBuilder: (context, index) {
                 final entry = _entries[index];
@@ -1087,7 +1111,7 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
             Icon(Icons.add_circle_outline,
                 size: 28, color: scheme.onSurfaceVariant),
             const SizedBox(height: 4),
-            Text('点击填写',
+            Text(context.l10n.flowTapToFillIn,
                 style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant)),
           ],
         ),
@@ -1103,19 +1127,19 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
     final outlineColor =
         _isIllegal(entry) ? Theme.of(context).colorScheme.error : null;
     final data = Best50CardData(
-        songId: entry.songId,
-        title: _effectiveTitle(entry),
-        levelIndex: entry.levelIndex,
-        type: _effectiveType(entry),
-        rating: _raOf(entry),
-        ds: _effectiveDs(entry),
-        achievement: entry.achievements,
-        fc: entry.fc,
-        fs: entry.fs,
-        stars: StringUtil.formatStars(scoreRate),
-        dxScore: entry.dxScore,
-        maxDxScore: _cardMaxScore(entry),
-        onOpenSong: () => _showEditSheet(index),
+      songId: entry.songId,
+      title: _effectiveTitle(entry),
+      levelIndex: entry.levelIndex,
+      type: _effectiveType(entry),
+      rating: _raOf(entry),
+      ds: _effectiveDs(entry),
+      achievement: entry.achievements,
+      fc: entry.fc,
+      fs: entry.fs,
+      stars: StringUtil.formatStars(scoreRate),
+      dxScore: entry.dxScore,
+      maxDxScore: _cardMaxScore(entry),
+      onOpenSong: () => _showEditSheet(index),
     );
     // 点卡片是编辑这一格，不走详情面板。
     return mode == Best50DisplayMode.cover
@@ -1189,15 +1213,16 @@ class _NumberInputFieldState extends State<_NumberInputField> {
     }
     final v = double.tryParse(t);
     if (v == null) {
-      setState(() => _error = '请输入数字');
+      setState(() => _error = context.l10n.flowEnterANumber);
       return;
     }
     if (v < 0) {
-      setState(() => _error = '不能为负数');
+      setState(() => _error = context.l10n.flowCannotBeNegative);
       return;
     }
     if (v > widget.hardMax) {
-      setState(() => _error = '不得超过 ${_formatMax(widget.hardMax)}');
+      setState(() => _error = context.l10n
+          .flowMustNotExceedP0((_formatMax(widget.hardMax)).toString()));
       return;
     }
     setState(() => _error = null);
@@ -1214,13 +1239,17 @@ class _NumberInputFieldState extends State<_NumberInputField> {
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       decoration: InputDecoration(
         labelText: widget.label,
+        labelStyle: AppTheme.font(fontSize: 12),
+        floatingLabelStyle: AppTheme.font(fontSize: 12),
         hintText: widget.hint,
         helperText: widget.helperText,
+        helperMaxLines: 3,
         helperStyle: TextStyle(
           fontSize: 11,
           color: Theme.of(context).colorScheme.onSurfaceVariant,
         ),
         errorText: _error,
+        errorMaxLines: 3,
         errorStyle: const TextStyle(fontSize: 11),
         isDense: true,
       ).insetLabel(context),

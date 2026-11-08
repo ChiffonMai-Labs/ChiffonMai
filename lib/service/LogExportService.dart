@@ -68,6 +68,13 @@ class LogExportService {
     return _writes;
   }
 
+  /// 关键诊断阶段立即写入现有日志文件；未安装日志收集时不产生文件。
+  Future<void> flush() async {
+    if (!_installed) return;
+    await _ready;
+    await _persist();
+  }
+
   void install() {
     if (_installed) return;
     // 必须在替换全局回调之前捕获原始实现。late 延迟读取会在第一次日志

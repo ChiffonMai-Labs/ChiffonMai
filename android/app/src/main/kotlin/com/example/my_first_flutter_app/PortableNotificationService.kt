@@ -268,10 +268,10 @@ class PortableNotificationService : Service() {
         if (notificationManager.getNotificationChannel(CHANNEL_ID) != null) return
         val channel = NotificationChannel(
             CHANNEL_ID,
-            "随身听播放",
+            NativeL10n.text(this, "随身听播放"),
             NotificationManager.IMPORTANCE_LOW
         ).apply {
-            description = "显示正在播放的曲目与播放控制"
+            description = NativeL10n.text(this@PortableNotificationService, "显示正在播放的曲目与播放控制")
             setShowBadge(false)
             enableVibration(false)
             setSound(null, null)
@@ -286,13 +286,16 @@ class PortableNotificationService : Service() {
         art: Bitmap?
     ): RemoteViews {
         val views = RemoteViews(packageName, layoutId)
+        views.setContentDescription(R.id.portable_prev, NativeL10n.text(this, "上一首"))
+        views.setContentDescription(R.id.portable_play, NativeL10n.text(this, "播放/暂停"))
+        views.setContentDescription(R.id.portable_next, NativeL10n.text(this, "下一首"))
         views.setTextViewText(
             R.id.portable_title,
-            current.title.ifEmpty { "随身听" }
+            current.title.ifEmpty { NativeL10n.text(this, "随身听") }
         )
         views.setTextViewText(
             R.id.portable_artist,
-            current.artist.ifEmpty { "未知艺术家" }
+            current.artist.ifEmpty { NativeL10n.text(this, "未知艺术家" ) }
         )
         views.setImageViewResource(
             R.id.portable_play,
@@ -338,7 +341,7 @@ class PortableNotificationService : Service() {
         val bigViews = bindViews(R.layout.portable_notification_big, current, cachedBigArt)
         bigViews.setTextViewText(
             R.id.portable_status,
-            if (current.isPlaying) "随身听 · 正在播放" else "随身听 · 已暂停"
+            NativeL10n.text(this, if (current.isPlaying) "随身听 · 正在播放" else "随身听 · 已暂停")
         )
 
         val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

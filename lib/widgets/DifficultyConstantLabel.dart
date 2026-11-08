@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import '../utils/ColorUtil.dart';
@@ -23,7 +24,7 @@ class DifficultyConstantLabel extends StatelessWidget {
             ? Colors.white
             : Colors.black87;
     return Semantics(
-        label: '${utage ? '宴会' : ChartDifficulty.standardLabels[difficultyIndex.clamp(0, 4)]} 定数 ${constant.toStringAsFixed(1)}',
+        label: context.l10n.flowP0ConstantP12((utage ? context.l10n.flowUTAGE2 : ChartDifficulty.standardLabels[difficultyIndex.clamp(0, 4)]).toString(), (constant.toStringAsFixed(1)).toString()),
         child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(

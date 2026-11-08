@@ -4,6 +4,8 @@ import 'package:my_first_flutter_app/api/ApiUrls.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:my_first_flutter_app/entity/DXRating/MaiTagsModel.dart';
 import '../constant/CacheKeyConstant.dart';
+import '../l10n/AppMessages.dart';
+import '../service/CustomTagStore.dart';
 import 'package:my_first_flutter_app/utils/ApiClient.dart';
 
 class MaiTagsManager {
@@ -15,6 +17,11 @@ class MaiTagsManager {
   // 内存缓存，避免每次调用都从 SharedPreferences 解析 JSON
   MaiTagsEntity? _cachedTags;
   Map<String, List<int>>? _cachedSongIdToTagIdsMap;
+
+  /// 合并了自定义标签的结果，按自定义标签版本失效。
+  MaiTagsEntity? _mergedTags;
+  int _mergedRevision = -1;
+  MaiTagsEntity? _mergedBase;
 
   // API 配置
   static const String TAGS_API_URL = ApiUrls.TagDataApi;
@@ -73,9 +80,29 @@ class MaiTagsManager {
   }
 
   /**
-   * 获取标签数据
+   * 获取标签数据（含用户自定义标签，见 [CustomTagStore]）
    */
   Future<MaiTagsEntity?> getTags() async {
+    final base = await getServerTags();
+    final store = CustomTagStore.instance;
+    await store.ensureLoaded();
+    if (base == null && store.tags.isEmpty) return null;
+    if (_mergedTags != null &&
+        _mergedRevision == store.revision &&
+        identical(_mergedBase, base)) {
+      return _mergedTags;
+    }
+    _mergedTags = store.mergeInto(base, appL10n.customTagGroupName);
+    _mergedRevision = store.revision;
+    _mergedBase = base;
+    _cachedSongIdToTagIdsMap = null;
+    return _mergedTags;
+  }
+
+  /**
+   * 仅 DXRating 服务端标签数据（不含自定义标签）
+   */
+  Future<MaiTagsEntity?> getServerTags() async {
     try {
       // 优先返回内存缓存，避免重复解析 JSON
       if (_cachedTags != null) {
@@ -98,7 +125,8 @@ class MaiTagsManager {
       final updatedData = prefs.getString(CacheKeyConstant.maiTagsCache);
       if (updatedData != null) {
         Map<String, dynamic> mainTagJson = json.decode(updatedData);
-        return MaiTagsEntity.fromJson(mainTagJson);
+        _cachedTags = MaiTagsEntity.fromJson(mainTagJson);
+        return _cachedTags;
       }
       
       return null;
@@ -112,10 +140,11 @@ class MaiTagsManager {
    * 构建 谱面标识 = 谱面ID + 谱面类型 + 谱面难度 到 标签ID列表 的映射
    */
   Future<Map<String, List<int>>> getSongIdToTagIdsMap() async {
+    // 先取合并结果：自定义标签变化时 getTags 会清掉旧映射。
+    final maiTagsEntity = await getTags();
     if (_cachedSongIdToTagIdsMap != null) {
       return _cachedSongIdToTagIdsMap!;
     }
-    final maiTagsEntity = await getTags();
     if (maiTagsEntity != null) {
       _cachedSongIdToTagIdsMap = buildSongIdToTagIdsMap(maiTagsEntity);
       return _cachedSongIdToTagIdsMap!;

@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:my_first_flutter_app/widgets/AnimatedChoiceLabel.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -104,56 +105,56 @@ class _DifficultyDistributionPageState
     final brightness = Theme.of(context).brightness;
     final textColor = Theme.of(context).colorScheme.onSurface;
     return BackgroundPageScaffold(
-      title: '定数分布',
+      title: context.l10n.featureChartConstantDistribution,
       contentPadding: EdgeInsets.only(
         bottom: MediaQuery.paddingOf(context).bottom,
       ),
       child: Column(
         children: [
-              // 难度分段控件
-              Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      _buildLevelChip(
-                          '全部', -1, Theme.of(context).colorScheme.primary),
-                      for (int i = 0; i < _levelNames.length; i++)
-                        _buildLevelChip(_levelNames[i], i, _levelColors[i]),
-                    ],
-                  ),
-                ),
+          // 难度分段控件
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _buildLevelChip(context.l10n.flowAll, -1,
+                      Theme.of(context).colorScheme.primary),
+                  for (int i = 0; i < _levelNames.length; i++)
+                    _buildLevelChip(_levelNames[i], i, _levelColors[i]),
+                ],
               ),
-              // 图表区域直接铺在背景上，保留内部留白以维持图表可读性。
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 20, 12, 12),
-                  child: _isLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : _buckets.isEmpty
-                          ? Center(
-                              child: Text('暂无数据',
-                                  style: TextStyle(color: textColor)))
-                          : _buildChart(brightness),
-                ),
+            ),
+          ),
+          // 图表区域直接铺在背景上，保留内部留白以维持图表可读性。
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 20, 12, 12),
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _buckets.isEmpty
+                      ? Center(
+                          child: Text(context.l10n.flowNoData,
+                              style: TextStyle(color: textColor)))
+                      : _buildChart(brightness),
+            ),
+          ),
+          // 图例
+          if (!_isLoading && _buckets.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _legendItem(_getBarColor(), context.l10n.flowPlayed),
+                  const SizedBox(width: 20),
+                  _legendItem(AppColors.greyHint(brightness),
+                      context.l10n.flowUnplayed),
+                ],
               ),
-              // 图例
-              if (!_isLoading && _buckets.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _legendItem(_getBarColor(), '已游玩'),
-                      const SizedBox(width: 20),
-                      _legendItem(AppColors.greyHint(brightness), '未游玩'),
-                    ],
-                  ),
-                ),
-          ],
-        ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -162,10 +163,14 @@ class _DifficultyDistributionPageState
       mainAxisSize: MainAxisSize.min,
       children: [
         AnimatedContainer(
-          duration: MediaQuery.disableAnimationsOf(context) ? Duration.zero : _chartTransitionDuration,
+          duration: MediaQuery.disableAnimationsOf(context)
+              ? Duration.zero
+              : _chartTransitionDuration,
           curve: _chartTransitionCurve,
-          width: 14, height: 14,
-          decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(3)),
+          width: 14,
+          height: 14,
+          decoration: BoxDecoration(
+              color: color, borderRadius: BorderRadius.circular(3)),
         ),
         const SizedBox(width: 4),
         Text(label, style: const TextStyle(fontSize: 12)),
@@ -195,12 +200,13 @@ class _DifficultyDistributionPageState
 
   Widget _buildChart(Brightness brightness) {
     final transitionDuration = MediaQuery.disableAnimationsOf(context)
-        ? Duration.zero : _chartTransitionDuration;
+        ? Duration.zero
+        : _chartTransitionDuration;
     final barWidth = 28.0;
     final count = _buckets.length;
     // 图表宽度根据柱子数量动态计算，最少填满屏幕
-    final chartWidth = (count * (barWidth + 20) + 60).clamp(
-      MediaQuery.of(context).size.width - 50, 1200.0);
+    final chartWidth = (count * (barWidth + 20) + 60)
+        .clamp(MediaQuery.of(context).size.width - 50, 1200.0);
 
     final maxY = _buckets
         .map((b) => b.totalCount.toDouble())
@@ -228,8 +234,8 @@ class _DifficultyDistributionPageState
                     toY: bucket.totalCount.toDouble(),
                     color: AppColors.greyHint(brightness),
                     width: barWidth,
-                    borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(5)),
+                    borderRadius:
+                        const BorderRadius.vertical(top: Radius.circular(5)),
                     // 透明背景柱只扩展命中区域，矮柱上方也可以点击。
                     backDrawRodData: BackgroundBarChartRodData(
                       show: true,
@@ -245,8 +251,7 @@ class _DifficultyDistributionPageState
                     width: bucket.playedCount > 0 ? barWidth : 0,
                     borderRadius: bucket.unplayedCount > 0
                         ? BorderRadius.zero
-                        : const BorderRadius.vertical(
-                            top: Radius.circular(5)),
+                        : const BorderRadius.vertical(top: Radius.circular(5)),
                     backDrawRodData: BackgroundBarChartRodData(
                       show: true,
                       toY: maxY * 1.12,
@@ -303,7 +308,8 @@ class _DifficultyDistributionPageState
             ),
             gridData: FlGridData(
               show: true,
-              horizontalInterval: (maxY / 6).ceilToDouble().clamp(1, double.infinity),
+              horizontalInterval:
+                  (maxY / 6).ceilToDouble().clamp(1, double.infinity),
               getDrawingHorizontalLine: (value) => FlLine(
                 color: AppColors.tableBorder(brightness).withValues(alpha: 0.4),
                 strokeWidth: 0.5,
@@ -320,7 +326,10 @@ class _DifficultyDistributionPageState
                   if (groupIndex >= _buckets.length) return null;
                   final bucket = _buckets[groupIndex];
                   return BarTooltipItem(
-                    'Lv.${bucket.label}\n共 ${bucket.totalCount} 首\n已玩 ${bucket.playedCount} 首',
+                    context.l10n.flowLvP0P1SongsP2Played(
+                        (bucket.label).toString(),
+                        (bucket.totalCount).toString(),
+                        (bucket.playedCount).toString()),
                     const TextStyle(
                       color: Colors.white,
                       fontSize: 12,
@@ -350,8 +359,7 @@ class _DifficultyDistributionPageState
     if (_selectedLevelIndex == ChartDifficulty.reMaster) {
       return Colors.purple.shade200;
     }
-    if (_selectedLevelIndex >= 0 &&
-        _selectedLevelIndex < _levelColors.length) {
+    if (_selectedLevelIndex >= 0 && _selectedLevelIndex < _levelColors.length) {
       return _levelColors[_selectedLevelIndex];
     }
     return Theme.of(context).colorScheme.primary;
@@ -384,12 +392,17 @@ class _DifficultyDistributionPageState
       entries = seen.entries
           .map((e) => _BucketEntry(song: songMap[e.key]!, dsIdx: e.value))
           .toList()
-        ..sort((a, b) => a.song.basicInfo.title.compareTo(b.song.basicInfo.title));
+        ..sort(
+            (a, b) => a.song.basicInfo.title.compareTo(b.song.basicInfo.title));
     } else {
-      entries = bucket.songs.map((s) => _BucketEntry(
-        song: s,
-        dsIdx: _selectedLevelIndex < s.ds.length ? _selectedLevelIndex : (s.ds.length - 1),
-      )).toList();
+      entries = bucket.songs
+          .map((s) => _BucketEntry(
+                song: s,
+                dsIdx: _selectedLevelIndex < s.ds.length
+                    ? _selectedLevelIndex
+                    : (s.ds.length - 1),
+              ))
+          .toList();
     }
 
     showModalBottomSheet(
@@ -420,7 +433,8 @@ class _DifficultyDistributionPageState
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Text(
-                    'Lv.${bucket.label} $suffix (共 ${entries.length} 首)',
+                    context.l10n.flowLvP0P1P2Songs((bucket.label).toString(),
+                        (suffix).toString(), (entries.length).toString()),
                     style: const TextStyle(
                         fontSize: 16, fontWeight: FontWeight.bold),
                   ),
@@ -435,16 +449,17 @@ class _DifficultyDistributionPageState
                       final song = entry.song;
                       final dsIdx = entry.dsIdx;
                       return ListTile(
-                        leading: CoverUtil.buildCoverWidgetWithContextRRect(ctx, song.id, 40),
+                        leading: CoverUtil.buildCoverWidgetWithContextRRect(
+                            ctx, song.id, 40),
                         title: Text(song.basicInfo.title,
                             style: const TextStyle(fontSize: 14),
-                            maxLines: 1, overflow: TextOverflow.ellipsis),
-                        subtitle: Text('${song.basicInfo.artist} | ${StringUtil.getTypeDisplay(song.type)}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis),
+                        subtitle: Text(
+                            '${song.basicInfo.artist} | ${StringUtil.getTypeDisplay(song.type)}',
                             style: const TextStyle(fontSize: 11)),
                         trailing: Text(
-                          dsIdx >= 0
-                              ? song.ds[dsIdx].toStringAsFixed(1)
-                              : '',
+                          dsIdx >= 0 ? song.ds[dsIdx].toStringAsFixed(1) : '',
                           style: const TextStyle(
                               fontSize: 14, fontWeight: FontWeight.w600),
                         ),
@@ -453,9 +468,9 @@ class _DifficultyDistributionPageState
                           Navigator.of(context).push(MaterialPageRoute(
                             builder: (_) => SongInfoPage(
                               songId: song.id,
-                              initialLevelIndex:
-                                  _selectedLevelIndex >= 0 ? _selectedLevelIndex : dsIdx,
-                              isDefaultLevelIndex: _selectedLevelIndex < 0,
+                              initialLevelIndex: _selectedLevelIndex >= 0
+                                  ? _selectedLevelIndex
+                                  : dsIdx,
                             ),
                           ));
                         },

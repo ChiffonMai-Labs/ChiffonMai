@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
@@ -44,7 +45,7 @@ class _AnnouncementDialogState extends State<_AnnouncementDialog> {
         if (mounted) {
           setState(() {
             _saving = false;
-            _error = '设置未保存，请重试';
+            _error = context.l10n.flowSettingsWereNotSavedPleaseRetry;
           });
         }
         return;
@@ -77,7 +78,7 @@ class _AnnouncementDialogState extends State<_AnnouncementDialog> {
                   children: [
                     if (published != null) ...[
                       Text(
-                          '${published.year}-${published.month.toString().padLeft(2, '0')}-${published.day.toString().padLeft(2, '0')} · 北京时间',
+                          context.l10n.flowP0P1P2BeijingTime((published.year).toString(), (published.month.toString().padLeft(2, '0')).toString(), (published.day.toString().padLeft(2, '0')).toString()),
                           style: Theme.of(context)
                               .textTheme
                               .bodySmall
@@ -99,7 +100,7 @@ class _AnnouncementDialogState extends State<_AnnouncementDialog> {
                     CheckboxListTile(
                       contentPadding: EdgeInsets.zero,
                       controlAffinity: ListTileControlAffinity.leading,
-                      title: const Text('不再提示本条公告'),
+                      title:  Text(context.l10n.flowDoNotShowThisAnnouncementAgain),
                       value: _dismiss,
                       onChanged: _saving
                           ? null
@@ -115,7 +116,7 @@ class _AnnouncementDialogState extends State<_AnnouncementDialog> {
         actions: [
           FilledButton(
               onPressed: _saving ? null : _confirm,
-              child: Text(_saving ? '正在保存…' : '知道了'))
+              child: Text(_saving ? context.l10n.flowSaving : context.l10n.featureGotIt))
         ],
       ),
     );
@@ -182,13 +183,13 @@ class _AnnouncementImageState extends State<_AnnouncementImage> {
               TextButton.icon(
                   onPressed: _retrying ? null : _retryImage,
                   icon: const Icon(Icons.refresh),
-                  label: const Text('图片加载失败，点击重试')),
+                  label:  Text(context.l10n.flowCouldNotLoadImageTapToRetry)),
             ]),
           ),
           imageBuilder: (_, provider) => Semantics(
             button: true,
             label:
-                widget.block.caption.isEmpty ? '放大公告图片' : widget.block.caption,
+                widget.block.caption.isEmpty ? context.l10n.flowEnlargeAnnouncementImage : widget.block.caption,
             child: GestureDetector(
               onTap: () => showDialog<void>(
                   context: context,
@@ -204,7 +205,7 @@ class _AnnouncementImageState extends State<_AnnouncementImage> {
                                       image: provider, fit: BoxFit.contain))),
                           TextButton(
                               onPressed: () => Navigator.of(context).pop(),
-                              child: const Text('关闭图片')),
+                              child:  Text(context.l10n.flowCloseImage)),
                         ]),
                       )),
               child: Image(

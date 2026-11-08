@@ -1,3 +1,4 @@
+import '../l10n/FeatureLocalizations.dart';
 import 'package:flutter/material.dart';
 
 import '../utils/AppDesignTokens.dart';
@@ -96,8 +97,8 @@ class _SongSearchEntryState extends State<SongSearchEntry> {
                 style: TextStyle(fontSize: fontSize),
                 decoration: InputDecoration(
                     hintText: widget.titleOnly
-                        ? '只按歌名搜索'
-                        : '曲名、别名、ID、曲师、谱师、BPM',
+                        ? context.featureText('只按歌名搜索')
+                        : context.featureText('曲名、别名、ID、曲师、谱师、BPM'),
                     hintStyle: TextStyle(
                         fontSize: widget.hintFontSize ?? fontSize * .875),
                     isDense: true,
@@ -110,14 +111,14 @@ class _SongSearchEntryState extends State<SongSearchEntry> {
                       valueListenable: widget.controller,
                       builder: (context, value, _) => value.text.isEmpty
                           ? IconButton(
-                              tooltip: '搜索',
+                              tooltip: context.featureText('搜索'),
                               onPressed: () =>
                                   widget.onSubmitted(widget.controller.text),
                               icon: Icon(Icons.arrow_forward_rounded,
                                   size: 20, color: colors.onSurfaceVariant),
                             )
                           : IconButton(
-                              tooltip: '清空搜索',
+                              tooltip: context.featureText('清空搜索'),
                               onPressed: () {
                                 widget.controller.clear();
                                 widget.onSubmitted('');

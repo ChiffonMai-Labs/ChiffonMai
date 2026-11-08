@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'dart:async';
 
 import 'package:audioplayers/audioplayers.dart';
@@ -98,7 +99,7 @@ class _GuessOriginalAudioCardState extends State<GuessOriginalAudioCard> {
           seed: widget.seed,
           singlePlayer: widget.singlePlayer,
           original: true,
-          trigger: '结算原声',
+          trigger: context.l10n.flowResultOriginalAudio,
         );
         if (!current()) return;
         final duration = await GuessAudioService.readExcerptDuration(file);
@@ -143,7 +144,7 @@ class _GuessOriginalAudioCardState extends State<GuessOriginalAudioCard> {
         setState(() {
           _busy = _playing = _finished = false;
           _duration = _position = 0;
-          _error = '原声片段暂时无法播放，请重试';
+          _error = context.l10n.flowOriginalAudioIsUnavailablePleaseRetry;
         });
       }
     } finally {
@@ -169,12 +170,12 @@ class _GuessOriginalAudioCardState extends State<GuessOriginalAudioCard> {
     final scheme = Theme.of(context).colorScheme;
     final loading = _busy && _duration == 0;
     final label = _error != null
-        ? '重试'
+        ? context.l10n.flowRetry
         : _playing
-            ? '暂停'
+            ? context.l10n.flowPause
             : _finished
-                ? '重新播放'
-                : '播放原声';
+                ? context.l10n.flowReplay
+                : context.l10n.flowPlayOriginalAudio;
     final timeStyle =
         AppTheme.number(fontSize: 11.5, color: scheme.onSurfaceVariant);
     return AppCard(
@@ -235,7 +236,7 @@ class _GuessOriginalAudioCardState extends State<GuessOriginalAudioCard> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  '原声片段',
+                  context.l10n.flowOriginalAudioExcerpt,
                   style: TextStyle(
                     fontSize: 14.5,
                     fontWeight: FontWeight.w700,
@@ -245,7 +246,7 @@ class _GuessOriginalAudioCardState extends State<GuessOriginalAudioCard> {
                 const SizedBox(height: 1),
                 Text(
                   _error ??
-                      (loading ? '正在准备原声…' : '本轮同一段音源，按原速正向播放'),
+                      (loading ? context.l10n.flowPreparingOriginalAudio : context.l10n.flowTheSameExcerptPlayedForwardAtOriginal),
                   style: TextStyle(
                     fontSize: 12,
                     color:
@@ -274,9 +275,9 @@ class _GuessOriginalAudioCardState extends State<GuessOriginalAudioCard> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('${_position.toStringAsFixed(1)} 秒', style: timeStyle),
+                    Text(context.l10n.flowP0Seconds2((_position.toStringAsFixed(1)).toString()), style: timeStyle),
                     Text(
-                      _duration > 0 ? '${_duration.toStringAsFixed(1)} 秒' : '--',
+                      _duration > 0 ? context.l10n.flowP0Seconds2((_duration.toStringAsFixed(1)).toString()) : '--',
                       style: timeStyle,
                     ),
                   ],

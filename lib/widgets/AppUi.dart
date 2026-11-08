@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -5,6 +6,7 @@ import '../utils/AppDesignTokens.dart';
 import '../utils/AppTheme.dart';
 import '../utils/ChartDifficulty.dart';
 import '../utils/ColorUtil.dart';
+import 'MarqueeText.dart';
 
 /// 2026-11 UI 重构（B 方案）的公共组件。
 ///
@@ -526,7 +528,9 @@ class SegmentedTabs extends StatelessWidget {
                             if (i != selectedIndex) onChanged(i);
                           },
                           child: Center(
-                            child: Flex(
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Flex(
                               direction: inlineCaption
                                   ? Axis.horizontal
                                   : Axis.vertical,
@@ -536,7 +540,7 @@ class SegmentedTabs extends StatelessWidget {
                                 Text(
                                   items[i].label,
                                   maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
+                                  softWrap: false,
                                   style: TextStyle(
                                     fontSize: 12.5,
                                     fontWeight: i == selectedIndex
@@ -562,6 +566,7 @@ class SegmentedTabs extends StatelessWidget {
                                     ),
                                   ),
                               ],
+                              ),
                             ),
                           ),
                         ),
@@ -577,7 +582,7 @@ class SegmentedTabs extends StatelessWidget {
   }
 }
 
-/// 一排独立的选项块（选中反色）：名称 + 数值，用于计算器的音符类型。
+/// 一排独立的选项块（选中用主题容器色）：名称 + 数值，用于计算器的音符类型。
 class PillTabs extends StatelessWidget {
   final List<SegmentedTabItem> items;
   final int selectedIndex;
@@ -592,11 +597,7 @@ class PillTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final selectedBg = theme.brightness == Brightness.dark
-        ? scheme.inverseSurface
-        : scheme.onSurface;
+    final scheme = Theme.of(context).colorScheme;
     final duration =
         AppDesignTokens.motion(context, AppDesignTokens.fastMotion);
     return Row(
@@ -618,13 +619,13 @@ class PillTabs extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(vertical: 4),
                   decoration: BoxDecoration(
                     color: i == selectedIndex
-                        ? selectedBg
+                        ? scheme.primaryContainer
                         : AppSurfaces.card(context),
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: Builder(builder: (context) {
                     final fg = i == selectedIndex
-                        ? scheme.onInverseSurface
+                        ? scheme.onPrimaryContainer
                         : scheme.onSurfaceVariant;
                     return Column(
                       mainAxisSize: MainAxisSize.min,
@@ -749,7 +750,7 @@ class _CountFieldState extends State<CountField> {
         children: [
           _StepButton(
             icon: Icons.remove_rounded,
-            tooltip: '${widget.semanticLabel}减一',
+            tooltip: context.l10n.flowDecreaseP0ByOne((widget.semanticLabel).toString()),
             onPressed: widget.value > 0 ? () => _step(-1) : null,
           ),
           SizedBox(
@@ -790,7 +791,7 @@ class _CountFieldState extends State<CountField> {
           ),
           _StepButton(
             icon: Icons.add_rounded,
-            tooltip: '${widget.semanticLabel}加一',
+            tooltip: context.l10n.flowIncreaseP0ByOne((widget.semanticLabel).toString()),
             onPressed: widget.value < widget.max ? () => _step(1) : null,
           ),
         ],
@@ -911,7 +912,7 @@ class JudgeCountRow extends StatelessWidget {
             CountField(
               value: value,
               onChanged: onChanged,
-              semanticLabel: '$label 数量',
+              semanticLabel: context.l10n.flowP0Count((label).toString()),
             ),
           ],
         ),
@@ -951,7 +952,7 @@ class BottomActionBar extends StatelessWidget {
   }
 }
 
-/// 计算结果这类「强调卡片」：反色底（浅色模式深底白字，深色模式浅底深字）。
+/// 计算结果这类「强调卡片」：大圆角卡片，配色跟随明暗模式。
 class EmphasisCard extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry padding;
@@ -969,16 +970,13 @@ class EmphasisCard extends StatelessWidget {
       width: double.infinity,
       padding: padding,
       decoration: BoxDecoration(
-        // 浅色模式几乎是黑，比 inverseSurface 更压得住白字
-        color: Theme.of(context).brightness == Brightness.dark
-            ? scheme.inverseSurface
-            : scheme.onSurface,
+        color: AppSurfaces.card(context),
         borderRadius: BorderRadius.circular(AppDesignTokens.radiusLarge),
       ),
       child: DefaultTextStyle.merge(
-        style: TextStyle(color: scheme.onInverseSurface),
+        style: TextStyle(color: scheme.onSurface),
         child: IconTheme.merge(
-          data: IconThemeData(color: scheme.onInverseSurface),
+          data: IconThemeData(color: scheme.onSurface),
           child: child,
         ),
       ),
@@ -1061,14 +1059,26 @@ class StarBadge extends StatelessWidget {
 /// 颜色按标题取（[AppColors.featureTint]），同一功能在各页同色。
 class FeatureIconTile extends StatelessWidget {
   final String title;
+  final String? displayTitle;
   final IconData icon;
   final VoidCallback? onTap;
+
+  /// 任务进行中：图标换成进度圈，[progress] 为空时是不定进度。
+  final bool loading;
+  final double? progress;
+
+  /// 标题颜色，默认正文色（「发现新版本」用绿色）。
+  final Color? titleColor;
 
   const FeatureIconTile({
     super.key,
     required this.title,
+    this.displayTitle,
     required this.icon,
     required this.onTap,
+    this.loading = false,
+    this.progress,
+    this.titleColor,
   });
 
   @override
@@ -1078,7 +1088,7 @@ class FeatureIconTile extends StatelessWidget {
     return Semantics(
       button: true,
       enabled: onTap != null,
-      label: title,
+      label: displayTitle ?? title,
       excludeSemantics: true,
       child: Opacity(
         opacity: onTap == null ? 0.5 : 1,
@@ -1100,24 +1110,65 @@ class FeatureIconTile extends StatelessWidget {
                       color: tint.background,
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    child: Icon(icon, size: 26, color: tint.foreground),
+                    child: loading
+                        ? SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              value: progress,
+                              strokeWidth: 2.5,
+                              color: tint.foreground,
+                            ),
+                          )
+                        : Icon(icon, size: 26, color: tint.foreground),
                   ),
                 ),
                 const SizedBox(height: 8),
-                Text(
-                  title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 12,
-                    height: 1.25,
-                    fontWeight: FontWeight.w500,
-                    color: theme.colorScheme.onSurface,
+                  SizedBox(
+                    height: 30 * MediaQuery.textScalerOf(context).scale(1),
+                    child: DefaultTextStyle.merge(
+                      textAlign: TextAlign.center,
+                      child: MarqueeText(
+                        text: displayTitle ?? title,
+                        style: TextStyle(
+                          fontSize: 12,
+                          height: 1.25,
+                          fontWeight: FontWeight.w500,
+                          color: titleColor ?? theme.colorScheme.onSurface,
+                        ),
+                      ),
+                    ),
                   ),
-                ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 展开 / 收起一块内容：高度和透明度一起过渡，子树一直保留，不会重新入场。
+class AnimatedReveal extends StatelessWidget {
+  final bool visible;
+  final Widget child;
+
+  const AnimatedReveal({super.key, required this.visible, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(end: visible ? 1 : 0),
+      duration: AppDesignTokens.motion(context, AppDesignTokens.mediumMotion),
+      curve: AppDesignTokens.emphasizedCurve,
+      child: child,
+      builder: (context, value, child) => IgnorePointer(
+        ignoring: !visible,
+        child: ClipRect(
+          child: Align(
+            alignment: Alignment.topCenter,
+            heightFactor: value,
+            child: Opacity(opacity: value, child: child),
           ),
         ),
       ),
@@ -1353,12 +1404,16 @@ class ChartConstantBadges extends StatelessWidget {
 /// 可折叠的白卡片：默认收起的次要内容（详细统计等）。
 class CollapsibleCard extends StatefulWidget {
   final String title;
+
+  /// 标题下的一行说明，收起时也显示。
+  final String? subtitle;
   final Widget child;
   final bool initiallyExpanded;
 
   const CollapsibleCard({
     super.key,
     required this.title,
+    this.subtitle,
     required this.child,
     this.initiallyExpanded = false,
   });
@@ -1388,9 +1443,22 @@ class _CollapsibleCardState extends State<CollapsibleCard> {
                 child: Row(
                   children: [
                     Expanded(
-                      child: Text(widget.title,
-                          style: const TextStyle(
-                              fontSize: 13, fontWeight: FontWeight.w700)),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(widget.title,
+                              style: const TextStyle(
+                                  fontSize: 13, fontWeight: FontWeight.w700)),
+                          if (widget.subtitle != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Text(widget.subtitle!,
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      color: scheme.onSurfaceVariant)),
+                            ),
+                        ],
+                      ),
                     ),
                     AnimatedRotation(
                       turns: _expanded ? 0.5 : 0,
@@ -1763,7 +1831,7 @@ class PagerBar extends StatelessWidget {
         child: Row(
           children: [
             IconButton(
-              tooltip: '上一页',
+              tooltip: context.l10n.flowPrevious,
               onPressed: onPrevious,
               icon: const Icon(Icons.chevron_left_rounded),
             ),
@@ -1779,7 +1847,7 @@ class PagerBar extends StatelessWidget {
               ),
             ),
             IconButton(
-              tooltip: '下一页',
+              tooltip: context.l10n.flowNext,
               onPressed: onNext,
               icon: const Icon(Icons.chevron_right_rounded),
             ),

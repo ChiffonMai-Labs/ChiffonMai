@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import '../widgets/AppDialogs.dart';
 import 'AppUi.dart';
@@ -79,7 +80,7 @@ class _HistoryDateTimeDialogState extends State<_HistoryDateTimeDialog> {
     final picked = await showTimePicker(
       context: context,
       initialTime: TimeOfDay.fromDateTime(_selected),
-      helpText: '选择时间',
+      helpText: context.l10n.flowSelectTime,
     );
     if (picked == null || !mounted) return;
     setState(() {
@@ -129,7 +130,7 @@ class _HistoryDateTimeDialogState extends State<_HistoryDateTimeDialog> {
         '${_two(_selected.day)}';
     final timeText = '${_two(_selected.hour)}:${_two(_selected.minute)}';
     return AppAlertDialog(
-      title: const Text('选择时间'),
+      title: Text(context.l10n.flowSelectTime),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -156,7 +157,7 @@ class _HistoryDateTimeDialogState extends State<_HistoryDateTimeDialog> {
             controller: _secondsController,
             keyboardType: TextInputType.number,
             decoration: InputDecoration(
-              labelText: '秒（0-59）',
+              labelText: context.l10n.flowSeconds059,
             ).insetLabel(context),
             onChanged: _onSecondsChanged,
           ),
@@ -165,11 +166,11 @@ class _HistoryDateTimeDialogState extends State<_HistoryDateTimeDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('取消'),
+          child: Text(context.l10n.featureCancel),
         ),
         FilledButton(
           onPressed: _confirm,
-          child: const Text('确定'),
+          child: Text(context.l10n.featureOK),
         ),
       ],
     );

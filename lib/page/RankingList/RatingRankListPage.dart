@@ -1,3 +1,6 @@
+import 'package:my_first_flutter_app/l10n/FeatureLocalizations.dart';
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import '../../service/CommunityAvatarStore.dart';
 import '../../widgets/RankingPlayerBriefSheet.dart';
 import 'package:flutter/material.dart';
@@ -186,7 +189,7 @@ class _RatingRankListPageState extends State<RatingRankListPage> {
   }
 
   void _showOutsideTop100Message() {
-    AppToast.show('抱歉，您不在前100名内');
+    AppToast.show(context.l10n.flowYouAreOutsideTheTop100);
   }
 
   RefreshDataSource? get _selectedSource =>
@@ -268,7 +271,7 @@ class _RatingRankListPageState extends State<RatingRankListPage> {
     } catch (e) {
       if (!mounted || generation != _requestGeneration) return;
       setState(() {
-        _errorMessage = '加载失败: $e';
+        _errorMessage = appL10n.flowCouldNotLoadP0((e).toString());
       });
     } finally {
       if (mounted && generation == _requestGeneration)
@@ -284,7 +287,7 @@ class _RatingRankListPageState extends State<RatingRankListPage> {
       dataSource: item.dataSource,
       // 开发者白名单按 `<source>:<id>` 整串匹配，见 DataSourceTag
       playerId: item.userId,
-      name: item.nickname ?? '未知玩家',
+      name: item.nickname ?? context.l10n.flowUnknownPlayer,
       // 头像高度对齐「玩家名 + 数据源标签」两行文字的总高
       avatarMatchesTextHeight: true,
       nameStyle: TextStyle(
@@ -369,7 +372,9 @@ class _RatingRankListPageState extends State<RatingRankListPage> {
           ),
           const SizedBox(height: 16),
           Text(
-            _errorMessage.isNotEmpty ? _errorMessage : '暂无排行数据',
+            _errorMessage.isNotEmpty
+                ? _errorMessage
+                : context.l10n.flowNoRankingDataYet,
             style: TextStyle(
               fontSize: 16,
               color: AppColors.greyHint(brightness),
@@ -403,7 +408,7 @@ class _RatingRankListPageState extends State<RatingRankListPage> {
               // （`appBarTheme.titleTextStyle`）接管，标题就退化成系统 Roboto，
               // 于是出现「同一个 App 里排行榜页的标题字体和别人不一样」。
               AppHeader(
-                title: 'Rating 排行榜',
+                title: context.l10n.featureRatingLeaderboard,
                 actions: [
                   IconButton(
                     icon: _isLoading
@@ -414,7 +419,7 @@ class _RatingRankListPageState extends State<RatingRankListPage> {
                             color: AppColors.primaryText(brightness)),
                     onPressed:
                         (_isLoading || _isButtonDisabled) ? null : _onRefresh,
-                    tooltip: '刷新',
+                    tooltip: context.l10n.flowRefresh,
                   ),
                   // 快速定位到当前用户的按钮
                   if (_currentUserRankItem != null)
@@ -422,7 +427,7 @@ class _RatingRankListPageState extends State<RatingRankListPage> {
                       icon: Icon(Icons.location_searching,
                           color: AppColors.primaryText(brightness)),
                       onPressed: _scrollToCurrentUser,
-                      tooltip: '跳转到我的排名',
+                      tooltip: context.l10n.flowGoToMyRank,
                     ),
                 ],
               ),
@@ -432,7 +437,10 @@ class _RatingRankListPageState extends State<RatingRankListPage> {
                     AppDesignTokens.gutter, 4, AppDesignTokens.gutter, 8),
                 child: SegmentedTabs(
                   height: 42,
-                  items: [for (final name in _tabNames) SegmentedTabItem(name)],
+                  items: [
+                    for (final name in _tabNames)
+                      SegmentedTabItem(context.featureText(name))
+                  ],
                   selectedIndex: _selectedTab,
                   onChanged: (index) {
                     if (_isButtonDisabled) return;
@@ -471,9 +479,12 @@ class _RatingRankListPageState extends State<RatingRankListPage> {
                               final item = _rankList[index];
                               final isCurrentUser = _selectedUserId != null &&
                                   item.userId == _selectedUserId;
-                              return _entrance.wrap(_rankList, index, _buildRankItem(item,
-                                  isCurrentUser: isCurrentUser,
-                                  brightness: brightness));
+                              return _entrance.wrap(
+                                  _rankList,
+                                  index,
+                                  _buildRankItem(item,
+                                      isCurrentUser: isCurrentUser,
+                                      brightness: brightness));
                             },
                           ),
               ),
@@ -485,7 +496,8 @@ class _RatingRankListPageState extends State<RatingRankListPage> {
                   child: RankingSelfBar(
                     rank: _currentUserRankItem!.rank,
                     onTap: _scrollToCurrentUser,
-                    identity: _buildIdentity(_currentUserRankItem!, isCurrentUser: true),
+                    identity: _buildIdentity(_currentUserRankItem!,
+                        isCurrentUser: true),
                     value: _buildValueCell(_currentUserRankItem!),
                   ),
                 ),

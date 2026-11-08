@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -109,11 +111,10 @@ class DivingFishAccountSection extends StatelessWidget {
       brightness: brightness,
       color: AppColors.warningOrange(brightness),
       icon: Icons.info_outline,
-      title: '还没登录水鱼账号',
+      title: appL10n.flowNotSignedInToDivingFish,
       children: [
         _body(
-          '读取水鱼成绩前，App 要先从水鱼读出你账号上绑定的 QQ 号。\n'
-          '请到「系统 → 登录水鱼」完成登录后再回来刷新。',
+          appL10n.flowTheAppNeedsYourLinkedQQBefore,
           brightness,
         ),
       ],
@@ -128,17 +129,16 @@ class DivingFishAccountSection extends StatelessWidget {
       brightness: brightness,
       color: accent,
       icon: Icons.link_off,
-      title: '你的水鱼账号还没绑定 QQ 号',
+      title: context.l10n.flowYourDivingFishAccountHasNoLinked,
       children: [
         _body(
-          'App 用 QQ 号来识别你的水鱼账号，而你账号里的「绑定 QQ 号」是空的，\n'
-          '所以现在读不到成绩。这不是登录出了问题，只是少填了一个字段。',
+          context.l10n.flowTheAppIdentifiesYourDivingFishAccount,
           brightness,
         ),
         const SizedBox(height: 10),
-        _step('① 打开水鱼查分器官网并登录', brightness),
-        _step('② 进入「编辑个人资料」→ 填上「绑定 QQ 号」并保存', brightness),
-        _step('③ 回到这里点「我已填好，重新读取」', brightness),
+        _step(context.l10n.flow1OpenDivingFishAndSignIn, brightness),
+        _step(context.l10n.flow2OpenEditProfileEnterLinkedQQ, brightness),
+        _step(context.l10n.flow3ReturnAndTapISavedIt, brightness),
         const SizedBox(height: 10),
         Wrap(
           spacing: 8,
@@ -146,7 +146,8 @@ class DivingFishAccountSection extends StatelessWidget {
           children: [
             OutlinedButton.icon(
               icon: const Icon(Icons.open_in_new, size: 16),
-              label: const Text('去水鱼官网绑定', style: TextStyle(fontSize: 13)),
+              label: Text(context.l10n.flowLinkQQOnDivingFish,
+                  style: TextStyle(fontSize: 13)),
               style: OutlinedButton.styleFrom(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -165,7 +166,8 @@ class DivingFishAccountSection extends StatelessWidget {
             else
               FilledButton.tonalIcon(
                 icon: const Icon(Icons.refresh, size: 16),
-                label: const Text('我已填好，重新读取', style: TextStyle(fontSize: 13)),
+                label: Text(context.l10n.flowISavedItReadAgain,
+                    style: TextStyle(fontSize: 13)),
                 style: FilledButton.styleFrom(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -201,7 +203,7 @@ class DivingFishAccountSection extends StatelessWidget {
               Icon(Icons.badge_outlined,
                   size: 18, color: AppColors.greyHint(brightness)),
               const SizedBox(width: 10),
-              Text('账号',
+              Text(context.l10n.flowAccount,
                   style: TextStyle(
                       fontSize: 12, color: AppColors.greyHint(brightness))),
               const SizedBox(width: 12),
@@ -240,7 +242,8 @@ class DivingFishAccountSection extends StatelessWidget {
             child: CircularProgressIndicator(strokeWidth: 2),
           ),
           const SizedBox(width: 8),
-          Text('正在检查授权状态...', style: TextStyle(fontSize: 12, color: muted)),
+          Text(appL10n.flowCheckingAuthorization,
+              style: TextStyle(fontSize: 12, color: muted)),
         ],
       );
     }
@@ -250,7 +253,8 @@ class DivingFishAccountSection extends StatelessWidget {
         children: [
           Icon(Icons.check_circle, size: 16, color: green),
           const SizedBox(width: 6),
-          Text('已授权', style: TextStyle(fontSize: 13, color: green)),
+          Text(appL10n.flowAuthorized,
+              style: TextStyle(fontSize: 13, color: green)),
         ],
       );
     }
@@ -260,15 +264,17 @@ class DivingFishAccountSection extends StatelessWidget {
         Expanded(
           child: Text(
             consentPending
-                ? '已打开授权页，请在浏览器中完成授权后点右侧重新检测'
-                : '读取成绩需先授权本应用，未授权时刷新会失败',
+                ? appL10n.flowAuthorizationOpenedFinishInYourBrowserThen
+                : appL10n.flowReadingScoresRequiresAuthorizationRefreshWillFail,
             style: TextStyle(fontSize: 12, color: muted),
           ),
         ),
         TextButton(
           onPressed:
               consentPending ? onRecheckAuthorization : onStartAuthorization,
-          child: Text(consentPending ? '我已授权，重新检测' : '去授权'),
+          child: Text(consentPending
+              ? appL10n.flowAuthorizedCheckAgain
+              : appL10n.flowAuthorize),
         ),
       ],
     );
@@ -339,6 +345,7 @@ class DivingFishAccountSection extends StatelessWidget {
     // 打不开浏览器就把链接放剪贴板，别让用户卡在这一步
     await Clipboard.setData(const ClipboardData(text: url));
     if (!context.mounted) return;
-    AppToast.show('无法打开浏览器，链接已复制到剪贴板，请手动粘贴打开', duration: Duration(seconds: 3));
+    AppToast.show(context.l10n.flowCouldNotOpenABrowserLinkCopied,
+        duration: Duration(seconds: 3), tone: AppToastTone.error);
   }
 }

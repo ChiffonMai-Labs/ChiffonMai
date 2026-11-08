@@ -1,3 +1,6 @@
+import 'package:my_first_flutter_app/l10n/FeatureLocalizations.dart';
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -98,7 +101,7 @@ class _ScoreImprovementHistoryPageState
         if (_historyKey != null && _historyKey != key) _resetSearch();
         _historyKey = key;
         _accountLabel =
-            '${source.displayName}${name.isEmpty ? '' : ' · $name'}';
+            '${context.featureText(source.displayName)}${name.isEmpty ? '' : ' · $name'}';
         _startedAtMs = history.startedAtMs;
         _entries = history.entries;
         _loading = false;
@@ -106,7 +109,8 @@ class _ScoreImprovementHistoryPageState
     } catch (error) {
       if (!mounted || generation != _generation) return;
       setState(() {
-        _error = '读取提升历史失败：$error';
+        _error =
+            appL10n.flowCouldNotLoadImprovementHistoryP0((error).toString());
         _loading = false;
       });
     }
@@ -169,7 +173,7 @@ class _ScoreImprovementHistoryPageState
     } catch (error) {
       if (!mounted || generation != _searchGeneration) return;
       setState(() {
-        _searchError = '搜索失败：$error';
+        _searchError = context.l10n.flowSearchFailedP0((error).toString());
         _searchLoading = false;
       });
     }
@@ -186,16 +190,14 @@ class _ScoreImprovementHistoryPageState
     showDialog<void>(
         context: context,
         builder: (context) => AppAlertDialog(
-              title: const Text('关于成绩提升历史'),
-              content: const SingleChildScrollView(
-                  child: Text('成功刷新自己的成绩时自动记录，水鱼、落雪和 AWMC NET 按数据源与账号分别保存。\n\n'
-                      '首次没有旧成绩可比时仅建立基线；刷新无变化不新增记录。当天同一谱面的多次变化合成一张卡，展示首次变化前到最新值。\n\n'
-                      '按刷新时的本地日期归档，时间代表发现变化的时间，并非实际游玩时间。卡片按前后值标为成绩提升、成绩回退、成绩无变化，或有升有降的成绩变化；首次出现的谱面另注明首次记录。\n\n'
-                      'Rating 是该谱面的 Rating，不代表总 Rating 的增量。历史仅在本机保存，不会自动回填启用前的旧成绩。')),
+              title: Text(context.l10n.flowAboutScoreImprovementHistory),
+              content: SingleChildScrollView(
+                  child: Text(context.l10n
+                      .flowChangesAreRecordedAutomaticallyAfterYourScores)),
               actions: [
                 TextButton(
                     onPressed: () => Navigator.pop(context),
-                    child: const Text('知道了'))
+                    child: Text(context.l10n.featureGotIt))
               ],
             ));
   }
@@ -213,7 +215,9 @@ class _ScoreImprovementHistoryPageState
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            _accountLabel.isEmpty ? '当前账号的本地成绩历史' : _accountLabel,
+            _accountLabel.isEmpty
+                ? context.l10n.flowLocalScoreHistoryForThisAccount
+                : _accountLabel,
             style: TextStyle(
               fontSize: 13.5,
               fontWeight: FontWeight.w700,
@@ -223,8 +227,10 @@ class _ScoreImprovementHistoryPageState
           const SizedBox(height: 2),
           Text(
             _startedAtMs == 0
-                ? '刷新数据后开始记录；首次无旧成绩时仅建立基线。'
-                : '${_date(DateTime.fromMillisecondsSinceEpoch(_startedAtMs))} 起记录 · 同日同谱面自动合并',
+                ? context.l10n.flowRecordingStartsAfterADataRefreshThe
+                : context.l10n.flowRecordedSinceP0SameDayChangesTo(
+                    (_date(DateTime.fromMillisecondsSinceEpoch(_startedAtMs)))
+                        .toString()),
             style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant),
           ),
           if (dayEntries.isNotEmpty) ...[
@@ -234,14 +240,14 @@ class _ScoreImprovementHistoryPageState
                 Expanded(
                   child: StatTile(
                     centered: true,
-                    label: '谱面',
+                    label: context.l10n.flowCharts,
                     value: '${dayEntries.length}',
                   ),
                 ),
                 Expanded(
                   child: StatTile(
                     centered: true,
-                    label: '提升',
+                    label: context.l10n.flowImprovement,
                     value: '$improved',
                     valueColor: AppColors.successGreen(brightness),
                   ),
@@ -249,7 +255,7 @@ class _ScoreImprovementHistoryPageState
                 Expanded(
                   child: StatTile(
                     centered: true,
-                    label: '变化次数',
+                    label: context.l10n.flowChanges,
                     value:
                         '${dayEntries.fold<int>(0, (n, e) => n + e.changeCount)}',
                   ),
@@ -314,12 +320,14 @@ class _ScoreImprovementHistoryPageState
               Text(
                 detail,
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 12.5, color: colors.onSurfaceVariant),
+                style:
+                    TextStyle(fontSize: 12.5, color: colors.onSurfaceVariant),
               ),
             ],
             if (onRetry != null) ...[
               const SizedBox(height: 12),
-              TextButton(onPressed: onRetry, child: const Text('重试')),
+              TextButton(
+                  onPressed: onRetry, child: Text(context.l10n.flowRetry)),
             ],
           ],
         ),
@@ -343,11 +351,11 @@ class _ScoreImprovementHistoryPageState
     }).toList();
     final shown = filtered.take(_limit).toList();
     return BackgroundPageScaffold(
-      title: '成绩提升历史',
+      title: context.l10n.featureScoreImprovementHistory,
       actions: [
         IconButton(
             onPressed: _showHelp,
-            tooltip: '记录规则',
+            tooltip: context.l10n.flowRecordingRules,
             icon: const Icon(Icons.info_outline))
       ],
       child: Center(
@@ -376,18 +384,22 @@ class _ScoreImprovementHistoryPageState
                 child: _loading || _searchLoading
                     ? const Center(child: CircularProgressIndicator())
                     : _error != null || _searchError != null
-                        ? _buildStateMessage(null, (_error ?? _searchError)!,
-                            null,
+                        ? _buildStateMessage(
+                            null, (_error ?? _searchError)!, null,
                             onRetry: _error != null
                                 ? _load
                                 : () => _submitSearch(_search.text))
                         : filtered.isEmpty
                             ? _buildStateMessage(
                                 Icons.auto_graph_rounded,
-                                _entries.isEmpty ? '还没有成绩提升记录' : '没有符合条件的记录',
                                 _entries.isEmpty
-                                    ? '成功刷新后，发生变化的最佳成绩会出现在这里。'
-                                    : '试试其他关键词或日期。')
+                                    ? context
+                                        .l10n.flowNoScoreImprovementRecordsYet
+                                    : context.l10n.flowNoMatchingRecords,
+                                _entries.isEmpty
+                                    ? context.l10n
+                                        .flowBestScoresThatChangeAfterASuccessful
+                                    : context.l10n.flowTryAnotherKeywordOrDate)
                             : ListView.builder(
                                 key: ValueKey(_selectedDay),
                                 keyboardDismissBehavior:
@@ -405,8 +417,10 @@ class _ScoreImprovementHistoryPageState
                                     return TextButton(
                                         onPressed: () =>
                                             setState(() => _limit += 60),
-                                        child: Text(
-                                            '加载当天更多记录（剩余 ${filtered.length - _limit} 张）'));
+                                        child: Text(context.l10n
+                                            .flowLoadMoreFromThisDayP0Charts(
+                                                (filtered.length - _limit)
+                                                    .toString())));
                                   }
                                   final entry = shown[index];
                                   return Padding(
@@ -427,14 +441,13 @@ class _ScoreImprovementHistoryPageState
                                                 MaterialPageRoute(
                                                     builder: (_) =>
                                                         SongInfoPage(
-                                                            songId: entry
-                                                                .after.songId
-                                                                .toString(),
-                                                            initialLevelIndex:
-                                                                entry.after
-                                                                    .levelIndex,
-                                                            isDefaultLevelIndex:
-                                                                false)));
+                                                          songId: entry
+                                                              .after.songId
+                                                              .toString(),
+                                                          initialLevelIndex:
+                                                              entry.after
+                                                                  .levelIndex,
+                                                        )));
                                           }),
                                     ),
                                   );

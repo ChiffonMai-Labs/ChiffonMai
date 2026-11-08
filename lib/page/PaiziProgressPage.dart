@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
@@ -17,6 +18,7 @@ import 'package:my_first_flutter_app/utils/ExportQualitySelector.dart';
 import 'package:my_first_flutter_app/utils/ImageEncodeUtil.dart';
 import 'package:my_first_flutter_app/widgets/BackgroundPageScaffold.dart';
 import '../utils/LuoXueToDivingFishUtil.dart';
+import '../utils/SongDetailPreferences.dart';
 import '../utils/AppDesignTokens.dart';
 import '../widgets/AppUi.dart';
 import '../widgets/ProgressUi.dart';
@@ -86,7 +88,6 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
 
   bool get _loadingSongs => _isLoading || _isSongsLoading;
 
-
   // 显示模式：true 为列表模式，false 为仅曲绘模式
   bool _showListMode = true;
 
@@ -113,6 +114,8 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
     });
 
     try {
+      await SongDetailPreferences.instance.load();
+      if (!mounted) return;
       _firstCharOptions = await _service.getFirstCharOptions();
 
       // 如果首字选项为空，可能是首次启动还未拉取过收藏品数据，
@@ -312,7 +315,7 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
     _textSizeM = 12.0 * _scaleFactor;
 
     return BackgroundPageScaffold(
-      title: '牌子进度',
+      title: context.l10n.featureVersionTitleProgress,
       resizeToAvoidBottomInset: false,
       contentPadding: EdgeInsets.only(
         bottom: MediaQuery.paddingOf(context).bottom,
@@ -334,7 +337,7 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
                   // 导出为图片按钮
                   FilledButton.tonalIcon(
                     icon: const Icon(Icons.image_outlined, size: 18),
-                    label: const Text('导出为图片'),
+                    label: Text(context.l10n.flowExportAsImage),
                     onPressed: () async {
                       debugPrint('=== PAIZI EXPORT BUTTON CLICKED ===');
                       try {
@@ -378,15 +381,15 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // 第一个选择：第一个字（点击弹出对话框）
-          const ProgressFieldLabel('首字'),
+          ProgressFieldLabel(context.l10n.flowFirstCharacter),
           ProgressPickerField(
-            value: _selectedFirstChar ?? '请选择首字',
+            value: _selectedFirstChar ?? context.l10n.flowSelectAFirstCharacter,
             onTap: () => _showFirstCharDialog(),
           ),
           const SizedBox(height: 12),
 
           // 第二个选择：称号类型
-          const ProgressFieldLabel('称号类型'),
+          ProgressFieldLabel(context.l10n.flowTitleType),
           Wrap(
             spacing: 6,
             runSpacing: 6,
@@ -410,7 +413,7 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
           const SizedBox(height: 12),
 
           // 第三个选择：难度
-          const ProgressFieldLabel('难度'),
+          ProgressFieldLabel(context.l10n.flowDifficulty),
           Wrap(
             spacing: 6,
             runSpacing: 6,
@@ -463,7 +466,7 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
       context: context,
       builder: (BuildContext context) {
         return AppAlertDialog(
-          title: Center(child: Text('选择首字')),
+          title: Center(child: Text(context.l10n.flowSelectFirstCharacter)),
           content: Container(
             width: double.maxFinite,
             child: GridView.builder(
@@ -534,7 +537,8 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
     );
   }
 
-  void _openSong(String songId, int levelIndex) {
+  void _openSong(String songId, int? levelIndex) {
+    FocusManager.instance.primaryFocus?.unfocus();
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -556,14 +560,16 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
     String songTitle;
     String songType;
     String songDs = '';
-    int initialLevelIndex = _selectedDifficulty ?? 3;
+    final initialLevelIndex = item['usesDefaultDifficulty'] == true
+        ? null
+        : ChartDifficulty.parseStandardIndex(item['difficulty']) ??
+            ChartDifficulty.parseStandardIndex(_selectedDifficulty);
     if (song is Song) {
       songId = song.id;
       songTitle = song.title;
       songType = song.type;
       // 获取当前难度对应的定数
       final diffIndex = item['difficulty'] as int;
-      initialLevelIndex = diffIndex;
       if (song.ds != null && song.ds.length > diffIndex) {
         songDs = song.ds[diffIndex].toStringAsFixed(1);
       }
@@ -573,7 +579,7 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
       songType = song.type;
     } else {
       songId = '';
-      songTitle = '未知';
+      songTitle = context.l10n.flowUnknown;
       songType = '';
     }
 
@@ -581,7 +587,8 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
       songId: songId,
       title: songTitle,
       songType: songType,
-      levelIndex: initialLevelIndex,
+      levelIndex:
+          initialLevelIndex ?? SongDetailPreferences.instance.difficulty,
       constant: songDs,
       completed: isCompleted,
       excluded: excluded,
@@ -594,17 +601,20 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
     final dynamic song = item['song'];
 
     String songId = '';
-    int initialLevelIndex = _selectedDifficulty ?? 3;
+    final initialLevelIndex = item['usesDefaultDifficulty'] == true
+        ? null
+        : ChartDifficulty.parseStandardIndex(item['difficulty']) ??
+            ChartDifficulty.parseStandardIndex(_selectedDifficulty);
     if (song is Song) {
       songId = song.id;
-      initialLevelIndex = item['difficulty'] as int;
     } else if (song is CollectionRequiredSong) {
       songId = song.id.toString();
     }
 
     return ProgressCoverTile(
       songId: songId,
-      levelIndex: initialLevelIndex,
+      levelIndex:
+          initialLevelIndex ?? SongDetailPreferences.instance.difficulty,
       completed: item['completed'] as bool,
       onTap: () => _openSong(songId, initialLevelIndex),
     );
@@ -614,13 +624,15 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
     // 条件外曲目每首展示一次，随页面切换列表 / 曲绘模式，不混入完成率统计。
     final items = _excludedSongs.map((song) {
       final selected = _selectedDifficulty;
-      final preferred =
-          selected == null || selected < 0 ? ChartDifficulty.master : selected;
+      final preferred = selected == null || selected < 0
+          ? SongDetailPreferences.instance.difficulty
+          : selected;
       final difficulty =
           song.ds.isEmpty ? 0 : preferred.clamp(0, song.ds.length - 1).toInt();
       return <String, dynamic>{
         'song': song,
         'difficulty': difficulty,
+        'usesDefaultDifficulty': selected == null || selected < 0,
         'completed': false
       };
     }).toList();
@@ -630,8 +642,9 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
       children: [
         const SizedBox(height: 16),
         AppSectionHeader(
-          title: '条件外排除曲目',
-          subtitle: '共 ${items.length} 首，不计入牌子进度',
+          title: context.l10n.flowExcludedSongs,
+          subtitle: context.l10n
+              .flowP0SongsExcludedFromPlateProgress((items.length).toString()),
         ),
         if (_showListMode)
           AppCard(
@@ -671,7 +684,7 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
     for (final item in songs) {
       final dynamic song = item['song'];
       final diffIndex = item['difficulty'] as int;
-      String levelKey = '未知';
+      String levelKey = context.l10n.flowUnknown;
       if (song is Song && song.ds != null && song.ds.length > diffIndex) {
         final ds = song.ds[diffIndex];
         // 根据显示模式选择分组方式
@@ -704,23 +717,23 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
     final songsWithStatus =
         _cachedSongsWithStatus ?? const <Map<String, dynamic>>[];
     if (!_loadingSongs) {
-    // 计算统计数据
-    final totalCount = songsWithStatus.length;
-    final completedCount =
-        songsWithStatus.where((item) => item['completed'] as bool).length;
+      // 计算统计数据
+      final totalCount = songsWithStatus.length;
+      final completedCount =
+          songsWithStatus.where((item) => item['completed'] as bool).length;
 
-    // 计算平均达成率
-    double totalAchievement = 0.0;
-    for (final item in songsWithStatus) {
-      final dynamic song = item['song'];
-      final diff = item['difficulty'] as int;
-      if (song is Song) {
-        totalAchievement +=
-            _service.getSongAchievement(int.parse(song.id), diff);
+      // 计算平均达成率
+      double totalAchievement = 0.0;
+      for (final item in songsWithStatus) {
+        final dynamic song = item['song'];
+        final diff = item['difficulty'] as int;
+        if (song is Song) {
+          totalAchievement +=
+              _service.getSongAchievement(int.parse(song.id), diff);
+        }
       }
-    }
-    final averageAchievement =
-        totalCount > 0 ? totalAchievement / totalCount : 0.0;
+      final averageAchievement =
+          totalCount > 0 ? totalAchievement / totalCount : 0.0;
 
       _summary = (
         total: totalCount,
@@ -734,57 +747,60 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
       children: [
         // 当前牌子：图片（可点击跳转）+ 名称
         if (_currentPlate != null) ...[
-        AppCard(
-          child: Column(
-            children: [
-              // 真将和真大将不显示图片
-              if (!(_selectedFirstChar == '真' &&
-                  (_selectedTitleType == '将' || _selectedTitleType == '大将'))) ...[
-                GestureDetector(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => CollectionInfoPage(
-                          collectionId: _currentPlate!.id,
-                          collectionType: 'plates',
+          AppCard(
+            child: Column(
+              children: [
+                // 真将和真大将不显示图片
+                if (!(_selectedFirstChar == '真' &&
+                    (_selectedTitleType == '将' ||
+                        _selectedTitleType == '大将'))) ...[
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => CollectionInfoPage(
+                            collectionId: _currentPlate!.id,
+                            collectionType: 'plates',
+                          ),
                         ),
-                      ),
-                    );
-                  },
-                  child: SizedBox(
-                    width: 280 * _scaleFactor,
-                    height: 140 * _scaleFactor,
-                    child:
-                        CollectionsImageUtil.getPlateImageURL(_currentPlate!),
+                      );
+                    },
+                    child: SizedBox(
+                      width: 280 * _scaleFactor,
+                      height: 140 * _scaleFactor,
+                      child:
+                          CollectionsImageUtil.getPlateImageURL(_currentPlate!),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+                // 收藏品名称
+                Text(
+                  _selectedFirstChar == '真' &&
+                          (_selectedTitleType == '将' ||
+                              _selectedTitleType == '大将')
+                      ? '${_selectedFirstChar}${_selectedTitleType}'
+                      : _currentPlate!.name,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
-                const SizedBox(height: 8),
               ],
-              // 收藏品名称
-              Text(
-                _selectedFirstChar == '真' &&
-                        (_selectedTitleType == '将' ||
-                            _selectedTitleType == '大将')
-                    ? '${_selectedFirstChar}${_selectedTitleType}'
-                    : _currentPlate!.name,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: Theme.of(context).colorScheme.onSurface,
-                ),
-              ),
-            ],
+            ),
           ),
-        ),
-        const SizedBox(height: AppDesignTokens.cardGap),
+          const SizedBox(height: AppDesignTokens.cardGap),
         ],
 
         // 统计区域
         ProgressSummaryCard(
-          title:
-              '${_selectedFirstChar}${_selectedTitleType}(${_getDifficultyName(_selectedDifficulty ?? 3)})统计',
+          title: context.l10n.flowP0P1P2Statistics(
+              (_selectedFirstChar).toString(),
+              (_selectedTitleType).toString(),
+              (_getDifficultyName(_selectedDifficulty ?? 3)).toString()),
           total: _summary.total,
           completed: _summary.completed,
           averageAchievement: _summary.average,
@@ -801,7 +817,6 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
               setState(() => _useLevelDisplay = value),
           onListModeChanged: (value) => setState(() => _showListMode = value),
         ),
-
       ],
     );
   }
@@ -827,12 +842,12 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
     if (_currentPlate == null ||
         _currentPlate!.required == null ||
         _currentPlate!.required!.isEmpty) {
-      return [emptyHint('暂无数据')];
+      return [emptyHint(context.l10n.flowNoData)];
     }
 
     // 检查缓存数据
     if (_cachedSongsWithStatus == null || _cachedSongsWithStatus!.isEmpty) {
-      return [emptyHint('当前难度没有匹配的歌曲')];
+      return [emptyHint(context.l10n.flowNoSongsMatchThisDifficulty)];
     }
 
     final songsWithStatus = _cachedSongsWithStatus!;
@@ -917,7 +932,10 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
       debugPrint('Step 1 completed: hasPermission = $hasPermission');
 
       if (!hasPermission) {
-        showAppNoticeDialog(context, title: '权限不足', message: '需要存储权限才能导出图片到相册，请在设置中开启权限', tone: AppDialogTone.warning);
+        showAppNoticeDialog(context,
+            title: context.l10n.flowPermissionRequired,
+            message: context.l10n.flowStoragePermissionIsRequiredToExportImages,
+            tone: AppDialogTone.warning);
         return;
       }
 
@@ -926,7 +944,7 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
         context,
         estimatedPngSize: ImageEncodeUtil.estimatePngSize(
             songCount: songCount, cardsPerRow: 12),
-        exportingLabel: '牌子进度',
+        exportingLabel: context.l10n.featureVersionTitleProgress,
         previewBuilder: (previewContext, previewQuality) =>
             PaiziProgressConvertToImg.buildPreviewWidget(
           previewContext,
@@ -946,25 +964,26 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
       if (quality == null) return;
 
       BackgroundExport.run(
-        label: '牌子进度',
+        label: context.l10n.featureVersionTitleProgress,
         task: (exportContext) => PaiziProgressConvertToImg.convertToImage(
           exportContext,
-        currentPlate: _currentPlate,
-        cachedSongsWithStatus: _cachedSongsWithStatus,
-        selectedFirstChar: _selectedFirstChar,
-        selectedTitleType: _selectedTitleType,
-        selectedDifficulty: _selectedDifficulty,
-        useLevelDisplay: _useLevelDisplay,
-        filterMode: _filterMode,
-        getDifficultyName: _getDifficultyName,
-        getLevelDisplay: _getLevelDisplay,
-        getSongAchievement: _service.getSongAchievement,
-        jpegQuality: quality.jpegQuality,
-        theme: quality.theme,
-      ),
+          currentPlate: _currentPlate,
+          cachedSongsWithStatus: _cachedSongsWithStatus,
+          selectedFirstChar: _selectedFirstChar,
+          selectedTitleType: _selectedTitleType,
+          selectedDifficulty: _selectedDifficulty,
+          useLevelDisplay: _useLevelDisplay,
+          filterMode: _filterMode,
+          getDifficultyName: _getDifficultyName,
+          getLevelDisplay: _getLevelDisplay,
+          getSongAchievement: _service.getSongAchievement,
+          jpegQuality: quality.jpegQuality,
+          theme: quality.theme,
+        ),
       );
     } catch (e) {
-      AppToast.show('导出失败：$e');
+      AppToast.show(context.l10n.flowExportFailedP02((e).toString()),
+          tone: AppToastTone.error);
     }
   }
 }

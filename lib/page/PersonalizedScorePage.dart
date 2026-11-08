@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:io';
@@ -73,7 +74,6 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
       (total: 0, completed: 0, average: 0.0);
 
   bool get _loadingSongs => _isLoading || _isSongsLoading;
-
 
   // 显示模式：true 为列表模式，false 为仅曲绘模式
   bool _showListMode = true;
@@ -354,7 +354,7 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
     _textSizeM = 12.0 * _scaleFactor;
 
     return BackgroundPageScaffold(
-      title: '个性化成绩查询',
+      title: context.l10n.featureCustomScoreLookup,
       resizeToAvoidBottomInset: false,
       contentPadding: EdgeInsets.only(
         bottom: MediaQuery.paddingOf(context).bottom,
@@ -376,7 +376,7 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
                   // 导出为图片按钮
                   FilledButton.tonalIcon(
                     icon: const Icon(Icons.image_outlined, size: 18),
-                    label: const Text('导出为图片'),
+                    label: Text(context.l10n.flowExportAsImage),
                     onPressed: () async {
                       debugPrint(
                           '=== PERSONALIZED SCORE EXPORT BUTTON CLICKED ===');
@@ -429,17 +429,17 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const ProgressFieldLabel('种类'),
+                    ProgressFieldLabel(context.l10n.flowCategory),
                     ProgressPickerField(
                       value: _mode == 'level'
-                          ? '等级'
+                          ? context.l10n.flowLevel
                           : _mode == 'charter'
-                              ? '谱师'
+                              ? context.l10n.flowCharter
                               : _mode == 'version'
-                                  ? '版本'
+                                  ? context.l10n.flowVersion
                                   : _mode == 'genre'
-                                      ? '流派'
-                                      : '曲师',
+                                      ? context.l10n.flowGenre
+                                      : context.l10n.flowArtist,
                       onTap: () => _showModeDialog(),
                     ),
                   ],
@@ -454,36 +454,36 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
                   children: [
                     ProgressFieldLabel(
                       _mode == 'level'
-                          ? '等级'
+                          ? context.l10n.flowLevel
                           : _mode == 'charter'
-                              ? '谱师'
+                              ? context.l10n.flowCharter
                               : _mode == 'version'
-                                  ? '版本'
+                                  ? context.l10n.flowVersion
                                   : _mode == 'genre'
-                                      ? '流派'
-                                      : '曲师',
+                                      ? context.l10n.flowGenre
+                                      : context.l10n.flowArtist,
                     ),
                     ProgressPickerField(
                       value: _mode == 'level'
                           ? (_selectedLevel != null
                               ? 'Lv.${_selectedLevel}'
-                              : '请选择等级')
+                              : context.l10n.flowSelectALevel)
                           : _mode == 'charter'
                               ? (_selectedCharter != null
                                   ? _selectedCharter!
-                                  : '请选择谱师')
+                                  : context.l10n.flowChooseACharter)
                               : _mode == 'version'
                                   ? (_selectedVersion != null
                                       ? StringUtil.formatVersion2(
                                           _selectedVersion!)
-                                      : '请选择版本')
+                                      : context.l10n.flowSelectAVersion)
                                   : _mode == 'genre'
                                       ? (_selectedGenre != null
                                           ? _selectedGenre!
-                                          : '请选择流派')
+                                          : context.l10n.flowSelectAGenre)
                                       : (_selectedArtist != null
                                           ? _selectedArtist!
-                                          : '请选择曲师'),
+                                          : context.l10n.flowChooseAnArtist),
                       onTap: () {
                         if (_mode == 'level') {
                           _showLevelDialog();
@@ -506,7 +506,7 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
           const SizedBox(height: 12),
 
           // 选择称号类型
-          const ProgressFieldLabel('称号类型'),
+          ProgressFieldLabel(context.l10n.flowTitleType),
           Wrap(
             spacing: 6,
             runSpacing: 6,
@@ -528,7 +528,7 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
           const SizedBox(height: 12),
 
           // 选择难度
-          const ProgressFieldLabel('难度'),
+          ProgressFieldLabel(context.l10n.flowDifficulty),
           Wrap(
             spacing: 6,
             runSpacing: 6,
@@ -569,7 +569,7 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
       context: context,
       builder: (BuildContext context) {
         return AppAlertDialog(
-          title: Center(child: Text('选择种类')),
+          title: Center(child: Text(context.l10n.flowSelectCategory)),
           contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           content: Container(
             width: double.maxFinite,
@@ -577,7 +577,7 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 ListTile(
-                  title: Center(child: Text('等级')),
+                  title: Center(child: Text(context.l10n.flowLevel)),
                   selected: _mode == 'level',
                   onTap: () async {
                     Navigator.of(context).pop();
@@ -591,7 +591,7 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
                   },
                 ),
                 ListTile(
-                  title: Center(child: Text('谱师')),
+                  title: Center(child: Text(context.l10n.flowCharter)),
                   selected: _mode == 'charter',
                   onTap: () async {
                     Navigator.of(context).pop();
@@ -612,7 +612,7 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
                   },
                 ),
                 ListTile(
-                  title: Center(child: Text('版本')),
+                  title: Center(child: Text(context.l10n.flowVersion)),
                   selected: _mode == 'version',
                   onTap: () async {
                     Navigator.of(context).pop();
@@ -633,7 +633,7 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
                   },
                 ),
                 ListTile(
-                  title: Center(child: Text('曲师')),
+                  title: Center(child: Text(context.l10n.flowArtist)),
                   selected: _mode == 'artist',
                   onTap: () async {
                     Navigator.of(context).pop();
@@ -654,7 +654,7 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
                   },
                 ),
                 ListTile(
-                  title: Center(child: Text('流派')),
+                  title: Center(child: Text(context.l10n.flowGenre)),
                   selected: _mode == 'genre',
                   onTap: () async {
                     Navigator.of(context).pop();
@@ -685,7 +685,9 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
   // 显示谱师选择对话框
   Future<void> _showCharterDialog() async {
     if (_charterCounts == null || _charterCounts!.isEmpty) {
-      showAppNoticeDialog(context, title: '提示', message: '没有找到谱师数据');
+      showAppNoticeDialog(context,
+          title: context.l10n.featureNotice,
+          message: context.l10n.flowNoChartDesignerDataFound);
       return;
     }
 
@@ -698,11 +700,11 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
     // 在这里 `.whenComplete(dispose)` 会在 pop 那一刻就释放，把弹窗的退场动画炸掉。
     final picked = await showSearchPickerDialog(
       context,
-      title: '选择谱师',
-      hintText: '搜索谱师',
-      emptyText: '没有匹配的谱师',
+      title: context.l10n.flowSelectCharter,
+      hintText: context.l10n.flowSearchCharters,
+      emptyText: context.l10n.flowNoMatchingChartDesigners2,
       entries: sortedCharters,
-      countSuffix: '谱面',
+      countSuffix: context.l10n.detailChartBpm,
       selected: _selectedCharter,
     );
     if (picked == null || !mounted) return;
@@ -723,7 +725,7 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
       context: context,
       builder: (BuildContext context) {
         return AppAlertDialog(
-          title: Center(child: Text('选择版本')),
+          title: Center(child: Text(context.l10n.flowSelectVersion)),
           content: SingleChildScrollView(
             child: ListBody(
               children: versions.map((version) {
@@ -747,7 +749,7 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
           ),
           actions: [
             TextButton(
-              child: Text('取消'),
+              child: Text(context.l10n.featureCancel),
               onPressed: () {
                 Navigator.of(context).pop();
               },
@@ -761,7 +763,9 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
   // 显示曲师选择对话框
   Future<void> _showArtistDialog() async {
     if (_artistCounts == null || _artistCounts!.isEmpty) {
-      showAppNoticeDialog(context, title: '提示', message: '没有找到曲师数据');
+      showAppNoticeDialog(context,
+          title: context.l10n.featureNotice,
+          message: context.l10n.flowNoComposerDataFound);
       return;
     }
 
@@ -773,11 +777,11 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
     // 在这里 `.whenComplete(dispose)` 会在 pop 那一刻就释放，把弹窗的退场动画炸掉。
     final picked = await showSearchPickerDialog(
       context,
-      title: '选择曲师',
-      hintText: '搜索曲师',
-      emptyText: '没有匹配的曲师',
+      title: context.l10n.flowSelectArtist,
+      hintText: context.l10n.flowSearchArtists,
+      emptyText: context.l10n.flowNoMatchingComposers,
       entries: sortedArtists,
-      countSuffix: '首',
+      countSuffix: context.l10n.flowSongs2,
       selected: _selectedArtist,
     );
     if (picked == null || !mounted) return;
@@ -793,7 +797,9 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
   // 显示流派选择对话框
   void _showGenreDialog() {
     if (_genreCounts == null || _genreCounts!.isEmpty) {
-      showAppNoticeDialog(context, title: '提示', message: '没有找到流派数据');
+      showAppNoticeDialog(context,
+          title: context.l10n.featureNotice,
+          message: context.l10n.flowNoGenreDataFound);
       return;
     }
 
@@ -805,12 +811,14 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
       context: context,
       builder: (BuildContext context) {
         return AppAlertDialog(
-          title: Center(child: Text('选择流派')),
+          title: Center(child: Text(context.l10n.flowSelectGenre)),
           content: SingleChildScrollView(
             child: ListBody(
               children: sortedGenres.map((entry) {
                 return ListTile(
-                  title: Center(child: Text('${entry.key} (${entry.value}首)')),
+                  title: Center(
+                      child: Text(context.l10n.flowP0P1Songs2(
+                          (entry.key).toString(), (entry.value).toString()))),
                   selected: _selectedGenre == entry.key,
                   onTap: () async {
                     Navigator.of(context).pop();
@@ -828,7 +836,7 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
           ),
           actions: [
             TextButton(
-              child: Text('取消'),
+              child: Text(context.l10n.featureCancel),
               onPressed: () {
                 Navigator.of(context).pop();
               },
@@ -845,7 +853,7 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
       context: context,
       builder: (BuildContext context) {
         return AppAlertDialog(
-          title: Center(child: Text('选择等级')),
+          title: Center(child: Text(context.l10n.flowSelectLevel)),
           contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           content: Container(
             width: double.maxFinite,
@@ -915,7 +923,7 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
     for (final item in songs) {
       final song = item['song'] as Song;
       final diffIndex = item['difficulty'] as int;
-      String dsKey = '未知';
+      String dsKey = context.l10n.flowUnknown;
       if (song.ds != null && song.ds.length > diffIndex) {
         dsKey = _useLevelDisplay
             ? _getLevelDisplay(song.ds[diffIndex])
@@ -943,51 +951,51 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
   }
 
   String get _emptyHint => _mode == 'level'
-      ? '当前等级没有匹配的歌曲'
+      ? context.l10n.flowNoSongsMatchThisLevel
       : _mode == 'charter'
-          ? '当前谱师没有匹配的歌曲'
+          ? context.l10n.flowNoSongsMatchThisChartDesigner
           : _mode == 'version'
-              ? '当前版本没有匹配的歌曲'
+              ? context.l10n.flowNoSongsMatchThisVersion
               : _mode == 'genre'
-                  ? '当前流派没有匹配的歌曲'
-                  : '当前曲师没有匹配的歌曲';
+                  ? context.l10n.flowNoSongsMatchThisGenre
+                  : context.l10n.flowNoSongsMatchThisComposer;
 
   /// 统计和展示切换。加载中也留在原位，数字才能滚动变化。
   Widget _buildSummarySection() {
     final songsWithStatus =
         _cachedSongsWithStatus ?? const <Map<String, dynamic>>[];
     if (!_loadingSongs) {
-    // 计算完成统计
-    final totalCount = songsWithStatus.length;
-    final completedCount =
-        songsWithStatus.where((item) => item['completed'] as bool).length;
+      // 计算完成统计
+      final totalCount = songsWithStatus.length;
+      final completedCount =
+          songsWithStatus.where((item) => item['completed'] as bool).length;
 
-    // 计算平均达成率
-    double totalAchievement = 0.0;
-    for (final item in songsWithStatus) {
-      final song = item['song'] as Song;
-      final diff = item['difficulty'] as int;
-      if (diff == -1) {
-        // ALL模式下取所有符合条件难度的平均达成率
-        double songTotalAchievement = 0.0;
-        int count = 0;
-        for (int i = 0; i < song.ds.length; i++) {
-          if (_getLevelDisplay(song.ds[i]) == _selectedLevel) {
-            songTotalAchievement +=
-                _service.getSongAchievement(int.parse(song.id), i);
-            count++;
+      // 计算平均达成率
+      double totalAchievement = 0.0;
+      for (final item in songsWithStatus) {
+        final song = item['song'] as Song;
+        final diff = item['difficulty'] as int;
+        if (diff == -1) {
+          // ALL模式下取所有符合条件难度的平均达成率
+          double songTotalAchievement = 0.0;
+          int count = 0;
+          for (int i = 0; i < song.ds.length; i++) {
+            if (_getLevelDisplay(song.ds[i]) == _selectedLevel) {
+              songTotalAchievement +=
+                  _service.getSongAchievement(int.parse(song.id), i);
+              count++;
+            }
           }
+          if (count > 0) {
+            totalAchievement += songTotalAchievement / count;
+          }
+        } else {
+          totalAchievement +=
+              _service.getSongAchievement(int.parse(song.id), diff);
         }
-        if (count > 0) {
-          totalAchievement += songTotalAchievement / count;
-        }
-      } else {
-        totalAchievement +=
-            _service.getSongAchievement(int.parse(song.id), diff);
       }
-    }
-    final averageAchievement =
-        totalCount > 0 ? totalAchievement / totalCount : 0.0;
+      final averageAchievement =
+          totalCount > 0 ? totalAchievement / totalCount : 0.0;
 
       _summary = (
         total: totalCount,
@@ -1004,20 +1012,30 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
     // 根据模式获取标题
     String title;
     if (_mode == 'level') {
-      title =
-          'Lv.${_selectedLevel}(${difficultyName})的${_selectedTitleType}称号统计';
+      title = context.l10n.flowLvP0P1P2TitleStatistics(
+          (_selectedLevel).toString(),
+          (difficultyName).toString(),
+          (_selectedTitleType).toString());
     } else if (_mode == 'charter') {
-      title =
-          '谱师${_selectedCharter}(${difficultyName})的${_selectedTitleType}称号统计';
+      title = context.l10n.flowChartDesignerP0P1P2TitleStatistics(
+          (_selectedCharter).toString(),
+          (difficultyName).toString(),
+          (_selectedTitleType).toString());
     } else if (_mode == 'version') {
-      title =
-          '版本${StringUtil.formatVersion2(_selectedVersion ?? '')}(${difficultyName})的${_selectedTitleType}称号统计';
+      title = context.l10n.flowVersionP0P1P2TitleStatistics(
+          (StringUtil.formatVersion2(_selectedVersion ?? '')).toString(),
+          (difficultyName).toString(),
+          (_selectedTitleType).toString());
     } else if (_mode == 'genre') {
-      title =
-          '流派${_selectedGenre}(${difficultyName})的${_selectedTitleType}称号统计';
+      title = context.l10n.flowGenreP0P1P2TitleStatistics(
+          (_selectedGenre).toString(),
+          (difficultyName).toString(),
+          (_selectedTitleType).toString());
     } else {
-      title =
-          '曲师${_selectedArtist}(${difficultyName})的${_selectedTitleType}称号统计';
+      title = context.l10n.flowComposerP0P1P2TitleStatistics(
+          (_selectedArtist).toString(),
+          (difficultyName).toString(),
+          (_selectedTitleType).toString());
     }
 
     return Column(
@@ -1042,7 +1060,6 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
               setState(() => _useLevelDisplay = value),
           onListModeChanged: (value) => setState(() => _showListMode = value),
         ),
-
       ],
     );
   }
@@ -1085,20 +1102,20 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
     return [
       if (filteredSongs.isEmpty)
         _boxSliver(Padding(
-            padding: const EdgeInsets.symmetric(vertical: 32),
-            child: Text(
-              _filterMode == 'completed'
-                  ? '暂无已完成歌曲'
-                  : _filterMode == 'uncompleted'
-                      ? '暂无未完成歌曲'
-                      : _emptyHint,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 13,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
+          padding: const EdgeInsets.symmetric(vertical: 32),
+          child: Text(
+            _filterMode == 'completed'
+                ? context.l10n.flowNoCompletedSongsYet
+                : _filterMode == 'uncompleted'
+                    ? context.l10n.flowNoIncompleteSongs
+                    : _emptyHint,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 13,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
-          )),
+          ),
+        )),
       ProgressSongSliver(
         groups: _groupSongs(filteredSongs),
         showListMode: _showListMode,
@@ -1204,17 +1221,19 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
       debugPrint('Step 1 completed: hasPermission = $hasPermission');
 
       if (!hasPermission) {
-        showAppNoticeDialog(context, title: '权限不足', message: '需要存储权限才能导出图片到相册，请在设置中开启权限', tone: AppDialogTone.warning);
+        showAppNoticeDialog(context,
+            title: context.l10n.flowPermissionRequired,
+            message: context.l10n.flowStoragePermissionIsRequiredToExportImages,
+            tone: AppDialogTone.warning);
         return;
       }
-
 
       final songCount = _cachedSongsWithStatus?.length ?? 0;
       final quality = await ExportQualitySelector.show(
         context,
         estimatedPngSize: ImageEncodeUtil.estimatePngSize(
             songCount: songCount, cardsPerRow: 12),
-        exportingLabel: '个性化成绩',
+        exportingLabel: context.l10n.flowPersonalizedScores,
         previewBuilder: (previewContext, previewQuality) =>
             PersonalizedScoreConvertToImg.buildPreviewWidget(
           previewContext,
@@ -1238,29 +1257,30 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
       if (quality == null) return;
 
       BackgroundExport.run(
-        label: '个性化成绩',
+        label: context.l10n.flowPersonalizedScores,
         task: (exportContext) => PersonalizedScoreConvertToImg.convertToImage(
           exportContext,
-        selectedLevel: _selectedLevel,
-        selectedCharter: _selectedCharter,
-        selectedVersion: _selectedVersion,
-        selectedArtist: _selectedArtist,
-        selectedGenre: _selectedGenre,
-        mode: _mode,
-        selectedTitleType: _selectedTitleType,
-        selectedDifficulty: _selectedDifficulty,
-        cachedSongsWithStatus: _cachedSongsWithStatus,
-        filterMode: _filterMode,
-        getDifficultyName: _getDifficultyName,
-        getLevelDisplay: _getLevelDisplay,
-        useLevelDisplay: _useLevelDisplay,
-        jpegQuality: quality.jpegQuality,
-        theme: quality.theme,
-        getSongAchievement: _service.getSongAchievement,
-      ),
+          selectedLevel: _selectedLevel,
+          selectedCharter: _selectedCharter,
+          selectedVersion: _selectedVersion,
+          selectedArtist: _selectedArtist,
+          selectedGenre: _selectedGenre,
+          mode: _mode,
+          selectedTitleType: _selectedTitleType,
+          selectedDifficulty: _selectedDifficulty,
+          cachedSongsWithStatus: _cachedSongsWithStatus,
+          filterMode: _filterMode,
+          getDifficultyName: _getDifficultyName,
+          getLevelDisplay: _getLevelDisplay,
+          useLevelDisplay: _useLevelDisplay,
+          jpegQuality: quality.jpegQuality,
+          theme: quality.theme,
+          getSongAchievement: _service.getSongAchievement,
+        ),
       );
     } catch (e) {
-      AppToast.show('导出失败：$e');
+      AppToast.show(context.l10n.flowExportFailedP02((e).toString()),
+          tone: AppToastTone.error);
     }
   }
 }

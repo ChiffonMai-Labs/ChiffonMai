@@ -1,3 +1,7 @@
+import '../service/AccountAuthorizationStore.dart';
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
+import '../l10n/FeatureLocalizations.dart';
 import 'RankingPrivacyOptions.dart';
 import '../service/PlayerExperienceService.dart';
 import '../widgets/AnimatedChoiceBar.dart';
@@ -25,7 +29,6 @@ import '../manager/DivingFish/UserPlayDataManager.dart';
 import '../manager/LuoXue/CollectionsManager.dart';
 import '../manager/LuoXue/LuoXueUserPlayDataManager.dart';
 import '../manager/LuoXue/LuoXueOAuthManager.dart';
-import '../manager/LuoXue/LuoXueOAuthManager.dart';
 import '../manager/MaiTagsManager.dart';
 import '../manager/SongAliasManager.dart';
 import '../service/History/ChartHistoryStore.dart';
@@ -44,19 +47,17 @@ import '../utils/CacheSourceRegistry.dart';
 import '../utils/CurrentDataSourceNotifier.dart';
 import '../utils/StringUtil.dart';
 import '../utils/UserProfileNotifier.dart';
-import '../utils/ExternalLaunchUtil.dart';
 import 'DivingFishAccountSection.dart';
 import '../widgets/AppDialogs.dart';
 import '../widgets/AppToast.dart';
-import 'AppUi.dart';
 
 // 数据源枚举 / 当前数据源 Notifier 已抽到 utils，这里 re-export，
 // 让既有 `import 'RefreshDataDialog.dart' show RefreshDataSource, ...` 继续可用。
 export '../utils/CurrentDataSourceNotifier.dart';
 
 // ============================================================
-// 公共入口：旧版"刷新数据"对话框
-// 从首页全部功能卡片 + 系统 Tab 的"刷新数据"入口均可调用。
+// 公共入口：旧版"拉取成绩并更新数据"对话框
+// 从首页全部功能卡片 + 系统 Tab 的"拉取成绩并更新数据"入口均可调用。
 // 对话框内部的所有状态写入通过 UserProfileNotifier 共享，
 // 调用方只要监听 UserProfileNotifier 即可拿到最新昵称 / Rating / QQ。
 // ============================================================
@@ -143,8 +144,7 @@ Future<RefreshDataRequest?> showRefreshDataDialog(
   // AWMC NET 的 QQ 必须取自**它自己的**账号存档，不能用共用的 cachedQQ：
   // 活动槽里的 cachedQQ 此刻装的可能是另一个账号（水鱼）的 QQ，
   // 拿它预填会诱导用户直接点确认去查错人。
-  final metas = await AccountStore.loadAll();
-  final awmcQQ = metas[RefreshDataSource.awmc.key]?.id ?? '';
+  final awmcQQ = await AccountAuthorizationStore.awmcQQ();
 
   if (!context.mounted) return null;
 
@@ -178,12 +178,13 @@ Future<bool> executeRefreshData(
     // 「数据刷新成功!」——用户以为刷了，其实一条数据都没动。
     throw StateError(
       source == RefreshDataSource.luoxue && !request.useSavedAuthorization
-          ? '未填写落雪授权码'
-          : '未拿到${source.displayName}的查询标识',
+          ? appL10n.flowLXNSAuthorizationCodeMissing
+          : appL10n.flowNoLookupIDObtainedForP0(
+              appLocalizeLabel(source.displayName)),
     );
   }
   try {
-    onProgress(0, '开始刷新数据...');
+    onProgress(0, appL10n.flowStartingDataRefresh);
     // 先把活动槽切换到本次要刷新的数据源，避免覆盖另一个账号的活动数据
     if (willRefresh) {
       switch (source) {
@@ -220,7 +221,7 @@ Future<bool> executeRefreshData(
       }
     }
     // 刷新完把活动槽存进该源存档并更新元信息（不再单独写 lastDataSource）
-    onProgress(100, '数据刷新完成');
+    onProgress(100, appL10n.flowDataRefreshComplete);
     return true;
   } finally {
     LoadingTipsConstant.stopAutoSwitch();
@@ -253,12 +254,13 @@ Future<bool> executeAdvancedRefreshData(
     // 同 executeRefreshData：输入为空时不要假报成功
     throw StateError(
       source == RefreshDataSource.luoxue && !request.useSavedAuthorization
-          ? '未填写落雪授权码'
-          : '未拿到${source.displayName}的查询标识',
+          ? appL10n.flowLXNSAuthorizationCodeMissing
+          : appL10n.flowNoLookupIDObtainedForP0(
+              appLocalizeLabel(source.displayName)),
     );
   }
   try {
-    onProgress(0, '开始刷新数据...');
+    onProgress(0, appL10n.flowStartingDataRefresh);
     if (willRefresh) {
       switch (source) {
         case RefreshDataSource.shuiyu:
@@ -293,7 +295,7 @@ Future<bool> executeAdvancedRefreshData(
           break;
       }
     }
-    onProgress(100, '数据刷新完成');
+    onProgress(100, appL10n.flowDataRefreshComplete);
     return true;
   } finally {
     LoadingTipsConstant.stopAutoSwitch();
@@ -337,10 +339,6 @@ class _RefreshDataDialog extends StatefulWidget {
 
 class _RefreshDataDialogState extends State<_RefreshDataDialog> {
   late RefreshDataSource _currentDataSource;
-  final TextEditingController authCodeController = TextEditingController();
-
-  /// AWMC NET 单独一个 QQ 输入框。
-  final TextEditingController awmcQqController = TextEditingController();
 
   /// 当前生效的水鱼 QQ。
   ///
@@ -372,7 +370,6 @@ class _RefreshDataDialogState extends State<_RefreshDataDialog> {
     super.initState();
     _currentDataSource =
         widget.initialSource ?? CurrentDataSourceNotifier.instance.value;
-    awmcQqController.text = widget.awmcQQ;
     _loadRankingSettings();
     // 只有真的拿到 QQ 才值得去探测授权状态
     if (_bindQQ.isNotEmpty) {
@@ -386,16 +383,9 @@ class _RefreshDataDialogState extends State<_RefreshDataDialog> {
     if (mounted) setState(() => _hasSavedLuoXueToken = loggedIn);
   }
 
-  @override
-  void dispose() {
-    authCodeController.dispose();
-    awmcQqController.dispose();
-    super.dispose();
-  }
-
-  /// 本次选中的数据源要用的 QQ（水鱼取水鱼的绑定 QQ，AWMC NET 取它自己的输入框）。
+  /// 本次选中的数据源要用的 QQ（水鱼取水鱼绑定 QQ，AWMC NET 取独立保存的查询 QQ）。
   String get _activeQq => _currentDataSource == RefreshDataSource.awmc
-      ? awmcQqController.text.trim()
+      ? widget.awmcQQ.trim()
       : _bindQQ;
 
   /// 打开对话框时探测一次授权状态。
@@ -431,10 +421,12 @@ class _RefreshDataDialogState extends State<_RefreshDataDialog> {
     });
 
     if (qq == null || qq.isEmpty) {
-      AppToast.show('还是没读到 QQ 号。请确认已在水鱼官网保存，或重新登录一次水鱼账号');
+      AppToast.show(context.l10n.flowStillNoQQIDFoundCheckThat,
+          tone: AppToastTone.warning);
       return;
     }
-    AppToast.show('已读到绑定 QQ：$qq');
+    AppToast.show(context.l10n.flowLinkedQQFoundP0((qq).toString()),
+        tone: AppToastTone.success);
     // 拿到 QQ 了，顺手探一次授权状态
     await _checkAuthorization();
   }
@@ -446,7 +438,7 @@ class _RefreshDataDialogState extends State<_RefreshDataDialog> {
   Future<void> _startAuthorization() async {
     final qq = _bindQQ;
     if (qq.isEmpty) {
-      AppToast.show('未找到 QQ 号');
+      AppToast.show(context.l10n.flowNoQQIDFound, tone: AppToastTone.warning);
       return;
     }
     setState(() => _recheckingAuth = true);
@@ -456,14 +448,18 @@ class _RefreshDataDialogState extends State<_RefreshDataDialog> {
       _recheckingAuth = false;
       if (ok) _consentPending = true;
     });
-    AppToast.show(ok ? '已打开授权页，完成授权后回到这里点「我已授权，重新检测」' : '发起授权失败，请稍后重试');
+    AppToast.show(
+        ok
+            ? context.l10n.flowAuthorizationOpenedReturnAfterAuthorizingAndTap
+            : context.l10n.flowCouldNotStartAuthorizationTryAgain,
+        tone: AppToastTone.success);
   }
 
   /// 「我已授权，重新检测」：显式重查一次授权状态。
   Future<void> _recheckAuthorization() async {
     final qq = _bindQQ;
     if (qq.isEmpty) {
-      AppToast.show('未找到 QQ 号');
+      AppToast.show(context.l10n.flowNoQQIDFound, tone: AppToastTone.warning);
       return;
     }
     setState(() => _recheckingAuth = true);
@@ -475,11 +471,15 @@ class _RefreshDataDialogState extends State<_RefreshDataDialog> {
       if (result == true) _consentPending = false;
     });
     if (result == true) {
-      AppToast.show('授权成功，现在可以刷新数据了');
+      AppToast.show(context.l10n.flowAuthorizedYouCanNowRefreshData,
+          tone: AppToastTone.success);
     } else if (result == false) {
-      AppToast.show('还没检测到授权，请确认在浏览器里点了「同意」');
+      AppToast.show(
+          context.l10n.flowAuthorizationNotDetectedApproveAccessInYour,
+          tone: AppToastTone.warning);
     } else {
-      AppToast.show('检测失败，请检查网络后重试');
+      AppToast.show(context.l10n.flowCheckFailedVerifyYourConnectionAndTry,
+          tone: AppToastTone.error);
     }
   }
 
@@ -500,7 +500,7 @@ class _RefreshDataDialogState extends State<_RefreshDataDialog> {
     final brightness = Theme.of(context).brightness;
 
     return AppAlertDialog(
-      title: const Text('刷新数据'),
+      title: Text(context.l10n.featureRefreshCachedData),
       content: SizedBox(
         width: 520,
         child: SingleChildScrollView(
@@ -509,19 +509,18 @@ class _RefreshDataDialogState extends State<_RefreshDataDialog> {
             children: [
               // 数据源选择。三个选项在窄屏上一行放不下（还有「当前数据源：」标题），
               // 所以标题单独一行，避免 RenderFlex overflow。
-              const Text('当前数据源：'),
+              Text(context.l10n.flowCurrentDataSource),
               const SizedBox(height: 6),
               AnimatedChoiceBar<RefreshDataSource>(
                 values: RefreshDataSource.values,
                 value: _currentDataSource,
-                label: (source) => source.shortDisplayName,
+                label: (source) => context.featureText(source.shortDisplayName),
                 onChanged: (source) {
                   // 这里只选「本次要刷新的数据源」，不直接切活动源：
                   // 真正的切换/换槽在 executeRefreshData 里由 runRefresh 完成，
                   // 否则活动槽与数据源会不一致。
                   setState(() {
                     _currentDataSource = source;
-                    authCodeController.clear();
                   });
                   _loadRankingSettings();
                 },
@@ -544,11 +543,11 @@ class _RefreshDataDialogState extends State<_RefreshDataDialog> {
             LoadingTipsConstant.stopAutoSwitch();
             Navigator.of(context).pop();
           },
-          child: const Text('取消'),
+          child: Text(context.l10n.featureCancel),
         ),
         TextButton(
           onPressed: _onConfirm,
-          child: const Text('确认'),
+          child: Text(context.l10n.flowConfirm),
         ),
       ],
     );
@@ -576,173 +575,13 @@ class _RefreshDataDialogState extends State<_RefreshDataDialog> {
     );
   }
 
-  Widget _buildLuoXuePanel(Brightness brightness) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (_hasSavedLuoXueToken)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Text('已保存落雪授权，将自动续期，无需再次输入授权码。',
-                style: TextStyle(color: AppColors.successGreen(brightness))),
-          ),
-        ElevatedButton(
-          onPressed: () async {
-            final url = LuoXueUserPlayDataManager().getAuthorizationUrl();
-            try {
-              if (await ExternalLaunchUtil.openString(url)) {
-                return;
-              } else {
-                if (!mounted) return;
-                launchUrlFallback(url, context);
-              }
-            } catch (e) {
-              debugPrint('打开落雪授权链接失败: $e');
-              if (!mounted) return;
-              launchUrlFallback(url, context);
-            }
-          },
-          child: const Text('点击授权'),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: AppColors.warningOrange(brightness).withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-                color:
-                    AppColors.warningOrange(brightness).withValues(alpha: 0.3)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(Icons.info_outline,
-                      size: 16, color: AppColors.warningOrange(brightness)),
-                  const SizedBox(width: 6),
-                  Text('点击授权没反应？',
-                      style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.warningOrange(brightness))),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Text('请复制链接后在浏览器中手动打开完成授权：',
-                  style: TextStyle(
-                      fontSize: 12, color: AppColors.greyHint(brightness))),
-              const SizedBox(height: 8),
-              OutlinedButton.icon(
-                icon: const Icon(Icons.copy, size: 16),
-                label: const Text('复制授权链接', style: TextStyle(fontSize: 13)),
-                style: OutlinedButton.styleFrom(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                ),
-                onPressed: () {
-                  final url = LuoXueUserPlayDataManager().getAuthorizationUrl();
-                  Clipboard.setData(ClipboardData(text: url));
-                  AppToast.show('授权链接已复制，请在浏览器中粘贴打开');
-                },
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text('授权后复制页面上显示的授权码，粘贴到下方输入框',
-            style:
-                TextStyle(fontSize: 12, color: AppColors.greyHint(brightness))),
-        const SizedBox(height: 8),
-        TextField(
-          controller: authCodeController,
-          decoration: InputDecoration(
-            labelText: '请输入授权码',
-            hintText: '粘贴授权码',
-          ).insetLabel(context),
-        ),
-      ],
-    );
-  }
+  Widget _buildLuoXuePanel(Brightness brightness) => Text(_hasSavedLuoXueToken
+      ? context.l10n.flowLXNSAuthorizationSavedItRenewsAutomaticallyNo
+      : context.l10n.accountAuthorizeLXNSFirst);
 
-  /// AWMC NET（net.wmc.pub）面板。
-  ///
-  /// 与水鱼 / 落雪最大的差别：**不需要任何登录或授权**，只填 QQ 号即可。
-  /// 凭据由服务端安全环境注入，用户侧无可配置项。
-  Widget _buildAwmcPanel(Brightness brightness) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        TextField(
-          controller: awmcQqController,
-          keyboardType: TextInputType.number,
-          decoration: InputDecoration(
-            labelText: 'QQ 号',
-            hintText: '输入已在 AWMC NET 绑定过的 QQ 号',
-          ).insetLabel(context),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: AppColors.linkBlue(brightness).withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-                color: AppColors.linkBlue(brightness).withValues(alpha: 0.3)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(Icons.info_outline,
-                      size: 16, color: AppColors.linkBlue(brightness)),
-                  const SizedBox(width: 6),
-                  Text('无需登录',
-                      style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.linkBlue(brightness))),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'AWMC NET 是第三方查分器，按 QQ 号公开查询成绩，'
-                '不用登录、也不用授权。\n'
-                '前提是该 QQ 已在 net.wmc.pub 绑定并上传过成绩，'
-                '否则会提示「没有该 QQ 的数据」。',
-                style: TextStyle(
-                    fontSize: 12, color: AppColors.greyHint(brightness)),
-              ),
-              const SizedBox(height: 8),
-              OutlinedButton.icon(
-                icon: const Icon(Icons.open_in_new, size: 16),
-                label: const Text('去 AWMC NET 绑定 / 上传成绩',
-                    style: TextStyle(fontSize: 13)),
-                style: OutlinedButton.styleFrom(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                ),
-                onPressed: () async {
-                  const url = 'https://net.wmc.pub/';
-                  try {
-                    if (await ExternalLaunchUtil.openString(url)) {
-                      return;
-                    }
-                  } catch (e) {
-                    debugPrint('打开 AWMC NET 失败: $e');
-                  }
-                  if (!mounted) return;
-                  launchUrlFallback(url, context);
-                },
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
+  Widget _buildAwmcPanel(Brightness brightness) => Text(widget.awmcQQ.isEmpty
+      ? context.l10n.accountLinkAWMCFirst
+      : '${context.l10n.flowQQID}：${widget.awmcQQ}');
 
   Widget _buildRankingOptions(Brightness brightness) {
     return Column(
@@ -758,8 +597,9 @@ class _RefreshDataDialogState extends State<_RefreshDataDialog> {
                   showBriefProfile = brief;
                 })),
         CheckboxListTile(
-          title: const Text('强制完整刷新（忽略静态数据缓存）'),
-          subtitle: const Text('maidata 仍作为独立后台辅助任务更新'),
+          title: Text(context.l10n.flowForceFullRefreshIgnoreStaticCaches),
+          subtitle:
+              Text(context.l10n.flowMaidataStillUpdatesAsASeparateBackground),
           value: forceFullRefresh,
           onChanged: (value) {
             setState(() => forceFullRefresh = value ?? false);
@@ -783,31 +623,34 @@ class _RefreshDataDialogState extends State<_RefreshDataDialog> {
         bindQq: _bindQQ,
       )) {
         case DivingFishQqState.notLoggedIn:
-          AppToast.show('请先在「系统 → 登录水鱼」登录水鱼账号');
+          AppToast.show(context.l10n.flowSignInThroughMeSignInTo,
+              tone: AppToastTone.warning);
           return;
         case DivingFishQqState.noBindQq:
-          AppToast.show('你的水鱼账号还没绑定 QQ 号，请先到水鱼官网「编辑个人资料」里填上');
+          AppToast.show(context.l10n.flowYourDivingFishAccountHasNoQQ,
+              tone: AppToastTone.warning);
           return;
         case DivingFishQqState.bound:
           break;
       }
     }
-    // 落雪：没填授权码就点确认，原来会静默地「什么都不做但报成功」
+    // 落雪必须先在独立授权入口保存令牌，刷新表单不处理授权码。
     if (_currentDataSource == RefreshDataSource.luoxue &&
-        authCodeController.text.trim().isEmpty &&
         !_hasSavedLuoXueToken) {
-      AppToast.show('请先填写落雪授权码');
+      AppToast.show(context.l10n.accountAuthorizeLXNSFirst,
+          tone: AppToastTone.warning);
       return;
     }
     // AWMC NET 无需登录，但必须有 QQ 号才查得到
     if (_currentDataSource == RefreshDataSource.awmc) {
-      final qq = awmcQqController.text.trim();
+      final qq = widget.awmcQQ.trim();
       if (qq.isEmpty) {
-        AppToast.show('请输入 AWMC NET 的 QQ 号');
+        AppToast.show(context.l10n.accountLinkAWMCFirst,
+            tone: AppToastTone.warning);
         return;
       }
       if (!RegExp(r'^\d{5,12}$').hasMatch(qq)) {
-        AppToast.show('QQ 号格式不对（应为 5–12 位数字）');
+        AppToast.show(context.l10n.flowInvalidQQID512DigitsRequired);
         return;
       }
     }
@@ -815,7 +658,10 @@ class _RefreshDataDialogState extends State<_RefreshDataDialog> {
     final isOnline = await ConnectivityService().hasConnection();
     if (!isOnline) {
       if (mounted) {
-        AppToast.show('当前无网络连接，无法刷新数据。请联网后重试。', duration: Duration(seconds: 3));
+        AppToast.show(
+            context.l10n.flowCannotRefreshWithoutAConnectionConnectAnd,
+            duration: Duration(seconds: 3),
+            tone: AppToastTone.error);
       }
       return;
     }
@@ -826,13 +672,12 @@ class _RefreshDataDialogState extends State<_RefreshDataDialog> {
     final request = RefreshDataRequest(
       dataSource: _currentDataSource,
       qq: _activeQq,
-      authCode: authCodeController.text.trim(),
+      authCode: '',
       participateRankings: participateRankings,
       showNickname: showNickname,
       showBriefProfile: showBriefProfile,
       forceFullRefresh: forceFullRefresh,
       useSavedAuthorization: _currentDataSource == RefreshDataSource.luoxue &&
-          authCodeController.text.trim().isEmpty &&
           _hasSavedLuoXueToken,
     );
     if (mounted) Navigator.of(context).pop(request);
@@ -858,7 +703,11 @@ void launchUrlFallback(
 }) {
   Clipboard.setData(ClipboardData(text: copyText ?? url));
   if (!context.mounted) return;
-  AppToast.show(message ?? '无法打开浏览器，链接已复制到剪贴板，请手动粘贴到浏览器打开', duration: const Duration(seconds: 4), actionLabel: '知道了', onAction: () {});
+  AppToast.show(message ?? context.l10n.flowCouldNotOpenABrowserLinkCopied2,
+      duration: const Duration(seconds: 4),
+      actionLabel: context.l10n.featureGotIt,
+      onAction: () {},
+      tone: AppToastTone.error);
 }
 
 // ============================================================
@@ -961,7 +810,7 @@ Future<void> _refreshBest50DataWithProgressImpl(
     debugPrint('[RefreshTiming] $stage: ${milliseconds}ms');
   };
   try {
-    onProgress(5, '正在清除缓存...');
+    onProgress(5, appL10n.flowClearingCaches);
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(CacheKeyConstant.recommendationResults);
@@ -970,7 +819,7 @@ Future<void> _refreshBest50DataWithProgressImpl(
       debugPrint('清除推荐结果缓存失败: $e');
     }
 
-    onProgress(10, '正在并行刷新数据...');
+    onProgress(10, appL10n.flowRefreshingDataInParallel);
     // 把 7 个并行任务的完成度均匀映射到 10% → 80%，让进度条平滑爬升
     int _completed = 0;
     const int _totalTasks = 7;
@@ -992,40 +841,41 @@ Future<void> _refreshBest50DataWithProgressImpl(
           forceNetwork: fSongs,
           forceMaidataRefresh: fMaidata,
         ),
-        '歌曲数据已刷新',
+        appL10n.flowSongDataRefreshed,
       ),
       _track(
         DiffMusicDataManager().fetchAndUpdateDiffData(forceNetwork: fDiff),
-        '难度数据已刷新',
+        appL10n.flowDifficultyDataRefreshed,
       ),
       _track(
         fTags
             ? MaiTagsManager().refreshCache()
             : RecommendByTagsService.initializeTags(),
-        '标签数据已刷新',
+        appL10n.flowTagDataRefreshed,
       ),
       _track(
         UserPlayDataManager().fetchUserPlayData(
           qq,
         ),
-        '用户数据已获取',
+        appL10n.flowUserDataRetrieved,
       ),
       _track(
         CollectionsManager().refreshAllCollections(forceNetwork: fCollections),
-        '收藏品数据已刷新',
+        appL10n.flowCollectibleDataRefreshed,
       ),
       _track(
         SongAliasManager.instance.refresh(forceNetwork: fAliases),
-        '别名数据已刷新',
+        appL10n.flowAliasDataRefreshed,
       ),
       _track(
         UnionManager().fetchAndCache(forceNetwork: fUnion),
-        'Union 数据已刷新',
+        appL10n.flowUnionDataRefreshed,
       ),
     ]);
     logRefresh('parallel-data', refreshStopwatch.elapsedMilliseconds);
     final userPlayData = results[3] as Map<String, dynamic>?;
-    if (userPlayData == null) throw StateError('水鱼成绩获取失败');
+    if (userPlayData == null)
+      throw StateError(appL10n.flowCouldNotFetchDivingFishScores);
     await AccountSwitchService.bindIdentity(RefreshDataSource.shuiyu, qq);
     final settingsPrefs = await SharedPreferences.getInstance();
     await settingsPrefs.setBool(
@@ -1046,7 +896,7 @@ Future<void> _refreshBest50DataWithProgressImpl(
       playData: userPlayData,
       songs: songs,
     );
-    onProgress(85, '正在计算Rating...');
+    onProgress(85, appL10n.flowCalculatingRating);
     String currentNickname = '未知玩家';
     if (userPlayData.containsKey('nickname')) {
       currentNickname = userPlayData['nickname'] ?? currentNickname;
@@ -1073,7 +923,7 @@ Future<void> _refreshBest50DataWithProgressImpl(
     PersonalizedScoreService().clearRecordsCache();
     PaiziProgressService().clearRecordsCache();
 
-    onProgress(95, '正在保存数据...');
+    onProgress(95, appL10n.flowSavingData);
 
     String? rankingError;
     final userId = 'shuiyu:$qq';
@@ -1108,14 +958,18 @@ Future<void> _refreshBest50DataWithProgressImpl(
                 songs: songs,
                 onBatchProgress: (sent, total) {
                   final percent = 95 + ((sent * 4) ~/ total).clamp(0, 4);
-                  onProgress(percent, '上传单曲排行榜 $sent/$total...');
+                  onProgress(
+                      percent,
+                      appL10n.flowUploadingSongRankingsP0P1(
+                          (sent).toString(), (total).toString()));
                 },
               ),
       ]);
       rankingError = rankingResults[0] as String?;
       final songRankingUpdated = rankingResults[1] as bool;
       if (rankingError != null || !songRankingUpdated) {
-        throw StateError(rankingError ?? '单曲排行榜更新失败');
+        throw StateError(
+            rankingError ?? appL10n.flowCouldNotUpdateSongLeaderboard);
       }
     } else {
       final deleteResults = await Future.wait<bool>([
@@ -1123,7 +977,7 @@ Future<void> _refreshBest50DataWithProgressImpl(
         SongRankingService().deleteSongRankings(userId),
       ]);
       if (deleteResults.any((success) => !success)) {
-        throw StateError('排行榜删除失败');
+        throw StateError(appL10n.flowCouldNotRemoveLeaderboardEntries);
       }
     }
 
@@ -1135,7 +989,7 @@ Future<void> _refreshBest50DataWithProgressImpl(
     }
 
     logRefresh('refresh-total', refreshStopwatch.elapsedMilliseconds);
-    onProgress(100, '完成');
+    onProgress(100, appL10n.featureDone);
   } catch (e) {
     rethrow;
   }
@@ -1195,7 +1049,7 @@ Future<void> _refreshAwmcNetDataWithProgressImpl(
     debugPrint('[RefreshTiming] $stage: ${milliseconds}ms');
   };
 
-  onProgress(5, '正在清除缓存...');
+  onProgress(5, appL10n.flowClearingCaches);
   try {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(CacheKeyConstant.recommendationResults);
@@ -1203,7 +1057,7 @@ Future<void> _refreshAwmcNetDataWithProgressImpl(
     debugPrint('清除推荐结果缓存失败: $e');
   }
 
-  onProgress(10, '正在并行刷新数据...');
+  onProgress(10, appL10n.flowRefreshingDataInParallel);
   // 与另外两个源一致：7 个并行任务映射到 10% → 80%
   int completed = 0;
   const int totalTasks = 7;
@@ -1224,36 +1078,36 @@ Future<void> _refreshAwmcNetDataWithProgressImpl(
         forceNetwork: fSongs,
         forceMaidataRefresh: fMaidata,
       ),
-      '歌曲数据已刷新',
+      appL10n.flowSongDataRefreshed,
     ),
     track(
       DiffMusicDataManager().fetchAndUpdateDiffData(forceNetwork: fDiff),
-      '难度数据已刷新',
+      appL10n.flowDifficultyDataRefreshed,
     ),
     track(
       fTags
           ? MaiTagsManager().refreshCache()
           : RecommendByTagsService.initializeTags(),
-      '标签数据已刷新',
+      appL10n.flowTagDataRefreshed,
     ),
     // 失败会抛 AwmcNetException（中文文案），冒到调用方弹提示
     track(
       AwmcNetUserPlayDataManager().fetchUserPlayData(
         qq,
       ),
-      'AWMC NET 成绩已获取',
+      appL10n.flowAWMCNETScoresRetrieved,
     ),
     track(
       CollectionsManager().refreshAllCollections(forceNetwork: fCollections),
-      '收藏品数据已刷新',
+      appL10n.flowCollectibleDataRefreshed,
     ),
     track(
       SongAliasManager.instance.refresh(forceNetwork: fAliases),
-      '别名数据已刷新',
+      appL10n.flowAliasDataRefreshed,
     ),
     track(
       UnionManager().fetchAndCache(forceNetwork: fUnion),
-      'Union 数据已刷新',
+      appL10n.flowUnionDataRefreshed,
     ),
   ]);
   logRefresh('awmc-parallel-data', refreshStopwatch.elapsedMilliseconds);
@@ -1282,7 +1136,7 @@ Future<void> _refreshAwmcNetDataWithProgressImpl(
     playData: userPlayData,
     songs: songs,
   );
-  onProgress(85, '正在计算Rating...');
+  onProgress(85, appL10n.flowCalculatingRating);
 
   String currentNickname = '未知玩家';
   final fetchedNickname = userPlayData['nickname'];
@@ -1310,7 +1164,7 @@ Future<void> _refreshAwmcNetDataWithProgressImpl(
   PersonalizedScoreService().clearRecordsCache();
   PaiziProgressService().clearRecordsCache();
 
-  onProgress(95, '正在保存数据...');
+  onProgress(95, appL10n.flowSavingData);
 
   final records = (userPlayData['records'] as List)
       .whereType<Map<String, dynamic>>()
@@ -1347,14 +1201,18 @@ Future<void> _refreshAwmcNetDataWithProgressImpl(
               songs: songs,
               onBatchProgress: (sent, total) {
                 final percent = 95 + ((sent * 4) ~/ total).clamp(0, 4);
-                onProgress(percent, '上传单曲排行榜 $sent/$total...');
+                onProgress(
+                    percent,
+                    appL10n.flowUploadingSongRankingsP0P1(
+                        (sent).toString(), (total).toString()));
               },
             ),
     ]);
     rankingError = rankingResults[0] as String?;
     final songRankingUpdated = rankingResults[1] as bool;
     if (rankingError != null || !songRankingUpdated) {
-      throw StateError(rankingError ?? '单曲排行榜更新失败');
+      throw StateError(
+          rankingError ?? appL10n.flowCouldNotUpdateSongLeaderboard);
     }
   } else {
     final deleteResults = await Future.wait<bool>([
@@ -1362,7 +1220,7 @@ Future<void> _refreshAwmcNetDataWithProgressImpl(
       SongRankingService().deleteSongRankings(userId),
     ]);
     if (deleteResults.any((success) => !success)) {
-      throw StateError('排行榜删除失败');
+      throw StateError(appL10n.flowCouldNotRemoveLeaderboardEntries);
     }
   }
 
@@ -1371,7 +1229,7 @@ Future<void> _refreshAwmcNetDataWithProgressImpl(
   }
 
   logRefresh('awmc-refresh-total', refreshStopwatch.elapsedMilliseconds);
-  onProgress(100, '完成');
+  onProgress(100, appL10n.featureDone);
 }
 
 Future<void> _handleLuoXueAuthWithProgress(
@@ -1416,7 +1274,7 @@ Future<void> _handleLuoXueAuthWithProgressImpl(
     debugPrint('[RefreshTiming] $stage: ${milliseconds}ms');
   };
   try {
-    onProgress(5, '正在清除缓存...');
+    onProgress(5, appL10n.flowClearingCaches);
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(CacheKeyConstant.recommendationResults);
@@ -1425,21 +1283,26 @@ Future<void> _handleLuoXueAuthWithProgressImpl(
       debugPrint('清除推荐结果缓存失败: $e');
     }
 
-    onProgress(10, authCode.trim().isNotEmpty ? '正在换取访问令牌...' : '正在续期访问令牌...');
+    onProgress(
+        10,
+        authCode.trim().isNotEmpty
+            ? appL10n.flowObtainingAccessToken
+            : appL10n.flowRenewingAccessToken);
     if (authCode.trim().isNotEmpty) {
       final success = await LuoXueUserPlayDataManager()
           .exchangeCodeForToken(authCode.trim());
       if (!success) {
-        throw Exception('授权失败，请检查授权码是否正确');
+        throw Exception(appL10n.flowAuthorizationFailedCheckYourCode);
       }
     } else {
       final accessToken = await LuoXueOAuthManager().getAccessToken();
       if (accessToken == null || accessToken.isEmpty) {
-        throw Exception('落雪授权已过期，请重新输入授权码');
+        throw Exception(
+            appL10n.flowLXNSAuthorizationExpiredEnterANewAuthorization);
       }
     }
 
-    onProgress(15, '授权成功，正在并行刷新数据...');
+    onProgress(15, appL10n.flowAuthorizedRefreshingDataInParallel);
     // 把 9 个并行任务的完成度均匀映射到 15% → 80%
     int _completed = 0;
     const int _totalTasks = 9;
@@ -1456,43 +1319,43 @@ Future<void> _handleLuoXueAuthWithProgressImpl(
     }
 
     final results = await Future.wait([
-      _track(Future<void>.value(), '准备落雪数据'),
+      _track(Future<void>.value(), appL10n.flowPreparingLXNSData),
       _track(
         MaimaiMusicDataManager().refreshDataWithSmartMaidata(
           forceNetwork: fSongs,
           forceMaidataRefresh: fMaidata,
         ),
-        '歌曲数据已刷新',
+        appL10n.flowSongDataRefreshed,
       ),
       _track(
         DiffMusicDataManager().fetchAndUpdateDiffData(forceNetwork: fDiff),
-        '难度数据已刷新',
+        appL10n.flowDifficultyDataRefreshed,
       ),
       _track(
         fTags
             ? MaiTagsManager().refreshCache()
             : RecommendByTagsService.initializeTags(),
-        '标签数据已刷新',
+        appL10n.flowTagDataRefreshed,
       ),
       _track(
         LuoXueUserPlayDataManager().getPlayerInfo(),
-        '落雪玩家信息已获取',
+        appL10n.flowLXNSProfileRetrieved,
       ),
       _track(
         LuoXueUserPlayDataManager().getPlayerRecords(),
-        '落雪成绩已获取',
+        appL10n.flowLXNSScoresRetrieved,
       ),
       _track(
         CollectionsManager().refreshAllCollections(forceNetwork: fCollections),
-        '收藏品数据已刷新',
+        appL10n.flowCollectibleDataRefreshed,
       ),
       _track(
         SongAliasManager.instance.refresh(forceNetwork: fAliases),
-        '别名数据已刷新',
+        appL10n.flowAliasDataRefreshed,
       ),
       _track(
         UnionManager().fetchAndCache(forceNetwork: fUnion),
-        'Union 数据已刷新',
+        appL10n.flowUnionDataRefreshed,
       ),
     ]);
     logRefresh('luoxue-parallel-data', refreshStopwatch.elapsedMilliseconds);
@@ -1500,7 +1363,7 @@ Future<void> _handleLuoXueAuthWithProgressImpl(
     final playerInfo = results[4] as LuoXuePlayer?;
     final rawPlayerScores = results[5] as List<LuoXueScore>?;
     if (playerInfo == null || rawPlayerScores == null) {
-      throw StateError('落雪玩家信息或成绩获取失败');
+      throw StateError(appL10n.flowCouldNotFetchLXNSProfileOrScores);
     }
     await AccountSwitchService.bindIdentity(
         RefreshDataSource.luoxue, playerInfo.friendCode.toString());
@@ -1519,7 +1382,8 @@ Future<void> _handleLuoXueAuthWithProgressImpl(
     final playerRecords = await LuoXueUserPlayDataManager()
         .getPlayerRecordsAsRecordItems(
             playerInfo: playerInfo, scores: rawPlayerScores, songs: songs);
-    if (playerRecords == null) throw StateError('落雪成绩转换失败');
+    if (playerRecords == null)
+      throw StateError(appL10n.flowCouldNotConvertLXNSScores);
     logRefresh('luoxue-score-conversion', refreshStopwatch.elapsedMilliseconds);
     String currentNickname = '未知玩家';
     int best35RA = 0;
@@ -1539,7 +1403,7 @@ Future<void> _handleLuoXueAuthWithProgressImpl(
 
     debugPrint('玩家成绩数量: ${playerRecords.length}');
 
-    onProgress(85, '正在计算 Best50 数据...');
+    onProgress(85, appL10n.flowCalculatingBest50);
     List<RecordItem>? best35Records;
     List<RecordItem>? best15Records;
     if (playerRecords.isNotEmpty) {
@@ -1547,7 +1411,8 @@ Future<void> _handleLuoXueAuthWithProgressImpl(
         playerRecords,
         songs: songs,
       );
-      if (result == null) throw StateError('缺少歌曲数据，无法计算落雪 Rating');
+      if (result == null)
+        throw StateError(appL10n.flowMissingSongDataCannotCalculateLXNSRating);
       best35Records = result.best35;
       best15Records = result.best15;
       if (best35Records != null) {
@@ -1566,7 +1431,7 @@ Future<void> _handleLuoXueAuthWithProgressImpl(
       source: RefreshDataSource.luoxue,
     );
 
-    onProgress(95, '正在保存数据...');
+    onProgress(95, appL10n.flowSavingData);
 
     String? rankingError;
     {
@@ -1596,14 +1461,18 @@ Future<void> _handleLuoXueAuthWithProgressImpl(
                   songs: songs,
                   onBatchProgress: (sent, total) {
                     final percent = 95 + ((sent * 4) ~/ total).clamp(0, 4);
-                    onProgress(percent, '上传单曲排行榜 $sent/$total...');
+                    onProgress(
+                        percent,
+                        appL10n.flowUploadingSongRankingsP0P1(
+                            (sent).toString(), (total).toString()));
                   },
                 ),
         ]);
         rankingError = rankingResults[0] as String?;
         final songRankingUpdated = rankingResults[1] as bool;
         if (rankingError != null || !songRankingUpdated) {
-          throw StateError(rankingError ?? '单曲排行榜更新失败');
+          throw StateError(
+              rankingError ?? appL10n.flowCouldNotUpdateSongLeaderboard);
         }
       } else {
         final deleteResults = await Future.wait<bool>([
@@ -1611,7 +1480,7 @@ Future<void> _handleLuoXueAuthWithProgressImpl(
           SongRankingService().deleteSongRankings(userId),
         ]);
         if (deleteResults.any((success) => !success)) {
-          throw StateError('排行榜删除失败');
+          throw StateError(appL10n.flowCouldNotRemoveLeaderboardEntries);
         }
       }
     }
@@ -1624,7 +1493,7 @@ Future<void> _handleLuoXueAuthWithProgressImpl(
     }
 
     logRefresh('refresh-total', refreshStopwatch.elapsedMilliseconds);
-    onProgress(100, '完成');
+    onProgress(100, appL10n.featureDone);
   } catch (e) {
     rethrow;
   }
@@ -1647,13 +1516,13 @@ Future<String?> _updateRankings({
 
     final errors = <String>[];
     if (totalRating > ratingLimits.best50Limit) {
-      errors.add('Best50 数据异常');
+      errors.add(appL10n.flowInvalidBest50Data);
     }
     if (best35Rating > ratingLimits.best35Limit) {
-      errors.add('Best35 数据异常');
+      errors.add(appL10n.flowInvalidBest35Data);
     }
     if (best15Rating > ratingLimits.best15Limit) {
-      errors.add('Best15 数据异常');
+      errors.add(appL10n.flowInvalidBest15Data);
     }
 
     if (errors.isNotEmpty) {
@@ -1685,7 +1554,7 @@ Future<String?> _updateRankings({
         }
       }
 
-      return '$errorMsg，可能存在非法数据，请检查';
+      return appL10n.flowP0CheckForInvalidData((errorMsg).toString());
     }
 
     final prefs = await SharedPreferences.getInstance();
@@ -1737,16 +1606,20 @@ Future<String?> _updateRankings({
       if (result['success'] == true) {
         debugPrint('排行榜数据更新成功: ${result['message']}');
       } else {
-        return '排行榜数据更新失败：${result['error'] ?? 'unknown'}';
+        return appL10n.flowCouldNotUpdateLeaderboardDataP0(
+            (result['error'] ?? 'unknown').toString());
       }
     } else {
       final body = jsonDecode(response.body);
-      return '排行榜数据更新失败：${body is Map ? body['error'] ?? response.statusCode : response.statusCode}';
+      return appL10n.flowCouldNotUpdateLeaderboardDataP0((body is Map
+              ? body['error'] ?? response.statusCode
+              : response.statusCode)
+          .toString());
     }
     return null;
   } catch (e) {
     debugPrint('更新排行榜数据时发生异常: $e');
-    return '排行榜数据更新异常: $e';
+    return appL10n.flowLeaderboardUpdateErrorP0((e).toString());
   }
 }
 

@@ -1,3 +1,4 @@
+import '../l10n/LocalizationsExtension.dart';
 import 'package:my_first_flutter_app/widgets/AppSwitch.dart';
 import 'package:flutter/material.dart';
 
@@ -46,10 +47,10 @@ class _ThemePreferenceControlsState extends State<ThemePreferenceControls> {
         const Divider(height: 24),
         const ThemeModeControl(),
         const Divider(height: 24),
-        heading('导航体验'),
+        heading(context.l10n.navigationExperience),
         const NavigationControls(),
         const Divider(height: 24),
-        heading('纸屑特效'),
+        heading(context.l10n.confetti),
         const ConfettiControls(),
       ],
     );
@@ -64,12 +65,15 @@ class BackgroundOverlayControl extends StatelessWidget {
   Widget build(BuildContext context) {
     final manager = ThemeManager();
     return ListenableBuilder(
-      listenable: Listenable.merge(
-          [manager.notifier, manager.lightOverlayNotifier, manager.pureBlackNotifier]),
+      listenable: Listenable.merge([
+        manager.notifier,
+        manager.lightOverlayNotifier,
+        manager.pureBlackNotifier
+      ]),
       builder: (context, _) {
         final dark = Theme.of(context).brightness == Brightness.dark;
         return GuessSliderTile(
-          label: '背景透明度',
+          label: context.l10n.backgroundOpacity,
           valueText: '${(manager.lightOverlayOpacity * 100).round()}%',
           value: manager.lightOverlayOpacity,
           min: 0,
@@ -78,7 +82,9 @@ class BackgroundOverlayControl extends StatelessWidget {
           onChanged: dark && manager.pureBlackEnabled
               ? null
               : manager.setLightOverlayOpacity,
-          hint: dark ? '数值越高背景越暗，0% 为原始背景图' : '数值越高背景越淡，0% 为原始背景图',
+          hint: dark
+              ? context.l10n.backgroundDarkHint
+              : context.l10n.backgroundLightHint,
         );
       },
     );
@@ -89,17 +95,22 @@ class BackgroundOverlayControl extends StatelessWidget {
 class ThemeModeControl extends StatelessWidget {
   const ThemeModeControl({super.key});
 
-  static const _options = [
-    (ThemeMode.light, Icons.light_mode_rounded, '浅色'),
-    (ThemeMode.dark, Icons.dark_mode_rounded, '深色'),
-    (ThemeMode.system, Icons.settings_suggest_rounded, '跟随系统'),
-  ];
+  List<(ThemeMode, IconData, String)> _options(BuildContext context) => [
+        (ThemeMode.light, Icons.light_mode_rounded, context.l10n.lightMode),
+        (ThemeMode.dark, Icons.dark_mode_rounded, context.l10n.darkMode),
+        (
+          ThemeMode.system,
+          Icons.settings_suggest_rounded,
+          context.l10n.followSystem
+        ),
+      ];
 
   @override
   Widget build(BuildContext context) {
     final manager = ThemeManager();
     return ListenableBuilder(
-      listenable: Listenable.merge([manager.notifier, manager.pureBlackNotifier]),
+      listenable:
+          Listenable.merge([manager.notifier, manager.pureBlackNotifier]),
       builder: (context, _) {
         final scheme = Theme.of(context).colorScheme;
         final dark = Theme.of(context).brightness == Brightness.dark;
@@ -110,7 +121,7 @@ class ThemeModeControl extends StatelessWidget {
           children: [
             Row(
               children: [
-                for (final (index, option) in _options.indexed) ...[
+                for (final (index, option) in _options(context).indexed) ...[
                   if (index > 0) const SizedBox(width: 8),
                   Expanded(
                     child: PressScale(
@@ -123,7 +134,8 @@ class ThemeModeControl extends StatelessWidget {
                           onTap: () => manager.setThemeMode(option.$1),
                           child: AnimatedContainer(
                             duration: duration,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 12, horizontal: 6),
                             decoration: BoxDecoration(
                               color: manager.themeMode == option.$1
                                   ? scheme.primary
@@ -141,14 +153,20 @@ class ThemeModeControl extends StatelessWidget {
                                       : scheme.onSurfaceVariant,
                                 ),
                                 const SizedBox(height: 4),
-                                Text(
-                                  option.$3,
-                                  style: TextStyle(
-                                    fontSize: 12.5,
-                                    fontWeight: FontWeight.w600,
-                                    color: manager.themeMode == option.$1
-                                        ? scheme.onPrimary
-                                        : scheme.onSurface,
+                                // 日语「システムに従う」等长文案放不下时等比缩小，不换行。
+                                FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    option.$3,
+                                    maxLines: 1,
+                                    softWrap: false,
+                                    style: TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: manager.themeMode == option.$1
+                                          ? scheme.onPrimary
+                                          : scheme.onSurface,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -165,8 +183,8 @@ class ThemeModeControl extends StatelessWidget {
               const SizedBox(height: 6),
               AppSwitchListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('纯黑背景'),
-                subtitle: const Text('使用真正的纯黑背景，隐藏背景图'),
+                title: Text(context.l10n.pureBlack),
+                subtitle: Text(context.l10n.pureBlackHint),
                 value: manager.pureBlackEnabled,
                 onChanged: manager.setPureBlackEnabled,
               ),
@@ -192,50 +210,61 @@ class NavigationControls extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text('导航栏样式', style: TextStyle(fontSize: 13.5)),
+            Text(context.l10n.navigationStyle,
+                style: TextStyle(fontSize: 13.5)),
             const SizedBox(height: 8),
             AnimatedChoiceBar<NavigationBarStyle>(
               values: NavigationBarStyle.values,
               value: navigation.barStyle,
-              label: (style) => style.label,
+              label: (style) => switch (style) {
+                NavigationBarStyle.standard => context.l10n.navigationClassic,
+                NavigationBarStyle.liquidGlass => context.l10n.navigationGlass,
+                NavigationBarStyle.expandingPill => context.l10n.navigationPill,
+              },
               onChanged: navigation.loaded ? navigation.setBarStyle : null,
             ),
             const SizedBox(height: 6),
-            Text(navigation.barStyle.description,
-                style:
-                    TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+            Text(
+                switch (navigation.barStyle) {
+                  NavigationBarStyle.standard =>
+                    context.l10n.navigationClassicHint,
+                  NavigationBarStyle.liquidGlass =>
+                    context.l10n.navigationGlassHint,
+                  NavigationBarStyle.expandingPill =>
+                    context.l10n.navigationPillHint,
+                },
+                style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
             const SizedBox(height: 6),
             AppSwitchListTile(
               contentPadding: EdgeInsets.zero,
               value: navigation.transitionEnabled,
               onChanged: navigation.setTransitionEnabled,
-              title: const Text('导航栏切换动画'),
-              subtitle: const Text('切换主界面时使用淡入滑动过渡，并淡化图标状态'),
+              title: Text(context.l10n.navigationAnimation),
+              subtitle: Text(context.l10n.navigationAnimationHint),
               secondary: Icon(Icons.animation_outlined, color: scheme.primary),
             ),
             AppSwitchListTile(
               contentPadding: EdgeInsets.zero,
               value: navigation.swipeEnabled,
               onChanged: navigation.setSwipeEnabled,
-              title: const Text('左右滑动切换主界面'),
-              subtitle: const Text('在主界面内容区域左右滑动即可切换底部导航项'),
+              title: Text(context.l10n.swipeNavigation),
+              subtitle: Text(context.l10n.swipeNavigationHint),
               secondary: Icon(Icons.swipe_outlined, color: scheme.primary),
             ),
             AppSwitchListTile(
               contentPadding: EdgeInsets.zero,
               value: navigation.immersiveStatusBarEnabled,
               onChanged: navigation.setImmersiveStatusBarEnabled,
-              title: const Text('沉浸式状态栏'),
-              subtitle: const Text('隐藏顶部时间、电量等状态信息，保留底部系统导航'),
+              title: Text(context.l10n.immersiveStatusBar),
+              subtitle: Text(context.l10n.immersiveStatusBarHint),
               secondary: Icon(Icons.fullscreen_rounded, color: scheme.primary),
             ),
             AppSwitchListTile(
               contentPadding: EdgeInsets.zero,
               value: navigation.busyHintEnabled,
               onChanged: navigation.setBusyHintEnabled,
-              title: const Text('任务进行中提示'),
-              subtitle: const Text('同步、刷新等任务进行中时，'
-                  '在不可用入口下方用红字说明原因'),
+              title: Text(context.l10n.busyHint),
+              subtitle: Text(context.l10n.busyHintDescription),
               secondary:
                   Icon(Icons.error_outline_rounded, color: scheme.primary),
             ),
@@ -269,7 +298,7 @@ class _ConfettiControlsState extends State<ConfettiControls> {
     if (!mounted) return;
     final picked = await showAppColorPicker(
       context,
-      title: '自定义调和颜色',
+      title: context.l10n.customHarmonyColor,
       initial:
           preferences.harmonyColor ?? Theme.of(context).colorScheme.primary,
     );
@@ -294,8 +323,8 @@ class _ConfettiControlsState extends State<ConfettiControls> {
               contentPadding: EdgeInsets.zero,
               value: confetti.enabled,
               onChanged: confetti.setEnabled,
-              title: const Text('纸屑特效'),
-              subtitle: const Text('刷新数据或同步成绩成功后播放彩纸礼炮'),
+              title: Text(context.l10n.confetti),
+              subtitle: Text(context.l10n.confettiHint),
               secondary:
                   Icon(Icons.celebration_outlined, color: scheme.primary),
             ),
@@ -303,17 +332,17 @@ class _ConfettiControlsState extends State<ConfettiControls> {
               contentPadding: EdgeInsets.zero,
               value: confetti.gravityEnabled,
               onChanged: confetti.setGravityEnabled,
-              title: const Text('重力效果'),
-              subtitle: const Text('纸屑沿弧线飘落，向上喷出的纸屑会回落'),
+              title: Text(context.l10n.gravityEffect),
+              subtitle: Text(context.l10n.gravityEffectHint),
               secondary: Icon(Icons.south_rounded, color: scheme.primary),
             ),
-            heading('调和颜色'),
+            heading(context.l10n.harmonyColor),
             Wrap(
               spacing: 10,
               runSpacing: 8,
               children: [
                 _HarmonyColorChoice(
-                  label: '主题色',
+                  label: context.l10n.themeColor,
                   color: scheme.primary,
                   selected: confetti.harmonyColor == null,
                   onTap: () => confetti.setHarmonyColor(null),
@@ -326,7 +355,7 @@ class _ConfettiControlsState extends State<ConfettiControls> {
                     onTap: () => confetti.setHarmonyColor(color),
                   ),
                 _HarmonyColorChoice(
-                  label: '自定义颜色',
+                  label: context.l10n.customColor,
                   color: confetti.harmonyColor ?? scheme.primary,
                   selected: confetti.harmonyColor != null &&
                       !_harmonyPresetColors.contains(confetti.harmonyColor),
@@ -336,25 +365,25 @@ class _ConfettiControlsState extends State<ConfettiControls> {
             ),
             const SizedBox(height: 12),
             GuessSliderTile(
-              label: '调和等级',
+              label: context.l10n.harmonyLevel,
               valueText: '${(confetti.harmonyLevel * 100).round()}%',
               value: confetti.harmonyLevel,
               min: 0,
               max: 1,
               divisions: 20,
               onChanged: confetti.setHarmonyLevel,
-              hint: '数值越高，彩纸颜色越接近调和颜色；0% 保留鲜艳的多彩效果',
+              hint: context.l10n.harmonyHint,
             ),
-            heading('彩纸类型'),
+            heading(context.l10n.paperType),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
-                for (final option in const [
-                  (ConfettiPaperType.mixed, '缤纷混彩'),
-                  (ConfettiPaperType.square, '方形纸片'),
-                  (ConfettiPaperType.circle, '圆润纸片'),
-                  (ConfettiPaperType.ribbon, '轻盈彩带'),
+                for (final option in [
+                  (ConfettiPaperType.mixed, context.l10n.paperMixed),
+                  (ConfettiPaperType.square, context.l10n.paperSquare),
+                  (ConfettiPaperType.circle, context.l10n.paperCircle),
+                  (ConfettiPaperType.ribbon, context.l10n.paperRibbon),
                 ])
                   GuessChoicePill(
                     label: option.$2,
@@ -363,15 +392,21 @@ class _ConfettiControlsState extends State<ConfettiControls> {
                   ),
               ],
             ),
-            heading('播放位置'),
+            heading(context.l10n.burstPosition),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
-                for (final option in const [
-                  (ConfettiBurstPosition.topBottom, '上下星落'),
-                  (ConfettiBurstPosition.leftRight, '左右流彩'),
-                  (ConfettiBurstPosition.allEdges, '四方礼花'),
+                for (final option in [
+                  (
+                    ConfettiBurstPosition.topBottom,
+                    context.l10n.burstTopBottom
+                  ),
+                  (
+                    ConfettiBurstPosition.leftRight,
+                    context.l10n.burstLeftRight
+                  ),
+                  (ConfettiBurstPosition.allEdges, context.l10n.burstAllEdges),
                 ])
                   GuessChoicePill(
                     label: option.$2,
@@ -386,7 +421,7 @@ class _ConfettiControlsState extends State<ConfettiControls> {
               child: FilledButton.tonalIcon(
                 onPressed: () => ConfettiEffect.show(context, force: true),
                 icon: const Icon(Icons.play_arrow_rounded),
-                label: const Text('立即播放预览'),
+                label: Text(context.l10n.previewNow),
               ),
             ),
           ],

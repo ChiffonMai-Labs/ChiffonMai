@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 
 import '../manager/DivingFishProbeManager.dart';
@@ -27,10 +28,10 @@ Future<bool> ensureMaimaiHubLogin(
     builder: (ctx) {
       final brightness = Theme.of(ctx).brightness;
       return AppAlertDialog(
-        title: const Row(children: [
+        title: Row(children: [
           Icon(Icons.hub_outlined, size: 22),
           SizedBox(width: 8),
-          Expanded(child: Text('需要先登录 maimai Score Hub')),
+          Expanded(child: Text(context.l10n.flowSignInToMaimaiScoreHubFirst2)),
         ]),
         content: SingleChildScrollView(
           child: Column(
@@ -38,17 +39,15 @@ Future<bool> ensureMaimaiHubLogin(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '${reason == null ? '线路2 同步' : '$reason 同步'}会复用本机保存的 '
-                'maimai Score Hub 登录状态。\n\n'
-                '当前没有可用登录态：请先用一张新的机台二维码完成登录；'
-                '登录成功后，本次同步还会再要求一张新的二维码用于抓取成绩——'
-                '同一张二维码不能同时用于登录和同步。\n\n'
-                '登录状态会保存在本机，之后使用线路2不需要重复登录。',
+                context.l10n.flowP0ReusesThisDeviceSMaimaiScore((reason == null
+                        ? context.l10n.flowRoute2Sync
+                        : context.l10n.flowP0Sync((reason).toString()))
+                    .toString()),
                 style: const TextStyle(fontSize: 13, height: 1.6),
               ),
               const SizedBox(height: 10),
               Text(
-                '提示：扫码前先在公众号/机台生成两张不同的登入二维码。',
+                context.l10n.flowTipGenerateTwoDifferentLoginQRCodes,
                 style: TextStyle(
                   fontSize: 12,
                   color: AppColors.greyHint(brightness),
@@ -61,12 +60,12 @@ Future<bool> ensureMaimaiHubLogin(
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('取消'),
+            child: Text(context.l10n.featureCancel),
           ),
           FilledButton.icon(
             onPressed: () => Navigator.of(ctx).pop(true),
             icon: const Icon(Icons.login, size: 18),
-            label: const Text('去登录'),
+            label: Text(context.l10n.flowSignInFirst),
           ),
         ],
       );

@@ -1,3 +1,4 @@
+import '../l10n/FeatureLocalizations.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -255,7 +256,7 @@ class _AppShellState extends State<AppShell> {
     final destinations = [
       for (final tab in _tabs)
         LiquidGlassDestination(
-          label: tab.label,
+          label: context.featureText(tab.label),
           icon: tab.icon,
           selectedIcon: tab.activeIcon,
         ),
@@ -359,8 +360,10 @@ class _AppShellState extends State<AppShell> {
                                 const SizedBox(height: labelGap),
                                 SizedBox(
                                   width: tabW,
-                                  child: Text(
-                                    _tabs[i].label,
+                                  child: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Text(
+                                    context.featureText(_tabs[i].label),
                                     maxLines: 1,
                                     softWrap: false,
                                     textAlign: TextAlign.center,
@@ -374,6 +377,7 @@ class _AppShellState extends State<AppShell> {
                                           ? scheme.onSurface
                                           : scheme.onSurfaceVariant,
                                     ),
+                                  ),
                                   ),
                                 ),
                               ],

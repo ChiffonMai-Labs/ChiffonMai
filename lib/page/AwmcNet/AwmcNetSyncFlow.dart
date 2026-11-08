@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -163,7 +164,8 @@ class AwmcNetSyncFlow {
   }
 
   /// 按钮上的进度文案（[HubActionTile.loadingText] / 首页收藏区同一行）。
-  static String _busyLabel(int seconds) => '正在导入成绩…已等待 $seconds 秒';
+  static String _busyLabel(int seconds) =>
+      appL10n.flowImportingScoresWaitingP0Seconds((seconds).toString());
 
   /// 生成结果文案。成功可以作为短提示，失败应在错误弹窗中完整显示。
   ///
@@ -171,21 +173,25 @@ class AwmcNetSyncFlow {
   /// 「更新」才是大多数，只报「新增」会让用户以为成绩没导进去。
   static String toastFor(AwmcNetSyncOutcome outcome) {
     final r = outcome.result;
-    if (r == null) return '导入失败';
-    if (!r.ok) return r.errorMessage ?? '导入失败';
+    if (r == null) return appL10n.flowImportFailed;
+    if (!r.ok) return r.errorMessage ?? appL10n.flowImportFailed;
     if (outcome.quickUpdate)
       return r.totalRecords == 0
-          ? '成绩已是最新，无需上传'
-          : '快速同步完成，已提交 ${r.totalRecords} 条变化成绩';
+          ? appL10n.flowScoresAreUpToDateNoUpload
+          : appL10n.flowQuickSyncCompleteSubmittedP0ChangedScores(
+              (r.totalRecords).toString());
 
     final seconds = (r.elapsedMs / 1000).toStringAsFixed(1);
-    final buffer = StringBuffer('导入完成！新增 ${r.imported} / 更新 ${r.updated}');
-    if (r.skipped > 0) buffer.write(' / 跳过 ${r.skipped}');
-    buffer.write('（$seconds 秒）');
+    final buffer = StringBuffer(appL10n.flowImportCompleteAddedP0UpdatedP1(
+        (r.imported).toString(), (r.updated).toString()));
+    if (r.skipped > 0)
+      buffer.write(appL10n.flowSkippedP0((r.skipped).toString()));
+    buffer.write(appL10n.flowP0Seconds((seconds).toString()));
     // `errors` 非空不代表失败（实测 20 条「找不到歌曲」时 HTTP 仍是 200），
     // 但必须说一句，否则用户会以为少掉的成绩是 App 弄丢了。
     if (r.errors.isNotEmpty) {
-      buffer.write('；${r.errors.length} 条谱面 AWMC NET 暂未收录');
+      buffer.write(
+          appL10n.flowP0ChartsAreNotYetInAWMC((r.errors.length).toString()));
     }
     return buffer.toString();
   }

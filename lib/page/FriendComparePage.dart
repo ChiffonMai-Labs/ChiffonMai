@@ -1,3 +1,5 @@
+import 'package:my_first_flutter_app/l10n/FeatureLocalizations.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -82,7 +84,9 @@ class _FriendComparePageState extends State<FriendComparePage> {
     _loadCachedQQ();
   }
 
-  String get _idLabel => _friendSource.idIsQQ ? 'QQ 号' : '好友码';
+  String get _idLabel => _friendSource.idIsQQ
+      ? context.l10n.flowQQID
+      : context.l10n.flowFriendCode;
 
   bool get _isCrossSource => _friendSource != _mySource;
 
@@ -101,7 +105,8 @@ class _FriendComparePageState extends State<FriendComparePage> {
   Future<void> _startCompare() async {
     final friendQQ = _qqController.text.trim();
     if (friendQQ.isEmpty) {
-      setState(() => _errorMessage = '请输入好友的$_idLabel');
+      setState(() => _errorMessage =
+          context.l10n.flowEnterYourFriendSP02((_idLabel).toString()));
       return;
     }
 
@@ -148,7 +153,8 @@ class _FriendComparePageState extends State<FriendComparePage> {
           final opened = await ExternalLaunchUtil.open(uri);
           if (!opened && mounted) {
             await Clipboard.setData(ClipboardData(text: uri.toString()));
-            AppToast.show('无法打开授权页，链接已复制到剪贴板');
+            AppToast.show(context.l10n.flowCouldNotOpenTheAuthorizationPageLink,
+                tone: AppToastTone.error);
           }
         }
       }
@@ -167,7 +173,7 @@ class _FriendComparePageState extends State<FriendComparePage> {
     final scheme = Theme.of(context).colorScheme;
     final result = _result;
     return BackgroundPageScaffold(
-      title: '好友对比',
+      title: context.l10n.featureFriendComparison,
       resizeToAvoidBottomInset: false,
       child: SingleChildScrollView(
         padding: EdgeInsets.fromLTRB(
@@ -194,7 +200,7 @@ class _FriendComparePageState extends State<FriendComparePage> {
                     const CircularProgressIndicator(),
                     const SizedBox(height: 16),
                     Text(
-                      '正在拉取好友数据并对比…',
+                      context.l10n.flowFetchingFriendDataAndComparing,
                       style: TextStyle(
                           fontSize: 13.5, color: scheme.onSurfaceVariant),
                     ),
@@ -237,7 +243,8 @@ class _FriendComparePageState extends State<FriendComparePage> {
           Padding(
             padding: const EdgeInsets.fromLTRB(4, 2, 4, 8),
             child: Text(
-              '用我的${_mySource.displayName}成绩，对比好友在这里的成绩',
+              context.l10n.flowCompareMyP0ScoresWithMyFriend(
+                  (context.featureText(_mySource.displayName)).toString()),
               style: TextStyle(fontSize: 12.5, color: scheme.onSurfaceVariant),
             ),
           ),
@@ -245,48 +252,50 @@ class _FriendComparePageState extends State<FriendComparePage> {
             height: 40,
             items: [
               for (final source in sources)
-                SegmentedTabItem(source.shortDisplayName),
+                SegmentedTabItem(context.featureText(source.shortDisplayName)),
             ],
             selectedIndex: sources.indexOf(_friendSource),
             onChanged: (index) => _selectSource(sources[index]),
           ),
           const SizedBox(height: 10),
           Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _qqController,
-              keyboardType: TextInputType.number,
-              textInputAction: TextInputAction.search,
-              onSubmitted: (_) => _startCompare(),
-              style: AppTheme.number(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: scheme.onSurface),
-              decoration: InputDecoration(
-                hintText: '输入好友的$_idLabel',
-                isDense: true,
-                filled: true,
-                fillColor: AppSurfaces.inset(context),
-                prefixIcon: Icon(Icons.person_search_rounded,
-                    size: 20, color: scheme.onSurfaceVariant),
-                contentPadding: const EdgeInsets.symmetric(vertical: 14),
-                border: border,
-                enabledBorder: border,
-                focusedBorder: border.copyWith(
-                    borderSide: BorderSide(color: scheme.primary, width: 2)),
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _qqController,
+                  keyboardType: TextInputType.number,
+                  textInputAction: TextInputAction.search,
+                  onSubmitted: (_) => _startCompare(),
+                  style: AppTheme.number(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: scheme.onSurface),
+                  decoration: InputDecoration(
+                    hintText: context.l10n
+                        .flowEnterYourFriendSP0((_idLabel).toString()),
+                    isDense: true,
+                    filled: true,
+                    fillColor: AppSurfaces.inset(context),
+                    prefixIcon: Icon(Icons.person_search_rounded,
+                        size: 20, color: scheme.onSurfaceVariant),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                    border: border,
+                    enabledBorder: border,
+                    focusedBorder: border.copyWith(
+                        borderSide:
+                            BorderSide(color: scheme.primary, width: 2)),
+                  ),
+                ),
               ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          SizedBox(
-            height: 48,
-            child: FilledButton(
-              onPressed: _isLoading ? null : _startCompare,
-              child: const Text('开始对比'),
-            ),
-          ),
-        ],
+              const SizedBox(width: 8),
+              SizedBox(
+                height: 48,
+                child: FilledButton(
+                  onPressed: _isLoading ? null : _startCompare,
+                  child: Text(context.l10n.flowCompare),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -332,12 +341,12 @@ class _FriendComparePageState extends State<FriendComparePage> {
               color: scheme.primary.withValues(alpha: 0.12),
               shape: BoxShape.circle,
             ),
-            child: Icon(Icons.people_alt_rounded,
-                size: 34, color: scheme.primary),
+            child:
+                Icon(Icons.people_alt_rounded, size: 34, color: scheme.primary),
           ),
           const SizedBox(height: 14),
           Text(
-            '和好友比比看',
+            context.l10n.flowCompareWithAFriend,
             style: TextStyle(
               fontSize: 17,
               fontWeight: FontWeight.w700,
@@ -346,7 +355,8 @@ class _FriendComparePageState extends State<FriendComparePage> {
           ),
           const SizedBox(height: 4),
           Text(
-            '输入好友的$_idLabel开始对比\n好友需要在${_friendSource.displayName}有数据',
+            context.l10n.flowEnterYourFriendSP0ToCompare((_idLabel).toString(),
+                (context.featureText(_friendSource.displayName)).toString()),
             textAlign: TextAlign.center,
             style: TextStyle(
                 fontSize: 13.5, height: 1.5, color: scheme.onSurfaceVariant),
@@ -360,15 +370,15 @@ class _FriendComparePageState extends State<FriendComparePage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AppAlertDialog(
-        title: const Text('清空历史'),
-        content: const Text('确定要清空全部历史记录吗？'),
+        title: Text(context.l10n.flowClearHistory),
+        content: Text(context.l10n.flowClearAllHistory),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('取消')),
+              child: Text(context.l10n.featureCancel)),
           TextButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: Text('清空',
+              child: Text(context.l10n.featureClear,
                   style: TextStyle(color: Theme.of(ctx).colorScheme.error))),
         ],
       ),
@@ -385,10 +395,10 @@ class _FriendComparePageState extends State<FriendComparePage> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         AppSectionHeader(
-          title: '历史对比',
+          title: context.l10n.flowPastComparisons,
           trailing: TextButton(
             onPressed: _confirmClearHistory,
-            child: Text('清空',
+            child: Text(context.l10n.featureClear,
                 style: TextStyle(fontSize: 13, color: scheme.error)),
           ),
         ),
@@ -405,7 +415,8 @@ class _FriendComparePageState extends State<FriendComparePage> {
     );
   }
 
-  Widget _buildHistoryItem(Map<String, dynamic> h, {required bool showDivider}) {
+  Widget _buildHistoryItem(Map<String, dynamic> h,
+      {required bool showDivider}) {
     final scheme = Theme.of(context).colorScheme;
     final brightness = scheme.brightness;
     final qq = h['friendQQ'] ?? '';
@@ -448,9 +459,13 @@ class _FriendComparePageState extends State<FriendComparePage> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    '${friendSource.shortDisplayName} · $date · 共同 $common 首',
-                    style: TextStyle(
-                        fontSize: 12, color: scheme.onSurfaceVariant),
+                    context.l10n.flowP0P1P2SongsInCommon(
+                        (context.featureText(friendSource.shortDisplayName))
+                            .toString(),
+                        (date).toString(),
+                        (common).toString()),
+                    style:
+                        TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
                   ),
                   const SizedBox(height: 8),
                   StackedBar(
@@ -475,7 +490,7 @@ class _FriendComparePageState extends State<FriendComparePage> {
               ),
             ),
             IconButton(
-              tooltip: '删除这条记录',
+              tooltip: context.l10n.flowDeleteThisRecord,
               visualDensity: VisualDensity.compact,
               onPressed: () async {
                 await _service.deleteHistory(qq,
@@ -500,7 +515,8 @@ class _FriendComparePageState extends State<FriendComparePage> {
     final ratingDiff =
         friendRatingKnown ? result.myRating - result.friendRating : 0;
 
-    Widget player(String name, int rating, bool leading, CrossAxisAlignment align) =>
+    Widget player(
+            String name, int rating, bool leading, CrossAxisAlignment align) =>
         Expanded(
           child: Column(
             crossAxisAlignment: align,
@@ -509,8 +525,8 @@ class _FriendComparePageState extends State<FriendComparePage> {
                 height: 18,
                 child: MarqueeText(
                   text: name,
-                  style: TextStyle(
-                      fontSize: 12.5, color: scheme.onSurfaceVariant),
+                  style:
+                      TextStyle(fontSize: 12.5, color: scheme.onSurfaceVariant),
                 ),
               ),
               const SizedBox(height: 2),
@@ -574,7 +590,11 @@ class _FriendComparePageState extends State<FriendComparePage> {
           Row(
             children: [
               player(
-                  _isCrossSource ? '我 · ${_mySource.shortDisplayName}' : '我',
+                  _isCrossSource
+                      ? context.l10n.flowMeP0(
+                          (context.featureText(_mySource.shortDisplayName))
+                              .toString())
+                      : context.l10n.flowMe,
                   result.myRating,
                   ratingDiff > 0,
                   CrossAxisAlignment.start),
@@ -593,9 +613,9 @@ class _FriendComparePageState extends State<FriendComparePage> {
                     const SizedBox(height: 2),
                     Text(
                       !friendRatingKnown
-                          ? '未公开'
+                          ? context.l10n.flowPrivate
                           : ratingDiff == 0
-                              ? '同分'
+                              ? context.l10n.flowSameScore
                               : '${ratingDiff > 0 ? '+' : ''}$ratingDiff',
                       style: AppTheme.number(
                         fontSize: 12,
@@ -612,7 +632,7 @@ class _FriendComparePageState extends State<FriendComparePage> {
               ),
               player(
                   _isCrossSource
-                      ? '${result.friendNickname} · ${_friendSource.shortDisplayName}'
+                      ? '${result.friendNickname} · ${context.featureText(_friendSource.shortDisplayName)}'
                       : result.friendNickname,
                   result.friendRating,
                   ratingDiff < 0,
@@ -639,11 +659,11 @@ class _FriendComparePageState extends State<FriendComparePage> {
           const SizedBox(height: 10),
           Row(
             children: [
-              legend('我赢', result.myWinCount,
+              legend(context.l10n.flowMyWins, result.myWinCount,
                   AppColors.successGreen(brightness)),
-              legend('平局', result.tieCount,
+              legend(context.l10n.flowTie, result.tieCount,
                   AppColors.warningOrange(brightness)),
-              legend('好友赢', result.friendWinCount,
+              legend(context.l10n.flowFriendSWins, result.friendWinCount,
                   AppColors.errorRed(brightness)),
             ],
           ),
@@ -656,19 +676,19 @@ class _FriendComparePageState extends State<FriendComparePage> {
               Expanded(
                 child: StatTile(
                     centered: true,
-                    label: '我的谱面',
+                    label: context.l10n.flowMyCharts,
                     value: '${result.myTotalCharts}'),
               ),
               Expanded(
                 child: StatTile(
                     centered: true,
-                    label: '好友谱面',
+                    label: context.l10n.flowFriendSCharts,
                     value: '${result.friendTotalCharts}'),
               ),
               Expanded(
                 child: StatTile(
                     centered: true,
-                    label: '共同谱面',
+                    label: context.l10n.flowSharedCharts,
                     value: '${result.commonCount}'),
               ),
             ],
@@ -689,7 +709,12 @@ class _FriendComparePageState extends State<FriendComparePage> {
   /// 胜负切换（数字随难度筛选变化）+ 难度筛选。
   Widget _buildFilters(ComparisonResult result) {
     const keys = <String?>[null, 'win', 'tie', 'lose'];
-    const labels = ['全部', '我赢', '平局', '好友赢'];
+    final labels = [
+      context.l10n.flowAll,
+      context.l10n.flowMyWins,
+      context.l10n.flowTie,
+      context.l10n.flowFriendSWins
+    ];
     final byLevel = _filterLevelIndex == null
         ? result.commonCharts
         : result.commonCharts
@@ -724,22 +749,23 @@ class _FriendComparePageState extends State<FriendComparePage> {
           child: Row(
             children: [
               FilterPill(
-                label: '全部难度',
+                label: context.l10n.flowAllDifficulties,
                 selected: _filterLevelIndex == null,
                 onTap: () => pickLevel(null),
               ),
-              for (var i = 0; i < ChartDifficulty.standardLabels.length; i++) ...[
+              for (var i = 0;
+                  i < ChartDifficulty.standardLabels.length;
+                  i++) ...[
                 const SizedBox(width: 6),
                 FilterPill(
                   label: ChartDifficulty.standardLabels[i],
                   selected: _filterLevelIndex == i,
                   selectedColor: ColorUtil.getCardColor(i),
-                  selectedForeground:
-                      ThemeData.estimateBrightnessForColor(
-                                  ColorUtil.getCardColor(i)) ==
-                              Brightness.dark
-                          ? Colors.white
-                          : Colors.black87,
+                  selectedForeground: ThemeData.estimateBrightnessForColor(
+                              ColorUtil.getCardColor(i)) ==
+                          Brightness.dark
+                      ? Colors.white
+                      : Colors.black87,
                   onTap: () => pickLevel(i),
                 ),
               ],
@@ -767,7 +793,8 @@ class _FriendComparePageState extends State<FriendComparePage> {
         Padding(
           padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
           child: Text(
-            '按定数从高到低 · 显示 $shown / $total',
+            context.l10n.flowConstantHighToLowShowingP0P1(
+                (shown).toString(), (total).toString()),
             style: TextStyle(fontSize: 12.5, color: scheme.onSurfaceVariant),
           ),
         ),
@@ -775,7 +802,7 @@ class _FriendComparePageState extends State<FriendComparePage> {
           Padding(
             padding: const EdgeInsets.all(32),
             child: Text(
-              '没有符合条件的谱面',
+              context.l10n.flowNoMatchingCharts,
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 13.5, color: scheme.onSurfaceVariant),
             ),
@@ -797,7 +824,8 @@ class _FriendComparePageState extends State<FriendComparePage> {
               child: TextButton.icon(
                 onPressed: () => setState(() => _displayCount += _pageSize),
                 icon: const Icon(Icons.expand_more_rounded, size: 18),
-                label: Text('加载更多（$shown / $total）'),
+                label: Text(context.l10n
+                    .flowLoadMoreP0P1((shown).toString(), (total).toString())),
               ),
             ),
         ],
@@ -822,8 +850,8 @@ class _FriendComparePageState extends State<FriendComparePage> {
             crossAxisAlignment: align,
             children: [
               Text(name,
-                  style: TextStyle(
-                      fontSize: 11, color: scheme.onSurfaceVariant)),
+                  style:
+                      TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
               const SizedBox(height: 2),
               FittedBox(
                 fit: BoxFit.scaleDown,
@@ -853,7 +881,6 @@ class _FriendComparePageState extends State<FriendComparePage> {
             builder: (context) => SongInfoPage(
               songId: item.songId.toString(),
               initialLevelIndex: item.levelIndex,
-              isDefaultLevelIndex: false,
             ),
           ),
         );
@@ -864,7 +891,8 @@ class _FriendComparePageState extends State<FriendComparePage> {
           Row(
             children: [
               ClipRRect(
-                borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+                borderRadius:
+                    BorderRadius.circular(AppDesignTokens.radiusSmall),
                 child: CoverUtil.buildCoverWidgetWithContext(
                     context, item.songId.toString(), 44),
               ),
@@ -916,7 +944,7 @@ class _FriendComparePageState extends State<FriendComparePage> {
             ),
             child: Row(
               children: [
-                side('我', item.myAchievements, item.myRate,
+                side(context.l10n.flowMe, item.myAchievements, item.myRate,
                     item.isMyWin || item.isTie, CrossAxisAlignment.start),
                 Container(
                   margin: const EdgeInsets.symmetric(horizontal: 6),
@@ -929,7 +957,7 @@ class _FriendComparePageState extends State<FriendComparePage> {
                   ),
                   child: Text(
                     item.isTie
-                        ? '平局'
+                        ? context.l10n.flowTie
                         : '${diff > 0 ? '+' : ''}${diff.toStringAsFixed(4)}%',
                     style: AppTheme.number(
                       fontSize: 11.5,
@@ -938,8 +966,12 @@ class _FriendComparePageState extends State<FriendComparePage> {
                     ),
                   ),
                 ),
-                side('好友', item.friendAchievements, item.friendRate,
-                    item.isFriendWin || item.isTie, CrossAxisAlignment.end),
+                side(
+                    context.l10n.flowFriend,
+                    item.friendAchievements,
+                    item.friendRate,
+                    item.isFriendWin || item.isTie,
+                    CrossAxisAlignment.end),
               ],
             ),
           ),

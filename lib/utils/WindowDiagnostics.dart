@@ -1,5 +1,6 @@
 import 'dart:ui' as ui;
 
+import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
@@ -13,7 +14,7 @@ class WindowDiagnostics {
   static String size(Size value) =>
       '${value.width.toStringAsFixed(1)}x${value.height.toStringAsFixed(1)}';
 
-  static String _padding(ui.ViewPadding value) =>
+  static String padding(ui.ViewPadding value) =>
       'L${value.left.toStringAsFixed(0)} T${value.top.toStringAsFixed(0)} '
       'R${value.right.toStringAsFixed(0)} B${value.bottom.toStringAsFixed(0)}';
 
@@ -21,8 +22,40 @@ class WindowDiagnostics {
     final ratio = view.devicePixelRatio;
     return 'physical=${size(view.physicalSize)} dpr=$ratio '
         'logical=${size(view.physicalSize / ratio)} '
-        'padding=${_padding(view.padding)} insets=${_padding(view.viewInsets)} '
+        'padding=${padding(view.padding)} insets=${padding(view.viewInsets)} '
         'refreshRate=${view.display.refreshRate.toStringAsFixed(1)}';
+  }
+
+  static String? _lastSanitized;
+
+  /// 去掉明显不合理的安全区（issue #4）。
+  ///
+  /// HyperOS 小窗恢复后会报出比窗口还高的顶部安全区（实测 T1989 物理像素，窗口只有
+  /// 1728），页面内容整体被推到窗口外，只剩底部导航栏。真实的状态栏、刘海和导航栏
+  /// 不会超过窗口对应边长的三分之一，超过的一侧按 0 处理。
+  static MediaQueryData sanitizePadding(MediaQueryData data) {
+    final size = data.size;
+    EdgeInsets fix(EdgeInsets value) => EdgeInsets.fromLTRB(
+          value.left > size.width / 3 ? 0 : value.left,
+          value.top > size.height / 3 ? 0 : value.top,
+          value.right > size.width / 3 ? 0 : value.right,
+          value.bottom > size.height / 3 ? 0 : value.bottom,
+        );
+    final padding = fix(data.padding);
+    final viewPadding = fix(data.viewPadding);
+    if (padding == data.padding && viewPadding == data.viewPadding) {
+      _lastSanitized = null;
+      return data;
+    }
+    final note = '${data.viewPadding.top.toStringAsFixed(0)}/'
+        '${data.viewPadding.bottom.toStringAsFixed(0)}@${size.height.toStringAsFixed(0)}';
+    if (note != _lastSanitized) {
+      _lastSanitized = note;
+      debugPrint('[Window] 安全区异常已忽略：logical=${WindowDiagnostics.size(size)} '
+          'viewPadding=T${data.viewPadding.top.toStringAsFixed(0)} '
+          'B${data.viewPadding.bottom.toStringAsFixed(0)}');
+    }
+    return data.copyWith(padding: padding, viewPadding: viewPadding);
   }
 
   /// 统计渲染树，用来区分内容是「布局不对」还是「布局正常却没画出来」。

@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 
 import '../utils/AppTheme.dart';
@@ -48,16 +49,16 @@ class _GuessGameStatusPanelState extends State<GuessGameStatusPanel> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AppAlertDialog(
-        title: const Text('重置今日统计？'),
-        content: const Text('将清空当前玩法今日的正确、错误、用时和连胜记录。'),
+        title:  Text(context.l10n.flowResetTodaySStatistics),
+        content:  Text(context.l10n.flowClearTodaySCorrectIncorrectGuessesTimes),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('取消'),
+            child:  Text(context.l10n.featureCancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('重置'),
+            child:  Text(context.l10n.flowReset),
           ),
         ],
       ),
@@ -143,29 +144,29 @@ class _GuessGameStatusPanelState extends State<GuessGameStatusPanel> {
           trendDuration: const Duration(milliseconds: 2100),
         ),
         if (widget.timeLimit > 0)
-          Text('剩余 $remaining 秒',
+          Text(context.l10n.flowP0SRemaining((remaining).toString()),
               style: labelStyle?.copyWith(
                   color: remaining / widget.timeLimit <= .3
                       ? scheme.error
                       : scheme.onSurfaceVariant)),
       ]),
-      metric('correct', '正确',
+      metric('correct', context.l10n.flowCorrect2,
           labelLeading: Icon(Icons.check_rounded,
               size: 14, color: AppColors.successGreen(theme.brightness))),
       metric('wrong', '错误',
           labelLeading: Icon(Icons.close_rounded,
               size: 14, color: AppColors.errorRed(theme.brightness))),
-      metric('accuracy', '正确率', decimals: 1, suffix: '%', animateValue: true),
-      metric('avgTime', '平均用时', decimals: 1, suffix: ' 秒', animateValue: true),
-      metric('streak', '当前连胜', active: true),
-      metric('bestStreak', '最高连胜', active: true),
+      metric('accuracy', context.l10n.flowAccuracy, decimals: 1, suffix: '%', animateValue: true),
+      metric('avgTime', context.l10n.flowAverageTime, decimals: 1, suffix: context.l10n.flowS, animateValue: true),
+      metric('streak', context.l10n.flowCurrentStreak, active: true),
+      metric('bestStreak', context.l10n.flowBestStreak, active: true),
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         SizedBox(
           height: valueHeight,
           child: Align(
             alignment: Alignment.centerLeft,
             child: IconButton(
-              tooltip: '重置今日统计',
+              tooltip: context.l10n.flowResetTodaySStatistics2,
               visualDensity: VisualDensity.compact,
               padding: const EdgeInsets.all(4),
               constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
@@ -175,7 +176,7 @@ class _GuessGameStatusPanelState extends State<GuessGameStatusPanel> {
           ),
         ),
         const SizedBox(height: valueLabelSpacing),
-        Text('重置统计', style: labelStyle),
+        Text(context.l10n.flowResetStatistics, style: labelStyle),
       ]),
     ];
     return Container(
@@ -198,7 +199,7 @@ class _GuessGameStatusPanelState extends State<GuessGameStatusPanel> {
           ],
           if (widget.isGameOver) ...[
             const SizedBox(height: 12),
-            Text(widget.isWon ? widget.winMessage : '本局已结束',
+            Text(widget.isWon ? widget.winMessage : context.l10n.flowThisGameHasEnded,
                 style: theme.textTheme.titleSmall?.copyWith(
                   color: widget.isWon
                       ? AppColors.successGreen(theme.brightness)
@@ -207,7 +208,7 @@ class _GuessGameStatusPanelState extends State<GuessGameStatusPanel> {
                 )),
             if (!widget.isWon && widget.answer != null) ...[
               const SizedBox(height: 4),
-              Text('正确答案：${widget.answer}', style: theme.textTheme.bodyMedium),
+              Text(context.l10n.flowAnswerP0((widget.answer).toString()), style: theme.textTheme.bodyMedium),
             ],
           ],
         ],

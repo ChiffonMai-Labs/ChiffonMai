@@ -1,3 +1,6 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../service/GuessChartGame/GuessChartCommonSettingsService.dart';
@@ -47,7 +50,7 @@ class _GuessGameSettingsPageState extends State<GuessGameSettingsPage> {
         _error = null;
       });
     } catch (_) {
-      if (mounted) setState(() => _error = '设置加载失败，请重试');
+      if (mounted) setState(() => _error = appL10n.flowCouldNotLoadSettingsPleaseRetry);
     }
   }
 
@@ -68,6 +71,7 @@ class _GuessGameSettingsPageState extends State<GuessGameSettingsPage> {
               maxGuesses: s['maxGuesses'],
               timeLimit: s['timeLimit'],
               blurLevel: s['blurLevel'],
+              pixelationLevel: s['pixelationLevel'],
               songCount: s['songCount'],
               nonEnglishCharThreshold: s['nonEnglishCharThreshold'],
               flashDurationMs: s['flashDurationMs'],
@@ -82,7 +86,7 @@ class _GuessGameSettingsPageState extends State<GuessGameSettingsPage> {
             ))
         .catchError((Object error) {
       _saveFailed = true;
-      AppToast.show('设置保存失败，请重试');
+      AppToast.show(appL10n.settingSaveFailed, tone: AppToastTone.error);
     });
   }
 
@@ -94,7 +98,7 @@ class _GuessGameSettingsPageState extends State<GuessGameSettingsPage> {
       // 等写盘结束再提示，保存失败时只提示失败
       _writes.whenComplete(() {
         if (!_saveFailed) {
-          AppToast.show('设置已保存到本地', tone: AppToastTone.success);
+          AppToast.show(appL10n.flowSettingsSavedLocally, tone: AppToastTone.success);
         }
       });
     }
@@ -129,7 +133,7 @@ class _GuessGameSettingsPageState extends State<GuessGameSettingsPage> {
     final s = _settings;
     final scheme = Theme.of(context).colorScheme;
     return BackgroundPageScaffold(
-      title: '单人猜歌游戏设置',
+      title: context.l10n.featureSoloSongGameSettings,
       resizeToAvoidBottomInset: false,
       child: s == null
           ? Center(
@@ -156,7 +160,7 @@ class _GuessGameSettingsPageState extends State<GuessGameSettingsPage> {
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(
-                            '修改会自动保存，下一局生效。',
+                            context.l10n.flowChangesSaveAutomaticallyAndApplyToThe,
                             style: TextStyle(
                                 fontSize: 12.5,
                                 color: scheme.onSurfaceVariant),
@@ -190,10 +194,10 @@ class _GuessGameSettingsPageState extends State<GuessGameSettingsPage> {
                     0,
                     GuessSettingSection(
                       card: true,
-                      title: '歌曲片段、倒放与变速变调',
+                      title: context.l10n.flowSongExcerptsReverseAndSpeedPitch,
                       icon: Icons.graphic_eq_rounded,
                       children: [
-                        _slider('片段播放时长', 'playDurationSeconds', 1, 30, 29, ' 秒'),
+                        _slider(context.l10n.flowExcerptPlaybackLength, 'playDurationSeconds', 1, 30, 29, context.l10n.flowS),
                         GuessAudioRateSlider(
                           value: (s['audioRate'] as num).toDouble(),
                           onChanged: (value) => _change('audioRate', value),
@@ -205,10 +209,10 @@ class _GuessGameSettingsPageState extends State<GuessGameSettingsPage> {
                     1,
                     GuessSettingSection(
                       card: true,
-                      title: '谱面片段',
+                      title: context.l10n.flowChartExcerpt,
                       icon: Icons.music_note_rounded,
                       children: [
-                        _slider('片段时长', 'peekDurationSeconds', 3, 60, 57, ' 秒'),
+                        _slider(context.l10n.flowExcerptLength, 'peekDurationSeconds', 3, 60, 57, context.l10n.flowS),
                         ChartPeekPlaybackSettings(
                           speed: (s['peekFlowSpeed'] as num).toDouble(),
                           mirror: ChartPeekPlayback.mirrorOf(
@@ -230,14 +234,17 @@ class _GuessGameSettingsPageState extends State<GuessGameSettingsPage> {
                     2,
                     GuessSettingSection(
                       card: true,
-                      title: '曲绘玩法',
+                      title: context.l10n.flowCoverModes,
                       icon: Icons.image_outlined,
                       children: [
-                        _slider('模糊曲绘：模糊程度', 'blurLevel', 0, 100, 100, '%'),
-                        _slider('曲绘快闪：快闪时长', 'flashDurationMs', 100, 3000, 29,
+                        _slider(context.l10n.flowBlurredCoverBlur, 'blurLevel', 0, 100, 100, '%'),
+                        _slider(context.l10n.flowPixelCoverDestruction, 'pixelationLevel', 0, 100, 100, '%'),
+                        Text(context.l10n.flow0ShowsTheOriginalHigherValuesCreate,
+                            style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+                        _slider(context.l10n.flowFlashCoverDuration, 'flashDurationMs', 100, 3000, 29,
                             ' ms'),
-                        _slider('曲绘拼图：切块数量', 'tileCount', 100, 10000, 99, ' 块'),
-                        _slider('曲绘拼图：揭示间隔', 'tileRevealIntervalMs', 100, 10000,
+                        _slider(context.l10n.flowTileRevealTileCount, 'tileCount', 100, 10000, 99, context.l10n.flowTiles),
+                        _slider(context.l10n.flowTileRevealInterval, 'tileRevealIntervalMs', 100, 10000,
                             99, ' ms'),
                       ],
                     ),
@@ -246,11 +253,11 @@ class _GuessGameSettingsPageState extends State<GuessGameSettingsPage> {
                     3,
                     GuessSettingSection(
                       card: true,
-                      title: '开字母',
+                      title: context.l10n.flowRevealLetters,
                       icon: Icons.abc_rounded,
                       children: [
-                        _slider('每次抽取歌曲数', 'songCount', 1, 10, 9, ' 首'),
-                        _slider('非英文字符过滤阈值', 'nonEnglishCharThreshold', 0, 100,
+                        _slider(context.l10n.flowSongsPerGame, 'songCount', 1, 10, 9, context.l10n.flowSongs3),
+                        _slider(context.l10n.flowNonEnglishCharacterThreshold, 'nonEnglishCharThreshold', 0, 100,
                             100, '%'),
                       ],
                     ),
@@ -260,7 +267,7 @@ class _GuessGameSettingsPageState extends State<GuessGameSettingsPage> {
                       setState(() => _settings = _service.defaultSettings());
                       _saveTimer?.cancel();
                       _save();
-                      AppToast.show('已恢复默认设置');
+                      AppToast.show(context.l10n.flowDefaultSettingsRestored, tone: AppToastTone.success);
                     },
                   ),
                 ],

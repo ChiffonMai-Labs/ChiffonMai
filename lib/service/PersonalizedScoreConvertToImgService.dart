@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'dart:async';
 import 'dart:io';
@@ -44,7 +45,7 @@ class PersonalizedScoreConvertToImg {
       debugPrint(
           'Current platform: ${Platform.operatingSystem} ${Platform.version}');
 
-      onProgress?.call('请求存储权限...', 0.0);
+      onProgress?.call(context.l10n.flowRequestingStoragePermission, 0.0);
       debugPrint('Step 1: Requesting storage permission...');
       PermissionStatus status = await _requestStoragePermission();
       debugPrint('Step 1 completed: Storage permission status: $status');
@@ -53,7 +54,7 @@ class PersonalizedScoreConvertToImg {
       GlobalKey globalKey = GlobalKey();
       final mountedAll = Completer<void>();
 
-      onProgress?.call('正在构建导出内容...', 0.1);
+      onProgress?.call(context.l10n.flowBuildingExportContent, 0.1);
 
       Widget imageWidget = RepaintBoundary(
         key: globalKey,
@@ -95,12 +96,12 @@ class PersonalizedScoreConvertToImg {
       await _preloadImages();
       debugPrint('Images preloaded');
 
-      onProgress?.call('正在预加载图片...', 0.2);
+      onProgress?.call(context.l10n.flowPreloadingImages, 0.2);
 
       Overlay.of(context).insert(overlayEntry);
       debugPrint('Overlay entry inserted');
 
-      onProgress?.call('正在渲染导出内容...', 0.3);
+      onProgress?.call(context.l10n.flowRenderingExportContent, 0.3);
 
       // 曲绘分批挂载，全部挂完才能截图。
       await mountedAll.future
@@ -119,7 +120,7 @@ class PersonalizedScoreConvertToImg {
 
       await Future.delayed(Duration(milliseconds: 100));
 
-      onProgress?.call('正在生成图片...', 0.5);
+      onProgress?.call(context.l10n.flowGeneratingImage, 0.5);
 
       debugPrint('Starting image capture...');
 
@@ -130,14 +131,14 @@ class PersonalizedScoreConvertToImg {
       debugPrint(
           'Widget size: ${boundary.size.width}x${boundary.size.height}, calculated pixelRatio: $pixelRatio');
 
-      final encoded =
-          await ImageEncodeUtil.encodeBoundary(boundary, jpegQuality: jpegQuality);
+      final encoded = await ImageEncodeUtil.encodeBoundary(boundary,
+          jpegQuality: jpegQuality);
       final Uint8List finalBytes = encoded.bytes;
       final String extension = encoded.extension;
 
       overlayEntry.remove();
 
-      onProgress?.call('正在保存图片...', 0.8);
+      onProgress?.call(context.l10n.flowSavingImage, 0.8);
 
       Directory? directory;
       debugPrint(
@@ -205,7 +206,7 @@ class PersonalizedScoreConvertToImg {
         if (galleryPath != null) {
           debugPrint('Image saved to gallery via MediaStore: $galleryPath');
           await _notifySystemGallery(galleryPath);
-          onProgress?.call('导出完成', 1.0);
+          onProgress?.call(context.l10n.flowExportComplete, 1.0);
           return File(galleryPath);
         }
         debugPrint('MediaStore API failed, falling back to file system');
@@ -225,7 +226,7 @@ class PersonalizedScoreConvertToImg {
         debugPrint('Media scanner completed for: ${file.path}');
       }
 
-      onProgress?.call('导出完成', 1.0);
+      onProgress?.call(context.l10n.flowExportComplete, 1.0);
       return file;
     } catch (e) {
       debugPrint('Error converting to image: $e');
@@ -269,7 +270,7 @@ class PersonalizedScoreConvertToImg {
         getLevelDisplay: getLevelDisplay,
         getSongAchievement: getSongAchievement,
         useLevelDisplay: useLevelDisplay,
-          theme: theme,
+        theme: theme,
       );
 
   static Widget _buildExportImageWidget(
@@ -302,7 +303,7 @@ class PersonalizedScoreConvertToImg {
         height: 400,
         child: Center(
           child: Text(
-            '暂无数据',
+            context.l10n.flowNoData,
             style: TextStyle(fontSize: 36, color: Colors.grey),
           ),
         ),
@@ -361,7 +362,7 @@ class PersonalizedScoreConvertToImg {
     for (final item in songsWithStatus) {
       final dynamic song = item['song'];
       final diffIndex = item['difficulty'] as int;
-      String levelKey = '未知';
+      String levelKey = context.l10n.flowUnknown;
       if (song is Song) {
         if (song.ds != null && song.ds.length > diffIndex) {
           final ds = song.ds[diffIndex];
@@ -403,13 +404,31 @@ class PersonalizedScoreConvertToImg {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const ExportPosterHeader(title: '成绩查询', scale: 0.7),
+            ExportPosterHeader(
+                title: context.l10n.featureScoreLookup, scale: 0.7),
             SizedBox(height: 16.0),
 
             // 统计区域
             ExportCompletionPanel(
-              title:
-                  '${mode == 'level' ? 'Lv.${selectedLevel ?? ''}' : mode == 'charter' ? '谱师:${selectedCharter ?? ''}' : mode == 'version' ? '版本:${StringUtil.formatVersion2(selectedVersion ?? '')}' : mode == 'genre' ? '流派:${selectedGenre ?? ''}' : '曲师:${selectedArtist ?? ''}'} ${selectedTitleType ?? ''}(${getDifficultyName(selectedDifficulty ?? -1)})统计',
+              title: context.l10n.flowP0P1P2Statistics2(
+                  (mode == 'level'
+                          ? 'Lv.${selectedLevel ?? ''}'
+                          : mode == 'charter'
+                              ? context.l10n.flowChartDesignerP0(
+                                  (selectedCharter ?? '').toString())
+                              : mode == 'version'
+                                  ? context.l10n.flowVersionP0(
+                                      (StringUtil.formatVersion2(
+                                              selectedVersion ?? ''))
+                                          .toString())
+                                  : mode == 'genre'
+                                      ? context.l10n.flowGenreP0(
+                                          (selectedGenre ?? '').toString())
+                                      : context.l10n.flowComposerP0(
+                                          (selectedArtist ?? '').toString()))
+                      .toString(),
+                  (selectedTitleType ?? '').toString(),
+                  (getDifficultyName(selectedDifficulty ?? -1)).toString()),
               total: totalCount,
               completed: completedCount,
               completionRate: completionRate.toDouble(),
@@ -444,7 +463,10 @@ class PersonalizedScoreConvertToImg {
                         EdgeInsets.symmetric(vertical: 8.0, horizontal: 14.0),
                     margin: EdgeInsets.only(bottom: 8.0),
                     child: Text(
-                      '${useLevelDisplay ? 'Lv.' : ''}${levelKey} | 共 ${groupedSongs[levelKey]!.length} 首歌曲',
+                      context.l10n.flowP0P1P2SongsTotal(
+                          (useLevelDisplay ? 'Lv.' : '').toString(),
+                          (levelKey).toString(),
+                          (groupedSongs[levelKey]!.length).toString()),
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: sectionNameFontSize,
@@ -455,58 +477,58 @@ class PersonalizedScoreConvertToImg {
                   ),
                   ...exportCoverRows(groupedSongs[levelKey]!.length,
                       (context, index) {
-                      final item = groupedSongs[levelKey]![index];
-                      final dynamic song = item['song'];
-                      final isCompleted = item['completed'] as bool;
-                      final diffIndex = item['difficulty'] as int;
+                    final item = groupedSongs[levelKey]![index];
+                    final dynamic song = item['song'];
+                    final isCompleted = item['completed'] as bool;
+                    final diffIndex = item['difficulty'] as int;
 
-                      String songId = '';
-                      if (song is Song) {
-                        songId = song.id;
-                      }
+                    String songId = '';
+                    if (song is Song) {
+                      songId = song.id;
+                    }
 
-                      return Center(
-                        child: SizedBox(
-                          width: coverSize,
-                          height: coverSize,
-                          child: Stack(
-                            children: [
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(8.0),
-                                child: CoverUtil.buildCoverWidgetWithContext(
-                                  _globalKey.currentContext ?? context,
-                                  songId,
-                                  coverSize,
-                                ),
+                    return Center(
+                      child: SizedBox(
+                        width: coverSize,
+                        height: coverSize,
+                        child: Stack(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8.0),
+                              child: CoverUtil.buildCoverWidgetWithContext(
+                                _globalKey.currentContext ?? context,
+                                songId,
+                                coverSize,
                               ),
-                              if (isCompleted)
-                                Container(
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withOpacity(0.4),
-                                    borderRadius: BorderRadius.circular(8.0),
-                                  ),
-                                  child: Center(
-                                    child: Icon(
-                                      Icons.check_circle,
-                                      color: Colors.green,
-                                      size: coverSize * 0.4,
-                                    ),
-                                  ),
-                                ),
+                            ),
+                            if (isCompleted)
                               Container(
                                 decoration: BoxDecoration(
-                                  border: Border.all(
-                                    color: ColorUtil.getCoverBorderColor(
-                                        diffIndex),
-                                    width: 2.0,
-                                  ),
+                                  color: Colors.black.withOpacity(0.4),
                                   borderRadius: BorderRadius.circular(8.0),
                                 ),
+                                child: Center(
+                                  child: Icon(
+                                    Icons.check_circle,
+                                    color: Colors.green,
+                                    size: coverSize * 0.4,
+                                  ),
+                                ),
                               ),
-                            ],
-                          ),
+                            Container(
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color:
+                                      ColorUtil.getCoverBorderColor(diffIndex),
+                                  width: 2.0,
+                                ),
+                                borderRadius: BorderRadius.circular(8.0),
+                              ),
+                            ),
+                          ],
                         ),
-                      );
+                      ),
+                    );
                   }),
                   SizedBox(height: 16.0),
                 ],

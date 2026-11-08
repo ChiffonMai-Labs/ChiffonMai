@@ -1,3 +1,7 @@
+import 'AnimatedReveal.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import '../utils/AppTaskActivity.dart';
 import 'RankingPrivacyOptions.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -13,6 +17,7 @@ import '../utils/ExternalLaunchUtil.dart';
 import '../utils/SyncRouteNotifier.dart';
 import '../utils/SecureCredentialStore.dart';
 import 'QrQuickFillButtons.dart';
+import 'SyncDialogUi.dart';
 import 'QuickSyncOption.dart';
 
 import 'PostSyncRefreshOptions.dart';
@@ -22,7 +27,7 @@ import 'RefreshDataDialog.dart' show RefreshDataRequest, RefreshDataSource;
 import '../widgets/AppDialogs.dart';
 import '../widgets/AppToast.dart';
 import '../utils/AppDesignTokens.dart';
-import 'AppUi.dart';
+import 'AppUi.dart' hide AnimatedReveal;
 
 export 'MultiScoreSyncDialog.dart'
     show MultiScoreSyncInput, showMultiScoreSyncInputDialog;
@@ -124,7 +129,6 @@ Future<void> _disposeAfterDialogCloses(
 /// 输入框，这里用一个局部 StatefulBuilder 承载，输入项本身是自包含的。
 Future<DivingFishSyncInput?> showDivingFishSyncInputDialog(BuildContext context,
     {bool allowQuickUpdate = false}) async {
-  final brightness = Theme.of(context).brightness;
   final prefs = await SharedPreferences.getInstance();
   var participateRankings =
       prefs.getBool(CacheKeyConstant.participateRankings) ?? false;
@@ -143,86 +147,49 @@ Future<DivingFishSyncInput?> showDivingFishSyncInputDialog(BuildContext context,
       dialogRoute ??= ModalRoute.of(dialogContext);
       return StatefulBuilder(
         builder: (context, setState) => AppAlertDialog(
-          title: const Row(
-            children: [
-              Icon(Icons.qr_code_scanner, size: 22),
-              SizedBox(width: 8),
-              Text('同步成绩到水鱼'),
-            ],
-          ),
+          title: Text(context.l10n.featureSyncToDivingFish),
+          subtitle: context.l10n.featureScanACodeToFetchAndSync,
           content: SingleChildScrollView(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (allowQuickUpdate)
-                  QuickSyncOption(
-                    platforms: const {SyncPlatform.divingFish},
-                    onChanged: (enabled) => setState(() {
-                      quickUpdate = enabled;
-                    }),
-                  ),
-                if (!quickUpdate) ...[
-                  Text(
-                    '在舞萌|中二公众号请求并打开二维码，扫描后将字符串粘贴到下方：',
-                    style: TextStyle(
-                        fontSize: 13, color: AppColors.greyHint(brightness)),
-                  ),
-                  const SizedBox(height: 12),
-                  QrQuickFillButtons(controller: qrController),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: qrController,
-                    maxLines: 3,
-                    decoration: InputDecoration(
-                      hintText: '舞萌DX | 中二节奏 登入二维码(SGWCMAID...)',
-                      hintStyle: TextStyle(
-                          fontSize: 13,
-                          color: AppColors.greyHint(brightness, shade: 400)),
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall)),
+                  SyncDialogSection(
+                    first: true,
+                    icon: Icons.bolt_rounded,
+                    title: context.l10n.syncDialogMode,
+                    child: QuickSyncOption(
+                      platforms: const {SyncPlatform.divingFish},
+                      onChanged: (enabled) => setState(() {
+                        quickUpdate = enabled;
+                      }),
                     ),
                   ),
-                ],
-                PostSyncRefreshOptions(
-                  key: refreshKey,
-                  source: RefreshDataSource.shuiyu,
-                ),
-                const SizedBox(height: 12),
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.send, size: 18),
-                  label: const Text('开始同步'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.primary,
-                    foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                    minimumSize: const Size.fromHeight(44),
+                AnimatedReveal(
+                  visible: !quickUpdate,
+                  child: SyncDialogSection(
+                    first: !allowQuickUpdate,
+                    icon: Icons.qr_code_2_rounded,
+                    title: context.l10n.syncDialogQrCode,
+                    caption: context.l10n.flowRequestAndOpenALoginQRCode,
+                    child: SyncQrInput(
+                      controller: qrController,
+                      hintText:
+                          context.l10n.flowMaimaiDXCHUNITHMLoginQRSGWCMAID,
+                    ),
                   ),
-                  onPressed: () async {
-                    final qrCode = qrController.text.trim();
-                    if (!quickUpdate && qrCode.isEmpty) {
-                      AppToast.show('请先粘贴舞萌|中二登入二维码字符串');
-                      return;
-                    }
-                    if (!quickUpdate && !qrCode.startsWith('SGWCMAID')) {
-                      AppToast.show('无效的二维码，请使用舞萌|中二公众号生成的登入二维码');
-                      return;
-                    }
-                    final prefs2 = await SharedPreferences.getInstance();
-                    await prefs2.setBool(CacheKeyConstant.participateRankings,
-                        participateRankings);
-                    await prefs2.setBool(
-                        CacheKeyConstant.showNickname, showNickname);
-                    final refreshRequest =
-                        await refreshKey.currentState?.collectRequest();
-                    if (!dialogContext.mounted) return;
-                    Navigator.of(dialogContext).pop(DivingFishSyncInput(
-                      qrCode: qrCode,
-                      quickUpdate: quickUpdate,
-                      participateRankings: participateRankings,
-                      showNickname: showNickname,
-                      refreshRequest: refreshRequest,
-                    ));
-                  },
+                ),
+                SyncDialogSection(
+                  icon: Icons.refresh_rounded,
+                  title: context.l10n.flowRefreshDataAfterSync,
+                  caption: context.l10n
+                      .flowRefreshAutomaticallyAfterUploadRefreshErrorsAre,
+                  child: PostSyncRefreshOptions(
+                    key: refreshKey,
+                    source: RefreshDataSource.shuiyu,
+                    showHeader: false,
+                  ),
                 ),
               ],
             ),
@@ -230,7 +197,39 @@ Future<DivingFishSyncInput?> showDivingFishSyncInputDialog(BuildContext context,
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('取消'),
+              child: Text(context.l10n.featureCancel),
+            ),
+            SyncStartButton(
+              label: context.l10n.flowStartSync,
+              onPressed: () async {
+                final qrCode = qrController.text.trim();
+                if (!quickUpdate && qrCode.isEmpty) {
+                  AppToast.show(
+                      context.l10n.flowPasteTheMaimaiCHUNITHMLoginQRString,
+                      tone: AppToastTone.warning);
+                  return;
+                }
+                if (!quickUpdate && !qrCode.startsWith('SGWCMAID')) {
+                  AppToast.show(context.l10n.flowInvalidQRCodeUseALoginQR,
+                      tone: AppToastTone.warning);
+                  return;
+                }
+                final prefs2 = await SharedPreferences.getInstance();
+                await prefs2.setBool(
+                    CacheKeyConstant.participateRankings, participateRankings);
+                await prefs2.setBool(
+                    CacheKeyConstant.showNickname, showNickname);
+                final refreshRequest =
+                    await refreshKey.currentState?.collectRequest();
+                if (!dialogContext.mounted) return;
+                Navigator.of(dialogContext).pop(DivingFishSyncInput(
+                  qrCode: qrCode,
+                  quickUpdate: quickUpdate,
+                  participateRankings: participateRankings,
+                  showNickname: showNickname,
+                  refreshRequest: refreshRequest,
+                ));
+              },
             ),
           ],
         ),
@@ -256,7 +255,7 @@ class LuoXueSyncInput {
   final String qrCode;
   final bool quickUpdate;
 
-  /// 落雪个人 API 密钥；统一从本地缓存读取（在「账号管理」里维护）。
+  /// 落雪个人 API 密钥；统一从本地缓存读取（在「成绩导入凭据」里维护）。
   final String? lxnsImportToken;
   final RefreshDataRequest? refreshRequest;
 
@@ -270,7 +269,7 @@ class LuoXueSyncInput {
 
 /// 只收集输入的「同步成绩到落雪」对话框。
 ///
-/// 返回 null 表示用户取消。落雪 API 密钥统一在「账号管理」里维护，
+/// 返回 null 表示用户取消。落雪 API 密钥统一在「成绩导入凭据」里维护，
 /// 这个对话框不再要求填写，执行时会直接从本地缓存读取。
 Future<LuoXueSyncInput?> showLuoXueSyncInputDialog(BuildContext context,
     {bool allowQuickUpdate = false}) async {
@@ -295,105 +294,64 @@ Future<LuoXueSyncInput?> showLuoXueSyncInputDialog(BuildContext context,
       dialogRoute ??= ModalRoute.of(dialogContext);
       return StatefulBuilder(
         builder: (context, setState) => AppAlertDialog(
-          title: const Row(
-            children: [
-              Icon(Icons.cloud_sync_outlined, size: 22),
-              SizedBox(width: 8),
-              Text('同步成绩到落雪'),
-            ],
-          ),
+          title: Text(context.l10n.featureSyncToLXNS),
+          subtitle: context.l10n.featureSyncLocalScoresToLXNS,
           content: SingleChildScrollView(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (allowQuickUpdate)
-                  QuickSyncOption(
-                    platforms: const {SyncPlatform.luoXue},
-                    onChanged: (enabled) => setState(() {
-                      quickUpdate = enabled;
-                    }),
-                  ),
-                if (!quickUpdate) ...[
-                  Text(
-                    '在舞萌|中二公众号请求并打开二维码，扫描后将字符串粘贴到下方：',
-                    style: TextStyle(
-                        fontSize: 13, color: AppColors.greyHint(brightness)),
-                  ),
-                  const SizedBox(height: 12),
-                  // 与水鱼同步对话框保持一致：剪贴板 / 相册 / 扫码三件套
-                  QrQuickFillButtons(
-                    controller: qrController,
-                    onFilled: () => setState(() => error = null),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: qrController,
-                    maxLines: 3,
-                    decoration: InputDecoration(
-                      hintText: '舞萌DX | 中二节奏 登入二维码(SGWCMAID...)',
-                      hintStyle: TextStyle(
-                          fontSize: 13,
-                          color: AppColors.greyHint(brightness, shade: 400)),
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall)),
+                  SyncDialogSection(
+                    first: true,
+                    icon: Icons.bolt_rounded,
+                    title: context.l10n.syncDialogMode,
+                    child: QuickSyncOption(
+                      platforms: const {SyncPlatform.luoXue},
+                      onChanged: (enabled) => setState(() {
+                        quickUpdate = enabled;
+                      }),
                     ),
                   ),
-                  const SizedBox(height: 16),
-                ],
-                // 密钥缺失时的详细获取引导：和「同步成绩到 AWMC NET」对话框同一套写法。
-                if (!hasSavedToken) ...[
-                  _buildLuoXueKeyGuide(context, brightness),
-                  const SizedBox(height: 12),
-                ],
+                AnimatedReveal(
+                  visible: !quickUpdate,
+                  child: SyncDialogSection(
+                    first: !allowQuickUpdate,
+                    icon: Icons.qr_code_2_rounded,
+                    title: context.l10n.syncDialogQrCode,
+                    caption: context.l10n.flowRequestAndOpenALoginQRCode,
+                    // 与水鱼同步对话框保持一致：剪贴板 / 相册 / 扫码三件套
+                    child: SyncQrInput(
+                      controller: qrController,
+                      hintText:
+                          context.l10n.flowMaimaiDXCHUNITHMLoginQRSGWCMAID,
+                      onFilled: () => setState(() => error = null),
+                    ),
+                  ),
+                ),
+                // 密钥缺失时的获取引导：和「同步成绩到 AWMC NET」对话框同一套写法。
+                if (!hasSavedToken)
+                  SyncDialogSection(
+                    icon: Icons.key_outlined,
+                    title: context.l10n.featureAccountManagement,
+                    child: _buildLuoXueKeyGuide(context, brightness),
+                  ),
                 if (error != null) ...[
                   const SizedBox(height: 10),
                   Text(error!,
                       style: TextStyle(
                           fontSize: 12, color: AppColors.errorRed(brightness))),
                 ],
-                PostSyncRefreshOptions(
-                  key: refreshKey,
-                  source: RefreshDataSource.luoxue,
-                ),
-                const SizedBox(height: 12),
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.send, size: 18),
-                  label: const Text('开始同步'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.primary,
-                    foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                    minimumSize: const Size.fromHeight(44),
+                SyncDialogSection(
+                  icon: Icons.refresh_rounded,
+                  title: context.l10n.flowRefreshDataAfterSync,
+                  caption: context.l10n
+                      .flowRefreshAutomaticallyAfterUploadRefreshErrorsAre,
+                  child: PostSyncRefreshOptions(
+                    key: refreshKey,
+                    source: RefreshDataSource.luoxue,
+                    showHeader: false,
                   ),
-                  onPressed: () async {
-                    final qrCode = qrController.text.trim();
-                    if (!quickUpdate && qrCode.isEmpty) {
-                      setState(() => error = '请先粘贴舞萌|中二登入二维码字符串');
-                      return;
-                    }
-                    if (!quickUpdate && !qrCode.startsWith('SGWCMAID')) {
-                      setState(() => error = '无效的二维码，请使用舞萌|中二公众号生成的登入二维码');
-                      return;
-                    }
-                    // 密钥统一在「账号管理」里维护，这里只读本地缓存，
-                    // 不再让用户在同步对话框里输入。
-                    final token = await SecureCredentialStore.read(
-                        CacheKeyConstant.probeLxnsImportToken);
-                    if (!dialogContext.mounted) return;
-                    if (token == null || token.isEmpty) {
-                      setState(() => error = '尚未设置落雪个人 API 密钥，请先在「账号管理」中设置');
-                      return;
-                    }
-                    final refreshRequest =
-                        await refreshKey.currentState?.collectRequest();
-                    if (!dialogContext.mounted) return;
-                    Navigator.of(dialogContext).pop(LuoXueSyncInput(
-                      qrCode: qrCode,
-                      quickUpdate: quickUpdate,
-                      lxnsImportToken: token,
-                      refreshRequest: refreshRequest,
-                    ));
-                  },
                 ),
               ],
             ),
@@ -401,7 +359,42 @@ Future<LuoXueSyncInput?> showLuoXueSyncInputDialog(BuildContext context,
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('取消'),
+              child: Text(context.l10n.featureCancel),
+            ),
+            SyncStartButton(
+              label: context.l10n.flowStartSync,
+              onPressed: () async {
+                final qrCode = qrController.text.trim();
+                if (!quickUpdate && qrCode.isEmpty) {
+                  setState(() => error =
+                      context.l10n.flowPasteTheMaimaiCHUNITHMLoginQRString);
+                  return;
+                }
+                if (!quickUpdate && !qrCode.startsWith('SGWCMAID')) {
+                  setState(
+                      () => error = context.l10n.flowInvalidQRCodeUseALoginQR);
+                  return;
+                }
+                // 密钥统一在「成绩导入凭据」里维护，这里只读本地缓存，
+                // 不再让用户在同步对话框里输入。
+                final token = await SecureCredentialStore.read(
+                    CacheKeyConstant.probeLxnsImportToken);
+                if (!dialogContext.mounted) return;
+                if (token == null || token.isEmpty) {
+                  setState(() => error =
+                      context.l10n.flowNoLXNSPersonalAPIKeySetConfigure);
+                  return;
+                }
+                final refreshRequest =
+                    await refreshKey.currentState?.collectRequest();
+                if (!dialogContext.mounted) return;
+                Navigator.of(dialogContext).pop(LuoXueSyncInput(
+                  qrCode: qrCode,
+                  quickUpdate: quickUpdate,
+                  lxnsImportToken: token,
+                  refreshRequest: refreshRequest,
+                ));
+              },
             ),
           ],
         ),
@@ -420,45 +413,26 @@ const String _luoXueProfileUrl =
 /// 落雪个人 API 密钥的获取引导。
 ///
 /// 与「同步成绩到 AWMC NET」对话框里的 Token 引导同一套结构：
-/// 说明 + 编号步骤 + 可点击链接。密钥统一在「账号管理 → 落雪 API 密钥」保存，
+/// 说明 + 编号步骤 + 可点击链接。密钥统一在「成绩导入凭据 → 落雪 API 密钥」保存，
 /// 所以第三步直接写清粘贴路径，避免用户拿到密钥后还要再找入口。
 Widget _buildLuoXueKeyGuide(BuildContext context, Brightness brightness) {
   final hintStyle =
       TextStyle(fontSize: 12, color: AppColors.greyHint(brightness));
   final warn = AppColors.warningOrange(brightness);
-  final scheme = Theme.of(context).colorScheme;
-  return Container(
-    padding: const EdgeInsets.all(12),
-    decoration: BoxDecoration(
-      color: warn.withValues(alpha: 0.08),
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: warn.withValues(alpha: 0.2)),
-    ),
+  return SyncNoticeCard(
+    icon: Icons.vpn_key,
+    color: warn,
+    title: context.l10n.flowSetLXNSPersonalAPIKey,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Icon(Icons.vpn_key, size: 18, color: warn),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                '设置落雪个人 API 密钥',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: scheme.onSurface,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Text('落雪导出需要你本人的个人 API 密钥（不是账号密码）：', style: hintStyle),
+        Text(context.l10n.flowExportingToLXNSRequiresYourPersonalAPI,
+            style: hintStyle),
         const SizedBox(height: 4),
-        Text('① 点击下面的链接打开落雪个人主页', style: hintStyle),
-        Text('② 滑到页面最底部，找到「个人 API 密钥」并复制', style: hintStyle),
-        Text('③ 回到 App，打开「账号管理 → 落雪 API 密钥」粘贴并保存', style: hintStyle),
+        Text(context.l10n.flow1OpenTheLXNSProfileLinkBelow, style: hintStyle),
+        Text(context.l10n.flow2ScrollToTheBottomAndCopy, style: hintStyle),
+        Text(context.l10n.flow3ReturnToAccountManagementLXNSAPI,
+            style: hintStyle),
         const SizedBox(height: 6),
         GestureDetector(
           onTap: _openLuoXueProfilePage,
@@ -473,7 +447,8 @@ Widget _buildLuoXueKeyGuide(BuildContext context, Brightness brightness) {
           ),
         ),
         const SizedBox(height: 6),
-        Text('保存后重新打开本对话框即可同步。', style: hintStyle),
+        Text(context.l10n.flowReopenThisDialogAfterSavingToSync,
+            style: hintStyle),
       ],
     ),
   );
@@ -487,7 +462,9 @@ Future<void> _openLuoXueProfilePage() async {
   } catch (e) {
     debugPrint('打开落雪个人主页失败: $e');
   }
-  AppToast.show('打不开浏览器，请手动访问 $_luoXueProfileUrl');
+  AppToast.show(
+      appL10n.flowCouldNotOpenABrowserVisitP0((_luoXueProfileUrl).toString()),
+      tone: AppToastTone.warning);
 }
 
 /// 执行「同步成绩到落雪」：抓取机台成绩 → 导出到落雪。
@@ -497,36 +474,42 @@ Future<int> executeLuoXueSync(
   void Function(int durationMs)? onSyncFinished,
   VoidCallback? onSyncSucceeded,
   void Function(String error)? onRefreshFailed,
-}) async {
-  if (input.quickUpdate) {
-    throw const SyncFlowException('快速同步仅支持线路1');
-  }
-  final refresh = await PostSyncRefreshOperation.capture(
-      RefreshDataSource.luoxue,
-      request: input.refreshRequest);
-  onProgress(0.05, '准备同步...');
-  final syncStopwatch = Stopwatch()..start();
-  final result = await DivingFishProbeManager().syncByCabinetQrToLxns(
-    input.qrCode,
-    lxnsImportToken: input.lxnsImportToken,
-    onProgress: (p) => onProgress(divingFishStageProgress(p), p.message),
-  );
-  if (!result.isSuccess) {
-    if (result.hubLoginRequired) {
-      throw const SyncFlowException('maimai Score Hub 登录状态已失效，请重新登录后再使用线路2');
-    }
-    throw SyncFlowException(result.errorMessage ?? '同步失败');
-  }
-  syncStopwatch.stop();
-  onSyncFinished?.call(syncStopwatch.elapsedMilliseconds);
-  onSyncSucceeded?.call();
-  onProgress(0.72, '同步完成，正在刷新本地数据...');
-  final refreshError = await refresh.run(
-      onProgress: (p, text) => onProgress(0.72 + p * 0.0028, text));
-  if (refreshError != null) onRefreshFailed?.call(refreshError);
-  onProgress(1.0, '同步完成！共 ${result.exportedCount} 条成绩已导出到落雪');
-  return result.exportedCount;
-}
+}) =>
+    AppTaskActivity.run(() async {
+      if (input.quickUpdate) {
+        throw SyncFlowException(appL10n.flowQuickSyncSupportsRoute1Only);
+      }
+      final refresh = await PostSyncRefreshOperation.capture(
+          RefreshDataSource.luoxue,
+          request: input.refreshRequest);
+      onProgress(0.05, appL10n.flowPreparingSync);
+      final syncStopwatch = Stopwatch()..start();
+      final result = await DivingFishProbeManager().syncByCabinetQrToLxns(
+        input.qrCode,
+        lxnsImportToken: input.lxnsImportToken,
+        onProgress: (p) => onProgress(divingFishStageProgress(p), p.message),
+      );
+      if (!result.isSuccess) {
+        if (result.hubLoginRequired) {
+          throw SyncFlowException(
+              appL10n.flowMaimaiScoreHubSessionExpiredSignIn);
+        }
+        throw SyncFlowException(
+            result.errorMessage ?? appL10n.featureSyncFailed);
+      }
+      syncStopwatch.stop();
+      onSyncFinished?.call(syncStopwatch.elapsedMilliseconds);
+      onSyncSucceeded?.call();
+      onProgress(0.72, appL10n.flowSyncCompleteRefreshingLocalData);
+      final refreshError = await refresh.run(
+          onProgress: (p, text) => onProgress(0.72 + p * 0.0028, text));
+      if (refreshError != null) onRefreshFailed?.call(refreshError);
+      onProgress(
+          1.0,
+          appL10n.flowSyncCompleteP0ScoresExportedToLXNS(
+              (result.exportedCount).toString()));
+      return result.exportedCount;
+    });
 
 /// 执行「同步成绩到水鱼」：抓取成绩 → 推送到水鱼 → 刷新本地数据。
 ///
@@ -543,49 +526,55 @@ Future<DivingFishSyncOutcome> executeDivingFishSync(
   required void Function(double progress, String text) onProgress,
   void Function(int durationMs)? onSyncFinished,
   VoidCallback? onSyncSucceeded,
-}) async {
-  if (input.quickUpdate) {
-    throw const SyncFlowException('快速同步仅支持线路1');
-  }
-  final refresh = await PostSyncRefreshOperation.capture(
-      RefreshDataSource.shuiyu,
-      request: input.refreshRequest);
-  onProgress(0.05, '准备同步...');
-  final syncStopwatch = Stopwatch()..start();
-  final result = await DivingFishProbeManager().syncByCabinetQr(
-    input.qrCode,
-    onProgress: (p) => onProgress(divingFishStageProgress(p), p.message),
-  );
+}) =>
+    AppTaskActivity.run(() async {
+      if (input.quickUpdate) {
+        throw SyncFlowException(appL10n.flowQuickSyncSupportsRoute1Only);
+      }
+      final refresh = await PostSyncRefreshOperation.capture(
+          RefreshDataSource.shuiyu,
+          request: input.refreshRequest);
+      onProgress(0.05, appL10n.flowPreparingSync);
+      final syncStopwatch = Stopwatch()..start();
+      final result = await DivingFishProbeManager().syncByCabinetQr(
+        input.qrCode,
+        onProgress: (p) => onProgress(divingFishStageProgress(p), p.message),
+      );
 
-  if (!result.isSuccess) {
-    if (result.hubLoginRequired) {
-      throw const SyncFlowException('maimai Score Hub 登录状态已失效，请重新登录后再使用线路2');
-    }
-    final msg = result.errorMessage ?? '同步失败';
-    if (msg == '用户取消同步') {
-      throw const SyncFlowException('同步已取消');
-    }
-    if (msg.contains('divingFishImportToken') || msg.contains('missing')) {
-      throw const SyncFlowException(
-          '需要先绑定水鱼账号以获取 ImportToken，请重新点击「同步成绩到水鱼」完成绑定');
-    }
-    throw SyncFlowException(msg);
-  }
-  syncStopwatch.stop();
-  onSyncFinished?.call(syncStopwatch.elapsedMilliseconds);
-  onSyncSucceeded?.call();
+      if (!result.isSuccess) {
+        if (result.hubLoginRequired) {
+          throw SyncFlowException(
+              appL10n.flowMaimaiScoreHubSessionExpiredSignIn);
+        }
+        final msg = result.errorMessage ?? appL10n.featureSyncFailed;
+        if (msg == '用户取消同步') {
+          throw SyncFlowException(appL10n.flowSyncCancelled);
+        }
+        if (msg.contains('divingFishImportToken') || msg.contains('missing')) {
+          throw SyncFlowException(
+              appL10n.flowLinkDivingFishToObtainAnImportToken);
+        }
+        throw SyncFlowException(msg);
+      }
+      syncStopwatch.stop();
+      onSyncFinished?.call(syncStopwatch.elapsedMilliseconds);
+      onSyncSucceeded?.call();
 
-  // 不先写共用 QQ 槽；刷新事务会把目标账号与数据一起提交。
-  onProgress(0.70, '同步成功！正在刷新本地数据...');
-  final refreshError = await refresh.run(
-      onProgress: (p, text) => onProgress(0.70 + p * 0.003, text));
-  onProgress(1.0, refresh.refreshed ? '全部完成！本地数据已刷新' : '同步完成！');
-  return DivingFishSyncOutcome(
-    exportedCount: result.exportedCount,
-    localDataRefreshed: refresh.refreshed,
-    refreshError: refreshError,
-  );
-}
+      // 不先写共用 QQ 槽；刷新事务会把目标账号与数据一起提交。
+      onProgress(0.70, appL10n.flowSyncSucceededRefreshingLocalData);
+      final refreshError = await refresh.run(
+          onProgress: (p, text) => onProgress(0.70 + p * 0.003, text));
+      onProgress(
+          1.0,
+          refresh.refreshed
+              ? appL10n.flowDoneLocalDataRefreshed
+              : appL10n.flowSyncComplete);
+      return DivingFishSyncOutcome(
+        exportedCount: result.exportedCount,
+        localDataRefreshed: refresh.refreshed,
+        refreshError: refreshError,
+      );
+    });
 
 /// 同步对话框集合：用于在水鱼 / 落雪 / 我的 等位置复用
 class SyncScoreDialogs {
@@ -707,7 +696,9 @@ class SyncScoreDialogs {
                       size: 22,
                     ),
                     const SizedBox(width: 8),
-                    Text(needDivingFishToken ? '绑定水鱼账号' : '同步成绩到水鱼'),
+                    Text(needDivingFishToken
+                        ? dialogContext.l10n.flowLinkDivingFishAccount
+                        : dialogContext.l10n.featureSyncToDivingFish),
                   ],
                 ),
                 content: SingleChildScrollView(
@@ -718,7 +709,7 @@ class SyncScoreDialogs {
                       // ===== 阶段 1：输入 QR 码 =====
                       if (!isSyncing && !needDivingFishToken) ...[
                         Text(
-                          '在舞萌|中二公众号请求并打开二维码，扫描后将字符串粘贴到下方：',
+                          dialogContext.l10n.flowRequestAndOpenALoginQRCode,
                           style: TextStyle(
                               fontSize: 13,
                               color: AppColors.greyHint(brightness)),
@@ -730,13 +721,15 @@ class SyncScoreDialogs {
                           controller: qrController,
                           maxLines: 3,
                           decoration: InputDecoration(
-                            hintText: '舞萌DX | 中二节奏 登入二维码(SGWCMAID...)',
+                            hintText: dialogContext
+                                .l10n.flowMaimaiDXCHUNITHMLoginQRSGWCMAID,
                             hintStyle: TextStyle(
                                 fontSize: 13,
                                 color:
                                     AppColors.greyHint(brightness, shade: 400)),
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+                              borderRadius: BorderRadius.circular(
+                                  AppDesignTokens.radiusSmall),
                             ),
                           ),
                         ),
@@ -756,7 +749,7 @@ class SyncScoreDialogs {
                         const SizedBox(height: 12),
                         ElevatedButton.icon(
                           icon: const Icon(Icons.send, size: 18),
-                          label: const Text('开始同步'),
+                          label: Text(dialogContext.l10n.flowStartSync),
                           style: ElevatedButton.styleFrom(
                             backgroundColor:
                                 Theme.of(context).colorScheme.primary,
@@ -767,7 +760,10 @@ class SyncScoreDialogs {
                           onPressed: () async {
                             final qrCode = qrController.text.trim();
                             if (qrCode.isEmpty) {
-                              AppToast.show('请先粘贴舞萌|中二登入二维码字符串');
+                              AppToast.show(
+                                  dialogContext.l10n
+                                      .flowPasteTheMaimaiCHUNITHMLoginQRString,
+                                  tone: AppToastTone.warning);
                               return;
                             }
                             final request =
@@ -780,7 +776,7 @@ class SyncScoreDialogs {
                             if (!dialogContext.mounted) return;
                             setState(() {
                               isSyncing = true;
-                              statusText = '准备同步...';
+                              statusText = dialogContext.l10n.flowPreparingSync;
                               currentStage = SyncStage.authenticating;
                             });
 
@@ -794,7 +790,8 @@ class SyncScoreDialogs {
                             if (!qrCode.startsWith('SGWCMAID')) {
                               setState(() {
                                 currentStage = SyncStage.failed;
-                                statusText = '无效的二维码，请使用舞萌|中二公众号生成的登入二维码';
+                                statusText = dialogContext
+                                    .l10n.flowInvalidQRCodeUseALoginQR;
                                 isSyncing = false;
                               });
                               LoadingTipsConstant.stopAutoSwitch();
@@ -823,7 +820,8 @@ class SyncScoreDialogs {
                               if (context.mounted) ConfettiEffect.show(context);
                               setState(() {
                                 currentStage = SyncStage.exporting;
-                                statusText = '同步成功！正在刷新本地数据...';
+                                statusText = dialogContext
+                                    .l10n.flowSyncSucceededRefreshingLocalData;
                                 progress = 0.70;
                               });
 
@@ -840,18 +838,22 @@ class SyncScoreDialogs {
                                 currentStage = SyncStage.completed;
                                 progress = 1.0;
                                 if (refresh.refreshed) {
-                                  statusText =
-                                      '全部完成！${result.exportedCount} 条成绩已同步，本地数据已刷新';
+                                  statusText = dialogContext.l10n
+                                      .flowDoneP0ScoresSyncedAndLocalData(
+                                          (result.exportedCount).toString());
                                 } else {
-                                  statusText =
-                                      '同步完成！${result.exportedCount} 条成绩已推送到水鱼\n刷新数据失败：$refreshError';
+                                  statusText = dialogContext.l10n
+                                      .flowP0ScoresSentToDivingFishData(
+                                          (result.exportedCount).toString(),
+                                          (refreshError).toString());
                                 }
                               });
                             } else if (result.errorMessage == '用户取消同步') {
                               finishAttempt(ok: false, skip: true);
                               setState(() {
                                 currentStage = SyncStage.cancelled;
-                                statusText = '同步已取消';
+                                statusText =
+                                    dialogContext.l10n.flowSyncCancelled;
                               });
                             } else {
                               final msg = result.errorMessage ?? '';
@@ -877,7 +879,8 @@ class SyncScoreDialogs {
                       // ===== 阶段 2：绑定水鱼账号 =====
                       if (needDivingFishToken && !isSyncing) ...[
                         Text(
-                          '需要绑定你的水鱼账号以获取 ImportToken：',
+                          dialogContext
+                              .l10n.flowLinkYourDivingFishAccountToObtain,
                           style: TextStyle(
                               fontSize: 13,
                               color: AppColors.greyHint(brightness)),
@@ -886,7 +889,8 @@ class SyncScoreDialogs {
                         TextField(
                           controller: dfUserController,
                           decoration: InputDecoration(
-                            labelText: '水鱼用户名',
+                            labelText:
+                                dialogContext.l10n.flowDivingFishUsername,
                           ).insetLabel(context),
                         ),
                         const SizedBox(height: 10),
@@ -894,7 +898,8 @@ class SyncScoreDialogs {
                           controller: dfPassController,
                           obscureText: true,
                           decoration: InputDecoration(
-                            labelText: '水鱼密码',
+                            labelText:
+                                dialogContext.l10n.flowDivingFishPassword,
                           ).insetLabel(context),
                         ),
                         if (bindingError != null) ...[
@@ -947,7 +952,8 @@ class SyncScoreDialogs {
                           const SizedBox(height: 8),
                           Center(
                             child: Text(
-                              '成绩已同步！可前往水鱼查看',
+                              dialogContext
+                                  .l10n.flowScoresSyncedViewThemOnDivingFish,
                               style: TextStyle(
                                   fontSize: 12,
                                   color: AppColors.greyHint(brightness,
@@ -963,7 +969,7 @@ class SyncScoreDialogs {
                   if (!isSyncing && !needDivingFishToken)
                     TextButton(
                       onPressed: () => Navigator.of(dialogContext).pop(),
-                      child: const Text('关闭'),
+                      child: Text(dialogContext.l10n.featureClose),
                     ),
                   if (isSyncing &&
                       (currentStage == SyncStage.completed ||
@@ -977,12 +983,14 @@ class SyncScoreDialogs {
                             : null;
                         Navigator.of(dialogContext).pop(fc);
                       },
-                      child: Text(countdown > 0 ? '确定 ($countdown)' : '确定'),
+                      child: Text(countdown > 0
+                          ? dialogContext.l10n.flowOKP0((countdown).toString())
+                          : dialogContext.l10n.featureOK),
                     ),
                   if (needDivingFishToken && !isSyncing) ...[
                     TextButton(
                       onPressed: () => Navigator.of(dialogContext).pop(),
-                      child: const Text('跳过'),
+                      child: Text(dialogContext.l10n.flowSkip),
                     ),
                     ElevatedButton.icon(
                       icon: isBinding
@@ -995,7 +1003,9 @@ class SyncScoreDialogs {
                               ),
                             )
                           : const Icon(Icons.link, size: 18),
-                      label: Text(isBinding ? '绑定中...' : '绑定并同步'),
+                      label: Text(isBinding
+                          ? dialogContext.l10n.flowLinking
+                          : dialogContext.l10n.flowLinkAndSync),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Theme.of(context).colorScheme.primary,
                         foregroundColor:
@@ -1008,7 +1018,8 @@ class SyncScoreDialogs {
                               final password = dfPassController.text.trim();
                               if (username.isEmpty || password.isEmpty) {
                                 setState(() {
-                                  bindingError = '请输入水鱼用户名和密码';
+                                  bindingError = dialogContext.l10n
+                                      .flowEnterYourDivingFishUsernameAndPassword;
                                 });
                                 return;
                               }
@@ -1028,7 +1039,8 @@ class SyncScoreDialogs {
                                 setState(() {
                                   isBinding = false;
                                   isSyncing = false;
-                                  bindingError = '绑定水鱼账号失败，请稍后重试';
+                                  bindingError = dialogContext
+                                      .l10n.flowCouldNotLinkDivingFishTryAgain;
                                 });
                                 return;
                               }
@@ -1042,9 +1054,10 @@ class SyncScoreDialogs {
                                 setState(() {
                                   isBinding = false;
                                   isSyncing = false;
-                                  bindingError =
-                                      manager.lastLoginFailure?.message ??
-                                          '水鱼登录失败，请稍后重试';
+                                  bindingError = manager
+                                          .lastLoginFailure?.message ??
+                                      dialogContext.l10n
+                                          .flowDivingFishSignInFailedTryAgain;
                                 });
                                 return;
                               }
@@ -1069,7 +1082,8 @@ class SyncScoreDialogs {
                                 if (context.mounted)
                                   ConfettiEffect.show(context);
                                 setState(() {
-                                  statusText = '同步成功！正在刷新本地数据...';
+                                  statusText = dialogContext.l10n
+                                      .flowSyncSucceededRefreshingLocalData;
                                   progress = 0.70;
                                 });
                                 final refreshError =
@@ -1086,13 +1100,24 @@ class SyncScoreDialogs {
                                   currentStage = SyncStage.completed;
                                   progress = 1.0;
                                   statusText = refresh.refreshed
-                                      ? '全部完成！${exportResult.exportedCount} 条成绩已同步，本地数据已刷新'
-                                      : '同步完成！${exportResult.exportedCount} 条成绩已推送到水鱼\n刷新数据失败：$refreshError';
+                                      ? dialogContext.l10n
+                                          .flowDoneP0ScoresSyncedAndLocalData(
+                                              (exportResult.exportedCount)
+                                                  .toString())
+                                      : dialogContext.l10n
+                                          .flowP0ScoresSentToDivingFishData(
+                                              (exportResult.exportedCount)
+                                                  .toString(),
+                                              (refreshError).toString());
                                 });
                                 final fc =
                                     DivingFishProbeManager().currentFriendCode;
                                 if (refreshError != null) {
-                                  AppToast.show('同步成功，但刷新数据失败：$refreshError');
+                                  AppToast.show(
+                                      dialogContext.l10n
+                                          .flowSyncSucceededButDataRefreshFailedP0(
+                                              (refreshError).toString()),
+                                      tone: AppToastTone.error);
                                 }
                                 Navigator.of(dialogContext).pop(fc);
                               } else {
@@ -1101,8 +1126,9 @@ class SyncScoreDialogs {
                                   isBinding = false;
                                   isSyncing = false;
                                   currentStage = SyncStage.failed;
-                                  bindingError =
-                                      exportResult.errorMessage ?? '导出失败，请稍后重试';
+                                  bindingError = exportResult.errorMessage ??
+                                      dialogContext
+                                          .l10n.flowExportFailedTryAgain;
                                 });
                               }
                             },
@@ -1156,7 +1182,9 @@ class SyncScoreDialogs {
                     size: 22,
                   ),
                   const SizedBox(width: 8),
-                  Text(loginSuccess ? '登录成功' : '登录水鱼'),
+                  Text(loginSuccess
+                      ? dialogContext.l10n.flowSignedIn
+                      : dialogContext.l10n.featureSignInToDivingFish),
                 ],
               ),
               content: SingleChildScrollView(
@@ -1166,7 +1194,8 @@ class SyncScoreDialogs {
                   children: [
                     if (!loginSuccess) ...[
                       Text(
-                        '输入你的 Diving-Fish 水鱼账号密码以获取 ImportToken：',
+                        dialogContext
+                            .l10n.flowEnterYourDivingFishCredentialsToObtain,
                         style: TextStyle(
                             fontSize: 13,
                             color: AppColors.greyHint(brightness)),
@@ -1175,8 +1204,8 @@ class SyncScoreDialogs {
                       TextField(
                         controller: userController,
                         decoration: InputDecoration(
-                          labelText: '用户名',
-                          hintText: 'Diving-Fish 用户名',
+                          labelText: dialogContext.l10n.flowUsername,
+                          hintText: dialogContext.l10n.flowDivingFishUsername2,
                           contentPadding: const EdgeInsets.symmetric(
                               horizontal: 12, vertical: 10),
                         ).insetLabel(context),
@@ -1186,8 +1215,8 @@ class SyncScoreDialogs {
                         controller: passController,
                         obscureText: true,
                         decoration: InputDecoration(
-                          labelText: '密码',
-                          hintText: 'Diving-Fish 密码',
+                          labelText: dialogContext.l10n.flowPassword,
+                          hintText: dialogContext.l10n.flowDivingFishPassword2,
                           contentPadding: const EdgeInsets.symmetric(
                               horizontal: 12, vertical: 10),
                         ).insetLabel(context),
@@ -1204,12 +1233,14 @@ class SyncScoreDialogs {
                           color: AppColors.successGreen(brightness), size: 48),
                       const SizedBox(height: 12),
                       Text(
-                        statusText.isNotEmpty ? statusText : '登录成功',
+                        statusText.isNotEmpty
+                            ? statusText
+                            : dialogContext.l10n.flowSignedIn,
                         style: const TextStyle(
                             fontSize: 14, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 4),
-                      Text('ImportToken 已获取并缓存',
+                      Text(dialogContext.l10n.flowImportTokenRetrievedAndSaved,
                           style: TextStyle(
                               fontSize: 13,
                               color: AppColors.greyHint(brightness))),
@@ -1220,7 +1251,7 @@ class SyncScoreDialogs {
                               color:
                                   AppColors.greyHint(brightness, shade: 600))),
                       const SizedBox(height: 4),
-                      Text('现在可以使用"同步成绩"功能一键同步到水鱼了',
+                      Text(dialogContext.l10n.flowYouCanNowSyncScoresToDiving,
                           style: TextStyle(
                               fontSize: 12,
                               color: AppColors.greyHint(brightness))),
@@ -1231,7 +1262,9 @@ class SyncScoreDialogs {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(dialogContext).pop(),
-                  child: Text(loginSuccess ? '完成' : '取消'),
+                  child: Text(loginSuccess
+                      ? dialogContext.l10n.featureDone
+                      : dialogContext.l10n.featureCancel),
                 ),
                 if (!loginSuccess)
                   ElevatedButton.icon(
@@ -1243,7 +1276,9 @@ class SyncScoreDialogs {
                                 strokeWidth: 2, color: Colors.white),
                           )
                         : const Icon(Icons.login, size: 18),
-                    label: Text(isLoggingIn ? '登录中...' : '登录'),
+                    label: Text(isLoggingIn
+                        ? dialogContext.l10n.flowSigningIn
+                        : dialogContext.l10n.flowSignIn),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Theme.of(context).colorScheme.primary,
                       foregroundColor: Theme.of(context).colorScheme.onPrimary,
@@ -1254,7 +1289,8 @@ class SyncScoreDialogs {
                             final username = userController.text.trim();
                             final password = passController.text.trim();
                             if (username.isEmpty || password.isEmpty) {
-                              setState(() => errorMsg = '请输入用户名和密码');
+                              setState(() => errorMsg = dialogContext
+                                  .l10n.flowEnterUsernameAndPassword);
                               return;
                             }
                             setState(() {
@@ -1288,8 +1324,10 @@ class SyncScoreDialogs {
                                 importedToken = token.isNotEmpty
                                     ? '${token.substring(0, token.length > 12 ? 12 : token.length)}...'
                                     : '***';
-                                statusText =
-                                    '欢迎，$nickname${plate.isNotEmpty ? " ($plate)" : ""}';
+                                statusText = dialogContext.l10n.flowWelcomeP0P1(
+                                    (nickname).toString(),
+                                    (plate.isNotEmpty ? " ($plate)" : "")
+                                        .toString());
                               });
                               await callbacks.onSaveQQ(bindQQ);
                               await callbacks.onLoginStateChanged();
@@ -1297,7 +1335,8 @@ class SyncScoreDialogs {
                               setState(() {
                                 isLoggingIn = false;
                                 errorMsg = manager.lastLoginFailure?.message ??
-                                    '登录失败，请稍后再试';
+                                    dialogContext
+                                        .l10n.flowSignInFailedTryAgainLater;
                               });
                             }
                           },

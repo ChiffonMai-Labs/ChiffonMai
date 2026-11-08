@@ -41,12 +41,23 @@ import java.io.OutputStream
  * 其余逻辑（三个 MethodChannel 与 intent 处理）与原来一致。
  */
 class MainActivity : AudioServiceActivity() {
+    override fun onStart() {
+        super.onStart()
+        AppUpdateAutoInstall.setForeground(this, true)
+    }
+
+    override fun onStop() {
+        super.onStop()
+        AppUpdateAutoInstall.setForeground(this, false)
+    }
+
     companion object {
         /** 桌面小组件点击时带的功能名，见 [HomeWidgetStore]。 */
         const val EXTRA_WIDGET_ACTION = "home_widget_action"
     }
 
     private val CHANNEL = "com.example.app/media_store"
+    private var appUpdateInstaller: AppUpdateInstaller? = null
 
     /** 桌面小组件：Dart 推数据过来，小组件上的点击再传回 Dart。 */
     private val HOME_WIDGET_CHANNEL = "com.example.app/home_widget"
@@ -71,8 +82,12 @@ class MainActivity : AudioServiceActivity() {
     /** 只控制顶部状态栏；底部导航保持显示，避免沉浸全屏吃掉返回手势。 */
     private val SYSTEM_UI_CHANNEL = "com.example.app/system_ui"
 
+    /** 读取系统已生成的动态配色，无需访问壁纸图片或申请存储权限。 */
+    private val WALLPAPER_COLOR_CHANNEL = "com.example.app/wallpaper_color"
+
     /// 图片导出完成的系统通知。
     private val EXPORT_NOTIFICATION_CHANNEL = "com.example.app/export_notification"
+    private val CRASH_REPORT_CHANNEL = "com.example.app/crash_report"
     private var statusBarHidden: Boolean? = null
 
     /**
@@ -112,13 +127,18 @@ class MainActivity : AudioServiceActivity() {
      */
     private var dartImportReady = false
 
+    override fun onCreate(savedInstanceState: android.os.Bundle?) {
+        CrashReporter.install(this)
+        super.onCreate(savedInstanceState)
+    }
+
     /// 没有通知权限时系统会直接忽略，不影响导出结果。
     private fun showExportNotification(title: String, text: String) {
         val channelId = "com.example.my_first_flutter_app.channel.export"
         val manager = getSystemService(NotificationManager::class.java) ?: return
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             manager.createNotificationChannel(
-                NotificationChannel(channelId, "图片导出", NotificationManager.IMPORTANCE_DEFAULT)
+                NotificationChannel(channelId, NativeL10n.text(this, "图片导出"), NotificationManager.IMPORTANCE_DEFAULT)
             )
         }
         val open = packageManager.getLaunchIntentForPackage(packageName)?.let {
@@ -148,6 +168,24 @@ class MainActivity : AudioServiceActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        appUpdateInstaller = AppUpdateInstaller(this).also { it.register(flutterEngine) }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, WALLPAPER_COLOR_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                if (call.method != "getSystemWallpaperColor") {
+                    result.notImplemented()
+                } else if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+                    result.success(null)
+                } else {
+                    try {
+                        // 系统调色板的主色调，以中间明度作为 Flutter 主题的种子色。
+                        val color = getColor(android.R.color.system_accent1_500)
+                        result.success(color.toLong() and 0xFFFFFFFFL)
+                    } catch (e: Exception) {
+                        result.error("WALLPAPER_COLOR_UNAVAILABLE", NativeL10n.text(this, "无法读取系统壁纸配色"), null)
+                    }
+                }
+            }
 
         val widgetChannel = MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
@@ -163,6 +201,10 @@ class MainActivity : AudioServiceActivity() {
                     HomeWidgetStore.refreshAll(applicationContext)
                     result.success(true)
                 }
+                "refreshLanguage" -> {
+                    HomeWidgetStore.refreshAll(applicationContext)
+                    result.success(true)
+                }
                 "takePendingAction" -> {
                     dartWidgetReady = true
                     result.success(pendingWidgetAction)
@@ -172,6 +214,22 @@ class MainActivity : AudioServiceActivity() {
             }
         }
         handleWidgetIntent(intent)
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CRASH_REPORT_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "takePendingCrash" -> result.success(CrashReporter.takePending(this))
+                    "notifyCrashReport" -> {
+                        CrashReporter.notify(
+                            this,
+                            call.argument<String>("title") ?: "ChiffonMai 上次异常退出",
+                            call.argument<String>("text") ?: ""
+                        )
+                        result.success(null)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, EXPORT_NOTIFICATION_CHANNEL)
             .setMethodCallHandler { call, result ->
@@ -303,6 +361,9 @@ class MainActivity : AudioServiceActivity() {
     @Suppress("DEPRECATION")
     private fun applyStatusBarVisibility() {
         val hidden = statusBarHidden ?: return
+        // 小窗 / 分屏里没有可控制的状态栏；HyperOS 上此时再 show 状态栏，
+        // 恢复后会报出比窗口还高的顶部安全区（issue #4）。
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isInMultiWindowMode) return
         val decor = window.decorView
         // Android 14 及以前同时保留窗口级全屏标志，避免部分系统在刷新浅色
         // 状态栏外观时把 InsetsController 的隐藏请求覆盖。只隐藏顶部系统栏。
@@ -513,6 +574,7 @@ class MainActivity : AudioServiceActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        appUpdateInstaller?.notifyIntent()
         // 热启动：App 已在后台，用户又点开一个文件
         handleImportIntent(intent)
         handleWidgetIntent(intent)

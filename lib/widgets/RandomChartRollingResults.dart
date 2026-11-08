@@ -1,3 +1,4 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -159,7 +160,7 @@ class _RandomChartRollingResultsState extends State<RandomChartRollingResults>
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Text('正在抽取 ${widget.count} 首 · 点击“停！”揭晓',
+      Text(context.l10n.flowDrawingP0SongsTapStopToReveal((widget.count).toString()),
           style: theme.textTheme.bodySmall
               ?.copyWith(color: scheme.onSurfaceVariant)),
       const SizedBox(height: 8),
@@ -170,7 +171,7 @@ class _RandomChartRollingResultsState extends State<RandomChartRollingResults>
         itemCount: widget.count,
         separatorBuilder: (_, __) => const SizedBox(height: 10),
         itemBuilder: (context, index) => Semantics(
-          label: '第 ${index + 1} 张卡片，等待揭晓',
+          label: context.l10n.flowCardP0WaitingToReveal((index + 1).toString()),
           child: ExcludeSemantics(
               child: RepaintBoundary(
             child: Card(
@@ -210,12 +211,12 @@ class _RandomChartRollingResultsState extends State<RandomChartRollingResults>
                           child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                            Text(song?.title ?? '曲绘轮播中…',
+                            Text(song?.title ?? context.l10n.flowCyclingCoverArt,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: theme.textTheme.titleSmall),
                             const SizedBox(height: 8),
-                            Text('第 ${index + 1} 首 · 等待你按停',
+                            Text(context.l10n.flowSongP0WaitingForYouToStop((index + 1).toString()),
                                 style: theme.textTheme.bodySmall
                                     ?.copyWith(color: scheme.onSurfaceVariant)),
                           ])),
