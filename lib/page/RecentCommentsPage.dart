@@ -10,6 +10,7 @@ import '../service/SongInfoService.dart';
 import '../utils/AppTheme.dart';
 import '../utils/CoverUtil.dart';
 import 'package:my_first_flutter_app/utils/ApiClient.dart';
+import '../widgets/EmptyState.dart';
 import '../widgets/BackgroundPageScaffold.dart';
 import '../widgets/CommunityAvatar.dart';
 import '../utils/AppDesignTokens.dart';
@@ -166,7 +167,7 @@ class _RecentCommentsPageState extends State<RecentCommentsPage> {
           : _errorMessage != null
               ? _buildError(brightness)
               : _comments.isEmpty
-                  ? _buildEmpty(brightness)
+                  ? _buildEmpty()
                   : _buildCommentList(brightness),
     );
   }
@@ -198,21 +199,10 @@ class _RecentCommentsPageState extends State<RecentCommentsPage> {
     );
   }
 
-  Widget _buildEmpty(Brightness brightness) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.comment_outlined,
-              size: 56, color: AppColors.greyHint(brightness)),
-          const SizedBox(height: 12),
-          Text(
-            context.l10n.flowNoCommentsYet,
-            style:
-                TextStyle(color: AppColors.greyHint(brightness), fontSize: 16),
-          ),
-        ],
-      ),
+  Widget _buildEmpty() {
+    return EmptyState(
+      icon: Icons.comment_outlined,
+      message: context.l10n.flowNoCommentsYet,
     );
   }
 

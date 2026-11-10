@@ -1472,6 +1472,7 @@ String localizeFeatureText(AppLocalizations l10n, String source) =>
       "谱师50" => l10n.flowChartDesigner50,
       "流派50" => l10n.flowGenre50,
       "版本50" => l10n.flowVersion50,
+      "等级50" => l10n.flowLevel50,
       "星数50" => l10n.flowStar50,
       "标签50" => l10n.flowTag50,
       "随机50" => l10n.flowRandom50,

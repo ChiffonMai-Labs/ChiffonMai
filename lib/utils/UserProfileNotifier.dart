@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../constant/CacheKeyConstant.dart';
 import 'SecureCredentialStore.dart';
+import 'DivingFishMaskStatus.dart';
 import 'CurrentDataSourceNotifier.dart';
 import '../service/AccountSwitchService.dart';
 
@@ -130,6 +131,7 @@ class UserProfileNotifier {
     await prefs.remove('best15TotalRA');
     await prefs.remove('cachedQQ');
     await prefs.remove('probe_diving_fish_bind_qq');
+    await DivingFishMaskStatus.instance.clear();
     _publish(UserProfile.loggedOut);
   }
 

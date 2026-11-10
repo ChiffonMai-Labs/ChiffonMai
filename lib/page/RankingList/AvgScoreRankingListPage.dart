@@ -296,7 +296,7 @@ class _AvgScoreRankingListPageState extends State<AvgScoreRankingListPage> {
   /// 「N 条」小字）。列表会先把它排一遍，再让每一行都用它的高度 —— 于是
   /// 「第 index 行」的偏移就是 `index × 行高`，见 [RankingRowExtent]。
   Widget _buildRowPrototype(Brightness brightness) => KeyedSubtree(
-        key: _rowExtent.key,
+        key: _rowExtent.keyFor(_rankList),
         child: _buildRankItem(_prototypeRankItem, brightness: brightness),
       );
 
@@ -379,13 +379,15 @@ class _AvgScoreRankingListPageState extends State<AvgScoreRankingListPage> {
 
               // 排行榜列表
               Expanded(
-                child: _isLoading
+                child: _isLoading && _rankList.isEmpty
                     ? Center(
                         child: CircularProgressIndicator(
                             color: AppColors.primaryText(brightness)))
                     : _rankList.isEmpty
                         ? _buildEmptyState(brightness)
                         : ListView.builder(
+                            // 拿到新榜单时重新挂载，首屏的行才会重新进场。
+                            key: ObjectKey(_rankList),
                             controller: _scrollController,
                             // 必须显式清零：`Scaffold` 在没有 `appBar:` 时不会消耗顶部安全区，
                             // `ListView` 会把 `MediaQuery.padding.top`（状态栏 24dp）当成
@@ -416,7 +418,7 @@ class _AvgScoreRankingListPageState extends State<AvgScoreRankingListPage> {
               ),
 
               // 底部固定显示当前用户
-              if (!_isLoading && _currentUserRankItem != null)
+              if (_currentUserRankItem != null)
                 SafeArea(
                   top: false,
                   child: RankingSelfBar(

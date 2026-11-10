@@ -38,6 +38,7 @@ class _FittedRatingRankingListPageState
 
   // 当前选择的模式
   late FittedMode _currentMode;
+  FittedMode? _resultMode; // 屏幕上这份榜单所属的模式
 
   // 当前用户信息
   String? _currentUserId;
@@ -187,11 +188,17 @@ class _FittedRatingRankingListPageState
       setState(() {
         _rankList = top;
         _currentUserRankItem = userItem;
+        _resultMode = mode;
       });
     } catch (e) {
       if (mounted && generation == _requestGeneration) {
         setState(() {
           _errorMessage = appL10n.flowCouldNotLoadP0((e).toString());
+          // 换模式失败时不能让旧模式的榜单顶着新模式的标题。
+          if (_resultMode != mode) {
+            _rankList = [];
+            _currentUserRankItem = null;
+          }
         });
       }
     } finally {
@@ -288,7 +295,7 @@ class _FittedRatingRankingListPageState
   /// 列表会先把它排一遍，再让每一行都用它的高度 —— 于是「第 index 行」的偏移
   /// 就是 `index × 行高`，见 [RankingRowExtent]。
   Widget _buildRowPrototype(Brightness brightness) => KeyedSubtree(
-        key: _rowExtent.key,
+        key: _rowExtent.keyFor(_rankList),
         child: _buildRankItem(_prototypeRankItem, brightness: brightness),
       );
 
@@ -399,13 +406,15 @@ class _FittedRatingRankingListPageState
 
               // 排行榜列表
               Expanded(
-                child: _isLoading
+                child: _isLoading && _rankList.isEmpty
                     ? Center(
                         child: CircularProgressIndicator(
                             color: AppColors.primaryText(brightness)))
                     : _rankList.isEmpty
                         ? _buildEmptyState(brightness)
                         : ListView.builder(
+                            // 拿到新榜单时重新挂载，首屏的行才会重新进场。
+                            key: ObjectKey(_rankList),
                             controller: _scrollController,
                             // 必须显式清零：`Scaffold` 在没有 `appBar:` 时不会消耗顶部安全区，
                             // `ListView` 会把 `MediaQuery.padding.top`（状态栏 24dp）当成
@@ -436,7 +445,7 @@ class _FittedRatingRankingListPageState
               ),
 
               // 底部固定显示当前用户
-              if (!_isLoading && _currentUserRankItem != null)
+              if (_currentUserRankItem != null)
                 SafeArea(
                   top: false,
                   child: RankingSelfBar(

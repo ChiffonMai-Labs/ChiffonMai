@@ -6,13 +6,14 @@ import '../service/GainRecommend/GainFeedbackStore.dart';
 import '../service/GainRecommend/GainRecommendCore.dart';
 import '../service/GainRecommend/GainRecommendService.dart';
 import '../utils/AppTheme.dart';
+import '../utils/ChartDifficulty.dart';
 import '../utils/CoverUtil.dart';
-import '../utils/StringUtil.dart';
 import '../widgets/BackgroundPageScaffold.dart';
 import 'SongInfoPage.dart';
 import '../utils/AppDesignTokens.dart';
 import '../widgets/AppToast.dart';
 import '../widgets/AppUi.dart';
+import '../widgets/MarqueeText.dart';
 
 /// 吃分推荐：按「仅这一张谱达标后 B50 涨多少」挑谱。算法由 AWMC 提供。
 ///
@@ -487,6 +488,7 @@ class _CandidateCard extends StatelessWidget {
     final brightness = theme.brightness;
     final routeColor = _routeColor(c.route, brightness);
     final achv = c.achievements;
+    final songId = c.songId.toString();
     return Padding(
       padding: const EdgeInsets.only(bottom: AppDesignTokens.cardGap),
       child: AppCard(
@@ -509,8 +511,9 @@ class _CandidateCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        c.title,
+                      // 长歌名单行横向滚动，不换行也不截断
+                      MarqueeText(
+                        text: c.title,
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
@@ -524,12 +527,18 @@ class _CandidateCard extends StatelessWidget {
                         runSpacing: 4,
                         children: [
                           _Tag(text: _routeLabel(context, c.route), color: routeColor),
-                          _Tag(
-                            text:
-                                '${StringUtil.formatSongType(c.type)} ${c.ds.toStringAsFixed(1)}',
-                            color: AppColors.difficultyForegroundByIndex(
-                                c.levelIndex,
-                                brightness: brightness),
+                          // 谱面类型与「难度 + 定数」分成两个标签
+                          SongTypeBadge(
+                            songId: songId,
+                            type: c.type,
+                            fontSize: 11,
+                          ),
+                          ChartDifficultyBadge(
+                            levelIndex: c.levelIndex,
+                            songId: songId,
+                            label:
+                                '${ChartDifficulty.labelOf(c.levelIndex, isUtage: songId.length == 6)} ${c.ds.toStringAsFixed(1)}',
+                            fontSize: 11,
                           ),
                         ],
                       ),

@@ -240,6 +240,12 @@ class ApiUrls {
       'https://chiffonmai.cloud/api/special-rankings';
   static const String RankingsUpdateUrl = '$RankingsBaseUrl/update';
 
+  // 排行榜上传守卫：上传前预检（发放凭证）与玩家上传资格状态（自家后端）
+  static const String UploadGuardCheckUrl =
+      'https://chiffonmai.cloud/api/upload-guard/check';
+  static const String UploadGuardStatusUrl =
+      'https://chiffonmai.cloud/api/upload-guard/status';
+
   // 单曲排行榜 API 地址（达成率/DX分数）（自家后端）
   static const String SongRankingsBaseUrl =
       'https://chiffonmai.cloud/api/song-rankings';

@@ -3557,6 +3557,120 @@ abstract class AppLocalizations {
   /// **'参与排行榜'**
   String get flowJoinLeaderboards;
 
+  /// No description provided for @flowRankingDivingFishMasked.
+  ///
+  /// In zh, this message translates to:
+  /// **'你的水鱼账号开启了「对非网页查询的成绩使用掩码」，App 读到的水鱼成绩不准确，暂不能用水鱼数据参与排行榜。可在水鱼查分器网页的个人资料里关闭后再试。'**
+  String get flowRankingDivingFishMasked;
+
+  /// No description provided for @songScoreIllegalWarning.
+  ///
+  /// In zh, this message translates to:
+  /// **'这条成绩数据异常：{p0}，不会上传到排行榜。'**
+  String songScoreIllegalWarning(String p0);
+
+  /// No description provided for @songScoreIllegalAchievement.
+  ///
+  /// In zh, this message translates to:
+  /// **'达成率超过上限 {p0}%'**
+  String songScoreIllegalAchievement(String p0);
+
+  /// No description provided for @songScoreIllegalDx.
+  ///
+  /// In zh, this message translates to:
+  /// **'DX 分数超过谱面上限 {p0}'**
+  String songScoreIllegalDx(String p0);
+
+  /// No description provided for @songScoreIllegalUnreleased.
+  ///
+  /// In zh, this message translates to:
+  /// **'谱面尚未在国服上线（{p0}）'**
+  String songScoreIllegalUnreleased(String p0);
+
+  /// No description provided for @flowDXScoreMAXOverP0.
+  ///
+  /// In zh, this message translates to:
+  /// **'DX分数（MAX +{p0}）'**
+  String flowDXScoreMAXOverP0(String p0);
+
+  /// No description provided for @rankingUploadIncompleteTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'排行榜上传未完成'**
+  String get rankingUploadIncompleteTitle;
+
+  /// No description provided for @rankingUploadIncompleteLead.
+  ///
+  /// In zh, this message translates to:
+  /// **'成绩已刷新并保存，只是这次没有更新排行榜。'**
+  String get rankingUploadIncompleteLead;
+
+  /// No description provided for @rankingGuardFrozen.
+  ///
+  /// In zh, this message translates to:
+  /// **'排行榜上传资格已暂停，正在人工审核。审核期间你在排行榜上的数据会暂时隐藏。'**
+  String get rankingGuardFrozen;
+
+  /// No description provided for @rankingGuardBlacklisted.
+  ///
+  /// In zh, this message translates to:
+  /// **'该账号已被禁止参与排行榜。'**
+  String get rankingGuardBlacklisted;
+
+  /// No description provided for @rankingGuardUpgradeRequired.
+  ///
+  /// In zh, this message translates to:
+  /// **'请更新到最新版本后再上传排行榜。'**
+  String get rankingGuardUpgradeRequired;
+
+  /// No description provided for @rankingGuardRejected.
+  ///
+  /// In zh, this message translates to:
+  /// **'本次排行榜上传已全部拒绝：{p0}。剩余 {p1} 次警告机会，用完后上传资格会被暂停并转人工审核。'**
+  String rankingGuardRejected(String p0, String p1);
+
+  /// No description provided for @rankingGuardReasonRating.
+  ///
+  /// In zh, this message translates to:
+  /// **'Rating 超过当前理论值'**
+  String get rankingGuardReasonRating;
+
+  /// No description provided for @rankingGuardReasonUnknownSong.
+  ///
+  /// In zh, this message translates to:
+  /// **'包含曲库中不存在的歌曲（{p0}）'**
+  String rankingGuardReasonUnknownSong(String p0);
+
+  /// No description provided for @rankingGuardReasonUnreleased.
+  ///
+  /// In zh, this message translates to:
+  /// **'包含尚未上线的歌曲（{p0}）'**
+  String rankingGuardReasonUnreleased(String p0);
+
+  /// No description provided for @rankingGuardReasonLevel.
+  ///
+  /// In zh, this message translates to:
+  /// **'难度不存在（{p0}）'**
+  String rankingGuardReasonLevel(String p0);
+
+  /// No description provided for @rankingGuardReasonAchievement.
+  ///
+  /// In zh, this message translates to:
+  /// **'达成率超出上限（{p0}）'**
+  String rankingGuardReasonAchievement(String p0);
+
+  /// No description provided for @rankingGuardReasonDx.
+  ///
+  /// In zh, this message translates to:
+  /// **'DX 分数超出谱面上限（{p0}）'**
+  String rankingGuardReasonDx(String p0);
+
+  /// No description provided for @rankingGuardReasonInvalid.
+  ///
+  /// In zh, this message translates to:
+  /// **'成绩数据无效'**
+  String get rankingGuardReasonInvalid;
+
   /// No description provided for @flowShowNicknameOtherwiseShownAsAnonymous.
   ///
   /// In zh, this message translates to:
@@ -15695,6 +15809,24 @@ abstract class AppLocalizations {
   /// **'版本50'**
   String get flowVersion50;
 
+  /// No description provided for @flowLevel50.
+  ///
+  /// In zh, this message translates to:
+  /// **'等级50'**
+  String get flowLevel50;
+
+  /// No description provided for @flowLevel50P0.
+  ///
+  /// In zh, this message translates to:
+  /// **'等级50 - {p0}'**
+  String flowLevel50P0(String p0);
+
+  /// No description provided for @flowCategoryLevel50P0.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择类型: 等级50 - {p0}'**
+  String flowCategoryLevel50P0(String p0);
+
   /// No description provided for @flowStar50.
   ///
   /// In zh, this message translates to:
@@ -24733,6 +24865,354 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'字体已切换，但未能保存选择'**
   String get chartCodeFontSaveFailed;
+
+  /// No description provided for @ratingSegmentTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'上分潜力与对照表分段'**
+  String get ratingSegmentTitle;
+
+  /// No description provided for @ratingSegmentStandard.
+  ///
+  /// In zh, this message translates to:
+  /// **'常用分段'**
+  String get ratingSegmentStandard;
+
+  /// No description provided for @ratingSegmentDetailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'详细分段'**
+  String get ratingSegmentDetailed;
+
+  /// No description provided for @ratingSegmentStandardHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'只显示各评级对应的达成率分段。'**
+  String get ratingSegmentStandardHint;
+
+  /// No description provided for @ratingSegmentDetailedHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'在评级分段之外，再细分每提升 1 Rating 需要的达成率。'**
+  String get ratingSegmentDetailedHint;
+
+  /// No description provided for @searchAvoidKeyboard.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索区域避让输入法'**
+  String get searchAvoidKeyboard;
+
+  /// No description provided for @searchAvoidKeyboardHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'首页搜索、乐曲查询、非国服乐曲查询和成绩查询时，结果可以完整滚动到输入法上方；背景不会被挤压。'**
+  String get searchAvoidKeyboardHint;
+
+  /// No description provided for @arcadeTabInView.
+  ///
+  /// In zh, this message translates to:
+  /// **'视野内'**
+  String get arcadeTabInView;
+
+  /// No description provided for @arcadeTabFavorites.
+  ///
+  /// In zh, this message translates to:
+  /// **'收藏'**
+  String get arcadeTabFavorites;
+
+  /// No description provided for @arcadeOpenNow.
+  ///
+  /// In zh, this message translates to:
+  /// **'营业中'**
+  String get arcadeOpenNow;
+
+  /// No description provided for @arcadeClosedNow.
+  ///
+  /// In zh, this message translates to:
+  /// **'已打烊'**
+  String get arcadeClosedNow;
+
+  /// No description provided for @arcadeHoursUnknown.
+  ///
+  /// In zh, this message translates to:
+  /// **'营业时间未知'**
+  String get arcadeHoursUnknown;
+
+  /// No description provided for @arcadeClosesAt.
+  ///
+  /// In zh, this message translates to:
+  /// **'{p0} 打烊'**
+  String arcadeClosesAt(String p0);
+
+  /// No description provided for @arcadeOpensAt.
+  ///
+  /// In zh, this message translates to:
+  /// **'{p0} 开门'**
+  String arcadeOpensAt(String p0);
+
+  /// No description provided for @arcadeOpensTomorrowAt.
+  ///
+  /// In zh, this message translates to:
+  /// **'明天 {p0} 开门'**
+  String arcadeOpensTomorrowAt(String p0);
+
+  /// No description provided for @arcadeClearFilters.
+  ///
+  /// In zh, this message translates to:
+  /// **'清除筛选'**
+  String get arcadeClearFilters;
+
+  /// No description provided for @arcadeRandomPick.
+  ///
+  /// In zh, this message translates to:
+  /// **'随机挑一家'**
+  String get arcadeRandomPick;
+
+  /// No description provided for @arcadeRandomEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前范围内没有可挑选的机厅'**
+  String get arcadeRandomEmpty;
+
+  /// No description provided for @arcadeZoomIn.
+  ///
+  /// In zh, this message translates to:
+  /// **'放大'**
+  String get arcadeZoomIn;
+
+  /// No description provided for @arcadeZoomOut.
+  ///
+  /// In zh, this message translates to:
+  /// **'缩小'**
+  String get arcadeZoomOut;
+
+  /// No description provided for @arcadeResetNorth.
+  ///
+  /// In zh, this message translates to:
+  /// **'朝北'**
+  String get arcadeResetNorth;
+
+  /// No description provided for @arcadeLocate.
+  ///
+  /// In zh, this message translates to:
+  /// **'定位到我'**
+  String get arcadeLocate;
+
+  /// No description provided for @arcadeRegions.
+  ///
+  /// In zh, this message translates to:
+  /// **'全球分布'**
+  String get arcadeRegions;
+
+  /// No description provided for @arcadeRegionCount.
+  ///
+  /// In zh, this message translates to:
+  /// **'国家和地区'**
+  String get arcadeRegionCount;
+
+  /// No description provided for @arcadeShopCount.
+  ///
+  /// In zh, this message translates to:
+  /// **'机厅'**
+  String get arcadeShopCount;
+
+  /// No description provided for @arcadeMachineCount.
+  ///
+  /// In zh, this message translates to:
+  /// **'机台'**
+  String get arcadeMachineCount;
+
+  /// No description provided for @arcadeDownloadData.
+  ///
+  /// In zh, this message translates to:
+  /// **'下载机厅数据'**
+  String get arcadeDownloadData;
+
+  /// No description provided for @arcadeNoDataHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'下载后可以离线浏览机厅信息。'**
+  String get arcadeNoDataHint;
+
+  /// No description provided for @arcadeUpdating.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在更新 {p0} / {p1}'**
+  String arcadeUpdating(String p0, String p1);
+
+  /// No description provided for @arcadeUpdateFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'更新失败，已保留当前数据'**
+  String get arcadeUpdateFailed;
+
+  /// No description provided for @arcadeNoMatchTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'没有符合条件的机厅'**
+  String get arcadeNoMatchTitle;
+
+  /// No description provided for @arcadeNoMatchHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'换个筛选条件，或者移动一下地图吧。'**
+  String get arcadeNoMatchHint;
+
+  /// No description provided for @arcadeNoFavoritesTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'还没有收藏的机厅'**
+  String get arcadeNoFavoritesTitle;
+
+  /// No description provided for @arcadeNoFavoritesHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'点星标收藏常去的机厅，就能在这里找到它们。'**
+  String get arcadeNoFavoritesHint;
+
+  /// No description provided for @arcadeNeedsUpdateToFavorite.
+  ///
+  /// In zh, this message translates to:
+  /// **'请先更新机厅数据，才能收藏机厅'**
+  String get arcadeNeedsUpdateToFavorite;
+
+  /// No description provided for @arcadeLegacyHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'机厅数据是旧版本，更新后可以收藏机厅并查看地铁信息。'**
+  String get arcadeLegacyHint;
+
+  /// No description provided for @arcadeNavigate.
+  ///
+  /// In zh, this message translates to:
+  /// **'导航'**
+  String get arcadeNavigate;
+
+  /// No description provided for @arcadeCopyAddress.
+  ///
+  /// In zh, this message translates to:
+  /// **'复制地址'**
+  String get arcadeCopyAddress;
+
+  /// No description provided for @arcadeViewOnNearcade.
+  ///
+  /// In zh, this message translates to:
+  /// **'在 nearcade 查看'**
+  String get arcadeViewOnNearcade;
+
+  /// No description provided for @arcadeCouldNotOpenLink.
+  ///
+  /// In zh, this message translates to:
+  /// **'无法打开链接'**
+  String get arcadeCouldNotOpenLink;
+
+  /// No description provided for @arcadeHours.
+  ///
+  /// In zh, this message translates to:
+  /// **'营业时间'**
+  String get arcadeHours;
+
+  /// No description provided for @arcadeEveryDay.
+  ///
+  /// In zh, this message translates to:
+  /// **'每天'**
+  String get arcadeEveryDay;
+
+  /// No description provided for @arcadeToday.
+  ///
+  /// In zh, this message translates to:
+  /// **'今天'**
+  String get arcadeToday;
+
+  /// No description provided for @arcadeMetroWalk.
+  ///
+  /// In zh, this message translates to:
+  /// **'{p0}站 · 步行约 {p1} 分钟'**
+  String arcadeMetroWalk(String p0, String p1);
+
+  /// No description provided for @arcadeMetroStation.
+  ///
+  /// In zh, this message translates to:
+  /// **'{p0}站'**
+  String arcadeMetroStation(String p0);
+
+  /// No description provided for @arcadeNote.
+  ///
+  /// In zh, this message translates to:
+  /// **'备注'**
+  String get arcadeNote;
+
+  /// No description provided for @arcadeFromYou.
+  ///
+  /// In zh, this message translates to:
+  /// **'距你 {p0}'**
+  String arcadeFromYou(String p0);
+
+  /// No description provided for @arcadeFilterAction.
+  ///
+  /// In zh, this message translates to:
+  /// **'筛选'**
+  String get arcadeFilterAction;
+
+  /// No description provided for @arcadeFilterSearchHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索机台'**
+  String get arcadeFilterSearchHint;
+
+  /// No description provided for @arcadeFilterEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'没有匹配的机台'**
+  String get arcadeFilterEmpty;
+
+  /// No description provided for @arcadeChooseMapApp.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择地图应用'**
+  String get arcadeChooseMapApp;
+
+  /// No description provided for @arcadeMapAmap.
+  ///
+  /// In zh, this message translates to:
+  /// **'高德地图'**
+  String get arcadeMapAmap;
+
+  /// No description provided for @arcadeMapBaidu.
+  ///
+  /// In zh, this message translates to:
+  /// **'百度地图'**
+  String get arcadeMapBaidu;
+
+  /// No description provided for @arcadeMapTencent.
+  ///
+  /// In zh, this message translates to:
+  /// **'腾讯地图'**
+  String get arcadeMapTencent;
+
+  /// No description provided for @arcadeMapGoogle.
+  ///
+  /// In zh, this message translates to:
+  /// **'Google 地图'**
+  String get arcadeMapGoogle;
+
+  /// No description provided for @arcadeMapApple.
+  ///
+  /// In zh, this message translates to:
+  /// **'Apple 地图'**
+  String get arcadeMapApple;
+
+  /// No description provided for @arcadeMapOther.
+  ///
+  /// In zh, this message translates to:
+  /// **'其他地图应用'**
+  String get arcadeMapOther;
+
+  /// No description provided for @arcadeMapWeb.
+  ///
+  /// In zh, this message translates to:
+  /// **'在浏览器中打开'**
+  String get arcadeMapWeb;
 }
 
 class _AppLocalizationsDelegate

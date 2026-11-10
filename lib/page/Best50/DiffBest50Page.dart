@@ -38,10 +38,13 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
   List<Map<String, dynamic>> _diffSongs = [];
   List<Map<String, dynamic>> _diffSdSongs = []; // Best35 - 非当前版本
   List<Map<String, dynamic>> _diffDxSongs = []; // Best15 - 当前版本
-  bool _isLoading = true;
+  bool _isLoading = true; // 只表示首次进入，之后切换时旧内容留在屏幕上
+  int _loadGeneration = 0;
+  int _resultVersion = 0; // 每换一批结果加一，新结果重新入场
 
   // 拟合Best50模式：0为模式A，1为模式B，2为模式C
   int _currentMode = 0;
+  int _resultMode = 0; // 屏幕上这批结果所属的模式
 
   // 尺寸相关变量
   late double screenWidth;
@@ -56,10 +59,13 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
   }
 
   Future<void> _loadDiffBest50Data() async {
+    final generation = ++_loadGeneration;
+    final mode = _currentMode;
     try {
       // 加载maimai音乐数据
       // 直接使用缓存的API数据
-      if (await MaimaiMusicDataManager().hasCachedData()) {
+      if (_maimaiMusicData == null &&
+          await MaimaiMusicDataManager().hasCachedData()) {
         final songs = await MaimaiMusicDataManager().getCachedSongs();
         if (songs != null && mounted) {
           setState(() {
@@ -94,7 +100,7 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
       // 根据模式计算DiffBest50数据
       final diffBest50Service = DiffBest50Service();
       late final diffBest50Data;
-      switch (_currentMode) {
+      switch (mode) {
         case 0:
           diffBest50Data = await diffBest50Service
               .calculateDiffBest50(); // 模式A：按拟合Rating重新排序
@@ -111,8 +117,10 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
           diffBest50Data = await diffBest50Service.calculateDiffBest50();
       }
 
-      if (!mounted) return;
+      if (!mounted || generation != _loadGeneration) return;
       setState(() {
+        _resultMode = mode;
+        _resultVersion++;
         _diffBest50Data = diffBest50Data;
         _diffSongs =
             List<Map<String, dynamic>>.from(diffBest50Data['diffBest50'] ?? []);
@@ -124,7 +132,7 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
       });
     } catch (e) {
       debugPrint('Error loading data: $e');
-      if (mounted) {
+      if (mounted && generation == _loadGeneration) {
         setState(() {
           _diffBest50Data = null;
           _diffSongs = [];
@@ -140,7 +148,6 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
   void _toggleMode() {
     setState(() {
       _currentMode = (_currentMode + 1) % 3;
-      _isLoading = true;
     });
     _loadDiffBest50Data();
   }
@@ -245,7 +252,7 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
     }
 
     // 模式 A 不分 B35 / B15，模式 B / C 才有分段。
-    final List<dynamic> songs = _currentMode == 0
+    final List<dynamic> songs = _resultMode == 0
         ? _diffSongs
         : (_segment == 0 ? _diffSdSongs : _diffDxSongs);
     return SingleChildScrollView(
@@ -261,12 +268,12 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
           _buildRatingSection(),
           const SizedBox(height: AppDesignTokens.cardGap),
           Best50Grid(
-            key: ValueKey('$_currentMode-$_segment'),
+            contentKey: '$_resultVersion-$_segment',
             items: [
               for (final s in songs) _cardData(Map<String, dynamic>.from(s))
             ],
             remaining: [
-              for (final s in (_diffBest50Data?[_currentMode == 0
+              for (final s in (_diffBest50Data?[_resultMode == 0
                           ? 'remaining'
                           : (_segment == 0 ? 'sdRemaining' : 'dxRemaining')]
                       as List?) ??
@@ -321,13 +328,13 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
         list.fold<int>(0, (sum, s) => sum + _toInt(s['diffRating']));
     final b35 = sumOf(_diffSdSongs);
     final b15 = sumOf(_diffDxSongs);
-    final split = _currentMode != 0;
+    final split = _resultMode != 0;
     final segmentSongs = _segment == 0 ? _diffSdSongs : _diffDxSongs;
     final segmentName = _segment == 0
-        ? (_currentMode == 1
+        ? (_resultMode == 1
             ? context.l10n.flowBestScoresFromOlderVersions
             : context.l10n.flowTop35FromOlderVersions)
-        : (_currentMode == 1
+        : (_resultMode == 1
             ? context.l10n.flowBestScoresFromThisVersion
             : context.l10n.flowTop15FromThisVersion);
     return Column(
@@ -363,7 +370,7 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
               segmentName, segmentSongs.map((s) => _toInt(s['diffRating'])))),
           const SizedBox(height: 4),
         ],
-        Best50MetaLine(modeNotes[_currentMode]),
+        Best50MetaLine(modeNotes[_resultMode]),
         if (noFitDiffCount > 0) ...[
           const SizedBox(height: 4),
           Best50MetaLine(
@@ -567,7 +574,7 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
           _diffBest50Data,
           _diffSongs,
           _maimaiMusicData,
-          currentMode: _currentMode,
+          currentMode: _resultMode,
           thunderMode: previewQuality.thunderMode,
           thunderVertical: previewQuality.thunderVertical,
           theme: previewQuality.theme,
@@ -583,7 +590,7 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
           _diffBest50Data,
           _diffSongs,
           _maimaiMusicData,
-          currentMode: _currentMode,
+          currentMode: _resultMode,
           jpegQuality: quality.jpegQuality,
           theme: quality.theme,
           thunderMode: quality.thunderMode,

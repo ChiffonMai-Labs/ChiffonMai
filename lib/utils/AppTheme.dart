@@ -1083,6 +1083,24 @@ class AppColors {
     }
   }
 
+  /// 全球机厅地图的机台系列色：地图标记和筛选胶囊同色，兼作图例。
+  static Color arcadeGame(int titleId, Brightness brightness) {
+    final base = switch (titleId) {
+      1 => const Color(0xFFE5487E), // maimai
+      3 => const Color(0xFFF08A24), // CHUNITHM
+      27 => const Color(0xFF8A5CF6), // オンゲキ
+      4 => const Color(0xFF14A8A0), // SOUND VOLTEX
+      5 => const Color(0xFF4C5BD4), // beatmania IIDX
+      31 || 15 => const Color(0xFF2F80ED), // 太鼓
+      34 => const Color(0xFF6FAE2C), // jubeat
+      17 => const Color(0xFFC04FD0), // WACCA
+      _ => const Color(0xFF6F8088),
+    };
+    return brightness == Brightness.dark
+        ? Color.lerp(base, Colors.white, 0.18)!
+        : base;
+  }
+
   /// utage（6位ID歌曲）主题色
   static Color utageAccent({Brightness brightness = Brightness.light}) {
     return brightness == Brightness.dark

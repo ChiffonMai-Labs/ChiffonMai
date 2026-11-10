@@ -7,6 +7,7 @@ import 'package:my_first_flutter_app/utils/ApiClient.dart';
 import '../../utils/CurrentDataSourceNotifier.dart';
 import '../../utils/CommunityProfileUtil.dart';
 import '../PlayerExperienceService.dart';
+import 'RankingUploadGuard.dart';
 
 enum RankingType {
   achievementRate,
@@ -219,13 +220,53 @@ class SongRankingService {
         songId, difficultyIndex, achievementRate, dxScore);
   }
 
+  /// 最近一次单曲榜上传被排行榜守卫拒绝时的说明（已本地化），供调用方展示。
+  String? lastGuardMessage;
+
+  /// 本次参与单曲榜的成绩（已剔除本地校验不通过的记录），交给排行榜守卫预检。
+  /// 字段与上传接口一致。
+  Future<List<Map<String, dynamic>>> prepareUploadRecords(
+    List<Map<String, dynamic>> records, {
+    List<dynamic>? songs,
+  }) async {
+    final resolvedSongs =
+        songs ?? await MaimaiMusicDataManager().getCachedSongs();
+    final songById = <String, dynamic>{
+      for (final song in resolvedSongs ?? const <dynamic>[]) song.id: song,
+    };
+    final result = <Map<String, dynamic>>[];
+    for (final record in records) {
+      try {
+        final songId = record['song_id'].toString();
+        final difficultyIndex =
+            int.tryParse(record['level_index'].toString()) ?? 0;
+        final achievementRate =
+            (record['achievements'] as num?)?.toDouble() ?? 0.0;
+        final dxScore = int.tryParse(record['dxScore'].toString()) ?? 0;
+        if (!_validateRecordSync(
+            songById, songId, difficultyIndex, achievementRate, dxScore)) {
+          continue;
+        }
+        result.add({
+          'songId': songId,
+          'difficultyIndex': difficultyIndex,
+          'achievementRate': achievementRate,
+          'dxScore': dxScore,
+        });
+      } catch (_) {}
+    }
+    return result;
+  }
+
   Future<bool> updateSongRankings(
     String playerId,
     String playerName,
     List<Map<String, dynamic>> records, {
     List<dynamic>? songs,
     void Function(int sentBatches, int totalBatches)? onBatchProgress,
+    String? uploadTicket,
   }) async {
+    lastGuardMessage = null;
     try {
       // 歌曲按 id 建索引，避免逐记录 indexWhere 全表扫描（O(记录数×歌曲数)），
       // 直接把校验从平方级降到线性。
@@ -335,6 +376,9 @@ class SongRankingService {
         final batch = payloadRecords.sublist(start, end);
         final response = await ApiClient.postGzip(
           Uri.parse(ApiUrls.SongRankingsBulkUpdateUrl),
+          headers: uploadTicket == null
+              ? null
+              : {RankingUploadGuard.ticketHeader: uploadTicket},
           body: {
             'playerId': playerId,
             'playerName': playerName,
@@ -347,6 +391,15 @@ class SongRankingService {
         if (response.statusCode != 200) {
           debugPrint(
               '[SongRankingService] bulk update HTTP ${response.statusCode}: ${response.body}');
+          // 被排行榜守卫拒绝时记下原因（非法成绩 / 冻结 / 黑名单 / 需要更新）
+          Map<String, dynamic>? errorBody;
+          try {
+            final decoded = json.decode(response.body);
+            if (decoded is Map<String, dynamic>) errorBody = decoded;
+          } catch (_) {}
+          lastGuardMessage = RankingUploadGuard.blockedFromResponse(
+                  playerId, response.statusCode, errorBody)
+              ?.message;
           return false;
         }
         final body = json.decode(response.body);

@@ -47,6 +47,7 @@ class _SpecialRankingListPageState extends State<SpecialRankingListPage> {
   final SpecialRankingListService _service = SpecialRankingListService();
   bool _isLoading = true;
   RankingType _currentRankingType = RankingType.breakCount;
+  RankingType _resultType = RankingType.breakCount; // 屏幕上这份榜单所属的类型
   int _requestGeneration = 0;
   bool _usingCachedData = false;
   bool _isReverse = false; // 当前排行榜是否为反向（仅对支持的排行榜生效）
@@ -61,21 +62,20 @@ class _SpecialRankingListPageState extends State<SpecialRankingListPage> {
 
   Future<void> _loadRanking({bool forceRefresh = false}) async {
     final generation = ++_requestGeneration;
+    final type = _currentRankingType;
     if (forceRefresh) {
       _service.forceRefreshNextRead = true;
     }
     setState(() {
       _isLoading = true;
       _errorMessage = null;
-      // 刷新开始后先移除旧的缓存提示；如果本次请求只能回退到缓存，
-      // 成功回调会再把它显示回来。
-      _usingCachedData = false;
     });
     try {
       final ranking = await _fetchCachedRanking();
       if (!mounted || generation != _requestGeneration) return;
       setState(() {
         _rankingList = ranking;
+        _resultType = type;
         _usingCachedData = _service.lastReadWasCached;
         _isLoading = false;
       });
@@ -83,6 +83,7 @@ class _SpecialRankingListPageState extends State<SpecialRankingListPage> {
       if (!mounted || generation != _requestGeneration) return;
       setState(() {
         _errorMessage = appL10n.flowCouldNotFetchLeaderboardP0((e).toString());
+        _usingCachedData = false;
         _isLoading = false;
       });
     }
@@ -195,7 +196,7 @@ class _SpecialRankingListPageState extends State<SpecialRankingListPage> {
   }
 
   Color _getRankingValueColor() {
-    switch (_currentRankingType) {
+    switch (_resultType) {
       case RankingType.breakRatio:
       case RankingType.slideRatio:
       case RankingType.touchRatio:
@@ -227,7 +228,7 @@ class _SpecialRankingListPageState extends State<SpecialRankingListPage> {
   String _formatRankingValue(SpecialRankingEntry entry) {
     final value = entry.breakCount;
     final precise = entry.metric ?? value.toDouble();
-    switch (_currentRankingType) {
+    switch (_resultType) {
       case RankingType.breakRatio:
       case RankingType.slideRatio:
       case RankingType.touchRatio:
@@ -257,7 +258,7 @@ class _SpecialRankingListPageState extends State<SpecialRankingListPage> {
   }
 
   String _getRankingValueLabel() {
-    switch (_currentRankingType) {
+    switch (_resultType) {
       case RankingType.breakRatio:
         return context.l10n.flowBREAKShare;
       case RankingType.difficultyGap:
@@ -495,7 +496,7 @@ class _SpecialRankingListPageState extends State<SpecialRankingListPage> {
                   Row(
                     children: [
                       SongTypeBadge(songId: entry.songId, type: entry.songType),
-                      if (_currentRankingType == RankingType.difficultyGap &&
+                      if (_resultType == RankingType.difficultyGap &&
                           entry.fromDifficultyIndex != null) ...[
                         const SizedBox(width: 6),
                         Expanded(
@@ -517,8 +518,7 @@ class _SpecialRankingListPageState extends State<SpecialRankingListPage> {
                             ],
                           ),
                         ),
-                      ] else if (_currentRankingType !=
-                          RankingType.bpmRanking) ...[
+                      ] else if (_resultType != RankingType.bpmRanking) ...[
                         const SizedBox(width: 4),
                         ChartDifficultyBadge(
                           levelIndex: entry.difficultyIndex,
@@ -648,13 +648,11 @@ class _SpecialRankingListPageState extends State<SpecialRankingListPage> {
                 label: (reverse) => reverse
                     ? context.l10n.flowReverse
                     : context.l10n.flowForward,
-                onChanged: _isLoading
-                    ? null
-                    : (reverse) {
-                        if (reverse == _isReverse) return;
-                        setState(() => _isReverse = reverse);
-                        _loadRanking();
-                      },
+                onChanged: (reverse) {
+                  if (reverse == _isReverse) return;
+                  setState(() => _isReverse = reverse);
+                  _loadRanking();
+                },
               ),
             ),
           ),
@@ -669,7 +667,7 @@ class _SpecialRankingListPageState extends State<SpecialRankingListPage> {
 
         // 排行榜列表
         Expanded(
-          child: _isLoading
+          child: _isLoading && _rankingList.isEmpty
               ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -718,6 +716,8 @@ class _SpecialRankingListPageState extends State<SpecialRankingListPage> {
                                 message: context.l10n
                                     .flowNoLeaderboardDataYetTryRefreshingLater)
                             : ListView.builder(
+                                // 拿到新榜单时重新挂载，首屏的行才会重新进场。
+                                key: ObjectKey(_rankingList),
                                 padding: const EdgeInsets.fromLTRB(
                                     AppDesignTokens.gutter,
                                     0,

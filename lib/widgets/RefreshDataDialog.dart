@@ -35,12 +35,14 @@ import '../service/History/ChartHistoryStore.dart';
 import '../service/AccountStore.dart';
 import '../service/AccountSwitchService.dart';
 import '../utils/SecureCredentialStore.dart';
+import '../utils/DivingFishMaskStatus.dart';
 import '../service/CommunityNicknameSyncService.dart';
 import '../service/ConnectivityService.dart';
 import '../service/PaiziProgressService.dart';
 import '../service/PersonalizedScoreService.dart';
 import '../service/RecommendByTagsService.dart';
 import '../service/RankingList/SongRankingService.dart';
+import '../service/RankingList/RankingUploadGuard.dart';
 import '../utils/ApiClient.dart';
 import '../utils/AppTheme.dart';
 import '../utils/CacheSourceRegistry.dart';
@@ -591,6 +593,9 @@ class _RefreshDataDialogState extends State<_RefreshDataDialog> {
             participate: participateRankings,
             showNickname: showNickname,
             showBriefProfile: showBriefProfile,
+            divingFishSource:
+                _currentDataSource == RefreshDataSource.shuiyu,
+            dataSourceKey: _currentDataSource.key,
             onChanged: (participate, nickname, brief) => setState(() {
                   participateRankings = participate;
                   showNickname = nickname;
@@ -931,54 +936,81 @@ Future<void> _refreshBest50DataWithProgressImpl(
     // 双账号：只写自己源的身份，不再删对方的（两套缓存各自保留）
     await prefs.setString(CacheKeyConstant.shuiyuUserId, userId);
 
-    if (participateRankings) {
-      final displayNickname = showNickname ? currentNickname : '匿名用户';
-      final records = userPlayData['records'] is List
-          ? (userPlayData['records'] as List).cast<Map<String, dynamic>>()
-          : <Map<String, dynamic>>[];
-      final rankingResults = await Future.wait<Object?>([
-        _updateRankings(
-          sourceProfile: userPlayData,
-          dataSource: 'shuiyu',
-          originalId: qq,
-          nickname: displayNickname,
+    // 水鱼开了成绩掩码时，读到的成绩是打过码的，不上传排行榜
+    final divingFishMasked = participateRankings &&
+        await DivingFishMaskStatus.instance.refresh();
+    if (divingFishMasked) {
+      debugPrint('[Ranking] 水鱼账号开启了成绩掩码，跳过排行榜上传');
+    }
+
+    // 排行榜上传未完成不影响成绩刷新：收尾步骤照常执行，最后再单独提示
+    RankingUploadException? rankingFailure;
+    try {
+      if (participateRankings && !divingFishMasked) {
+        final displayNickname = showNickname ? currentNickname : '匿名用户';
+        final records = userPlayData['records'] is List
+            ? (userPlayData['records'] as List).cast<Map<String, dynamic>>()
+            : <Map<String, dynamic>>[];
+        // 排行榜守卫预检：任何一处不合法就整次都不上传
+        final uploadTicket = await _precheckRankingUpload(
+          playerId: userId,
           totalRating: totalRA,
           best35Rating: best35RA,
           best15Rating: best15RA,
-          best35Records: best50Data.charts.sd,
-          best15Records: best50Data.charts.dx,
+          records: records,
           songs: songs,
-        ),
-        records.isEmpty
-            ? Future.value(true)
-            : SongRankingService().updateSongRankings(
-                userId,
-                displayNickname,
-                records,
-                songs: songs,
-                onBatchProgress: (sent, total) {
-                  final percent = 95 + ((sent * 4) ~/ total).clamp(0, 4);
-                  onProgress(
-                      percent,
-                      appL10n.flowUploadingSongRankingsP0P1(
-                          (sent).toString(), (total).toString()));
-                },
-              ),
-      ]);
-      rankingError = rankingResults[0] as String?;
-      final songRankingUpdated = rankingResults[1] as bool;
-      if (rankingError != null || !songRankingUpdated) {
-        throw StateError(
-            rankingError ?? appL10n.flowCouldNotUpdateSongLeaderboard);
+        );
+        final rankingResults = await Future.wait<Object?>([
+          _updateRankings(
+            sourceProfile: userPlayData,
+            dataSource: 'shuiyu',
+            originalId: qq,
+            nickname: displayNickname,
+            totalRating: totalRA,
+            best35Rating: best35RA,
+            best15Rating: best15RA,
+            best35Records: best50Data.charts.sd,
+            best15Records: best50Data.charts.dx,
+            songs: songs,
+            uploadTicket: uploadTicket,
+          ),
+          records.isEmpty
+              ? Future.value(true)
+              : SongRankingService().updateSongRankings(
+                  userId,
+                  displayNickname,
+                  records,
+                  songs: songs,
+                  uploadTicket: uploadTicket,
+                  onBatchProgress: (sent, total) {
+                    final percent = 95 + ((sent * 4) ~/ total).clamp(0, 4);
+                    onProgress(
+                        percent,
+                        appL10n.flowUploadingSongRankingsP0P1(
+                            (sent).toString(), (total).toString()));
+                  },
+                ),
+        ]);
+        rankingError = rankingResults[0] as String?;
+        final songRankingUpdated = rankingResults[1] as bool;
+        if (rankingError != null || !songRankingUpdated) {
+          throw RankingUploadException(
+              rankingError ??
+                  SongRankingService().lastGuardMessage ??
+                  appL10n.flowCouldNotUpdateSongLeaderboard,
+              RankingUploadException.issueOf(RankingUploadGuard.lastBlockedCode));
+        }
+      } else {
+        final deleteResults = await Future.wait<bool>([
+          _deleteRankings(userId),
+          SongRankingService().deleteSongRankings(userId),
+        ]);
+        if (deleteResults.any((success) => !success)) {
+          throw StateError(appL10n.flowCouldNotRemoveLeaderboardEntries);
+        }
       }
-    } else {
-      final deleteResults = await Future.wait<bool>([
-        _deleteRankings(userId),
-        SongRankingService().deleteSongRankings(userId),
-      ]);
-      if (deleteResults.any((success) => !success)) {
-        throw StateError(appL10n.flowCouldNotRemoveLeaderboardEntries);
-      }
+    } on RankingUploadException catch (e) {
+      rankingFailure = e;
     }
 
     PersonalizedScoreService().clearRecordsCache();
@@ -990,6 +1022,7 @@ Future<void> _refreshBest50DataWithProgressImpl(
 
     logRefresh('refresh-total', refreshStopwatch.elapsedMilliseconds);
     onProgress(100, appL10n.featureDone);
+    if (rankingFailure != null) throw rankingFailure;
   } catch (e) {
     rethrow;
   }
@@ -1177,51 +1210,71 @@ Future<void> _refreshAwmcNetDataWithProgressImpl(
   // 多账号：只写自己源的身份标记，不删对方的（各源缓存各自保留）
   await prefs.setString(CacheKeyConstant.awmcUserId, userId);
 
-  if (participateRankings) {
-    final displayNickname = showNickname ? currentNickname : '匿名用户';
-    final rankingResults = await Future.wait<Object?>([
-      _updateRankings(
-        sourceProfile: userPlayData,
-        dataSource: 'awmc',
-        originalId: qq,
-        nickname: displayNickname,
+  // 排行榜上传未完成不影响成绩刷新：收尾步骤照常执行，最后再单独提示
+  RankingUploadException? rankingFailure;
+  try {
+    if (participateRankings) {
+      final displayNickname = showNickname ? currentNickname : '匿名用户';
+      // 排行榜守卫预检：任何一处不合法就整次都不上传
+      final uploadTicket = await _precheckRankingUpload(
+        playerId: userId,
         totalRating: best35RA + best15RA,
         best35Rating: best35RA,
         best15Rating: best15RA,
-        best35Records: best50Data.charts.sd,
-        best15Records: best50Data.charts.dx,
+        records: records,
         songs: songs,
-      ),
-      records.isEmpty
-          ? Future.value(true)
-          : SongRankingService().updateSongRankings(
-              userId,
-              displayNickname,
-              records,
-              songs: songs,
-              onBatchProgress: (sent, total) {
-                final percent = 95 + ((sent * 4) ~/ total).clamp(0, 4);
-                onProgress(
-                    percent,
-                    appL10n.flowUploadingSongRankingsP0P1(
-                        (sent).toString(), (total).toString()));
-              },
-            ),
-    ]);
-    rankingError = rankingResults[0] as String?;
-    final songRankingUpdated = rankingResults[1] as bool;
-    if (rankingError != null || !songRankingUpdated) {
-      throw StateError(
-          rankingError ?? appL10n.flowCouldNotUpdateSongLeaderboard);
+      );
+      final rankingResults = await Future.wait<Object?>([
+        _updateRankings(
+          sourceProfile: userPlayData,
+          dataSource: 'awmc',
+          originalId: qq,
+          nickname: displayNickname,
+          totalRating: best35RA + best15RA,
+          best35Rating: best35RA,
+          best15Rating: best15RA,
+          best35Records: best50Data.charts.sd,
+          best15Records: best50Data.charts.dx,
+          songs: songs,
+          uploadTicket: uploadTicket,
+        ),
+        records.isEmpty
+            ? Future.value(true)
+            : SongRankingService().updateSongRankings(
+                userId,
+                displayNickname,
+                records,
+                songs: songs,
+                uploadTicket: uploadTicket,
+                onBatchProgress: (sent, total) {
+                  final percent = 95 + ((sent * 4) ~/ total).clamp(0, 4);
+                  onProgress(
+                      percent,
+                      appL10n.flowUploadingSongRankingsP0P1(
+                          (sent).toString(), (total).toString()));
+                },
+              ),
+      ]);
+      rankingError = rankingResults[0] as String?;
+      final songRankingUpdated = rankingResults[1] as bool;
+      if (rankingError != null || !songRankingUpdated) {
+        throw RankingUploadException(
+            rankingError ??
+                SongRankingService().lastGuardMessage ??
+                appL10n.flowCouldNotUpdateSongLeaderboard,
+            RankingUploadException.issueOf(RankingUploadGuard.lastBlockedCode));
+      }
+    } else {
+      final deleteResults = await Future.wait<bool>([
+        _deleteRankings(userId),
+        SongRankingService().deleteSongRankings(userId),
+      ]);
+      if (deleteResults.any((success) => !success)) {
+        throw StateError(appL10n.flowCouldNotRemoveLeaderboardEntries);
+      }
     }
-  } else {
-    final deleteResults = await Future.wait<bool>([
-      _deleteRankings(userId),
-      SongRankingService().deleteSongRankings(userId),
-    ]);
-    if (deleteResults.any((success) => !success)) {
-      throw StateError(appL10n.flowCouldNotRemoveLeaderboardEntries);
-    }
+  } on RankingUploadException catch (e) {
+    rankingFailure = e;
   }
 
   if (rankingError != null) {
@@ -1230,6 +1283,7 @@ Future<void> _refreshAwmcNetDataWithProgressImpl(
 
   logRefresh('awmc-refresh-total', refreshStopwatch.elapsedMilliseconds);
   onProgress(100, appL10n.featureDone);
+  if (rankingFailure != null) throw rankingFailure;
 }
 
 Future<void> _handleLuoXueAuthWithProgress(
@@ -1434,54 +1488,74 @@ Future<void> _handleLuoXueAuthWithProgressImpl(
     onProgress(95, appL10n.flowSavingData);
 
     String? rankingError;
+    // 排行榜上传未完成不影响成绩刷新：收尾步骤照常执行，最后再单独提示
+    RankingUploadException? rankingFailure;
     {
       final userId = 'luoxue:${playerInfo.friendCode}';
-      if (participateRankings) {
-        final displayNickname = showNickname ? currentNickname : '匿名用户';
-        final records = playerRecords.map((record) => record.toJson()).toList();
-        final rankingResults = await Future.wait<Object?>([
-          _updateRankings(
-            sourceProfile: playerInfo.toJson(),
-            dataSource: 'luoxue',
-            originalId: playerInfo.friendCode.toString(),
-            nickname: displayNickname,
+      try {
+        if (participateRankings) {
+          final displayNickname = showNickname ? currentNickname : '匿名用户';
+          final records = playerRecords.map((record) => record.toJson()).toList();
+          // 排行榜守卫预检：任何一处不合法就整次都不上传
+          final uploadTicket = await _precheckRankingUpload(
+            playerId: userId,
             totalRating: best35RA + best15RA,
             best35Rating: best35RA,
             best15Rating: best15RA,
-            best35Records: best35Records,
-            best15Records: best15Records,
+            records: records,
             songs: songs,
-          ),
-          records.isEmpty
-              ? Future.value(true)
-              : SongRankingService().updateSongRankings(
-                  userId,
-                  displayNickname,
-                  records,
-                  songs: songs,
-                  onBatchProgress: (sent, total) {
-                    final percent = 95 + ((sent * 4) ~/ total).clamp(0, 4);
-                    onProgress(
-                        percent,
-                        appL10n.flowUploadingSongRankingsP0P1(
-                            (sent).toString(), (total).toString()));
-                  },
-                ),
-        ]);
-        rankingError = rankingResults[0] as String?;
-        final songRankingUpdated = rankingResults[1] as bool;
-        if (rankingError != null || !songRankingUpdated) {
-          throw StateError(
-              rankingError ?? appL10n.flowCouldNotUpdateSongLeaderboard);
+          );
+          final rankingResults = await Future.wait<Object?>([
+            _updateRankings(
+              sourceProfile: playerInfo.toJson(),
+              dataSource: 'luoxue',
+              originalId: playerInfo.friendCode.toString(),
+              nickname: displayNickname,
+              totalRating: best35RA + best15RA,
+              best35Rating: best35RA,
+              best15Rating: best15RA,
+              best35Records: best35Records,
+              best15Records: best15Records,
+              songs: songs,
+              uploadTicket: uploadTicket,
+            ),
+            records.isEmpty
+                ? Future.value(true)
+                : SongRankingService().updateSongRankings(
+                    userId,
+                    displayNickname,
+                    records,
+                    songs: songs,
+                    uploadTicket: uploadTicket,
+                    onBatchProgress: (sent, total) {
+                      final percent = 95 + ((sent * 4) ~/ total).clamp(0, 4);
+                      onProgress(
+                          percent,
+                          appL10n.flowUploadingSongRankingsP0P1(
+                              (sent).toString(), (total).toString()));
+                    },
+                  ),
+          ]);
+          rankingError = rankingResults[0] as String?;
+          final songRankingUpdated = rankingResults[1] as bool;
+          if (rankingError != null || !songRankingUpdated) {
+            throw RankingUploadException(
+                rankingError ??
+                    SongRankingService().lastGuardMessage ??
+                    appL10n.flowCouldNotUpdateSongLeaderboard,
+                RankingUploadException.issueOf(RankingUploadGuard.lastBlockedCode));
+          }
+        } else {
+          final deleteResults = await Future.wait<bool>([
+            _deleteRankings(userId),
+            SongRankingService().deleteSongRankings(userId),
+          ]);
+          if (deleteResults.any((success) => !success)) {
+            throw StateError(appL10n.flowCouldNotRemoveLeaderboardEntries);
+          }
         }
-      } else {
-        final deleteResults = await Future.wait<bool>([
-          _deleteRankings(userId),
-          SongRankingService().deleteSongRankings(userId),
-        ]);
-        if (deleteResults.any((success) => !success)) {
-          throw StateError(appL10n.flowCouldNotRemoveLeaderboardEntries);
-        }
+      } on RankingUploadException catch (e) {
+        rankingFailure = e;
       }
     }
 
@@ -1494,6 +1568,7 @@ Future<void> _handleLuoXueAuthWithProgressImpl(
 
     logRefresh('refresh-total', refreshStopwatch.elapsedMilliseconds);
     onProgress(100, appL10n.featureDone);
+    if (rankingFailure != null) throw rankingFailure;
   } catch (e) {
     rethrow;
   }
@@ -1510,6 +1585,7 @@ Future<String?> _updateRankings({
   List<RecordItem>? best35Records,
   List<RecordItem>? best15Records,
   List<Song>? songs,
+  String? uploadTicket,
 }) async {
   try {
     final ratingLimits = await _calculateRatingLimits(songs: songs);
@@ -1534,8 +1610,7 @@ Future<String?> _updateRankings({
           '  理论上限: Best50=${ratingLimits.best50Limit}, Best35=${ratingLimits.best35Limit}, Best15=${ratingLimits.best15Limit}');
 
       if (best35Records != null && best35Records.isNotEmpty) {
-        final sorted = List<RecordItem>.from(best35Records)
-          ..sort((a, b) => b.ra.compareTo(a.ra));
+        final sorted = best35Records;
         debugPrint('  --- 用户 Best35 记录 (按RA降序) ---');
         for (int i = 0; i < sorted.length; i++) {
           final r = sorted[i];
@@ -1544,8 +1619,7 @@ Future<String?> _updateRankings({
         }
       }
       if (best15Records != null && best15Records.isNotEmpty) {
-        final sorted = List<RecordItem>.from(best15Records)
-          ..sort((a, b) => b.ra.compareTo(a.ra));
+        final sorted = best15Records;
         debugPrint('  --- 用户 Best15 记录 (按RA降序) ---');
         for (int i = 0; i < sorted.length; i++) {
           final r = sorted[i];
@@ -1569,10 +1643,14 @@ Future<String?> _updateRankings({
     final selectedPlate = prefs.getInt(CacheKeyConstant.selectedPlateIdCache);
     final response = await ApiClient.post(
       Uri.parse(ApiUrls.RankingsUpdateUrl),
-      headers: share || dataSource == 'luoxue'
-          ? await PlayerExperienceService.ownerHeaders(
-              '$dataSource:$originalId')
-          : {'Content-Type': 'application/json'},
+      headers: {
+        ...(share || dataSource == 'luoxue'
+            ? await PlayerExperienceService.ownerHeaders(
+                '$dataSource:$originalId')
+            : {'Content-Type': 'application/json'}),
+        // 排行榜守卫的预检凭证
+        if (uploadTicket != null) RankingUploadGuard.ticketHeader: uploadTicket,
+      },
       body: json.encode({
         if (dataSource == 'luoxue')
           'initialAppearance': {
@@ -1611,6 +1689,12 @@ Future<String?> _updateRankings({
       }
     } else {
       final body = jsonDecode(response.body);
+      // 被排行榜守卫拒绝：给出具体原因（非法成绩 / 冻结 / 黑名单 / 需要更新）
+      final guard = RankingUploadGuard.blockedFromResponse(
+          '$dataSource:$originalId',
+          response.statusCode,
+          body is Map<String, dynamic> ? body : null);
+      if (guard != null) return guard.message;
       return appL10n.flowCouldNotUpdateLeaderboardDataP0((body is Map
               ? body['error'] ?? response.statusCode
               : response.statusCode)
@@ -1621,6 +1705,36 @@ Future<String?> _updateRankings({
     debugPrint('更新排行榜数据时发生异常: $e');
     return appL10n.flowLeaderboardUpdateErrorP0((e).toString());
   }
+}
+
+/// 排行榜上传前预检（见 RankingUploadGuard）。
+///
+/// 把本次的 Rating 与全部单曲成绩一次交给服务端校验：通过返回凭证（服务端未部署守卫时为 null），
+/// 不通过直接抛出带具体原因的错误，Rating 榜与单曲榜都不会写入。
+Future<String?> _precheckRankingUpload({
+  required String playerId,
+  required int totalRating,
+  required int best35Rating,
+  required int best15Rating,
+  required List<Map<String, dynamic>> records,
+  List<Song>? songs,
+}) async {
+  final prepared =
+      await SongRankingService().prepareUploadRecords(records, songs: songs);
+  final result = await RankingUploadGuard.precheck(
+    playerId: playerId,
+    totalRating: totalRating,
+    best35Rating: best35Rating,
+    best15Rating: best15Rating,
+    records: prepared,
+    titles: {for (final song in songs ?? const <Song>[]) song.id: song.title},
+  );
+  if (!result.ok) {
+    throw RankingUploadException(
+        result.message ?? appL10n.flowCouldNotUpdateSongLeaderboard,
+        RankingUploadException.issueOf(result.code));
+  }
+  return result.ticket;
 }
 
 Future<bool> _deleteRankings(String userId) async {
@@ -1713,23 +1827,8 @@ Future<({List<RecordItem>? best35, List<RecordItem>? best15})?>
       return null;
     }
 
-    final isNewById = <String, bool>{
-      for (final song in resolvedSongs) song.id: song.basicInfo.isNew,
-    };
-    final oldSongs = <RecordItem>[];
-    final newSongs = <RecordItem>[];
-    for (final record in playerRecords) {
-      if (isNewById[record.songId.toString()] ?? false) {
-        newSongs.add(record);
-      } else {
-        oldSongs.add(record);
-      }
-    }
-    oldSongs.sort((a, b) => b.ra.compareTo(a.ra));
-    newSongs.sort((a, b) => b.ra.compareTo(a.ra));
-
-    final best35 = oldSongs.take(35).toList();
-    final best15 = newSongs.take(15).toList();
+    final (:best35, :best15) =
+        UserBest50Manager.selectCharts(playerRecords, resolvedSongs);
 
     final best35RA = best35.fold(0, (s, r) => s + r.ra);
     final best15RA = best15.fold(0, (s, r) => s + r.ra);

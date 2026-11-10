@@ -3,6 +3,7 @@ import '../l10n/AppMessages.dart';
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import '../widgets/SongTitleDialog.dart';
 import '../utils/ChartBpmInfo.dart';
+import '../utils/RatingSegmentPreferences.dart';
 import '../utils/SongDetailPreferences.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'dart:async';
@@ -191,6 +192,9 @@ class _SongInfoPageState extends State<_SongInfoView> {
 
   /// 当前谱面类型的国服首次上线日期，来自落雪曲目列表；没上国服时为空。
   String? _cnReleaseDate;
+
+  /// 当前谱面类型各难度的国服上线日期（yyyy-MM-dd），用来提示尚未上线谱面的异常成绩。
+  Map<int, String> _cnChartReleaseDates = const {};
   Map<String, dynamic>? _songData;
   List<dynamic>? _diffData; // 保持为dynamic类型，兼容Map和DiffData
   Map<String, dynamic>? _userData;
@@ -320,6 +324,9 @@ class _SongInfoPageState extends State<_SongInfoView> {
   int? _userTotalRating;
   int? _theoreticalRating;
   String? _best50OpportunityText;
+
+  /// 上分潜力的首次结果是否已显示；此后才允许尺寸过渡。
+  bool _best50OpportunitySettled = false;
 
   /// 上分潜力能加多少分；null 表示没有可加的分（只显示说明）。
   int? _best50OpportunityGain;

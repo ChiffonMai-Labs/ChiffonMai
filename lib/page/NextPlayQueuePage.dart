@@ -2,6 +2,7 @@ import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import '../service/NextPlayQueueStore.dart';
+import '../widgets/EmptyState.dart';
 import '../widgets/AppHeader.dart';
 import '../utils/CommonWidgetUtil.dart';
 import '../utils/CoverUtil.dart';
@@ -54,7 +55,10 @@ class _NextPlayQueuePageState extends State<NextPlayQueuePage> {
             ]),
             Expanded(
               child: entries.isEmpty
-                  ?  Center(child: Text(context.l10n.flowNoSongsAddedYetUseAddTo))
+                  ? EmptyState(
+                      icon: Icons.queue_music_rounded,
+                      message: context.l10n.flowNoSongsAddedYetUseAddTo,
+                    )
                   : ReorderableListView.builder(
                       padding: const EdgeInsets.fromLTRB(8, 8, 8, 24),
                       itemCount: entries.length,

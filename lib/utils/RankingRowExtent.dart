@@ -28,13 +28,29 @@ import 'package:flutter/widgets.dart';
 /// ⚠️ 原型行必须是**内容最全**的那一行（该有的可选文本都在、名次用第 1 名好拿到
 /// 28dp 的奖杯徽章），否则真实行会被这个高度压扁成 RenderFlex 溢出。
 class RankingRowExtent {
+  GlobalKey _key = GlobalKey();
+  Object? _list;
+
   /// 挂到 `prototypeItem` 那一行上的 key（外层套一层 [KeyedSubtree] 也行，
   /// 量到的是它子树的尺寸）。
-  final GlobalKey key = GlobalKey();
+  GlobalKey get key => _key;
+
+  /// 列表按 `ObjectKey(list)` 换挂载时用这个取 key，每份新列表换一把新 key。
+  ///
+  /// ⚠️ 不能让新旧列表共用同一把：新列表会接管旧列表的原型元素，而框架的
+  /// `SliverPrototypeExtentList` 不会清掉旧引用，旧列表卸载时把它一起卸掉，
+  /// 下一次重建就会抛错，release 下整块列表变成灰色的 ErrorWidget。
+  GlobalKey keyFor(Object list) {
+    if (!identical(list, _list)) {
+      _list = list;
+      _key = GlobalKey();
+    }
+    return _key;
+  }
 
   /// 实测行高；列表还没完成过一次布局时为 null。
   double? get rowHeight {
-    final box = key.currentContext?.findRenderObject() as RenderBox?;
+    final box = _key.currentContext?.findRenderObject() as RenderBox?;
     if (box == null || !box.hasSize) return null;
     return box.size.height;
   }

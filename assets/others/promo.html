@@ -4,1248 +4,1169 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#0b0c0f">
-  <meta name="description" content="ChiffonMai 是面向舞萌 DX 玩家的开源 Android 工具箱。">
+  <meta name="theme-color" content="#eef3f2" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0f1514" media="(prefers-color-scheme: dark)">
+  <meta name="description" content="ChiffonMai 是面向舞萌 DX 玩家的第三方开源 Android 工具箱：查曲、成绩分析、上分推荐、谱面播放、猜歌与成绩同步。">
   <title>ChiffonMai — 舞萌 DX 工具箱</title>
   <link rel="icon" href="../icon.png" type="image/png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet">
   <style>
+    /* ============ 令牌：与 App 3.0 的 AppDesignTokens / AppSurfaces 同一套 ============ */
     :root {
-      --bg: #0b0c0f;
-      --panel: #121419;
-      --panel2: #181b22;
-      --ink: #f5f7fb;
-      --muted: #a2a7b3;
-      --dim: #747a88;
-      --line: #2b303a;
-      --lime: #c8f169;
-      --cyan: #8de4ee;
-      --orange: #ff916c;
-      --max: 1180px;
-      --radius: 14px
+      --page: #eef3f2;          /* 页面底：浅灰绿，不是纯白 */
+      --card: #ffffff;          /* 白卡片 */
+      --inset: #e6eeec;         /* 卡内凹槽 */
+      --track: #dde7e5;         /* 轨道 / 胶囊底 */
+      --ink: #142120;
+      --muted: #52625f;
+      --dim: #7c8b88;
+      --line: #d3dfdc;
+      --primary: #006a6a;       /* App 默认 seed 色 */
+      --primary-ink: #ffffff;
+      --primary-soft: #cfeceb;
+      --primary-strong: #004f4f;
+      --basic: #4caf50;
+      --advanced: #ffb300;
+      --expert: #e53935;
+      --master: #9c4dcc;
+      --remaster: #ce93d8;
+      --shadow: 0 1px 2px rgba(20, 33, 32, .05), 0 12px 32px -12px rgba(20, 33, 32, .14);
+      --r-sm: 12px;
+      --r-md: 16px;
+      --r-card: 22px;
+      --r-lg: 28px;
+      --max: 1160px;
+      --gutter: 16px;
     }
 
-    * {
-      box-sizing: border-box
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --page: #0f1514;
+        --card: #172120;
+        --inset: #111a19;
+        --track: #1f2b2a;
+        --ink: #e6efed;
+        --muted: #a3b3b0;
+        --dim: #758582;
+        --line: #26332f;
+        --primary: #4fd8d6;
+        --primary-ink: #002020;
+        --primary-soft: #133b3a;
+        --primary-strong: #80ecea;
+        --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 16px 40px -16px rgba(0, 0, 0, .6);
+      }
     }
 
-    html {
-      scroll-behavior: smooth;
-      scroll-padding-top: 78px
+    :root[data-theme="dark"] {
+      --page: #0f1514;
+      --card: #172120;
+      --inset: #111a19;
+      --track: #1f2b2a;
+      --ink: #e6efed;
+      --muted: #a3b3b0;
+      --dim: #758582;
+      --line: #26332f;
+      --primary: #4fd8d6;
+      --primary-ink: #002020;
+      --primary-soft: #133b3a;
+      --primary-strong: #80ecea;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 16px 40px -16px rgba(0, 0, 0, .6);
     }
+
+    /* ============ 基础 ============ */
+    *, *::before, *::after { box-sizing: border-box }
+
+    html { scroll-behavior: smooth; scroll-padding-top: 88px }
 
     body {
       margin: 0;
-      background: var(--bg);
+      background: var(--page);
       color: var(--ink);
-      font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-      line-height: 1.6;
-      -webkit-font-smoothing: antialiased
+      font-family: "Outfit", "Noto Sans SC", ui-sans-serif, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
     }
 
-    a {
-      color: inherit;
-      text-decoration: none
-    }
+    a { color: inherit; text-decoration: none }
+    h1, h2, h3, p { margin: 0 }
+    img { display: block }
+    .num { font-variant-numeric: tabular-nums }
 
-    button {
-      font: inherit
-    }
+    .wrap { width: min(var(--max), 100% - var(--gutter) * 2); margin-inline: auto }
 
-    .wrap {
-      width: min(var(--max), calc(100% - 48px));
-      margin: 0 auto
-    }
+    :focus-visible { outline: 2.5px solid var(--primary); outline-offset: 3px; border-radius: 8px }
 
-    .topbar {
-      position: fixed;
-      z-index: 50;
-      inset: 0 0 auto;
-      border-bottom: 1px solid transparent;
-      background: rgba(11, 12, 15, .72);
-      backdrop-filter: blur(18px);
-      transition: .2s
-    }
-
-    .topbar.scrolled {
-      border-color: var(--line);
-      background: rgba(11, 12, 15, .94)
-    }
-
+    /* ============ 顶部导航：悬浮胶囊 ============ */
     .nav {
-      display: flex;
-      height: 72px;
-      align-items: center;
-      justify-content: space-between;
-      gap: 28px
-    }
-
-    .brand {
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
-      font-weight: 800;
-      letter-spacing: -.03em
-    }
-
-    .brand img {
-      width: 32px;
-      height: 32px;
-      border: 1px solid var(--line);
-      border-radius: 9px
-    }
-
-    .brand small {
-      display: block;
-      color: var(--dim);
-      font-size: 9px;
-      font-weight: 650;
-      letter-spacing: .11em;
-      line-height: 1;
-      text-transform: uppercase
-    }
-
-    .navlinks {
-      display: flex;
-      align-items: center;
-      gap: 25px;
-      color: var(--muted);
-      font-size: 13px;
-      font-weight: 650
-    }
-
-    .navlinks a:hover {
-      color: var(--ink)
-    }
-
-    .nav-cta,
-    .button.primary {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      border: 0;
-      border-radius: 8px;
-      padding: 10px 15px;
-      color: #111;
-      background: var(--lime);
-      font-size: 13px;
-      font-weight: 800;
-      transition: .2s
-    }
-
-    .nav-cta:hover,
-    .button.primary:hover {
-      background: #dcff8b;
-      transform: translateY(-2px)
-    }
-
-    .menu {
-      display: none;
-      width: 38px;
-      height: 38px;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      color: var(--ink);
-      background: transparent;
-      cursor: pointer
-    }
-
-    .hero {
-      position: relative;
-      min-height: 760px;
-      padding: 166px 0 94px;
-      overflow: hidden;
-      background-image: linear-gradient(rgba(255, 255, 255, .045) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, .045) 1px, transparent 1px);
-      background-size: 56px 56px;
-      background-position: center top
-    }
-
-    .hero:after {
-      content: "";
-      position: absolute;
-      inset: 0;
+      position: fixed; z-index: 40; top: 14px; left: 0; right: 0;
       pointer-events: none;
-      background: radial-gradient(ellipse at 50% 20%, transparent 0 40%, var(--bg) 78%)
     }
 
-    .hero-inner {
-      position: relative;
-      z-index: 1;
-      display: grid;
-      grid-template-columns: 1.05fr .95fr;
-      align-items: center;
-      gap: 75px
+    .nav-bar {
+      pointer-events: auto;
+      display: flex; align-items: center; gap: 8px;
+      width: min(var(--max), 100% - var(--gutter) * 2); margin-inline: auto;
+      padding: 8px 8px 8px 14px;
+      border: 1px solid transparent;
+      border-radius: 999px;
+      transition: background .25s, border-color .25s, box-shadow .25s;
     }
 
-    .eyebrow {
-      display: inline-flex;
-      align-items: center;
-      gap: 9px;
-      margin-bottom: 23px;
-      color: var(--lime);
-      font-size: 11px;
-      font-weight: 800;
-      letter-spacing: .15em;
-      text-transform: uppercase
+    .nav.scrolled .nav-bar {
+      background: color-mix(in srgb, var(--card) 86%, transparent);
+      border-color: var(--line);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(16px) saturate(1.4);
+      -webkit-backdrop-filter: blur(16px) saturate(1.4);
     }
 
-    .eyebrow i {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: var(--lime);
-      box-shadow: 0 0 0 5px rgba(200, 241, 105, .12)
+    .brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 800; font-size: 17px; letter-spacing: -.02em; margin-right: auto }
+    .brand img { width: 32px; height: 32px; border-radius: 10px }
+
+    .nav-links { display: flex; gap: 2px }
+    .nav-links a {
+      padding: 8px 14px; border-radius: 999px;
+      color: var(--muted); font-size: 14px; font-weight: 600;
+      transition: color .2s, background .2s;
+    }
+    .nav-links a:hover { color: var(--ink); background: var(--track) }
+
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      min-height: 44px; padding: 0 20px;
+      border: 0; border-radius: 999px;
+      font: inherit; font-size: 15px; font-weight: 700;
+      cursor: pointer;
+      transition: transform .2s cubic-bezier(.2, .8, .2, 1), background .2s, box-shadow .2s;
+    }
+    .btn:active { transform: scale(.96) }
+    .btn-primary { background: var(--primary); color: var(--primary-ink) }
+    .btn-primary:hover { background: var(--primary-strong); box-shadow: 0 8px 22px -8px color-mix(in srgb, var(--primary) 70%, transparent) }
+    .btn-soft { background: var(--card); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line) }
+    .btn-soft:hover { background: var(--inset) }
+    .btn-sm { min-height: 38px; padding: 0 16px; font-size: 14px }
+    .btn svg { width: 17px; height: 17px; flex: none }
+
+    .menu-btn {
+      display: none; width: 40px; height: 40px; place-items: center;
+      border: 0; border-radius: 50%; background: var(--card); color: var(--ink);
+      box-shadow: inset 0 0 0 1px var(--line); cursor: pointer;
+    }
+    .menu-btn svg { width: 20px; height: 20px }
+
+    /* ============ Hero ============ */
+    .hero { position: relative; padding: 132px 0 72px }
+
+    .hero::before {
+      content: ""; position: absolute; inset: 0 0 auto; height: 720px; z-index: -1;
+      background:
+        radial-gradient(600px 360px at 85% 18%, color-mix(in srgb, var(--remaster) 30%, transparent), transparent 70%),
+        radial-gradient(520px 340px at 62% 70%, color-mix(in srgb, var(--primary) 18%, transparent), transparent 70%),
+        radial-gradient(420px 300px at 8% 10%, color-mix(in srgb, var(--advanced) 14%, transparent), transparent 70%);
+      pointer-events: none;
     }
 
-    h1,
-    h2,
-    h3,
-    p {
-      margin-top: 0
+    .hero-grid { display: grid; grid-template-columns: 1.08fr .92fr; gap: 56px; align-items: center }
+
+    .pill-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 26px }
+    .pill {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 6px 12px; border-radius: 999px;
+      background: var(--card); box-shadow: inset 0 0 0 1px var(--line);
+      color: var(--muted); font-size: 13px; font-weight: 600;
     }
+    .pill b { color: var(--primary); font-weight: 800 }
+    .pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--basic); box-shadow: 0 0 0 4px color-mix(in srgb, var(--basic) 20%, transparent) }
 
     h1 {
-      max-width: 700px;
-      margin-bottom: 25px;
-      font-size: clamp(47px, 7.5vw, 86px);
-      line-height: .99;
-      letter-spacing: -.075em
-    }
-
-    h1 em {
-      color: var(--lime);
-      font-style: normal
-    }
-
-    .hero-lead {
-      max-width: 575px;
-      margin-bottom: 32px;
-      color: var(--muted);
-      font-size: 18px;
-      line-height: 1.75
-    }
-
-    .hero-actions {
-      display: flex;
-      align-items: center;
-      gap: 11px;
-      margin-bottom: 44px
-    }
-
-    .button {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 10px 15px;
-      color: var(--ink);
-      background: rgba(18, 20, 25, .8);
-      font-size: 13px;
-      font-weight: 800;
-      cursor: pointer;
-      transition: .2s
-    }
-
-    .button:hover {
-      border-color: #626979;
-      transform: translateY(-2px)
-    }
-
-    .button.ghost {
-      color: var(--muted)
-    }
-
-    .hero-metrics {
-      display: flex;
-      gap: 27px;
-      flex-wrap: wrap
-    }
-
-    .metric strong {
-      display: block;
-      color: var(--ink);
-      font-size: 20px;
-      letter-spacing: -.04em
-    }
-
-    .metric span {
-      display: block;
-      color: var(--dim);
-      font-size: 11px
-    }
-
-    .console {
-      position: relative;
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      background: rgba(18, 20, 25, .94);
-      box-shadow: 0 30px 90px rgba(0, 0, 0, .45);
-      overflow: hidden
-    }
-
-    .console-bar {
-      display: flex;
-      align-items: center;
-      gap: 7px;
-      padding: 13px 15px;
-      border-bottom: 1px solid var(--line);
-      color: var(--dim);
-      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-      font-size: 11px
-    }
-
-    .console-dot {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: #ff706c
-    }
-
-    .console-dot:nth-child(2) {
-      background: #f5c95d
-    }
-
-    .console-dot:nth-child(3) {
-      background: #9dda72
-    }
-
-    .console-title {
-      margin-left: 5px
-    }
-
-    .console-body {
-      padding: 22px 21px 20px;
-      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-      font-size: 12px
-    }
-
-    .command {
-      margin-bottom: 18px;
-      color: var(--muted)
-    }
-
-    .command b {
-      color: var(--lime);
-      font-weight: 500
-    }
-
-    .json {
-      display: grid;
-      gap: 5px;
-      padding: 16px;
-      border: 1px solid #303640;
-      border-radius: 10px;
-      background: #0d0f13;
-      color: #bfc5d0
-    }
-
-    .json .key {
-      color: var(--cyan)
-    }
-
-    .json .value {
-      color: var(--lime)
-    }
-
-    .score-row {
-      display: grid;
-      grid-template-columns: 1.2fr .6fr .5fr;
-      gap: 10px;
-      align-items: center;
-      margin-top: 18px;
-      padding-top: 16px;
-      border-top: 1px solid var(--line);
-      color: var(--muted);
-      font-size: 11px
-    }
-
-    .score-row strong {
-      color: var(--ink);
-      font-size: 14px
-    }
-
-    .score-row em {
-      color: var(--orange);
-      font-style: normal;
-      font-weight: 800
-    }
-
-    .console-tag {
-      position: absolute;
-      right: -15px;
-      top: 65px;
-      padding: 10px 13px;
-      border: 1px solid #566137;
-      border-radius: 8px;
-      color: #dff9a3;
-      background: #28351b;
-      font-family: ui-monospace, monospace;
-      font-size: 11px;
-      transform: rotate(4deg)
-    }
-
-    .section {
-      padding: 112px 0;
-      border-top: 1px solid #191c22
-    }
-
-    .section.alt {
-      background: #0f1115
-    }
-
-    .section-head {
-      display: flex;
-      align-items: end;
-      justify-content: space-between;
-      gap: 25px;
-      margin-bottom: 42px
-    }
-
-    .kicker {
-      margin-bottom: 13px;
-      color: var(--lime);
-      font-size: 11px;
-      font-weight: 800;
-      letter-spacing: .15em;
-      text-transform: uppercase
-    }
-
-    .section h2 {
-      margin-bottom: 0;
-      font-size: clamp(32px, 4.8vw, 57px);
-      line-height: 1.03;
-      letter-spacing: -.07em
-    }
-
-    .section-head p {
-      max-width: 390px;
-      margin-bottom: 3px;
-      color: var(--muted);
-      font-size: 14px
-    }
-
-    .feature-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 12px
-    }
-
-    .feature {
-      min-height: 245px;
-      padding: 25px;
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      background: var(--panel);
-      transition: .25s
-    }
-
-    .feature:hover {
-      border-color: #57606e;
-      transform: translateY(-5px);
-      background: var(--panel2)
-    }
-
-    .feature-top {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 44px
-    }
-
-    .feature-index {
-      color: var(--dim);
-      font-family: ui-monospace, monospace;
-      font-size: 11px
-    }
-
-    .feature-symbol {
-      display: grid;
-      width: 34px;
-      height: 34px;
-      place-items: center;
-      border-radius: 9px;
-      color: #101216;
-      background: var(--lime);
-      font-size: 16px;
-      font-weight: 900
-    }
-
-    .feature:nth-child(2) .feature-symbol {
-      background: var(--cyan)
-    }
-
-    .feature:nth-child(3) .feature-symbol {
-      background: var(--orange)
-    }
-
-    .feature:nth-child(4) .feature-symbol {
-      background: #d4b4ff
-    }
-
-    .feature:nth-child(5) .feature-symbol {
-      background: #ffc85b
-    }
-
-    .feature:nth-child(6) .feature-symbol {
-      background: #89d4ff
-    }
-
-    .feature h3 {
-      margin-bottom: 9px;
-      font-size: 18px;
-      letter-spacing: -.03em
-    }
-
-    .feature p {
-      margin-bottom: 0;
-      color: var(--muted);
-      font-size: 13px;
-      line-height: 1.75
-    }
-
-    .feature code {
-      color: var(--lime);
-      font-family: ui-monospace, monospace;
-      font-size: 11px
-    }
-
-    .workflow {
-      display: grid;
-      grid-template-columns: .8fr 1.2fr;
-      align-items: center;
-      gap: 88px
-    }
-
-    .workflow-copy p {
-      max-width: 440px;
-      margin-top: 22px;
-      color: var(--muted);
-      font-size: 16px;
-      line-height: 1.8
-    }
-
-    .steps {
-      display: grid;
-      gap: 9px
-    }
-
-    .step {
-      display: grid;
-      grid-template-columns: 39px 1fr auto;
-      align-items: center;
-      gap: 16px;
-      padding: 17px 18px;
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      background: var(--panel)
-    }
-
-    .step-num {
-      display: grid;
-      width: 30px;
-      height: 30px;
-      place-items: center;
-      border-radius: 7px;
-      color: #111;
-      background: var(--lime);
-      font-family: ui-monospace, monospace;
-      font-size: 11px;
-      font-weight: 900
-    }
-
-    .step:nth-child(2) .step-num {
-      background: var(--cyan)
-    }
-
-    .step:nth-child(3) .step-num {
-      background: var(--orange)
-    }
-
-    .step strong {
-      display: block;
-      font-size: 14px
-    }
-
-    .step span {
-      display: block;
-      margin-top: 2px;
-      color: var(--muted);
-      font-size: 12px
-    }
-
-    .step small {
-      color: var(--dim);
-      font-family: ui-monospace, monospace;
-      font-size: 10px
-    }
-
-    .data-layout {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 13px
-    }
-
-    .data-card {
-      padding: 26px;
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      background: var(--panel)
-    }
-
-    .data-card h3 {
-      margin-bottom: 8px;
-      font-size: 17px
-    }
-
-    .data-card p {
-      margin-bottom: 18px;
-      color: var(--muted);
-      font-size: 13px
-    }
-
-    .chips {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 7px
-    }
-
-    .chip {
-      padding: 6px 9px;
-      border: 1px solid var(--line);
-      border-radius: 6px;
-      color: #c9ced7;
-      background: #0d0f13;
-      font-family: ui-monospace, monospace;
-      font-size: 10px
-    }
-
-    .chip.accent {
-      border-color: #556932;
-      color: var(--lime)
-    }
-
-    .privacy {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-      margin-top: 13px
-    }
-
-    .privacy-item {
-      padding: 20px;
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      background: #0d0f13
-    }
-
-    .privacy-item b {
-      display: block;
-      margin-bottom: 7px;
-      color: var(--cyan);
-      font-size: 13px
-    }
-
-    .privacy-item span {
-      color: var(--muted);
-      font-size: 12px;
-      line-height: 1.65
-    }
-
-    .download {
-      display: grid;
-      grid-template-columns: 1.1fr .9fr;
-      gap: 13px
-    }
-
-    .download-main {
-      padding: 36px;
-      border: 1px solid #66733d;
-      border-radius: var(--radius);
-      background: #1d2716
-    }
-
-    .download-main h2 {
-      max-width: 500px;
-      margin-bottom: 16px
-    }
-
-    .download-main p {
-      max-width: 520px;
-      margin-bottom: 23px;
-      color: #bfcaac;
-      font-size: 14px
-    }
-
-    .download-side {
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      gap: 18px;
-      padding: 27px;
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      background: var(--panel)
-    }
-
-    .download-side h3 {
-      margin-bottom: 0;
-      font-size: 18px
-    }
-
-    .download-side p {
-      margin: 0;
-      color: var(--muted);
-      font-size: 13px
-    }
-
-    .download-side a {
-      color: var(--lime);
-      font-size: 13px;
-      font-weight: 800
-    }
-
-    .button.light {
-      color: #111;
-      border-color: transparent;
-      background: var(--lime)
-    }
-
-    .button.light:hover {
-      background: #dcff8b
-    }
-
-    .faq-list {
-      max-width: 820px;
-      margin: 0 auto
-    }
-
-    .faq {
-      border-top: 1px solid var(--line)
-    }
-
-    .faq:last-child {
-      border-bottom: 1px solid var(--line)
-    }
-
-    .faq button {
-      display: flex;
-      width: 100%;
-      align-items: center;
-      justify-content: space-between;
-      gap: 15px;
-      padding: 20px 0;
-      border: 0;
-      color: var(--ink);
-      background: transparent;
-      cursor: pointer;
-      text-align: left;
-      font-size: 14px;
-      font-weight: 750
-    }
-
-    .faq button span:last-child {
-      color: var(--lime);
-      font-size: 21px;
-      font-weight: 400;
-      transition: .2s
-    }
-
-    .faq.open button span:last-child {
-      transform: rotate(45deg)
-    }
-
-    .answer {
-      display: grid;
-      grid-template-rows: 0fr;
-      transition: grid-template-rows .25s
-    }
-
-    .answer div {
-      overflow: hidden;
-      color: var(--muted);
-      font-size: 13px;
-      line-height: 1.8
-    }
-
-    .faq.open .answer {
-      grid-template-rows: 1fr
-    }
-
-    .faq.open .answer div {
-      padding: 0 0 20px
-    }
-
-    footer {
-      padding: 32px 0;
-      border-top: 1px solid var(--line);
-      color: var(--dim);
-      background: #08090b;
-      font-size: 11px
-    }
-
-    .footer-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 18px
-    }
-
-    .footer-row strong {
-      color: var(--ink);
-      font-size: 14px
-    }
-
-    .footer-links {
-      display: flex;
-      gap: 17px
-    }
-
-    .footer-links a:hover {
-      color: var(--lime)
-    }
-
-    .footer-icp {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 6px 14px;
-      margin-top: 14px
-    }
-
-    .footer-icp a {
-      color: var(--dim)
-    }
-
-    .footer-icp a:hover {
-      color: var(--lime)
-    }
-
-    .reveal {
-      opacity: 0;
-      transform: translateY(16px);
-      transition: .65s ease
-    }
-
-    .reveal.show {
-      opacity: 1;
-      transform: none
-    }
-
-    @media(max-width:900px) {
-      .navlinks {
-        display: none;
-        position: absolute;
-        inset: 72px 24px auto;
-        flex-direction: column;
-        align-items: stretch;
-        gap: 0;
-        padding: 9px 16px;
-        border: 1px solid var(--line);
-        border-radius: 10px;
-        background: #13161b;
-        box-shadow: 0 20px 50px #000
+      font-size: clamp(42px, 6.6vw, 80px);
+      font-weight: 900; line-height: 1.04; letter-spacing: -.035em;
+      text-wrap: balance;
+    }
+    h1 .accent {
+      background: linear-gradient(100deg, var(--primary) 10%, var(--master) 60%, var(--expert) 110%);
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+
+    .lead { max-width: 540px; margin-top: 22px; color: var(--muted); font-size: 18px; line-height: 1.75 }
+
+    .hero-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 32px }
+
+    .hero-facts { display: flex; flex-wrap: wrap; gap: 10px 28px; margin-top: 38px; padding-top: 24px; border-top: 1px solid var(--line) }
+    .fact strong { display: block; font-size: 22px; font-weight: 800; letter-spacing: -.02em }
+    .fact span { color: var(--dim); font-size: 13px }
+
+    /* ============ 手机示意 ============ */
+    .phone-stage { position: relative; display: grid; place-items: center; min-height: 600px }
+
+    .phone {
+      position: relative; width: 320px; padding: 10px;
+      border-radius: 46px; background: #0d1312;
+      box-shadow: 0 40px 80px -30px rgba(10, 30, 30, .45), 0 0 0 1px rgba(255, 255, 255, .06) inset;
+      transform: rotate(-3deg);
+      transition: transform .5s cubic-bezier(.2, .8, .2, 1);
+    }
+    /* 开始操作时把手机摆正，点起来更顺手 */
+    .phone:hover, .phone:focus-within { transform: none }
+
+    .phone-hint {
+      position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%);
+      display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+      padding: 6px 12px; border-radius: 999px;
+      background: var(--card); box-shadow: inset 0 0 0 1px var(--line);
+      color: var(--muted); font-size: 12.5px; font-weight: 600;
+    }
+    .phone-hint::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--primary); animation: pulse 2s ease-in-out infinite }
+    @keyframes pulse { 50% { opacity: .35 } }
+
+    /* 手机里是 App 自己的配色，和网站主题互不影响 */
+    .screen {
+      --p-page: #eef3f2; --p-card: #ffffff; --p-inset: #e6eeec; --p-track: #dde7e5;
+      --p-ink: #142120; --p-muted: #52625f; --p-dim: #7c8b88; --p-line: #d3dfdc;
+      --p-primary: #006a6a; --p-on: #ffffff;
+      --d0: #4caf50; --d1: #ffcc00; --d2: #f44336; --d3: #ab47bc; --d4: #ce93d8;
+      position: relative; overflow: hidden; height: 620px;
+      border-radius: 37px; background: var(--p-page); color: var(--p-ink);
+      font-size: 12px; line-height: 1.45;
+      transition: background .35s, color .35s;
+    }
+    .screen.dark {
+      --p-page: #0f1514; --p-card: #1a2423; --p-inset: #131c1b; --p-track: #22302e;
+      --p-ink: #e6efed; --p-muted: #a3b3b0; --p-dim: #758582; --p-line: #2a3735;
+    }
+    /* 重置用 :where 降低权重，否则会盖掉 .c-cell / .t-card 自己的背景和内边距 */
+    :where(.screen) button, :where(.screen) input { font: inherit; color: inherit }
+    :where(.screen) button { border: 0; background: none; padding: 0; cursor: pointer; text-align: left }
+    .screen :focus-visible { outline: 2px solid var(--p-primary); outline-offset: 2px; border-radius: 10px }
+
+    .screen-status { position: relative; z-index: 3; display: flex; justify-content: space-between; height: 34px; padding: 12px 22px 0; font-size: 11px; font-weight: 700 }
+    .screen-notch { position: absolute; z-index: 4; top: 9px; left: 50%; width: 82px; height: 22px; margin-left: -41px; border-radius: 99px; background: #0d1312 }
+
+    /* 五个标签页 */
+    .p-views { position: absolute; top: 34px; left: 0; right: 0; bottom: 0 }
+    .p-view {
+      position: absolute; inset: 0; overflow-y: auto; overscroll-behavior: contain;
+      padding: 4px 12px 92px; scrollbar-width: none;
+      opacity: 0; visibility: hidden; transform: translateX(14px);
+      transition: opacity .28s, transform .28s cubic-bezier(.2, .8, .2, 1), visibility 0s .28s;
+    }
+    .p-view::-webkit-scrollbar { display: none }
+    .p-view.on { opacity: 1; visibility: visible; transform: none; transition: opacity .28s, transform .28s cubic-bezier(.2, .8, .2, 1) }
+    .p-view.back { transform: translateX(-14px) }
+    /* 成绩页固定在一屏内：放不下的行直接不显示，避免在手机框里再滑动、跟页面滚动抢手势 */
+    .p-view[data-view="score"] { overflow: hidden; padding-bottom: 0 }
+    .p-view[data-view="score"] .p-head { padding-bottom: 6px }
+    .p-view[data-view="score"] .p-card { padding: 10px 12px }
+    .p-view[data-view="score"] .s-rating { font-size: 32px }
+    .p-view[data-view="score"] .p-gap { height: 8px }
+    .screen [hidden] { display: none !important }
+    .fit-more { margin-top: 8px; color: var(--p-dim); font-size: 10.5px; font-weight: 600; text-align: center }
+
+    .p-head { display: flex; align-items: center; justify-content: space-between; padding: 6px 2px 10px }
+    .p-title { font-size: 22px; font-weight: 800; letter-spacing: -.01em }
+    .p-sub { color: var(--p-dim); font-size: 10.5px; font-weight: 600 }
+    .p-card { padding: 12px; border-radius: 18px; background: var(--p-card); transition: background .35s }
+    .p-gap { height: 10px }
+    .p-label { margin: 14px 2px 8px; color: var(--p-muted); font-size: 11px; font-weight: 700 }
+
+    /* 分段切换：凹槽底 + 白色滑块 */
+    .p-seg { position: relative; display: flex; padding: 3px; border-radius: 14px; background: var(--p-track) }
+    .p-seg .thumb {
+      position: absolute; top: 3px; bottom: 3px; left: 3px;
+      width: calc((100% - 6px) / var(--n)); border-radius: 11px;
+      background: var(--p-card); box-shadow: 0 1px 3px rgba(0, 0, 0, .1);
+      transform: translateX(calc(var(--i, 0) * 100%));
+      transition: transform .32s cubic-bezier(.2, .8, .2, 1), background .35s;
+    }
+    .p-seg button { position: relative; z-index: 1; flex: 1; padding: 6px 0; text-align: center !important; color: var(--p-muted); font-size: 11px; font-weight: 700; transition: color .2s }
+    .p-seg button.on { color: var(--p-ink) }
+
+    /* Best50 概览 */
+    .s-rating { font-size: 38px; font-weight: 900; line-height: 1.05; letter-spacing: -.02em }
+    .s-bar { display: flex; height: 7px; gap: 3px; margin-top: 10px }
+    .s-bar i { border-radius: 99px }
+    .s-legend { display: flex; justify-content: space-between; margin-top: 6px; color: var(--p-dim); font-size: 10px; font-weight: 600 }
+
+    /* 单列长条卡 */
+    .s-list { display: grid; gap: 8px }
+    .s-card { display: flex; align-items: center; gap: 9px; width: 100%; padding: 7px; border-radius: 16px; background: var(--p-card); transition: transform .15s, background .35s }
+    .s-card:active, .c-cell:active, .t-card:active, .home-tile:active, .p-row:active { transform: scale(.97) }
+    .s-cover { position: relative; flex: none; width: 46px; height: 46px; border-radius: 11px; border: 2px solid var(--c); background: var(--g) }
+    .rank { position: absolute; left: 3px; top: 3px; padding: 0 4px; border-radius: 5px; background: rgba(0, 0, 0, .6); color: #fff; font-size: 8.5px; font-weight: 700; line-height: 1.5 }
+    .s-mid { flex: 1; min-width: 0 }
+    .s-name { display: flex; align-items: center; gap: 5px; font-weight: 700; font-size: 12px; white-space: nowrap; overflow: hidden }
+    .s-name span:last-child { overflow: hidden; text-overflow: ellipsis }
+    .s-type { flex: none; padding: 0 5px; border-radius: 5px; font-size: 8.5px; font-weight: 800; line-height: 1.6 }
+    .s-type.dx { background: #fff1d6; color: #a15c00 }
+    .s-type.st { background: #d8f0ff; color: #0064a3 }
+    .s-score { display: flex; align-items: center; gap: 4px; margin-top: 2px; font-size: 13px; font-weight: 800 }
+    .s-badge { padding: 0 5px; border-radius: 5px; font-size: 8.5px; font-weight: 800; line-height: 1.7 }
+    .b-rank { background: #f7c843; color: #3d2a00 }
+    .b-ap { background: #ffe0ec; color: #b0175a }
+    .b-fc { background: #d6f3df; color: #1a7a3a }
+    .s-right { flex: none; display: flex; flex-direction: column; align-items: flex-end }
+    .s-ra { font-size: 15px; font-weight: 800; line-height: 1.1 }
+    /* 数字字形右侧自带留白，标签往右补 2px 才和 RA 视觉右对齐（App 里同样补了 1.5） */
+    .s-ds { margin-top: 3px; padding: 0 6px; border-radius: 6px; background: var(--c); color: var(--fg, #fff); font-size: 10px; font-weight: 800; line-height: 1.6; transform: translateX(2px) }
+
+    /* 曲绘模式：三列 */
+    .p-grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px }
+    .c-cell { position: relative; overflow: hidden; aspect-ratio: 1; border-radius: 13px; border: 2.5px solid var(--c); background: var(--g); transition: transform .15s }
+    .c-cell .c-ra { position: absolute; left: 0; right: 0; bottom: 0; padding: 12px 6px 4px; background: linear-gradient(transparent, rgba(0, 0, 0, .62)); color: #fff; font-size: 12.5px; font-weight: 800; text-align: right }
+
+    /* 双列模式 */
+    .p-grid2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px }
+    .t-card { position: relative; overflow: hidden; padding: 8px 9px 8px 12px; border-radius: 14px; background: var(--p-card); transition: transform .15s, background .35s }
+    .t-card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--c) }
+    .t-card .t-name { font-weight: 700; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+    .t-card .t-ach { margin-top: 2px; font-size: 12px; font-weight: 800 }
+    .t-card .t-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 4px }
+    .t-card .t-foot b { font-size: 13px }
+
+    /* 首页 */
+    .home-hello { font-size: 13px; color: var(--p-muted); font-weight: 600 }
+    .home-rating { display: flex; align-items: center; justify-content: space-between }
+    .tier { padding: 3px 9px; border-radius: 999px; background: linear-gradient(90deg, #ffe082, #ffb74d); color: #4a2c00; font-size: 10px; font-weight: 800 }
+    .home-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px }
+    .home-tile { display: grid; justify-items: center; gap: 5px; padding: 10px 0 8px; border-radius: 16px; background: var(--p-card); text-align: center !important; font-size: 10px; font-weight: 700; transition: transform .15s, background .35s }
+    .home-tile i { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 11px; background: color-mix(in srgb, var(--c) 18%, transparent); color: var(--c) }
+    .home-tile svg { width: 18px; height: 18px }
+    .widget-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px }
+    .widget b { display: block; font-size: 15px }
+    .widget small { color: var(--p-dim); font-size: 10px; font-weight: 600 }
+    .ok-dot { display: inline-block; width: 7px; height: 7px; margin-right: 5px; border-radius: 50%; background: var(--d0) }
+
+    /* 曲库 */
+    .p-search { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px; border-radius: 13px; background: var(--p-card); transition: background .35s }
+    .p-search svg { width: 16px; height: 16px; color: var(--p-dim); flex: none }
+    .p-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; font-size: 12.5px }
+    .p-search input::placeholder { color: var(--p-dim) }
+    .lib-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px; border-radius: 14px; background: var(--p-card); transition: background .35s }
+    .lib-row .s-cover { width: 40px; height: 40px; border-width: 0 }
+    .lib-row .s-mid b { display: block; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+    .chips { display: flex; gap: 4px; margin-top: 3px }
+    .dchip { padding: 0 6px; border-radius: 5px; background: color-mix(in srgb, var(--c) 20%, transparent); color: var(--p-ink); font-size: 9px; font-weight: 800; line-height: 1.7 }
+    .p-empty { padding: 28px 0; color: var(--p-dim); text-align: center; font-weight: 600 }
+
+    /* 游玩 / 我的：功能行 */
+    .p-rows { display: grid; gap: 8px }
+    .p-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px; border-radius: 15px; background: var(--p-card); transition: transform .15s, background .35s }
+    .p-row i { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 11px; flex: none; background: color-mix(in srgb, var(--c) 18%, transparent); color: var(--c) }
+    .p-row svg { width: 18px; height: 18px }
+    .p-row div { flex: 1; min-width: 0 }
+    .p-row b { display: block; font-size: 12.5px }
+    .p-row small { color: var(--p-dim); font-size: 10px }
+    .p-row .chev { color: var(--p-dim); font-size: 16px }
+
+    .me-card { display: flex; align-items: center; gap: 12px }
+    .avatar { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%; background: var(--p-primary); color: var(--p-on); font-size: 18px; font-weight: 800; transition: background .3s }
+    .switch { position: relative; width: 40px; height: 24px; border-radius: 99px; background: var(--p-track); transition: background .25s; flex: none }
+    .switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .2); transition: transform .25s cubic-bezier(.2, .8, .2, 1) }
+    .switch[aria-checked="true"] { background: var(--p-primary) }
+    .switch[aria-checked="true"]::after { transform: translateX(16px) }
+    .swatches { display: flex; gap: 8px; margin-top: 10px }
+    .swatch { width: 28px; height: 28px; border-radius: 50%; background: var(--s) !important; box-shadow: 0 0 0 2px var(--p-card), 0 0 0 2px transparent; transition: box-shadow .2s, transform .15s }
+    .swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--p-card), 0 0 0 4px var(--s) }
+    .swatch:active { transform: scale(.9) }
+
+    /* 底部导航 */
+    .s-nav { position: absolute; z-index: 5; left: 12px; right: 12px; bottom: 12px; display: flex; justify-content: space-around; padding: 7px 4px; border-radius: 22px; background: color-mix(in srgb, var(--p-card) 92%, transparent); box-shadow: 0 6px 18px -6px rgba(0, 0, 0, .22); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); transition: background .35s }
+    .s-nav button { display: grid; justify-items: center; gap: 2px; min-width: 44px; padding: 2px 0; color: var(--p-dim); font-size: 9px; font-weight: 700; text-align: center !important; transition: color .2s }
+    .s-nav button i { display: grid; place-items: center; width: 34px; height: 22px; border-radius: 99px; transition: background .25s }
+    .s-nav svg { width: 16px; height: 16px }
+    .s-nav button.on { color: var(--p-primary) }
+    .s-nav button.on i { background: color-mix(in srgb, var(--p-primary) 16%, transparent) }
+
+    /* 推分面板 */
+    .p-scrim { position: absolute; z-index: 8; inset: 0; background: rgba(0, 0, 0, .38); opacity: 0; pointer-events: none; transition: opacity .3s }
+    .p-sheet { position: absolute; z-index: 9; left: 0; right: 0; bottom: 0; padding: 8px 16px 22px; border-radius: 24px 24px 0 0; background: var(--p-card); transform: translateY(105%); transition: transform .38s cubic-bezier(.2, .8, .2, 1), background .35s }
+    .screen.sheet-open .p-scrim { opacity: 1; pointer-events: auto }
+    .screen.sheet-open .p-sheet { transform: none }
+    .grabber { width: 36px; height: 4px; margin: 0 auto 12px; border-radius: 99px; background: var(--p-track) }
+    .sheet-top { display: flex; gap: 12px; align-items: center }
+    .sheet-top .s-cover { width: 58px; height: 58px; border-radius: 14px }
+    .sheet-top b { display: block; font-size: 14px; line-height: 1.3 }
+    .sheet-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px }
+    .sheet-stats div { padding: 9px 10px; border-radius: 12px; background: var(--p-inset) }
+    .sheet-stats small { display: block; color: var(--p-dim); font-size: 9.5px; font-weight: 700 }
+    .sheet-stats b { font-size: 16px }
+    .push-row { display: flex; align-items: center; justify-content: space-between; padding: 9px 2px; border-top: 1px solid var(--p-line); font-weight: 700 }
+    .push-row:first-of-type { border-top: 0 }
+    .push-row em { font-style: normal; color: var(--p-dim); font-weight: 600 }
+    .push-row .gain-v { color: var(--p-primary); font-size: 14px; font-weight: 800 }
+    .sheet-close { display: block; width: 100%; margin-top: 10px; padding: 10px 0; border-radius: 13px !important; background: var(--p-track) !important; text-align: center !important; font-weight: 700 }
+
+    /* 屏内轻提示 */
+    .p-toast { position: absolute; z-index: 12; top: 42px; left: 50%; max-width: 88%; padding: 7px 13px; border-radius: 999px; background: rgba(20, 33, 32, .92); color: #fff; font-size: 11px; font-weight: 600; white-space: nowrap; transform: translate(-50%, -12px); opacity: 0; pointer-events: none; transition: opacity .25s, transform .25s }
+    .p-toast.show { opacity: 1; transform: translate(-50%, 0) }
+
+    /* 列表重绘时的错开入场 */
+    .anim > * { animation: pin .32s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(var(--k, 0) * 28ms) }
+    @keyframes pin { from { opacity: 0; transform: translateY(6px) } }
+    .phone-stage { padding-bottom: 40px }
+
+
+    /* ============ 难度色滚动带 ============ */
+    .ticker { overflow: hidden; padding: 18px 0; border-block: 1px solid var(--line); background: var(--card) }
+    .ticker-track { display: flex; gap: 36px; width: max-content; animation: slide 46s linear infinite }
+    .ticker span { display: inline-flex; align-items: center; gap: 12px; color: var(--muted); font-size: 15px; font-weight: 700; white-space: nowrap }
+    .ticker span::before { content: ""; width: 9px; height: 9px; border-radius: 3px; background: var(--c); transform: rotate(45deg) }
+    @keyframes slide { to { transform: translateX(-50%) } }
+
+    /* ============ 分区 ============ */
+    section.block { padding: 104px 0 }
+
+    .head { display: grid; grid-template-columns: 1fr minmax(0, 400px); gap: 24px 48px; align-items: end; margin-bottom: 40px }
+    .eyebrow { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 14px; color: var(--primary); font-size: 13px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase }
+    .eyebrow::before { content: ""; width: 18px; height: 3px; border-radius: 3px; background: currentColor }
+    h2 { font-size: clamp(32px, 4.6vw, 52px); font-weight: 900; line-height: 1.1; letter-spacing: -.03em; text-wrap: balance }
+    .head p { color: var(--muted); font-size: 16px }
+
+    /* ============ 功能便当格 ============ */
+    .bento { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px }
+
+    .tile {
+      position: relative; overflow: hidden;
+      display: flex; flex-direction: column;
+      padding: 26px; border-radius: var(--r-card);
+      background: var(--card); box-shadow: var(--shadow);
+      transition: transform .3s cubic-bezier(.2, .8, .2, 1);
+    }
+    .tile:hover { transform: translateY(-4px) }
+    .tile.w3 { grid-column: span 3 }
+    .tile.w2 { grid-column: span 2 }
+    .tile.w4 { grid-column: span 4 }
+
+    .tile-icon { display: grid; place-items: center; width: 46px; height: 46px; margin-bottom: 22px; border-radius: var(--r-sm); background: color-mix(in srgb, var(--c) 16%, transparent); color: var(--c) }
+    .tile-icon svg { width: 23px; height: 23px }
+    .tile h3 { font-size: 21px; font-weight: 800; letter-spacing: -.02em }
+    .tile p { margin-top: 8px; color: var(--muted); font-size: 14.5px; line-height: 1.75 }
+    .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; padding-top: 20px }
+    .tag { padding: 4px 10px; border-radius: 999px; background: var(--inset); color: var(--muted); font-size: 12.5px; font-weight: 600 }
+
+    /* 成绩大卡里的小图 */
+    .mini-b50 { display: grid; grid-template-columns: repeat(7, minmax(0, 64px)); gap: 8px; margin-top: auto; padding-top: 22px }
+    .mini-b50 i { aspect-ratio: 1; border-radius: 9px; border: 2px solid var(--c); background: var(--g) }
+
+    /* 推荐卡里的上分条 */
+    .gain { display: grid; gap: 8px; margin-top: 20px }
+    .gain-row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; padding: 9px 12px; border-radius: var(--r-sm); background: var(--inset); font-size: 13px; font-weight: 700 }
+    .gain-row em { font-style: normal; color: var(--dim); font-weight: 600 }
+    .gain-row b { color: var(--primary); font-size: 16px; font-weight: 800 }
+    .chip-d { padding: 1px 8px; border-radius: 7px; background: var(--c); color: #fff; font-size: 11.5px; font-weight: 800 }
+
+    /* ============ 数据与隐私 ============ */
+    .data-grid { display: grid; grid-template-columns: 1.1fr .9fr; gap: 12px }
+    .panel { padding: 30px; border-radius: var(--r-card); background: var(--card); box-shadow: var(--shadow) }
+    .panel h3 { font-size: 20px; font-weight: 800 }
+    .panel > p { margin-top: 8px; color: var(--muted); font-size: 14.5px }
+
+    .sources { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 22px }
+    .source { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: var(--r-md); background: var(--inset) }
+    .source i { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: var(--card); color: var(--primary); font-style: normal; font-weight: 900; font-size: 14px; flex: none }
+    .source strong { display: block; font-size: 14px; line-height: 1.3 }
+    .source span { color: var(--dim); font-size: 12px }
+
+    .principles { display: grid; gap: 10px; margin-top: 22px }
+    .principle { display: grid; grid-template-columns: 36px 1fr; gap: 14px; padding: 14px 0; border-top: 1px solid var(--line) }
+    .principle:first-child { border-top: 0; padding-top: 0 }
+    .principle b { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--primary-soft); color: var(--primary); font-size: 14px; font-weight: 800 }
+    .principle strong { display: block; font-size: 15.5px }
+    .principle span { color: var(--muted); font-size: 14px }
+
+    /* ============ 下载 ============ */
+    .cta {
+      position: relative; overflow: hidden;
+      display: grid; grid-template-columns: 1.2fr .8fr; gap: 32px; align-items: center;
+      padding: 56px; border-radius: var(--r-lg);
+      background: var(--primary); color: var(--primary-ink);
+    }
+    .cta::after {
+      content: ""; position: absolute; right: -120px; top: -120px; width: 420px; height: 420px; border-radius: 50%;
+      background: radial-gradient(circle, color-mix(in srgb, var(--remaster) 55%, transparent), transparent 70%);
+      pointer-events: none;
+    }
+    .cta h2 { color: inherit }
+    .cta p { max-width: 520px; margin-top: 16px; opacity: .85; font-size: 16px }
+    .cta-actions { position: relative; z-index: 1; display: grid; gap: 10px }
+    .cta .btn-light { background: var(--primary-ink); color: var(--primary); min-height: 54px; font-size: 16px }
+    .cta .btn-light:hover { transform: translateY(-2px) }
+    .cta .btn-line { background: transparent; color: inherit; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--primary-ink) 45%, transparent); min-height: 54px; font-size: 16px }
+    .cta .btn-line:hover { background: color-mix(in srgb, var(--primary-ink) 10%, transparent) }
+    .cta-note { font-size: 13px; opacity: .75; text-align: center }
+
+    /* ============ FAQ ============ */
+    .faq { max-width: 860px; margin-inline: auto; display: grid; gap: 10px }
+    .faq details { border-radius: var(--r-md); background: var(--card); box-shadow: var(--shadow) }
+    .faq summary {
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      padding: 20px 22px; cursor: pointer; list-style: none;
+      font-size: 16px; font-weight: 700;
+    }
+    .faq summary::-webkit-details-marker { display: none }
+    .faq summary::after {
+      content: ""; flex: none; width: 28px; height: 28px; border-radius: 50%;
+      background: var(--inset) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237c8b88' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M12 6v12M6 12h12'/%3E%3C/svg%3E") center / 14px no-repeat;
+      transition: transform .25s;
+    }
+    .faq details[open] summary::after { transform: rotate(45deg) }
+    .faq .answer { padding: 0 22px 20px; color: var(--muted); font-size: 15px; line-height: 1.8 }
+
+    /* ============ 页脚 ============ */
+    footer { padding: 48px 0 40px; border-top: 1px solid var(--line) }
+    .foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 20px }
+    .foot .brand { margin: 0 }
+    .foot-links { display: flex; flex-wrap: wrap; gap: 6px }
+    .foot-links a { padding: 6px 12px; border-radius: 999px; color: var(--muted); font-size: 14px; font-weight: 600 }
+    .foot-links a:hover { background: var(--track); color: var(--ink) }
+    .foot-meta { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 22px; color: var(--dim); font-size: 13px }
+    .foot-meta a:hover { color: var(--primary) }
+
+    /* ============ 入场动效 ============ */
+    .reveal { opacity: 0; transform: translateY(14px); transition: opacity .6s ease, transform .6s cubic-bezier(.2, .8, .2, 1) }
+    .reveal.show { opacity: 1; transform: none }
+    .no-js .reveal { opacity: 1; transform: none }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto }
+      .reveal { opacity: 1; transform: none; transition: none }
+      .ticker-track, .anim > *, .phone-hint::before { animation: none }
+      .phone, .p-view, .p-sheet, .p-seg .thumb { transition: none }
+      .tile:hover { transform: none }
+    }
+
+    /* ============ 响应式 ============ */
+    @media (max-width: 960px) {
+      .hero-grid { grid-template-columns: 1fr; gap: 40px }
+      .phone-stage { min-height: 0 }
+      .head { grid-template-columns: 1fr }
+      .bento { grid-template-columns: repeat(2, 1fr) }
+      .tile.w2, .tile.w3, .tile.w4 { grid-column: span 1 }
+      .tile.wide-m { grid-column: span 2 }
+      .data-grid { grid-template-columns: 1fr }
+      .cta { grid-template-columns: 1fr; padding: 40px }
+    }
+
+    @media (max-width: 760px) {
+      .nav-links { display: none }
+      .nav-links.open {
+        display: grid; position: absolute; top: 64px; left: var(--gutter); right: var(--gutter);
+        padding: 8px; border-radius: 20px; background: var(--card);
+        box-shadow: var(--shadow), inset 0 0 0 1px var(--line);
       }
-
-      .navlinks.open {
-        display: flex
-      }
-
-      .navlinks a {
-        padding: 12px 0;
-        border-bottom: 1px solid var(--line)
-      }
-
-      .navlinks a:last-child {
-        border-bottom: 0
-      }
-
-      .menu {
-        display: block
-      }
-
-      .nav-cta {
-        display: none
-      }
-
-      .hero-inner,
-      .workflow {
-        grid-template-columns: 1fr;
-        gap: 52px
-      }
-
-      .hero {
-        min-height: auto;
-        padding-top: 135px
-      }
-
-      .console {
-        max-width: 650px
-      }
-
-      .feature-grid {
-        grid-template-columns: repeat(2, 1fr)
-      }
-
-      .download {
-        grid-template-columns: 1fr
-      }
+      .nav-links.open a { padding: 12px 14px; border-radius: 12px }
+      .nav-cta { display: none }
+      .menu-btn { display: grid }
+      .nav .nav-bar { background: color-mix(in srgb, var(--card) 86%, transparent); border-color: var(--line); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px) }
     }
 
-    @media(max-width:560px) {
-      .wrap {
-        width: min(var(--max), calc(100% - 36px))
-      }
-
-      .hero {
-        padding-bottom: 75px;
-        background-size: 42px 42px
-      }
-
-      .hero-inner {
-        gap: 38px
-      }
-
-      h1 {
-        font-size: 49px
-      }
-
-      .hero-lead {
-        font-size: 16px
-      }
-
-      .hero-actions {
-        align-items: stretch;
-        flex-direction: column
-      }
-
-      .hero-actions .button {
-        width: 100%
-      }
-
-      .hero-metrics {
-        gap: 18px
-      }
-
-      .console-body {
-        padding: 16px 14px;
-        font-size: 10px
-      }
-
-      .score-row {
-        grid-template-columns: 1fr .6fr
-      }
-
-      .score-row span:last-child {
-        display: none
-      }
-
-      .console-tag {
-        right: 7px;
-        top: 61px
-      }
-
-      .section {
-        padding: 78px 0
-      }
-
-      .section-head {
-        display: block
-      }
-
-      .section-head p {
-        margin-top: 15px
-      }
-
-      .feature-grid,
-      .data-layout {
-        grid-template-columns: 1fr
-      }
-
-      .feature {
-        min-height: 0
-      }
-
-      .feature-top {
-        margin-bottom: 28px
-      }
-
-      .workflow {
-        gap: 35px
-      }
-
-      .step {
-        grid-template-columns: 34px 1fr
-      }
-
-      .step small {
-        display: none
-      }
-
-      .privacy {
-        grid-template-columns: 1fr
-      }
-
-      .download-main {
-        padding: 27px 22px
-      }
-
-      .footer-row {
-        align-items: flex-start;
-        flex-direction: column
-      }
+    @media (max-width: 600px) {
+      .hero { padding: 108px 0 56px }
+      .lead { font-size: 16px }
+      .hero-actions .btn { flex: 1 1 100% }
+      .phone { width: 290px; transform: none }
+      .screen { height: 560px }
+      section.block { padding: 72px 0 }
+      .bento { grid-template-columns: 1fr }
+      .tile.wide-m { grid-column: span 1 }
+      .tile { padding: 22px }
+      .sources { grid-template-columns: 1fr }
+      .panel { padding: 22px }
+      .cta { padding: 30px 22px; border-radius: var(--r-card) }
+      .mini-b50 { grid-template-columns: repeat(5, 1fr) }
+      .mini-b50 i:nth-child(n+11) { display: none }
     }
   </style>
 </head>
 
-<body>
-  <header class="topbar" id="topbar">
-    <div class="wrap nav"><a class="brand" href="#top" aria-label="ChiffonMai 首页"><img src="../icon.png"
-          alt="ChiffonMai 图标"><span>ChiffonMai<small>maimai DX toolkit</small></span></a>
-      <nav class="navlinks" id="navlinks" aria-label="主导航"><a href="#features">功能</a><a href="#workflow">工作流</a><a
-          href="#data">数据与隐私</a><a href="#faq">FAQ</a></nav><a class="nav-cta" href="#download">获取 Android 版 <span
-          aria-hidden="true">↗</span></a><button class="menu" id="menu" aria-label="打开菜单"
-        aria-expanded="false">☰</button>
+<body class="no-js">
+  <!-- 顶部导航 -->
+  <header class="nav" id="nav">
+    <div class="nav-bar">
+      <a class="brand" href="#top" aria-label="ChiffonMai 首页"><img src="../icon.png" alt="" width="32" height="32">ChiffonMai</a>
+      <nav class="nav-links" id="navLinks" aria-label="主导航">
+        <a href="#features">功能</a>
+        <a href="#data">数据与隐私</a>
+        <a href="#download">下载</a>
+        <a href="#faq">常见问题</a>
+      </nav>
+      <a class="btn btn-primary btn-sm nav-cta" href="#download">下载 Android 版</a>
+      <button class="menu-btn" id="menuBtn" type="button" aria-label="打开菜单" aria-expanded="false" aria-controls="navLinks">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+      </button>
     </div>
   </header>
+
   <main id="top">
+    <!-- Hero -->
     <section class="hero">
-      <div class="wrap hero-inner">
-        <div class="reveal">
-          <div class="eyebrow"><i></i> Open source / maimai DX</div>
-          <h1>让每次游玩，<br><em>都有迹可循。</em></h1>
-          <p class="hero-lead">ChiffonMai 是面向舞萌 DX 玩家的 Android 工具箱：查曲目与谱面、分析成绩、规划上分、管理收藏，也能在应用内播放和导出谱面。</p>
-          <p class="hero-lead">官网 chiffonmai.cloud</p>
-          <div class="hero-actions"><a class="button primary" href="#download">下载 Android 版 <span
-                aria-hidden="true">→</span></a><a class="button ghost" href="https://github.com/ChiffonOwO/ChiffonMai"
-              target="_blank" rel="noreferrer">查看 GitHub <span aria-hidden="true">↗</span></a></div>
-          <div class="hero-metrics">
-            <div class="metric"><strong>本地优先</strong><span>计算与收藏留在设备</span></div>
-            <div class="metric"><strong>多数据源</strong><span>水鱼 / 落雪 / AWMC NET</span></div>
-            <div class="metric"><strong>开源</strong><span>MIT License</span></div>
+      <div class="wrap hero-grid">
+        <div>
+          <div class="pill-row reveal">
+            <span class="pill"><span class="dot"></span><b>v3.0</b> 全新界面已发布</span>
+            <span class="pill">开源 · MIT License</span>
+          </div>
+          <h1 class="reveal">舞萌 DX 的<br><span class="accent">随身工具箱</span></h1>
+          <p class="lead reveal">查曲目和谱面、看 Best50、找下一首能吃分的谱、在手机上播放谱面、和朋友一起猜歌——ChiffonMai 把出勤前后的事情放进同一个 App。</p>
+          <div class="hero-actions reveal">
+            <a class="btn btn-primary" href="#download">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" /></svg>
+              下载 Android 版
+            </a>
+            <a class="btn btn-soft" href="https://github.com/ChiffonOwO/ChiffonMai" target="_blank" rel="noreferrer">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.9 1.52 2.34 1.08 2.91.83.09-.65.35-1.08.63-1.33-2.22-.25-4.56-1.11-4.56-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02a9.56 9.56 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2Z" /></svg>
+              GitHub 源码
+            </a>
+          </div>
+          <div class="hero-facts reveal">
+            <div class="fact"><strong>3 个</strong><span>成绩数据源</span></div>
+            <div class="fact"><strong>4 种</strong><span>界面语言</span></div>
+            <div class="fact"><strong>本地优先</strong><span>计算与收藏留在设备</span></div>
           </div>
         </div>
-        <div class="console reveal">
-          <div class="console-bar"><i class="console-dot"></i><i class="console-dot"></i><i
-              class="console-dot"></i><span class="console-title">chiffonmai / score-inspector</span></div>
-          <div class="console-body">
-            <div class="command"><b>$</b> refresh --source diving-fish</div>
-            <div class="json"><span>{</span><span>&nbsp;&nbsp;<span class="key">"song"</span>: <span
-                  class="value">"MarbleBlue."</span>,</span><span>&nbsp;&nbsp;<span class="key">"chart"</span>: <span
-                  class="value">"MASTER 14"</span>,</span><span>&nbsp;&nbsp;<span class="key">"achievement"</span>:
-                <span class="value">"101.0000%"</span>,</span><span>&nbsp;&nbsp;<span class="key">"source"</span>: <span
-                  class="value">"Diving-Fish"</span></span><span>}</span></div>
-            <div class="score-row"><strong>Best50</strong><span>Rating <em>16600</em></span><span>UPDATED NOW</span>
+
+        <!-- 界面示意（CSS 绘制，非真实截图） -->
+        <div class="phone-stage reveal">
+          <div class="phone" role="group" aria-label="ChiffonMai 界面演示（示意数据）">
+            <div class="screen" id="phoneScreen">
+              <span class="screen-notch" aria-hidden="true"></span>
+              <div class="screen-status num" aria-hidden="true"><span>21:30</span><span>5G ▮</span></div>
+              <div class="p-views" id="phoneViews"></div>
+              <nav class="s-nav" id="phoneNav" aria-label="演示 App 底部导航"></nav>
+              <div class="p-scrim" id="phoneScrim"></div>
+              <div class="p-sheet" id="phoneSheet" role="dialog" aria-modal="true" aria-label="推分面板"></div>
+              <div class="p-toast" id="phoneToast" role="status"></div>
             </div>
           </div>
-          <div class="console-tag">SYNCED</div>
+          <span class="phone-hint">可以点点看 · 示意数据</span>
         </div>
       </div>
     </section>
-    <section class="section" id="features">
+
+    <!-- 难度色滚动带 -->
+    <div class="ticker" aria-hidden="true">
+      <div class="ticker-track">
+        <span style="--c:var(--basic)">曲目与谱面</span><span style="--c:var(--advanced)">Best50 分析</span><span style="--c:var(--expert)">吃分推荐</span><span style="--c:var(--master)">谱面播放</span><span style="--c:var(--remaster)">多人猜歌</span><span style="--c:var(--basic)">牌子进度</span><span style="--c:var(--advanced)">机厅地图</span><span style="--c:var(--expert)">更新日历</span><span style="--c:var(--master)">成绩同步</span><span style="--c:var(--remaster)">AstroDX 导出</span>
+        <span style="--c:var(--basic)">曲目与谱面</span><span style="--c:var(--advanced)">Best50 分析</span><span style="--c:var(--expert)">吃分推荐</span><span style="--c:var(--master)">谱面播放</span><span style="--c:var(--remaster)">多人猜歌</span><span style="--c:var(--basic)">牌子进度</span><span style="--c:var(--advanced)">机厅地图</span><span style="--c:var(--expert)">更新日历</span><span style="--c:var(--master)">成绩同步</span><span style="--c:var(--remaster)">AstroDX 导出</span>
+      </div>
+    </div>
+
+    <!-- 功能 -->
+    <section class="block" id="features">
       <div class="wrap">
-        <div class="section-head reveal">
+        <div class="head reveal">
           <div>
-            <div class="kicker">What you can do</div>
-            <h2>常用操作，<br>集中在一个入口。</h2>
+            <div class="eyebrow">功能</div>
+            <h2>出勤前后要做的事，<br>都在这里。</h2>
           </div>
-          <p>从找歌到复盘，从收藏到同步。每个功能都对应真实的应用页面和服务。</p>
+          <p>首页、曲库、成绩、游玩、我的——五个标签页覆盖查询、分析、上分、娱乐和设置，常用功能可以星标收藏到首页。</p>
         </div>
-        <div class="feature-grid">
-          <article class="feature reveal">
-            <div class="feature-top"><span class="feature-index">01 / DISCOVER</span><span
-                class="feature-symbol">⌕</span></div>
-            <h3>曲目与谱面</h3>
-            <p>搜索歌曲、别名和版本，查看难度、定数、maidata；支持在应用内解析并播放谱面。</p>
-          </article>
-          <article class="feature reveal">
-            <div class="feature-top"><span class="feature-index">02 / ANALYZE</span><span
-                class="feature-symbol">↗</span></div>
+
+        <div class="bento">
+          <article class="tile w4 wide-m reveal" style="--c:var(--primary)">
+            <span class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></svg></span>
             <h3>成绩与 Best50</h3>
-            <p>查看游玩记录、Rating、Best50 和成绩历史，导出 Best50、牌子进度与个性化成绩长图。</p>
-          </article>
-          <article class="feature reveal">
-            <div class="feature-top"><span class="feature-index">03 / PLAN</span><span class="feature-symbol">◎</span>
+            <p>Rating 构成、Best50 的曲绘 / 双列 / 单列三种视图，拟合定数、理想与自定义 Best50；成绩历史、牌子进度、个性化成绩查询一应俱全，并能导出长图分享。</p>
+            <div class="mini-b50" aria-hidden="true">
+              <!-- 本地曲绘 assets/cover/{曲绘 id}.webp；边框为谱面难度色 -->
+              <i style="--c:#ce93d8;--g:url(../cover/1663.webp) center/cover"></i><i style="--c:#ce93d8;--g:url(../cover/1820.webp) center/cover"></i><i style="--c:#ce93d8;--g:url(../cover/799.webp) center/cover"></i><i style="--c:#ce93d8;--g:url(../cover/227.webp) center/cover"></i><i style="--c:#ab47bc;--g:url(../cover/1619.webp) center/cover"></i><i style="--c:#ab47bc;--g:url(../cover/1106.webp) center/cover"></i><i style="--c:#ab47bc;--g:url(../cover/1222.webp) center/cover"></i>
+              <i style="--c:#ab47bc;--g:url(../cover/1687.webp) center/cover"></i><i style="--c:#ce93d8;--g:url(../cover/1100.webp) center/cover"></i><i style="--c:#ab47bc;--g:url(../cover/384.webp) center/cover"></i><i style="--c:#ab47bc;--g:url(../cover/363.webp) center/cover"></i><i style="--c:#ce93d8;--g:url(../cover/1486.webp) center/cover"></i><i style="--c:#ce93d8;--g:url(../cover/365.webp) center/cover"></i><i style="--c:#ab47bc;--g:url(../cover/417.webp) center/cover"></i>
             </div>
-            <h3>推荐与计算</h3>
-            <p>按标签、目标 Rating 或定数区间找谱面，也可以使用达成率反推和单曲 Rating 计算。</p>
           </article>
-          <article class="feature reveal">
-            <div class="feature-top"><span class="feature-index">04 / COLLECT</span><span
-                class="feature-symbol">♡</span></div>
-            <h3>收藏与资料</h3>
-            <p>创建收藏夹、查看收藏品解锁条件，记录谱面笔记，并在设备之间交换收藏夹文件。</p>
+
+          <article class="tile w2 reveal" style="--c:var(--basic)">
+            <span class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="6.5" /><path d="M20 20l-4.2-4.2" /></svg></span>
+            <h3>曲目与谱面</h3>
+            <p>按歌名、别名、版本、流派筛选；查看定数历史、物量、谱面标签、评分与评论。</p>
+            <div class="tags"><span class="tag">别名搜索</span><span class="tag">定数历史</span><span class="tag">谱面标签</span></div>
           </article>
-          <article class="feature reveal">
-            <div class="feature-top"><span class="feature-index">05 / PLAY</span><span class="feature-symbol">▷</span>
+
+          <article class="tile w3 reveal" style="--c:var(--expert)">
+            <span class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17l6-6 4 4 6-7" /><path d="M15 8h5v5" /></svg></span>
+            <h3>上分推荐与计算</h3>
+            <p>吃分推荐告诉你哪张谱达标后 B50 涨得最多；也能按目标 Rating、定数区间或谱面标签找谱，配合达成率与单曲 Rating 计算器。</p>
+            <div class="gain" aria-hidden="true">
+              <div class="gain-row"><span class="chip-d num" style="--c:var(--master)">MASTER 13.8</span><em class="num">100.21% → 100.50%</em><b class="num">+9</b></div>
+              <div class="gain-row"><span class="chip-d num" style="--c:var(--expert)">EXPERT 12.9</span><em class="num">99.62% → 100.00%</em><b class="num">+6</b></div>
             </div>
-            <h3>谱面播放与猜歌</h3>
-            <p>支持自定义谱面播放、无提示猜歌、曲绘和歌曲片段猜歌，以及 WebSocket 多人对战。</p>
           </article>
-          <article class="feature reveal">
-            <div class="feature-top"><span class="feature-index">06 / SYNC</span><span class="feature-symbol">⇄</span>
-            </div>
+
+          <article class="tile w3 reveal" style="--c:var(--master)">
+            <span class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M10 8.5v7l5.5-3.5z" fill="currentColor" /></svg></span>
+            <h3>谱面播放与导出</h3>
+            <p>在手机上解析并播放谱面，流速、镜像等设置会被记住；一键导出 AstroDX 的 <span class="num">.adx</span> 谱面包或通用 zip，文件直接写入公开的 Download 目录。</p>
+            <div class="tags"><span class="tag">高刷新率</span><span class="tag">AstroDX .adx</span><span class="tag">谱面笔记</span></div>
+          </article>
+
+          <article class="tile w2 reveal" style="--c:var(--remaster)">
+            <span class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5" /><circle cx="17" cy="9.5" r="2.5" /><path d="M3 19c.6-3.2 3-5 6-5s5.4 1.8 6 5M15.5 14.2c2.7-.4 4.9 1.1 5.5 4.3" /></svg></span>
+            <h3>猜歌与多人房间</h3>
+            <p>信息、曲绘、模糊曲绘、歌曲片段多种猜法，还能开房间和朋友实时对战。</p>
+          </article>
+
+          <article class="tile w2 reveal" style="--c:var(--advanced)">
+            <span class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.5-5.6-6.5-11A6.5 6.5 0 0 1 18.5 10c0 5.4-6.5 11-6.5 11Z" /><circle cx="12" cy="10" r="2.3" /></svg></span>
+            <h3>出勤助手</h3>
+            <p>全球机厅地图、国服更新日历、服务器状态和出勤转盘，出门前先看一眼。</p>
+          </article>
+
+          <article class="tile w2 reveal" style="--c:var(--primary)">
+            <span class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 0 1 13.7-5.6L20 8.5M20 4v4.5h-4.5M20 12a8 8 0 0 1-13.7 5.6L4 15.5M4 20v-4.5h4.5" /></svg></span>
             <h3>成绩同步</h3>
-            <p>可从机台 QR 码获取数据，并将成绩同步到水鱼、落雪或 AWMC NET；同步过程显示统计。</p>
+            <p>从机台二维码获取数据，同步到水鱼、落雪或 AWMC NET，过程中显示统计。</p>
+          </article>
+
+          <article class="tile w3 reveal" style="--c:var(--expert)">
+            <span class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2Z" /></svg></span>
+            <h3>收藏夹与资料</h3>
+            <p>整理自己的歌单，查看收藏品解锁条件；收藏夹用带版本号的交换文件在设备间迁移，导入时支持合并或覆盖。</p>
+          </article>
+
+          <article class="tile w3 reveal" style="--c:var(--master)">
+            <span class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="4" /><path d="M3.5 9.5h17M9.5 20.5V9.5" /></svg></span>
+            <h3>属于你的界面</h3>
+            <p>自定义背景图并自动取色、深色与纯黑模式、三种导航栏样式；桌面小组件，简体中文、繁体中文、English、日本語四种语言。</p>
+            <div class="tags"><span class="tag">动态取色</span><span class="tag">桌面小组件</span><span class="tag">四种语言</span></div>
           </article>
         </div>
       </div>
     </section>
-    <section class="section alt" id="workflow">
-      <div class="wrap workflow">
-        <div class="workflow-copy reveal">
-          <div class="kicker">A predictable flow</div>
-          <h2>从一次刷新，<br>到完整复盘。</h2>
-          <p>把数据源、分析工具和导出结果放在同一条路径里。你可以只查一首歌，也可以一次整理完整的成绩库。</p>
-        </div>
-        <div class="steps reveal">
-          <div class="step"><b class="step-num">01</b>
-            <div><strong>选择数据源</strong><span>水鱼、落雪、AWMC NET，或使用本地缓存</span></div><small>SELECT</small>
-          </div>
-          <div class="step"><b class="step-num">02</b>
-            <div><strong>刷新并分析</strong><span>更新歌曲、谱面、成绩与收藏品数据</span></div><small>REFRESH</small>
-          </div>
-          <div class="step"><b class="step-num">03</b>
-            <div><strong>行动或导出</strong><span>推荐下一首、播放谱面、同步成绩或导出图片</span></div><small>ACT</small>
-          </div>
-        </div>
-      </div>
-    </section>
-    <section class="section" id="data">
+
+    <!-- 数据与隐私 -->
+    <section class="block" id="data" style="padding-top:24px">
       <div class="wrap">
-        <div class="section-head reveal">
+        <div class="head reveal">
           <div>
-            <div class="kicker">Data, on your terms</div>
-            <h2>数据源清楚，<br>边界也清楚。</h2>
+            <div class="eyebrow">数据与隐私</div>
+            <h2>数据从哪来，<br>留在哪里，都说清楚。</h2>
           </div>
-          <p>第三方服务负责提供公开数据和同步接口，应用内的计算、收藏与设置由你控制。</p>
+          <p>第三方服务提供公开数据和同步接口；计算、收藏与设置留在你的设备上。</p>
         </div>
-        <div class="data-layout">
-          <article class="data-card reveal">
-            <h3>连接的数据源</h3>
-            <p>根据需要选择来源，不同服务提供不同的歌曲、成绩和收藏数据。</p>
-            <div class="chips"><span class="chip accent">Diving-Fish / 水鱼</span><span class="chip">LXNS / 落雪</span><span
-                class="chip">AWMC NET</span><span class="chip">DXRating.net</span><span class="chip">Union</span><span
-                class="chip">maimai-score-hub</span></div>
+
+        <div class="data-grid">
+          <article class="panel reveal">
+            <h3>接入的数据服务</h3>
+            <p>按需选择成绩来源，曲库、标签、别名等公开数据来自社区服务。</p>
+            <div class="sources">
+              <div class="source"><i>鱼</i><div><strong>水鱼 Diving-Fish</strong><span>成绩查询与同步</span></div></div>
+              <div class="source"><i>雪</i><div><strong>落雪 LXNS</strong><span>成绩查询与同步</span></div></div>
+              <div class="source"><i>A</i><div><strong>AWMC NET</strong><span>成绩与吃分推荐</span></div></div>
+              <div class="source"><i>D</i><div><strong>DXRating.net</strong><span>谱面标签与别名</span></div></div>
+              <div class="source"><i>U</i><div><strong>Union</strong><span>多服曲目对照</span></div></div>
+              <div class="source"><i>H</i><div><strong>maimai-score-hub</strong><span>成绩识别</span></div></div>
+            </div>
           </article>
-          <article class="data-card reveal">
-            <h3>本地优先的工作方式</h3>
-            <p>账号绑定只用于对应的数据同步；应用的计算、收藏夹和大部分偏好保存在本地。</p>
-            <div class="chips"><span class="chip">Rating 计算</span><span class="chip">Best50 分析</span><span
-                class="chip">收藏夹</span><span class="chip">谱面缓存</span><span class="chip">播放设置</span></div>
+
+          <article class="panel reveal">
+            <h3>三条边界</h3>
+            <div class="principles">
+              <div class="principle"><b>1</b><div><strong>不登录也能用</strong><span>查曲、计算、推荐、猜歌和本地收藏都可以直接使用。</span></div></div>
+              <div class="principle"><b>2</b><div><strong>凭据只做一件事</strong><span>账号授权只用于读取或同步对应平台的成绩，不用于广告画像。</span></div></div>
+              <div class="principle"><b>3</b><div><strong>导出由你发起</strong><span>谱面包、图片和收藏交换文件都由你主动生成，保存位置会明确提示。</span></div></div>
+            </div>
           </article>
-        </div>
-        <div class="privacy">
-          <div class="privacy-item reveal"><b>01 / 公开数据</b><span>曲库、谱面标签、别名和排行榜来自项目接入的数据服务。</span></div>
-          <div class="privacy-item reveal"><b>02 / 私人数据</b><span>账号凭据用于请求授权或同步，不用于应用内广告画像。</span></div>
-          <div class="privacy-item reveal"><b>03 / 你来导出</b><span>谱面包、图片和收藏交换文件由你主动生成，路径会在页面中提示。</span></div>
         </div>
       </div>
     </section>
-    <section class="section alt" id="download">
-      <div class="wrap download reveal">
-        <div class="download-main">
-          <div class="kicker">Available today</div>
-          <h2>现在开始整理<br>你的下一次游玩。</h2>
-          <p>当前提供 Android 版本。通过蓝奏云获取 APK，或在 GitHub 查看源码、Issue 和更新。</p><a class="button light"
-            href="https://wward.lanzouw.com/chiffonmai" target="_blank" rel="noreferrer">下载 APK <span
-              aria-hidden="true">↗</span></a>
-        </div>
-        <div class="download-side">
-          <h3>开源项目</h3>
-          <p>ChiffonMai 使用 Flutter / Dart 构建，采用 MIT License。iOS 版本目前尚未发布。</p><a
-            href="https://github.com/ChiffonOwO/ChiffonMai" target="_blank" rel="noreferrer">打开 GitHub 仓库 →</a>
-        </div>
-      </div>
-    </section>
-    <section class="section" id="faq">
+
+    <!-- 下载 -->
+    <section class="block" id="download" style="padding-top:24px">
       <div class="wrap">
-        <div class="section-head reveal">
-          <div>
-            <div class="kicker">Questions</div>
-            <h2>常见问题。</h2>
+        <div class="cta reveal">
+          <div style="position:relative;z-index:1">
+            <h2>下一次出勤，<br>带上 ChiffonMai。</h2>
+            <p>目前提供 Android 版本，App 内可检查并下载更新。源码、Issue 与更新日志在 GitHub。</p>
           </div>
-          <p>用一句话说明使用边界，减少第一次打开时的疑惑。</p>
+          <div class="cta-actions">
+            <a class="btn btn-light" href="https://wward.lanzouw.com/chiffonmai" target="_blank" rel="noreferrer">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" /></svg>
+              下载 APK（蓝奏云）
+            </a>
+            <a class="btn btn-line" href="https://github.com/ChiffonOwO/ChiffonMai" target="_blank" rel="noreferrer">在 GitHub 查看源码</a>
+            <span class="cta-note">iOS 版本暂未发布</span>
+          </div>
         </div>
-        <div class="faq-list reveal">
-          <div class="faq"><button type="button"><span>必须登录数据源才能使用吗？</span><span>＋</span></button>
-            <div class="answer">
-              <div>不需要。查曲、计算、推荐、猜歌和本地收藏等功能可以直接使用；登录或授权只在读取账号成绩、收藏，或同步成绩时需要。</div>
-            </div>
+      </div>
+    </section>
+
+    <!-- 常见问题 -->
+    <section class="block" id="faq" style="padding-top:24px">
+      <div class="wrap">
+        <div class="head reveal" style="grid-template-columns:1fr">
+          <div>
+            <div class="eyebrow">常见问题</div>
+            <h2>第一次打开前，你可能想知道。</h2>
           </div>
-          <div class="faq"><button type="button"><span>应用支持哪些数据源？</span><span>＋</span></button>
-            <div class="answer">
-              <div>当前项目接入水鱼、落雪和 AWMC NET 等成绩来源，也使用 DXRating.net、Union 和 maimai-score-hub 提供的相关数据或同步能力。</div>
-            </div>
-          </div>
-          <div class="faq"><button type="button"><span>导出的谱面包是什么格式？</span><span>＋</span></button>
-            <div class="answer">
-              <div>AstroDX 导出为 .adx：压缩包内包含以曲名命名的谱面文件夹；通用导出为平铺三件套的 zip。导出文件会写入公开 Download/ChiffonMai 目录，无法写入时会明确提示。</div>
-            </div>
-          </div>
-          <div class="faq"><button type="button"><span>收藏夹可以在设备之间转移吗？</span><span>＋</span></button>
-            <div class="answer">
-              <div>可以。收藏夹使用带版本信息的 JSON 交换格式，导入按内容校验，支持合并与覆盖两种模式。</div>
-            </div>
-          </div>
-          <div class="faq"><button type="button"><span>iOS 版本什么时候发布？</span><span>＋</span></button>
-            <div class="answer">
-              <div>项目目前主要提供 Android 版本，iOS 仍在准备中，具体进展以 GitHub 仓库为准。</div>
-            </div>
-          </div>
-          <div class="faq"><button type="button"><span>这是 SEGA 官方应用吗？</span><span>＋</span></button>
-            <div class="answer">
-              <div>不是。ChiffonMai 是第三方开源工具，仅供学习和娱乐使用；数据服务的使用请遵守对应平台规则。</div>
-            </div>
-          </div>
+        </div>
+        <div class="faq reveal">
+          <details>
+            <summary>必须登录数据源才能使用吗？</summary>
+            <div class="answer">不需要。查曲、计算、推荐、猜歌和本地收藏等功能可以直接使用；只有读取账号成绩、收藏，或同步成绩时才需要登录或授权。</div>
+          </details>
+          <details>
+            <summary>支持哪些数据源？</summary>
+            <div class="answer">成绩来源支持水鱼、落雪和 AWMC NET；另外使用 DXRating.net、Union 和 maimai-score-hub 提供的谱面标签、别名、曲目对照和成绩识别等能力。</div>
+          </details>
+          <details>
+            <summary>导出的谱面包是什么格式？</summary>
+            <div class="answer">AstroDX 导出为 .adx：压缩包里是一个以曲名命名的谱面文件夹；通用导出是三件套平铺的 zip。文件写入公开的 Download/ChiffonMai 目录，无法写入时会明确提示实际位置。</div>
+          </details>
+          <details>
+            <summary>收藏夹可以在设备之间转移吗？</summary>
+            <div class="answer">可以。收藏夹使用带版本信息的 JSON 交换格式，导入时按内容校验，支持合并与覆盖两种模式。</div>
+          </details>
+          <details>
+            <summary>iOS 版本什么时候发布？</summary>
+            <div class="answer">目前主要提供 Android 版本，iOS 仍在准备中，进展以 GitHub 仓库为准。</div>
+          </details>
+          <details>
+            <summary>这是 SEGA 官方应用吗？</summary>
+            <div class="answer">不是。ChiffonMai 是第三方开源工具，仅供学习和娱乐使用；使用各数据服务时请遵守对应平台的规则。</div>
+          </details>
         </div>
       </div>
     </section>
   </main>
+
   <footer>
     <div class="wrap">
-      <div class="footer-row"><strong>ChiffonMai</strong><span>第三方开源舞萌 DX 工具箱 · MIT License</span>
-        <div class="footer-links"><a href="https://github.com/ChiffonOwO/ChiffonMai" target="_blank"
-            rel="noreferrer">GitHub ↗</a><a href="https://gitee.com/lyjChiFFoN/ChiffonMai" target="_blank"
-            rel="noreferrer">Gitee ↗</a><a href="#top">回到顶部 ↑</a></div>
+      <div class="foot">
+        <a class="brand" href="#top"><img src="../icon.png" alt="" width="32" height="32">ChiffonMai</a>
+        <div class="foot-links">
+          <a href="https://github.com/ChiffonOwO/ChiffonMai" target="_blank" rel="noreferrer">GitHub</a>
+          <a href="https://gitee.com/lyjChiFFoN/ChiffonMai" target="_blank" rel="noreferrer">Gitee</a>
+          <a href="#top">回到顶部</a>
+        </div>
       </div>
-      <div class="footer-icp">
+      <div class="foot-meta">
+        <span>第三方开源舞萌 DX 工具箱 · MIT License · chiffonmai.cloud</span>
         <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">津ICP备2024015256号-2</a>
-        <a href="https://beian.mps.gov.cn/#/query/webSearch?code=13092202000515" target="_blank"
-          rel="noreferrer">冀公网安备13092202000515号</a>
+        <a href="https://beian.mps.gov.cn/#/query/webSearch?code=13092202000515" target="_blank" rel="noreferrer">冀公网安备13092202000515号</a>
       </div>
     </div>
   </footer>
+
   <script>
-    const topbar = document.getElementById('topbar'),
-      navlinks = document.getElementById('navlinks'),
-      menu = document.getElementById('menu');
-    const setScrolled = () => topbar.classList.toggle('scrolled', window.scrollY > 12);
-    window.addEventListener('scroll', setScrolled, {
-      passive: true
-    });
-    setScrolled();
-    menu.addEventListener('click', () => {
-      const open = navlinks.classList.toggle('open');
-      menu.setAttribute('aria-expanded', String(open));
-      menu.textContent = open ? '×' : '☰'
-    });
-    navlinks.querySelectorAll('a').forEach(link => link.addEventListener('click', () => {
-      navlinks.classList.remove('open');
-      menu.setAttribute('aria-expanded', 'false');
-      menu.textContent = '☰'
-    }));
-    document.querySelectorAll('.faq button').forEach(button => button.addEventListener('click', () => button
-      .parentElement.classList.toggle('open')));
-    const observer = new IntersectionObserver(entries => entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        entry.target.classList.add('show');
-        observer.unobserve(entry.target)
-      }
-    }), {
-      threshold: .1
-    });
-    document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+    document.body.classList.remove('no-js');
+
+    // 滚动后导航栏变成实心胶囊
+    const nav = document.getElementById('nav');
+    const onScroll = () => nav.classList.toggle('scrolled', window.scrollY > 10);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+
+    // 移动端菜单
+    const menuBtn = document.getElementById('menuBtn');
+    const navLinks = document.getElementById('navLinks');
+    const setMenu = (open) => {
+      navLinks.classList.toggle('open', open);
+      menuBtn.setAttribute('aria-expanded', String(open));
+      menuBtn.setAttribute('aria-label', open ? '关闭菜单' : '打开菜单');
+    };
+    menuBtn.addEventListener('click', () => setMenu(!navLinks.classList.contains('open')));
+    navLinks.querySelectorAll('a').forEach((a) => a.addEventListener('click', () => setMenu(false)));
+
+    // ================= 可交互的手机演示（全部为示意数据） =================
+    (() => {
+      const screen = document.getElementById('phoneScreen');
+      if (!screen) return;
+      const $ = (id) => document.getElementById(id);
+      const views = $('phoneViews'), nav = $('phoneNav'), sheet = $('phoneSheet'), toastEl = $('phoneToast');
+      const svg = (p) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+      const I = {
+        home: '<path d="M4 11l8-6 8 6v8a1 1 0 0 1-1 1h-4v-6h-6v6H5a1 1 0 0 1-1-1z"/>',
+        lib: '<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',
+        score: '<path d="M4 20V10M10 20V4M16 20v-7M21 20H3"/>',
+        play: '<rect x="3" y="7" width="18" height="11" rx="4"/><path d="M8 11v3M6.5 12.5h3M15.5 12h.01M17.5 14h.01"/>',
+        me: '<circle cx="12" cy="8" r="4"/><path d="M4 20c1-4 4-6 8-6s7 2 8 6"/>',
+        trend: '<path d="M4 17l6-6 4 4 6-7"/><path d="M15 8h5v5"/>',
+        search: '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/>',
+        chart: '<circle cx="12" cy="12" r="9"/><path d="M10 8.5v7l5.5-3.5z" fill="currentColor"/>',
+        guess: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.7M12 17h.01"/>',
+        pin: '<path d="M12 21s-6.5-5.6-6.5-11A6.5 6.5 0 0 1 18.5 10c0 5.4-6.5 11-6.5 11Z"/><circle cx="12" cy="10" r="2.3"/>',
+        medal: '<circle cx="12" cy="14" r="6"/><path d="M8.5 9 6 3h4l2 4 2-4h4l-2.5 6"/>',
+        gear: '<circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"/>',
+        cal: '<rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
+        server: '<rect x="4" y="4" width="16" height="7" rx="2"/><rect x="4" y="13" width="16" height="7" rx="2"/><path d="M8 7.5h.01M8 16.5h.01"/>',
+        wheel: '<circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8"/>',
+        users: '<circle cx="9" cy="8" r="3.5"/><circle cx="17" cy="9.5" r="2.5"/><path d="M3 19c.6-3.2 3-5 6-5s5.4 1.8 6 5M15.5 14.2c2.7-.4 4.9 1.1 5.5 4.3"/>',
+        music: '<path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/>',
+        globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
+        refresh: '<path d="M4 12a8 8 0 0 1 13.7-5.6L20 8.5M20 4v4.5h-4.5M20 12a8 8 0 0 1-13.7 5.6L4 15.5M4 20v-4.5h4.5"/>',
+      };
+
+      // 曲名、类型、难度与定数取自水鱼曲库；达成率为示意数据。
+      // 曲绘引用仓库内 assets/cover/{曲绘 id}.webp：DX 谱 id 去掉开头的 1 和后续的 0（与 App 的 CoverUtil 一致）。
+      const coverOf = (id) => `url(../cover/${id >= 10000 ? id % 10000 : id}.webp) center / cover, var(--p-track)`;
+      const SONGS = [
+        { id: 11663, t: '系ぎて', k: 'DX', d: 4, ds: 15.0, a: 100.2134, fc: 'FC' },
+        { id: 11820, t: 'Xaleid◆scopiX', k: 'DX', d: 4, ds: 15.0, a: 99.8512, fc: '' },
+        { id: 799, t: 'QZKago Requiem', k: 'ST', d: 4, ds: 14.9, a: 99.7023, fc: '' },
+        { id: 227, t: 'Garakuta Doll Play', k: 'ST', d: 4, ds: 14.8, a: 99.9001, fc: 'FC' },
+        { id: 11619, t: 'KHYMΞXΛ', k: 'DX', d: 3, ds: 14.7, a: 100.1032, fc: 'FC' },
+        { id: 11106, t: 'Valsqotch', k: 'DX', d: 3, ds: 14.7, a: 100.0021, fc: '' },
+        { id: 11222, t: 'BREaK! BREaK! BREaK!', k: 'DX', d: 3, ds: 14.6, a: 100.3511, fc: 'FC+' },
+        { id: 11687, t: 'MarbleBlue.', k: 'DX', d: 3, ds: 14.5, a: 100.5021, fc: 'AP' },
+        { id: 11100, t: 'シエルブルーマルシェ', k: 'DX', d: 4, ds: 13.7, a: 100.5123, fc: 'FC+' },
+        { id: 384, t: 'VERTeX', k: 'ST', d: 3, ds: 14.7, a: 99.4102, fc: '' },
+        { id: 10363, t: 'Oshama Scramble!', k: 'DX', d: 3, ds: 13.6, a: 100.6630, fc: 'AP+' },
+        { id: 11486, t: 'ヴィラン', k: 'DX', d: 4, ds: 13.0, a: 100.7512, fc: 'AP' },
+      ];
+      SONGS.forEach((s) => { s.g = coverOf(s.id); });
+      const DIFF = ['BASIC', 'ADVANCED', 'EXPERT', 'MASTER', 'Re:MASTER'];
+      // 单曲 Rating：定数 × 系数 × min(达成率, 100.5%)，向下取整
+      const FACTORS = [[100.5, 22.4], [100, 21.6], [99.5, 21.1], [99, 20.8], [98, 20.3], [97, 20.0], [94, 16.8], [90, 15.2], [80, 13.6]];
+      const ra = (ds, a) => { for (const [x, f] of FACTORS) if (a >= x) return Math.floor(ds * f * Math.min(a, 100.5) / 100); return 0; };
+      const rankOf = (a) => a >= 100.5 ? 'SSS+' : a >= 100 ? 'SSS' : a >= 99.5 ? 'SS+' : a >= 99 ? 'SS' : a >= 98 ? 'S+' : 'S';
+      const dsFg = (d) => d === 4 ? '#1d1d1d' : d === 1 ? '#3d2a00' : '#fff';
+      SONGS.forEach((s) => { s.ra = ra(s.ds, s.a); });
+      const ranked = SONGS.map((s, i) => ({ ...s, i })).sort((x, y) => y.ra - x.ra);
+
+      const typeBadge = (s) => `<span class="s-type ${s.k === 'DX' ? 'dx' : 'st'}">${s.k}</span>`;
+      const fcBadge = (s) => s.fc ? `<span class="s-badge ${s.fc.startsWith('AP') ? 'b-ap' : 'b-fc'}">${s.fc}</span>` : '';
+      const dsPill = (s) => `<span class="s-ds num" style="--c:var(--d${s.d});--fg:${dsFg(s.d)}">${s.ds.toFixed(1)}</span>`;
+
+      const state = { tab: 'score', mode: 2, play: 0 };
+      const TABS = [['home', '首页'], ['lib', '曲库'], ['score', '成绩'], ['play', '游玩'], ['me', '我的']];
+
+      // ---------- 各页面 ----------
+      const homeView = () => `
+        <div class="p-head"><div><div class="home-hello">晚上好，舞萌玩家</div><div class="p-title">首页</div></div></div>
+        <div class="p-card home-rating"><div><div class="p-sub">DX Rating</div><div class="s-rating num">16,482</div></div><span class="tier">彩虹</span></div>
+        <div class="p-gap"></div>
+        <div class="widget-row">
+          <div class="p-card widget"><small>自动同步</small><b><span class="ok-dot"></span>已开启</b><small class="num">上次 21:12</small></div>
+          <div class="p-card widget"><small>服务器状态</small><b><span class="ok-dot"></span>正常</b><small>3 分钟前刷新</small></div>
+        </div>
+        <div class="p-label">常用</div>
+        <div class="home-grid">
+          ${[['Best50', 'score', 'var(--p-primary)', { go: 'score' }], ['吃分推荐', 'trend', 'var(--d2)', { toast: '吃分推荐：下载 App 后可用' }], ['查歌', 'search', 'var(--d0)', { go: 'lib' }], ['谱面播放', 'chart', 'var(--d3)', { toast: '谱面播放：下载 App 后可用' }],
+             ['猜歌', 'guess', 'var(--d4)', { go: 'play', play: 1 }], ['机厅地图', 'pin', 'var(--d1)', { go: 'play', play: 0 }], ['牌子进度', 'medal', 'var(--d2)', { toast: '牌子进度：下载 App 后可用' }], ['设置', 'gear', 'var(--p-muted)', { go: 'me' }]]
+            .map(([n, ic, c, act], k) => `<button class="home-tile" style="--c:${c};--k:${k}" ${act.go ? `data-go="${act.go}"` : ''} ${act.play !== undefined ? `data-play="${act.play}"` : ''} ${act.toast ? `data-toast="${act.toast}"` : ''}><i>${svg(I[ic])}</i>${n}</button>`).join('')}
+        </div>`;
+
+      const libView = () => `
+        <div class="p-head"><span class="p-title">曲库</span></div>
+        <label class="p-search">${svg(I.search)}<input id="libInput" type="search" placeholder="搜索曲名、类型或难度" aria-label="搜索示意曲库" autocomplete="off"></label>
+        <div class="p-label" id="libCount"></div>
+        <div class="p-rows" id="libList"></div>`;
+
+      const scoreView = () => `
+        <div class="p-head"><span class="p-title">Best50</span><span class="p-sub">示意数据</span></div>
+        <div class="p-card">
+          <div class="p-sub">DX Rating</div>
+          <div class="s-rating num">16,482</div>
+          <div class="s-bar"><i style="flex:70;background:var(--p-primary)"></i><i style="flex:30;background:var(--d4)"></i></div>
+          <div class="s-legend num"><span>旧版本 B35 · 11,573</span><span>新版本 B15 · 4,909</span></div>
+        </div>
+        <div class="p-gap"></div>
+        <div class="p-seg" id="modeSeg" style="--n:3;--i:${state.mode}" role="tablist" aria-label="显示模式">
+          <span class="thumb"></span>
+          ${['曲绘', '双列', '单列'].map((n, k) => `<button role="tab" data-mode="${k}" class="${k === state.mode ? 'on' : ''}" aria-selected="${k === state.mode}">${n}</button>`).join('')}
+        </div>
+        <div class="p-gap"></div>
+        <div id="b50List"></div>`;
+
+      const PLAY = [
+        [['全球机厅地图', '附近的机厅和机台数量', 'pin', 'var(--d1)'], ['更新日历', '国服版本更新一览', 'cal', 'var(--d0)'], ['服务器状态', '出门前看一眼', 'server', 'var(--p-primary)'], ['出勤转盘', '今天打什么交给运气', 'wheel', 'var(--d2)']],
+        [['谱面播放', '在手机上预览谱面', 'chart', 'var(--d3)'], ['猜歌', '信息 / 曲绘 / 片段', 'guess', 'var(--d4)'], ['多人房间', '和朋友实时对战', 'users', 'var(--d2)'], ['随身听', '边走边听曲库', 'music', 'var(--d0)']],
+      ];
+      const playView = () => `
+        <div class="p-head"><span class="p-title">游玩</span></div>
+        <div class="p-seg" id="playSeg" style="--n:2;--i:${state.play}" role="tablist" aria-label="出勤或休闲">
+          <span class="thumb"></span>
+          ${['出勤', '休闲'].map((n, k) => `<button role="tab" data-playtab="${k}" class="${k === state.play ? 'on' : ''}" aria-selected="${k === state.play}">${n}</button>`).join('')}
+        </div>
+        <div class="p-gap"></div>
+        <div class="p-rows" id="playList"></div>`;
+
+      const SWATCHES = ['#006a6a', '#3f51b5', '#c2185b', '#ef6c00', '#7b1fa2'];
+      const meView = () => `
+        <div class="p-head"><span class="p-title">我的</span></div>
+        <div class="p-card me-card"><span class="avatar">舞</span><div><b style="font-size:14px">舞萌玩家</b><div class="p-sub num">DX Rating 16,482 · 已绑定水鱼</div></div></div>
+        <div class="p-label">外观</div>
+        <div class="p-rows">
+          <div class="p-row" style="--c:var(--p-primary)"><i>${svg('<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z"/>')}</i><div><b>深色模式</b><small>跟随 App 设置</small></div><button class="switch" id="darkSwitch" role="switch" aria-checked="${screen.classList.contains('dark')}" aria-label="深色模式"></button></div>
+          <div class="p-card"><b style="font-size:12.5px">主题色</b><div class="p-sub">也可以从自定义背景图自动取色</div>
+            <div class="swatches">${SWATCHES.map((c) => `<button class="swatch" style="--s:${c}" data-swatch="${c}" aria-label="主题色 ${c}" aria-pressed="${getComputedStyle(screen).getPropertyValue('--p-primary').trim() === c}"></button>`).join('')}</div>
+          </div>
+          <button class="p-row" style="--c:var(--d0)" data-toast="支持简体中文、繁體中文、English、日本語"><i>${svg(I.globe)}</i><div><b>语言</b><small>简体中文</small></div><span class="chev">›</span></button>
+        </div>
+        <div class="p-label">关于</div>
+        <div class="p-rows">
+          <button class="p-row" style="--c:var(--d3)" data-toast="已是最新版本 v3.0.0"><i>${svg(I.refresh)}</i><div><b>检查更新</b><small class="num">当前 v3.0.0</small></div><span class="chev">›</span></button>
+        </div>`;
+
+      const RENDER = { home: homeView, lib: libView, score: scoreView, play: playView, me: meView };
+      views.innerHTML = TABS.map(([id]) => `<section class="p-view${id === state.tab ? ' on' : ''}" data-view="${id}" aria-label="${TABS.find((t) => t[0] === id)[1]}">${RENDER[id]()}</section>`).join('');
+      nav.innerHTML = TABS.map(([id, name]) => `<button data-go="${id}" class="${id === state.tab ? 'on' : ''}" aria-current="${id === state.tab ? 'page' : 'false'}"><i>${svg(I[id])}</i>${name}</button>`).join('');
+
+      // ---------- 局部重绘 ----------
+      const renderB50 = () => {
+        const box = $('b50List');
+        const items = ranked.map((s, k) => {
+          const attrs = `data-song="${s.i}" style="--c:var(--d${s.d});--g:${s.g};--k:${Math.min(k, 8)}" aria-label="${s.t}，Rating ${s.ra}"`;
+          if (state.mode === 0) return `<button class="c-cell" ${attrs}><span class="rank num">${k + 1}</span><span class="c-ra num">${s.ra}</span></button>`;
+          if (state.mode === 1) return `<button class="t-card" ${attrs}><div class="t-name">${s.t}</div><div class="t-ach num">${s.a.toFixed(4)}%</div><div class="t-foot"><b class="num">${s.ra}</b>${dsPill(s)}</div></button>`;
+          return `<button class="s-card" ${attrs}><span class="s-cover"><span class="rank num">${k + 1}</span></span>
+            <div class="s-mid"><div class="s-name">${typeBadge(s)}<span>${s.t}</span></div><div class="s-score num">${s.a.toFixed(4)}% <span class="s-badge b-rank">${rankOf(s.a)}</span>${fcBadge(s)}</div></div>
+            <div class="s-right"><div class="s-ra num">${s.ra}</div>${dsPill(s)}</div></button>`;
+        }).join('');
+        box.className = 'anim ' + ['p-grid3', 'p-grid2', 's-list'][state.mode];
+        box.innerHTML = items;
+        fitB50();
+      };
+
+      // 只保留在底部导航上方完整放得下的行，并在末尾注明还有多少首
+      const fitB50 = () => {
+        const box = $('b50List');
+        const view = box.closest('.p-view');
+        box.querySelectorAll('.fit-more').forEach((n) => n.remove());
+        const items = [...box.children];
+        items.forEach((n) => { n.hidden = false; });
+        // 列表项的 offsetTop 相对页面视图，导航栏的相对整块屏幕，要减去视图容器的偏移（状态栏）
+        const navTop = nav.offsetTop - views.offsetTop - view.offsetTop - 8;
+        const noteH = 22;
+        const fits = (limit) => items.filter((n) => n.offsetTop + n.offsetHeight <= limit).length;
+        let shown = fits(navTop);
+        if (shown < items.length) shown = fits(navTop - noteH);
+        // 网格模式按整行裁剪，不留半行
+        const cols = state.mode === 0 ? 3 : state.mode === 1 ? 2 : 1;
+        shown = Math.max(cols, shown - (shown % cols));
+        items.forEach((n, k) => { n.hidden = k >= shown; });
+        if (shown < items.length) {
+          const more = document.createElement('div');
+          more.className = 'fit-more';
+          more.style.gridColumn = '1 / -1';
+          more.textContent = `还有 ${items.length - shown} 首 · 下载 App 查看完整 Best50`;
+          box.appendChild(more);
+        }
+      };
+      // 断点切换会改变屏幕高度，字体加载完也会改变行高，两种情况都重新裁剪
+      matchMedia('(max-width: 600px)').addEventListener('change', fitB50);
+      document.fonts?.ready.then(fitB50);
+
+      const renderLib = (q = '') => {
+        const key = q.trim().toLowerCase();
+        const hit = SONGS.map((s, i) => ({ ...s, i })).filter((s) => !key || `${s.t} ${s.k} ${DIFF[s.d]} ${s.ds.toFixed(1)}`.toLowerCase().includes(key));
+        $('libCount').textContent = key ? `找到 ${hit.length} 首` : `全部 ${hit.length} 首（示意）`;
+        const list = $('libList');
+        list.className = 'p-rows anim';
+        list.innerHTML = hit.length ? hit.map((s, k) => `<button class="lib-row" data-song="${s.i}" style="--g:${s.g};--k:${Math.min(k, 8)}"><span class="s-cover"></span><div class="s-mid"><b>${s.t}</b><div class="chips">${typeBadge(s)}<span class="dchip num" style="--c:var(--d${s.d})">${DIFF[s.d]} ${s.ds.toFixed(1)}</span></div></div><span class="chev" style="color:var(--p-dim)">›</span></button>`).join('')
+          : '<div class="p-empty">没有找到，换个关键词试试</div>';
+      };
+
+      const renderPlay = () => {
+        const seg = $('playSeg');
+        seg.style.setProperty('--i', state.play);
+        seg.querySelectorAll('button').forEach((b, k) => { b.classList.toggle('on', k === state.play); b.setAttribute('aria-selected', k === state.play); });
+        const list = $('playList');
+        list.className = 'p-rows anim';
+        list.innerHTML = PLAY[state.play].map(([n, sub, ic, c], k) => `<button class="p-row" style="--c:${c};--k:${k}" data-toast="${n}：下载 App 后可用"><i>${svg(I[ic])}</i><div><b>${n}</b><small>${sub}</small></div><span class="chev">›</span></button>`).join('');
+      };
+
+      renderB50(); renderLib(); renderPlay();
+      $('libInput').addEventListener('input', (e) => renderLib(e.target.value));
+
+      // ---------- 标签切换（按位置决定左右方向） ----------
+      const order = TABS.map((t) => t[0]);
+      const setTab = (id) => {
+        if (id === state.tab) return;
+        const from = order.indexOf(state.tab), to = order.indexOf(id);
+        const cur = views.querySelector(`[data-view="${state.tab}"]`), next = views.querySelector(`[data-view="${id}"]`);
+        cur.classList.remove('on');
+        cur.classList.toggle('back', to > from);
+        next.classList.toggle('back', to < from);
+        next.scrollTop = 0;
+        requestAnimationFrame(() => requestAnimationFrame(() => { next.classList.add('on'); next.classList.remove('back'); }));
+        state.tab = id;
+        nav.querySelectorAll('button').forEach((b) => { const on = b.dataset.go === id; b.classList.toggle('on', on); b.setAttribute('aria-current', on ? 'page' : 'false'); });
+      };
+
+      // ---------- 推分面板 ----------
+      let lastFocus = null;
+      const openSheet = (i) => {
+        const s = SONGS[i];
+        const targets = [[99.5, 'SS+'], [100, 'SSS'], [100.5, 'SSS+']].filter(([x]) => x > s.a);
+        sheet.innerHTML = `<div class="grabber"></div>
+          <div class="sheet-top"><span class="s-cover" style="--c:var(--d${s.d});--g:${s.g}"></span>
+            <div><b>${s.t}</b><div class="chips">${typeBadge(s)}<span class="dchip num" style="--c:var(--d${s.d})">${DIFF[s.d]} ${s.ds.toFixed(1)}</span></div></div></div>
+          <div class="sheet-stats"><div><small>达成率</small><b class="num">${s.a.toFixed(4)}%</b></div><div><small>单曲 Rating</small><b class="num">${s.ra}</b></div></div>
+          <div class="p-label">推分目标</div>
+          ${targets.length ? targets.map(([x, n]) => { const v = ra(s.ds, x); return `<div class="push-row"><span>${n} <em class="num">${x.toFixed(4)}%</em></span><span class="num">${v} <span class="gain-v">+${v - s.ra}</span></span></div>`; }).join('')
+            : '<div class="push-row"><span>已到 SSS+，单曲 Rating 封顶</span><span class="gain-v">✓</span></div>'}
+          <button class="sheet-close" type="button">关闭</button>`;
+        lastFocus = document.activeElement;
+        screen.classList.add('sheet-open');
+        sheet.querySelector('.sheet-close').focus({ preventScroll: true });
+      };
+      const closeSheet = () => {
+        if (!screen.classList.contains('sheet-open')) return;
+        screen.classList.remove('sheet-open');
+        lastFocus?.focus?.({ preventScroll: true });
+      };
+
+      let toastTimer = 0;
+      const toast = (msg) => {
+        toastEl.textContent = msg;
+        toastEl.classList.add('show');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => toastEl.classList.remove('show'), 1800);
+      };
+
+      // ---------- 事件委托 ----------
+      screen.addEventListener('click', (e) => {
+        const t = e.target.closest('button, .p-scrim');
+        if (!t || !screen.contains(t)) return;
+        if (t.classList.contains('p-scrim') || t.classList.contains('sheet-close')) return closeSheet();
+        if (t.dataset.mode !== undefined) {
+          const m = +t.dataset.mode;
+          if (m === state.mode) return; // 再次点当前选项不重绘
+          state.mode = m;
+          const seg = $('modeSeg');
+          seg.style.setProperty('--i', m);
+          seg.querySelectorAll('button').forEach((b, k) => { b.classList.toggle('on', k === m); b.setAttribute('aria-selected', k === m); });
+          return renderB50();
+        }
+        if (t.dataset.playtab !== undefined) {
+          const p = +t.dataset.playtab;
+          if (p !== state.play) { state.play = p; renderPlay(); }
+          return;
+        }
+        if (t.dataset.song !== undefined) return openSheet(+t.dataset.song);
+        if (t.id === 'darkSwitch') {
+          const on = screen.classList.toggle('dark');
+          t.setAttribute('aria-checked', on);
+          return;
+        }
+        if (t.dataset.swatch) {
+          screen.style.setProperty('--p-primary', t.dataset.swatch);
+          screen.querySelectorAll('.swatch').forEach((b) => b.setAttribute('aria-pressed', b === t));
+          return;
+        }
+        if (t.dataset.go) {
+          if (t.dataset.play !== undefined && +t.dataset.play !== state.play) { state.play = +t.dataset.play; renderPlay(); }
+          return setTab(t.dataset.go);
+        }
+        if (t.dataset.toast) toast(t.dataset.toast);
+      });
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet(); });
+    })();
+
+    // 入场动效：同一批出现的元素依次错开
+    const io = new IntersectionObserver((entries) => {
+      let i = 0;
+      entries.forEach((e) => {
+        if (!e.isIntersecting) return;
+        e.target.style.transitionDelay = `${Math.min(i++, 5) * 60}ms`;
+        e.target.classList.add('show');
+        io.unobserve(e.target);
+      });
+    }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+    document.querySelectorAll('.reveal').forEach((el) => io.observe(el));
   </script>
 </body>
 

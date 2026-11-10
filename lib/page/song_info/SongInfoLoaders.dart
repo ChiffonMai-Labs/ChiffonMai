@@ -162,6 +162,7 @@ extension _SongInfoLoaders on _SongInfoPageState {
     _unionFrom = null;
     _unionDxFrom = null;
     _cnReleaseDate = null;
+    _cnChartReleaseDates = const {};
     // didUpdateWidget 在构建阶段调用，加载里的 setState 要等这一帧结束。
     scheduleMicrotask(() {
       if (mounted) _startSongLoaders();
@@ -318,6 +319,12 @@ extension _SongInfoLoaders on _SongInfoPageState {
         _best50OpportunityTiers = tiers;
         _best50OpportunityNote = note;
       });
+      if (!_best50OpportunitySettled) {
+        // 等首次结果的这一帧画完再打开过渡，否则这一帧仍会播放展开动画。
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _best50OpportunitySettled = true;
+        });
+      }
     }
 
     final song = _songData;
@@ -399,7 +406,8 @@ extension _SongInfoLoaders on _SongInfoPageState {
           appL10n.flowThisChartIsAlreadyWithinP0With((bestLabel).toString()));
       return;
     }
-    final targetAchievement = _findMinimumAchievementForRating(
+    await RatingSegmentPreferences.instance.load();
+    final targetAchievement = _findTargetAchievement(
       ds,
       alreadyInBest ? currentRa + 1 : threshold,
       currentAchievement,
@@ -432,6 +440,18 @@ extension _SongInfoLoaders on _SongInfoPageState {
     );
   }
 
+  /// 当前分段方式显示的档位：常用分段不含 100.4999% 这类窄档，详细分段保留全部。
+  /// 只用于显示和选档，Rating 计算仍要用完整的倍率表。
+  List<Map<String, dynamic>> get _displayedRatingSegments {
+    if (RatingSegmentPreferences.instance.isDetailed) {
+      return maimaiRatingMultiplier;
+    }
+    return maimaiRatingMultiplier.where((item) {
+      final scaled = (item['completion'] as num) * 100;
+      return (scaled - scaled.round()).abs() < 1e-6;
+    }).toList();
+  }
+
   /// 从 [start] 起，Rating 每多 1 分一档，一直到 100.5%；按达成率从高到低排列。
   List<Best50OpportunityTier> _buildOpportunityTiers(
       double ds, double start, int baseline) {
@@ -445,6 +465,14 @@ extension _SongInfoLoaders on _SongInfoPageState {
       );
     }
 
+    if (!RatingSegmentPreferences.instance.isDetailed) {
+      return [
+        for (final item in _displayedRatingSegments)
+          if ((item['completion'] as num).toDouble() >= start)
+            tierAt((item['completion'] as num).toDouble()),
+      ];
+    }
+
     final tiers = <Best50OpportunityTier>[tierAt(start)];
     while (true) {
       final next = _findMinimumAchievementForRating(
@@ -454,6 +482,24 @@ extension _SongInfoLoaders on _SongInfoPageState {
     }
     if (tiers.last.achievement < 100.5) tiers.add(tierAt(100.5));
     return tiers.reversed.toList();
+  }
+
+  /// 按分段设置找目标达成率：详细分段逐分反查，常用分段只取对照表里的标准档。
+  double? _findTargetAchievement(
+      double difficulty, int targetRating, double currentAchievement) {
+    if (RatingSegmentPreferences.instance.isDetailed) {
+      return _findMinimumAchievementForRating(
+          difficulty, targetRating, currentAchievement);
+    }
+    if (difficulty <= 0 || targetRating <= 0) return null;
+    for (final item in _displayedRatingSegments.reversed) {
+      final completion = (item['completion'] as num).toDouble();
+      if (completion > currentAchievement + 1e-9 &&
+          _calculateSingleRating(difficulty, completion) >= targetRating) {
+        return completion;
+      }
+    }
+    return null;
   }
 
   /// 按下方「达成率 - Rating」表中的全部倍率区间，寻找达到目标 Rating 的最小达成率。
@@ -973,7 +1019,8 @@ extension _SongInfoLoaders on _SongInfoPageState {
       for (final song in entity.songs) {
         if (song.id != lxnsId) continue;
         final difficulties = song.difficulties;
-        final Iterable<String?> dates = widget.songId.length == 6
+        final isUtage = widget.songId.length == 6;
+        final Iterable<String?> dates = isUtage
             ? (difficulties.utage ?? const []).map((d) => d.releaseDate)
             : (_songData?['type'] == 'DX'
                     ? difficulties.dx ?? const []
@@ -984,8 +1031,19 @@ extension _SongInfoLoaders on _SongInfoPageState {
             .where((d) => d.isNotEmpty)
             .toList()
           ..sort();
+        // 宴谱各谱面没有难度序号，统一按最早的日期判断
+        final byLevel = <int, String>{
+          if (!isUtage)
+            for (final d in (_songData?['type'] == 'DX'
+                ? difficulties.dx ?? const []
+                : difficulties.standard ?? const []))
+              if ((d.releaseDate ?? '').isNotEmpty) d.difficulty: d.releaseDate!,
+        };
         if (mounted && sorted.isNotEmpty) {
-          _update(() => _cnReleaseDate = sorted.first);
+          _update(() {
+            _cnReleaseDate = sorted.first;
+            _cnChartReleaseDates = byLevel;
+          });
         }
         return;
       }

@@ -11,6 +11,7 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:my_first_flutter_app/utils/StringUtil.dart';
 import '../../service/Best50/PersonalizedBest50Service.dart';
+import '../../service/PersonalizedScoreService.dart';
 import '../../manager/DivingFish/MaimaiMusicDataManager.dart';
 import '../SongInfoPage.dart';
 import '../../constant/VersionListConstant.dart';
@@ -41,7 +42,11 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
   List<Map<String, dynamic>> _personalizedSongs = [];
   List<Map<String, dynamic>> _remainingSongs = [];
   String? _remainingLabel;
-  bool _isLoading = true;
+  bool _isLoading = true; // 只表示首次进入，之后切换时旧内容留在屏幕上
+  bool _fetchQueued = false;
+  Future<void>? _activeFetch;
+  int _resultVersion = 0; // 每换一批结果加一，新结果重新入场
+  String _resultType = 'ap_plus_50'; // 屏幕上这批结果所属的类型
   String _selectedType = 'ap_plus_50'; // 默认选择AP+50
   String? _selectedCharter; // 选中的charter
   Map<String, int>? _charterCounts; // charter出现次数
@@ -77,6 +82,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
     {'value': 'random_50', 'label': '随机50'},
     {'value': 'beyond_50', 'label': '越级50'},
     {'value': 'difficulty_50', 'label': '难度50'},
+    {'value': 'level_50', 'label': '等级50'},
     {'value': 'best_n', 'label': 'Best N'},
     {'value': 'all_50', 'label': 'ALL50'},
     // 游玩次数最高的 50 张谱面；次数来自「同步成绩」的线路1（AWMC 网关）——
@@ -101,6 +107,8 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
   String? _selectedTagName; // 选中的标签名称
   int?
       _selectedDifficultyLevel; // 难度50 选中的难度（0=BASIC ... 4=Re:MASTER，UTAGE 走独立流程）
+  String? _selectedLevel; // 等级50 选中的等级（如 "14+"）
+  List<String> _levelOptions = []; // 等级选项，与个性化成绩查询共用同一份全量列表
   int _selectedN = 50; // Best N 选项选中的 N，默认 50
   late final TextEditingController _bestNController; // Best N 输入框 controller
   bool _isInclusiveMode = false; // 包容关系模式开关（仅对连击/同步50有效）
@@ -167,6 +175,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
       _charterCounts = await service.getCharterCounts();
       _versionCounts = await service.getVersionCounts();
       _genreCounts = await service.getGenreCounts();
+      _levelOptions = await PersonalizedScoreService().getAllLevelOptions();
 
       // 加载个性化数据
       await _fetchPersonalizedData();
@@ -253,11 +262,40 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
     return '';
   }
 
-  Future<void> _fetchPersonalizedData() async {
-    setState(() {
-      _isLoading = true;
-    });
+  // 切换时页面不再被转圈挡住，上一次还没算完就可能又换了选项。
+  // 服务是单例，lastRemaining 被同时进行的请求共用，所以串行执行，只采用最后一次的结果。
+  Future<void> _fetchPersonalizedData() {
+    _fetchQueued = true;
+    return _activeFetch ??=
+        _drainFetches().whenComplete(() => _activeFetch = null);
+  }
 
+  Future<void> _drainFetches() async {
+    while (_fetchQueued && mounted) {
+      _fetchQueued = false;
+      await _fetchOnce();
+    }
+  }
+
+  void _applyResult(
+    String type,
+    List<Map<String, dynamic>> songs,
+    List<Map<String, dynamic>> remaining,
+    String? remainingLabel,
+  ) {
+    if (!mounted || _fetchQueued) return; // 选项已经又变了，这批结果作废
+    setState(() {
+      _personalizedSongs = songs;
+      _remainingSongs = remaining;
+      _remainingLabel = remainingLabel;
+      _resultType = type;
+      _resultVersion++;
+      _isLoading = false;
+    });
+  }
+
+  Future<void> _fetchOnce() async {
+    final requestType = _selectedType;
     try {
       final service = PersonalizedBest50Service();
       service.lastRemaining = const [];
@@ -385,6 +423,11 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
             data = await service.getDifficulty50Data(_selectedDifficultyLevel!);
           }
           break;
+        case 'level_50':
+          if (_selectedLevel != null) {
+            data = await service.getLevel50Data(_selectedLevel!);
+          }
+          break;
         case 'best_n':
           data = await service.getBestNData(_selectedN);
           break;
@@ -404,26 +447,14 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
         final enrichedRemaining =
             await service.enrichRecordsWithSongInfo(service.lastRemaining);
 
-        setState(() {
-          _personalizedSongs = enrichedRecords;
-          _remainingSongs = enrichedRemaining;
-          _remainingLabel = remainingLabel;
-          _isLoading = false;
-        });
+        _applyResult(
+            requestType, enrichedRecords, enrichedRemaining, remainingLabel);
       } else {
-        setState(() {
-          _personalizedSongs = [];
-          _remainingSongs = [];
-          _isLoading = false;
-        });
+        _applyResult(requestType, [], [], null);
       }
     } catch (e) {
       debugPrint('Error fetching personalized data: $e');
-      setState(() {
-        _personalizedSongs = [];
-        _remainingSongs = [];
-        _isLoading = false;
-      });
+      _applyResult(requestType, [], [], null);
     }
   }
 
@@ -485,6 +516,9 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
   // 导出为图片
   Future<void> _exportToImage() async {
     try {
+      // 等切换中的结果到位，避免按新标题导出旧列表。
+      await _activeFetch;
+      if (!mounted) return;
       if (_personalizedSongs.isEmpty) {
         showAppNoticeDialog(context,
             title: context.l10n.featureNotice,
@@ -513,7 +547,9 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
         previewBuilder: (previewContext, previewQuality) =>
             PersonalizedB50ConvertToImg.buildPreviewWidget(
           previewContext,
-          _selectedType == 'charter_50' && _selectedCharter != null
+          _selectedType == 'level_50' && _selectedLevel != null
+              ? context.l10n.flowLevel50P0('Lv.$_selectedLevel')
+              : _selectedType == 'charter_50' && _selectedCharter != null
               ? context.l10n
                   .flowChartDesigner50P0((_selectedCharter!).toString())
               : _selectedType == 'version_50' && _selectedVersion != null
@@ -545,7 +581,9 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
         return; // 用户取消
       }
 
-      String title = _selectedType == 'charter_50' && _selectedCharter != null
+      String title = _selectedType == 'level_50' && _selectedLevel != null
+          ? context.l10n.flowLevel50P0('Lv.$_selectedLevel')
+          : _selectedType == 'charter_50' && _selectedCharter != null
           ? context.l10n.flowChartDesigner50P0((_selectedCharter!).toString())
           : _selectedType == 'version_50' && _selectedVersion != null
               ? context.l10n.flowVersion50P0(
@@ -619,7 +657,9 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
             Best50ActionButton(
               icon: Icons.tune_rounded,
               onPressed: _showTypeSelectionDialog,
-              label: (_selectedType == 'charter_50' && _selectedCharter != null
+              label: (_selectedType == 'level_50' && _selectedLevel != null
+                  ? context.l10n.flowCategoryLevel50P0('Lv.$_selectedLevel')
+                  : _selectedType == 'charter_50' && _selectedCharter != null
                   ? context.l10n.flowCategoryChartDesigner50P0(
                       (_selectedCharter!).toString())
                   : _selectedType == 'version_50' && _selectedVersion != null
@@ -717,9 +757,16 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
                       // 显示难度选择对话框
                       Navigator.of(context).pop();
                       _showDifficultySelectionDialog();
+                    } else if (option['value'] == 'level_50') {
+                      // 显示等级选择对话框
+                      Navigator.of(context).pop();
+                      _showLevelSelectionDialog();
+                    } else if (_selectedType == option['value']) {
+                      Navigator.of(context).pop();
                     } else {
                       setState(() {
                         _selectedType = option['value']!;
+                        _isInclusiveMode = false; // 切换类型时重置包容关系模式
                         _selectedCharter = null;
                         _selectedVersion = null;
                         _selectedGenre = null;
@@ -727,13 +774,13 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
                         _selectedTagId = null;
                         _selectedTagName = null;
                         _selectedDifficultyLevel = null;
+                        _selectedLevel = null;
                         // Best N：切回时把 controller 文本同步成当前的 N
                         if (option['value'] == 'best_n') {
                           _bestNController.text = _selectedN.toString();
                         }
                       });
                       Navigator.of(context).pop();
-                      _isInclusiveMode = false; // 切换类型时重置包容关系模式
                       _fetchPersonalizedData();
                     }
                   },
@@ -749,6 +796,83 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
               },
             ),
           ],
+        );
+      },
+    );
+  }
+
+  // 显示等级选择对话框：与个性化成绩查询的等级对话框同样的 5 列网格
+  void _showLevelSelectionDialog() {
+    if (_levelOptions.isEmpty) {
+      showAppNoticeDialog(context,
+          title: context.l10n.featureNotice,
+          message: context.l10n.flowNoData);
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AppAlertDialog(
+          title: Center(child: Text(context.l10n.flowSelectLevel)),
+          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: GridView.builder(
+              shrinkWrap: true,
+              padding: EdgeInsets.zero,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 5,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 8,
+                childAspectRatio: 1.5,
+              ),
+              itemCount: _levelOptions.length,
+              itemBuilder: (context, index) {
+                final level = _levelOptions[index];
+                final selected =
+                    _selectedType == 'level_50' && _selectedLevel == level;
+                return Container(
+                  alignment: Alignment.center,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: selected
+                          ? Theme.of(context).colorScheme.primary
+                          : AppSurfaces.inset(context),
+                      alignment: Alignment.center,
+                      padding: EdgeInsets.all(4),
+                      minimumSize: Size(50, 40),
+                    ),
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      // 再次点当前选中的等级不重新加载
+                      if (selected) return;
+                      setState(() {
+                        _selectedType = 'level_50';
+                        _selectedLevel = level;
+                        _isInclusiveMode = false;
+                      });
+                      _fetchPersonalizedData();
+                    },
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        'Lv.$level',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: selected
+                              ? Theme.of(context).colorScheme.onPrimary
+                              : Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
         );
       },
     );
@@ -796,6 +920,11 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
                       (entry.value).toString())),
                   selected: _selectedVersion == entry.key,
                   onTap: () {
+                    if (_selectedType == 'version_50' &&
+                        _selectedVersion == entry.key) {
+                      Navigator.of(context).pop();
+                      return;
+                    }
                     setState(() {
                       _selectedType = 'version_50';
                       _selectedVersion = entry.key;
@@ -847,6 +976,11 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
                       (entry.key).toString(), (entry.value).toString())),
                   selected: _selectedGenre == entry.key,
                   onTap: () {
+                    if (_selectedType == 'genre_50' &&
+                        _selectedGenre == entry.key) {
+                      Navigator.of(context).pop();
+                      return;
+                    }
                     setState(() {
                       _selectedType = 'genre_50';
                       _selectedGenre = entry.key;
@@ -885,6 +1019,11 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
                   title: Text(context.featureText(option['label']!)),
                   selected: _selectedStar == option['label'],
                   onTap: () {
+                    if (_selectedType == 'star_50' &&
+                        _selectedStar == option['label']) {
+                      Navigator.of(context).pop();
+                      return;
+                    }
                     setState(() {
                       _selectedType = 'star_50';
                       _selectedStar = option['label'];
@@ -995,6 +1134,10 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
                   title: Text(opt.label),
                   onTap: () {
                     Navigator.of(context).pop();
+                    if (_selectedType == 'difficulty_50' &&
+                        _selectedDifficultyLevel == opt.level) {
+                      return;
+                    }
                     setState(() {
                       _selectedType = 'difficulty_50';
                       _selectedDifficultyLevel = opt.level;
@@ -1087,6 +1230,11 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
                           dense: true,
                           selected: _selectedTagId == tag.id,
                           onTap: () {
+                            if (_selectedType == 'tag_50' &&
+                                _selectedTagId == tag.id) {
+                              Navigator.of(context).pop();
+                              return;
+                            }
                             setState(() {
                               _selectedType = 'tag_50';
                               _selectedTagId = tag.id;
@@ -1147,6 +1295,11 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
                       (entry.key).toString(), (entry.value).toString())),
                   selected: _selectedCharter == entry.key,
                   onTap: () {
+                    if (_selectedType == 'charter_50' &&
+                        _selectedCharter == entry.key) {
+                      Navigator.of(context).pop();
+                      return;
+                    }
                     setState(() {
                       _selectedType = 'charter_50';
                       _selectedCharter = entry.key;
@@ -1185,7 +1338,10 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
     double averageAchievement =
         totalSongs > 0 ? totalAchievement / totalSongs : 0.0;
 
-    final title = _selectedType == 'charter_50' && _selectedCharter != null
+    final title = _selectedType == 'level_50' && _selectedLevel != null
+        ? context.l10n.flowP0Statistics(
+            context.l10n.flowLevel50P0('Lv.$_selectedLevel'))
+        : _selectedType == 'charter_50' && _selectedCharter != null
         ? context.l10n
             .flowChartDesigner50P0Statistics((_selectedCharter!).toString())
         : _selectedType == 'version_50' && _selectedVersion != null
@@ -1305,7 +1461,10 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
             ),
             SizedBox(height: 16),
             Text(
-              _selectedType == 'charter_50' && _selectedCharter != null
+              _selectedType == 'level_50' && _selectedLevel != null
+                  ? context.l10n.flowNoP0DataYet(
+                      context.l10n.flowLevel50P0('Lv.$_selectedLevel'))
+                  : _selectedType == 'charter_50' && _selectedCharter != null
                   ? context.l10n.flowNoChartDesigner50DataForP0(
                       (_selectedCharter!).toString())
                   : _selectedType == 'version_50' && _selectedVersion != null
@@ -1349,6 +1508,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
       items: [for (final s in _personalizedSongs) _cardData(s)],
       remaining: [for (final s in _remainingSongs) _cardData(s)],
       remainingLabel: _remainingLabel,
+      contentKey: _resultVersion,
     );
   }
 
@@ -1384,7 +1544,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
       // 只显示当前难度的满分（notes * 3），不用 DX 双难度总和
       maxDxScore:
           matchedSong == null ? 0 : _calculateMaxScore(matchedSong, levelIndex),
-      badge: _selectedType == 'pc_50' && playCount != null
+      badge: _resultType == 'pc_50' && playCount != null
           ? 'PC $playCount'
           : null,
       onOpenSong: () => Navigator.push(

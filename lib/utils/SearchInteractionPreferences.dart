@@ -24,6 +24,7 @@ class SearchInteractionPreferences extends ChangeNotifier {
 
   SearchInteractionMode _mode = SearchInteractionMode.inline;
   bool _showMatchInfo = false;
+  bool _avoidKeyboard = false;
   HomeSearchScope _homeSearchScope = HomeSearchScope.feature;
   bool _loaded = false;
   Future<void>? _loading;
@@ -34,6 +35,10 @@ class SearchInteractionPreferences extends ChangeNotifier {
 
   /// 歌曲搜索结果是否显示匹配字段，默认关闭。
   bool get showMatchInfo => _showMatchInfo;
+
+  /// 搜索区域是否避让输入法（只抬高可滚动范围，不动背景），默认关闭。
+  /// 作用于首页搜索、乐曲查询（含非国服乐曲查询）和成绩查询。
+  bool get avoidKeyboard => _avoidKeyboard;
 
   /// 首页搜索框的搜索范围，默认只搜功能。
   HomeSearchScope get homeSearchScope => _homeSearchScope;
@@ -62,6 +67,8 @@ class SearchInteractionPreferences extends ChangeNotifier {
               : SearchInteractionMode.inline;
       _showMatchInfo =
           prefs.getBool(CacheKeyConstant.searchShowMatchInfo) ?? false;
+      _avoidKeyboard =
+          prefs.getBool(CacheKeyConstant.searchAvoidKeyboard) ?? false;
       _homeSearchScope = HomeSearchScope.values.firstWhere(
         (scope) =>
             scope.name == prefs.getString(CacheKeyConstant.homeSearchScope),
@@ -85,6 +92,20 @@ class SearchInteractionPreferences extends ChangeNotifier {
       await prefs.setBool(CacheKeyConstant.searchShowMatchInfo, value);
     }).catchError((Object error) {
       debugPrint('保存匹配字段显示偏好失败: $error');
+    });
+    await _writes;
+  }
+
+  Future<void> setAvoidKeyboard(bool value) async {
+    await load();
+    if (_avoidKeyboard == value) return;
+    _avoidKeyboard = value;
+    notifyListeners();
+    _writes = _writes.then((_) async {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(CacheKeyConstant.searchAvoidKeyboard, value);
+    }).catchError((Object error) {
+      debugPrint('保存搜索区域避让偏好失败: $error');
     });
     await _writes;
   }

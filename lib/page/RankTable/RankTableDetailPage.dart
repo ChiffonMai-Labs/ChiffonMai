@@ -9,6 +9,7 @@ import 'package:my_first_flutter_app/entity/DivingFish/Song.dart';
 import 'package:my_first_flutter_app/page/SongInfoPage.dart';
 import 'package:my_first_flutter_app/widgets/BackgroundPageScaffold.dart';
 import '../../service/RankTable/RankCompletionStore.dart';
+import '../../widgets/EmptyState.dart';
 import '../../widgets/RankCompletionButton.dart';
 import '../../utils/AppDesignTokens.dart';
 import '../../widgets/AppUi.dart';
@@ -617,14 +618,9 @@ class _RankDetailPageState extends State<RankDetailPage> {
   }
 
   Widget _buildEmptyContent() {
-    return Center(
-      child: Text(
-        context.l10n.flowNoDanDataFound,
-        style: TextStyle(
-          fontSize: 13,
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
-        ),
-      ),
+    return EmptyState(
+      icon: Icons.search_off_rounded,
+      message: context.l10n.flowNoDanDataFound,
     );
   }
 

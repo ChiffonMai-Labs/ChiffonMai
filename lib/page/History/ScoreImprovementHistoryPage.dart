@@ -143,7 +143,6 @@ class _ScoreImprovementHistoryPageState
     setState(() {
       _searchLoading = true;
       _searchError = null;
-      _searchMatchIds = null;
       _limit = 60;
     });
     _searchTimer = Timer(const Duration(milliseconds: 300),
@@ -154,7 +153,8 @@ class _ScoreImprovementHistoryPageState
     query = query.trim();
     final generation = ++_searchGeneration;
     setState(() {
-      _searchMatchIds = null;
+      // 搜索中保留上一次的匹配结果，列表不被转圈换掉。
+      if (query.isEmpty) _searchMatchIds = null;
       _searchError = null;
       _searchLoading = query.isNotEmpty;
       _limit = 60;
@@ -344,6 +344,7 @@ class _ScoreImprovementHistoryPageState
         _entries.where((entry) => entry.day == _selectedDay).toList();
     final filtered = dayEntries.where((entry) {
       return query.isEmpty ||
+          (_searchLoading && _searchMatchIds == null) ||
           (_searchMatchIds?.contains(entry.after.songId) ?? false) ||
           // 曲库移除或改名后的历史仍可按快照曲名、完整 ID 找到。
           entry.after.title.toLowerCase().contains(query) ||
@@ -381,7 +382,7 @@ class _ScoreImprovementHistoryPageState
                 ),
               ),
               Expanded(
-                child: _loading || _searchLoading
+                child: _loading
                     ? const Center(child: CircularProgressIndicator())
                     : _error != null || _searchError != null
                         ? _buildStateMessage(

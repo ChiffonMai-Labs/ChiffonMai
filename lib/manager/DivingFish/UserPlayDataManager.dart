@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../constant/CacheKeyConstant.dart';
 import 'package:my_first_flutter_app/utils/ApiClient.dart';
 import '../../service/History/ChartHistoryStore.dart';
+import '../../service/History/ScoreImprovementCore.dart';
 import 'ProberException.dart';
 import '../../utils/CurrentDataSourceNotifier.dart';
 import '../../utils/QuotaRetryHint.dart';
@@ -159,15 +160,10 @@ class UserPlayDataManager {
     if (prefs.getString(source.userIdCacheKey) == '${source.key}:$accountId') {
       previousData = await getCachedUserPlayData();
     }
-    final maxScores = <String, int>{};
+    var maxScores = <String, int>{};
     try {
       final songs = await MaimaiMusicDataManager().getCachedSongs();
-      for (final song in songs ?? []) {
-        for (var i = 0; i < song.charts.length; i++) {
-          maxScores['${song.id}/$i'] =
-              song.charts[i].notes.fold<int>(0, (sum, n) => sum + n) * 3;
-        }
-      }
+      maxScores = maxDxScoresFromSongs(songs ?? const []);
     } catch (error) {
       debugPrint('[History] 物量暂不可用，星数保留未知：$error');
     }

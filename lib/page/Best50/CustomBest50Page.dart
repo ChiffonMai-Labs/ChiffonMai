@@ -963,8 +963,9 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
           onPressed: _exportToImage,
         ),
       ],
+      // viewPadding 不随输入法变化；padding 在键盘弹出时归零，页面会跟着动。
       contentPadding:
-          EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
+          EdgeInsets.only(bottom: MediaQuery.viewPaddingOf(context).bottom),
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(AppDesignTokens.gutter, 8,
             AppDesignTokens.gutter, AppDesignTokens.gutter),

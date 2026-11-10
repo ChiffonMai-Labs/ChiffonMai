@@ -21,6 +21,8 @@ class _RatingRecommendPageState extends State<RatingRecommendPage> {
   bool _isLoadingRating = true;
   List<RatingRecommendItem> _results = [];
   String _sortMode = 'avg';
+  String _resultSortMode = 'avg'; // 屏幕上这批结果所属的排序
+  int _loadGeneration = 0;
   int _rating = 0;
   final TextEditingController _ratingController = TextEditingController();
   int _currentPage = 1;
@@ -51,23 +53,29 @@ class _RatingRecommendPageState extends State<RatingRecommendPage> {
   }
 
   Future<void> _loadRecommendations() async {
+    final generation = ++_loadGeneration;
+    final sortMode = _sortMode;
     setState(() {
       _isLoading = true;
-      _currentPage = 1;
     });
 
     try {
       final results = await RatingRecommendService().getRecommendations(
         _rating,
-        _sortMode,
+        sortMode,
       );
+      if (!mounted || generation != _loadGeneration) return;
       setState(() {
         _results = results;
+        _resultSortMode = sortMode;
+        _currentPage = 1;
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted || generation != _loadGeneration) return;
       setState(() {
         _results = [];
+        _currentPage = 1;
         _isLoading = false;
       });
     }
@@ -101,15 +109,14 @@ class _RatingRecommendPageState extends State<RatingRecommendPage> {
         children: [
           _buildControlPanel(brightness, screenWidth),
           Expanded(
-            child: _isLoading || _isLoadingRating
+            child: (_isLoading && _results.isEmpty) || _isLoadingRating
                 ? _buildLoadingState(screenHeight)
                 : _results.isEmpty
                     ? _buildEmptyState(brightness, screenHeight)
                     : _buildResultsList(
                         brightness, paginatedResults, screenWidth),
           ),
-          if (!_isLoading &&
-              !_isLoadingRating &&
+          if (!_isLoadingRating &&
               _results.isNotEmpty &&
               totalPages > 1)
             _buildPagination(brightness, totalPages, screenWidth),
@@ -177,6 +184,7 @@ class _RatingRecommendPageState extends State<RatingRecommendPage> {
       ],
       selectedIndex: modes.indexOf(_sortMode),
       onChanged: (index) {
+        if (modes[index] == _sortMode) return;
         setState(() {
           _sortMode = modes[index];
         });
@@ -226,6 +234,8 @@ class _RatingRecommendPageState extends State<RatingRecommendPage> {
   Widget _buildResultsList(Brightness brightness,
       List<RatingRecommendItem> results, double screenWidth) {
     return ListView.builder(
+      // 拿到新结果时重新挂载，首屏才会重新进场。
+      key: ObjectKey(_results),
       controller: _scrollController,
       padding: const EdgeInsets.fromLTRB(
           AppDesignTokens.gutter, 0, AppDesignTokens.gutter, 8),
@@ -252,7 +262,7 @@ class _RatingRecommendPageState extends State<RatingRecommendPage> {
 
   Widget _buildResultCard(
       RatingRecommendItem item, Brightness brightness, double screenWidth) {
-    final isAvg = _sortMode == 'avg';
+    final isAvg = _resultSortMode == 'avg';
     return RecommendResultCard(
       songId: item.songId,
       title: item.songTitle,

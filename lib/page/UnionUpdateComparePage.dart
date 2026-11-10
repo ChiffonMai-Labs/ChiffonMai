@@ -10,6 +10,7 @@ import '../utils/CommonWidgetUtil.dart';
 import '../utils/CoverUtil.dart';
 import '../utils/SongFilterUtil.dart';
 import '../utils/StringUtil.dart';
+import '../widgets/EmptyState.dart';
 import '../widgets/AppHeader.dart';
 import 'SongInfoPage.dart';
 import '../utils/AppDesignTokens.dart';
@@ -105,7 +106,7 @@ class _UnionUpdateComparePageState extends State<UnionUpdateComparePage> {
       child: _loading
           ? const Center(child: CircularProgressIndicator())
           : !(_compare?.hasData ?? false)
-              ? _buildEmpty(brightness)
+              ? _buildEmpty()
               : _buildBody(brightness),
     );
   }
@@ -439,34 +440,11 @@ class _UnionUpdateComparePageState extends State<UnionUpdateComparePage> {
     );
   }
 
-  Widget _buildEmpty(Brightness brightness) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.inbox_rounded,
-                size: 42, color: AppColors.greyHint(brightness)),
-            const SizedBox(height: 12),
-            Text(
-              context.l10n.flowNoCachedLibraryYet,
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                color: AppColors.primaryText(brightness),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              context.l10n.flowThisPageUsesTheLocalDivingFish,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  fontSize: 12.5, color: AppColors.secondaryText(brightness)),
-            ),
-          ],
-        ),
-      ),
+  Widget _buildEmpty() {
+    return EmptyState(
+      icon: Icons.inbox_rounded,
+      title: context.l10n.flowNoCachedLibraryYet,
+      message: context.l10n.flowThisPageUsesTheLocalDivingFish,
     );
   }
 

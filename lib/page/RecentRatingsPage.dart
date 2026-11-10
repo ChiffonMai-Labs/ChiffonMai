@@ -11,6 +11,7 @@ import '../utils/CoverUtil.dart';
 import '../utils/CurrentDataSourceNotifier.dart';
 import '../utils/ChartDifficulty.dart';
 import 'package:my_first_flutter_app/utils/ApiClient.dart';
+import '../widgets/EmptyState.dart';
 import '../widgets/BackgroundPageScaffold.dart';
 import '../utils/AppDesignTokens.dart';
 import '../widgets/AppUi.dart';
@@ -279,7 +280,7 @@ class _RecentRatingsPageState extends State<RecentRatingsPage> {
           : _errorMessage != null
               ? _buildError(brightness)
               : _ratings.isEmpty
-                  ? _buildEmpty(brightness)
+                  ? _buildEmpty()
                   : _buildRatingList(brightness),
     );
   }
@@ -311,21 +312,10 @@ class _RecentRatingsPageState extends State<RecentRatingsPage> {
     );
   }
 
-  Widget _buildEmpty(Brightness brightness) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.star_border_outlined,
-              size: 56, color: AppColors.greyHint(brightness)),
-          const SizedBox(height: 12),
-          Text(
-            context.l10n.flowNoRatingsYet,
-            style:
-                TextStyle(color: AppColors.greyHint(brightness), fontSize: 16),
-          ),
-        ],
-      ),
+  Widget _buildEmpty() {
+    return EmptyState(
+      icon: Icons.star_border_outlined,
+      message: context.l10n.flowNoRatingsYet,
     );
   }
 

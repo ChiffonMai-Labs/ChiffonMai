@@ -1,6 +1,16 @@
 import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
+import '../../entity/DivingFish/Song.dart';
 import '../../utils/StringUtil.dart';
+
+/// 由曲库算出每张谱面的最大 DX 分（物量 × 3），键为 `曲目id/难度索引`。
+/// 采集历史和显示时补齐缺失值共用这一份规则。
+Map<String, int> maxDxScoresFromSongs(Iterable<Song> songs) => {
+      for (final song in songs)
+        for (var i = 0; i < song.charts.length; i++)
+          '${song.id}/$i':
+              song.charts[i].notes.fold<int>(0, (sum, n) => sum + n) * 3,
+    };
 
 /// 完整成绩快照；未知字段保留 null，避免把缺失值当作零分或未达成。
 class ImprovementScore {
@@ -27,6 +37,15 @@ class ImprovementScore {
   String? get stars => maxDxScore > 0 && dxScore != null
       ? StringUtil.formatStars(dxScore! / maxDxScore)
       : null;
+
+  /// 记录时曲库没就绪、新歌还没进本地曲库，或是早期版本记下的条目，
+  /// 都会把最大 DX 分存成 0，导致星数和 DX 分数达成率显示为「-」。
+  /// 显示前用当前曲库补上；已有的值不覆盖。
+  void fillMaxDxScore(Map<String, int> maxScores) {
+    if (maxDxScore > 0) return;
+    final value = maxScores['$songId/$levelIndex'];
+    if (value != null && value > 0) data['maxDxScore'] = value;
+  }
 
   static ImprovementScore? parse(dynamic raw, {int? maxDxScore}) {
     if (raw is! Map) return null;

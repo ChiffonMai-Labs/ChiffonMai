@@ -17,6 +17,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import '../../widgets/EmptyState.dart';
 import '../../widgets/ExportSuccessDialog.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -649,11 +650,10 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
       return const Center(child: CircularProgressIndicator());
     }
     if (_error != null) {
-      return _buildMessage(scheme, Icons.music_off, _error!);
+      return _buildMessage(Icons.music_off, _error!);
     }
     if (_filtered.isEmpty) {
       return _buildMessage(
-        scheme,
         Icons.search_off,
         _all.isEmpty
             ? context.l10n.flowNoPlayableSongs
@@ -695,24 +695,8 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
     );
   }
 
-  Widget _buildMessage(ColorScheme scheme, IconData icon, String text) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 56, color: scheme.onSurfaceVariant),
-            const SizedBox(height: 12),
-            Text(
-              text,
-              textAlign: TextAlign.center,
-              style: TextStyle(color: scheme.onSurfaceVariant),
-            ),
-          ],
-        ),
-      ),
-    );
+  Widget _buildMessage(IconData icon, String text) {
+    return EmptyState(icon: icon, message: text);
   }
 
   Widget _buildFooter(ColorScheme scheme) {

@@ -1033,48 +1033,51 @@ class _GuessSongByOpenLettersPageState
 
                                     const SizedBox(height: 20),
 
-                                    // 开字母输入
-                                    Container(
-                                      child: Column(
+                                    // 开字母输入：输入框沿用主题样式，按钮与输入框等高并列。
+                                    // 以前整行包在白色卡片里，按钮四周会露出一圈白底。
+                                    IntrinsicHeight(
+                                      child: Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.stretch,
                                         children: [
-                                          Container(
-                                            decoration: BoxDecoration(
-                                              color: AppSurfaces.card(context),
-                                              borderRadius:
-                                                  BorderRadius.circular(AppDesignTokens.radiusMedium),
-                                            ),
-                                            child: Row(
-                                              children: [
-                                                Expanded(
-                                                  child: TextField(
-                                                    controller:
-                                                        _openLetterController,
-                                                    enabled: !_isGameOver,
-                                                    decoration:
-                                                         InputDecoration(
-                                                      hintText: context.l10n.flowEnterOneCharacter2,
-                                                      border: OutlineInputBorder(
-                                                        borderRadius:
-                                                            BorderRadius.all(Radius.circular(8)),
-                                                        borderSide: BorderSide.none,
-                                                      ),
-                                                      contentPadding:
-                                                          EdgeInsets.all(12),
-                                                    ),
-                                                    inputFormatters: [
-                                                      LengthLimitingTextInputFormatter(
-                                                          1),
-                                                    ],
-                                                  ),
-                                                ),
-                                                ElevatedButton(
-                                                  onPressed: _isGameOver
-                                                      ? null
-                                                      : _handleOpenLetter,
-                                                  child:  Text(context.l10n.flowRevealLetters),
-                                                ),
+                                          Expanded(
+                                            child: TextField(
+                                              controller: _openLetterController,
+                                              enabled: !_isGameOver,
+                                              textInputAction:
+                                                  TextInputAction.done,
+                                              onSubmitted: (_) {
+                                                if (!_isGameOver) {
+                                                  _handleOpenLetter();
+                                                }
+                                              },
+                                              decoration: InputDecoration(
+                                                hintText: context
+                                                    .l10n.flowEnterOneCharacter2,
+                                              ),
+                                              inputFormatters: [
+                                                LengthLimitingTextInputFormatter(
+                                                    1),
                                               ],
                                             ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          FilledButton(
+                                            onPressed: _isGameOver
+                                                ? null
+                                                : _handleOpenLetter,
+                                            style: FilledButton.styleFrom(
+                                              padding: const EdgeInsets.symmetric(
+                                                  horizontal: 20),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(
+                                                        AppDesignTokens
+                                                            .radiusSmall),
+                                              ),
+                                            ),
+                                            child: Text(
+                                                context.l10n.flowRevealLetters),
                                           ),
                                         ],
                                       ),

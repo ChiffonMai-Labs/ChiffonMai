@@ -185,7 +185,11 @@ class PersonalizedScoreService {
   }
 
   // 根据定数计算等级显示（x或x+）
-  String _getLevelDisplay(double ds) {
+  String _getLevelDisplay(double ds) => levelOf(ds);
+
+  /// 定数 → 等级（如 14.6 → "14+"，15.0 及以上统一为 "15"）。
+  /// 个性化 Best50 的「等级50」也用这套规则，保证两边的等级划分一致。
+  static String levelOf(double ds) {
     if (ds >= 15.0) {
       return '15';
     }

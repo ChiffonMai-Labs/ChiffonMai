@@ -88,6 +88,11 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
 
   bool get _loadingSongs => _isLoading || _isSongsLoading;
 
+  // 只有没有旧列表可留时才显示骨架屏，否则旧列表留到新结果到达。
+  bool get _showSkeleton =>
+      _isLoading ||
+      (_isSongsLoading && _cachedSongsWithStatus?.isNotEmpty != true);
+
   // 显示模式：true 为列表模式，false 为仅曲绘模式
   bool _showListMode = true;
 
@@ -248,14 +253,19 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
     if (_selectedFirstChar == null ||
         _selectedTitleType == null ||
         _selectedDifficulty == null) {
-      if (_isSongsLoading && mounted) setState(() => _isSongsLoading = false);
+      // 没有可查询的条件时不能把上一次的列表留在屏幕上。
+      if (mounted) {
+        setState(() {
+          _cachedSongsWithStatus = null;
+          _isSongsLoading = false;
+        });
+      }
       return;
     }
 
     final generation = ++_songLoadGeneration;
     final plate = _currentPlate;
     setState(() {
-      _excludedSongs = [];
       _isSongsLoading = true;
     });
 
@@ -358,8 +368,10 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
           if (_loadingSongs || _cachedSongsWithStatus?.isNotEmpty == true)
             _boxSliver(_buildSummarySection()),
           ProgressSliverFade(
-            key: ValueKey(
-                _loadingSongs ? 'loading' : 'done-$_songLoadGeneration'),
+            // 新结果到达时换 Key，按原来的方式进场。
+            key: _showSkeleton
+                ? const ValueKey('loading')
+                : ObjectKey(_cachedSongsWithStatus),
             sliver: SliverMainAxisGroup(slivers: _buildSongSlivers()),
           ),
           const SliverToBoxAdapter(
@@ -398,9 +410,9 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
                 label: type,
                 selected: _selectedTitleType == type,
                 onTap: () async {
+                  if (_selectedTitleType == type) return;
                   setState(() {
                     _selectedTitleType = type;
-                    _cachedSongsWithStatus = null; // 清空缓存
                     _isSongsLoading = true;
                   });
                   await _updateDifficultyOptions();
@@ -423,9 +435,9 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
                 label: _getDifficultyName(diff),
                 selected: _selectedDifficulty == diff,
                 onTap: () async {
+                  if (_selectedDifficulty == diff) return;
                   setState(() {
                     _selectedDifficulty = diff;
-                    _cachedSongsWithStatus = null; // 清空缓存
                     _isSongsLoading = true;
                   });
                   await _loadSongsWithStatus(); // 加载新数据
@@ -496,7 +508,6 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
                       Navigator.of(context).pop();
                       setState(() {
                         _selectedFirstChar = char;
-                        _cachedSongsWithStatus = null; // 清空缓存
                         _isSongsLoading = true;
                         // 更新称号类型选项
                         _titleTypeOptions =
@@ -823,7 +834,7 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
 
   // 构建歌曲列表区域
   List<Widget> _buildSongSlivers() {
-    if (_loadingSongs) {
+    if (_showSkeleton) {
       return [_boxSliver(const ProgressListSkeleton())];
     }
 
@@ -924,6 +935,11 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
 
   Future<void> _exportToImage() async {
     try {
+      // 新结果还没到时屏幕上是旧列表，不能按新条件导出。
+      if (_loadingSongs) {
+        AppToast.show(context.l10n.flowLoading2);
+        return;
+      }
       debugPrint('=== PAIZI EXPORT TO IMAGE STARTED ===');
       debugPrint('Current context: $context');
 

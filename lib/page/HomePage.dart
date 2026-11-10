@@ -9,6 +9,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../widgets/MainNavigationInsets.dart';
 import '../utils/SearchInteractionPreferences.dart';
+import '../utils/DivingFishMaskStatus.dart';
+import '../service/RankingList/RankingUploadGuard.dart';
 import '../utils/CoverUtil.dart';
 import '../entity/DivingFish/Song.dart';
 import '../service/SongSearchService.dart';
@@ -900,6 +902,8 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                 _buildInitializationStatus(context),
               ],
             ],
+            _HomeSearchKeyboardSpacer(
+                coveredBottom: MainNavigationInsets.bottomOf(context)),
           ],
         ),
       ),
@@ -1610,6 +1614,11 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
     }
 
     loadRankingSettings();
+    RankingUploadGuard.load();
+    // 后台确认水鱼账号最新的成绩掩码设置，开启时禁用「参与排行榜」
+    if (CurrentDataSourceNotifier.instance.value == RefreshDataSource.shuiyu) {
+      DivingFishMaskStatus.instance.refresh();
+    }
 
     final String? result = await showDialog<String?>(
       context: context,
@@ -1692,20 +1701,71 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        CheckboxListTile(
-                          title: Text(dialogContext.l10n.flowJoinLeaderboards,
-                              style: TextStyle(fontSize: 14)),
-                          value: participateRankings,
-                          onChanged: (value) {
-                            setState(() {
-                              participateRankings = value ?? false;
-                              if (!participateRankings) showNickname = false;
-                            });
-                            saveRankingSettings();
+                        // 水鱼账号开了成绩掩码时不能参与排行榜（掩码成绩不准确）
+                        ListenableBuilder(
+                          listenable: Listenable.merge([
+                            DivingFishMaskStatus.instance,
+                            RankingUploadGuard.states,
+                          ]),
+                          builder: (_, __) {
+                            final source =
+                                CurrentDataSourceNotifier.instance.value;
+                            final maskBlocked =
+                                DivingFishMaskStatus.instance.value &&
+                                    source == RefreshDataSource.shuiyu;
+                            // 排行榜守卫：该数据源账号被冻结或拉黑
+                            final guardState =
+                                RankingUploadGuard.states.value[source.key] ??
+                                    RankingGuardState.normal;
+                            final blocked = maskBlocked ||
+                                guardState != RankingGuardState.normal;
+                            final reason = switch (guardState) {
+                              RankingGuardState.blacklisted =>
+                                dialogContext.l10n.rankingGuardBlacklisted,
+                              RankingGuardState.frozen =>
+                                dialogContext.l10n.rankingGuardFrozen,
+                              RankingGuardState.normal => dialogContext
+                                  .l10n.flowRankingDivingFishMasked,
+                            };
+                            if (blocked && participateRankings) {
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                if (!participateRankings) return;
+                                setState(() {
+                                  participateRankings = false;
+                                  showNickname = false;
+                                });
+                                saveRankingSettings();
+                              });
+                            }
+                            return CheckboxListTile(
+                              title: Text(
+                                  dialogContext.l10n.flowJoinLeaderboards,
+                                  style: TextStyle(fontSize: 14)),
+                              subtitle: blocked
+                                  ? Text(
+                                      reason,
+                                      style: TextStyle(
+                                          fontSize: 12,
+                                          color: Theme.of(dialogContext)
+                                              .colorScheme
+                                              .error))
+                                  : null,
+                              value: participateRankings && !blocked,
+                              onChanged: blocked
+                                  ? null
+                                  : (value) {
+                                      setState(() {
+                                        participateRankings = value ?? false;
+                                        if (!participateRankings)
+                                          showNickname = false;
+                                      });
+                                      saveRankingSettings();
+                                    },
+                              controlAffinity: ListTileControlAffinity.leading,
+                              dense: true,
+                              contentPadding: EdgeInsets.zero,
+                            );
                           },
-                          controlAffinity: ListTileControlAffinity.leading,
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
                         ),
                         if (participateRankings)
                           CheckboxListTile(
@@ -4109,5 +4169,24 @@ class _HomeSongSearchResultsState extends State<_HomeSongSearchResults> {
         body,
       ],
     );
+  }
+}
+
+/// 列表末尾的留白：开启避让后把可滚动范围抬到输入法上方，背景和列表位置都不变。
+///
+/// 单独成组件，键盘动画的每一帧只重建这一格，不重建整个首页。
+class _HomeSearchKeyboardSpacer extends StatelessWidget {
+  /// 列表底部内边距里已经留出的高度。
+  final double coveredBottom;
+
+  const _HomeSearchKeyboardSpacer({required this.coveredBottom});
+
+  @override
+  Widget build(BuildContext context) {
+    if (!SearchInteractionPreferences.instance.avoidKeyboard) {
+      return const SizedBox.shrink();
+    }
+    final inset = MediaQuery.viewInsetsOf(context).bottom;
+    return SizedBox(height: inset > coveredBottom ? inset - coveredBottom : 0);
   }
 }

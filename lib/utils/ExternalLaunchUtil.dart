@@ -16,6 +16,14 @@ class ExternalLaunchUtil {
     'http',
     'mailto',
     'bilibili',
+    // 地图 App，见 ArcadeShopUtil 的 mapLinks。
+    'amapuri',
+    'iosamap',
+    'baidumap',
+    'qqmap',
+    'comgooglemaps',
+    'google.navigation',
+    'geo',
   };
 
   /// 尝试打开 URI，成功返回 true。

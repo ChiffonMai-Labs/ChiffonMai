@@ -525,6 +525,9 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
             participate: _participateRankings,
             showNickname: _showNickname,
             showBriefProfile: _showBriefProfile,
+            divingFishSource:
+                _currentDataSource == RefreshDataSource.shuiyu,
+            dataSourceKey: _currentDataSource.key,
             onChanged: (participate, nickname, brief) => setState(() {
                   _participateRankings = participate;
                   _showNickname = nickname;

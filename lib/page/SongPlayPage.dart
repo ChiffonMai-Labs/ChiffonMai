@@ -180,6 +180,8 @@ class _SongPlayPageState extends State<SongPlayPage> {
         preparingSong: _handedOff ? null : _resolved,
         preparationError: _message,
         onRetryPreparation: () => unawaited(_resolveAndPlay()),
+        // 试听页只会从歌曲详情打开：仍在播这首歌时「查看歌曲详情」直接返回
+        sourceSongId: widget.songId,
       ),
     );
   }

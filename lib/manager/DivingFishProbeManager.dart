@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../api/ApiUrls.dart';
 import '../constant/CacheKeyConstant.dart';
 import '../utils/SecureCredentialStore.dart';
+import '../utils/DivingFishMaskStatus.dart';
 import '../service/PlayerExperienceService.dart';
 import 'package:my_first_flutter_app/utils/ApiClient.dart';
 import '../utils/MaimaiHubLoginNotifier.dart';
@@ -1175,6 +1176,7 @@ class DivingFishProbeManager {
                 CacheKeyConstant.probeDivingFishToken, jwtToken);
             await SecureCredentialStore.write(
                 CacheKeyConstant.probeDivingFishImportToken, importToken);
+            await DivingFishMaskStatus.instance.updateFromProfile(profile);
             final bindQQ = profile.tryGet<String>('bind_qq') ?? '';
             if (bindQQ.isNotEmpty) {
               await prefs.setString(
@@ -1263,6 +1265,7 @@ class DivingFishProbeManager {
       _log('  ← HTTP ${response.statusCode}');
       if (response.statusCode == 200) {
         final profile = json.decode(response.body) as Map<String, dynamic>;
+        await DivingFishMaskStatus.instance.updateFromProfile(profile);
         final bindQQ = profile.tryGet<String>('bind_qq') ?? '';
         _log('  bind_qq=$bindQQ');
         if (bindQQ.isNotEmpty) {

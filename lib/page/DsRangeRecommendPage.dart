@@ -22,6 +22,8 @@ class _DsRangeRecommendPageState extends State<DsRangeRecommendPage> {
   bool _isLoadingRating = true;
   List<DsRangeRecommendItem> _results = [];
   String _sortMode = 'avg';
+  String _resultSortMode = 'avg'; // 屏幕上这批结果所属的排序
+  int _loadGeneration = 0;
   double _minDs = 1.0;
   double _maxDs = 15.0;
   final TextEditingController _minDsController = TextEditingController();
@@ -66,24 +68,30 @@ class _DsRangeRecommendPageState extends State<DsRangeRecommendPage> {
   }
 
   Future<void> _loadRecommendations() async {
+    final generation = ++_loadGeneration;
+    final sortMode = _sortMode;
     setState(() {
       _isLoading = true;
-      _currentPage = 1;
     });
 
     try {
       final results = await DsRangeRecommendService().getRecommendations(
         _minDs,
         _maxDs,
-        _sortMode,
+        sortMode,
       );
+      if (!mounted || generation != _loadGeneration) return;
       setState(() {
         _results = results;
+        _resultSortMode = sortMode;
+        _currentPage = 1;
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted || generation != _loadGeneration) return;
       setState(() {
         _results = [];
+        _currentPage = 1;
         _isLoading = false;
       });
     }
@@ -124,14 +132,13 @@ class _DsRangeRecommendPageState extends State<DsRangeRecommendPage> {
         children: [
           _buildControlPanel(brightness, screenWidth),
           Expanded(
-            child: _isLoading || _isLoadingRating
+            child: (_isLoading && _results.isEmpty) || _isLoadingRating
                 ? _buildLoadingState(screenHeight)
                 : _results.isEmpty
                 ? _buildEmptyState(brightness, screenHeight)
                 : _buildResultsList(brightness, paginatedResults, screenWidth),
           ),
-          if (!_isLoading &&
-              !_isLoadingRating &&
+          if (!_isLoadingRating &&
               _results.isNotEmpty &&
               totalPages > 1)
             _buildPagination(brightness, totalPages, screenWidth),
@@ -218,6 +225,7 @@ class _DsRangeRecommendPageState extends State<DsRangeRecommendPage> {
       ],
       selectedIndex: modes.indexOf(_sortMode),
       onChanged: (index) {
+        if (modes[index] == _sortMode) return;
         setState(() {
           _sortMode = modes[index];
         });
@@ -267,6 +275,8 @@ class _DsRangeRecommendPageState extends State<DsRangeRecommendPage> {
   Widget _buildResultsList(Brightness brightness,
       List<DsRangeRecommendItem> results, double screenWidth) {
     return ListView.builder(
+      // 拿到新结果时重新挂载，首屏才会重新进场。
+      key: ObjectKey(_results),
       controller: _scrollController,
       padding: const EdgeInsets.fromLTRB(
           AppDesignTokens.gutter, 0, AppDesignTokens.gutter, 8),
@@ -293,7 +303,7 @@ class _DsRangeRecommendPageState extends State<DsRangeRecommendPage> {
 
   Widget _buildResultCard(
       DsRangeRecommendItem item, Brightness brightness, double screenWidth) {
-    final isAvg = _sortMode == 'avg';
+    final isAvg = _resultSortMode == 'avg';
     return RecommendResultCard(
       songId: item.songId,
       title: item.songTitle,

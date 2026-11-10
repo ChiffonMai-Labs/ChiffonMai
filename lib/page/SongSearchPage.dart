@@ -2251,8 +2251,16 @@ class _SongSearchPageState extends State<SongSearchPage> {
         Expanded(
           child: SingleChildScrollView(
             controller: _scrollController,
-            padding: EdgeInsets.fromLTRB(gutter, 0, gutter,
-                gutter + bottomInset + media.viewInsets.bottom),
+            // 「搜索区域避让输入法」开启时才把可滚动范围抬到输入法上方，背景不动
+            padding: EdgeInsets.fromLTRB(
+                gutter,
+                0,
+                gutter,
+                gutter +
+                    bottomInset +
+                    (SearchInteractionPreferences.instance.avoidKeyboard
+                        ? media.viewInsets.bottom
+                        : 0)),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [

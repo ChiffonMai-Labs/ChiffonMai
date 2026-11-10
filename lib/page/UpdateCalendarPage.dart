@@ -11,6 +11,7 @@ import '../service/UpdateCalendarService.dart';
 import '../utils/AppDesignTokens.dart';
 import '../utils/AppTheme.dart';
 import '../utils/CoverUtil.dart';
+import '../widgets/EmptyState.dart';
 import '../widgets/AppDialogs.dart';
 import '../widgets/AppUi.dart';
 import '../widgets/BackgroundPageScaffold.dart';
@@ -306,7 +307,6 @@ class _UpdateCalendarPageState extends State<UpdateCalendarPage> {
   }
 
   Widget _buildEmpty() {
-    final scheme = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -316,22 +316,15 @@ class _UpdateCalendarPageState extends State<UpdateCalendarPage> {
           child: _buildSource(),
         ),
         Expanded(
-          child: Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(context.l10n.flowUpdateDataTemporarilyUnavailable,
-                    style: TextStyle(color: scheme.onSurfaceVariant)),
-                const SizedBox(height: 8),
-                TextButton(
-                  onPressed: () {
-                    _load();
-                    _loadDeliveries();
-                  },
-                  child: Text(context.l10n.flowRetry),
-                ),
-              ],
-            ),
+          child: EmptyState(
+            icon: Icons.cloud_off_outlined,
+            message: context.l10n.flowUpdateDataTemporarilyUnavailable,
+            actionLabel: context.l10n.flowRetry,
+            actionIcon: Icons.refresh_rounded,
+            onAction: () {
+              _load();
+              _loadDeliveries();
+            },
           ),
         ),
       ],

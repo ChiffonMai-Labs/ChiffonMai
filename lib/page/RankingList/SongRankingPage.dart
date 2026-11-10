@@ -75,6 +75,7 @@ class _SongRankingPageState extends State<SongRankingPage> {
   late String _difficultyLabel = widget.difficultyLabel;
   late double _difficultyDs = widget.difficultyDs;
   late RankingType _rankingType = widget.rankingType;
+  late RankingType _resultType = widget.rankingType; // 屏幕上这份榜单所属的类型
 
   int _requestGeneration = 0;
   bool _isLoading = true;
@@ -539,7 +540,6 @@ class _SongRankingPageState extends State<SongRankingPage> {
           ? ChartDifficulty.utageLabel
           : _getDifficultyLabelByIndex(index);
       _difficultyDs = raw is num ? raw.toDouble() : 0.0;
-      _calculateMaxDxScore();
     });
     _loadRankingData();
   }
@@ -609,14 +609,14 @@ class _SongRankingPageState extends State<SongRankingPage> {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
-      _showInvalidScoreWarning = false;
     });
+    final type = _rankingType;
 
     try {
       List<RankingEntry> rankingList = await _service.getSongRanking(
         widget.songId,
         _difficultyIndex,
-        _rankingType,
+        type,
         limit: 100,
       );
 
@@ -628,7 +628,7 @@ class _SongRankingPageState extends State<SongRankingPage> {
       RankingEntry? userEntry = await _service.getUserRanking(
         widget.songId,
         _difficultyIndex,
-        _rankingType,
+        type,
         currentPlayerId,
       );
       if (!mounted || generation != _requestGeneration) return;
@@ -639,6 +639,7 @@ class _SongRankingPageState extends State<SongRankingPage> {
           userEntry;
 
       // 校验当前用户数据是否合法
+      var invalidScore = false;
       if (userEntry != null) {
         bool isValid = await _service.validateUserRecord(
           widget.songId,
@@ -647,14 +648,14 @@ class _SongRankingPageState extends State<SongRankingPage> {
           userEntry.dxScore,
         );
         if (!mounted || generation != _requestGeneration) return;
-        if (!isValid) {
-          setState(() {
-            _showInvalidScoreWarning = true;
-          });
-        }
+        invalidScore = !isValid;
       }
 
       setState(() {
+        // 满分按难度算，和榜单一起换，旧榜单不能按新难度的满分显示星级。
+        _calculateMaxDxScore();
+        _resultType = type;
+        _showInvalidScoreWarning = invalidScore;
         _rankingList = rankingList;
         _currentUserEntry = userEntry;
         _isLoading = false;
@@ -708,7 +709,7 @@ class _SongRankingPageState extends State<SongRankingPage> {
   Widget _buildValueCell(RankingEntry entry, Brightness brightness,
       {double maxWidth = _valueColumnMaxWidth}) {
     final scheme = Theme.of(context).colorScheme;
-    final isAchievement = _rankingType == RankingType.achievementRate;
+    final isAchievement = _resultType == RankingType.achievementRate;
     final fc = entry.fc?.toLowerCase();
     return ConstrainedBox(
       constraints: BoxConstraints(maxWidth: maxWidth),
@@ -787,7 +788,7 @@ class _SongRankingPageState extends State<SongRankingPage> {
       );
 
   Widget _buildRowPrototype(Brightness brightness) => KeyedSubtree(
-        key: _rowExtent.key,
+        key: _rowExtent.keyFor(_rankingList),
         child: _buildRankingItem(_prototypeEntry, false, brightness),
       );
 
@@ -988,7 +989,7 @@ class _SongRankingPageState extends State<SongRankingPage> {
           ),
         ),
         Expanded(
-            child: _isLoading
+            child: _isLoading && _rankingList.isEmpty
                 ? Center(child: CircularProgressIndicator())
                 : _errorMessage != null
                     ? Center(child: Text(_errorMessage!))
@@ -1018,6 +1019,8 @@ class _SongRankingPageState extends State<SongRankingPage> {
                             children: [
                               Expanded(
                                 child: ListView.builder(
+                                  // 拿到新榜单时重新挂载，首屏的行才会重新进场。
+                                  key: ObjectKey(_rankingList),
                                   controller: _scrollController,
                                   padding: EdgeInsets.zero,
                                   prototypeItem: _buildRowPrototype(brightness),

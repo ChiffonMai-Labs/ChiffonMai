@@ -6,6 +6,7 @@ import '../../utils/StringUtil.dart';
 import 'DiffBest50Service.dart';
 import '../../utils/SongFilterUtil.dart';
 import '../../utils/Best50Tie.dart';
+import '../../utils/Best50Order.dart';
 
 /// 理想 Best50：对全部游玩记录做「非 SSS+ 升一档」（升到上一档的下限），
 /// 重算 RA 后重新取 B35 + B15，并给出相对原榜的新进榜歌曲。
@@ -86,12 +87,11 @@ class IdealBest50Service {
       origRaByKey[key] = r.ra;
     }
 
-    int byRaDesc(Map<String, dynamic> a, Map<String, dynamic> b) =>
-        (b['ra'] as int).compareTo(a['ra'] as int);
-    idealOld.sort(byRaDesc);
-    idealNew.sort(byRaDesc);
-    origOld.sort(byRaDesc);
-    origNew.sort(byRaDesc);
+    final order = Best50Order.fromSongs(songs);
+    idealOld.sort(order.compareMaps);
+    idealNew.sort(order.compareMaps);
+    origOld.sort(order.compareMaps);
+    origNew.sort(order.compareMaps);
 
     final idealSd = idealOld.take(35).toList();
     final idealDx = idealNew.take(15).toList();
@@ -106,7 +106,8 @@ class IdealBest50Service {
         '${m['song_id']}_${m['level_index']}',
     };
     final newEntries = <Map<String, dynamic>>[];
-    for (final m in [...idealSd, ...idealDx]) {
+    final idealEntries = [...idealSd, ...idealDx]..sort(order.compareMaps);
+    for (final m in idealEntries) {
       final key = '${m['song_id']}_${m['level_index']}';
       if (origKeys.contains(key)) continue;
       newEntries.add({
@@ -117,7 +118,6 @@ class IdealBest50Service {
         'newRa': m['ra'] ?? 0,
       });
     }
-    newEntries.sort((a, b) => (b['newRa'] as int).compareTo(a['newRa'] as int));
 
     return {
       'sd': idealSd,

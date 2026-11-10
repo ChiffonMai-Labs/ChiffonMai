@@ -16,6 +16,7 @@ import '../utils/ExportSettings.dart';
 import '../utils/NavigationPreferences.dart';
 import '../utils/ThemeManager.dart';
 import '../utils/SystemWallpaperColor.dart';
+import '../utils/RatingSegmentPreferences.dart';
 import '../utils/SearchInteractionPreferences.dart';
 import '../widgets/AnimatedChoiceBar.dart';
 import '../widgets/BackgroundPageScaffold.dart';
@@ -61,6 +62,7 @@ class _SettingsPageState extends State<SettingsPage> {
     super.initState();
     AppLanguagePreferences.instance.load();
     SearchInteractionPreferences.instance.load();
+    RatingSegmentPreferences.instance.load();
     NavigationPreferences.instance.load();
     ConfettiPreferences.instance.load();
     AwmcGatewaySettings.loadProbeTimeoutSeconds().then((seconds) {
@@ -304,6 +306,42 @@ class _SettingsPageState extends State<SettingsPage> {
             title: Text(context.l10n.showMatchInfo),
             subtitle: Text(context.l10n.showMatchInfoHint),
           ),
+          AppSwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            value: preferences.avoidKeyboard,
+            onChanged: preferences.loaded ? preferences.setAvoidKeyboard : null,
+            secondary: Icon(Icons.keyboard_alt_outlined,
+                color: Theme.of(context).colorScheme.primary),
+            title: Text(context.l10n.searchAvoidKeyboard),
+            subtitle: Text(context.l10n.searchAvoidKeyboardHint),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRatingSegmentSettings() {
+    final preferences = RatingSegmentPreferences.instance;
+    return ListenableBuilder(
+      listenable: preferences,
+      builder: (context, _) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AnimatedChoiceBar<RatingSegmentMode>(
+            values: RatingSegmentMode.values,
+            value: preferences.mode,
+            label: (mode) => mode == RatingSegmentMode.standard
+                ? context.l10n.ratingSegmentStandard
+                : context.l10n.ratingSegmentDetailed,
+            onChanged: preferences.loaded ? preferences.setMode : null,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            preferences.isDetailed
+                ? context.l10n.ratingSegmentDetailedHint
+                : context.l10n.ratingSegmentStandardHint,
+            style: _hintStyle(),
+          ),
         ],
       ),
     );
@@ -476,6 +514,12 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Widget _buildInteractionTab() => _tabColumn([
         const SongDetailDifficultySettings(),
+        GuessSettingSection(
+          card: true,
+          title: context.l10n.ratingSegmentTitle,
+          icon: Icons.stacked_line_chart_rounded,
+          children: [_buildRatingSegmentSettings()],
+        ),
         GuessSettingSection(
           card: true,
           title: context.l10n.navigationExperience,

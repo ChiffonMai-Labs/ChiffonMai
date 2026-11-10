@@ -39,7 +39,11 @@ class _PersonalizedDiffBest50PageState
   List<Map<String, dynamic>> _diffSongs = [];
   List<Map<String, dynamic>> _remaining = [];
   List<dynamic>? _maimaiMusicData;
-  bool _isLoading = true;
+  bool _isLoading = true; // 只表示读取曲库，换标签时旧内容留在屏幕上
+  bool _isRefreshing = false;
+  int _loadGeneration = 0;
+  int _resultVersion = 0; // 每换一批结果加一，新结果重新入场
+  Future<void>? _activeLoad;
   int? _selectedTagId;
   String? _selectedTagName;
 
@@ -51,7 +55,32 @@ class _PersonalizedDiffBest50PageState
   @override
   void initState() {
     super.initState();
-    _loadMusicData();
+    _loadMusicData().then((_) => _selectFirstTag());
+  }
+
+  /// 进页面默认选中标签列表里的第一个（与选择对话框的顺序一致），而不是停在空状态。
+  Future<void> _selectFirstTag() async {
+    if (_selectedTagId != null) return;
+    try {
+      final tagsEntity = await MaiTagsManager().getTags();
+      if (!mounted || _selectedTagId != null) return;
+      final tags = tagsEntity?.tags;
+      if (tags == null || tags.isEmpty) return;
+      _selectTag(tags.first);
+    } catch (e) {
+      debugPrint('Error selecting default tag: $e');
+    }
+  }
+
+  /// 选中标签并加载对应数据。自定义标签可能与 DXRating 标签同名，显示时加标记区分。
+  void _selectTag(TagItem tag) {
+    setState(() {
+      _selectedTagId = tag.id;
+      _selectedTagName = CustomTagStore.instance.isCustomTagId(tag.id)
+          ? context.l10n.customTagMarked(tag.localizedName.zhHans)
+          : tag.localizedName.zhHans;
+    });
+    _activeLoad = _loadDiffBest50Data();
   }
 
   Future<void> _loadMusicData() async {
@@ -101,29 +130,35 @@ class _PersonalizedDiffBest50PageState
   }
 
   Future<void> _loadDiffBest50Data() async {
-    if (_selectedTagId == null) return;
+    final tagId = _selectedTagId;
+    if (tagId == null) return;
 
+    final generation = ++_loadGeneration;
     setState(() {
-      _isLoading = true;
+      _isRefreshing = true;
     });
 
     try {
       final service = PersonalizedDiffBest50Service();
-      final data = await service.getTagDiffBest50Data(_selectedTagId!);
+      final data = await service.getTagDiffBest50Data(tagId);
+      if (!mounted || generation != _loadGeneration) return;
 
       setState(() {
         _diffBest50Data = data;
         _diffSongs = List<Map<String, dynamic>>.from(data?['diffBest50'] ?? []);
         _remaining = List<Map<String, dynamic>>.from(data?['remaining'] ?? []);
-        _isLoading = false;
+        _resultVersion++;
+        _isRefreshing = false;
       });
     } catch (e) {
       debugPrint('Error loading diff best50 data: $e');
+      if (!mounted || generation != _loadGeneration) return;
       setState(() {
         _diffBest50Data = null;
         _diffSongs = [];
         _remaining = [];
-        _isLoading = false;
+        _resultVersion++;
+        _isRefreshing = false;
       });
     }
   }
@@ -198,17 +233,12 @@ class _PersonalizedDiffBest50PageState
                           dense: true,
                           selected: _selectedTagId == tag.id,
                           onTap: () {
-                            setState(() {
-                              _selectedTagId = tag.id;
-                              // 自定义标签可能与 DXRating 标签同名，显示时加标记区分。
-                              _selectedTagName = CustomTagStore.instance
-                                      .isCustomTagId(tag.id)
-                                  ? context.l10n.customTagMarked(
-                                      tag.localizedName.zhHans)
-                                  : tag.localizedName.zhHans;
-                            });
+                            if (_selectedTagId == tag.id) {
+                              Navigator.of(context).pop();
+                              return;
+                            }
                             Navigator.of(context).pop();
-                            _loadDiffBest50Data();
+                            _selectTag(tag);
                           },
                         );
                       }),
@@ -262,6 +292,9 @@ class _PersonalizedDiffBest50PageState
   // 导出为图片
   Future<void> _exportToImage() async {
     try {
+      // 等切换中的结果到位，避免按新标签名导出旧列表。
+      await _activeLoad;
+      if (!mounted) return;
       if (_diffSongs.isEmpty) {
         showAppNoticeDialog(context,
             title: context.l10n.featureNotice,
@@ -374,10 +407,13 @@ class _PersonalizedDiffBest50PageState
 
                 // 状态分支：未选标签 / 已选标签无数据 / 已选标签有数据
                 // 空状态用 Expanded + Center 让内容垂直居中，避免下方留白
-                if (!_isLoading && _selectedTagId == null)
+                if (!_isLoading && !_isRefreshing && _selectedTagId == null)
                   Expanded(child: Center(child: _buildEmptyHint())),
 
-                if (!_isLoading && _selectedTagId != null && _diffSongs.isEmpty)
+                if (!_isLoading &&
+                    !_isRefreshing &&
+                    _selectedTagId != null &&
+                    _diffSongs.isEmpty)
                   Expanded(child: Center(child: _buildNoDataHint())),
 
                 // 有数据时滚动展示
@@ -402,6 +438,7 @@ class _PersonalizedDiffBest50PageState
                             ],
                             remainingLabel:
                                 'RA ${_diffSongs.last['diffRating']}',
+                            contentKey: _resultVersion,
                           ),
                         ],
                       ),
@@ -411,8 +448,10 @@ class _PersonalizedDiffBest50PageState
             ),
           ),
 
-          // 加载中遮罩（覆盖在卡片之上）
-          if (_isLoading && _selectedTagId != null)
+          // 还没有内容可留时才显示转圈；有旧内容时留到新结果到达
+          if ((_isLoading || _isRefreshing) &&
+              _selectedTagId != null &&
+              _diffSongs.isEmpty)
             Positioned.fill(
               child: IgnorePointer(
                 child: Container(

@@ -6,6 +6,7 @@ import '../../manager/DivingFish/DiffMusicDataManager.dart';
 import '../../manager/DivingFish/MaimaiMusicDataManager.dart';
 import '../../manager/MaiTagsManager.dart';
 import '../../utils/Best50Tie.dart';
+import '../../utils/Best50Order.dart';
 
 class PersonalizedDiffBest50Service {
   // 单例模式
@@ -199,8 +200,8 @@ class PersonalizedDiffBest50Service {
       final officialSum =
           officialRatings.take(50).fold<int>(0, (sum, ra) => sum + ra);
 
-      // 按DiffRating降序排序
-      diffBest50.sort((a, b) => b['diffRating'].compareTo(a['diffRating']));
+      final order = Best50Order.fromSongs(allSongs);
+      diffBest50.sort((a, b) => order.compareMaps(a, b, ratingField: 'diffRating'));
 
       final remaining = tiedBeyondCut(diffBest50, 50, 'diffRating');
 

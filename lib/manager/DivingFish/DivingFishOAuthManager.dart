@@ -30,7 +30,16 @@ class DivingFishOAuthManager {
     await checkAuthorization(qq);
   }
   factory DivingFishOAuthManager() => _instance;
-  DivingFishOAuthManager._internal();
+  DivingFishOAuthManager._internal() {
+    // 资料刷新早于登录态写入，那次查询会落空，所以登录态一变就重新查询。
+    LoginStateNotifier.instance.addListener(_onLoginStateChanged);
+  }
+
+  void _onLoginStateChanged() {
+    refreshAuthorization().catchError((Object error) {
+      debugPrint('刷新水鱼授权状态失败：$error');
+    });
+  }
 
   /// 发起一次设备码绑定，返回授权链接（verification_uri_complete）。
   Future<String> startBinding(String qq) async {

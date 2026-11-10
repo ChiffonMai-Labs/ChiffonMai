@@ -6,6 +6,7 @@ import 'package:my_first_flutter_app/entity/DivingFish/Song.dart';
 import 'package:my_first_flutter_app/utils/CoverUtil.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import 'SongInfoPage.dart';
+import '../widgets/EmptyState.dart';
 import '../widgets/BackgroundPageScaffold.dart';
 import '../widgets/DifficultyConstantLabel.dart';
 import '../utils/AppDesignTokens.dart';
@@ -244,26 +245,13 @@ class _DailyRecommendPageState extends State<DailyRecommendPage> {
                 ),
               )
             : _songs.isEmpty
-                ? Center(
+                ? EmptyState(
                     key: const ValueKey('empty'),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.music_off_rounded,
-                            size: 56, color: AppColors.greyHint(brightness)),
-                        const SizedBox(height: 14),
-                        Text(context.l10n.flowNoChartsToRecommendYetRefreshData,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(color: scheme.onSurfaceVariant)),
-                        const SizedBox(height: 20),
-                        FilledButton.tonalIcon(
-                          onPressed: () =>
-                              _loadRecommendations(forceRefresh: true),
-                          icon: const Icon(Icons.refresh_rounded),
-                          label:  Text(context.l10n.flowRetry),
-                        ),
-                      ],
-                    ),
+                    icon: Icons.music_off_rounded,
+                    message: context.l10n.flowNoChartsToRecommendYetRefreshData,
+                    actionLabel: context.l10n.flowRetry,
+                    actionIcon: Icons.refresh_rounded,
+                    onAction: () => _loadRecommendations(forceRefresh: true),
                   )
                 : SingleChildScrollView(
                     key: const ValueKey('content'),

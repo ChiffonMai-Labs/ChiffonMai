@@ -47,7 +47,11 @@ class NearCadeService {
   }
 
   /// 获取所有店铺（循环拉取直到没有更多页）
+  ///
+  /// 中途某一页失败时抛错，不把半份数据当成完整结果，否则会覆盖掉本地缓存。
+  /// [onProgress] 每拉完一页回调一次（已拉取数, 总数）。
   Future<List<Shop>> getAllShops({
+    void Function(int loaded, int total)? onProgress,
     String? q,
     String? regionId,
   }) async {
@@ -62,9 +66,11 @@ class NearCadeService {
         regionId: regionId,
       );
 
-      if (result == null || result.shops.isEmpty) break;
+      if (result == null) throw StateError('NearCade 第 $page 页拉取失败');
+      if (result.shops.isEmpty) break;
 
       allShops.addAll(result.shops);
+      onProgress?.call(allShops.length, result.totalCount);
 
       if (!result.hasNextPage) break;
       page++;

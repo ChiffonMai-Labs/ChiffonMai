@@ -12,6 +12,7 @@ import '../utils/AppTheme.dart';
 import '../utils/ChartDifficulty.dart';
 import '../utils/ColorUtil.dart';
 import '../utils/CoverUtil.dart';
+import '../utils/RatingSegmentPreferences.dart';
 import '../utils/StringUtil.dart';
 import 'AppUi.dart';
 import 'AppDialogs.dart';
@@ -195,6 +196,30 @@ int _ratingOf(double ds, double achievement) {
     next.$1,
     _ratingOf(input.ds, next.$1) - _ratingOf(input.ds, input.achievement),
   );
+}
+
+/// 详细分段：再多 1 Rating 需要的最低达成率（精确到 0.0001%），返回值同 [best50NextTier]。
+(String, double, int)? best50NextRatingPoint(CardRatingInput input) {
+  if (input.ds <= 0) return null;
+  final current = _ratingOf(input.ds, input.achievement);
+  final target = current + 1;
+  final lower = input.achievement + 0.0001;
+  // 从低档往高档找，Rating 随达成率单调不减，第一个满足的就是最低达成率。
+  for (var index = _ratingTiers.length - 1; index >= 0; index--) {
+    final (threshold, factor, rank) = _ratingTiers[index];
+    final upper = index == 0 ? 100.5 : _ratingTiers[index - 1].$1 - 0.0001;
+    if (upper < lower) continue;
+    final required = target * 100 / (input.ds * factor);
+    final start = math.max(threshold, math.max(lower, required));
+    var units = (start * 10000 - 1e-6).ceil();
+    // 浮点误差可能让刚好卡线的值差一点，往上补一格再判断。
+    if (_ratingOf(input.ds, units / 10000) < target) units++;
+    final achievement = units / 10000;
+    if (achievement > upper + 1e-9) continue;
+    final rating = _ratingOf(input.ds, achievement);
+    if (rating >= target) return (rank, achievement, rating - current);
+  }
+  return null;
 }
 
 typedef CardRatingInput = ({double ds, double achievement});
@@ -655,11 +680,15 @@ class Best50Grid extends StatelessWidget {
   final List<Best50CardData> remaining;
   final String? remainingLabel;
 
+  /// 榜单内容的标识。换数据或换分段时传新值，新内容重新播放入场动画。
+  final Object? contentKey;
+
   const Best50Grid({
     super.key,
     required this.items,
     this.remaining = const [],
     this.remainingLabel,
+    this.contentKey,
   });
 
   /// 网格布局（自定义 Best50 的网格也用它）。曲绘卡的高度按宽度和系统字号算，
@@ -710,8 +739,8 @@ class Best50Grid extends StatelessWidget {
           const SizedBox(height: 10),
           LayoutBuilder(
             builder: (context, constraints) => GridView.builder(
-              // 换模式时重新入场，不复用上一种模式的格子。
-              key: ValueKey(mode),
+              // 换显示模式或换内容时重新入场，不复用上一批的格子。
+              key: ValueKey((mode, contentKey)),
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               padding: EdgeInsets.zero,
@@ -1249,7 +1278,10 @@ Future<void> showBest50SongSheet(BuildContext context, Best50CardData data) {
       final theme = Theme.of(sheetContext);
       final scheme = theme.colorScheme;
       final brightness = theme.brightness;
-      final next = best50NextTier((ds: data.ds, achievement: data.achievement));
+      final ratingInput = (ds: data.ds, achievement: data.achievement);
+      final next = RatingSegmentPreferences.instance.isDetailed
+          ? best50NextRatingPoint(ratingInput)
+          : best50NextTier(ratingInput);
       final success = AppColors.comboBadge('FC', brightness);
       final rank = StringUtil.rateCodeFromAchievement(data.achievement);
 

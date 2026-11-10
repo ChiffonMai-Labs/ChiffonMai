@@ -2007,6 +2007,91 @@ class AppLocalizationsEn extends AppLocalizations {
   String get flowJoinLeaderboards => 'Join leaderboards';
 
   @override
+  String get flowRankingDivingFishMasked =>
+      'Your Diving-Fish account has \"Mask scores for non-web queries\" turned on, so the scores the app reads from Diving-Fish are not accurate and can\'t be used for leaderboards. Turn it off in your profile on the Diving-Fish website and try again.';
+
+  @override
+  String songScoreIllegalWarning(String p0) {
+    return 'This score looks invalid: $p0. It will not be uploaded to the leaderboards.';
+  }
+
+  @override
+  String songScoreIllegalAchievement(String p0) {
+    return 'achievement exceeds the $p0% limit';
+  }
+
+  @override
+  String songScoreIllegalDx(String p0) {
+    return 'DX score exceeds the chart maximum of $p0';
+  }
+
+  @override
+  String songScoreIllegalUnreleased(String p0) {
+    return 'the chart is not yet released in China ($p0)';
+  }
+
+  @override
+  String flowDXScoreMAXOverP0(String p0) {
+    return 'DX score (MAX +$p0)';
+  }
+
+  @override
+  String get rankingUploadIncompleteTitle => 'Leaderboard upload not completed';
+
+  @override
+  String get rankingUploadIncompleteLead =>
+      'Your scores were refreshed and saved, but the leaderboards were not updated this time.';
+
+  @override
+  String get rankingGuardFrozen =>
+      'Your leaderboard uploads are paused pending a manual review. Your leaderboard entries are hidden during the review.';
+
+  @override
+  String get rankingGuardBlacklisted =>
+      'This account is banned from the leaderboards.';
+
+  @override
+  String get rankingGuardUpgradeRequired =>
+      'Please update to the latest version before uploading to the leaderboards.';
+
+  @override
+  String rankingGuardRejected(String p0, String p1) {
+    return 'This leaderboard upload was rejected: $p0. $p1 warning(s) left. After that, uploads are paused for a manual review.';
+  }
+
+  @override
+  String get rankingGuardReasonRating =>
+      'Rating exceeds the current theoretical maximum';
+
+  @override
+  String rankingGuardReasonUnknownSong(String p0) {
+    return 'includes a song that is not in the song list ($p0)';
+  }
+
+  @override
+  String rankingGuardReasonUnreleased(String p0) {
+    return 'includes a song that has not been released yet ($p0)';
+  }
+
+  @override
+  String rankingGuardReasonLevel(String p0) {
+    return 'difficulty does not exist ($p0)';
+  }
+
+  @override
+  String rankingGuardReasonAchievement(String p0) {
+    return 'achievement exceeds the limit ($p0)';
+  }
+
+  @override
+  String rankingGuardReasonDx(String p0) {
+    return 'DX score exceeds the chart maximum ($p0)';
+  }
+
+  @override
+  String get rankingGuardReasonInvalid => 'invalid score data';
+
+  @override
   String get flowShowNicknameOtherwiseShownAsAnonymous =>
       'Show nickname (otherwise shown as anonymous)';
 
@@ -9417,6 +9502,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get flowVersion50 => 'Version 50';
 
   @override
+  String get flowLevel50 => 'Level 50';
+
+  @override
+  String flowLevel50P0(String p0) {
+    return 'Level 50 – $p0';
+  }
+
+  @override
+  String flowCategoryLevel50P0(String p0) {
+    return 'Category: level 50 – $p0';
+  }
+
+  @override
   String get flowStar50 => 'Star 50';
 
   @override
@@ -15042,4 +15140,199 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get chartCodeFontSaveFailed =>
       'Font changed, but the choice could not be saved';
+
+  @override
+  String get ratingSegmentTitle => 'Rating potential and score table steps';
+
+  @override
+  String get ratingSegmentStandard => 'Standard';
+
+  @override
+  String get ratingSegmentDetailed => 'Detailed';
+
+  @override
+  String get ratingSegmentStandardHint =>
+      'Show only the achievement steps for each rank.';
+
+  @override
+  String get ratingSegmentDetailedHint =>
+      'Also show the achievement needed for every +1 Rating.';
+
+  @override
+  String get searchAvoidKeyboard => 'Keep search above the keyboard';
+
+  @override
+  String get searchAvoidKeyboardHint =>
+      'In home search, song lookup, international song lookup and score lookup, results can scroll fully above the keyboard. The background stays in place.';
+
+  @override
+  String get arcadeTabInView => 'In view';
+
+  @override
+  String get arcadeTabFavorites => 'Saved';
+
+  @override
+  String get arcadeOpenNow => 'Open';
+
+  @override
+  String get arcadeClosedNow => 'Closed';
+
+  @override
+  String get arcadeHoursUnknown => 'Hours unknown';
+
+  @override
+  String arcadeClosesAt(String p0) {
+    return 'Closes $p0';
+  }
+
+  @override
+  String arcadeOpensAt(String p0) {
+    return 'Opens $p0';
+  }
+
+  @override
+  String arcadeOpensTomorrowAt(String p0) {
+    return 'Opens tomorrow $p0';
+  }
+
+  @override
+  String get arcadeClearFilters => 'Clear filters';
+
+  @override
+  String get arcadeRandomPick => 'Pick one at random';
+
+  @override
+  String get arcadeRandomEmpty => 'No arcades to pick from here';
+
+  @override
+  String get arcadeZoomIn => 'Zoom in';
+
+  @override
+  String get arcadeZoomOut => 'Zoom out';
+
+  @override
+  String get arcadeResetNorth => 'Face north';
+
+  @override
+  String get arcadeLocate => 'Go to my location';
+
+  @override
+  String get arcadeRegions => 'Worldwide';
+
+  @override
+  String get arcadeRegionCount => 'Regions';
+
+  @override
+  String get arcadeShopCount => 'Arcades';
+
+  @override
+  String get arcadeMachineCount => 'Machines';
+
+  @override
+  String get arcadeDownloadData => 'Download arcade data';
+
+  @override
+  String get arcadeNoDataHint =>
+      'Once downloaded, you can browse arcades offline.';
+
+  @override
+  String arcadeUpdating(String p0, String p1) {
+    return 'Updating $p0 / $p1';
+  }
+
+  @override
+  String get arcadeUpdateFailed => 'Update failed. Your current data was kept.';
+
+  @override
+  String get arcadeNoMatchTitle => 'No matching arcades';
+
+  @override
+  String get arcadeNoMatchHint => 'Try other filters, or move the map.';
+
+  @override
+  String get arcadeNoFavoritesTitle => 'No saved arcades yet';
+
+  @override
+  String get arcadeNoFavoritesHint =>
+      'Tap the star on arcades you visit often to find them here.';
+
+  @override
+  String get arcadeNeedsUpdateToFavorite =>
+      'Update the arcade data first to save arcades.';
+
+  @override
+  String get arcadeLegacyHint =>
+      'This data is outdated. Update it to save arcades and see metro info.';
+
+  @override
+  String get arcadeNavigate => 'Directions';
+
+  @override
+  String get arcadeCopyAddress => 'Copy address';
+
+  @override
+  String get arcadeViewOnNearcade => 'View on nearcade';
+
+  @override
+  String get arcadeCouldNotOpenLink => 'Could not open the link';
+
+  @override
+  String get arcadeHours => 'Opening hours';
+
+  @override
+  String get arcadeEveryDay => 'Every day';
+
+  @override
+  String get arcadeToday => 'Today';
+
+  @override
+  String arcadeMetroWalk(String p0, String p1) {
+    return '$p0 · about $p1 min walk';
+  }
+
+  @override
+  String arcadeMetroStation(String p0) {
+    return '$p0';
+  }
+
+  @override
+  String get arcadeNote => 'Notes';
+
+  @override
+  String arcadeFromYou(String p0) {
+    return '$p0 away';
+  }
+
+  @override
+  String get arcadeFilterAction => 'Filter';
+
+  @override
+  String get arcadeFilterSearchHint => 'Search machines';
+
+  @override
+  String get arcadeFilterEmpty => 'No matching machines';
+
+  @override
+  String get arcadeChooseMapApp => 'Choose a map app';
+
+  @override
+  String get arcadeMapAmap => 'Amap';
+
+  @override
+  String get arcadeMapBaidu => 'Baidu Maps';
+
+  @override
+  String get arcadeMapTencent => 'Tencent Maps';
+
+  @override
+  String get arcadeMapGoogle => 'Google Maps';
+
+  @override
+  String get arcadeMapApple => 'Apple Maps';
+
+  @override
+  String get arcadeMapOther => 'Other map apps';
+
+  @override
+  String get arcadeMapWeb => 'Open in browser';
 }

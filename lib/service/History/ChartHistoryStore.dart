@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import '../AccountStore.dart';
+import '../../manager/DivingFish/MaimaiMusicDataManager.dart';
 
 import '../../utils/CurrentDataSourceNotifier.dart';
 import 'ChartHistoryCore.dart';
@@ -614,7 +615,28 @@ class ChartHistoryStore {
         final byDay = b.day.compareTo(a.day);
         return byDay != 0 ? byDay : b.lastAtMs.compareTo(a.lastAtMs);
       });
+    await _fillMissingMaxDxScores(entries);
     return (startedAtMs: doc.improvements.startedAtMs, entries: entries);
+  }
+
+  /// 记录时没拿到物量的条目，最大 DX 分存的是 0，星数和 DX 分数达成率就会显示「-」。
+  /// 这里用当前曲库补上；曲库读不到时保持原样，不影响其余字段显示。
+  Future<void> _fillMissingMaxDxScores(
+      List<DailyScoreImprovement> entries) async {
+    final missing = entries.any((e) =>
+        e.after.maxDxScore <= 0 || (e.before != null && e.before!.maxDxScore <= 0));
+    if (!missing) return;
+    try {
+      final songs = await MaimaiMusicDataManager().getCachedSongs();
+      if (songs == null || songs.isEmpty) return;
+      final maxScores = maxDxScoresFromSongs(songs);
+      for (final entry in entries) {
+        entry.after.fillMaxDxScore(maxScores);
+        entry.before?.fillMaxDxScore(maxScores);
+      }
+    } catch (e) {
+      debugPrint('[History] 补齐最大 DX 分失败，星数保留未知：$e');
+    }
   }
 
   Future<_HistoryDoc> _load(String source) {

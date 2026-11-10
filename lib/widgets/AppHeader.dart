@@ -30,6 +30,9 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
   /// 底色，默认透明。盖在滚动内容上时传页面底色。
   final Color? barBackground;
 
+  /// 返回键和操作按钮的底色，默认白卡片色。背景是曲绘等深浅不定的画面时传半透明色。
+  final Color? buttonBackground;
+
   /// 附着在标题下方的部件（进度条、来源说明、TabBar）。
   final PreferredSizeWidget? bottom;
 
@@ -44,6 +47,7 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
     this.onBack,
     this.showBack = true,
     this.barBackground,
+    this.buttonBackground,
     this.bottom,
     this.animateTitle = false,
   });
@@ -63,11 +67,12 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final buttonColor = buttonBackground ?? AppSurfaces.card(context);
     final circleButton = IconButton.styleFrom(
-      backgroundColor: AppSurfaces.card(context),
+      backgroundColor: buttonColor,
       foregroundColor: scheme.onSurface,
       overlayColor: Colors.transparent,
-      disabledBackgroundColor: AppSurfaces.card(context).withValues(alpha: 0.5),
+      disabledBackgroundColor: buttonColor.withValues(alpha: buttonColor.a * 0.5),
       fixedSize: const Size(44, 44),
       minimumSize: const Size(44, 44),
       padding: EdgeInsets.zero,

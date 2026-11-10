@@ -393,7 +393,7 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
       );
     }
     return Best50Grid(
-      key: ValueKey(_segment),
+      contentKey: _segment,
       items: [for (final m in songs) _cardData(m)],
       remaining: [
         for (final m in (_data?[_segment == 0 ? 'sdRemaining' : 'dxRemaining']

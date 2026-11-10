@@ -19,7 +19,6 @@ import '../../manager/MaiTagsManager.dart';
 import '../../entity/DXRating/MaiTagsModel.dart';
 import '../SongInfoPage.dart';
 import '../../utils/CoverUtil.dart';
-import '../../entity/DivingFish/RecordItem.dart';
 import 'package:my_first_flutter_app/utils/ExportQualitySelector.dart';
 import 'package:my_first_flutter_app/utils/ImageEncodeUtil.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
@@ -35,6 +34,7 @@ import '../../widgets/AppToast.dart';
 import 'package:my_first_flutter_app/service/BackgroundExportService.dart';
 import '../../utils/MusicDataIndex.dart';
 import '../../utils/JsonIsolate.dart';
+import '../../utils/Best50Order.dart';
 
 class B50Page extends StatefulWidget {
   final Map<String, dynamic>? b50Data;
@@ -51,7 +51,7 @@ class _B50PageState extends State<B50Page> {
   List<Map<String, dynamic>> _dxSongs = [];
   List<Map<String, dynamic>> _sdSongs = [];
 
-  // 全部成绩（按分组、RA 降序），用来找和榜单最后一首 RA 并列的谱面。
+  // 按新旧曲分组的完整成绩，用来找和榜单末位 RA 并列的谱面。
   List<Map<String, dynamic>> _oldRecords = [];
   List<Map<String, dynamic>> _newRecords = [];
   List<Map<String, dynamic>> _theoreticalDxSongs = [];
@@ -85,7 +85,7 @@ class _B50PageState extends State<B50Page> {
   void didUpdateWidget(B50Page oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.b50Data != null && widget.b50Data != oldWidget.b50Data) {
-      _updateB50Data(widget.b50Data!);
+      _updateB50Data(widget.b50Data!, sortCharts: true);
     }
   }
 
@@ -137,22 +137,20 @@ class _B50PageState extends State<B50Page> {
 
       // 直接使用外部传入的B50数据
       if (widget.b50Data != null) {
-        _updateB50Data(widget.b50Data!);
+        _updateB50Data(widget.b50Data!, sortCharts: true);
       } else {
         unawaited(_loadRecordsForTies());
-        // 尝试加载缓存的Best50数据
-        final best50Manager = UserBest50Manager();
-        final cachedBest50Data = await best50Manager.getCachedBest50Data();
-
-        if (cachedBest50Data != null) {
-          _updateB50Data(cachedBest50Data);
+        final data = await UserBest50Manager().getBest50ForDisplay();
+        if (!mounted) return;
+        if (data != null) {
+          _updateB50Data(data);
         } else {
-          // 尝试从用户游玩数据计算Best50（落雪数据源场景）
-          await _calculateBest50FromPlayData();
+          setState(() => _isLoading = false);
         }
       }
     } catch (e) {
       debugPrint('Error loading data: $e');
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
       });
@@ -190,103 +188,13 @@ class _B50PageState extends State<B50Page> {
     final shownKeys = {
       for (final s in shown) '${s['song_id']}_${s['level_index']}',
     };
+    final order = Best50Order(_calculateMaxScore);
     return [
       for (final r in records)
         if (r['ra'] == lastRa &&
             !shownKeys.contains('${r['song_id']}_${r['level_index']}'))
           r,
-    ];
-  }
-
-  /// 从用户游玩数据计算Best50（落雪数据源场景）
-  Future<void> _calculateBest50FromPlayData() async {
-    try {
-      final userPlayDataManager = UserPlayDataManager();
-      final userPlayData = await userPlayDataManager.getCachedUserPlayData();
-
-      if (userPlayData == null || userPlayData['records'] == null) {
-        setState(() {
-          _b50Data = null;
-          _dxSongs = [];
-          _sdSongs = [];
-          _isLoading = false;
-        });
-        return;
-      }
-
-      final records = userPlayData['records'] as List;
-      if (records.isEmpty) {
-        setState(() {
-          _b50Data = null;
-          _dxSongs = [];
-          _sdSongs = [];
-          _isLoading = false;
-        });
-        return;
-      }
-
-      // 将records转换为RecordItem列表
-      List<RecordItem> recordItems = records
-          .map((item) => RecordItem.fromJson(item as Map<String, dynamic>))
-          .toList();
-
-      // 根据歌曲的is_new字段分组
-      List<RecordItem> oldSongs = []; // is_new = false
-      List<RecordItem> newSongs = []; // is_new = true
-
-      for (var record in recordItems) {
-        bool isNew = _isSongNew(record.songId);
-        if (isNew) {
-          newSongs.add(record);
-        } else {
-          oldSongs.add(record);
-        }
-      }
-
-      // 按ra降序排序并取前N个
-      oldSongs.sort((a, b) => b.ra.compareTo(a.ra));
-      newSongs.sort((a, b) => b.ra.compareTo(a.ra));
-
-      // Best35: is_new=false 的前35首
-      List<RecordItem> best35 = oldSongs.take(35).toList();
-      // Best15: is_new=true 的前15首
-      List<RecordItem> best15 = newSongs.take(15).toList();
-
-      // 计算总rating
-      int totalRating = best35.fold(0, (sum, item) => sum + item.ra) +
-          best15.fold(0, (sum, item) => sum + item.ra);
-
-      // 转换为Map格式
-      List<Map<String, dynamic>> sdSongsMap =
-          best35.map((item) => item.toJson()).toList();
-      List<Map<String, dynamic>> dxDongsMap =
-          best15.map((item) => item.toJson()).toList();
-
-      setState(() {
-        _b50Data = {
-          'rating': totalRating,
-          'additional_rating': 0,
-          'charts': {
-            'sd': sdSongsMap,
-            'dx': dxDongsMap,
-          }
-        };
-        _sdSongs = sdSongsMap;
-        _dxSongs = dxDongsMap;
-        _isLoading = false;
-      });
-
-      _calculateTheoreticalBest50();
-      _loadTagDataAndCalculateStats();
-
-      debugPrint(
-          '✅ 从游玩数据计算Best50完成: Best35=${best35.length}首, Best15=${best15.length}首, 总Rating=$totalRating');
-    } catch (e) {
-      debugPrint('Error calculating Best50 from play data: $e');
-      setState(() {
-        _isLoading = false;
-      });
-    }
+    ]..sort(order.compareMaps);
   }
 
   /// 根据歌曲ID判断是否为新曲（is_new=true）
@@ -309,15 +217,19 @@ class _B50PageState extends State<B50Page> {
     return false;
   }
 
-  void _updateB50Data(Map<String, dynamic> newData) {
+  void _updateB50Data(Map<String, dynamic> newData, {bool sortCharts = false}) {
+    final charts = newData['charts'] as Map? ?? const {};
+    final dx = List<Map<String, dynamic>>.from(charts['dx'] as List? ?? []);
+    final sd = List<Map<String, dynamic>>.from(charts['sd'] as List? ?? []);
+    if (sortCharts) {
+      final order = Best50Order(_calculateMaxScore);
+      dx.sort(order.compareMaps);
+      sd.sort(order.compareMaps);
+    }
     setState(() {
       _b50Data = newData;
-      _dxSongs = newData['charts']?['dx'] != null
-          ? List<Map<String, dynamic>>.from(newData['charts']['dx'])
-          : [];
-      _sdSongs = newData['charts']?['sd'] != null
-          ? List<Map<String, dynamic>>.from(newData['charts']['sd'])
-          : [];
+      _dxSongs = dx;
+      _sdSongs = sd;
       _isLoading = false;
     });
     _calculateTheoreticalBest50();
@@ -385,9 +297,9 @@ class _B50PageState extends State<B50Page> {
     List<Map<String, dynamic>> oldSongs =
         allSongs.where((s) => s['is_new'] == false).toList();
 
-    // 按ra降序排序
-    newSongs.sort((a, b) => b['ra'].compareTo(a['ra']));
-    oldSongs.sort((a, b) => b['ra'].compareTo(a['ra']));
+    final order = Best50Order(_calculateMaxScore);
+    newSongs.sort(order.compareMaps);
+    oldSongs.sort(order.compareMaps);
 
     // 取Best15和Best35，并计算剩余相同定数的歌曲
     _theoreticalDxSongs = _takeWithRemaining(
@@ -651,7 +563,7 @@ class _B50PageState extends State<B50Page> {
             ],
             const SizedBox(height: AppDesignTokens.cardGap),
             Best50Grid(
-              key: ValueKey('$_isTheoreticalMode-$_segment'),
+              contentKey: '$_isTheoreticalMode-$_segment',
               items: [for (final s in songs) _cardData(s)],
               remaining: [for (final s in remaining) _cardData(s)],
               remainingLabel: remainingLabel,
@@ -795,17 +707,10 @@ class _B50PageState extends State<B50Page> {
                               GestureDetector(
                                 onTap: () async {
                                   Navigator.pop(ctx);
-                                  final charts = s['charts'];
-                                  setState(() {
-                                    _b50Data = {
-                                      'rating': s['rating'],
-                                      'charts': charts
-                                    };
-                                    _sdSongs = List<Map<String, dynamic>>.from(
-                                        charts['sd'] ?? []);
-                                    _dxSongs = List<Map<String, dynamic>>.from(
-                                        charts['dx'] ?? []);
-                                  });
+                                  _updateB50Data({
+                                    'rating': s['rating'],
+                                    'charts': s['charts'],
+                                  }, sortCharts: true);
                                 },
                                 child: Padding(
                                   padding: EdgeInsets.all(6),

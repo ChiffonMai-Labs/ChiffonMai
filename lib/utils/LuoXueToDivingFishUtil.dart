@@ -144,8 +144,13 @@ class LuoXueToDivingFishUtil {
       }
     }
 
-    // 获取 songId：优先使用缓存中歌曲的 id，否则使用原始 score.id
+    // 获取 songId：优先使用缓存中歌曲的 id，否则由落雪 id 换算。
+    // 落雪的 id 是基础 id，谱面类型单独给出；水鱼的 DX 谱 id = 10000 + 基础 id。
+    // 以前回退时直接用基础 id，DX 谱成绩就以不存在的标准谱 id 上传到了排行榜。
     int songId = score.id.toInt();
+    if (score.type.toLowerCase() == 'dx' && songId > 0 && songId < 10000) {
+      songId += 10000;
+    }
     if (song != null && song.id.isNotEmpty) {
       int? parsedId = int.tryParse(song.id);
       if (parsedId != null) {

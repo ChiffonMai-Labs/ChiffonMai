@@ -17,6 +17,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import '../../widgets/EmptyState.dart';
 import '../../widgets/ExportSuccessDialog.dart';
 
 import '../../entity/Portable/PortableSong.dart';
@@ -32,6 +33,7 @@ import '../../widgets/MarqueeText.dart';
 import '../../widgets/NextPlayAddDialog.dart';
 import '../../widgets/NowPlayingUi.dart';
 import '../../widgets/PortablePlaybackModeButton.dart';
+import '../SongInfoPage.dart';
 
 class PortableNowPlayingPage extends StatefulWidget {
   /// 歌曲详情页进来时，音源还没就绪就先显示这首歌，避免先闪出别的曲目或空页面。
@@ -39,11 +41,16 @@ class PortableNowPlayingPage extends StatefulWidget {
   final String? preparationError;
   final VoidCallback? onRetryPreparation;
 
+  /// 从某首歌的详情页「试听」进来时，那首歌的水鱼 id。
+  /// 正在播放的仍是这首歌时，「查看歌曲详情」直接返回上一级，不再叠一层详情页。
+  final String? sourceSongId;
+
   const PortableNowPlayingPage({
     super.key,
     this.preparingSong,
     this.preparationError,
     this.onRetryPreparation,
+    this.sourceSongId,
   });
 
   @override
@@ -188,7 +195,7 @@ class _PortableNowPlayingPageState extends State<PortableNowPlayingPage>
           top: false,
           child: _player.isLoading
               ? _preparing(Theme.of(context).colorScheme)
-              : _empty(Theme.of(context).colorScheme),
+              : _empty(),
         ),
       );
     }
@@ -208,7 +215,14 @@ class _PortableNowPlayingPageState extends State<PortableNowPlayingPage>
                 children: [
                   AppHeader(
                     title: context.l10n.flowPlayMusic,
+                    buttonBackground: _headerButtonColor(context),
                     actions: [
+                      if (song != null && song.divingFishId.isNotEmpty)
+                        IconButton(
+                          tooltip: context.l10n.flowViewSongDetails,
+                          icon: const Icon(Icons.library_music_outlined),
+                          onPressed: () => _openSongDetail(song),
+                        ),
                       _downloadControl(context, song),
                     ],
                   ),
@@ -245,19 +259,10 @@ class _PortableNowPlayingPageState extends State<PortableNowPlayingPage>
     );
   }
 
-  Widget _empty(ColorScheme scheme) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.music_note, size: 64, color: scheme.onSurfaceVariant),
-          const SizedBox(height: 12),
-          Text(
-            context.l10n.flowNothingPlayingYet,
-            style: TextStyle(color: scheme.onSurfaceVariant),
-          ),
-        ],
-      ),
+  Widget _empty() {
+    return EmptyState(
+      icon: Icons.music_note,
+      message: context.l10n.flowNothingPlayingYet,
     );
   }
 
@@ -275,6 +280,29 @@ class _PortableNowPlayingPageState extends State<PortableNowPlayingPage>
         ],
       ),
     );
+  }
+
+  /// 跳到当前曲目的歌曲详情。从这首歌的详情页「试听」进来时直接返回上一级。
+  void _openSongDetail(PortableSong song) {
+    if (_isSameSong(widget.sourceSongId, song.divingFishId)) {
+      Navigator.of(context).maybePop();
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+          builder: (_) => SongInfoPage(songId: song.divingFishId)),
+    );
+  }
+
+  /// ST 与 DX 谱面在水鱼上是两个 id（DX = 10000 + 基础 id），但属于同一首歌，
+  /// 详情页里也能直接切换，所以按基础 id 比较。
+  static bool _isSameSong(String? a, String b) {
+    if (a == null || a.isEmpty) return false;
+    final x = int.tryParse(a), y = int.tryParse(b);
+    if (x == null || y == null) return a == b;
+    int base(int id) => id >= 10000 && id < 100000 ? id % 10000 : id;
+    return base(x) == base(y);
   }
 
   Future<void> _addToNextPlay(PortableSong song) async {
@@ -578,6 +606,10 @@ class _PortableNowPlayingPageState extends State<PortableNowPlayingPage>
   }
 
   /// 放在顶部栏：下载时换成同尺寸的圆形进度，保持和其它顶部按钮对齐。
+  /// 背景是曲绘取色，顶部按钮用文字色的淡色叠上去，明暗都能融进背景。
+  Color _headerButtonColor(BuildContext context) =>
+      Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1);
+
   Widget _downloadControl(BuildContext context, PortableSong song) {
     if (!_downloading) {
       return IconButton(
@@ -591,7 +623,7 @@ class _PortableNowPlayingPageState extends State<PortableNowPlayingPage>
       width: 44,
       height: 44,
       decoration: BoxDecoration(
-        color: AppSurfaces.card(context),
+        color: _headerButtonColor(context),
         shape: BoxShape.circle,
       ),
       child: Column(

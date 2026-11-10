@@ -34,6 +34,8 @@ class _RatingRankListPageState extends State<RatingRankListPage> {
 
   // 当前选择的排行榜类型
   int _selectedTab = 0; // 0: 总排行榜, 之后依次是 _tabSources 里的数据源
+  int? _resultTab; // 屏幕上这份榜单所属的 Tab
+  String? _resultUserId; // 这份榜单里要高亮的玩家
 
   /// Tab 1..N 依次对应的数据源。
   ///
@@ -234,12 +236,12 @@ class _RatingRankListPageState extends State<RatingRankListPage> {
   Future<void> _loadRankings() async {
     if (!mounted) return;
     final generation = ++_requestGeneration;
+    final tab = _selectedTab;
     final source = _selectedSource;
     final userId = _selectedUserId;
     setState(() {
       _isLoading = true;
       _errorMessage = '';
-      _currentUserRankItem = null;
     });
 
     try {
@@ -267,11 +269,18 @@ class _RatingRankListPageState extends State<RatingRankListPage> {
       setState(() {
         _rankList = items.take(500).toList();
         _currentUserRankItem = currentUserRankItem;
+        _resultTab = tab;
+        _resultUserId = userId;
       });
     } catch (e) {
       if (!mounted || generation != _requestGeneration) return;
       setState(() {
         _errorMessage = appL10n.flowCouldNotLoadP0((e).toString());
+        // 换榜失败时不能让旧榜单顶着新 Tab 显示。
+        if (_resultTab != tab) {
+          _rankList = [];
+          _currentUserRankItem = null;
+        }
       });
     } finally {
       if (mounted && generation == _requestGeneration)
@@ -346,7 +355,7 @@ class _RatingRankListPageState extends State<RatingRankListPage> {
   /// B35/B15 两行小字）。列表会先把它排一遍，再让每一行都用它的高度 ——
   /// 于是「第 index 行」的偏移就是 `index × 行高`，见 [RankingRowExtent]。
   Widget _buildRowPrototype(Brightness brightness) => KeyedSubtree(
-        key: _rowExtent.key,
+        key: _rowExtent.keyFor(_rankList),
         child: _buildRankItem(_prototypeRankItem, brightness: brightness),
       );
 
@@ -443,7 +452,7 @@ class _RatingRankListPageState extends State<RatingRankListPage> {
                   ],
                   selectedIndex: _selectedTab,
                   onChanged: (index) {
-                    if (_isButtonDisabled) return;
+                    if (index == _selectedTab || _isButtonDisabled) return;
                     setState(() => _selectedTab = index);
                     _disableButtons();
                     _loadRankings();
@@ -455,13 +464,15 @@ class _RatingRankListPageState extends State<RatingRankListPage> {
 
               // 排行榜列表
               Expanded(
-                child: _isLoading
+                child: _isLoading && _rankList.isEmpty
                     ? Center(
                         child: CircularProgressIndicator(
                             color: AppColors.primaryText(brightness)))
                     : _rankList.isEmpty
                         ? _buildEmptyState(brightness)
                         : ListView.builder(
+                            // 拿到新榜单时重新挂载，首屏的行才会重新进场。
+                            key: ObjectKey(_rankList),
                             controller: _scrollController,
                             // 必须显式清零：`Scaffold` 在没有 `appBar:` 时不会消耗顶部安全区，
                             // 于是 `ListView` 会把 `MediaQuery.padding.top`（状态栏 24dp）
@@ -477,8 +488,8 @@ class _RatingRankListPageState extends State<RatingRankListPage> {
                             itemCount: _rankList.length,
                             itemBuilder: (context, index) {
                               final item = _rankList[index];
-                              final isCurrentUser = _selectedUserId != null &&
-                                  item.userId == _selectedUserId;
+                              final isCurrentUser = _resultUserId != null &&
+                                  item.userId == _resultUserId;
                               return _entrance.wrap(
                                   _rankList,
                                   index,
@@ -490,7 +501,7 @@ class _RatingRankListPageState extends State<RatingRankListPage> {
               ),
 
               // 底部固定显示当前用户
-              if (!_isLoading && _currentUserRankItem != null)
+              if (_currentUserRankItem != null)
                 SafeArea(
                   top: false,
                   child: RankingSelfBar(

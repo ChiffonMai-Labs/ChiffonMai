@@ -1,6 +1,7 @@
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
+import '../widgets/EmptyState.dart';
 import '../widgets/SmoothLinearProgressIndicator.dart';
 import 'package:flutter/services.dart';
 import 'package:my_first_flutter_app/entity/FavoriteFolder.dart';
@@ -214,40 +215,11 @@ class _FavoriteFolderPageState extends State<FavoriteFolderPage> {
   }
 
   Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.favorite_border,
-              size: 80,
-              color: AppColors.greyHint(Theme.of(context).brightness)),
-          const SizedBox(height: 16),
-          Text(
-            context.l10n.flowNoFavoritesFoldersYet,
-            style: TextStyle(
-                fontSize: 18,
-                color: Theme.of(context).colorScheme.onSurfaceVariant),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            context.l10n.flowAddChartsToFavoritesFoldersFromSong,
-            style: TextStyle(
-                fontSize: 14,
-                color: AppColors.greyHint(Theme.of(context).brightness)),
-          ),
-          const SizedBox(height: 4),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Text(
-              context.l10n.flowOrUseImportFavoritesAboveP0((favoriteImportHint()).toString()),
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  fontSize: 12,
-                  color: AppColors.greyHint(Theme.of(context).brightness)),
-            ),
-          ),
-        ],
-      ),
+    return EmptyState(
+      icon: Icons.favorite_border,
+      title: context.l10n.flowNoFavoritesFoldersYet,
+      message: '${context.l10n.flowAddChartsToFavoritesFoldersFromSong}\n'
+          '${context.l10n.flowOrUseImportFavoritesAboveP0((favoriteImportHint()).toString())}',
     );
   }
 
@@ -811,22 +783,9 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
   }
 
   Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.favorite_border,
-              size: 80,
-              color: AppColors.greyHint(Theme.of(context).brightness)),
-          const SizedBox(height: 16),
-          Text(
-            context.l10n.flowFavoritesFolderIsEmpty,
-            style: TextStyle(
-                fontSize: 16,
-                color: Theme.of(context).colorScheme.onSurfaceVariant),
-          ),
-        ],
-      ),
+    return EmptyState(
+      icon: Icons.favorite_border,
+      message: context.l10n.flowFavoritesFolderIsEmpty,
     );
   }
 

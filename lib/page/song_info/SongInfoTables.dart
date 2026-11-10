@@ -452,7 +452,7 @@ extension _SongInfoTables on _SongInfoPageState {
 
     // 计算每个达成率对应的得分
     List<Map<String, dynamic>> scoreData = [];
-    for (var item in maimaiRatingMultiplier) {
+    for (var item in _displayedRatingSegments) {
       double completion = item['completion'];
       String rating = item['rating'];
       // 如果是6位数id的歌曲，得分设为0
@@ -464,7 +464,9 @@ extension _SongInfoTables on _SongInfoPageState {
 
     // 对于定数大于等于12.0的谱面，添加额外的达成率点（每个可达成的 score 都加边界）
     // 但6位数id的歌曲不添加额外达成率点
-    if (difficulty >= 12.0 && !isSixDigitId) {
+    if (difficulty >= 12.0 &&
+        !isSixDigitId &&
+        RatingSegmentPreferences.instance.isDetailed) {
       // 在 [lo, hi] 内二分找最小 c 使 _calculateSingleRating(difficulty, c) >= targetScore
       double binarySearchMinCompletion(double lo, double hi, int targetScore) {
         double mid = lo;

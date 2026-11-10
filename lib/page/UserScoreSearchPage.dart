@@ -14,6 +14,7 @@ import 'package:my_first_flutter_app/widgets/BackgroundPageScaffold.dart';
 import '../widgets/AppUi.dart';
 import '../widgets/GuessSettingsUi.dart';
 import '../utils/AppDesignTokens.dart';
+import '../utils/SearchInteractionPreferences.dart';
 import '../widgets/MarqueeText.dart';
 import '../widgets/AppDialogs.dart';
 
@@ -560,10 +561,14 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
           tooltip: _searchOpen
               ? context.l10n.flowCloseSearch
               : context.l10n.flowSearchSongTitleOrConstant,
-          onPressed: () => setState(() {
-            _searchOpen = !_searchOpen;
-            if (!_searchOpen) _setSearchQuery('');
-          }),
+          onPressed: () {
+            // 收起时先放掉焦点，退场动画期间输入法不会停在屏幕上
+            if (_searchOpen) FocusManager.instance.primaryFocus?.unfocus();
+            setState(() {
+              _searchOpen = !_searchOpen;
+              if (!_searchOpen) _setSearchQuery('');
+            });
+          },
           icon: Icon(_searchOpen ? Icons.close_rounded : Icons.search_rounded),
         ),
         Padding(
@@ -605,18 +610,61 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
                     Expanded(
                       child: SingleChildScrollView(
                         controller: _scrollController,
-                        padding: const EdgeInsets.fromLTRB(
+                        // 「搜索区域避让输入法」开启时把可滚动范围抬到输入法上方，背景不动
+                        padding: EdgeInsets.fromLTRB(
                             AppDesignTokens.gutter,
                             4,
                             AppDesignTokens.gutter,
-                            AppDesignTokens.gutter),
+                            AppDesignTokens.gutter +
+                                (SearchInteractionPreferences
+                                        .instance.avoidKeyboard
+                                    ? MediaQuery.viewInsetsOf(context).bottom
+                                    : 0)),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            if (_searchOpen) ...[
-                              _buildSearchField(),
-                              const SizedBox(height: AppDesignTokens.cardGap),
-                            ],
+                            // 搜索框展开 / 收起：高度过渡 + 淡入淡出与轻微下滑
+                            AnimatedSize(
+                              duration: AppDesignTokens.motion(
+                                  context, AppDesignTokens.mediumMotion),
+                              curve: AppDesignTokens.emphasizedCurve,
+                              alignment: Alignment.topCenter,
+                              child: AnimatedSwitcher(
+                                duration: AppDesignTokens.motion(
+                                    context, AppDesignTokens.mediumMotion),
+                                switchInCurve: AppDesignTokens.emphasizedCurve,
+                                switchOutCurve: Curves.easeIn,
+                                transitionBuilder: (child, animation) =>
+                                    FadeTransition(
+                                  opacity: animation,
+                                  child: SlideTransition(
+                                    position: Tween<Offset>(
+                                      begin: const Offset(0, -0.15),
+                                      end: Offset.zero,
+                                    ).animate(animation),
+                                    child: child,
+                                  ),
+                                ),
+                                layoutBuilder: (current, previous) => Stack(
+                                  alignment: Alignment.topCenter,
+                                  children: [
+                                    ...previous,
+                                    if (current != null) current,
+                                  ],
+                                ),
+                                child: _searchOpen
+                                    ? Padding(
+                                        key: const ValueKey('search-open'),
+                                        padding: const EdgeInsets.only(
+                                            bottom: AppDesignTokens.cardGap),
+                                        child: _buildSearchField(),
+                                      )
+                                    : const SizedBox(
+                                        key: ValueKey('search-closed'),
+                                        width: double.infinity,
+                                      ),
+                              ),
+                            ),
                             _buildDistributionCard(),
                             const SizedBox(height: AppDesignTokens.cardGap),
                             _buildFilterRow(),

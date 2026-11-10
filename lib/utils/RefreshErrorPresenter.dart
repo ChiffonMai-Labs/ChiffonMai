@@ -5,6 +5,8 @@ import '../manager/DivingFish/ProberException.dart';
 import 'ExternalUrlPolicy.dart';
 import 'ExternalLaunchUtil.dart';
 import '../widgets/ErrorMessageDialog.dart';
+import '../widgets/AppDialogs.dart';
+import '../service/RankingList/RankingUploadGuard.dart';
 
 /// 刷新水鱼成绩失败时，统一给用户的交代。
 ///
@@ -23,6 +25,20 @@ Future<void> presentRefreshError(
   Object error, {
   String qq = '',
 }) async {
+  // 排行榜上传没有完成：成绩已经刷新保存，单独说明原因，不当作刷新失败
+  if (error is RankingUploadException) {
+    await showAppNoticeDialog(
+      context,
+      title: context.l10n.rankingUploadIncompleteTitle,
+      message: '${context.l10n.rankingUploadIncompleteLead}\n\n${error.message}',
+      tone: switch (error.issue) {
+        RankingUploadIssue.blacklisted => AppDialogTone.error,
+        RankingUploadIssue.upgradeRequired => AppDialogTone.info,
+        _ => AppDialogTone.warning,
+      },
+    );
+    return;
+  }
   if (error is ProberException && error.code == 'CONSENT_REQUIRED') {
     // 好友对比路径会带上现成的授权链接；没有就现发起一次设备码绑定。
     var url = error.bindingUrl ?? '';

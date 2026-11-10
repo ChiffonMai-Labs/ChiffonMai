@@ -4,7 +4,10 @@ import 'package:my_first_flutter_app/manager/DivingFish/UserPlayDataManager.dart
 import 'package:my_first_flutter_app/manager/DivingFish/MaimaiMusicDataManager.dart';
 import 'package:my_first_flutter_app/manager/MaiTagsManager.dart';
 import 'package:my_first_flutter_app/service/AWMC/AwmcPlayCountStore.dart';
+import 'package:my_first_flutter_app/service/PersonalizedScoreService.dart';
 import 'package:my_first_flutter_app/utils/SongFilterUtil.dart';
+import '../../entity/DivingFish/Song.dart';
+import '../../utils/Best50Order.dart';
 import '../../utils/Best50Tie.dart';
 
 class PersonalizedBest50Service {
@@ -19,18 +22,27 @@ class PersonalizedBest50Service {
   List<dynamic> lastRemaining = const [];
   String? lastRemainingLabel;
 
-  /// 取前 [limit] 条，并记下被截掉的并列谱面。[sorted] 要已按 [field] 降序排好。
-  List<dynamic> _cut(dynamic sorted, {int limit = 50, String field = 'ra'}) {
-    final list = List<dynamic>.from(sorted as Iterable);
+  /// 排序后取前 [limit] 条，并记下被截掉的并列谱面。
+  Future<List<Map<String, dynamic>>> _cut(
+    List<dynamic> records, {
+    Iterable<Song>? songs,
+    int limit = 50,
+    String field = 'ra',
+  }) async {
+    final library = songs ?? await MaimaiMusicDataManager().getCachedSongs();
+    final order = Best50Order.fromSongs(library ?? const []);
+    final list = records.whereType<Map<String, dynamic>>().toList();
+    list.sort((a, b) {
+      if (field == 'playCount') {
+        final byCount = (b['playCount'] as int).compareTo(a['playCount'] as int);
+        if (byCount != 0) return byCount;
+      }
+      return order.compareMaps(a, b);
+    });
     lastRemaining = tiedBeyondCut(list, limit, field);
-    if (lastRemaining.isNotEmpty) {
-      final value = (list[limit - 1] as Map)[field];
-      lastRemainingLabel = switch (field) {
-        'playCount' => 'PC $value',
-        'ds' => '定数 $value',
-        _ => 'RA $value',
-      };
-    }
+    final label = field == 'playCount' ? 'PC' : 'RA';
+    lastRemainingLabel =
+        lastRemaining.isEmpty ? null : '$label ${list[limit - 1][field]}';
     return list.take(limit).toList();
   }
 
@@ -50,15 +62,8 @@ class PersonalizedBest50Service {
           }).toList() ??
           [];
 
-      // 按ra值降序排序
-      appRecords.sort((a, b) {
-        int raB = (b['ra'] ?? 0) as int;
-        int raA = (a['ra'] ?? 0) as int;
-        return raB.compareTo(raA);
-      });
-
       // 取前50条
-      final top50Records = _cut(appRecords);
+      final top50Records = await _cut(appRecords, songs: allSongs);
 
       // 构建返回数据
       return {
@@ -91,18 +96,8 @@ class PersonalizedBest50Service {
         return false;
       }).toList();
 
-      // 按ra值降序排序
-      apRecords.sort((a, b) {
-        if (a is Map<String, dynamic> && b is Map<String, dynamic>) {
-          int raB = (b['ra'] ?? 0) as int;
-          int raA = (a['ra'] ?? 0) as int;
-          return raB.compareTo(raA);
-        }
-        return 0;
-      });
-
       // 取前50条
-      final top50Records = _cut(apRecords);
+      final top50Records = await _cut(apRecords);
 
       // 构建返回数据
       return {
@@ -135,18 +130,8 @@ class PersonalizedBest50Service {
         return false;
       }).toList();
 
-      // 按ra值降序排序
-      fcRecords.sort((a, b) {
-        if (a is Map<String, dynamic> && b is Map<String, dynamic>) {
-          int raB = (b['ra'] ?? 0) as int;
-          int raA = (a['ra'] ?? 0) as int;
-          return raB.compareTo(raA);
-        }
-        return 0;
-      });
-
       // 取前50条
-      final top50Records = _cut(fcRecords);
+      final top50Records = await _cut(fcRecords);
 
       // 构建返回数据
       return {
@@ -179,18 +164,8 @@ class PersonalizedBest50Service {
         return false;
       }).toList();
 
-      // 按ra值降序排序
-      fcpRecords.sort((a, b) {
-        if (a is Map<String, dynamic> && b is Map<String, dynamic>) {
-          int raB = (b['ra'] ?? 0) as int;
-          int raA = (a['ra'] ?? 0) as int;
-          return raB.compareTo(raA);
-        }
-        return 0;
-      });
-
       // 取前50条
-      final top50Records = _cut(fcpRecords);
+      final top50Records = await _cut(fcpRecords);
 
       // 构建返回数据
       return {
@@ -226,18 +201,8 @@ class PersonalizedBest50Service {
         return false;
       }).toList();
 
-      // 按ra值降序排序
-      cunRecords.sort((a, b) {
-        if (a is Map<String, dynamic> && b is Map<String, dynamic>) {
-          int raB = (b['ra'] ?? 0) as int;
-          int raA = (a['ra'] ?? 0) as int;
-          return raB.compareTo(raA);
-        }
-        return 0;
-      });
-
       // 取前50条
-      final top50Records = _cut(cunRecords);
+      final top50Records = await _cut(cunRecords);
 
       // 构建返回数据
       return {
@@ -273,18 +238,8 @@ class PersonalizedBest50Service {
         return false;
       }).toList();
 
-      // 按ra值降序排序
-      mingDaoRecords.sort((a, b) {
-        if (a is Map<String, dynamic> && b is Map<String, dynamic>) {
-          int raB = (b['ra'] ?? 0) as int;
-          int raA = (a['ra'] ?? 0) as int;
-          return raB.compareTo(raA);
-        }
-        return 0;
-      });
-
       // 取前50条
-      final top50Records = _cut(mingDaoRecords);
+      final top50Records = await _cut(mingDaoRecords);
 
       // 构建返回数据
       return {
@@ -319,18 +274,8 @@ class PersonalizedBest50Service {
         return false;
       }).toList();
 
-      // 按ra值降序排序
-      cuniaoPlusRecords.sort((a, b) {
-        if (a is Map<String, dynamic> && b is Map<String, dynamic>) {
-          int raB = (b['ra'] ?? 0) as int;
-          int raA = (a['ra'] ?? 0) as int;
-          return raB.compareTo(raA);
-        }
-        return 0;
-      });
-
       // 取前50条
-      final top50Records = _cut(cuniaoPlusRecords);
+      final top50Records = await _cut(cuniaoPlusRecords);
 
       // 构建返回数据
       return {
@@ -365,18 +310,8 @@ class PersonalizedBest50Service {
         return false;
       }).toList();
 
-      // 按ra值降序排序
-      suoxuePlusRecords.sort((a, b) {
-        if (a is Map<String, dynamic> && b is Map<String, dynamic>) {
-          int raB = (b['ra'] ?? 0) as int;
-          int raA = (a['ra'] ?? 0) as int;
-          return raB.compareTo(raA);
-        }
-        return 0;
-      });
-
       // 取前50条
-      final top50Records = _cut(suoxuePlusRecords);
+      final top50Records = await _cut(suoxuePlusRecords);
 
       // 构建返回数据
       return {
@@ -411,18 +346,8 @@ class PersonalizedBest50Service {
         return false;
       }).toList();
 
-      // 按ra值降序排序
-      cuniaoRecords.sort((a, b) {
-        if (a is Map<String, dynamic> && b is Map<String, dynamic>) {
-          int raB = (b['ra'] ?? 0) as int;
-          int raA = (a['ra'] ?? 0) as int;
-          return raB.compareTo(raA);
-        }
-        return 0;
-      });
-
       // 取前50条
-      final top50Records = _cut(cuniaoRecords);
+      final top50Records = await _cut(cuniaoRecords);
 
       // 构建返回数据
       return {
@@ -457,18 +382,8 @@ class PersonalizedBest50Service {
         return false;
       }).toList();
 
-      // 按ra值降序排序
-      suoxueRecords.sort((a, b) {
-        if (a is Map<String, dynamic> && b is Map<String, dynamic>) {
-          int raB = (b['ra'] ?? 0) as int;
-          int raA = (a['ra'] ?? 0) as int;
-          return raB.compareTo(raA);
-        }
-        return 0;
-      });
-
       // 取前50条
-      final top50Records = _cut(suoxueRecords);
+      final top50Records = await _cut(suoxueRecords);
 
       // 构建返回数据
       return {
@@ -593,18 +508,8 @@ class PersonalizedBest50Service {
         return false;
       }).toList();
 
-      // 按ra值降序排序
-      charterRecords.sort((a, b) {
-        if (a is Map<String, dynamic> && b is Map<String, dynamic>) {
-          int raB = (b['ra'] ?? 0) as int;
-          int raA = (a['ra'] ?? 0) as int;
-          return raB.compareTo(raA);
-        }
-        return 0;
-      });
-
       // 取前50条
-      final top50Records = _cut(charterRecords);
+      final top50Records = await _cut(charterRecords, songs: allSongs);
 
       // 构建返回数据
       return {
@@ -675,18 +580,8 @@ class PersonalizedBest50Service {
         return false;
       }).toList();
 
-      // 按ra值降序排序
-      versionRecords.sort((a, b) {
-        if (a is Map<String, dynamic> && b is Map<String, dynamic>) {
-          int raB = (b['ra'] ?? 0) as int;
-          int raA = (a['ra'] ?? 0) as int;
-          return raB.compareTo(raA);
-        }
-        return 0;
-      });
-
       // 取前50条
-      final top50Records = _cut(versionRecords);
+      final top50Records = await _cut(versionRecords, songs: allSongs);
 
       // 构建返回数据
       return {
@@ -732,18 +627,8 @@ class PersonalizedBest50Service {
         return false;
       }).toList();
 
-      // 按ra值降序排序
-      dxRecords.sort((a, b) {
-        if (a is Map<String, dynamic> && b is Map<String, dynamic>) {
-          int raB = (b['ra'] ?? 0) as int;
-          int raA = (a['ra'] ?? 0) as int;
-          return raB.compareTo(raA);
-        }
-        return 0;
-      });
-
       // 取前50条
-      final top50Records = _cut(dxRecords);
+      final top50Records = await _cut(dxRecords, songs: allSongs);
 
       // 构建返回数据
       return {
@@ -788,18 +673,8 @@ class PersonalizedBest50Service {
         return false;
       }).toList();
 
-      // 按ra值降序排序
-      stRecords.sort((a, b) {
-        if (a is Map<String, dynamic> && b is Map<String, dynamic>) {
-          int raB = (b['ra'] ?? 0) as int;
-          int raA = (a['ra'] ?? 0) as int;
-          return raB.compareTo(raA);
-        }
-        return 0;
-      });
-
       // 取前50条
-      final top50Records = _cut(stRecords);
+      final top50Records = await _cut(stRecords, songs: allSongs);
 
       // 构建返回数据
       return {
@@ -832,18 +707,8 @@ class PersonalizedBest50Service {
         return false;
       }).toList();
 
-      // 按ra值降序排序
-      fsRecords.sort((a, b) {
-        if (a is Map<String, dynamic> && b is Map<String, dynamic>) {
-          int raB = (b['ra'] ?? 0) as int;
-          int raA = (a['ra'] ?? 0) as int;
-          return raB.compareTo(raA);
-        }
-        return 0;
-      });
-
       // 取前50条
-      final top50Records = _cut(fsRecords);
+      final top50Records = await _cut(fsRecords);
 
       // 构建返回数据
       return {
@@ -876,18 +741,8 @@ class PersonalizedBest50Service {
         return false;
       }).toList();
 
-      // 按ra值降序排序
-      fspRecords.sort((a, b) {
-        if (a is Map<String, dynamic> && b is Map<String, dynamic>) {
-          int raB = (b['ra'] ?? 0) as int;
-          int raA = (a['ra'] ?? 0) as int;
-          return raB.compareTo(raA);
-        }
-        return 0;
-      });
-
       // 取前50条
-      final top50Records = _cut(fspRecords);
+      final top50Records = await _cut(fspRecords);
 
       // 构建返回数据
       return {
@@ -920,18 +775,8 @@ class PersonalizedBest50Service {
         return false;
       }).toList();
 
-      // 按ra值降序排序
-      fsdRecords.sort((a, b) {
-        if (a is Map<String, dynamic> && b is Map<String, dynamic>) {
-          int raB = (b['ra'] ?? 0) as int;
-          int raA = (a['ra'] ?? 0) as int;
-          return raB.compareTo(raA);
-        }
-        return 0;
-      });
-
       // 取前50条
-      final top50Records = _cut(fsdRecords);
+      final top50Records = await _cut(fsdRecords);
 
       // 构建返回数据
       return {
@@ -964,18 +809,8 @@ class PersonalizedBest50Service {
         return false;
       }).toList();
 
-      // 按ra值降序排序
-      fsdpRecords.sort((a, b) {
-        if (a is Map<String, dynamic> && b is Map<String, dynamic>) {
-          int raB = (b['ra'] ?? 0) as int;
-          int raA = (a['ra'] ?? 0) as int;
-          return raB.compareTo(raA);
-        }
-        return 0;
-      });
-
       // 取前50条
-      final top50Records = _cut(fsdpRecords);
+      final top50Records = await _cut(fsdpRecords);
 
       // 构建返回数据
       return {
@@ -1015,18 +850,8 @@ class PersonalizedBest50Service {
         return false;
       }).toList();
 
-      // 按ra值降序排序
-      filteredRecords.sort((a, b) {
-        if (a is Map<String, dynamic> && b is Map<String, dynamic>) {
-          int raB = (b['ra'] ?? 0) as int;
-          int raA = (a['ra'] ?? 0) as int;
-          return raB.compareTo(raA);
-        }
-        return 0;
-      });
-
       // 取前50条
-      final top50Records = _cut(filteredRecords);
+      final top50Records = await _cut(filteredRecords);
 
       return {
         'records': top50Records,
@@ -1066,18 +891,8 @@ class PersonalizedBest50Service {
         return false;
       }).toList();
 
-      // 按ra值降序排序
-      filteredRecords.sort((a, b) {
-        if (a is Map<String, dynamic> && b is Map<String, dynamic>) {
-          int raB = (b['ra'] ?? 0) as int;
-          int raA = (a['ra'] ?? 0) as int;
-          return raB.compareTo(raA);
-        }
-        return 0;
-      });
-
       // 取前50条
-      final top50Records = _cut(filteredRecords);
+      final top50Records = await _cut(filteredRecords);
 
       return {
         'records': top50Records,
@@ -1194,18 +1009,8 @@ class PersonalizedBest50Service {
         return false;
       }).toList();
 
-      // 按ra值降序排序
-      starRecords.sort((a, b) {
-        if (a is Map<String, dynamic> && b is Map<String, dynamic>) {
-          int raB = (b['ra'] ?? 0) as int;
-          int raA = (a['ra'] ?? 0) as int;
-          return raB.compareTo(raA);
-        }
-        return 0;
-      });
-
       // 取前50条
-      final top50Records = _cut(starRecords);
+      final top50Records = await _cut(starRecords, songs: allSongs);
 
       // 构建返回数据
       return {
@@ -1288,31 +1093,8 @@ class PersonalizedBest50Service {
         return false;
       }).toList();
 
-      // 排序：如果是\u5bb4\u4f1a\u5834（宴会场）流派，按达成率降序排序；否则按ra值降序排序
-      if (genre == '\u5bb4\u4f1a\u5834') {
-        genreRecords.sort((a, b) {
-          if (a is Map<String, dynamic> && b is Map<String, dynamic>) {
-            double achievementsB =
-                double.tryParse(b['achievements'].toString()) ?? 0.0;
-            double achievementsA =
-                double.tryParse(a['achievements'].toString()) ?? 0.0;
-            return achievementsB.compareTo(achievementsA);
-          }
-          return 0;
-        });
-      } else {
-        genreRecords.sort((a, b) {
-          if (a is Map<String, dynamic> && b is Map<String, dynamic>) {
-            int raB = (b['ra'] ?? 0) as int;
-            int raA = (a['ra'] ?? 0) as int;
-            return raB.compareTo(raA);
-          }
-          return 0;
-        });
-      }
-
       // 取前50条
-      final top50Records = _cut(genreRecords);
+      final top50Records = await _cut(genreRecords, songs: allSongs);
 
       // 构建返回数据
       return {
@@ -1376,18 +1158,8 @@ class PersonalizedBest50Service {
         return false;
       }).toList();
 
-      // 按ra值降序排序
-      tagRecords.sort((a, b) {
-        if (a is Map<String, dynamic> && b is Map<String, dynamic>) {
-          int raB = (b['ra'] ?? 0) as int;
-          int raA = (a['ra'] ?? 0) as int;
-          return raB.compareTo(raA);
-        }
-        return 0;
-      });
-
       // 取前50条
-      final top50Records = _cut(tagRecords);
+      final top50Records = await _cut(tagRecords, songs: allSongs);
 
       return {
         'records': top50Records,
@@ -1417,18 +1189,8 @@ class PersonalizedBest50Service {
         return record is Map<String, dynamic>;
       }).toList();
 
-      // 按ra值降序排序
-      allRecords.sort((a, b) {
-        if (a is Map<String, dynamic> && b is Map<String, dynamic>) {
-          int raB = (b['ra'] ?? 0) as int;
-          int raA = (a['ra'] ?? 0) as int;
-          return raB.compareTo(raA);
-        }
-        return 0;
-      });
-
       // 取前50条
-      final top50Records = _cut(allRecords);
+      final top50Records = await _cut(allRecords);
 
       // 构建返回数据
       return {
@@ -1467,14 +1229,7 @@ class PersonalizedBest50Service {
       }).toList();
       if (pool.isEmpty) return null;
 
-      // 按 ra 降序
-      pool.sort((a, b) {
-        int raB = (b is Map<String, dynamic> ? (b['ra'] ?? 0) : 0) as int;
-        int raA = (a is Map<String, dynamic> ? (a['ra'] ?? 0) : 0) as int;
-        return raB.compareTo(raA);
-      });
-
-      final topN = _cut(pool, limit: n);
+      final topN = await _cut(pool, songs: allSongs, limit: n);
       return {
         'records': topN,
         'total': topN.length,
@@ -1538,15 +1293,7 @@ class PersonalizedBest50Service {
       }
       if (pool.isEmpty) return null;
 
-      // 按游玩次数降序；次数相同的按 ra 降序，保证顺序稳定（同次数不会每次刷新乱跳）
-      pool.sort((a, b) {
-        final byCount = ((b['playCount'] ?? 0) as int)
-            .compareTo((a['playCount'] ?? 0) as int);
-        if (byCount != 0) return byCount;
-        return ((b['ra'] ?? 0) as int).compareTo((a['ra'] ?? 0) as int);
-      });
-
-      final top50 = _cut(pool, field: 'playCount');
+      final top50 = await _cut(pool, songs: allSongs, field: 'playCount');
       return {
         'records': top50,
         'total': top50.length,
@@ -1558,7 +1305,7 @@ class PersonalizedBest50Service {
     }
   }
 
-  /// 随机 50：从用户全量游玩记录里随机抽 50 条，按 ra 降序展示。
+  /// 随机 50：从用户全量游玩记录里随机抽 50 条，按 Best50 规则展示。
   /// 每次调用都重新洗牌，因此「再抽一次」按钮只需重跑此方法即可。
   Future<Map<String, dynamic>?> getRandom50Data() async {
     try {
@@ -1583,13 +1330,7 @@ class PersonalizedBest50Service {
       if (pool.isEmpty) return null;
 
       pool.shuffle();
-      final picked = pool.take(50).toList();
-
-      picked.sort((a, b) {
-        int raB = (b['ra'] ?? 0) as int;
-        int raA = (a['ra'] ?? 0) as int;
-        return raB.compareTo(raA);
-      });
+      final picked = await _cut(pool.take(50).toList(), songs: allSongs);
 
       return {
         'records': picked,
@@ -1628,13 +1369,7 @@ class PersonalizedBest50Service {
         return false;
       }).toList();
 
-      filtered.sort((a, b) {
-        int raB = (b is Map<String, dynamic> ? (b['ra'] ?? 0) : 0) as int;
-        int raA = (a is Map<String, dynamic> ? (a['ra'] ?? 0) : 0) as int;
-        return raB.compareTo(raA);
-      });
-
-      final top50 = _cut(filtered);
+      final top50 = await _cut(filtered, songs: allSongs);
       return {
         'records': top50,
         'total': top50.length,
@@ -1672,13 +1407,7 @@ class PersonalizedBest50Service {
         return false;
       }).toList();
 
-      filtered.sort((a, b) {
-        int raB = (b is Map<String, dynamic> ? (b['ra'] ?? 0) : 0) as int;
-        int raA = (a is Map<String, dynamic> ? (a['ra'] ?? 0) : 0) as int;
-        return raB.compareTo(raA);
-      });
-
-      final top50 = _cut(filtered);
+      final top50 = await _cut(filtered, songs: allSongs);
       return {
         'records': top50,
         'total': top50.length,
@@ -1687,6 +1416,48 @@ class PersonalizedBest50Service {
       };
     } catch (e) {
       debugPrint('获取难度50数据时出错: $e');
+      return null;
+    }
+  }
+
+  /// 等级50：所选等级（如 "14+"）下的谱面，按 [Best50Order] 取前 50。
+  /// 等级由谱面定数按 [PersonalizedScoreService.levelOf] 换算，与个性化成绩查询一致；
+  /// 宴谱和 maidata 追加的歌曲不参与（等级选项里同样没有它们）。
+  Future<Map<String, dynamic>?> getLevel50Data(String levelKey) async {
+    try {
+      final userPlayData = await UserPlayDataManager().getCachedUserPlayData();
+      if (userPlayData == null) return null;
+      final records = userPlayData['records'];
+      if (records is! List) return null;
+
+      final allSongs = await MaimaiMusicDataManager().getCachedSongs();
+      if (allSongs == null) return null;
+      final songMap = {for (final song in allSongs) song.id: song};
+
+      final filtered = records.where((r) {
+        if (r is! Map<String, dynamic>) return false;
+        final songId = r['song_id']?.toString();
+        final song = songMap[songId];
+        if (song == null || songId == null) return false;
+        if (songId.length == 6 || SongFilterUtil.isExtra(song)) return false;
+        final levelIndex = _resolveLevelIndex(r);
+        if (levelIndex == null) return false;
+        // 优先用谱面库里的当前定数，记录里的 ds 只作兜底
+        final ds = levelIndex >= 0 && levelIndex < song.ds.length
+            ? song.ds[levelIndex].toDouble()
+            : double.tryParse('${r['ds']}');
+        return ds != null && PersonalizedScoreService.levelOf(ds) == levelKey;
+      }).toList();
+
+      final top50 = await _cut(filtered, songs: allSongs);
+      return {
+        'records': top50,
+        'total': top50.length,
+        'type': 'level_50',
+        'level': levelKey,
+      };
+    } catch (e) {
+      debugPrint('获取等级50数据时出错: $e');
       return null;
     }
   }
@@ -1710,7 +1481,7 @@ class PersonalizedBest50Service {
     return null;
   }
 
-  /// UTAGE 50：6 位数 songId（宴会场）记录，按歌曲的 ds 降序取前 50。
+  /// UTAGE 50：从宴会场记录中按达成率及后续规则选出前 50。
   Future<Map<String, dynamic>?> getUtage50Data() async {
     try {
       final userPlayData = await UserPlayDataManager().getCachedUserPlayData();
@@ -1732,23 +1503,7 @@ class PersonalizedBest50Service {
         return false;
       }).toList();
 
-      filtered.sort((a, b) {
-        final aSong =
-            songMap[(a is Map<String, dynamic> ? a['song_id'] : '').toString()];
-        final bSong =
-            songMap[(b is Map<String, dynamic> ? b['song_id'] : '').toString()];
-        final aLevel = a is Map<String, dynamic> ? (a['level_index'] ?? 0) : 0;
-        final bLevel = b is Map<String, dynamic> ? (b['level_index'] ?? 0) : 0;
-        final aDs = (aSong != null && aLevel < aSong.ds.length)
-            ? aSong.ds[aLevel]
-            : 0.0;
-        final bDs = (bSong != null && bLevel < bSong.ds.length)
-            ? bSong.ds[bLevel]
-            : 0.0;
-        return bDs.compareTo(aDs);
-      });
-
-      final top50 = _cut(filtered, field: 'ds');
+      final top50 = await _cut(filtered, songs: allSongs);
       return {
         'records': top50,
         'total': top50.length,

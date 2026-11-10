@@ -1878,6 +1878,88 @@ class AppLocalizationsJa extends AppLocalizations {
   String get flowJoinLeaderboards => 'ランキングに参加';
 
   @override
+  String get flowRankingDivingFishMasked =>
+      '水魚アカウントで「Web 以外の照会でスコアをマスクする」が有効になっているため、アプリが取得する水魚のスコアは正確ではなく、ランキングに参加できません。水魚スコアツールの Web サイトのプロフィールで無効にしてから再度お試しください。';
+
+  @override
+  String songScoreIllegalWarning(String p0) {
+    return 'このスコアは異常です：$p0。ランキングにはアップロードされません。';
+  }
+
+  @override
+  String songScoreIllegalAchievement(String p0) {
+    return '達成率が上限 $p0% を超えています';
+  }
+
+  @override
+  String songScoreIllegalDx(String p0) {
+    return 'DX スコアが譜面の上限 $p0 を超えています';
+  }
+
+  @override
+  String songScoreIllegalUnreleased(String p0) {
+    return '譜面はまだ中国版で公開されていません（$p0）';
+  }
+
+  @override
+  String flowDXScoreMAXOverP0(String p0) {
+    return 'でらっくスコア（MAX +$p0）';
+  }
+
+  @override
+  String get rankingUploadIncompleteTitle => 'ランキングへのアップロードが完了しませんでした';
+
+  @override
+  String get rankingUploadIncompleteLead =>
+      'スコアは更新・保存されましたが、今回はランキングを更新していません。';
+
+  @override
+  String get rankingGuardFrozen =>
+      'ランキングへのアップロード資格を一時停止し、手動で審査しています。審査中はランキング上のデータが非表示になります。';
+
+  @override
+  String get rankingGuardBlacklisted => 'このアカウントはランキングへの参加が禁止されています。';
+
+  @override
+  String get rankingGuardUpgradeRequired => '最新バージョンに更新してからランキングにアップロードしてください。';
+
+  @override
+  String rankingGuardRejected(String p0, String p1) {
+    return '今回のランキングアップロードはすべて拒否されました：$p0。警告はあと $p1 回で、使い切るとアップロード資格が停止され手動審査になります。';
+  }
+
+  @override
+  String get rankingGuardReasonRating => 'Rating が現在の理論値を超えています';
+
+  @override
+  String rankingGuardReasonUnknownSong(String p0) {
+    return '楽曲リストに存在しない曲が含まれています（$p0）';
+  }
+
+  @override
+  String rankingGuardReasonUnreleased(String p0) {
+    return 'まだ配信されていない曲が含まれています（$p0）';
+  }
+
+  @override
+  String rankingGuardReasonLevel(String p0) {
+    return '存在しない難易度です（$p0）';
+  }
+
+  @override
+  String rankingGuardReasonAchievement(String p0) {
+    return '達成率が上限を超えています（$p0）';
+  }
+
+  @override
+  String rankingGuardReasonDx(String p0) {
+    return 'DX スコアが譜面の上限を超えています（$p0）';
+  }
+
+  @override
+  String get rankingGuardReasonInvalid => 'スコアデータが無効です';
+
+  @override
   String get flowShowNicknameOtherwiseShownAsAnonymous => 'ニックネームを公開（無効時は匿名表示）';
 
   @override
@@ -9108,6 +9190,19 @@ class AppLocalizationsJa extends AppLocalizations {
   String get flowVersion50 => 'バージョン50';
 
   @override
+  String get flowLevel50 => 'レベル50';
+
+  @override
+  String flowLevel50P0(String p0) {
+    return 'レベル50 - $p0';
+  }
+
+  @override
+  String flowCategoryLevel50P0(String p0) {
+    return '種類：レベル50 - $p0';
+  }
+
+  @override
   String get flowStar50 => 'スター50';
 
   @override
@@ -14510,4 +14605,194 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get chartCodeFontSaveFailed => 'フォントは変更しましたが、選択を保存できませんでした';
+
+  @override
+  String get ratingSegmentTitle => 'レート上昇余地と対照表の区切り';
+
+  @override
+  String get ratingSegmentStandard => '標準';
+
+  @override
+  String get ratingSegmentDetailed => '詳細';
+
+  @override
+  String get ratingSegmentStandardHint => '各ランクに対応する達成率の区切りのみ表示します。';
+
+  @override
+  String get ratingSegmentDetailedHint =>
+      'ランクの区切りに加えて、Rating が 1 上がるごとに必要な達成率も表示します。';
+
+  @override
+  String get searchAvoidKeyboard => '検索エリアをキーボードの上に表示';
+
+  @override
+  String get searchAvoidKeyboardHint =>
+      'ホーム検索・楽曲検索・海外版楽曲検索・スコア検索で、結果をキーボードの上まで最後までスクロールできます。背景は動きません。';
+
+  @override
+  String get arcadeTabInView => '表示範囲';
+
+  @override
+  String get arcadeTabFavorites => '保存済み';
+
+  @override
+  String get arcadeOpenNow => '営業中';
+
+  @override
+  String get arcadeClosedNow => '営業時間外';
+
+  @override
+  String get arcadeHoursUnknown => '営業時間不明';
+
+  @override
+  String arcadeClosesAt(String p0) {
+    return '$p0 閉店';
+  }
+
+  @override
+  String arcadeOpensAt(String p0) {
+    return '$p0 開店';
+  }
+
+  @override
+  String arcadeOpensTomorrowAt(String p0) {
+    return '明日 $p0 開店';
+  }
+
+  @override
+  String get arcadeClearFilters => '絞り込みを解除';
+
+  @override
+  String get arcadeRandomPick => 'ランダムに選ぶ';
+
+  @override
+  String get arcadeRandomEmpty => 'この範囲に選べるゲーセンがありません';
+
+  @override
+  String get arcadeZoomIn => '拡大';
+
+  @override
+  String get arcadeZoomOut => '縮小';
+
+  @override
+  String get arcadeResetNorth => '北を上にする';
+
+  @override
+  String get arcadeLocate => '現在地へ移動';
+
+  @override
+  String get arcadeRegions => '世界の分布';
+
+  @override
+  String get arcadeRegionCount => '国と地域';
+
+  @override
+  String get arcadeShopCount => 'ゲーセン';
+
+  @override
+  String get arcadeMachineCount => '筐体';
+
+  @override
+  String get arcadeDownloadData => 'ゲーセンデータをダウンロード';
+
+  @override
+  String get arcadeNoDataHint => 'ダウンロードするとオフラインでも閲覧できます。';
+
+  @override
+  String arcadeUpdating(String p0, String p1) {
+    return '更新中 $p0 / $p1';
+  }
+
+  @override
+  String get arcadeUpdateFailed => '更新に失敗しました。現在のデータを保持しています。';
+
+  @override
+  String get arcadeNoMatchTitle => '条件に合うゲーセンがありません';
+
+  @override
+  String get arcadeNoMatchHint => '条件を変えるか、地図を動かしてみてください。';
+
+  @override
+  String get arcadeNoFavoritesTitle => '保存したゲーセンはまだありません';
+
+  @override
+  String get arcadeNoFavoritesHint => 'よく行くゲーセンに星を付けるとここに表示されます。';
+
+  @override
+  String get arcadeNeedsUpdateToFavorite => '保存するには先にゲーセンデータを更新してください。';
+
+  @override
+  String get arcadeLegacyHint => 'データが旧形式です。更新すると保存や地下鉄情報が使えます。';
+
+  @override
+  String get arcadeNavigate => '経路案内';
+
+  @override
+  String get arcadeCopyAddress => '住所をコピー';
+
+  @override
+  String get arcadeViewOnNearcade => 'nearcade で見る';
+
+  @override
+  String get arcadeCouldNotOpenLink => 'リンクを開けませんでした';
+
+  @override
+  String get arcadeHours => '営業時間';
+
+  @override
+  String get arcadeEveryDay => '毎日';
+
+  @override
+  String get arcadeToday => '今日';
+
+  @override
+  String arcadeMetroWalk(String p0, String p1) {
+    return '$p0駅 · 徒歩約 $p1 分';
+  }
+
+  @override
+  String arcadeMetroStation(String p0) {
+    return '$p0駅';
+  }
+
+  @override
+  String get arcadeNote => 'メモ';
+
+  @override
+  String arcadeFromYou(String p0) {
+    return 'ここから $p0';
+  }
+
+  @override
+  String get arcadeFilterAction => '絞り込み';
+
+  @override
+  String get arcadeFilterSearchHint => '筐体を検索';
+
+  @override
+  String get arcadeFilterEmpty => '一致する筐体がありません';
+
+  @override
+  String get arcadeChooseMapApp => '地図アプリを選択';
+
+  @override
+  String get arcadeMapAmap => 'Amap（高徳地図）';
+
+  @override
+  String get arcadeMapBaidu => 'Baidu Maps';
+
+  @override
+  String get arcadeMapTencent => 'Tencent Maps';
+
+  @override
+  String get arcadeMapGoogle => 'Google マップ';
+
+  @override
+  String get arcadeMapApple => 'Apple マップ';
+
+  @override
+  String get arcadeMapOther => 'その他の地図アプリ';
+
+  @override
+  String get arcadeMapWeb => 'ブラウザで開く';
 }

@@ -23,7 +23,8 @@ import 'QuickSyncOption.dart';
 import 'PostSyncRefreshOptions.dart';
 import 'SmoothLinearProgressIndicator.dart';
 import 'ConfettiEffect.dart';
-import 'RefreshDataDialog.dart' show RefreshDataRequest, RefreshDataSource;
+import 'RefreshDataDialog.dart'
+    show CurrentDataSourceNotifier, RefreshDataRequest, RefreshDataSource;
 import '../widgets/AppDialogs.dart';
 import '../widgets/AppToast.dart';
 import '../utils/AppDesignTokens.dart';
@@ -738,6 +739,12 @@ class SyncScoreDialogs {
                             participate: participateRankings,
                             showNickname: showNickname,
                             showBriefProfile: showBriefProfile,
+                            // 同步后刷新的是当前数据源
+                            divingFishSource:
+                                CurrentDataSourceNotifier.instance.value ==
+                                    RefreshDataSource.shuiyu,
+                            dataSourceKey: CurrentDataSourceNotifier
+                                .instance.value.key,
                             onChanged: (participate, nickname, brief) =>
                                 setState(() {
                                   participateRankings = participate;

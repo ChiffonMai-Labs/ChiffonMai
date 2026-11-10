@@ -634,8 +634,13 @@ extension _SongInfoLayout on _SongInfoPageState {
     final plays = _currentPlayCount == null
         ? ''
         : context.l10n.flowPlayedP0Times((_currentPlayCount!).toString());
+    // AnimatedSize 不能用 Duration.zero：子项尺寸一变，它会在自己的布局过程里
+    // 同步把动画跑完并再次标脏（框架断言「mutated in its own performLayout」）。
+    // 不需要过渡时用 1 微秒代替，下一帧直接到位，观感与「无动画」相同。
+    const instant = Duration(microseconds: 1);
     final motion =
         AppDesignTokens.motion(context, AppDesignTokens.mediumMotion);
+    final sizeMotion = motion == Duration.zero ? instant : motion;
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -660,7 +665,7 @@ extension _SongInfoLayout on _SongInfoPageState {
           ),
           const SizedBox(height: 1),
           AnimatedSize(
-            duration: motion,
+            duration: sizeMotion,
             curve: AppDesignTokens.emphasizedCurve,
             alignment: Alignment.topCenter,
             // 有成绩 ↔ 有成绩之间 Key 不变，数字才能从旧值滚到新值。
@@ -716,7 +721,8 @@ extension _SongInfoLayout on _SongInfoPageState {
             ),
           ),
           AnimatedSize(
-            duration: motion,
+            // 进入页面时结果是异步到达的，首次显示不做展开，之后切难度才过渡。
+            duration: _best50OpportunitySettled ? sizeMotion : instant,
             curve: AppDesignTokens.emphasizedCurve,
             alignment: Alignment.topCenter,
             child: _best50OpportunityText == null
@@ -816,8 +822,12 @@ extension _SongInfoLayout on _SongInfoPageState {
           children: [
             Expanded(
               child: StatTile(
-                label:
-                    context.l10n.flowDXScoreMAXP0((maxDx - dxScore).toString()),
+                // 异常成绩可能超过上限，差值为负时显示「MAX +n」
+                label: dxScore > maxDx
+                    ? context.l10n
+                        .flowDXScoreMAXOverP0((dxScore - maxDx).toString())
+                    : context.l10n
+                        .flowDXScoreMAXP0((maxDx - dxScore).toString()),
                 value: '$dxScore / $maxDx',
                 valueWidget: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -867,7 +877,72 @@ extension _SongInfoLayout on _SongInfoPageState {
             ),
           ],
         ),
+        // 成绩超出谱面上限：说明原因，提示不会上传到排行榜
+        if (_illegalScoreReasons(achievement, dxScore, maxDx)
+            case final reasons when reasons.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          _buildIllegalScoreNotice(reasons),
+        ],
       ],
+    );
+  }
+
+  /// 与排行榜守卫同一口径：Buddy 宴谱（ds 长度为 2）达成率上限 202，其余 101；
+  /// DX 分只检查常规谱（宴谱物量数据不可靠，服务端同样不查）；
+  /// 谱面国服上线日期（落雪 release_date）晚于今天（北京时间）时也视为异常。
+  List<String> _illegalScoreReasons(
+      double achievement, int dxScore, int maxDx) {
+    final isUtage = widget.songId.length >= 6;
+    final isBuddy = isUtage && (_songData?['ds'] as List?)?.length == 2;
+    final cap = isBuddy ? 202 : 101;
+    return [
+      if (achievement > cap)
+        context.l10n.songScoreIllegalAchievement(cap.toString()),
+      if (!isUtage && maxDx > 0 && dxScore > maxDx)
+        context.l10n.songScoreIllegalDx(maxDx.toString()),
+      if (_unreleasedChartDate() case final date?)
+        context.l10n.songScoreIllegalUnreleased(date),
+    ];
+  }
+
+  /// 当前谱面尚未在国服上线时返回上线日期，否则返回 null。
+  String? _unreleasedChartDate() {
+    final date = _cnChartReleaseDates[_currentDiffIndex] ?? _cnReleaseDate;
+    if (date == null || !RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(date)) {
+      return null;
+    }
+    final now = DateTime.now().toUtc().add(const Duration(hours: 8));
+    final today = '${now.year.toString().padLeft(4, '0')}-'
+        '${now.month.toString().padLeft(2, '0')}-'
+        '${now.day.toString().padLeft(2, '0')}';
+    return date.compareTo(today) > 0 ? date : null;
+  }
+
+  Widget _buildIllegalScoreNotice(List<String> reasons) {
+    final color = AppColors.warningOrange(Theme.of(context).brightness);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.warning_amber_rounded, size: 18, color: color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              context.l10n.songScoreIllegalWarning(reasons.join('、')),
+              style: TextStyle(
+                fontSize: 12.5,
+                height: 1.45,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1274,7 +1349,12 @@ extension _SongInfoLayout on _SongInfoPageState {
       AppCard(child: _buildStarScoreTable()),
       const SizedBox(height: 12),
       // 达成率-得分对照表
-      AppCard(child: _buildAchievementScoreTable()),
+      AppCard(
+        child: ListenableBuilder(
+          listenable: RatingSegmentPreferences.instance,
+          builder: (context, _) => _buildAchievementScoreTable(),
+        ),
+      ),
     ];
   }
 

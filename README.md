@@ -3,7 +3,7 @@
 <div align="center">
   <img src="https://img.shields.io/badge/Platform-Android%20%7C%20iOS-blue.svg" alt="Platform">
   <img src="https://img.shields.io/badge/Flutter-3.x-02569B.svg?logo=flutter&logoColor=white" alt="Flutter">
-  <img src="https://img.shields.io/badge/Version-3.0.0%2B55-6C63FF.svg" alt="Version">
+  <img src="https://img.shields.io/badge/Version-3.0.1%2B56-6C63FF.svg" alt="Version">
   <img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License">
 </div>
 
@@ -13,7 +13,7 @@ ChiffonMai 是一款面向舞萌 DX 玩家的移动端工具应用。它把曲�
 
 ## 当前版本与导航
 
-当前源码版本为 **3.0.0+55**。3.0.0 完成了全 App 的界面重做，底部导航为 **首页、曲库、成绩、游玩、我的** 五个标签；「游玩」内分为出勤和休闲。首页「常用」即收藏列表，可拖动排序，并带自动同步和服务器状态小组件。
+当前源码版本为 **3.0.1+56**。3.0.0 完成了全 App 的界面重做，底部导航为 **首页、曲库、成绩、游玩、我的** 五个标签；「游玩」内分为出勤和休闲。首页「常用」即收藏列表，可拖动排序，并带自动同步和服务器状态小组件。
 
 - **多语言**：界面、服务提示和系统通知支持简体中文、繁体中文、英语、日语，默认跟随系统；歌曲资料、服务端原文和用户内容保持原文。
 - **绑定与授权管理**：maimai Score Hub、水鱼登录与授权、落雪授权、AWMC NET 账号和机台身份集中在一个入口，按钮下方的状态标签即时更新。

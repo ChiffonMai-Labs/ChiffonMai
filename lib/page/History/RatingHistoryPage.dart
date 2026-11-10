@@ -8,6 +8,10 @@ import '../../service/AccountStore.dart';
 import '../../service/History/AwmcNetTrendService.dart';
 import '../../service/History/ChartHistoryCore.dart';
 import '../../service/History/ChartHistoryStore.dart';
+import '../../service/History/RatingHistoryExportService.dart';
+import '../../service/BackgroundExportService.dart';
+import '../../utils/ExportQualitySelector.dart';
+import '../../utils/ImageEncodeUtil.dart';
 import '../../service/SongInfoService.dart';
 import '../../utils/AppTheme.dart';
 import '../../utils/CommonWidgetUtil.dart';
@@ -93,8 +97,6 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
     final generation = ++_loadGeneration;
     setState(() {
       _loading = true;
-      _all = const [];
-      _summary = null;
     });
     try {
       final sourceKey = await ChartHistoryStore.storageKey();
@@ -113,7 +115,11 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
     } catch (e) {
       debugPrint('[RatingHistory] 读取失败: $e');
       if (!mounted || generation != _loadGeneration) return;
-      setState(() => _loading = false);
+      setState(() {
+        _all = const [];
+        _summary = null;
+        _loading = false;
+      });
     }
   }
 
@@ -267,6 +273,42 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
     }
   }
 
+  /// 导出当前时间范围内的 Rating 历史：先选质量和主题（带预览），再后台导出。
+  Future<void> _exportToImage() async {
+    final points = _visible;
+    if (points.isEmpty) return;
+    // 导出任务里不能再读页面状态，范围文案和数据在这里先取好
+    final rangeLabel = switch (_rangeDays) {
+      30 => context.l10n.flowLast30Days,
+      90 => context.l10n.flowLast90Days,
+      _ => context.l10n.flowAll,
+    };
+    final quality = await ExportQualitySelector.show(
+      context,
+      estimatedPngSize: ImageEncodeUtil.estimatePngSize(
+          songCount: points.length.clamp(10, 30)),
+      exportingLabel: context.l10n.featureRatingHistory,
+      previewBuilder: (previewContext, previewQuality) =>
+          RatingHistoryExportService.buildExportWidget(
+        previewContext,
+        points: points,
+        rangeLabel: rangeLabel,
+        theme: previewQuality.theme,
+      ),
+    );
+    if (quality == null || !mounted) return;
+    BackgroundExport.run(
+      label: context.l10n.featureRatingHistory,
+      task: (exportContext) => RatingHistoryExportService.convertToImage(
+        exportContext,
+        points: points,
+        rangeLabel: rangeLabel,
+        jpegQuality: quality.jpegQuality,
+        theme: quality.theme,
+      ),
+    );
+  }
+
   /// 按时间范围裁剪（0 = 全部）。
   List<RatingPoint> get _visible {
     if (_rangeDays <= 0 || _all.isEmpty) return _all;
@@ -317,6 +359,12 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
                     icon: const Icon(Icons.add_chart_outlined),
                     onPressed: _addManualPoint,
                   ),
+                  if (_all.isNotEmpty)
+                    IconButton(
+                      tooltip: context.l10n.flowExportAsImage,
+                      icon: const Icon(Icons.image_outlined),
+                      onPressed: _exportToImage,
+                    ),
                 ],
               ),
               Expanded(
@@ -328,7 +376,7 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
                     AppDesignTokens.gutter +
                         MediaQuery.paddingOf(context).bottom,
                   ),
-                  child: _loading
+                  child: _loading && _all.isEmpty
                       ? const Padding(
                           padding: EdgeInsets.symmetric(vertical: 80),
                           child: Center(child: CircularProgressIndicator()),

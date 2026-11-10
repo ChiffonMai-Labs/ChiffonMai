@@ -69,55 +69,75 @@ class _SearchPickerDialog extends StatefulWidget {
 
 class _SearchPickerDialogState extends State<_SearchPickerDialog> {
   final TextEditingController _searchController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  late final _searchKeys = [
+    for (final entry in widget.entries) entry.key.toLowerCase()
+  ];
+  late List<MapEntry<String, int>> _filtered = widget.entries;
+  String _keyword = '';
+
+  void _updateFilter(String text) {
+    final keyword = text.trim().toLowerCase();
+    if (keyword == _keyword) return;
+
+    if (_scrollController.hasClients) _scrollController.jumpTo(0);
+    setState(() {
+      _keyword = keyword;
+      _filtered = keyword.isEmpty
+          ? widget.entries
+          : [
+              for (var i = 0; i < _searchKeys.length; i++)
+                if (_searchKeys[i].contains(keyword)) widget.entries[i],
+            ];
+    });
+  }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final keyword = _searchController.text.trim().toLowerCase();
-    final filtered = keyword.isEmpty
-        ? widget.entries
-        : widget.entries
-            .where((e) => e.key.toLowerCase().contains(keyword))
-            .toList();
-
     return AppAlertDialog(
       title: Text(widget.title),
-      content: SingleChildScrollView(
-        child: ListBody(
-          children: [
-            // 搜索输入框
-            TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: widget.hintText,
-                prefixIcon: const Icon(Icons.search, size: 20),
-                isDense: true,
-                border: OutlineInputBorder(
-                  borderRadius:
-                      BorderRadius.circular(AppDesignTokens.radiusSmall),
+      content: CustomScrollView(
+        controller: _scrollController,
+        slivers: [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: widget.hintText,
+                  prefixIcon: const Icon(Icons.search, size: 20),
+                  isDense: true,
+                  border: OutlineInputBorder(
+                    borderRadius:
+                        BorderRadius.circular(AppDesignTokens.radiusSmall),
+                  ),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  suffixIcon: _keyword.isEmpty
+                      ? null
+                      : IconButton(
+                          icon: const Icon(Icons.clear, size: 18),
+                          onPressed: () {
+                            _searchController.clear();
+                            _updateFilter('');
+                          },
+                        ),
                 ),
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                suffixIcon: keyword.isEmpty
-                    ? null
-                    : IconButton(
-                        icon: const Icon(Icons.clear, size: 18),
-                        onPressed: () {
-                          _searchController.clear();
-                          setState(() {});
-                        },
-                      ),
+                onChanged: _updateFilter,
               ),
-              onChanged: (_) => setState(() {}),
             ),
-            const SizedBox(height: 8),
-            if (filtered.isEmpty)
-              Padding(
+          ),
+          if (_filtered.isEmpty)
+            SliverToBoxAdapter(
+              child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 child: Center(
                   child: Text(
@@ -127,9 +147,13 @@ class _SearchPickerDialogState extends State<_SearchPickerDialog> {
                     ),
                   ),
                 ),
-              )
-            else
-              ...filtered.map((entry) {
+              ),
+            )
+          else
+            SliverList.builder(
+              itemCount: _filtered.length,
+              itemBuilder: (context, index) {
+                final entry = _filtered[index];
                 return ListTile(
                   title: Text(
                     '${entry.key} (${entry.value}${widget.countSuffix})',
@@ -137,9 +161,9 @@ class _SearchPickerDialogState extends State<_SearchPickerDialog> {
                   selected: widget.selected == entry.key,
                   onTap: () => Navigator.of(context).pop(entry.key),
                 );
-              }),
-          ],
-        ),
+              },
+            ),
+        ],
       ),
       actions: [
         TextButton(

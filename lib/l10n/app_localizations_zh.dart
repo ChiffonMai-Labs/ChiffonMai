@@ -1849,6 +1849,86 @@ class AppLocalizationsZh extends AppLocalizations {
   String get flowJoinLeaderboards => '参与排行榜';
 
   @override
+  String get flowRankingDivingFishMasked =>
+      '你的水鱼账号开启了「对非网页查询的成绩使用掩码」，App 读到的水鱼成绩不准确，暂不能用水鱼数据参与排行榜。可在水鱼查分器网页的个人资料里关闭后再试。';
+
+  @override
+  String songScoreIllegalWarning(String p0) {
+    return '这条成绩数据异常：$p0，不会上传到排行榜。';
+  }
+
+  @override
+  String songScoreIllegalAchievement(String p0) {
+    return '达成率超过上限 $p0%';
+  }
+
+  @override
+  String songScoreIllegalDx(String p0) {
+    return 'DX 分数超过谱面上限 $p0';
+  }
+
+  @override
+  String songScoreIllegalUnreleased(String p0) {
+    return '谱面尚未在国服上线（$p0）';
+  }
+
+  @override
+  String flowDXScoreMAXOverP0(String p0) {
+    return 'DX分数（MAX +$p0）';
+  }
+
+  @override
+  String get rankingUploadIncompleteTitle => '排行榜上传未完成';
+
+  @override
+  String get rankingUploadIncompleteLead => '成绩已刷新并保存，只是这次没有更新排行榜。';
+
+  @override
+  String get rankingGuardFrozen => '排行榜上传资格已暂停，正在人工审核。审核期间你在排行榜上的数据会暂时隐藏。';
+
+  @override
+  String get rankingGuardBlacklisted => '该账号已被禁止参与排行榜。';
+
+  @override
+  String get rankingGuardUpgradeRequired => '请更新到最新版本后再上传排行榜。';
+
+  @override
+  String rankingGuardRejected(String p0, String p1) {
+    return '本次排行榜上传已全部拒绝：$p0。剩余 $p1 次警告机会，用完后上传资格会被暂停并转人工审核。';
+  }
+
+  @override
+  String get rankingGuardReasonRating => 'Rating 超过当前理论值';
+
+  @override
+  String rankingGuardReasonUnknownSong(String p0) {
+    return '包含曲库中不存在的歌曲（$p0）';
+  }
+
+  @override
+  String rankingGuardReasonUnreleased(String p0) {
+    return '包含尚未上线的歌曲（$p0）';
+  }
+
+  @override
+  String rankingGuardReasonLevel(String p0) {
+    return '难度不存在（$p0）';
+  }
+
+  @override
+  String rankingGuardReasonAchievement(String p0) {
+    return '达成率超出上限（$p0）';
+  }
+
+  @override
+  String rankingGuardReasonDx(String p0) {
+    return 'DX 分数超出谱面上限（$p0）';
+  }
+
+  @override
+  String get rankingGuardReasonInvalid => '成绩数据无效';
+
+  @override
   String get flowShowNicknameOtherwiseShownAsAnonymous => '展示昵称（不勾选则显示为匿名用户）';
 
   @override
@@ -8987,6 +9067,19 @@ class AppLocalizationsZh extends AppLocalizations {
   String get flowVersion50 => '版本50';
 
   @override
+  String get flowLevel50 => '等级50';
+
+  @override
+  String flowLevel50P0(String p0) {
+    return '等级50 - $p0';
+  }
+
+  @override
+  String flowCategoryLevel50P0(String p0) {
+    return '选择类型: 等级50 - $p0';
+  }
+
+  @override
   String get flowStar50 => '星数50';
 
   @override
@@ -14206,6 +14299,195 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get chartCodeFontSaveFailed => '字体已切换，但未能保存选择';
+
+  @override
+  String get ratingSegmentTitle => '上分潜力与对照表分段';
+
+  @override
+  String get ratingSegmentStandard => '常用分段';
+
+  @override
+  String get ratingSegmentDetailed => '详细分段';
+
+  @override
+  String get ratingSegmentStandardHint => '只显示各评级对应的达成率分段。';
+
+  @override
+  String get ratingSegmentDetailedHint => '在评级分段之外，再细分每提升 1 Rating 需要的达成率。';
+
+  @override
+  String get searchAvoidKeyboard => '搜索区域避让输入法';
+
+  @override
+  String get searchAvoidKeyboardHint =>
+      '首页搜索、乐曲查询、非国服乐曲查询和成绩查询时，结果可以完整滚动到输入法上方；背景不会被挤压。';
+
+  @override
+  String get arcadeTabInView => '视野内';
+
+  @override
+  String get arcadeTabFavorites => '收藏';
+
+  @override
+  String get arcadeOpenNow => '营业中';
+
+  @override
+  String get arcadeClosedNow => '已打烊';
+
+  @override
+  String get arcadeHoursUnknown => '营业时间未知';
+
+  @override
+  String arcadeClosesAt(String p0) {
+    return '$p0 打烊';
+  }
+
+  @override
+  String arcadeOpensAt(String p0) {
+    return '$p0 开门';
+  }
+
+  @override
+  String arcadeOpensTomorrowAt(String p0) {
+    return '明天 $p0 开门';
+  }
+
+  @override
+  String get arcadeClearFilters => '清除筛选';
+
+  @override
+  String get arcadeRandomPick => '随机挑一家';
+
+  @override
+  String get arcadeRandomEmpty => '当前范围内没有可挑选的机厅';
+
+  @override
+  String get arcadeZoomIn => '放大';
+
+  @override
+  String get arcadeZoomOut => '缩小';
+
+  @override
+  String get arcadeResetNorth => '朝北';
+
+  @override
+  String get arcadeLocate => '定位到我';
+
+  @override
+  String get arcadeRegions => '全球分布';
+
+  @override
+  String get arcadeRegionCount => '国家和地区';
+
+  @override
+  String get arcadeShopCount => '机厅';
+
+  @override
+  String get arcadeMachineCount => '机台';
+
+  @override
+  String get arcadeDownloadData => '下载机厅数据';
+
+  @override
+  String get arcadeNoDataHint => '下载后可以离线浏览机厅信息。';
+
+  @override
+  String arcadeUpdating(String p0, String p1) {
+    return '正在更新 $p0 / $p1';
+  }
+
+  @override
+  String get arcadeUpdateFailed => '更新失败，已保留当前数据';
+
+  @override
+  String get arcadeNoMatchTitle => '没有符合条件的机厅';
+
+  @override
+  String get arcadeNoMatchHint => '换个筛选条件，或者移动一下地图吧。';
+
+  @override
+  String get arcadeNoFavoritesTitle => '还没有收藏的机厅';
+
+  @override
+  String get arcadeNoFavoritesHint => '点星标收藏常去的机厅，就能在这里找到它们。';
+
+  @override
+  String get arcadeNeedsUpdateToFavorite => '请先更新机厅数据，才能收藏机厅';
+
+  @override
+  String get arcadeLegacyHint => '机厅数据是旧版本，更新后可以收藏机厅并查看地铁信息。';
+
+  @override
+  String get arcadeNavigate => '导航';
+
+  @override
+  String get arcadeCopyAddress => '复制地址';
+
+  @override
+  String get arcadeViewOnNearcade => '在 nearcade 查看';
+
+  @override
+  String get arcadeCouldNotOpenLink => '无法打开链接';
+
+  @override
+  String get arcadeHours => '营业时间';
+
+  @override
+  String get arcadeEveryDay => '每天';
+
+  @override
+  String get arcadeToday => '今天';
+
+  @override
+  String arcadeMetroWalk(String p0, String p1) {
+    return '$p0站 · 步行约 $p1 分钟';
+  }
+
+  @override
+  String arcadeMetroStation(String p0) {
+    return '$p0站';
+  }
+
+  @override
+  String get arcadeNote => '备注';
+
+  @override
+  String arcadeFromYou(String p0) {
+    return '距你 $p0';
+  }
+
+  @override
+  String get arcadeFilterAction => '筛选';
+
+  @override
+  String get arcadeFilterSearchHint => '搜索机台';
+
+  @override
+  String get arcadeFilterEmpty => '没有匹配的机台';
+
+  @override
+  String get arcadeChooseMapApp => '选择地图应用';
+
+  @override
+  String get arcadeMapAmap => '高德地图';
+
+  @override
+  String get arcadeMapBaidu => '百度地图';
+
+  @override
+  String get arcadeMapTencent => '腾讯地图';
+
+  @override
+  String get arcadeMapGoogle => 'Google 地图';
+
+  @override
+  String get arcadeMapApple => 'Apple 地图';
+
+  @override
+  String get arcadeMapOther => '其他地图应用';
+
+  @override
+  String get arcadeMapWeb => '在浏览器中打开';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -16051,6 +16333,86 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get flowJoinLeaderboards => '參與排行榜';
+
+  @override
+  String get flowRankingDivingFishMasked =>
+      '你的水魚帳號開啟了「對非網頁查詢的成績使用遮罩」，App 讀到的水魚成績不準確，暫時無法用水魚資料參與排行榜。可在水魚查分器網頁的個人資料中關閉後再試。';
+
+  @override
+  String songScoreIllegalWarning(String p0) {
+    return '這條成績資料異常：$p0，不會上傳到排行榜。';
+  }
+
+  @override
+  String songScoreIllegalAchievement(String p0) {
+    return '達成率超過上限 $p0%';
+  }
+
+  @override
+  String songScoreIllegalDx(String p0) {
+    return 'DX 分數超過譜面上限 $p0';
+  }
+
+  @override
+  String songScoreIllegalUnreleased(String p0) {
+    return '譜面尚未在國服上線（$p0）';
+  }
+
+  @override
+  String flowDXScoreMAXOverP0(String p0) {
+    return 'DX分數（MAX +$p0）';
+  }
+
+  @override
+  String get rankingUploadIncompleteTitle => '排行榜上傳未完成';
+
+  @override
+  String get rankingUploadIncompleteLead => '成績已重新整理並儲存，只是這次沒有更新排行榜。';
+
+  @override
+  String get rankingGuardFrozen => '排行榜上傳資格已暫停，正在人工審核。審核期間你在排行榜上的資料會暫時隱藏。';
+
+  @override
+  String get rankingGuardBlacklisted => '該帳號已被禁止參與排行榜。';
+
+  @override
+  String get rankingGuardUpgradeRequired => '請更新到最新版本後再上傳排行榜。';
+
+  @override
+  String rankingGuardRejected(String p0, String p1) {
+    return '本次排行榜上傳已全部拒絕：$p0。剩餘 $p1 次警告機會，用完後上傳資格會被暫停並轉人工審核。';
+  }
+
+  @override
+  String get rankingGuardReasonRating => 'Rating 超過目前理論值';
+
+  @override
+  String rankingGuardReasonUnknownSong(String p0) {
+    return '包含曲庫中不存在的歌曲（$p0）';
+  }
+
+  @override
+  String rankingGuardReasonUnreleased(String p0) {
+    return '包含尚未上線的歌曲（$p0）';
+  }
+
+  @override
+  String rankingGuardReasonLevel(String p0) {
+    return '難度不存在（$p0）';
+  }
+
+  @override
+  String rankingGuardReasonAchievement(String p0) {
+    return '達成率超出上限（$p0）';
+  }
+
+  @override
+  String rankingGuardReasonDx(String p0) {
+    return 'DX 分數超出譜面上限（$p0）';
+  }
+
+  @override
+  String get rankingGuardReasonInvalid => '成績資料無效';
 
   @override
   String get flowShowNicknameOtherwiseShownAsAnonymous => '展示暱稱（不勾選則顯示爲匿名用戶）';
@@ -23191,6 +23553,19 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get flowVersion50 => '版本50';
 
   @override
+  String get flowLevel50 => '等級50';
+
+  @override
+  String flowLevel50P0(String p0) {
+    return '等級50 - $p0';
+  }
+
+  @override
+  String flowCategoryLevel50P0(String p0) {
+    return '選擇類型: 等級50 - $p0';
+  }
+
+  @override
   String get flowStar50 => '星數50';
 
   @override
@@ -28412,4 +28787,193 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get chartCodeFontSaveFailed => '字體已切換，但未能儲存選擇';
+
+  @override
+  String get ratingSegmentTitle => '上分潛力與對照表分段';
+
+  @override
+  String get ratingSegmentStandard => '常用分段';
+
+  @override
+  String get ratingSegmentDetailed => '詳細分段';
+
+  @override
+  String get ratingSegmentStandardHint => '只顯示各評級對應的達成率分段。';
+
+  @override
+  String get ratingSegmentDetailedHint => '在評級分段之外，再細分每提升 1 Rating 需要的達成率。';
+
+  @override
+  String get searchAvoidKeyboard => '搜尋區域避讓輸入法';
+
+  @override
+  String get searchAvoidKeyboardHint =>
+      '首頁搜尋、樂曲查詢、非國服樂曲查詢和成績查詢時，結果可以完整捲動到輸入法上方；背景不會被擠壓。';
+
+  @override
+  String get arcadeTabInView => '視野內';
+
+  @override
+  String get arcadeTabFavorites => '收藏';
+
+  @override
+  String get arcadeOpenNow => '營業中';
+
+  @override
+  String get arcadeClosedNow => '已打烊';
+
+  @override
+  String get arcadeHoursUnknown => '營業時間未知';
+
+  @override
+  String arcadeClosesAt(String p0) {
+    return '$p0 打烊';
+  }
+
+  @override
+  String arcadeOpensAt(String p0) {
+    return '$p0 開門';
+  }
+
+  @override
+  String arcadeOpensTomorrowAt(String p0) {
+    return '明天 $p0 開門';
+  }
+
+  @override
+  String get arcadeClearFilters => '清除篩選';
+
+  @override
+  String get arcadeRandomPick => '隨機挑一家';
+
+  @override
+  String get arcadeRandomEmpty => '目前範圍內沒有可挑選的機廳';
+
+  @override
+  String get arcadeZoomIn => '放大';
+
+  @override
+  String get arcadeZoomOut => '縮小';
+
+  @override
+  String get arcadeResetNorth => '朝北';
+
+  @override
+  String get arcadeLocate => '定位到我';
+
+  @override
+  String get arcadeRegions => '全球分布';
+
+  @override
+  String get arcadeRegionCount => '國家和地區';
+
+  @override
+  String get arcadeShopCount => '機廳';
+
+  @override
+  String get arcadeMachineCount => '機台';
+
+  @override
+  String get arcadeDownloadData => '下載機廳資料';
+
+  @override
+  String get arcadeNoDataHint => '下載後可以離線瀏覽機廳資訊。';
+
+  @override
+  String arcadeUpdating(String p0, String p1) {
+    return '正在更新 $p0 / $p1';
+  }
+
+  @override
+  String get arcadeUpdateFailed => '更新失敗，已保留目前資料';
+
+  @override
+  String get arcadeNoMatchTitle => '沒有符合條件的機廳';
+
+  @override
+  String get arcadeNoMatchHint => '換個篩選條件，或者移動一下地圖吧。';
+
+  @override
+  String get arcadeNoFavoritesTitle => '還沒有收藏的機廳';
+
+  @override
+  String get arcadeNoFavoritesHint => '點星標收藏常去的機廳，就能在這裡找到它們。';
+
+  @override
+  String get arcadeNeedsUpdateToFavorite => '請先更新機廳資料，才能收藏機廳';
+
+  @override
+  String get arcadeLegacyHint => '機廳資料是舊版本，更新後可以收藏機廳並查看地鐵資訊。';
+
+  @override
+  String get arcadeNavigate => '導航';
+
+  @override
+  String get arcadeCopyAddress => '複製地址';
+
+  @override
+  String get arcadeViewOnNearcade => '在 nearcade 查看';
+
+  @override
+  String get arcadeCouldNotOpenLink => '無法開啟連結';
+
+  @override
+  String get arcadeHours => '營業時間';
+
+  @override
+  String get arcadeEveryDay => '每天';
+
+  @override
+  String get arcadeToday => '今天';
+
+  @override
+  String arcadeMetroWalk(String p0, String p1) {
+    return '$p0站 · 步行約 $p1 分鐘';
+  }
+
+  @override
+  String arcadeMetroStation(String p0) {
+    return '$p0站';
+  }
+
+  @override
+  String get arcadeNote => '備註';
+
+  @override
+  String arcadeFromYou(String p0) {
+    return '距你 $p0';
+  }
+
+  @override
+  String get arcadeFilterAction => '篩選';
+
+  @override
+  String get arcadeFilterSearchHint => '搜尋機台';
+
+  @override
+  String get arcadeFilterEmpty => '沒有符合的機台';
+
+  @override
+  String get arcadeChooseMapApp => '選擇地圖應用';
+
+  @override
+  String get arcadeMapAmap => '高德地圖';
+
+  @override
+  String get arcadeMapBaidu => '百度地圖';
+
+  @override
+  String get arcadeMapTencent => '騰訊地圖';
+
+  @override
+  String get arcadeMapGoogle => 'Google 地圖';
+
+  @override
+  String get arcadeMapApple => 'Apple 地圖';
+
+  @override
+  String get arcadeMapOther => '其他地圖應用';
+
+  @override
+  String get arcadeMapWeb => '在瀏覽器中開啟';
 }

@@ -6,6 +6,7 @@ import '../../manager/DivingFish/UserBest50Manager.dart';
 import '../../manager/DivingFish/MaimaiMusicDataManager.dart';
 import '../../utils/SongFilterUtil.dart';
 import '../../utils/Best50Tie.dart';
+import '../../utils/Best50Order.dart';
 
 class DiffBest50Service {
   // 单例模式
@@ -167,8 +168,9 @@ class DiffBest50Service {
         }
       }
 
-      // 按DiffRating降序排序
-      diffBest50.sort((a, b) => b['diffRating'].compareTo(a['diffRating']));
+      final songs = await MaimaiMusicDataManager().getCachedSongs();
+      final order = Best50Order.fromSongs(songs ?? const []);
+      diffBest50.sort((a, b) => order.compareMaps(a, b, ratingField: 'diffRating'));
 
       final remaining = tiedBeyondCut(diffBest50, 50, 'diffRating');
 
@@ -294,8 +296,10 @@ class DiffBest50Service {
       }
 
       // 分别按diffRating降序排序
-      diffSdSongs.sort((a, b) => b['diffRating'].compareTo(a['diffRating']));
-      diffDxSongs.sort((a, b) => b['diffRating'].compareTo(a['diffRating']));
+      final songs = await MaimaiMusicDataManager().getCachedSongs();
+      final order = Best50Order.fromSongs(songs ?? const []);
+      diffSdSongs.sort((a, b) => order.compareMaps(a, b, ratingField: 'diffRating'));
+      diffDxSongs.sort((a, b) => order.compareMaps(a, b, ratingField: 'diffRating'));
 
       // 合并结果
       List<Map<String, dynamic>> diffBest50 = [...diffSdSongs, ...diffDxSongs];
@@ -363,9 +367,9 @@ class DiffBest50Service {
         }
       }
 
-      // 按ra降序排序
-      oldSongs.sort((a, b) => (b['ra'] ?? 0).compareTo(a['ra'] ?? 0));
-      newSongs.sort((a, b) => (b['ra'] ?? 0).compareTo(a['ra'] ?? 0));
+      final order = Best50Order.fromSongs(songs);
+      oldSongs.sort(order.compareMaps);
+      newSongs.sort(order.compareMaps);
 
       // 取前35/15
       List<Map<String, dynamic>> best35 = oldSongs.take(35).toList();
@@ -499,9 +503,9 @@ class DiffBest50Service {
         }
       }
 
-      // 分别按diffRating降序排序（用于拟合Best50）
-      diffSdSongs.sort((a, b) => b['diffRating'].compareTo(a['diffRating']));
-      diffDxSongs.sort((a, b) => b['diffRating'].compareTo(a['diffRating']));
+      final order = Best50Order.fromSongs(songs);
+      diffSdSongs.sort((a, b) => order.compareMaps(a, b, ratingField: 'diffRating'));
+      diffDxSongs.sort((a, b) => order.compareMaps(a, b, ratingField: 'diffRating'));
 
       final sdRemaining = tiedBeyondCut(diffSdSongs, 35, 'diffRating');
       final dxRemaining = tiedBeyondCut(diffDxSongs, 15, 'diffRating');
@@ -522,8 +526,8 @@ class DiffBest50Service {
           diffBest50.fold(0, (sum, item) => sum + (item['diffRating'] as int));
 
       // 计算真实的Best50 RA总和（按ra排序取前35/15）
-      oldSongsForBest50.sort((a, b) => (b['ra'] ?? 0).compareTo(a['ra'] ?? 0));
-      newSongsForBest50.sort((a, b) => (b['ra'] ?? 0).compareTo(a['ra'] ?? 0));
+      oldSongsForBest50.sort(order.compareMaps);
+      newSongsForBest50.sort(order.compareMaps);
 
       List<Map<String, dynamic>> best35 = oldSongsForBest50.take(35).toList();
       List<Map<String, dynamic>> best15 = newSongsForBest50.take(15).toList();

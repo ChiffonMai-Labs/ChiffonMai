@@ -75,6 +75,11 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
 
   bool get _loadingSongs => _isLoading || _isSongsLoading;
 
+  // 只有没有旧列表可留时才显示骨架屏，否则旧列表留到新结果到达。
+  bool get _showSkeleton =>
+      _isLoading ||
+      (_isSongsLoading && _cachedSongsWithStatus?.isNotEmpty != true);
+
   // 显示模式：true 为列表模式，false 为仅曲绘模式
   bool _showListMode = true;
 
@@ -250,11 +255,18 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
   // 加载歌曲完成状态（带缓存）
   Future<void> _loadSongsWithStatus() async {
     if (_selectedTitleType == null || _selectedDifficulty == null) {
-      if (_isSongsLoading && mounted) setState(() => _isSongsLoading = false);
+      // 没有可查询的条件时不能把上一次的列表留在屏幕上。
+      if (mounted) {
+        setState(() {
+          _cachedSongsWithStatus = null;
+          _isSongsLoading = false;
+        });
+      }
       return;
     }
 
     final generation = ++_songLoadGeneration;
+    var applied = false;
     setState(() {
       _isSongsLoading = true;
     });
@@ -304,6 +316,7 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
       }
 
       if (!mounted || generation != _songLoadGeneration) return;
+      applied = true;
       setState(() {
         _cachedSongsWithStatus = result;
       });
@@ -315,6 +328,8 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
     } finally {
       if (mounted && generation == _songLoadGeneration) {
         setState(() {
+          // 当前模式缺少选项时没有结果可换，同样不留旧列表。
+          if (!applied) _cachedSongsWithStatus = null;
           _isSongsLoading = false;
         });
       }
@@ -398,8 +413,10 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
           if (_loadingSongs || _cachedSongsWithStatus?.isNotEmpty == true)
             _boxSliver(_buildSummarySection()),
           ProgressSliverFade(
-            key: ValueKey(
-                _loadingSongs ? 'loading' : 'done-$_songLoadGeneration'),
+            // 新结果到达时换 Key，按原来的方式进场。
+            key: _showSkeleton
+                ? const ValueKey('loading')
+                : ObjectKey(_cachedSongsWithStatus),
             sliver: SliverMainAxisGroup(slivers: _buildSongSlivers()),
           ),
           const SliverToBoxAdapter(
@@ -515,9 +532,9 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
                 label: type,
                 selected: _selectedTitleType == type,
                 onTap: () async {
+                  if (_selectedTitleType == type) return;
                   setState(() {
                     _selectedTitleType = type;
-                    _cachedSongsWithStatus = null;
                     _isSongsLoading = true;
                   });
                   await _loadSongsWithStatus();
@@ -538,9 +555,9 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
                 label: _getDifficultyName(diff),
                 selected: _selectedDifficulty == diff,
                 onTap: () async {
+                  if (_selectedDifficulty == diff) return;
                   setState(() {
                     _selectedDifficulty = diff;
-                    _cachedSongsWithStatus = null;
                     _isSongsLoading = true;
                   });
                   await _updateLevelOptions();
@@ -583,7 +600,6 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
                     Navigator.of(context).pop();
                     setState(() {
                       _mode = 'level';
-                      _cachedSongsWithStatus = null;
                       _isSongsLoading = true;
                     });
                     _saveOptions();
@@ -597,7 +613,6 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
                     Navigator.of(context).pop();
                     setState(() {
                       _mode = 'charter';
-                      _cachedSongsWithStatus = null;
                       _isSongsLoading = true;
                     });
                     if (_selectedCharter == null &&
@@ -618,7 +633,6 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
                     Navigator.of(context).pop();
                     setState(() {
                       _mode = 'version';
-                      _cachedSongsWithStatus = null;
                       _isSongsLoading = true;
                     });
                     if (_selectedVersion == null &&
@@ -639,7 +653,6 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
                     Navigator.of(context).pop();
                     setState(() {
                       _mode = 'artist';
-                      _cachedSongsWithStatus = null;
                       _isSongsLoading = true;
                     });
                     if (_selectedArtist == null &&
@@ -660,7 +673,6 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
                     Navigator.of(context).pop();
                     setState(() {
                       _mode = 'genre';
-                      _cachedSongsWithStatus = null;
                       _isSongsLoading = true;
                     });
                     if (_selectedGenre == null &&
@@ -710,7 +722,6 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
     if (picked == null || !mounted) return;
     setState(() {
       _selectedCharter = picked;
-      _cachedSongsWithStatus = null;
       _isSongsLoading = true;
     });
     _saveOptions();
@@ -737,7 +748,6 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
                     Navigator.of(context).pop();
                     setState(() {
                       _selectedVersion = version;
-                      _cachedSongsWithStatus = null;
                       _isSongsLoading = true;
                     });
                     _saveOptions();
@@ -787,7 +797,6 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
     if (picked == null || !mounted) return;
     setState(() {
       _selectedArtist = picked;
-      _cachedSongsWithStatus = null;
       _isSongsLoading = true;
     });
     _saveOptions();
@@ -824,7 +833,6 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
                     Navigator.of(context).pop();
                     setState(() {
                       _selectedGenre = entry.key;
-                      _cachedSongsWithStatus = null;
                       _isSongsLoading = true;
                     });
                     _saveOptions();
@@ -884,7 +892,6 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
                       Navigator.of(context).pop();
                       setState(() {
                         _selectedLevel = level;
-                        _cachedSongsWithStatus = null;
                         _isSongsLoading = true;
                       });
                       _saveOptions();
@@ -1065,7 +1072,7 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
   }
 
   List<Widget> _buildSongSlivers() {
-    if (_loadingSongs) {
+    if (_showSkeleton) {
       return [_boxSliver(const ProgressListSkeleton())];
     }
 
@@ -1213,6 +1220,11 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
 
   Future<void> _exportToImage() async {
     try {
+      // 新结果还没到时屏幕上是旧列表，不能按新条件导出。
+      if (_loadingSongs) {
+        AppToast.show(context.l10n.flowLoading2);
+        return;
+      }
       debugPrint('=== PERSONALIZED SCORE EXPORT TO IMAGE STARTED ===');
       debugPrint('Current context: $context');
 

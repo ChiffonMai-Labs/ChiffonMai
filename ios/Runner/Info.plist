@@ -88,6 +88,10 @@
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>bilibili</string>
+		<string>iosamap</string>
+		<string>baidumap</string>
+		<string>qqmap</string>
+		<string>comgooglemaps</string>
 	</array>
 
 	<!--

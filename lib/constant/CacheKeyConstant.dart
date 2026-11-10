@@ -2,11 +2,23 @@
 class CacheKeyConstant {
   static const String searchInteractionMode = 'search_interaction_mode';
 
+  /// 全球机厅地图：收藏的机厅（NearCade 的数字 ID）。
+  static const String arcadeMapFavorites = 'arcade_map_favorites';
+
+  /// 全球机厅地图：上次选择的机台筛选（titleId）。
+  static const String arcadeMapSelectedTitles = 'arcade_map_selected_titles';
+
   /// 首页搜索框搜什么（功能 / 歌曲 / 功能和歌曲）。
   static const String homeSearchScope = 'home_search_scope';
 
   /// 歌曲搜索结果是否显示匹配字段。
   static const String searchShowMatchInfo = 'search_show_match_info';
+
+  /// 首页搜索区域是否避让输入法。
+  static const String searchAvoidKeyboard = 'search_avoid_keyboard';
+
+  /// 上分潜力与达成率-得分对照表的分段方式。
+  static const String ratingSegmentMode = 'rating_segment_mode';
 
   /// 三个数据源共用的快速同步凭据，仅存入系统安全存储；兼容旧的逐源映射。
   static const String awmcQuickIdentities = 'awmc_quick_identities_v1';
@@ -290,6 +302,9 @@ class CacheKeyConstant {
   static const String probeDivingFishImportToken =
       'probe_diving_fish_import_token';
   static const String probeDivingFishBindQQ = 'probe_diving_fish_bind_qq';
+
+  /// 水鱼 `/player/profile` 的 `mask`：用户是否「对非网页查询的成绩使用掩码」。
+  static const String probeDivingFishMask = 'probe_diving_fish_mask';
   static const String probeLxnsImportToken = 'probe_lxns_import_token';
 
   /// 导出图片选的主题（浅色 / 深色 / 纯黑）。

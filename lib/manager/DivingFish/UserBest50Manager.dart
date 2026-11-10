@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:my_first_flutter_app/entity/DivingFish/UserBest50Entity.dart';
 import 'package:my_first_flutter_app/entity/DivingFish/RecordItem.dart';
 import 'package:my_first_flutter_app/entity/DivingFish/Song.dart';
+import '../../utils/Best50Order.dart';
 import 'UserPlayDataManager.dart';
 import 'MaimaiMusicDataManager.dart';
 
@@ -11,6 +12,8 @@ class UserBest50Manager {
   static final UserBest50Manager _instance = UserBest50Manager._internal();
   factory UserBest50Manager() => _instance;
   UserBest50Manager._internal();
+
+  static const _orderVersion = 1;
 
   /// 成绩或 Best50 缓存写入后递增，常驻的页面（成绩 Hub）靠它刷新。
   static final ValueNotifier<int> dataRevision = ValueNotifier<int>(0);
@@ -32,33 +35,7 @@ class UserBest50Manager {
       if (resolvedSongs == null || resolvedSongs.isEmpty) {
         throw Exception('缺少歌曲数据，无法区分当前版本歌曲');
       }
-      final isNewById = <String, bool>{
-        for (final song in resolvedSongs) song.id: song.basicInfo.isNew,
-      };
-      final records = (resolvedPlayData['records'] as List)
-          .whereType<Map<String, dynamic>>()
-          .map(RecordItem.fromJson)
-          .toList()
-        ..sort((a, b) => b.ra.compareTo(a.ra));
-      final oldRecords = records
-          .where((r) => !(isNewById[r.songId.toString()] ?? false))
-          .take(35)
-          .toList();
-      final newRecords = records
-          .where((r) => isNewById[r.songId.toString()] ?? false)
-          .take(15)
-          .toList();
-      final rating = [...oldRecords, ...newRecords]
-          .fold<int>(0, (sum, record) => sum + record.ra);
-      final jsonData = <String, dynamic>{
-        'rating': rating,
-        'additional_rating':
-            (resolvedPlayData['additional_rating'] as num?)?.toInt() ?? 0,
-        'charts': {
-          'sd': oldRecords.map((r) => r.toJson()).toList(),
-          'dx': newRecords.map((r) => r.toJson()).toList(),
-        },
-      };
+      final jsonData = _buildBest50(resolvedPlayData, resolvedSongs);
       await _cacheBest50Data(qq, jsonData);
       return _parseBest50Data(jsonData);
     } catch (e) {
@@ -83,10 +60,38 @@ class UserBest50Manager {
       final prefs = await SharedPreferences.getInstance();
       final lastQQ = prefs.getString('last_used_qq');
       if (lastQQ == null) return null;
-      final cachedData = prefs.getString('best50_data_$lastQQ');
-      return cachedData == null
-          ? null
-          : json.decode(cachedData) as Map<String, dynamic>;
+      final cacheKey = 'best50_data_$lastQQ';
+      final cachedData = prefs.getString(cacheKey);
+      if (cachedData == null) return null;
+      final cached = json.decode(cachedData) as Map<String, dynamic>;
+      if (cached['order_version'] == _orderVersion) return cached;
+
+      // 旧榜单在截断时可能漏掉新的优先项，先尝试用完整成绩重新选曲。
+      final playData = await UserPlayDataManager().getCachedUserPlayData();
+      final songs = await MaimaiMusicDataManager().getCachedSongs() ?? <Song>[];
+      if (prefs.getString('last_used_qq') != lastQQ ||
+          prefs.getString(cacheKey) != cachedData) {
+        return null;
+      }
+      final records = playData?['records'];
+      if (records is List && records.isNotEmpty && songs.isNotEmpty) {
+        try {
+          return {...cached, ..._buildBest50(playData!, songs)};
+        } catch (e) {
+          debugPrint('用完整成绩重排旧 Best50 缓存失败: $e');
+        }
+      }
+
+      final charts = cached['charts'] as Map? ?? const {};
+      final order = Best50Order.fromSongs(songs);
+      return {
+        ...cached,
+        'charts': {
+          for (final group in ['sd', 'dx'])
+            group: List<Map<String, dynamic>>.from(charts[group] as List? ?? [])
+              ..sort(order.compareMaps),
+        },
+      };
     } catch (e) {
       debugPrint('Error getting cached best50 data: $e');
       return null;
@@ -105,33 +110,50 @@ class UserBest50Manager {
       final records = playData?['records'];
       if (records is! List || records.isEmpty) return null;
       final songs = await MaimaiMusicDataManager().getCachedSongs();
-      final newSongIds = {
-        for (final song in songs ?? const <Song>[])
-          if (song.basicInfo.isNew) song.id,
-      };
-      final items = _parseRecordItems(records);
-      final oldSongs = items
-          .where((r) => !newSongIds.contains(r.songId.toString()))
-          .toList()
-        ..sort((a, b) => b.ra.compareTo(a.ra));
-      final newSongs = items
-          .where((r) => newSongIds.contains(r.songId.toString()))
-          .toList()
-        ..sort((a, b) => b.ra.compareTo(a.ra));
-      final best35 = oldSongs.take(35).toList();
-      final best15 = newSongs.take(15).toList();
-      return {
-        'rating': [...best35, ...best15].fold<int>(0, (sum, r) => sum + r.ra),
-        'additional_rating': 0,
-        'charts': {
-          'sd': [for (final r in best35) r.toJson()],
-          'dx': [for (final r in best15) r.toJson()],
-        },
-      };
+      return _buildBest50(playData!, songs ?? const []);
     } catch (e) {
       debugPrint('按成绩计算 Best50 失败: $e');
       return null;
     }
+  }
+
+  Map<String, dynamic> _buildBest50(
+      Map<String, dynamic> playData, List<Song> songs) {
+    final (:best35, :best15) = selectCharts(
+      _parseRecordItems(playData['records'] as List),
+      songs,
+    );
+    return {
+      'order_version': _orderVersion,
+      'rating': [...best35, ...best15].fold<int>(0, (sum, r) => sum + r.ra),
+      'additional_rating':
+          (playData['additional_rating'] as num?)?.toInt() ?? 0,
+      'charts': {
+        'sd': [for (final r in best35) r.toJson()],
+        'dx': [for (final r in best15) r.toJson()],
+      },
+    };
+  }
+
+  static ({List<RecordItem> best35, List<RecordItem> best15}) selectCharts(
+      List<RecordItem> records, List<Song> songs) {
+    final newSongIds = {
+      for (final song in songs)
+        if (song.basicInfo.isNew) song.id
+    };
+    final order = Best50Order.fromSongs(songs);
+    final oldSongs = <RecordItem>[];
+    final newSongs = <RecordItem>[];
+    for (final record in records) {
+      (newSongIds.contains('${record.songId}') ? newSongs : oldSongs)
+          .add(record);
+    }
+    oldSongs.sort(order.compareRecords);
+    newSongs.sort(order.compareRecords);
+    return (
+      best35: oldSongs.take(35).toList(),
+      best15: newSongs.take(15).toList()
+    );
   }
 
   UserBest50Entity _parseBest50Data(Map<String, dynamic> jsonData) {

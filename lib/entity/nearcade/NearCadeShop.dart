@@ -137,6 +137,11 @@ class Shop {
     ///Update time.
     final DateTime updatedAt;
 
+    ///周边交通（最近地铁站等），结构见 ArcadeShopUtil 的 metroInfo。
+    ///
+    ///Nearby transit data.
+    final Map<String, dynamic>? transit;
+
     Shop({
         required this.id,
         required this.address,
@@ -153,6 +158,7 @@ class Shop {
         this.ownerId,
         this.timezone,
         required this.updatedAt,
+        this.transit,
     });
 
     factory Shop.fromJson(Map<String, dynamic> json) => Shop(
@@ -175,6 +181,7 @@ class Shop {
                 .toList() ?? [])
             .toList() ?? [],
         ownerId: json['ownerId'] as String?,
+        transit: json['transit'] as Map<String, dynamic>?,
         timezone: json['timezone'] != null
             ? Timezone.fromJson(json['timezone'] as Map<String, dynamic>)
             : null,
@@ -214,6 +221,7 @@ class Shop {
             ownerId: ownerId ?? this.ownerId,
             timezone: timezone ?? this.timezone,
             updatedAt: updatedAt ?? this.updatedAt,
+            transit: transit,
         );
 }
 
