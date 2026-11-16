@@ -1378,16 +1378,6 @@ class _ArcadeRegionSheetState extends State<_ArcadeRegionSheet> {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final scheme = Theme.of(context).colorScheme;
-    final rows = <({_ArcadeRegion region, bool child})>[
-      for (final country in _countries) ...[
-        (region: country, child: false),
-        if (_expanded.contains(country.name))
-          for (final province
-              in country.children.values.toList()
-                ..sort((a, b) => b.shops.length.compareTo(a.shops.length)))
-            (region: province, child: true),
-      ],
-    ];
 
     return DraggableScrollableSheet(
       expand: false,
@@ -1440,60 +1430,53 @@ class _ArcadeRegionSheetState extends State<_ArcadeRegionSheet> {
             ),
           ),
           SliverList.builder(
-            itemCount: rows.length,
+            itemCount: _countries.length,
             itemBuilder: (context, index) {
-              final row = rows[index];
-              final region = row.region;
-              final expanded = _expanded.contains(region.name);
-              return GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () => _select(region.shops),
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(
-                      AppDesignTokens.gutter + (row.child ? 20 : 0),
-                      row.child ? 9 : 12,
-                      8,
-                      row.child ? 9 : 12),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(region.name,
-                            style: TextStyle(
-                              fontSize: row.child ? 14 : 15,
-                              fontWeight:
-                                  row.child ? FontWeight.w500 : FontWeight.w700,
-                              color: scheme.onSurface,
-                            )),
-                      ),
-                      Text('${region.shops.length}',
-                          style: AppTheme.number(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: scheme.onSurfaceVariant,
-                          )),
-                      SizedBox(
-                        width: 40,
-                        height: 28,
-                        child: !row.child && region.children.isNotEmpty
-                            ? GestureDetector(
-                                behavior: HitTestBehavior.opaque,
-                                onTap: () => setState(() {
-                                  expanded
-                                      ? _expanded.remove(region.name)
-                                      : _expanded.add(region.name);
-                                }),
-                                child: Icon(
-                                  expanded
-                                      ? Icons.expand_less_rounded
-                                      : Icons.expand_more_rounded,
-                                  color: scheme.onSurfaceVariant,
-                                ),
-                              )
-                            : null,
-                      ),
-                    ],
+              final country = _countries[index];
+              final expanded = _expanded.contains(country.name);
+              final provinces = country.children.values.toList()
+                ..sort((a, b) => b.shops.length.compareTo(a.shops.length));
+              return Column(
+                children: [
+                  _regionRow(
+                    country,
+                    toggle: provinces.isEmpty
+                        ? null
+                        : Semantics(
+                            expanded: expanded,
+                            child: IconButton(
+                              tooltip: expanded
+                                  ? MaterialLocalizations.of(context)
+                                      .expandedIconTapHint
+                                  : MaterialLocalizations.of(context)
+                                      .collapsedIconTapHint,
+                              padding: EdgeInsets.zero,
+                              onPressed: () => setState(() {
+                                if (expanded) {
+                                  _expanded.remove(country.name);
+                                } else {
+                                  _expanded.add(country.name);
+                                }
+                              }),
+                              icon: AnimatedRotation(
+                                turns: expanded ? 0.5 : 0,
+                                duration: AppDesignTokens.motion(
+                                    context, AppDesignTokens.mediumMotion),
+                                child: Icon(Icons.expand_more_rounded,
+                                    color: scheme.onSurfaceVariant),
+                              ),
+                            ),
+                          ),
                   ),
-                ),
+                  if (provinces.isNotEmpty)
+                    AnimatedReveal(
+                      visible: expanded,
+                      child: Column(children: [
+                        for (final province in provinces)
+                          _regionRow(province, isProvince: true),
+                      ]),
+                    ),
+                ],
               );
             },
           ),
@@ -1502,6 +1485,41 @@ class _ArcadeRegionSheetState extends State<_ArcadeRegionSheet> {
                 bottom: 16 + MediaQuery.paddingOf(context).bottom),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _regionRow(_ArcadeRegion region,
+      {bool isProvince = false, Widget? toggle}) {
+    final scheme = Theme.of(context).colorScheme;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => _select(region.shops),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+            AppDesignTokens.gutter + (isProvince ? 20 : 0),
+            isProvince ? 9 : 12,
+            8,
+            isProvince ? 9 : 12),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(region.name,
+                  style: TextStyle(
+                    fontSize: isProvince ? 14 : 15,
+                    fontWeight: isProvince ? FontWeight.w500 : FontWeight.w700,
+                    color: scheme.onSurface,
+                  )),
+            ),
+            Text('${region.shops.length}',
+                style: AppTheme.number(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: scheme.onSurfaceVariant,
+                )),
+            SizedBox(width: 40, height: 28, child: toggle),
+          ],
+        ),
       ),
     );
   }

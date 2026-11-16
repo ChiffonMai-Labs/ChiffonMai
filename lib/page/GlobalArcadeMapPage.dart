@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
@@ -61,6 +62,7 @@ class _GlobalArcadeMapPageState extends State<GlobalArcadeMapPage>
   bool _isRefreshing = false;
   bool _isLegacyData = false;
   bool _isLocating = false;
+  bool _requestedPreciseLocation = false;
   bool _mapReady = false;
   String? _error;
   DateTime? _lastFetchTime;
@@ -218,7 +220,7 @@ class _GlobalArcadeMapPageState extends State<GlobalArcadeMapPage>
       _progress = null;
     });
     try {
-      final shops = await AppTaskActivity.run(
+      final snapshot = await AppTaskActivity.run(
         () => NearCadeService().getAllShops(
           onProgress: (loaded, total) {
             if (mounted) setState(() => _progress = (loaded, total));
@@ -226,14 +228,14 @@ class _GlobalArcadeMapPageState extends State<GlobalArcadeMapPage>
         ),
       );
       if (!mounted) return;
+      final shops = snapshot.shops;
       if (shops.isEmpty) throw StateError('NearCade 返回了空列表');
-      final now = DateTime.now();
       setState(() {
         _applyShops(shops);
-        _lastFetchTime = now;
+        _lastFetchTime = snapshot.fetchedAt;
         _isLegacyData = false;
       });
-      await ArcadeMapStore.save(shops, now);
+      await ArcadeMapStore.save(shops, snapshot.fetchedAt);
     } catch (error) {
       debugPrint('[ArcadeMap] 更新机厅数据失败: $error');
       if (!mounted) return;
@@ -488,38 +490,24 @@ class _GlobalArcadeMapPageState extends State<GlobalArcadeMapPage>
       }
 
       var permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
+      if (!mounted) return;
+      final requestingPermission = permission == LocationPermission.denied;
+      if (requestingPermission) {
         permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) return;
       }
+      if (!mounted || permission == LocationPermission.denied) return;
       if (permission == LocationPermission.deniedForever) {
-        if (mounted) {
-          AppToast.show(
-              context.l10n.flowLocationPermissionIsPermanentlyDeniedEnableIt,
-              tone: AppToastTone.warning);
-        }
+        AppToast.show(
+            context.l10n.flowLocationPermissionIsPermanentlyDeniedEnableIt,
+            tone: AppToastTone.warning);
         return;
       }
 
-      // 优先用最近已知位置（即时返回），没有才实时定位。
-      Position? position;
-      try {
-        position = await Geolocator.getLastKnownPosition();
-      } catch (_) {
-        position = null;
-      }
-      if (position == null) {
-        try {
-          position = await Geolocator.getCurrentPosition(
-            locationSettings: const LocationSettings(
-              accuracy: LocationAccuracy.low,
-              timeLimit: Duration(seconds: 8),
-            ),
-          );
-        } catch (_) {
-          position = null;
-        }
-      }
+      // 已有粗略权限的用户也能在主动定位时升级，拒绝后仍可用粗略位置。
+      if (!requestingPermission) await _requestPreciseLocation();
+      if (!mounted) return;
+
+      final position = await _resolveUserPosition();
       if (!mounted) return;
       if (position == null) {
         AppToast.show(context.l10n.flowCouldNotGetYourLocationCheckThat,
@@ -533,6 +521,16 @@ class _GlobalArcadeMapPageState extends State<GlobalArcadeMapPage>
         _recomputeView();
       });
       _flyTo(located, 14);
+    } on LocationServiceDisabledException {
+      if (mounted) {
+        AppToast.show(context.l10n.flowTurnOnDeviceLocationServicesFirst,
+            tone: AppToastTone.warning);
+      }
+    } on PermissionDeniedException {
+      if (mounted) {
+        AppToast.show(context.l10n.arcadeLocationPermissionUnavailable,
+            tone: AppToastTone.warning);
+      }
     } catch (error) {
       debugPrint('[ArcadeMap] 定位失败: $error');
       if (mounted) {
@@ -541,6 +539,100 @@ class _GlobalArcadeMapPageState extends State<GlobalArcadeMapPage>
       }
     } finally {
       if (mounted) setState(() => _isLocating = false);
+    }
+  }
+
+  Future<Position?> _resolveUserPosition() async {
+    final isAndroid =
+        !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+    // 真机上常规定位可能超时，系统定位仍能取点，因此 Android 优先走系统服务。
+    final position = await _tryPosition(
+      isAndroid ? 'Android 系统定位' : '实时定位',
+      isAndroid
+          ? AndroidSettings(
+              forceLocationManager: true,
+              accuracy: LocationAccuracy.high,
+              timeLimit: const Duration(seconds: 18),
+            )
+          : const LocationSettings(
+              accuracy: LocationAccuracy.high,
+              timeLimit: Duration(seconds: 18),
+            ),
+    );
+    if (position != null || !mounted) return position;
+
+    if (!kIsWeb) {
+      try {
+        final cached = await Geolocator.getLastKnownPosition()
+            .timeout(const Duration(seconds: 2));
+        if (cached != null &&
+            DateTime.now().difference(cached.timestamp) <=
+                const Duration(minutes: 5)) {
+          debugPrint('[ArcadeMap] 已使用近期位置缓存');
+          return cached;
+        }
+      } catch (_) {
+        // 没有可用缓存时，继续尝试实时定位。
+      }
+    }
+    if (!mounted) return null;
+
+    return _tryPosition(
+      isAndroid ? 'Android 常规备用定位' : '常规备用定位',
+      LocationSettings(
+        accuracy: LocationAccuracy.medium,
+        timeLimit: Duration(seconds: isAndroid ? 8 : 12),
+      ),
+    );
+  }
+
+  Future<Position?> _tryPosition(
+      String stage, LocationSettings settings) async {
+    debugPrint('[ArcadeMap] 开始$stage');
+    try {
+      final position =
+          await Geolocator.getCurrentPosition(locationSettings: settings);
+      debugPrint('[ArcadeMap] ${stage}成功');
+      return position;
+    } on PermissionDeniedException {
+      rethrow;
+    } on LocationServiceDisabledException {
+      rethrow;
+    } catch (error) {
+      debugPrint('[ArcadeMap] ${stage}未返回位置: $error');
+      return null;
+    }
+  }
+
+  Future<void> _requestPreciseLocation() async {
+    final platform = defaultTargetPlatform;
+    if (kIsWeb ||
+        _requestedPreciseLocation ||
+        (platform != TargetPlatform.android &&
+            platform != TargetPlatform.iOS)) {
+      return;
+    }
+    try {
+      final accuracy = await Geolocator.getLocationAccuracy();
+      if (!mounted || accuracy != LocationAccuracyStatus.reduced) return;
+      _requestedPreciseLocation = true;
+      if (platform == TargetPlatform.android) {
+        await Geolocator.requestPermission();
+      } else {
+        final locale = Localizations.localeOf(context);
+        final purposeKey = switch (locale.languageCode) {
+          'en' => 'ArcadeMapEnglish',
+          'ja' => 'ArcadeMapJapanese',
+          'zh'
+              when locale.scriptCode == 'Hant' ||
+                  const {'TW', 'HK', 'MO'}.contains(locale.countryCode) =>
+            'ArcadeMapTraditionalChinese',
+          _ => 'ArcadeMap',
+        };
+        await Geolocator.requestTemporaryFullAccuracy(purposeKey: purposeKey);
+      }
+    } catch (error) {
+      debugPrint('[ArcadeMap] 无法升级精确位置权限: $error');
     }
   }
 

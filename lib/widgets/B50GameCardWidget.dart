@@ -1,6 +1,7 @@
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import '../utils/AppDesignTokens.dart';
+import '../utils/ColorUtil.dart';
 import '../utils/CoverUtil.dart';
 import '../utils/ExportImageTheme.dart';
 import '../utils/ThemeManager.dart';
@@ -194,6 +195,7 @@ class B50GameCardWidget extends StatelessWidget {
   /// 按卡片**渲染时的实际宽度**自适应。
   final double scale;
   final bool isFitDiff;
+  final bool forExport;
 
   /// 配色。页面传 [B50CardPalette.of]；导出图片不传，取 [ExportThemeScope] 的主题。
   final B50CardPalette? palette;
@@ -218,6 +220,7 @@ class B50GameCardWidget extends StatelessWidget {
     required this.maxIdLength,
     this.scale = autoScale,
     this.isFitDiff = false,
+    this.forExport = false,
     this.palette,
   });
 
@@ -229,6 +232,7 @@ class B50GameCardWidget extends StatelessWidget {
   static const double _kCover = 104.0;
   static const double _kSpacing = 10.0;
   static const double _kStripHeight = 38.0;
+  static const double _exportCoverSize = 86.0;
 
   /// 在卡片上**叠**一枚角标（PC50 的 `PC 1234` 就是它）。
   ///
@@ -238,18 +242,21 @@ class B50GameCardWidget extends StatelessWidget {
     required Widget card,
     required String text,
     double scale = autoScale,
+    bool forExport = false,
   }) {
     // 角标位置必须和卡片用**同一个** scale：给卡片一个值、给角标另一个值，
     // PC50 角标就会跟曲绘对不上（历史 bug）。
     return LayoutBuilder(
       builder: (context, constraints) {
         final double resolved = resolveScale(scale, constraints.maxWidth);
+        final inset = forExport ? 9.0 : _kSpacing;
+        final coverSize = forExport ? _exportCoverSize : _kCover;
         return Stack(
           children: [
             card,
             Positioned(
-              left: (_kSpacing + 4) * resolved,
-              top: (_kSpacing + _kCover - 22) * resolved,
+              left: (inset + 4) * resolved,
+              top: (inset + coverSize - 22) * resolved,
               child: Container(
                 padding: EdgeInsets.symmetric(
                     horizontal: 6 * resolved, vertical: 2 * resolved),
@@ -312,35 +319,34 @@ class B50GameCardWidget extends StatelessWidget {
     required double mainFontSize,
     required double subFontSize,
     required Color color,
+    bool proportionalFigures = false,
   }) {
     final text = achievementRate.toStringAsFixed(4);
     final parts = text.split('.');
     final intPart = parts[0];
     final decPart = parts.length > 1 ? '.${parts[1]}%' : '%';
-    const tabular = [FontFeature.tabularFigures()];
+    final features = proportionalFigures
+        ? const [FontFeature.proportionalFigures()]
+        : const [FontFeature.tabularFigures()];
+    // 导出显式选用与离线效果图相同的 Outfit Bold 字体文件。
+    final style = TextStyle(
+      fontFamily: proportionalFigures ? 'Best50ExportOutfit' : null,
+      fontWeight: proportionalFigures ? FontWeight.w700 : FontWeight.w800,
+      height: 1.1,
+      color: color,
+      fontFeatures: features,
+    );
 
     return Text.rich(
       TextSpan(
         children: [
           TextSpan(
             text: intPart,
-            style: TextStyle(
-              fontSize: mainFontSize,
-              height: 1.1,
-              fontWeight: FontWeight.w800,
-              color: color,
-              fontFeatures: tabular,
-            ),
+            style: style.copyWith(fontSize: mainFontSize),
           ),
           TextSpan(
             text: decPart,
-            style: TextStyle(
-              fontSize: subFontSize,
-              height: 1.1,
-              fontWeight: FontWeight.w800,
-              color: color,
-              fontFeatures: tabular,
-            ),
+            style: style.copyWith(fontSize: subFontSize),
           ),
         ],
       ),
@@ -364,16 +370,11 @@ class B50GameCardWidget extends StatelessWidget {
     final palette =
         this.palette ?? B50CardPalette.forExport(ExportPalette.of(context));
     final double spacing = _kSpacing * scale;
-    final double coverSize = _kCover * scale;
+    final double coverSize = (forExport ? _exportCoverSize : _kCover) * scale;
     final double otherFontSize = _kOther * scale;
 
     // 常规定数保留 1 位小数，拟合定数（fit_diff）保留 2 位以避免丢失精度。
     final String diffText = difficulty.toStringAsFixed(isFitDiff ? 2 : 1);
-    final Color pillForeground =
-        ThemeData.estimateBrightnessForColor(cardColor) == Brightness.dark
-            ? Colors.white
-            // 底色是浅色难度色，深色卡片上也要用深色字。
-            : B50CardPalette.light.ink;
 
     // 小卡（页面里 scale < 1）的圆角不跟着缩，否则和周围的卡片对不齐。
     final double radius =
@@ -388,7 +389,10 @@ class B50GameCardWidget extends StatelessWidget {
       decoration: BoxDecoration(
         color: palette.strip,
         borderRadius: BorderRadius.circular(innerRadius),
-        border: Border.all(color: cardColor, width: 3 * scale),
+        border: Border.all(
+          color: forExport ? Colors.white : cardColor,
+          width: 3 * scale,
+        ),
       ),
       child: songId != 0
           ? CoverUtil.buildCoverWidgetWithContext(
@@ -399,6 +403,16 @@ class B50GameCardWidget extends StatelessWidget {
                       fontSize: coverSize * 0.22, color: palette.muted)),
             ),
     );
+
+    if (forExport) {
+      return _buildExportCard(context, cover, diffText, radius, scale);
+    }
+
+    final Color pillForeground =
+        ThemeData.estimateBrightnessForColor(cardColor) == Brightness.dark
+            ? Colors.white
+            // 底色是浅色难度色，深色卡片上也要用深色字。
+            : B50CardPalette.light.ink;
 
     // 三个数字按同一条基线对齐，字号不同也不会错位。
     final Widget ratingRow = Row(
@@ -596,6 +610,213 @@ class B50GameCardWidget extends StatelessWidget {
     );
   }
 
+  Widget _buildExportCard(
+    BuildContext context,
+    Widget cover,
+    String diffText,
+    double radius,
+    double scale,
+  ) {
+    final coverSize = _exportCoverSize * scale;
+    const contentInset = 9.0;
+    final isReMaster = cardColor == ColorUtil.reMasterExportCardColor;
+    final foreground = isReMaster ? const Color(0xFF2F1940) : Colors.white;
+    final secondary = TextStyle(
+      fontSize: 13 * scale,
+      height: 1.15,
+      color: foreground,
+      fontWeight: FontWeight.w600,
+      fontFeatures: const [FontFeature.tabularFigures()],
+    );
+    Widget badge(String path, double width, double height) => Image.asset(
+          path,
+          width: width * scale,
+          height: height * scale,
+          fit: BoxFit.contain,
+          errorBuilder: (_, __, ___) => SizedBox(width: width * scale),
+        );
+
+    return MediaQuery.withNoTextScaling(
+      child: Container(
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          color: cardColor,
+          border: Border.all(color: Colors.white, width: 1.5),
+          borderRadius: BorderRadius.circular(radius),
+        ),
+        child: Column(
+          children: [
+            Expanded(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(contentInset * scale,
+                    contentInset * scale, contentInset * scale, 0),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    cover,
+                    SizedBox(width: 12 * scale),
+                    Expanded(
+                      child: SizedBox(
+                        height: coverSize,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // 歌名与达成率左对齐，长歌名固定在一行。
+                            Expanded(
+                              child: Align(
+                                alignment: Alignment.bottomLeft,
+                                child: Text(
+                                  songName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: foreground,
+                                    fontSize: 20 * scale,
+                                    height: 1.13,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            SizedBox(height: 4 * scale),
+                            SizedBox(
+                              width: double.infinity,
+                              height: 58 * scale,
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerLeft,
+                                child: _buildAchievement(
+                                  achievementRate: achievementRate,
+                                  mainFontSize: 52 * scale,
+                                  subFontSize: 33 * scale,
+                                  color: foreground,
+                                  // Outfit 的比例数字使用无底横的「1」。
+                                  proportionalFigures: true,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: contentInset * scale),
+              child: SizedBox(
+                height: 18 * scale,
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: coverSize,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerLeft,
+                              child: Transform.translate(
+                                offset: Offset(0, 1.5 * scale),
+                                child: Text(songId == 0 ? '' : '#$songId',
+                                    style: secondary),
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: 4 * scale),
+                          buildTypeChip(isUtage, dxMode, 12 * scale),
+                        ],
+                      ),
+                    ),
+                    SizedBox(width: 12 * scale),
+                    Text(
+                      'RA $rating',
+                      style: secondary.copyWith(
+                        fontSize: 15 * scale,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    SizedBox(width: 6 * scale),
+                    Expanded(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          '${context.l10n.flowDXScore2} $score/$maxScore',
+                          style: secondary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            SizedBox(height: 6 * scale),
+            Container(
+              // 底栏覆盖原来的下边距，维持导出卡片高度。
+              height: (38 + contentInset) * scale,
+              padding:
+                  EdgeInsets.symmetric(horizontal: (8 + contentInset) * scale),
+              color: const Color(0xFFF5F4F7),
+              child: Row(
+                children: [
+                  Container(
+                    padding: EdgeInsets.symmetric(
+                        horizontal: 7 * scale, vertical: 2 * scale),
+                    decoration: BoxDecoration(
+                      color: cardColor,
+                      borderRadius: BorderRadius.circular(5 * scale),
+                    ),
+                    child: Text(
+                      diffText,
+                      style: secondary.copyWith(
+                        color: isReMaster ? B50CardPalette.light.ink : null,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 8 * scale),
+                  Expanded(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerRight,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (rate.isNotEmpty)
+                            badge('assets/gamrank/$rate.png', 69, 27),
+                          for (final grade in [fc, fs]) ...[
+                            SizedBox(width: 6 * scale),
+                            badge(
+                              'assets/grade/${grade.isEmpty ? 'empty' : grade}.png',
+                              34,
+                              34,
+                            ),
+                          ],
+                          SizedBox(width: 6 * scale),
+                          buildStarsWidget(
+                            stars,
+                            starsColor == Colors.white
+                                ? B50CardPalette.light.muted
+                                : starsColor,
+                            15 * scale,
+                            heightMultiplier: 1.95,
+                            paintStarGlyph: true,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   /// 类型标签：实心胶囊 + 白字。
   static Widget buildTypeChip(bool isUtage, bool dxMode, double fontSize) {
     final Color background;
@@ -641,6 +862,7 @@ class B50GameCardWidget extends StatelessWidget {
     double fontSize, {
     double heightMultiplier = 1.8,
     bool compact = false,
+    bool paintStarGlyph = false,
   }) {
     const double starsAspect = 5 / 3;
     final match = RegExp(r'✦(\d+(?:\.\d+)?)').firstMatch(stars);
@@ -741,14 +963,28 @@ class B50GameCardWidget extends StatelessWidget {
               padding: EdgeInsets.symmetric(vertical: fontSize * 0.08),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.baseline,
+                crossAxisAlignment: paintStarGlyph
+                    ? CrossAxisAlignment.center
+                    : CrossAxisAlignment.baseline,
                 textBaseline: TextBaseline.alphabetic,
                 children: [
                   // ✦ 在很多字体里视觉重心偏低，按字号比例轻微上移。
-                  Transform.translate(
-                    offset: Offset(0, -fontSize * 0.08),
-                    child: starText('✦'),
-                  ),
+                  if (paintStarGlyph)
+                    // 按原来的 ✦ 绘制，和数字共用填色及描边。
+                    SizedBox.square(
+                      dimension: textSize * 0.76,
+                      child: CustomPaint(
+                        painter: _ExportStarGlyphPainter(
+                          color: starsColor,
+                          strokeWidth: needsStroke ? textSize * 0.16 : 0,
+                        ),
+                      ),
+                    )
+                  else
+                    Transform.translate(
+                      offset: Offset(0, -fontSize * 0.08),
+                      child: starText('✦'),
+                    ),
                   const SizedBox(width: 1.5),
                   starText(digits),
                 ],
@@ -759,4 +995,48 @@ class B50GameCardWidget extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 四角星不依赖离屏画布可用的字体。
+class _ExportStarGlyphPainter extends CustomPainter {
+  final Color color;
+  final double strokeWidth;
+
+  const _ExportStarGlyphPainter({
+    required this.color,
+    required this.strokeWidth,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final radius = (size.shortestSide - strokeWidth) / 2;
+    final inner = radius * 0.35;
+    final star = Path()
+      ..moveTo(center.dx, center.dy - radius)
+      ..quadraticBezierTo(center.dx + inner, center.dy - inner,
+          center.dx + radius, center.dy)
+      ..quadraticBezierTo(center.dx + inner, center.dy + inner,
+          center.dx, center.dy + radius)
+      ..quadraticBezierTo(center.dx - inner, center.dy + inner,
+          center.dx - radius, center.dy)
+      ..quadraticBezierTo(center.dx - inner, center.dy - inner,
+          center.dx, center.dy - radius)
+      ..close();
+    if (strokeWidth > 0) {
+      canvas.drawPath(
+        star,
+        Paint()
+          ..color = const Color(0xFF1F1F1F)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = strokeWidth
+          ..strokeJoin = StrokeJoin.round,
+      );
+    }
+    canvas.drawPath(star, Paint()..color = color);
+  }
+
+  @override
+  bool shouldRepaint(_ExportStarGlyphPainter oldDelegate) =>
+      color != oldDelegate.color || strokeWidth != oldDelegate.strokeWidth;
 }

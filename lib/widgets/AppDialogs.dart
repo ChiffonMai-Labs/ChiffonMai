@@ -90,6 +90,9 @@ class AppAlertDialog extends StatelessWidget {
   final ShapeBorder? shape;
   final BoxConstraints? constraints;
 
+  /// 内容与操作区随状态切换时，平滑过渡整个对话框的高度。
+  final bool animateHeight;
+
   /// 底部按钮每行几个，不传时自动决定一行还是竖排。
   final int? actionColumns;
 
@@ -106,6 +109,7 @@ class AppAlertDialog extends StatelessWidget {
     this.shape,
     this.constraints,
     this.actionColumns,
+    this.animateHeight = false,
   });
 
   static const _cancelLabels = {
@@ -488,6 +492,45 @@ class AppAlertDialog extends StatelessWidget {
     if (body != null && (scrollable || body is Text)) {
       body = SingleChildScrollView(child: body);
     }
+    final layout = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (title != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+            child: _buildTitle(context),
+          ),
+        if (body != null)
+          Flexible(
+            child: Padding(
+              padding:
+                  contentPadding ?? const EdgeInsets.fromLTRB(20, 14, 20, 0),
+              child: Theme(
+                data: _contentTheme(context),
+                child: DefaultTextStyle.merge(
+                  style: TextStyle(
+                    fontSize: 14,
+                    height: 1.5,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                  child: body,
+                ),
+              ),
+            ),
+          ),
+        Padding(
+          padding: EdgeInsets.fromLTRB(
+              20, items.isEmpty ? 20 : 18, 20, items.isEmpty ? 0 : 20),
+          child: items.isEmpty
+              ? const SizedBox.shrink()
+              : LayoutBuilder(
+                  builder: (context, constraints) =>
+                      _buildActions(context, items, constraints.maxWidth),
+                ),
+        ),
+      ],
+    );
     return AppDialogEntrance(
       child: Dialog(
         backgroundColor: backgroundColor,
@@ -504,48 +547,33 @@ class AppAlertDialog extends StatelessWidget {
             explicitChildNodes: true,
             namesRoute: true,
             label: _textOf(title) ?? context.featureText('对话框'),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (title != null)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-                    child: _buildTitle(context),
-                  ),
-                if (body != null)
-                  Flexible(
-                    child: Padding(
-                      padding: contentPadding ??
-                          const EdgeInsets.fromLTRB(20, 14, 20, 0),
-                      child: Theme(
-                        data: _contentTheme(context),
-                        child: DefaultTextStyle.merge(
-                          style: TextStyle(
-                            fontSize: 14,
-                            height: 1.5,
-                            color: scheme.onSurfaceVariant,
-                          ),
-                          child: body,
-                        ),
-                      ),
-                    ),
-                  ),
-                Padding(
-                  padding: EdgeInsets.fromLTRB(
-                      20, items.isEmpty ? 20 : 18, 20, items.isEmpty ? 0 : 20),
-                  child: items.isEmpty
-                      ? const SizedBox.shrink()
-                      : LayoutBuilder(
-                          builder: (context, constraints) => _buildActions(
-                              context, items, constraints.maxWidth),
-                        ),
-                ),
-              ],
-            ),
+            child:
+                animateHeight ? AppDialogAnimatedHeight(child: layout) : layout,
           ),
         ),
       ),
+    );
+  }
+}
+
+/// 跟随内容高度，用于状态切换或对话框内的局部展开。
+class AppDialogAnimatedHeight extends StatelessWidget {
+  const AppDialogAnimatedHeight({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final duration =
+        AppDesignTokens.motion(context, AppDesignTokens.mediumMotion);
+    return AnimatedSize(
+      // 避免在布局过程中同步完成动画，触发框架的布局断言。
+      duration: duration == Duration.zero
+          ? const Duration(microseconds: 1)
+          : duration,
+      curve: AppDesignTokens.emphasizedCurve,
+      alignment: Alignment.topCenter,
+      child: child,
     );
   }
 }
@@ -742,13 +770,13 @@ Future<void> showAppNoticeDialog(
   );
 }
 
-/// 不可取消的进度提示；由调用方在任务结束后 pop。
-Future<void> showAppProgressDialog(
+/// 显示进度提示，并返回本次对话框路由供调用方准确关闭。
+DialogRoute<void> showAppProgressDialog(
   BuildContext context, {
   required String title,
   required String message,
 }) {
-  return showDialog<void>(
+  final route = DialogRoute<void>(
     context: context,
     barrierDismissible: false,
     builder: (_) => AppDialog(
@@ -767,4 +795,15 @@ Future<void> showAppProgressDialog(
       ),
     ),
   );
+  Navigator.of(context, rootNavigator: true).push(route);
+  return route;
+}
+
+void dismissAppProgressDialog(DialogRoute<void> route) {
+  final navigator = route.navigator;
+  if (route.isCurrent) {
+    navigator?.pop();
+  } else if (route.isActive) {
+    navigator?.removeRoute(route);
+  }
 }

@@ -800,6 +800,8 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
   // ───────────────────────── 导出 ─────────────────────────
 
   Future<bool> _requestStoragePermission() async {
+    if (Platform.isIOS) return true; // 写入相册时由 PhotoKit 请求权限。
+
     if (Platform.isAndroid) {
       final storage = await Permission.storage.status;
       final photos = await Permission.photos.status;
@@ -863,6 +865,7 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
       ),
       exportingLabel: context.l10n.featureCreateBest50,
       enableThunderMode: true,
+      enableBest50Background: true,
       previewBuilder: (previewContext, previewQuality) =>
           PersonalizedB50ConvertToImg.buildPreviewWidget(
         previewContext,
@@ -874,6 +877,7 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
         thunderMode: previewQuality.thunderMode,
         thunderVertical: previewQuality.thunderVertical,
         theme: previewQuality.theme,
+        background: previewQuality.background,
       ),
     );
     if (!mounted || quality == null) return;
@@ -887,6 +891,7 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
         _maimaiMusicData,
         jpegQuality: quality.jpegQuality,
         theme: quality.theme,
+        background: quality.background,
         warningText: _warningText,
         sortLabel: _sortLabel,
         thunderMode: quality.thunderMode,

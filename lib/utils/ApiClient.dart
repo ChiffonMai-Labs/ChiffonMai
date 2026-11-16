@@ -14,6 +14,21 @@ import 'package:my_first_flutter_app/api/ApiUrls.dart';
 /// 可将网络耗时从数分钟降低到数十秒。
 class ApiClient {
   static const _defaultTimeout = Duration(seconds: 15);
+  static const _publicDataSources = {
+    ApiUrls.DXDataApi: 'dxdata',
+    ApiUrls.MusicDataApi: 'waterfish-songs',
+    ApiUrls.DiffMusicDataApi: 'waterfish-chart-stats',
+    ApiUrls.UnionMusicDataApi: 'union-songs',
+    ApiUrls.UnionApi: 'union-metadata',
+    ApiUrls.LuoXueSongsApi: 'lxns-songs',
+    ApiUrls.AwmcNetMusicDataApi: 'awmc-net-songs',
+    ApiUrls.TagDataApi: 'dxrating-tags',
+    ApiUrls.SongAliasApi: 'yuzuchan-aliases',
+    ApiUrls.DXRatingSongAliasApi: 'dxrating-aliases',
+    ApiUrls.MaimaiHubMusicCatalogUrl: 'score-hub-songs',
+    ApiUrls.MaimaiHubMusicAliasesUrl: 'score-hub-aliases',
+    ApiUrls.ServerStatusApi: 'cabinet-status',
+  };
 
   /// 共享的 HTTP 客户端，复用 TCP 连接
   static http.Client? _sharedClient;
@@ -57,10 +72,87 @@ class ApiClient {
     Uri url, {
     Map<String, String>? headers,
     Duration timeout = _defaultTimeout,
-  }) {
-    return _client
-        .get(url, headers: _mergeHeaders(url, headers))
-        .timeout(timeout);
+  }) =>
+      _read('GET', url, headers, timeout);
+
+  static Future<http.Response> _read(
+    String method,
+    Uri url,
+    Map<String, String>? headers,
+    Duration timeout,
+  ) async {
+    final source = _publicDataSources[url.toString()];
+    // 公共快照只接受条件请求头；带用户上下文的请求沿用原路由。
+    final mayProxy = source != null &&
+        (headers?.keys.every((name) => const {
+                  'if-none-match',
+                  'content-type',
+                  'accept'
+                }.contains(name.toLowerCase())) ??
+            true);
+    if (mayProxy) {
+      final proxy = Uri.parse('${ApiUrls.PublicDataUrl}/$source');
+      final proxyTimeout =
+          Duration(seconds: source == 'dxdata' && method == 'GET' ? 12 : 5);
+      try {
+        final response = await _readAbortable(
+          method,
+          proxy,
+          {
+            for (final header
+                in headers?.entries ?? const <MapEntry<String, String>>[])
+              if (header.key.toLowerCase() == 'if-none-match')
+                header.key: header.value,
+          },
+          timeout < proxyTimeout ? timeout : proxyTimeout,
+          followRedirects: false,
+        );
+        if (response.headers.containsKey('x-public-data-cache') &&
+            (response.statusCode == 304 ||
+                (response.statusCode == 200 &&
+                    response.headers['content-type']
+                            ?.startsWith('application/json') ==
+                        true))) {
+          return response;
+        }
+      } on Exception {
+        // 自家快照无法使用时，请求原数据源。
+      }
+    }
+    final original = method == 'HEAD'
+        ? _client.head(url, headers: _mergeHeaders(url, headers))
+        : _client.get(url, headers: _mergeHeaders(url, headers));
+    return original.timeout(timeout);
+  }
+
+  /// 批量下载超时时终止底层请求，避免占用连接继续排队。
+  static Future<http.Response> getAbortable(
+    Uri url, {
+    Duration timeout = _defaultTimeout,
+  }) =>
+      _readAbortable('GET', url, null, timeout);
+
+  static Future<http.Response> _readAbortable(
+    String method,
+    Uri url,
+    Map<String, String>? headers,
+    Duration timeout, {
+    bool followRedirects = true,
+  }) async {
+    final abort = Completer<void>();
+    final request =
+        http.AbortableRequest(method, url, abortTrigger: abort.future)
+          ..followRedirects = followRedirects
+          ..headers.addAll(_mergeHeaders(url, headers));
+    try {
+      return await _client
+          .send(request)
+          .then(http.Response.fromStream)
+          .timeout(timeout);
+    } on TimeoutException {
+      abort.complete();
+      rethrow;
+    }
   }
 
   /// 音源等大文件按流读取，避免先把完整文件加载进内存。
@@ -82,11 +174,8 @@ class ApiClient {
     Uri url, {
     Map<String, String>? headers,
     Duration timeout = _defaultTimeout,
-  }) {
-    return _client
-        .head(url, headers: _mergeHeaders(url, headers))
-        .timeout(timeout);
-  }
+  }) =>
+      _read('HEAD', url, headers, timeout);
 
   static Future<http.Response> post(
     Uri url, {

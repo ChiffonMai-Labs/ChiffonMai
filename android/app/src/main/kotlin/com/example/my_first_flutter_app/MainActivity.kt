@@ -13,6 +13,9 @@ import android.content.ActivityNotFoundException
 import android.database.Cursor
 import android.net.Uri
 import android.os.Build
+import android.os.Environment
+import android.os.storage.StorageManager
+import android.provider.DocumentsContract
 import android.provider.MediaStore
 import android.provider.OpenableColumns
 import android.view.Display
@@ -27,7 +30,9 @@ import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
+import java.io.IOException
 import java.io.OutputStream
+import java.util.concurrent.Executors
 
 /**
  * 主 Activity。
@@ -52,6 +57,8 @@ class MainActivity : AudioServiceActivity() {
     }
 
     companion object {
+        private val galleryWriter = Executors.newSingleThreadExecutor()
+
         /** 桌面小组件点击时带的功能名，见 [HomeWidgetStore]。 */
         const val EXTRA_WIDGET_ACTION = "home_widget_action"
     }
@@ -87,8 +94,10 @@ class MainActivity : AudioServiceActivity() {
 
     /// 图片导出完成的系统通知。
     private val EXPORT_NOTIFICATION_CHANNEL = "com.example.app/export_notification"
+    private val EXPORT_FILES_CHANNEL = "com.example.app/export_files"
     private val CRASH_REPORT_CHANNEL = "com.example.app/crash_report"
     private var statusBarHidden: Boolean? = null
+    private var pvFullscreen = false
 
     /**
      * 随身听自定义通知栏通道。
@@ -244,10 +253,20 @@ class MainActivity : AudioServiceActivity() {
                 }
             }
 
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, EXPORT_FILES_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                if (call.method == "openFolder") {
+                    result.success(openExportFolder(call.argument<String>("path")))
+                } else {
+                    result.notImplemented()
+                }
+            }
+
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SYSTEM_UI_CHANNEL)
             .setMethodCallHandler { call, result ->
                 if (call.method == "setStatusBarHidden") {
                     statusBarHidden = call.argument<Boolean>("hidden") ?: false
+                    pvFullscreen = call.argument<Boolean>("fullscreen") ?: false
                     applyStatusBarVisibility()
                     result.success(null)
                 } else {
@@ -303,11 +322,14 @@ class MainActivity : AudioServiceActivity() {
                 val fileName = call.argument<String>("fileName")
                 
                 if (imageBytes != null && fileName != null) {
-                    val path = saveImageToGallery(imageBytes, fileName)
-                    if (path != null) {
-                        result.success(path)
-                    } else {
-                        result.error("FAILED", "Failed to save image", null)
+                    // MediaStore 的查询和写入可能较慢，放到后台串行执行。
+                    galleryWriter.execute {
+                        val path = saveImageToGallery(imageBytes, fileName)
+                        if (path != null) {
+                            result.success(path)
+                        } else {
+                            result.error("FAILED", "Failed to save image", null)
+                        }
                     }
                 } else {
                     result.error("INVALID_ARGUMENTS", "Missing arguments", null)
@@ -368,17 +390,19 @@ class MainActivity : AudioServiceActivity() {
         // Android 14 及以前同时保留窗口级全屏标志，避免部分系统在刷新浅色
         // 状态栏外观时把 InsetsController 的隐藏请求覆盖。只隐藏顶部系统栏。
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-            if (hidden) window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
+            if (hidden || pvFullscreen) window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
             else window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             window.insetsController?.let { controller ->
-                controller.systemBarsBehavior = WindowInsetsController.BEHAVIOR_DEFAULT
-                controller.show(WindowInsets.Type.navigationBars())
-                if (hidden) {
-                    controller.hide(WindowInsets.Type.statusBars())
+                if (pvFullscreen) {
+                    controller.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                    controller.hide(WindowInsets.Type.systemBars())
                 } else {
-                    controller.show(WindowInsets.Type.statusBars())
+                    controller.systemBarsBehavior = WindowInsetsController.BEHAVIOR_DEFAULT
+                    controller.show(WindowInsets.Type.navigationBars())
+                    if (hidden) controller.hide(WindowInsets.Type.statusBars())
+                    else controller.show(WindowInsets.Type.statusBars())
                 }
             }
         } else {
@@ -386,8 +410,12 @@ class MainActivity : AudioServiceActivity() {
             var flags = decor.systemUiVisibility and
                 (View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE or
                     View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY).inv()
-            flags = if (hidden) flags or View.SYSTEM_UI_FLAG_FULLSCREEN
-                else flags and View.SYSTEM_UI_FLAG_FULLSCREEN.inv()
+            flags = when {
+                pvFullscreen -> flags or View.SYSTEM_UI_FLAG_FULLSCREEN or
+                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                hidden -> flags or View.SYSTEM_UI_FLAG_FULLSCREEN
+                else -> flags and View.SYSTEM_UI_FLAG_FULLSCREEN.inv()
+            }
             decor.systemUiVisibility = flags
         }
         // 让 Flutter 重新取得真实的状态栏、刘海和导航栏安全区域，不补固定边距。
@@ -591,17 +619,10 @@ class MainActivity : AudioServiceActivity() {
         }
     }
 
-    /** 从 VIEW / SEND intent 里取出文件并转交给 Dart。 */
+    /** 核对系统传入的收藏夹文件，再转交给 Dart。 */
     private fun handleImportIntent(intent: Intent?) {
-        if (intent == null) return
-
-        // 声明为不可空 Uri：`?: return` 已经把空分支挡掉了，
-        // 若写成 Uri? 会保留可空类型，后面传给 copyToCache 时无法通过编译
-        val uri: Uri = when (intent.action) {
-            Intent.ACTION_VIEW -> intent.data
-            Intent.ACTION_SEND -> extractSendStream(intent)
-            else -> null
-        } ?: return
+        if (intent?.action != Intent.ACTION_VIEW) return
+        val uri = intent.data ?: return
 
         // 消费掉这个 intent。Activity 因进程被回收后重建时，系统会把 getIntent()
         // 原样重放一遍，不清掉的话同一个文件会被反复弹导入框。
@@ -609,7 +630,14 @@ class MainActivity : AudioServiceActivity() {
         intent.data = null
         intent.removeExtra(Intent.EXTRA_STREAM)
 
-        val localPath = copyToCache(uri) ?: return
+        val displayName = when (uri.scheme) {
+            "content" -> queryDisplayName(uri) ?: uri.lastPathSegment
+            "file" -> uri.lastPathSegment
+            else -> null
+        } ?: return
+        if (!displayName.endsWith(".cmf", ignoreCase = true)) return
+
+        val localPath = copyToCache(uri, displayName) ?: return
 
         pendingImportPath = localPath
 
@@ -622,25 +650,14 @@ class MainActivity : AudioServiceActivity() {
         }
     }
 
-    @Suppress("DEPRECATION")
-    private fun extractSendStream(intent: Intent): Uri? {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
-        } else {
-            intent.getParcelableExtra(Intent.EXTRA_STREAM) as? Uri
-        }
-    }
-
     /**
      * 把 content:// 指向的文件复制进应用缓存目录。
      *
-     * Dart 的 `File(path)` 只认真实文件系统路径，而文件管理器和分享传进来的
-     * 多半是 content:// URI，必须先落盘成普通文件。
+     * 文件管理器通常传来 content:// URI，需要落盘后交给 Dart 的 `File(path)` 读取。
      */
-    private fun copyToCache(uri: Uri): String? {
+    private fun copyToCache(uri: Uri, displayName: String): String? {
         val maxImportBytes = 50L * 1024L * 1024L
         return try {
-            val displayName = queryDisplayName(uri) ?: "import_${System.currentTimeMillis()}"
             val safeName = displayName.replace(Regex("[\\\\/:*?\"<>|]"), "_")
             val dir = File(cacheDir, "incoming_imports")
             if (!dir.exists()) dir.mkdirs()
@@ -765,6 +782,49 @@ class MainActivity : AudioServiceActivity() {
         ) || tryStartActivity(
             Intent(Intent.ACTION_VIEW, MediaStore.Images.Media.EXTERNAL_CONTENT_URI),
         )
+    }
+
+    private fun openExportFolder(path: String?): Boolean {
+        if (path.isNullOrBlank()) return false
+        return try {
+            val folder = File(path).canonicalFile
+            if (!folder.isDirectory) return false
+            val primary = Environment.getExternalStorageDirectory().canonicalFile
+            val (volumeId, volumeRoot) = if (folder.startsWith(primary)) {
+                "primary" to primary
+            } else {
+                val storage = getSystemService(StorageManager::class.java)
+                val volume = storage?.getStorageVolume(folder)
+                val id = volume?.uuid ?: return false
+                id to File("/storage", id).canonicalFile
+            }
+            if (!folder.startsWith(volumeRoot)) return false
+            val relativePath = folder.toRelativeString(volumeRoot)
+            // 外部存储提供器不向系统文件管理器暴露应用私有目录。
+            val segments = relativePath.lowercase().split('/')
+            if (segments.firstOrNull() == "android" &&
+                segments.getOrNull(1) in listOf("data", "obb")
+            ) return false
+
+            val uri = DocumentsContract.buildDocumentUri(
+                "com.android.externalstorage.documents",
+                "$volumeId:$relativePath"
+            )
+            val viewFolder = Intent(Intent.ACTION_VIEW)
+                .setDataAndType(uri, DocumentsContract.Document.MIME_TYPE_DIR)
+            if (tryStartActivity(viewFolder)) return true
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return false
+            // 文件管理器未注册目录查看时，使用系统文件浏览界面定位到同一目录。
+            tryStartActivity(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "*/*"
+                putExtra(DocumentsContract.EXTRA_INITIAL_URI, uri)
+            })
+        } catch (_: IOException) {
+            false
+        } catch (_: SecurityException) {
+            false
+        }
     }
 
     private fun tryStartActivity(intent: Intent): Boolean {

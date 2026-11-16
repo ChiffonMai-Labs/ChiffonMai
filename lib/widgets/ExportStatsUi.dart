@@ -19,6 +19,8 @@ export '../utils/ExportImageTheme.dart';
 /// 导出图片的根：铺页面底色，把主题传给里面所有组件。
 class ExportPage extends StatelessWidget {
   final ExportImageTheme theme;
+  final Best50ExportBackground background;
+  final ImageRepeat backgroundRepeat;
   final double? width;
   final double? height;
   final EdgeInsetsGeometry? padding;
@@ -27,6 +29,8 @@ class ExportPage extends StatelessWidget {
   const ExportPage({
     super.key,
     required this.theme,
+    this.background = Best50ExportBackground.none,
+    this.backgroundRepeat = ImageRepeat.noRepeat,
     this.width,
     this.height,
     this.padding,
@@ -35,13 +39,26 @@ class ExportPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final image = background.image;
     return ExportThemeScope(
       theme: theme,
       child: Container(
         width: width,
         height: height,
         padding: padding,
-        color: ExportPalette.forTheme(theme).page,
+        decoration: BoxDecoration(
+          color: ExportPalette.forTheme(theme).page,
+          image: image == null
+              ? null
+              : DecorationImage(
+                  image: image,
+                  fit: backgroundRepeat == ImageRepeat.noRepeat
+                      ? BoxFit.fill
+                      : BoxFit.contain,
+                  alignment: Alignment.topLeft,
+                  repeat: backgroundRepeat,
+                ),
+        ),
         child: child,
       ),
     );
@@ -362,9 +379,15 @@ class ExportHeroBlock extends StatelessWidget {
   final String label;
   final String value;
   final String? caption;
+  final bool centered;
 
-  const ExportHeroBlock(
-      {super.key, required this.label, required this.value, this.caption});
+  const ExportHeroBlock({
+    super.key,
+    required this.label,
+    required this.value,
+    this.caption,
+    this.centered = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -381,16 +404,18 @@ class ExportHeroBlock extends StatelessWidget {
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment:
+            centered ? CrossAxisAlignment.center : CrossAxisAlignment.start,
         children: [
           Text(label,
+              textAlign: centered ? TextAlign.center : TextAlign.start,
               style: TextStyle(
                   fontSize: 26,
                   fontWeight: FontWeight.w600,
                   color: Colors.white.withValues(alpha: 0.85))),
           FittedBox(
             fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
+            alignment: centered ? Alignment.center : Alignment.centerLeft,
             child: Text(value,
                 maxLines: 1,
                 style: const TextStyle(
@@ -401,6 +426,7 @@ class ExportHeroBlock extends StatelessWidget {
           ),
           if (caption != null)
             Text(caption!,
+                textAlign: centered ? TextAlign.center : TextAlign.start,
                 style: TextStyle(
                     fontSize: 24, color: Colors.white.withValues(alpha: 0.85))),
         ],
@@ -415,6 +441,8 @@ class ExportStatBlock extends StatelessWidget {
   final String value;
   final String? caption;
   final Color? valueColor;
+  final double valueSize;
+  final bool centered;
 
   /// 差值类的数字：true 用正向色，false 用负向色。
   final bool? positive;
@@ -425,7 +453,9 @@ class ExportStatBlock extends StatelessWidget {
     required this.value,
     this.caption,
     this.valueColor,
+    this.valueSize = 38,
     this.positive,
+    this.centered = false,
   });
 
   @override
@@ -440,11 +470,12 @@ class ExportStatBlock extends StatelessWidget {
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment:
+            centered ? CrossAxisAlignment.center : CrossAxisAlignment.start,
         children: [
           FittedBox(
             fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
+            alignment: centered ? Alignment.center : Alignment.centerLeft,
             child: Text(label,
                 maxLines: 1,
                 style: TextStyle(
@@ -452,11 +483,11 @@ class ExportStatBlock extends StatelessWidget {
           ),
           FittedBox(
             fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
+            alignment: centered ? Alignment.center : Alignment.centerLeft,
             child: Text(value,
                 maxLines: 1,
                 style: TextStyle(
-                    fontSize: 38,
+                    fontSize: valueSize,
                     fontWeight: FontWeight.w800,
                     color: valueColor ??
                         (signed == null
@@ -464,7 +495,9 @@ class ExportStatBlock extends StatelessWidget {
                             : (signed ? c.positive : c.negative)))),
           ),
           if (caption != null)
-            Text(caption!, style: TextStyle(fontSize: 20, color: c.muted)),
+            Text(caption!,
+                textAlign: centered ? TextAlign.center : TextAlign.start,
+                style: TextStyle(fontSize: 20, color: c.muted)),
         ],
       ),
     );
@@ -475,6 +508,7 @@ class ExportStatBlock extends StatelessWidget {
 class ExportAchievementBlock extends StatelessWidget {
   final String label;
   final double achievement;
+  final bool centered;
 
   /// 0–1。
   final double scoreRate;
@@ -484,6 +518,7 @@ class ExportAchievementBlock extends StatelessWidget {
     required this.label,
     required this.achievement,
     required this.scoreRate,
+    this.centered = false,
   });
 
   @override
@@ -501,15 +536,17 @@ class ExportAchievementBlock extends StatelessWidget {
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment:
+            centered ? CrossAxisAlignment.center : CrossAxisAlignment.start,
         children: [
           Text(label,
+              textAlign: centered ? TextAlign.center : TextAlign.start,
               style: TextStyle(
                   fontSize: 22, fontWeight: FontWeight.w600, color: c.muted)),
           const SizedBox(height: 2),
           FittedBox(
             fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
+            alignment: centered ? Alignment.center : Alignment.centerLeft,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.baseline,
               textBaseline: TextBaseline.alphabetic,
@@ -620,6 +657,7 @@ class ExportCompletionPanel extends StatelessWidget {
                 Expanded(
                   flex: 3,
                   child: ExportHeroBlock(
+                    centered: true,
                     label: context.l10n.flowCompletionRate,
                     value: '${completionRate.toStringAsFixed(1)}%',
                     caption: '$completed / $total',
@@ -629,11 +667,14 @@ class ExportCompletionPanel extends StatelessWidget {
                 Expanded(
                     flex: 2,
                     child: ExportStatBlock(
-                        label: context.l10n.flowTotalSongs, value: '$total')),
+                        centered: true,
+                        label: context.l10n.flowTotalSongs,
+                        value: '$total')),
                 const SizedBox(width: 10),
                 Expanded(
                     flex: 2,
                     child: ExportStatBlock(
+                        centered: true,
                         label: context.l10n.flowCompleted,
                         value: '$completed',
                         positive: true)),
@@ -641,12 +682,14 @@ class ExportCompletionPanel extends StatelessWidget {
                 Expanded(
                     flex: 2,
                     child: ExportStatBlock(
+                        centered: true,
                         label: context.l10n.flowIncomplete,
                         value: '${total - completed}')),
                 const SizedBox(width: 10),
                 Expanded(
                     flex: 3,
                     child: ExportStatBlock(
+                        centered: true,
                         label: context.l10n.featureAverageAchievement,
                         value: '${averageAchievement.toStringAsFixed(2)}%')),
               ],

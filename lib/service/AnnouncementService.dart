@@ -117,10 +117,55 @@ class Announcement {
       };
 }
 
+typedef AnnouncementSummary = ({
+  String id,
+  String title,
+  DateTime? publishedAt,
+});
+
 /// 每次启动检查服务器；正文与 ETag 同条存储，失败时回退有效缓存。
 class AnnouncementService {
   static const cacheKey = 'announcement_cache_v1';
   static const dismissedKey = 'announcement_dismissed_v1';
+
+  Future<({List<AnnouncementSummary> items, int? nextOffset})> loadList(
+      {int offset = 0}) async {
+    final body = await _loadArchive(Uri.parse(ApiUrls.AnnouncementsUrl)
+        .replace(queryParameters: {'offset': '$offset'}));
+    final rows = body['announcements'] as List;
+    final next = body['nextOffset'] as int?;
+    return (
+      items: rows.map<AnnouncementSummary>((row) {
+        final date = row['publishedAt'] as String?;
+        return (
+          id: row['id'] as String,
+          title: row['title'] as String,
+          publishedAt: date == null ? null : DateTime.parse(date).toUtc(),
+        );
+      }).toList(growable: false),
+      nextOffset: next != null && next > offset ? next : null,
+    );
+  }
+
+  Future<Announcement> loadDetail(String id) async {
+    final body = await _loadArchive(Uri.parse(
+        '${ApiUrls.AnnouncementsUrl}/detail/${Uri.encodeComponent(id)}'));
+    return Announcement.fromJson(
+        Map<String, dynamic>.from(body['announcement'] as Map));
+  }
+
+  Future<Map<String, dynamic>> _loadArchive(Uri uri) async {
+    final response =
+        await ApiClient.get(uri, timeout: const Duration(seconds: 10));
+    if (response.statusCode != 200 || response.bodyBytes.length > 256 * 1024) {
+      throw const FormatException('公告响应无效');
+    }
+    final body = jsonDecode(utf8.decode(response.bodyBytes));
+    if (body is! Map<String, dynamic> || body['success'] != true) {
+      throw const FormatException('公告响应无效');
+    }
+    return body;
+  }
 
   Future<Announcement?> load() async {
     final prefs = await SharedPreferences.getInstance();

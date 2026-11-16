@@ -742,9 +742,12 @@ class _UpdateCalendarPageState extends State<UpdateCalendarPage> {
         : context.l10n.flowP0P1P2((date.month).toString(),
             (date.day).toString(), (_weekdays[date.weekday - 1]).toString());
     final charts = entries.fold<int>(0, (sum, e) => sum + e.chartCount);
-    // 落雪会提前录入下一次更新的日期。
-    final upcoming =
-        entries.isNotEmpty && date != null && date.isAfter(DateTime.now());
+    // 落雪会提前录入下一次更新的日期。国服按北京时间（UTC+8）上线，与设备时区无关。
+    final beijingToday =
+        _dateKey(DateTime.now().toUtc().add(const Duration(hours: 8)));
+    final upcoming = entries.isNotEmpty &&
+        date != null &&
+        _selectedDate!.compareTo(beijingToday) > 0;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.baseline,
       textBaseline: TextBaseline.alphabetic,

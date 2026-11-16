@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -37,6 +36,7 @@ class RatingHistoryExportService {
   }) async {
     if (points.isEmpty) return null;
     OverlayEntry? overlayEntry;
+    var overlayInserted = false;
     try {
       final status = await _requestStoragePermission();
       final globalKey = GlobalKey();
@@ -56,23 +56,25 @@ class RatingHistoryExportService {
         ),
       );
       Overlay.of(context).insert(overlayEntry);
-      await _waitForRender();
+      overlayInserted = true;
+      await ImageEncodeUtil.waitForRender(settle: const Duration(milliseconds: 600));
 
       final boundary = globalKey.currentContext?.findRenderObject()
           as RenderRepaintBoundary?;
       if (boundary == null) {
         overlayEntry.remove();
+        overlayInserted = false;
         return null;
       }
       final encoded = await ImageEncodeUtil.encodeBoundary(boundary,
           jpegQuality: jpegQuality);
       overlayEntry.remove();
-      overlayEntry = null;
+      overlayInserted = false;
       return await _saveImage(encoded.bytes, status.isGranted,
           extension: encoded.extension);
     } catch (e) {
       debugPrint('[RatingHistoryExport] 导出失败: $e');
-      overlayEntry?.remove();
+      if (overlayInserted) overlayEntry?.remove();
       return null;
     }
   }
@@ -246,6 +248,8 @@ class RatingHistoryExportService {
   }
 
   static Future<PermissionStatus> _requestStoragePermission() async {
+    if (Platform.isIOS) return PermissionStatus.denied; // 先保存到应用文档。
+
     final status = await Permission.storage.status;
     final photoStatus = await Permission.photos.status;
     final videoStatus = await Permission.videos.status;
@@ -323,13 +327,4 @@ class RatingHistoryExportService {
     }
   }
 
-  static Future<void> _waitForRender() async {
-    for (var i = 0; i < 2; i++) {
-      final frame = Completer<void>();
-      WidgetsBinding.instance.addPostFrameCallback((_) => frame.complete());
-      await frame.future;
-    }
-    // 曲线有入场动画，等它画完再截图
-    await Future<void>.delayed(const Duration(milliseconds: 600));
-  }
 }

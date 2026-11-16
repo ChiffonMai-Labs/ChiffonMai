@@ -2,7 +2,6 @@ import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 
 import '../../manager/DivingFish/MaimaiMusicDataManager.dart';
-import '../../service/ConnectivityService.dart';
 import '../../widgets/AppToast.dart';
 
 /// 单人猜歌页「开局取曲」失败时的兜底视图。
@@ -70,10 +69,7 @@ class GuessChartLoadingView extends StatefulWidget {
   ///
   /// 用 `forceNetwork: true`：失败态下缓存时间戳不可信（可能刚被清掉、
   /// 也可能是旧的），只有强刷才能保证「点一下真的去拿了」。
-  static Future<bool> refreshSongLibrary() async {
-    if (!await ConnectivityService().hasConnection()) {
-      return false;
-    }
+  static Future<bool> refreshSongLibrary() {
     return MaimaiMusicDataManager().fetchAndUpdateMusicData(forceNetwork: true);
   }
 

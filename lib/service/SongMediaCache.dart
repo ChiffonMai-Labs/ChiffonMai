@@ -12,6 +12,27 @@ import '../utils/ApiClient.dart';
 typedef MediaCacheProgress = void Function(
     double? progress, double bytesPerSecond, String status);
 
+class _MediaCacheDownload {
+  late final Future<File> file;
+  final _listeners = <MediaCacheProgress>[];
+  (double?, double, String)? _latestProgress;
+
+  void addListener(MediaCacheProgress listener) {
+    _listeners.add(listener);
+    if (_latestProgress case (final progress, final speed, final status)) {
+      listener(progress, speed, status);
+    }
+  }
+
+  void report(double? progress, double speed, String status) {
+    _latestProgress = (progress, speed, status);
+    final listenerCount = _listeners.length;
+    for (var i = 0; i < listenerCount; i++) {
+      _listeners[i](progress, speed, status);
+    }
+  }
+}
+
 /// 播放、猜歌和导出共用音源缓存；PV 使用独立目录。
 /// 只有完整文件才会发布到正式路径，同一资源的并发请求共用一次下载。
 class SongMediaCache {
@@ -30,7 +51,7 @@ class SongMediaCache {
   final Future<Directory> Function() _temporary;
   final Future<http.StreamedResponse> Function(Uri, Map<String, String>) _fetch;
   final bool readLegacyCache;
-  final Map<String, Future<File>> _inFlight = {};
+  final Map<String, _MediaCacheDownload> _inFlight = {};
   final Map<String, int> _generation = {'audio': 0, 'pv': 0};
   late final _legacy = CacheManager(Config('music_cache',
       stalePeriod: const Duration(days: 30), maxNrOfCacheObjects: 1000));
@@ -155,20 +176,25 @@ class SongMediaCache {
       AppTaskActivity.run(() async {
         final taskKey = '$kind/$key';
         final running = _inFlight[taskKey];
-        if (running != null) return running;
+        if (running != null) {
+          if (onProgress != null) running.addListener(onProgress);
+          return running.file;
+        }
         final generation = _generation[kind]!;
-        final task = () async {
+        final task = _MediaCacheDownload();
+        if (onProgress != null) task.addListener(onProgress);
+        task.file = () async {
           final cached = await existing();
           if (_generation[kind] != generation) throw StateError('缓存已清理');
           if (cached != null) {
-            onProgress?.call(1, 0, appL10n.svcLoadedP0FromTheLocalCache((kind == 'audio' ? appL10n.svcAudio : 'PV').toString()));
+            task.report(1, 0, appL10n.svcLoadedP0FromTheLocalCache((kind == 'audio' ? appL10n.svcAudio : 'PV').toString()));
             return cached;
           }
-          return _download(kind, key, urls, headers, generation, onProgress);
+          return _download(kind, key, urls, headers, generation, task.report);
         }();
         _inFlight[taskKey] = task;
         try {
-          return await task;
+          return await task.file;
         } finally {
           _inFlight.remove(taskKey);
         }
@@ -298,7 +324,7 @@ class SongMediaCache {
         .where((e) => e.key.startsWith('$kind/'))
         .map((e) async {
       try {
-        await e.value;
+        await e.value.file;
       } catch (_) {}
     }).toList());
     final root = await _documents();

@@ -6,6 +6,7 @@ class ApiUrls {
   // 其余第三方数据源 App 直连。
   static const String BackendBaseUrl = 'https://chiffonmai.cloud';
   static const String ProberBaseUrl = '$BackendBaseUrl/api/prober';
+  static const String PublicDataUrl = '$BackendBaseUrl/api/public-data';
 
   /// 同步耗时统计代理。Redis 凭据只保留在服务端，App 不再直连 Redis。
   static const String SyncStatsUrl = '$BackendBaseUrl/api/sync-stats';
@@ -14,8 +15,8 @@ class ApiUrls {
       '$BackendBaseUrl/api/auto-sync/overview';
   static const String LoadingTipsUrl = '$BackendBaseUrl/api/loading-tips';
   static const String FriendLinksUrl = '$BackendBaseUrl/api/friend-links';
-  static const String AnnouncementUrl =
-      '$BackendBaseUrl/api/announcements/current';
+  static const String AnnouncementsUrl = '$BackendBaseUrl/api/announcements';
+  static const String AnnouncementUrl = '$AnnouncementsUrl/current';
   static const String UpdateCalendarUrl = '$BackendBaseUrl/api/update-calendar';
   static const String MaintainerAvatarUrl =
       '$BackendBaseUrl/api/about/maintainer-avatar';
@@ -78,6 +79,8 @@ class ApiUrls {
       'https://maimai.lxns.net/api/v0/maimai/plate/list';
   static const String FramesCollectionApi =
       'https://maimai.lxns.net/api/v0/maimai/frame/list';
+  static const String CollectionCatalogUrl = '$BackendBaseUrl/api/collection-catalog';
+  static const String AwmcCollectionExportUrl = 'https://api.wmc.pub/api/collection/export';
   static const String LuoXueSongsApi =
       'https://maimai.lxns.net/api/v0/maimai/song/list';
 

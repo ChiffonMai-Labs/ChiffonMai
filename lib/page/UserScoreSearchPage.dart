@@ -4,6 +4,7 @@ import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import 'package:my_first_flutter_app/utils/StringUtil.dart';
 import 'package:my_first_flutter_app/utils/ColorUtil.dart';
+import '../service/SongSearchService.dart';
 import '../service/UserScoreSearchService.dart';
 import '../manager/DivingFish/MaimaiMusicDataManager.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
@@ -17,6 +18,7 @@ import '../utils/AppDesignTokens.dart';
 import '../utils/SearchInteractionPreferences.dart';
 import '../widgets/MarqueeText.dart';
 import '../widgets/AppDialogs.dart';
+import '../widgets/AppToast.dart';
 
 class UserScoreSearchPage extends StatefulWidget {
   /// 进入页面时直接打开搜索框（成绩 Hub 的搜索入口）。
@@ -79,9 +81,12 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
     return index < 0 ? buckets.length - 1 : index;
   }
 
-  /// 曲名 / 定数搜索。
   late bool _searchOpen = widget.openSearch;
   String _searchQuery = '';
+
+  /// 未输入关键词时为 null，空集合表示没有匹配的歌曲。
+  Set<String>? _matchedSongIds;
+  int _searchRequest = 0;
 
   int _rankBucketOf(dynamic song) {
     final a = double.tryParse(song['achievements']?.toString() ?? '0') ?? 0;
@@ -104,17 +109,15 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
     return 5;
   }
 
-  bool _matchesSearch(dynamic song) {
-    final q = _searchQuery.trim().toLowerCase();
-    if (q.isEmpty) return true;
-    return (song['title']?.toString() ?? '').toLowerCase().contains(q) ||
-        (song['ds']?.toString() ?? '').startsWith(q) ||
-        (song['song_id']?.toString() ?? '') == q;
+  /// 通过搜索后的成绩（评级分布的统计口径）。
+  List<dynamic> get _searchedSongs {
+    final ids = _matchedSongIds;
+    if (ids == null) return _sortedSongs;
+    return _searchedCache ??= _sortedSongs
+        .where((record) => ids.contains(record['song_id']?.toString()))
+        .toList();
   }
 
-  /// 通过搜索后的成绩（评级分布的统计口径）。
-  List<dynamic> get _searchedSongs =>
-      _searchedCache ??= _sortedSongs.where(_matchesSearch).toList();
   List<dynamic>? _searchedCache;
 
   /// 各分布的档位计数（键是分布序号）。切换分布只读这里，来回切不用重新统计。
@@ -560,13 +563,16 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
         IconButton(
           tooltip: _searchOpen
               ? context.l10n.flowCloseSearch
-              : context.l10n.flowSearchSongTitleOrConstant,
+              : context.l10n.featureSearch,
           onPressed: () {
             // 收起时先放掉焦点，退场动画期间输入法不会停在屏幕上
             if (_searchOpen) FocusManager.instance.primaryFocus?.unfocus();
             setState(() {
               _searchOpen = !_searchOpen;
-              if (!_searchOpen) _setSearchQuery('');
+              if (!_searchOpen) {
+                _searchRequest++;
+                _applySearchResult('', null);
+              }
             });
           },
           icon: Icon(_searchOpen ? Icons.close_rounded : Icons.search_rounded),
@@ -705,8 +711,30 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
     );
   }
 
-  void _setSearchQuery(String query) {
+  Future<void> _searchScores(String input) async {
+    if (!_searchOpen) return;
+    final request = ++_searchRequest;
+    final query = input.trim();
+    if (query.isEmpty) {
+      setState(() => _applySearchResult('', null));
+      return;
+    }
+
+    try {
+      final songs = await SongSearchService.searchSongs(query);
+      if (!mounted || request != _searchRequest) return;
+      final ids = {for (final song in songs) song.id};
+      setState(() => _applySearchResult(query, ids));
+    } catch (error) {
+      if (!mounted || request != _searchRequest) return;
+      AppToast.show(context.l10n.flowSearchFailedP0(error.toString()),
+          tone: AppToastTone.error);
+    }
+  }
+
+  void _applySearchResult(String query, Set<String>? ids) {
     _searchQuery = query;
+    _matchedSongIds = ids;
     _invalidateSongCaches();
     _currentPage = 1;
     _updatePagedSongs();
@@ -715,9 +743,9 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
   Widget _buildSearchField() {
     return TextField(
       autofocus: widget.openSearch,
-      onChanged: (value) => setState(() => _setSearchQuery(value)),
+      onChanged: _searchScores,
       decoration: InputDecoration(
-        hintText: context.l10n.featureFindScoresTitleConstantOrSongID,
+        hintText: context.l10n.featureTitleAliasIDArtistCharterBPM,
         prefixIcon: const Icon(Icons.search_rounded, size: 20),
         fillColor: AppSurfaces.card(context),
         contentPadding: const EdgeInsets.symmetric(vertical: 12),

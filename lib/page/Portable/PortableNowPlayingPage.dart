@@ -499,12 +499,20 @@ class _PortableNowPlayingPageState extends State<PortableNowPlayingPage>
                           previous: true,
                           enabled: !_isPreparing && _player.hasPrevious,
                         ),
-                        NowPlayingPlayButton(
-                          isPlaying: !_isPreparing && _player.isPlaying,
-                          isBusy: busy,
-                          enabled: !_isPreparing && !_player.isLoading,
-                          onPressed: _togglePlay,
-                          size: controlsHeight,
+                        ValueListenableBuilder(
+                          valueListenable: _player.audioLoadProgress,
+                          builder: (context, progress, _) =>
+                              NowPlayingPlayButton(
+                            isPlaying: !_isPreparing && _player.isPlaying,
+                            isBusy: busy,
+                            loadingProgress:
+                                progress?.songKey == song.portableKey
+                                    ? progress?.value
+                                    : null,
+                            enabled: !_isPreparing && !_player.isLoading,
+                            onPressed: _togglePlay,
+                            size: controlsHeight,
+                          ),
                         ),
                         _skipButton(
                           scheme,

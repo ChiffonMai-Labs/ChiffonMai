@@ -1,10 +1,12 @@
 import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import 'dart:async';
 import 'dart:isolate';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart' show compute, debugPrint;
 import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
+import 'package:flutter/widgets.dart' show WidgetsBinding;
 import 'package:image/image.dart' as img;
 import 'ExportDiagnostics.dart';
 
@@ -17,13 +19,8 @@ import 'ExportDiagnostics.dart';
 /// 8192 的上限。预览走的是屏幕渲染，不受影响。
 const double kMaxCaptureTextureSize = 8192.0;
 
-/// 允许压到的最小 pixelRatio。
-///
-/// **不是 1.0**：如果下限取 1.0，那张「逻辑高度本身就超过上限」的图会被
-/// clamp 顶回超限值，保护等于失效（原来的三份内联实现都是这个毛病）。
-/// 宁可出一张略缩的图，也不要黑屏。实际导出（宽 1200/1700、高几千）远够不到
-/// 这个下限，雷霆模式的单行 50 列（宽约 17500）会压到 0.47，仍在下限之上。
-const double kMinCapturePixelRatio = 0.4;
+// 整张截图还有原生纹理、像素读回和编码缓冲，单边限制无法约束总内存。
+const int _maxCapturePixels = 8000000;
 
 /// 编码好的导出图片。
 class EncodedImage {
@@ -54,9 +51,60 @@ Uint8List _rgbaToJpegWorker(_JpegJob job) {
   return img.encodeJpg(image, quality: job.quality);
 }
 
+void _runJpegExport((_JpegJob, SendPort) request) {
+  Isolate.exit(request.$2, _rgbaToJpegWorker(request.$1));
+}
+
 /// 图片编码工具类
 /// 提供导出截图的编码、文件大小预估等功能
 class ImageEncodeUtil {
+  /// 请求下一帧并等待绘制完成，避免静止页面只注册回调却没有新帧。
+  static Future<void> waitForFrame() {
+    final binding = WidgetsBinding.instance;
+    binding.scheduleFrame();
+    return binding.endOfFrame.timeout(const Duration(seconds: 15),
+        onTimeout: () =>
+            throw StateError(appL10n.svcTheExportCanvasIsNotReady));
+  }
+
+  static Future<void> waitForRender(
+      {int frames = 2,
+      Duration settle = const Duration(milliseconds: 500)}) async {
+    for (var i = 0; i < frames; i++) {
+      await waitForFrame();
+    }
+    await Future<void>.delayed(settle);
+  }
+
+  /// 根据物理边长和像素总量选择截图倍率，再应用 JPEG 档位的缩放比例。
+  static double safeCapturePixelRatio(double width, double height,
+      {double preferred = 3.0, int? jpegQuality}) {
+    if (!width.isFinite || !height.isFinite || width <= 0 || height <= 0) {
+      return preferred;
+    }
+    // 给向上取整预留一像素，确保物理尺寸和总面积都在预算以内。
+    final edgeRatio = (kMaxCaptureTextureSize - 1) / math.max(width, height);
+    final areaRatio = math.sqrt(
+        (_maxCapturePixels - 2 * kMaxCaptureTextureSize) / (width * height));
+    final baseRatio = math.min(preferred, math.min(edgeRatio, areaRatio));
+    return jpegQuality == null
+        ? baseRatio
+        : baseRatio * _scaleForQuality(jpegQuality);
+  }
+
+  static Future<ui.Image> _capture(
+      RenderRepaintBoundary boundary, double ratio) async {
+    var timedOut = false;
+    final pending = boundary.toImage(pixelRatio: ratio).then((image) {
+      if (timedOut) image.dispose();
+      return image;
+    });
+    return pending.timeout(const Duration(seconds: 30), onTimeout: () {
+      timedOut = true;
+      throw TimeoutException(appL10n.flowGeneratingImage);
+    });
+  }
+
   /// 把导出画布截成图片并编码。
   ///
   /// PNG 由引擎在后台线程编码。JPEG 直接按目标尺寸截图，再把原始像素转交给
@@ -67,12 +115,12 @@ class ImageEncodeUtil {
     int? jpegQuality,
   }) =>
       ExportDiagnostics.run('图片生成', (log) async {
-        var ratio =
-            safeCapturePixelRatio(boundary.size.width, boundary.size.height);
-        if (jpegQuality != null) {
-          ratio = math.max(
-              ratio * _scaleForQuality(jpegQuality), kMinCapturePixelRatio);
+        final size = boundary.size;
+        if (!size.isFinite || size.isEmpty) {
+          throw StateError(appL10n.svcTheExportCanvasIsNotReady);
         }
+        final ratio = safeCapturePixelRatio(size.width, size.height,
+            jpegQuality: jpegQuality);
         final expectedWidth = (boundary.size.width * ratio).ceil();
         final expectedHeight = (boundary.size.height * ratio).ceil();
         log.note('格式=${jpegQuality == null ? "PNG无损" : "JPEG Q$jpegQuality"} '
@@ -82,52 +130,77 @@ class ImageEncodeUtil {
             '预计RGBA=${(expectedWidth * expectedHeight * 4 / 1048576).toStringAsFixed(1)}MiB');
         ui.Image image;
         try {
-          image = await log.step(
-              '截图 toImage', () => boundary.toImage(pixelRatio: ratio));
+          image = await log.step('截图 toImage', () => _capture(boundary, ratio));
+        } on TimeoutException {
+          // 引擎没有取消截图的 API，超时后不要叠加同一张截图。
+          rethrow;
         } catch (e) {
-          debugPrint('导出截图失败，重试一次: $e');
-          await Future<void>.delayed(const Duration(milliseconds: 200));
+          debugPrint('导出截图失败，降低截图尺寸后重试: $e');
+          await waitForFrame();
           image = await log.step(
-              '重试截图 toImage', () => boundary.toImage(pixelRatio: ratio));
+              '缩小尺寸重试截图 toImage', () => _capture(boundary, ratio * 0.7));
         }
+        final width = image.width;
+        final height = image.height;
+        final ByteData? data;
         try {
           log.note('实际像素=${image.width}x${image.height} '
               '像素数=${image.width * image.height} '
               'RGBA占用估算=${(image.width * image.height * 4 / 1048576).toStringAsFixed(1)}MiB');
-          final data = await log.step(
+          data = await log.step(
             jpegQuality == null ? 'PNG编码 toByteData' : 'RGBA读回 toByteData',
-            () => image.toByteData(
-                format: jpegQuality == null
-                    ? ui.ImageByteFormat.png
-                    : ui.ImageByteFormat.rawRgba),
+            () => image
+                .toByteData(
+                    format: jpegQuality == null
+                        ? ui.ImageByteFormat.png
+                        : ui.ImageByteFormat.rawRgba)
+                .timeout(const Duration(seconds: 40)),
           );
-          if (data == null) throw Exception(appL10n.flowCouldNotReadImageData);
-          final bytes =
-              data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
-          log.note('读回数据=${bytes.lengthInBytes}B');
-          if (jpegQuality == null) {
-            log.note('PNG编码结果=${bytes.lengthInBytes}B');
-            return EncodedImage(bytes, 'png');
-          }
-          // 创建传输数据也需要复制像素，单独计时，避免混入后台编码耗时。
-          final pixels = await log.step('准备JPEG像素传输',
-              () async => TransferableTypedData.fromList([bytes]));
-          final jpeg = await log.step(
-            'JPEG后台编码 compute',
-            () => compute(
-              _rgbaToJpegWorker,
-              _JpegJob(pixels, image.width, image.height, jpegQuality),
-              debugLabel: 'export-jpeg',
-            ),
-          );
-          log.note('JPEG编码结果=${jpeg.lengthInBytes}B');
-          return EncodedImage(jpeg, 'jpg');
         } finally {
-          log.note('开始释放截图资源');
           image.dispose();
           log.note('截图资源已释放');
         }
+        if (data == null) throw Exception(appL10n.flowCouldNotReadImageData);
+        final bytes =
+            data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+        log.note('读回数据=${bytes.lengthInBytes}B');
+        if (jpegQuality == null) {
+          log.note('PNG编码结果=${bytes.lengthInBytes}B');
+          return EncodedImage(bytes, 'png');
+        }
+        // 创建传输数据也需要复制像素，单独计时，避免混入后台编码耗时。
+        final pixels = await log.step(
+            '准备JPEG像素传输', () async => TransferableTypedData.fromList([bytes]));
+        final jpeg = await log.step(
+          'JPEG后台编码',
+          () => _encodeJpegExport(_JpegJob(pixels, width, height, jpegQuality)),
+        );
+        log.note('JPEG编码结果=${jpeg.lengthInBytes}B');
+        return EncodedImage(jpeg, 'jpg');
       });
+
+  static Future<Uint8List> _encodeJpegExport(_JpegJob job) async {
+    final result = ReceivePort();
+    Isolate? worker;
+    try {
+      worker = await Isolate.spawn(
+        _runJpegExport,
+        (job, result.sendPort),
+        onError: result.sendPort,
+        onExit: result.sendPort,
+        debugName: 'export-jpeg',
+      );
+      final message = await result.first.timeout(const Duration(seconds: 60));
+      if (message is Uint8List) return message;
+      if (message is List && message.length == 2) {
+        throw RemoteError(message[0].toString(), message[1].toString());
+      }
+      throw StateError(appL10n.flowCouldNotReadImageData);
+    } finally {
+      worker?.kill(priority: Isolate.immediate);
+      result.close();
+    }
+  }
 
   /// 把图片编码成 JPEG，编码放在后台 isolate。
   static Future<Uint8List> encodeJpeg(ui.Image image,
@@ -141,33 +214,6 @@ class ImageEncodeUtil {
       _JpegJob(TransferableTypedData.fromList([bytes]), image.width,
           image.height, quality),
     );
-  }
-
-  /// 导出截图该用的 pixelRatio：优先 [preferred]，但**保证物理尺寸不超过
-  /// [kMaxCaptureTextureSize]**。
-  ///
-  /// 为什么必须有这道闸：B50 导出图很高（50 行，约 3600×7400 @3.0），
-  /// 物理边长一旦超过机型 GPU 的最大纹理尺寸，`toImage` 就会返回**空白/黑图**
-  /// —— 这就是「部分用户导出黑屏」；而同一次分配的位图可达上百 MB，
-  /// 又会把 App 拖死。机型越差越容易中，所以表现为「有人有问题有人没有」。
-  ///
-  /// 已经有 3 个导出服务（PaiziProgress / SongInfo / PersonalizedScore）
-  /// 各自内联过同一段逻辑，这里收成一份，别再抄第 7 份。
-  static double safeCapturePixelRatio(
-    double width,
-    double height, {
-    double preferred = 3.0,
-  }) {
-    if (width <= 0 || height <= 0) return preferred;
-    var ratio = preferred;
-    if (width * ratio > kMaxCaptureTextureSize) {
-      ratio = kMaxCaptureTextureSize / width;
-    }
-    if (height * ratio > kMaxCaptureTextureSize) {
-      ratio = kMaxCaptureTextureSize / height;
-    }
-    // 下限刻意低于 1.0：见 [kMinCapturePixelRatio] 的注释
-    return ratio.clamp(kMinCapturePixelRatio, preferred);
   }
 
   /// 根据 JPEG 质量计算缩放因子。

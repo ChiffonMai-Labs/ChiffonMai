@@ -5,55 +5,109 @@ part of '../SongInfoPage.dart';
 /// 2026-11 从 SongInfoPage.dart 原样拆出（方法体未改，仅 setState → _update）。
 extension _SongInfoWidgets on _SongInfoPageState {
   /// [value] 已经是「谱面：x」「基准：y」两行，不再另加标签。
-  Widget _buildBpmDialogContent(String value) {
-    // 使用当前谱面的完整顺序，保留降速后再次升回同一 BPM 的记录。
-    final values =
-        _maidataBpmChangesByDiffIndex[_currentDiffIndex] ?? const <double>[];
-    Widget cell(Widget child) => Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-          child: Center(child: child),
+  Widget _buildBpmDialogContent(
+    BuildContext context,
+    String value,
+    List<double> fallbackValues,
+    AsyncSnapshot<List<ChartBpmSegment>> snapshot,
+  ) {
+    final segments = snapshot.data ?? const <ChartBpmSegment>[];
+    final values = segments.isEmpty
+        ? fallbackValues
+        : segments.map((segment) => segment.bpm).toList(growable: false);
+    final hasTimeline = segments.isNotEmpty;
+    final loading = snapshot.connectionState == ConnectionState.waiting;
+    final scheme = Theme.of(context).colorScheme;
+
+    Widget cell(Widget child, {int flex = 1}) => Expanded(
+          flex: flex,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: FittedBox(fit: BoxFit.scaleDown, child: child),
+          ),
         );
+
     return ConstrainedBox(
       constraints:
           BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.6),
-      child: SingleChildScrollView(
-          child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-            Text(value),
-            if (values.toSet().length > 1) ...[
-              const SizedBox(height: 16),
-              Text(context.l10n.flowInTheOrderBPMMarkersAppearIn),
-              const SizedBox(height: 8),
-              Center(
-                child: Table(
-                  defaultColumnWidth: const IntrinsicColumnWidth(),
-                  defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-                  border: TableBorder(
-                    horizontalInside: BorderSide(
-                        color: Theme.of(context).colorScheme.outlineVariant),
-                  ),
-                  children: [
-                    TableRow(children: [
-                      cell(Text(context.l10n.flowChangeIndex)),
-                      cell(const Text('BPM')),
-                    ]),
-                    for (var i = 0; i < values.length; i++)
-                      TableRow(children: [
-                        cell(Text('${i + 1}')),
-                        cell(_valueWithDirection(
-                            _formatBpm(values[i]),
-                            i == 0
-                                ? null
-                                : values[i].compareTo(values[i - 1]))),
-                      ]),
-                  ],
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(value),
+          if (loading)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.only(top: 16),
+                child: SizedBox.square(
+                  dimension: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
                 ),
               ),
-            ],
-          ])),
+            )
+          else if (hasTimeline || values.length > 1) ...[
+            const SizedBox(height: 12),
+            if (!hasTimeline)
+              Text(context.l10n.flowInTheOrderBPMMarkersAppearIn),
+            SizedBox(
+              height: 36,
+              child: Row(children: [
+                cell(Text(context.l10n.flowChangeIndex)),
+                cell(const Text('BPM')),
+                if (hasTimeline)
+                  cell(Text(context.l10n.chartBpmTimeRange), flex: 2),
+              ]),
+            ),
+            Flexible(
+              child: SizedBox(
+                height: values.length * 40.0,
+                child: ListView.builder(
+                  padding: EdgeInsets.zero,
+                  itemExtent: 40,
+                  itemCount: values.length,
+                  itemBuilder: (context, index) {
+                    final bpm = values[index];
+                    final segment = hasTimeline ? segments[index] : null;
+                    return DecoratedBox(
+                      decoration: BoxDecoration(
+                        border: Border(
+                          top: BorderSide(color: scheme.outlineVariant),
+                        ),
+                      ),
+                      child: Row(children: [
+                        cell(Text('${index + 1}')),
+                        cell(_valueWithDirection(
+                          _formatBpm(bpm),
+                          index == 0 ? null : bpm.compareTo(values[index - 1]),
+                          displayContext: context,
+                        )),
+                        if (segment != null)
+                          cell(
+                            Text(
+                              '${_formatBpmChartTime(segment.startSeconds)}'
+                              ' – ${_formatBpmChartTime(segment.endSeconds)}',
+                              style: AppTheme.number(fontSize: 12),
+                            ),
+                            flex: 2,
+                          ),
+                      ]),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
+  }
+
+  String _formatBpmChartTime(double seconds) {
+    final milliseconds = (seconds * 1000).round();
+    final minutes = milliseconds ~/ 60000;
+    final wholeSeconds = (milliseconds ~/ 1000 % 60).toString().padLeft(2, '0');
+    final fraction = (milliseconds % 1000).toString().padLeft(3, '0');
+    return '$minutes:$wholeSeconds.$fraction';
   }
 
   /// 构建 B站播放量统计项（带 BV 上传功能）
@@ -240,7 +294,8 @@ extension _SongInfoWidgets on _SongInfoPageState {
     // 水鱼正曲库中的歌曲默认视为国服可游玩。dxdata 的 serverIds 偶尔会
     // 漏掉 cn，因此这里强制点亮 CN；宴会场、maidata 追加和 union 独有曲
     // 仍沿用 dxdata 的地区数据。
-    final isDivingFishSong = !_isExtraSong;
+    // 另外，落雪曲库里有这首歌且国服上线日期已到（北京时间）时也强制点亮 CN。
+    final forceCn = !_isExtraSong || _isReleasedOnLxnsCn();
     const regionLabels = <String>['CN', 'JP', 'INTL', 'USA'];
     const regionIds = <String>['cn', 'jp', 'intl', 'usa'];
 
@@ -263,7 +318,7 @@ extension _SongInfoWidgets on _SongInfoPageState {
                   if (i > 0) SizedBox(width: screenWidth * 0.012),
                   _buildRegionBadge(
                     regionLabels[i],
-                    (i == 0 && isDivingFishSong) ||
+                    (i == 0 && forceCn) ||
                         serverIds.contains(regionIds[i]),
                     screenWidth,
                   ),
@@ -303,12 +358,29 @@ extension _SongInfoWidgets on _SongInfoPageState {
 
   /// 查看完整内容并复制（BPM 额外显示变速明细）。
   void _showStatDialog(String label, String value) {
+    final isBpm = label == 'BPM';
+    final inote = isBpm ? _maidataInoteByDiffIndex[_currentDiffIndex] : null;
+    final bpmValues =
+        _maidataBpmChangesByDiffIndex[_currentDiffIndex] ?? const <double>[];
+    final timeline = inote == null
+        ? null
+        : compute(ChartBpmInfo.parseTimeline, inote);
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AppAlertDialog(
           title: Text(label),
-          content: label == 'BPM' ? _buildBpmDialogContent(value) : Text(value),
+          content: isBpm
+              ? FutureBuilder<List<ChartBpmSegment>>(
+                  future: timeline,
+                  builder: (context, snapshot) => _buildBpmDialogContent(
+                    context,
+                    value,
+                    bpmValues,
+                    snapshot,
+                  ),
+                )
+              : Text(value),
           actions: [
             TextButton(
               onPressed: () {

@@ -2,6 +2,8 @@ import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/foundation.dart';
 import '../entity/DivingFish/Song.dart';
 
+typedef InoteNoteSpan = ({int start, int end, NoteType type});
+
 class MaidataDecodeUtil {
   // 正则：匹配 {数字} 或 (数字)
   static final RegExp _patternPlaceholder = RegExp(r'^\{\d+}$|^\(\d+\)$');
@@ -21,6 +23,61 @@ class MaidataDecodeUtil {
   static final RegExp _patternBracket = RegExp(r'.*\[.*\].*');
   // 正则：匹配星星音符模式，如 1?<4[8:1]
   static final RegExp _patternStarNote = RegExp(r'^\d+\?[-<>^vpszwVpq]+(\d+\[.*\])?$');
+
+  // 按原文扫描字段、非音符指令和音符候选，保留供代码页着色的偏移。
+  static final _inoteSourceToken = RegExp(
+    r'^[ \t\uFEFF]*&([\w-]+)[ \t]*=|'
+    r'\|\|[^\r\n]*|\([^()\r\n]*\)|\{[^{}\r\n]*\}|<[Hh][Ss][^<>\r\n]*>|'
+    r'((?:[^\s,/\x60*({|\[\]]|\[[^\[\]\r\n]*\])+)',
+    multiLine: true,
+  );
+  static final _inoteField =
+      RegExp(r'^(?:inote_?|note_)\d+$', caseSensitive: false);
+  static final _inoteSimpleNote = RegExp(
+    r'^(?:[1-8]+([bxh$]*)|(?:C[12]?|[ABDE][1-8])([bxfh]*))(?:\[[^\[\]\r\n]+\])?$',
+  );
+  static final _inoteSlide = RegExp(
+    r'^([1-8][bx$@?!]*)?((?:[-<>^vpqszwV]+[1-8]{1,2}(?:\[[^\[\]\r\n]+\])?b?)+)$',
+  );
+
+  /// 只返回 inote 字段值内的音符。节拍、BPM、注释、空拍和结束符保留原样。
+  static Iterable<InoteNoteSpan> inoteNoteSpans(String source) sync* {
+    var inChart = false;
+    for (final token in _inoteSourceToken.allMatches(source)) {
+      final field = token[1];
+      if (field != null) {
+        inChart = _inoteField.hasMatch(field);
+        continue;
+      }
+      final note = token[2];
+      if (!inChart || note == null) continue;
+      final slide = _inoteSlide.firstMatch(note);
+      if (slide != null && note.contains('[')) {
+        final head = slide[1] ?? '';
+        final track = slide[2]!;
+        // 星头和轨道的绝赞标记独立，普通轨道仍使用 SLIDE 色。
+        if (head.contains('b') && !track.contains('b')) {
+          final split = token.start + head.length;
+          yield (start: token.start, end: split, type: classifyNote(head));
+          yield (start: split, end: token.end, type: classifyNote(track));
+          continue;
+        }
+        yield (start: token.start, end: token.end, type: classifyNote(note));
+      } else {
+        final simple = _inoteSimpleNote.firstMatch(note);
+        if (simple == null) continue;
+        final modifiers = simple[1] ?? simple[2]!;
+        var type = classifyNote(note);
+        // 补足物量解析未单独识别的写法，如中央 TOUCH、星形 TAP 和秒制 HOLD。
+        if (type != NoteType.BREAK && modifiers.contains('h')) {
+          type = NoteType.HOLD;
+        } else if (type == NoteType.SLIDE) {
+          type = simple[2] != null ? NoteType.TOUCH : NoteType.TAP;
+        }
+        yield (start: token.start, end: token.end, type: type);
+      }
+    }
+  }
 
   /// 快速提取 shortId，无需完整解码（用于跳过已存在的歌曲）
   static String? quickExtractShortId(String content) {

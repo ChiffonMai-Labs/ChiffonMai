@@ -50,6 +50,22 @@ class ColorUtil {
     return getCardColor(levelIndex);
   }
 
+  static const reMasterExportCardColor = Color(0xFFE5C6FA);
+
+  /// 导出单曲卡使用的难度填色。
+  static Color getExportCardColor(int levelIndex, {required bool isUtage}) {
+    const colors = [
+      Color(0xFF398F50),
+      Color(0xFFF2C315),
+      Color(0xFFBF3B49),
+      Color(0xFF8D40BC),
+      reMasterExportCardColor,
+    ];
+    if (isUtage) return const Color(0xFFCA50AB);
+    return colors[
+        levelIndex.clamp(ChartDifficulty.basic, ChartDifficulty.reMaster)];
+  }
+
   // ──────────────────── Rating 图片徽章 ────────────────────
 
   /// 图片原始尺寸

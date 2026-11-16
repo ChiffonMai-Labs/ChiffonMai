@@ -255,7 +255,7 @@ class _BindQuickIdentityDialogState extends State<_BindQuickIdentityDialog> {
     });
     try {
       await AwmcQuickSyncService.bindIdentityWithQr(value);
-      if (!mounted) return;
+      if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
       AppToast.show(context.l10n.flowCabinetIdentityCachedQuickSyncIsReady,
           tone: AppToastTone.success);
       Navigator.of(context).pop();

@@ -10,9 +10,15 @@ import 'AppUi.dart';
 
 /// 完整展示当前谱面信息，并将各项成绩逐行与当日初值对照。
 class ScoreImprovementCard extends StatelessWidget {
-  const ScoreImprovementCard({super.key, required this.entry, this.onOpen});
+  const ScoreImprovementCard({
+    super.key,
+    required this.entry,
+    this.showDate = false,
+    this.onOpen,
+  });
 
   final DailyScoreImprovement entry;
+  final bool showDate;
   final VoidCallback? onOpen;
 
   @override
@@ -118,7 +124,7 @@ class ScoreImprovementCard extends StatelessWidget {
                     style: TextStyle(
                         fontSize: 12, color: colors.onSurfaceVariant)),
               Text(
-                '${_time(entry.firstAtMs)}'
+                '${showDate ? '${entry.day} ' : ''}${_time(entry.firstAtMs)}'
                 '${entry.changeCount > 1 ? context.l10n.flowP0P1Changes((_time(entry.lastAtMs)).toString(), (entry.changeCount).toString()) : context.l10n.flowRecorded}',
                 style: AppTheme.number(
                   fontSize: 12,

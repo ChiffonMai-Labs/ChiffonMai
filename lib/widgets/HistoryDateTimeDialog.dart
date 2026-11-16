@@ -1,7 +1,100 @@
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
-import '../widgets/AppDialogs.dart';
+import '../utils/AppDesignTokens.dart';
+import 'AppDialogs.dart';
 import 'AppUi.dart';
+
+Future<DateTimeRange?> showHistoryDateRange(
+  BuildContext context, {
+  required DateTimeRange initial,
+  DateTime? latest,
+}) {
+  FocusManager.instance.primaryFocus?.unfocus();
+  final now = DateUtils.dateOnly(DateTime.now());
+  final lastDate = latest != null && latest.isAfter(now) ? latest : now;
+  return showDialog<DateTimeRange>(
+    context: context,
+    builder: (context) {
+      final theme = Theme.of(context);
+      // 保留 Material 的连续选点与区间高亮，把日历限制在普通弹窗内。
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420, maxHeight: 540),
+            child: DatePickerTheme(
+              data: theme.datePickerTheme.copyWith(
+                rangePickerHeaderHeadlineStyle: theme.textTheme.titleMedium,
+                rangePickerShape: theme.dialogTheme.shape ??
+                    RoundedRectangleBorder(
+                      borderRadius:
+                          BorderRadius.circular(AppDesignTokens.radiusLarge),
+                    ),
+              ),
+              child: DateRangePickerDialog(
+                initialDateRange: initial,
+                firstDate: DateTime(1970),
+                lastDate:
+                    initial.end.isAfter(lastDate) ? initial.end : lastDate,
+                initialEntryMode: DatePickerEntryMode.calendarOnly,
+                helpText: context.l10n.historyDateRange,
+                saveText: context.l10n.featureOK,
+              ),
+            ),
+          ),
+        ),
+      );
+    },
+  );
+}
+
+String historyDateRangeLabel(BuildContext context, DateTimeRange range) {
+  final dates = MaterialLocalizations.of(context);
+  return '${dates.formatCompactDate(range.start)} – '
+      '${dates.formatCompactDate(range.end)}';
+}
+
+class HistoryDateRangeFilter extends StatelessWidget {
+  const HistoryDateRangeFilter({
+    super.key,
+    this.range,
+    required this.onPick,
+    this.onClear,
+  });
+
+  final DateTimeRange? range;
+  final VoidCallback onPick;
+  final VoidCallback? onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = range;
+    return Row(
+      children: [
+        Flexible(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: AlignmentDirectional.centerStart,
+            child: FilterPill(
+              label: selected == null
+                  ? context.l10n.historyDateRange
+                  : historyDateRangeLabel(context, selected),
+              selected: selected == null ? null : true,
+              onTap: onPick,
+            ),
+          ),
+        ),
+        if (selected != null && onClear != null)
+          IconButton(
+            tooltip: context.l10n.flowClearSelection,
+            visualDensity: VisualDensity.compact,
+            onPressed: onClear,
+            icon: const Icon(Icons.close_rounded, size: 18),
+          ),
+      ],
+    );
+  }
+}
 
 /// 历史点共用的日期、时分和秒选择器。
 Future<DateTime?> showHistoryDateTimeDialog(

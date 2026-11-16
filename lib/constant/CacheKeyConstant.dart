@@ -76,6 +76,15 @@ class CacheKeyConstant {
       'plates_collections_cache_data';
   static const String framesCollectionsCacheData =
       'frames_collections_cache_data';
+  static const String travelBuddiesCollectionsCacheData =
+      'travel_buddies_collections_cache_data';
+  static const String travelBuddiesCollectionsTimestamp =
+      'travel_buddies_collections_last_update';
+  static const String partnersCollectionsCacheData =
+      'partners_collections_cache_data';
+  static const String partnersCollectionsTimestamp =
+      'partners_collections_last_update';
+  static const int collectionCatalogTtlDays = 1;
 
   // 标签数据相关
   static const String maiTagsCache = 'mai_tags_cache';
@@ -84,6 +93,7 @@ class CacheKeyConstant {
   static const String customTags = 'custom_tags_v1';
   /// 谱面代码页的字体选择（默认 / Inconsolata）。
   static const String chartCodeFont = 'chart_code_font';
+  static const String chartCodeHighlight = 'chart_code_highlight';
 
   // 用户数据相关
   static const String userPlayData = 'user_play_data';
@@ -309,4 +319,5 @@ class CacheKeyConstant {
 
   /// 导出图片选的主题（浅色 / 深色 / 纯黑）。
   static const String exportImageTheme = 'export_image_theme';
+  static const String best50ExportBackground = 'best50_export_background';
 }

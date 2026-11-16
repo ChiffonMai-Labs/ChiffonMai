@@ -159,6 +159,12 @@ class PortablePlayerController extends ChangeNotifier {
   bool get isLoading => _loading;
   bool _loading = false;
 
+  /// 音频文件的实际下载进度，和播放位置分开更新。
+  final _audioLoadProgress =
+      ValueNotifier<({String songKey, double value})?>(null);
+  ValueListenable<({String songKey, double value})?> get audioLoadProgress =>
+      _audioLoadProgress;
+
   /// 当前曲目是否还在「取音源 / 缓冲」阶段 —— **列表行内的 loading 用这个**。
   ///
   /// 判据取 just_audio 的 `processingState`，不要拿 [isLoading] 当行内的
@@ -502,9 +508,15 @@ class PortablePlayerController extends ChangeNotifier {
   /// 单曲失败兜底：把当前曲换成 wmc URL 重播一次。失败的话回退到 skip。
   Future<void> _retryWithWmcFallback(PortableSong song) async {
     final request = _playRequest;
+    _audioLoadProgress.value = null;
     try {
       final cached = await SongMediaCache.instance.ensureAudio(
-        song.divingFishId, audioId: song.audioId, urls: [song.wmcAudioUrl]);
+        song.divingFishId,
+        audioId: song.audioId,
+        urls: [song.wmcAudioUrl],
+        onProgress: (progress, _, __) =>
+            _publishAudioLoadProgress(request, song, progress),
+      );
       if (request != _playRequest) return;
       final wmcSource = AudioSource.file(
         cached.path,
@@ -607,6 +619,7 @@ class PortablePlayerController extends ChangeNotifier {
 
     _pendingIndex = index;
     _loading = true;
+    _audioLoadProgress.value = null;
     notifyListeners();
     // 切到新歌 → 清掉「本首已试 wmc」标记，下次失败又可以试一次
     _triedWmcFallback = false;
@@ -625,6 +638,7 @@ class PortablePlayerController extends ChangeNotifier {
         song,
         onProgress: (progress, speed, status) {
           if (request != _playRequest) return;
+          _publishAudioLoadProgress(request, song, progress);
           if (progress != null && progress >= 1) return;
           if (cacheStatusShown) return;
           cacheStatusShown = true;
@@ -740,14 +754,21 @@ class PortablePlayerController extends ChangeNotifier {
   /// 已有播放队列内切歌：先切换显示，再等待平台定位和缓冲，保留随机顺序。
   Future<void> _seekToIndex(int index) async {
     final request = ++_playRequest;
+    final song = _queue[index];
     _pendingIndex = index;
     _loading = true;
+    _audioLoadProgress.value = null;
     _singlePlaysDone = 0;
     _triedWmcFallback = false;
     notifyListeners();
     try {
       await _player.pause();
-      await PortableAudioCache.instance.ensure(_queue[index]);
+      if (request != _playRequest) return;
+      await PortableAudioCache.instance.ensure(
+        song,
+        onProgress: (progress, _, __) =>
+            _publishAudioLoadProgress(request, song, progress),
+      );
       if (request != _playRequest) return;
       await _player.seek(Duration.zero, index: index);
       if (request != _playRequest) return;
@@ -768,6 +789,7 @@ class PortablePlayerController extends ChangeNotifier {
 
   Future<void> stop() async {
     final request = ++_playRequest;
+    _audioLoadProgress.value = null;
     _pendingIndex = null;
     _setLoading(false);
     await _player.stop();
@@ -829,6 +851,13 @@ class PortablePlayerController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void _publishAudioLoadProgress(
+      int request, PortableSong song, double? progress) {
+    if (request != _playRequest) return;
+    _audioLoadProgress.value =
+        progress == null ? null : (songKey: song.portableKey, value: progress);
+  }
+
   void _emit(PortablePlayerEvent event) {
     if (!_events.isClosed) _events.add(event);
   }
@@ -836,6 +865,7 @@ class PortablePlayerController extends ChangeNotifier {
   @override
   void dispose() {
     _playRequest++;
+    _audioLoadProgress.dispose();
     _events.close();
     _player.dispose();
     super.dispose();

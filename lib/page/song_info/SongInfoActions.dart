@@ -557,8 +557,10 @@ extension _SongInfoActions on _SongInfoPageState {
   Future<void> _saveCoverToGallery(String songId, String title) async {
     try {
       // 请求存储权限
-      PermissionStatus status = await _requestStoragePermission();
-      if (!status.isGranted) {
+      final hasPermission = Platform.isIOS ||
+          (await _requestStoragePermission()).isGranted;
+      if (!mounted) return;
+      if (!hasPermission) {
         AppToast.show(context.l10n.flowStoragePermissionIsRequiredToSaveImages,
             tone: AppToastTone.warning);
         return;
@@ -580,24 +582,48 @@ extension _SongInfoActions on _SongInfoPageState {
             String coverPath = CoverUtil.getLocalCoverPathRetry1(songId);
             byteData = await rootBundle.load(coverPath);
           } catch (e3) {
-            AppToast.show(context.l10n.flowCouldNotLoadCoverArt,
-                tone: AppToastTone.error);
+            if (mounted) {
+              AppToast.show(context.l10n.flowCouldNotLoadCoverArt,
+                  tone: AppToastTone.error);
+            }
             return;
           }
         }
       }
 
       if (byteData == null) {
-        AppToast.show(context.l10n.flowCouldNotLoadCoverArt,
-            tone: AppToastTone.error);
+        if (mounted) {
+          AppToast.show(context.l10n.flowCouldNotLoadCoverArt,
+              tone: AppToastTone.error);
+        }
         return;
       }
 
-      Uint8List pngBytes = byteData.buffer.asUint8List();
+      final bytes = byteData.buffer
+          .asUint8List(byteData.offsetInBytes, byteData.lengthInBytes);
+      if (Platform.isIOS) {
+        // 内置曲绘是 WebP，转成照片图库可导入的 PNG。
+        final image = await decodeImageFromList(bytes);
+        final ByteData? png;
+        try {
+          png = await image.toByteData(format: ui.ImageByteFormat.png);
+        } finally {
+          image.dispose();
+        }
+        if (png == null) throw StateError(appL10n.flowCouldNotReadImageData);
+        await PhotoLibrary.saveBytes(
+            png.buffer.asUint8List(png.offsetInBytes, png.lengthInBytes),
+            'cover.png');
+        if (mounted) {
+          AppToast.show(context.l10n.flowCoverArtSavedToPhotos,
+              tone: AppToastTone.success);
+        }
+        return;
+      }
 
       // 保存到相册
       Directory? directory;
-      if (status.isGranted) {
+      if (hasPermission) {
         try {
           String picturesPath = '/storage/emulated/0/Pictures';
           directory = Directory(picturesPath);
@@ -616,18 +642,25 @@ extension _SongInfoActions on _SongInfoPageState {
       String fileName =
           '${title.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_')}_${DateTime.now().millisecondsSinceEpoch}.png';
       final file = File('${directory.path}/$fileName');
-      await file.writeAsBytes(pngBytes);
+      await file.writeAsBytes(bytes);
 
       // 通知系统相册
       if (Platform.isAndroid) {
         await MediaScanner.loadMedia(path: file.path);
       }
 
-      AppToast.show(context.l10n.flowCoverArtSavedToPhotos,
-          tone: AppToastTone.success);
+      if (mounted) {
+        AppToast.show(context.l10n.flowCoverArtSavedToPhotos,
+            tone: AppToastTone.success);
+      }
     } catch (e) {
-      AppToast.show(context.l10n.flowSaveFailedP02((e).toString()),
-          tone: AppToastTone.error);
+      if (mounted) {
+        AppToast.show(
+            Platform.isIOS
+                ? PhotoLibrary.failureMessage(e)
+                : context.l10n.flowSaveFailedP02(e.toString()),
+            tone: AppToastTone.error);
+      }
     }
   }
 
@@ -724,12 +757,11 @@ extension _SongInfoActions on _SongInfoPageState {
 
   // 获取相关收藏品
   Future<void> _fetchRelatedCollections(String songTitle) async {
+    final page = ModalRoute.of(context);
+    final progress = showAppProgressDialog(context,
+        title: appL10n.flowPleaseWait,
+        message: appL10n.flowLoadingRelatedCollectibles);
     try {
-      // 显示加载对话框
-      showAppProgressDialog(context,
-          title: appL10n.flowPleaseWait,
-          message: appL10n.flowLoadingRelatedCollectibles);
-
       // 获取歌曲类型
       final songType = _songData!['type'] ?? '';
 
@@ -737,15 +769,15 @@ extension _SongInfoActions on _SongInfoPageState {
       final relatedCollections =
           await SongInfoService().fetchRelatedCollections(songTitle, songType);
 
-      // 关闭加载对话框
-      Navigator.of(context).pop();
+      dismissAppProgressDialog(progress);
+      if (!mounted || page?.isCurrent == false) return;
 
       // 显示相关收藏品
       _showRelatedCollectionsDialog(songTitle, relatedCollections);
     } catch (e) {
       debugPrint('获取相关收藏品时出错: $e');
-      // 关闭加载对话框
-      Navigator.of(context).pop();
+      dismissAppProgressDialog(progress);
+      if (!mounted || page?.isCurrent == false) return;
       // 显示错误信息
       showDialog(
         context: context,
@@ -1238,26 +1270,68 @@ extension _SongInfoActions on _SongInfoPageState {
     );
   }
 
-  // 查看谱面代码（跳转到maidata页面）
+  SongMaidataPageService? _chartSource() {
+    final song = _songData;
+    if (song == null) return null;
+    return SongMaidataPageService(
+      songId: widget.songId,
+      songTitle: song['basic_info']['title'],
+      genre: song['basic_info']['genre'],
+      songType: song['type'],
+    );
+  }
+
   void _viewMaidata() {
-    if (_songData == null) return;
-
-    final songTitle = _songData!['basic_info']['title'];
-    final genre = _songData!['basic_info']['genre'];
-    final songType = _songData!['type'];
-
+    final song = _chartSource();
+    if (song == null) return;
+    FocusManager.instance.primaryFocus?.unfocus();
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => SongMaidataPage(
-          songId: widget.songId,
-          songTitle: songTitle,
-          genre: genre,
-          songType: songType,
+          songId: song.songId,
+          songTitle: song.songTitle,
+          genre: song.genre,
+          songType: song.songType,
           difficultyIndex: _currentDiffIndex,
         ),
       ),
     );
+  }
+
+  Future<void> _playChartInApp() async {
+    final song = _chartSource();
+    if (song == null || _openingChartPlayback) return;
+    _openingChartPlayback = true;
+    final route = ModalRoute.of(context);
+    try {
+      await MaidataManager().initialize();
+      if (!mounted || route?.isCurrent == false || widget.songId != song.songId) {
+        return;
+      }
+      var inotes = const <String>[];
+      final content = await song.fetchMaidata(onInoteParsed: (value) {
+        inotes = value;
+      });
+      if (!mounted || route?.isCurrent == false || widget.songId != song.songId) {
+        return;
+      }
+      if (content == null || content.isEmpty) {
+        AppToast.show(context.l10n.flowNoMatchingChartCodeFound,
+            tone: AppToastTone.warning);
+        return;
+      }
+      await showChartPlayback(context,
+          song: song, content: content, inotes: inotes);
+    } catch (error) {
+      if (!mounted || route?.isCurrent == false || widget.songId != song.songId) {
+        return;
+      }
+      AppToast.show(context.l10n.flowCouldNotFetchChartCodeP0(error.toString()),
+          tone: AppToastTone.error);
+    } finally {
+      _openingChartPlayback = false;
+    }
   }
 
   void _viewAchievementRanking() {

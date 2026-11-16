@@ -42,6 +42,8 @@ class NavigationPreferences extends ChangeNotifier {
   bool _swipeEnabled = true;
   NavigationBarStyle _barStyle = NavigationBarStyle.standard;
   bool _immersiveStatusBarEnabled = false;
+  bool _pvFullscreen = false;
+  bool _pvOverlaysHidden = false;
   bool _busyHintEnabled = false;
   bool _loaded = false;
   Future<void>? _loading;
@@ -160,16 +162,30 @@ class NavigationPreferences extends ChangeNotifier {
   }
 
   Future<void> _applySystemUiMode() async {
-    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+    if (kIsWeb) return;
     try {
+      if (defaultTargetPlatform == TargetPlatform.iOS) {
+        if (!_pvFullscreen && !_pvOverlaysHidden) return;
+        _pvOverlaysHidden = _pvFullscreen;
+        await SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual,
+            overlays: _pvFullscreen ? [] : SystemUiOverlay.values);
+        return;
+      }
+      if (defaultTargetPlatform != TargetPlatform.android) return;
       await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
       await _systemUiChannel.invokeMethod<void>(
         'setStatusBarHidden',
-        {'hidden': _immersiveStatusBarEnabled},
+        {'hidden': _immersiveStatusBarEnabled, 'fullscreen': _pvFullscreen},
       );
     } catch (error) {
       debugPrint('[SystemUI] 状态栏模式应用失败：$error');
     }
+  }
+
+  Future<void> setPvFullscreen(bool value) {
+    if (_pvFullscreen == value) return Future<void>.value();
+    _pvFullscreen = value;
+    return applySystemUiMode();
   }
 
   Future<void> setImmersiveStatusBarEnabled(bool value) async {

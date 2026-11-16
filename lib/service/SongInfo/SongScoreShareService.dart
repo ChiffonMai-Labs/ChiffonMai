@@ -1,6 +1,5 @@
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
-import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -51,6 +50,7 @@ class SongScoreShareService {
     ExportImageTheme theme = ExportImageTheme.light,
   }) async {
     OverlayEntry? overlayEntry;
+    var overlayInserted = false;
     try {
       debugPrint('=== SongScoreShare: STARTING IMAGE CONVERSION ===');
 
@@ -111,7 +111,8 @@ class SongScoreShareService {
 
       // 插入到Overlay并等待渲染
       Overlay.of(context).insert(overlayEntry);
-      await _waitForRender();
+      overlayInserted = true;
+      await ImageEncodeUtil.waitForRender();
 
       // 捕获为图片
       final boundary = globalKey.currentContext?.findRenderObject()
@@ -119,6 +120,7 @@ class SongScoreShareService {
       if (boundary == null) {
         debugPrint('SongScoreShare: RenderRepaintBoundary not found');
         overlayEntry.remove();
+        overlayInserted = false;
         return null;
       }
 
@@ -127,13 +129,14 @@ class SongScoreShareService {
       final Uint8List finalBytes = encoded.bytes;
       final String extension = encoded.extension;
       overlayEntry.remove();
+      overlayInserted = false;
 
       // 保存图片
       return await _saveImage(finalBytes, songTitle, status.isGranted,
           extension: extension);
     } catch (e) {
       debugPrint('SongScoreShare: Error: $e');
-      overlayEntry?.remove();
+      if (overlayInserted) overlayEntry?.remove();
       return null;
     }
   }
@@ -698,6 +701,8 @@ class SongScoreShareService {
   // --- 权限和保存逻辑（复用现有模式）---
 
   static Future<PermissionStatus> _requestStoragePermission() async {
+    if (Platform.isIOS) return PermissionStatus.denied; // 先保存到应用文档。
+
     final status = await Permission.storage.status;
     final photoStatus = await Permission.photos.status;
     final videoStatus = await Permission.videos.status;
@@ -838,15 +843,4 @@ class SongScoreShareService {
     }
   }
 
-  static Future<void> _waitForRender() async {
-    Completer<void> completer1 = Completer<void>();
-    WidgetsBinding.instance.addPostFrameCallback((_) => completer1.complete());
-    await completer1.future;
-
-    Completer<void> completer2 = Completer<void>();
-    WidgetsBinding.instance.addPostFrameCallback((_) => completer2.complete());
-    await completer2.future;
-
-    await Future.delayed(Duration(milliseconds: 500));
-  }
 }

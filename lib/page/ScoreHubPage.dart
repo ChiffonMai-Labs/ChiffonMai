@@ -283,7 +283,7 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
           Icon(Icons.search_rounded, size: 20, color: scheme.onSurfaceVariant),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(context.featureText('查成绩：曲名、定数、曲目 ID'),
+            child: Text(context.l10n.featureTitleAliasIDArtistCharterBPM,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style:
@@ -690,11 +690,6 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
             icon: Icons.analytics_rounded,
             hero: _buildOverview(context),
             children: [
-              AppSectionHeader(
-                title: context.featureText('全部功能'),
-                subtitle: context.featureText('点星标加入首页「常用」'),
-              ),
-              const SizedBox(height: 4),
               for (final section in sections) ...[
                 HubSection(
                   title: section.title,

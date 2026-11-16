@@ -29,10 +29,23 @@ class SecureCredentialStore {
   /// 每次写入或删除后递增，让展示凭据状态的界面即时重新读取。
   static final ValueNotifier<int> revision = ValueNotifier(0);
 
-  static Future<String?> read(String key) => _storage.read(key: key);
+  static Future<String?> read(String key) async {
+    try {
+      return await _storage.read(key: key);
+    } catch (error) {
+      // 只记录键名和异常类型；异常照常抛给调用方处理。
+      debugPrint('[SecureStore] 读取 $key 失败: ${error.runtimeType}');
+      rethrow;
+    }
+  }
 
   static Future<void> write(String key, String value) async {
-    await _storage.write(key: key, value: value);
+    try {
+      await _storage.write(key: key, value: value);
+    } catch (error) {
+      debugPrint('[SecureStore] 写入 $key 失败: ${error.runtimeType}');
+      rethrow;
+    }
     revision.value++;
   }
 

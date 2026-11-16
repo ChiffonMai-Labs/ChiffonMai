@@ -141,6 +141,10 @@ class SpecialRankingListService {
           {int limit = 100, bool ascending = false}) =>
       _get('breakCount', limit: limit, reverse: ascending);
 
+  Future<List<SpecialRankingEntry>> getSongDurationRanking(
+          {int limit = 100, bool reverse = false}) =>
+      _get('songDuration', limit: limit, reverse: reverse);
+
   Future<List<SpecialRankingEntry>> getBreakRatioRanking(
           {int limit = 100, bool reverse = false}) =>
       _get('breakRatio', limit: limit, reverse: reverse);

@@ -15,7 +15,7 @@ enum FavoriteImportMode { merge, replace }
 ///
 /// 抽成独立函数是因为它有两个入口：
 ///   1. 收藏夹列表页的「导入收藏夹」按钮（走系统文件选择器）
-///   2. 在系统文件管理器里点开收藏夹文件、或「分享 → ChiffonMai」，
+///   2. 在 Android 文件管理器里打开 `.cmf` 收藏夹文件，
 ///      由 Android intent 唤起 App（此时路径已知，[presetPath] 非空）
 ///
 /// [context] 必须是 **Navigator 之下** 的 context（例如 `navigatorKey.currentState.overlay.context`），

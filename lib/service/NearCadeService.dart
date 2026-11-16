@@ -36,7 +36,8 @@ class NearCadeService {
       });
 
       if (response.statusCode == 200) {
-        final json = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+        final json =
+            jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
         return NearCadeShop.fromJson(json);
       }
       return null;
@@ -50,11 +51,33 @@ class NearCadeService {
   ///
   /// 中途某一页失败时抛错，不把半份数据当成完整结果，否则会覆盖掉本地缓存。
   /// [onProgress] 每拉完一页回调一次（已拉取数, 总数）。
-  Future<List<Shop>> getAllShops({
+  Future<({List<Shop> shops, DateTime fetchedAt})> getAllShops({
     void Function(int loaded, int total)? onProgress,
     String? q,
     String? regionId,
   }) async {
+    if ((q == null || q.isEmpty) && (regionId == null || regionId.isEmpty)) {
+      try {
+        final response = await ApiClient.getAbortable(
+          Uri.parse('${ApiUrls.PublicDataUrl}/arcade-shops'),
+          timeout: const Duration(seconds: 25),
+        );
+        final fetchedAt = DateTime.tryParse(
+          response.headers['x-public-data-fetched-at'] ?? '',
+        );
+        if (response.statusCode == 200 && fetchedAt != null) {
+          final snapshot = await compute(_parseSnapshot, response.bodyBytes);
+          if (snapshot.shops.isNotEmpty &&
+              !snapshot.hasNextPage &&
+              snapshot.shops.length == snapshot.totalCount) {
+            onProgress?.call(snapshot.totalCount, snapshot.totalCount);
+            return (shops: snapshot.shops, fetchedAt: fetchedAt.toLocal());
+          }
+        }
+      } catch (error) {
+        debugPrint('读取机厅目录快照失败: $error');
+      }
+    }
     final allShops = <Shop>[];
     int page = 1;
 
@@ -76,6 +99,9 @@ class NearCadeService {
       page++;
     }
 
-    return allShops;
+    return (shops: allShops, fetchedAt: DateTime.now());
   }
+
+  static NearCadeShop _parseSnapshot(List<int> bytes) => NearCadeShop.fromJson(
+      jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>);
 }

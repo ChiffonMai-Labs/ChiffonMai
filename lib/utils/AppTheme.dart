@@ -911,11 +911,30 @@ class AppColors {
     Color(0xFF8C6CF0),
   ];
 
+  /// 谱面代码字色，按 NoteType 的 TAP / HOLD / SLIDE / BREAK / TOUCH 排列。
+  static List<Color> chartCodeNoteColors(Brightness brightness) {
+    return brightness == Brightness.dark
+        ? const [
+            Color(0xFFF597CF),
+            Color(0xFFBADB75),
+            Color(0xFF98B2FF),
+            Color(0xFFFFAD74),
+            Color(0xFF71D9E5),
+          ]
+        : const [
+            Color(0xFF9C2668),
+            Color(0xFF3A6511),
+            Color(0xFF254EB1),
+            Color(0xFFA53A11),
+            Color(0xFF006977),
+          ];
+  }
+
   /// 绝赞分布条的色块，顺序：真绝赞 TAP / 真绝赞 HOLD / 保护套绝赞 / 绝赞星星。
   static const List<Color> breakDistribution = [
     Color(0xFFD9467A),
     Color(0xFFEF8FB0),
-    Color(0xFF4A8FE0),
+    Color(0xFF38A3A0),
     Color(0xFFE3B02F),
   ];
 
@@ -978,6 +997,40 @@ class AppColors {
       Color(0xFF4A5453),
     ];
     return (brightness == Brightness.dark ? dark : light)[index];
+  }
+
+  /// 旅行伙伴普通觉醒为金色，满觉醒切换为彩虹。
+  static LinearGradient travelAwakeningGradient(
+    Brightness brightness, {
+    required bool full,
+  }) {
+    final dark = brightness == Brightness.dark;
+    return LinearGradient(
+      colors: full
+          ? dark
+              ? const [Color(0xFFFFA3D1), Color(0xFFA5B6FF), Color(0xFF77EBCE)]
+              : const [Color(0xFFCB3780), Color(0xFF496BDC), Color(0xFF008A74)]
+          : dark
+              ? const [Color(0xFFFFEB9C), Color(0xFFFFB74C)]
+              : const [Color(0xFFA66300), Color(0xFF805000)],
+    );
+  }
+
+  static ({LinearGradient background, Color foreground}) travelSuperAwakening(
+      Brightness brightness) {
+    return brightness == Brightness.dark
+        ? (
+            background: const LinearGradient(
+              colors: [Color(0xFF674064), Color(0xFF434E7D), Color(0xFF215A50)],
+            ),
+            foreground: const Color(0xFFFFF3FF),
+          )
+        : (
+            background: const LinearGradient(
+              colors: [Color(0xFFF4C8F7), Color(0xFFD2DCFF), Color(0xFFBBF3E7)],
+            ),
+            foreground: const Color(0xFF30254D),
+          );
   }
 
   /// 评级分布条的色块（SSS+ / SSS / SS+ / SS / 其余）。

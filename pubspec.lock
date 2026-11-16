@@ -749,14 +749,6 @@ packages:
       url: "https://pub.flutter-io.cn"
     source: hosted
     version: "0.2.2"
-  internet_connection_checker:
-    dependency: "direct main"
-    description:
-      name: internet_connection_checker
-      sha256: "1c683e63e89c9ac66a40748b1b20889fd9804980da732bf2b58d6d5456c8e876"
-      url: "https://pub.flutter-io.cn"
-    source: hosted
-    version: "1.0.0+1"
   intl:
     dependency: "direct main"
     description:
@@ -1344,10 +1336,9 @@ packages:
   simai_flutter:
     dependency: "direct main"
     description:
-      name: simai_flutter
-      sha256: "2e33934f03e03750f67ba5360fe4a4726dad572f35728465af6bdb6cfb5d3a54"
-      url: "https://pub.flutter-io.cn"
-    source: hosted
+      path: "third_party/simai_flutter"
+      relative: true
+    source: path
     version: "0.5.0"
   sky_engine:
     dependency: transitive

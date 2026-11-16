@@ -1,7 +1,6 @@
 import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
-import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -41,6 +40,7 @@ class SongInfoExportToImgService {
     int? jpegQuality,
   }) async {
     OverlayEntry? overlayEntry;
+    var overlayInserted = false;
     try {
       debugPrint('=== SongInfoExport: STARTING IMAGE CONVERSION ===');
 
@@ -88,7 +88,8 @@ class SongInfoExportToImgService {
 
       // 插入到Overlay并等待渲染
       Overlay.of(context).insert(overlayEntry);
-      await _waitForRender();
+      overlayInserted = true;
+      await ImageEncodeUtil.waitForRender();
 
       // 捕获为图片
       final boundary = globalKey.currentContext?.findRenderObject()
@@ -96,20 +97,16 @@ class SongInfoExportToImgService {
       if (boundary == null) {
         debugPrint('SongInfoExport: RenderRepaintBoundary not found');
         overlayEntry.remove();
+        overlayInserted = false;
         return null;
       }
-
-      // 动态计算 pixelRatio：超过 GPU 最大纹理尺寸就是黑图（见 helper 注释）
-      final double pixelRatio = ImageEncodeUtil.safeCapturePixelRatio(
-          boundary.size.width, boundary.size.height);
-      debugPrint(
-          'SongInfoExport: Widget size: ${boundary.size.width}x${boundary.size.height}, pixelRatio: $pixelRatio');
 
       final encoded = await ImageEncodeUtil.encodeBoundary(boundary,
           jpegQuality: jpegQuality);
       final Uint8List finalBytes = encoded.bytes;
       final String extension = encoded.extension;
       overlayEntry.remove();
+      overlayInserted = false;
 
       // 保存图片
       final songTitle = basicInfo['title'] ?? '';
@@ -117,7 +114,7 @@ class SongInfoExportToImgService {
           extension: extension);
     } catch (e) {
       debugPrint('SongInfoExport: Error: $e');
-      overlayEntry?.remove();
+      if (overlayInserted) overlayEntry?.remove();
       return null;
     }
   }
@@ -1143,20 +1140,10 @@ class SongInfoExportToImgService {
 
   // ==================== 渲染和保存管线 ====================
 
-  static Future<void> _waitForRender() async {
-    Completer<void> completer1 = Completer<void>();
-    WidgetsBinding.instance.addPostFrameCallback((_) => completer1.complete());
-    await completer1.future;
-
-    Completer<void> completer2 = Completer<void>();
-    WidgetsBinding.instance.addPostFrameCallback((_) => completer2.complete());
-    await completer2.future;
-
-    await Future.delayed(const Duration(milliseconds: 500));
-    debugPrint('SongInfoExport: Render wait completed');
-  }
 
   static Future<PermissionStatus> _requestStoragePermission() async {
+    if (Platform.isIOS) return PermissionStatus.denied; // 先保存到应用文档。
+
     if (Platform.isAndroid) {
       final storageStatus = await Permission.storage.status;
       final photosStatus = await Permission.photos.status;

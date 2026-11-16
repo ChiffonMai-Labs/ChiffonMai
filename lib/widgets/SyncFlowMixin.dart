@@ -18,6 +18,8 @@ import '../service/MultiScoreSyncRunner.dart';
 import '../service/PostSyncRefreshService.dart';
 import '../service/AWMC/AwmcQuickSyncService.dart';
 import '../utils/SyncRouteNotifier.dart';
+import '../utils/AppTaskActivity.dart';
+import 'RefreshDataDialog.dart' show SharedRefreshData;
 import '../utils/SecureCredentialStore.dart';
 import 'SyncScoreDialogs.dart'
     show
@@ -122,6 +124,8 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
   /// 用到时才构造。
   SyncCallbacks get syncCallbacks;
 
+  void onSyncStateChanged() {}
+
   /// 统一改三个入口的按钮进度（不碰对话框）。
   ///
   /// 拆成「取计数 / 取文案 / 写回」三步是为了避免在表达式里对整个
@@ -162,6 +166,7 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
       if (multi != null) _syncingMulti = multi;
       if (multiText != null) _multiSyncText = multiText;
     });
+    onSyncStateChanged();
   }
 
   // ===== 水鱼 =====
@@ -256,7 +261,7 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
         reason: context.l10n.flowDivingFishRoute2)) return;
     if (!mounted) return;
     final input = await showDivingFishSyncInputDialog(context);
-    if (input == null || !mounted) return;
+    if (input == null || !mounted || anyBusy) return;
 
     _updateSyncState(
         divingFish: true, divingFishText: context.l10n.flowSyncingScores);
@@ -368,7 +373,7 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
         reason: context.l10n.flowLXNSRoute2)) return;
     if (!mounted) return;
     final input = await showLuoXueSyncInputDialog(context);
-    if (input == null || !mounted) return;
+    if (input == null || !mounted || anyBusy) return;
 
     _updateSyncState(luoXue: true, luoXueText: context.l10n.flowSyncingScores);
     final stopwatch = Stopwatch()..start();
@@ -491,11 +496,19 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
     final failures = <String>[];
     final refreshFailures = <String>[];
     var anySynchronized = false;
+    final finishTask = AppTaskActivity.begin();
     try {
       final prefs = await SharedPreferences.getInstance();
       final participate =
           prefs.getBool(CacheKeyConstant.participateRankings) ?? false;
       final nickname = prefs.getBool(CacheKeyConstant.showNickname) ?? false;
+      final sharedRefresh = SharedRefreshData(
+        forceSourceIds: input.forceSourceIds ??
+            (prefs.getStringList(CacheKeyConstant.advancedRefreshForceSources) ??
+                    const <String>[])
+                .toSet(),
+        reportFailures: true,
+      );
       var completedPlatforms = 0;
       final quickReadSession = AwmcQuickReadSession();
       // 多端同步里只要有一个线路2目标，就先复用/建立 Score Hub 登录态。
@@ -565,6 +578,7 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
               );
               anySynchronized = true;
               final refreshError = await refresh.run(
+                  sharedRefresh: sharedRefresh,
                   onProgress: (p, text) =>
                       _updateSyncState(multiText: '${platform.label}：$text'));
               if (refreshError != null)
@@ -590,6 +604,7 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
                 qrCode: qrCode,
                 target: target,
                 refreshRequest: input.refreshRequests[platform],
+                sharedRefresh: sharedRefresh,
                 onBusy: (text) => _updateSyncState(
                     multiText: context.l10n.flowP0Route1P1(
                         appLocalizeLabel(platform.label), (text).toString())),
@@ -630,6 +645,7 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
                     showNickname: nickname,
                     refreshRequest: input.refreshRequests[platform],
                   ),
+                  sharedRefresh: sharedRefresh,
                   onSyncSucceeded: () => anySynchronized = true,
                   onProgress: (p, text) => _updateSyncState(
                       multiText: context.l10n.flowDivingFishRoute2P0P1(
@@ -661,6 +677,7 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
                       refreshRequest: input.refreshRequests[platform]),
                   onRefreshFailed: (error) => refreshFailures
                       .add(context.l10n.flowLXNSP0((error).toString())),
+                  sharedRefresh: sharedRefresh,
                   onSyncSucceeded: () => anySynchronized = true,
                   onProgress: (p, text) => _updateSyncState(
                       multiText: context.l10n.flowLXNSRoute2P0P1(
@@ -686,6 +703,7 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
                       qr: qrCode,
                       importToken: token,
                       refreshRequest: input.refreshRequests[platform]),
+                  sharedRefresh: sharedRefresh,
                   onBusy: (label) =>
                       _updateSyncState(multiText: 'AWMC NET：$label'),
                   onIdle: () {},
@@ -713,6 +731,15 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
         }
       }
 
+      if (anySynchronized) {
+        await sharedRefresh.finish(
+          (text) => _updateSyncState(multiText: text),
+        );
+        if (sharedRefresh.failures.isNotEmpty) {
+          refreshFailures.add(appL10n.flowCouldNotRefreshDataP0(
+              sharedRefresh.failures.join('、')));
+        }
+      }
       if (!mounted) return;
       if (anySynchronized) ConfettiEffect.show(context);
       if (failures.isEmpty && refreshFailures.isEmpty) {
@@ -737,6 +764,7 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
         );
       }
     } finally {
+      finishTask();
       _updateSyncState(multi: false, multiText: '');
       SyncRouteNotifier.instance.refreshStatsSoon();
     }

@@ -24,7 +24,11 @@ import 'PostSyncRefreshOptions.dart';
 import 'SmoothLinearProgressIndicator.dart';
 import 'ConfettiEffect.dart';
 import 'RefreshDataDialog.dart'
-    show CurrentDataSourceNotifier, RefreshDataRequest, RefreshDataSource;
+    show
+        CurrentDataSourceNotifier,
+        RefreshDataRequest,
+        RefreshDataSource,
+        SharedRefreshData;
 import '../widgets/AppDialogs.dart';
 import '../widgets/AppToast.dart';
 import '../utils/AppDesignTokens.dart';
@@ -137,6 +141,7 @@ Future<DivingFishSyncInput?> showDivingFishSyncInputDialog(BuildContext context,
   final qrController = TextEditingController();
   var quickUpdate = false;
   final refreshKey = GlobalKey<PostSyncRefreshOptionsState>();
+  var submitting = false;
   ModalRoute<DivingFishSyncInput>? dialogRoute;
 
   if (!context.mounted) return null;
@@ -184,8 +189,8 @@ Future<DivingFishSyncInput?> showDivingFishSyncInputDialog(BuildContext context,
                 SyncDialogSection(
                   icon: Icons.refresh_rounded,
                   title: context.l10n.flowRefreshDataAfterSync,
-                  caption: context.l10n
-                      .flowRefreshAutomaticallyAfterUploadRefreshErrorsAre,
+                  caption: context
+                      .l10n.flowRefreshAutomaticallyAfterUploadRefreshErrorsAre,
                   child: PostSyncRefreshOptions(
                     key: refreshKey,
                     source: RefreshDataSource.shuiyu,
@@ -197,40 +202,65 @@ Future<DivingFishSyncInput?> showDivingFishSyncInputDialog(BuildContext context,
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
+              onPressed: () {
+                final route = dialogRoute;
+                if (route != null && route.isCurrent) route.navigator!.pop();
+              },
               child: Text(context.l10n.featureCancel),
             ),
             SyncStartButton(
               label: context.l10n.flowStartSync,
-              onPressed: () async {
-                final qrCode = qrController.text.trim();
-                if (!quickUpdate && qrCode.isEmpty) {
-                  AppToast.show(
-                      context.l10n.flowPasteTheMaimaiCHUNITHMLoginQRString,
-                      tone: AppToastTone.warning);
-                  return;
-                }
-                if (!quickUpdate && !qrCode.startsWith('SGWCMAID')) {
-                  AppToast.show(context.l10n.flowInvalidQRCodeUseALoginQR,
-                      tone: AppToastTone.warning);
-                  return;
-                }
-                final prefs2 = await SharedPreferences.getInstance();
-                await prefs2.setBool(
-                    CacheKeyConstant.participateRankings, participateRankings);
-                await prefs2.setBool(
-                    CacheKeyConstant.showNickname, showNickname);
-                final refreshRequest =
-                    await refreshKey.currentState?.collectRequest();
-                if (!dialogContext.mounted) return;
-                Navigator.of(dialogContext).pop(DivingFishSyncInput(
-                  qrCode: qrCode,
-                  quickUpdate: quickUpdate,
-                  participateRankings: participateRankings,
-                  showNickname: showNickname,
-                  refreshRequest: refreshRequest,
-                ));
-              },
+              onPressed: submitting
+                  ? null
+                  : () async {
+                      if (submitting || dialogRoute?.isCurrent != true) return;
+                      final qrCode = qrController.text.trim();
+                      if (!quickUpdate && qrCode.isEmpty) {
+                        AppToast.show(
+                            context
+                                .l10n.flowPasteTheMaimaiCHUNITHMLoginQRString,
+                            tone: AppToastTone.warning);
+                        return;
+                      }
+                      if (!quickUpdate && !qrCode.startsWith('SGWCMAID')) {
+                        AppToast.show(context.l10n.flowInvalidQRCodeUseALoginQR,
+                            tone: AppToastTone.warning);
+                        return;
+                      }
+                      setState(() => submitting = true);
+                      try {
+                        final prefs2 = await SharedPreferences.getInstance();
+                        await prefs2.setBool(
+                            CacheKeyConstant.participateRankings,
+                            participateRankings);
+                        await prefs2.setBool(
+                            CacheKeyConstant.showNickname, showNickname);
+                        final refreshRequest =
+                            await refreshKey.currentState?.collectRequest();
+                        if (!dialogContext.mounted ||
+                            dialogRoute?.isCurrent != true) return;
+                        dialogRoute!.navigator!.pop(DivingFishSyncInput(
+                          qrCode: qrCode,
+                          quickUpdate: quickUpdate,
+                          participateRankings: participateRankings,
+                          showNickname: showNickname,
+                          refreshRequest: refreshRequest,
+                        ));
+                      } catch (_) {
+                        if (dialogContext.mounted &&
+                            dialogRoute?.isCurrent == true) {
+                          AppToast.show(
+                              dialogContext.l10n
+                                  .flowCouldNotReadSavedCredentialsTryAgain,
+                              tone: AppToastTone.error);
+                        }
+                      } finally {
+                        if (dialogContext.mounted &&
+                            dialogRoute?.isActive == true) {
+                          setState(() => submitting = false);
+                        }
+                      }
+                    },
             ),
           ],
         ),
@@ -279,6 +309,7 @@ Future<LuoXueSyncInput?> showLuoXueSyncInputDialog(BuildContext context,
   var quickUpdate = false;
   final refreshKey = GlobalKey<PostSyncRefreshOptionsState>();
   String? error;
+  var submitting = false;
   ModalRoute<LuoXueSyncInput>? dialogRoute;
 
   // 打开时就检查密钥是否已保存：缺失时直接展示获取引导（与 AWMC NET 对话框一致）。
@@ -346,8 +377,8 @@ Future<LuoXueSyncInput?> showLuoXueSyncInputDialog(BuildContext context,
                 SyncDialogSection(
                   icon: Icons.refresh_rounded,
                   title: context.l10n.flowRefreshDataAfterSync,
-                  caption: context.l10n
-                      .flowRefreshAutomaticallyAfterUploadRefreshErrorsAre,
+                  caption: context
+                      .l10n.flowRefreshAutomaticallyAfterUploadRefreshErrorsAre,
                   child: PostSyncRefreshOptions(
                     key: refreshKey,
                     source: RefreshDataSource.luoxue,
@@ -359,43 +390,67 @@ Future<LuoXueSyncInput?> showLuoXueSyncInputDialog(BuildContext context,
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
+              onPressed: () {
+                final route = dialogRoute;
+                if (route != null && route.isCurrent) route.navigator!.pop();
+              },
               child: Text(context.l10n.featureCancel),
             ),
             SyncStartButton(
               label: context.l10n.flowStartSync,
-              onPressed: () async {
-                final qrCode = qrController.text.trim();
-                if (!quickUpdate && qrCode.isEmpty) {
-                  setState(() => error =
-                      context.l10n.flowPasteTheMaimaiCHUNITHMLoginQRString);
-                  return;
-                }
-                if (!quickUpdate && !qrCode.startsWith('SGWCMAID')) {
-                  setState(
-                      () => error = context.l10n.flowInvalidQRCodeUseALoginQR);
-                  return;
-                }
-                // 密钥统一在「成绩导入凭据」里维护，这里只读本地缓存，
-                // 不再让用户在同步对话框里输入。
-                final token = await SecureCredentialStore.read(
-                    CacheKeyConstant.probeLxnsImportToken);
-                if (!dialogContext.mounted) return;
-                if (token == null || token.isEmpty) {
-                  setState(() => error =
-                      context.l10n.flowNoLXNSPersonalAPIKeySetConfigure);
-                  return;
-                }
-                final refreshRequest =
-                    await refreshKey.currentState?.collectRequest();
-                if (!dialogContext.mounted) return;
-                Navigator.of(dialogContext).pop(LuoXueSyncInput(
-                  qrCode: qrCode,
-                  quickUpdate: quickUpdate,
-                  lxnsImportToken: token,
-                  refreshRequest: refreshRequest,
-                ));
-              },
+              onPressed: submitting
+                  ? null
+                  : () async {
+                      if (submitting || dialogRoute?.isCurrent != true) return;
+                      final qrCode = qrController.text.trim();
+                      if (!quickUpdate && qrCode.isEmpty) {
+                        setState(() => error = context
+                            .l10n.flowPasteTheMaimaiCHUNITHMLoginQRString);
+                        return;
+                      }
+                      if (!quickUpdate && !qrCode.startsWith('SGWCMAID')) {
+                        setState(() =>
+                            error = context.l10n.flowInvalidQRCodeUseALoginQR);
+                        return;
+                      }
+                      setState(() => submitting = true);
+                      try {
+                        // 密钥统一在「成绩导入凭据」里维护，这里只读本地缓存，
+                        // 不再让用户在同步对话框里输入。
+                        final token = await SecureCredentialStore.read(
+                            CacheKeyConstant.probeLxnsImportToken);
+                        if (!dialogContext.mounted ||
+                            dialogRoute?.isCurrent != true) return;
+                        if (token == null || token.isEmpty) {
+                          setState(() => error = context
+                              .l10n.flowNoLXNSPersonalAPIKeySetConfigure);
+                          return;
+                        }
+                        final refreshRequest =
+                            await refreshKey.currentState?.collectRequest();
+                        if (!dialogContext.mounted ||
+                            dialogRoute?.isCurrent != true) return;
+                        dialogRoute!.navigator!.pop(LuoXueSyncInput(
+                          qrCode: qrCode,
+                          quickUpdate: quickUpdate,
+                          lxnsImportToken: token,
+                          refreshRequest: refreshRequest,
+                        ));
+                      } catch (_) {
+                        if (dialogContext.mounted &&
+                            dialogRoute?.isCurrent == true) {
+                          AppToast.show(
+                              dialogContext.l10n
+                                  .flowCouldNotReadSavedCredentialsTryAgain,
+                              tone: AppToastTone.error);
+                        }
+                      } finally {
+                        if (dialogContext.mounted &&
+                            dialogRoute?.isActive == true) {
+                          setState(() => submitting = false);
+                        }
+                      }
+                    },
             ),
           ],
         ),
@@ -474,6 +529,7 @@ Future<int> executeLuoXueSync(
   required void Function(double progress, String text) onProgress,
   void Function(int durationMs)? onSyncFinished,
   VoidCallback? onSyncSucceeded,
+  SharedRefreshData? sharedRefresh,
   void Function(String error)? onRefreshFailed,
 }) =>
     AppTaskActivity.run(() async {
@@ -503,6 +559,7 @@ Future<int> executeLuoXueSync(
       onSyncSucceeded?.call();
       onProgress(0.72, appL10n.flowSyncCompleteRefreshingLocalData);
       final refreshError = await refresh.run(
+          sharedRefresh: sharedRefresh,
           onProgress: (p, text) => onProgress(0.72 + p * 0.0028, text));
       if (refreshError != null) onRefreshFailed?.call(refreshError);
       onProgress(
@@ -527,6 +584,7 @@ Future<DivingFishSyncOutcome> executeDivingFishSync(
   required void Function(double progress, String text) onProgress,
   void Function(int durationMs)? onSyncFinished,
   VoidCallback? onSyncSucceeded,
+  SharedRefreshData? sharedRefresh,
 }) =>
     AppTaskActivity.run(() async {
       if (input.quickUpdate) {
@@ -564,6 +622,7 @@ Future<DivingFishSyncOutcome> executeDivingFishSync(
       // 不先写共用 QQ 槽；刷新事务会把目标账号与数据一起提交。
       onProgress(0.70, appL10n.flowSyncSucceededRefreshingLocalData);
       final refreshError = await refresh.run(
+          sharedRefresh: sharedRefresh,
           onProgress: (p, text) => onProgress(0.70 + p * 0.003, text));
       onProgress(
           1.0,
@@ -677,7 +736,7 @@ class SyncScoreDialogs {
                   setState(() {});
                   autoCloseTimer = Timer(const Duration(seconds: 1), tick);
                 } else {
-                  if (Navigator.of(dialogContext).canPop()) {
+                  if (ModalRoute.of(dialogContext)?.isCurrent == true) {
                     Navigator.of(dialogContext).pop();
                   }
                 }
@@ -743,8 +802,8 @@ class SyncScoreDialogs {
                             divingFishSource:
                                 CurrentDataSourceNotifier.instance.value ==
                                     RefreshDataSource.shuiyu,
-                            dataSourceKey: CurrentDataSourceNotifier
-                                .instance.value.key,
+                            dataSourceKey:
+                                CurrentDataSourceNotifier.instance.value.key,
                             onChanged: (participate, nickname, brief) =>
                                 setState(() {
                                   participateRankings = participate;
@@ -1126,7 +1185,10 @@ class SyncScoreDialogs {
                                               (refreshError).toString()),
                                       tone: AppToastTone.error);
                                 }
-                                Navigator.of(dialogContext).pop(fc);
+                                if (ModalRoute.of(dialogContext)?.isCurrent ==
+                                    true) {
+                                  Navigator.of(dialogContext).pop(fc);
+                                }
                               } else {
                                 finishAttempt(ok: false);
                                 setState(() {

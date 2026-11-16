@@ -13,18 +13,24 @@ import '../utils/UserProfileNotifier.dart';
 import 'CommunityAvatar.dart';
 import 'LxnsAssetImage.dart';
 import '../utils/AppDesignTokens.dart';
+import 'AppUi.dart' show AnimatedReveal, AppCard, PressScale;
 
-/// 系统页展示与选择的是完整社区装扮，同步状态涵盖全部四项。
+/// 系统页的社区装扮入口，含公开装扮和本机角色设置。
 class CommunityAppearanceBanner extends StatefulWidget {
   final AvatarSyncState appearance;
   final String nickname;
-  final VoidCallback onPickTap, onRetry;
+
+  /// 打开装扮选择器，参数是初始页：0 头像、1 姓名框、2 背景、3 称号。
+  final ValueChanged<int> onPickTap;
+  final VoidCallback onRetry;
+  final VoidCallback onTravelAppearanceTap;
   const CommunityAppearanceBanner(
       {super.key,
       required this.appearance,
       required this.nickname,
       required this.onPickTap,
-      required this.onRetry});
+      required this.onRetry,
+      required this.onTravelAppearanceTap});
 
   @override
   State<CommunityAppearanceBanner> createState() =>
@@ -74,32 +80,19 @@ class _CommunityAppearanceBannerState extends State<CommunityAppearanceBanner> {
     unawaited(_pendingWrites);
   }
 
-  Duration _duration(BuildContext context) =>
-      MediaQuery.disableAnimationsOf(context)
-          ? Duration.zero
-          : const Duration(milliseconds: 360);
+  Widget _detail(Widget child) => AnimatedReveal(
+        visible: _expanded,
+        child: SizedBox(width: double.infinity, child: child),
+      );
 
-  Widget _detail(BuildContext context, Widget child) => IgnorePointer(
-        ignoring: !_expanded,
-        child: ExcludeSemantics(
-          excluding: !_expanded,
-          child: ClipRect(
-            child: AnimatedAlign(
-              alignment: Alignment.topCenter,
-              heightFactor: _expanded ? 1 : 0,
-              duration: _duration(context),
-              curve: Curves.easeInOutCubic,
-              child: SizedBox(
-                width: double.infinity,
-                child: AnimatedOpacity(
-                  opacity: _expanded ? 1 : 0,
-                  duration: _duration(context),
-                  curve: Curves.easeInOut,
-                  child: TickerMode(enabled: _expanded, child: child),
-                ),
-              ),
-            ),
-          ),
+  /// 展开时点哪张收藏品图片就直达对应选择页；收起时交给外层，固定打开第一页。
+  Widget _pickArea(int tab, String label, Widget child) => Semantics(
+        button: _expanded,
+        label: _expanded ? label : null,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _expanded ? () => widget.onPickTap(tab) : null,
+          child: PressScale(scale: 0.98, child: child),
         ),
       );
 
@@ -128,7 +121,7 @@ class _CommunityAppearanceBannerState extends State<CommunityAppearanceBanner> {
         color: scheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
-            onTap: onPickTap,
+            onTap: () => onPickTap(0),
             splashFactory: NoSplash.splashFactory,
             highlightColor: Colors.transparent,
             borderRadius: BorderRadius.circular(16),
@@ -141,21 +134,26 @@ class _CommunityAppearanceBannerState extends State<CommunityAppearanceBanner> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       if (appearance.frameId != null)
-                        _detail(
-                            context,
+                        _detail(_pickArea(
+                            2,
+                            context.featureText('背景'),
                             SizedBox(
                                 height: 92,
                                 child: LxnsAssetImage(
                                     url: lxnsFrameUrl(appearance.frameId!),
-                                    fit: BoxFit.cover))),
+                                    fit: BoxFit.cover)))),
                       Padding(
                           padding: const EdgeInsets.all(16),
                           child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
                                 Row(children: [
-                                  CommunityAvatar(
-                                      avatarId: appearance.avatarId, size: 68),
+                                  _pickArea(
+                                      0,
+                                      context.featureText('头像'),
+                                      CommunityAvatar(
+                                          avatarId: appearance.avatarId,
+                                          size: 68)),
                                   const SizedBox(width: 14),
                                   Expanded(
                                       child: Column(
@@ -211,8 +209,13 @@ class _CommunityAppearanceBannerState extends State<CommunityAppearanceBanner> {
                                               onPressed: _toggleExpanded,
                                               icon: AnimatedRotation(
                                                 turns: _expanded ? 0 : 0.5,
-                                                duration: _duration(context),
-                                                curve: Curves.easeInOutCubic,
+                                                duration:
+                                                    AppDesignTokens.motion(
+                                                        context,
+                                                        AppDesignTokens
+                                                            .mediumMotion),
+                                                curve: AppDesignTokens
+                                                    .emphasizedCurve,
                                                 child: const Icon(
                                                     Icons.expand_less_rounded,
                                                     size: 22),
@@ -240,7 +243,7 @@ class _CommunityAppearanceBannerState extends State<CommunityAppearanceBanner> {
                                                             AvatarSyncLevel
                                                                 .synced
                                                     ? onRetry
-                                                    : onPickTap,
+                                                    : () => onPickTap(0),
                                                 child: Row(
                                                     mainAxisSize:
                                                         MainAxisSize.min,
@@ -282,24 +285,24 @@ class _CommunityAppearanceBannerState extends State<CommunityAppearanceBanner> {
                                       ]))
                                 ]),
                                 if (appearance.plateId != null)
-                                  _detail(
-                                      context,
-                                      Padding(
-                                          padding:
-                                              const EdgeInsets.only(top: 12),
-                                          child: AspectRatio(
+                                  _detail(Padding(
+                                      padding: const EdgeInsets.only(top: 12),
+                                      child: _pickArea(
+                                          1,
+                                          context.featureText('姓名框'),
+                                          AspectRatio(
                                               aspectRatio: 720 / 116,
                                               child: LxnsAssetImage(
                                                   url: lxnsPlateUrl(
                                                       appearance.plateId!),
-                                                  fit: BoxFit.contain)))),
+                                                  fit: BoxFit.contain))))),
                                 if (appearance.trophy != null)
-                                  _detail(
-                                      context,
-                                      Padding(
-                                          padding:
-                                              const EdgeInsets.only(top: 12),
-                                          child: TrophyTitleBadge(
+                                  _detail(Padding(
+                                      padding: const EdgeInsets.only(top: 12),
+                                      child: _pickArea(
+                                          3,
+                                          context.featureText('称号'),
+                                          TrophyTitleBadge(
                                               name: appearance.trophy?['name']
                                                       ?.toString() ??
                                                   context.l10n.homeTrophyId(
@@ -307,7 +310,32 @@ class _CommunityAppearanceBannerState extends State<CommunityAppearanceBanner> {
                                                           .toString()),
                                               color: appearance.trophy?['color']
                                                   ?.toString(),
-                                              trophyId: appearance.trophyId))),
+                                              trophyId: appearance.trophyId)))),
+                                const SizedBox(height: 12),
+                                AppCard(
+                                  color: AppSurfaces.inset(context),
+                                  radius: AppDesignTokens.radiusSmall,
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 10),
+                                  onTap: widget.onTravelAppearanceTap,
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.groups_rounded,
+                                          color: scheme.primary),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Text(
+                                          context.l10n.communityTravelAppearance,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .labelLarge,
+                                        ),
+                                      ),
+                                      Icon(Icons.chevron_right_rounded,
+                                          color: scheme.onSurfaceVariant),
+                                    ],
+                                  ),
+                                ),
                               ])),
                     ]))));
   }

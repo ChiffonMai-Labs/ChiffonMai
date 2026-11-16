@@ -24,8 +24,12 @@ class CollectionPickerSheet extends StatefulWidget {
   final ValueChanged<int> onAvatarPicked;
   final ValueChanged<int> onPlatePicked;
 
+  /// 打开时停在哪一页：0 头像、1 姓名框、2 背景、3 称号。
+  final int initialTab;
+
   const CollectionPickerSheet({
     super.key,
+    this.initialTab = 0,
     this.searchController,
     this.isLoading = false,
     this.frames = const [],
@@ -49,7 +53,7 @@ class CollectionPickerSheet extends StatefulWidget {
 
 class _CollectionPickerSheetState extends State<CollectionPickerSheet> {
   // 状态放到 State 字段里，跟 sheet 实例生命周期绑定
-  int _activeTab = 0; // 头像、姓名框、背景、称号
+  late int _activeTab = widget.initialTab.clamp(0, 3); // 头像、姓名框、背景、称号
   late final TextEditingController _searchController;
   @override
   void initState() {

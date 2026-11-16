@@ -83,6 +83,7 @@ extension _SongInfoLayout on _SongInfoPageState {
 
   /// 「更多」操作面板：原按钮网格里不常用的几项。
   void _showMoreSongActions() {
+    FocusManager.instance.primaryFocus?.unfocus();
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -102,38 +103,32 @@ extension _SongInfoLayout on _SongInfoPageState {
           );
         }
 
-        return SafeArea(
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                item(Icons.ondemand_video_outlined,
-                    context.l10n.flowOpenBilibili2, _jumpToBilibili),
-                item(
-                    Icons.leaderboard_outlined,
-                    context.l10n.flowAchievementRanking2,
-                    _viewAchievementRanking),
-                item(Icons.emoji_events_outlined,
-                    context.l10n.flowDXScoreRanking2, _viewDxScoreRanking),
-                item(
-                    Icons.collections_bookmark_outlined,
-                    context.l10n.flowRelatedCollectiblesP0(
-                        (_relatedCollectionsCount).toString()),
-                    _viewRelatedCollectibles),
-                item(
-                    Icons.playlist_add_outlined,
-                    context.l10n.flowAddToPlayNext,
-                    _isLoading ? null : _addToNextPlayQueue),
-                item(
-                    Icons.image_outlined,
-                    context.l10n.flowExportSongInformation,
-                    _exportSongInfoToImage),
-                item(Icons.calculate_outlined, context.l10n.featureCalculators2,
-                    _openCalculator),
-                const SizedBox(height: 8),
-              ],
-            ),
-          ),
+        return _MoreSongActionsSheet(
+          actions: [
+            item(
+                Icons.ondemand_video_outlined,
+                sheetContext.l10n.songChartConfirmationBilibili,
+                _jumpToBilibili),
+            item(
+                Icons.play_circle_outline_rounded,
+                sheetContext.l10n.songChartPlaybackInApp,
+                _isLoading || _openingChartPlayback ? null : _playChartInApp),
+            item(Icons.leaderboard_outlined,
+                context.l10n.flowAchievementRanking2, _viewAchievementRanking),
+            item(Icons.emoji_events_outlined, context.l10n.flowDXScoreRanking2,
+                _viewDxScoreRanking),
+            item(
+                Icons.collections_bookmark_outlined,
+                context.l10n.flowRelatedCollectiblesP0(
+                    (_relatedCollectionsCount).toString()),
+                _viewRelatedCollectibles),
+            item(Icons.playlist_add_outlined, context.l10n.flowAddToPlayNext,
+                _isLoading ? null : _addToNextPlayQueue),
+            item(Icons.image_outlined, context.l10n.flowExportSongInformation,
+                _exportSongInfoToImage),
+            item(Icons.calculate_outlined, context.l10n.featureCalculators2,
+                _openCalculator),
+          ],
         );
       },
     );
@@ -196,8 +191,7 @@ extension _SongInfoLayout on _SongInfoPageState {
     return AnimatedContainer(
       duration: AppDesignTokens.motion(context, AppDesignTokens.slowMotion),
       curve: AppDesignTokens.emphasizedCurve,
-      padding: EdgeInsets.fromLTRB(
-          16, MediaQuery.paddingOf(context).top + 4, 16, 44),
+      padding: EdgeInsets.only(top: MediaQuery.paddingOf(context).top + 4),
       decoration: BoxDecoration(
         color: _heroColor(accentColor),
         gradient: LinearGradient(
@@ -215,113 +209,147 @@ extension _SongInfoLayout on _SongInfoPageState {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              children: [
-                circleButton(
-                  tooltip: MaterialLocalizations.of(context).backButtonTooltip,
-                  icon: const Icon(Icons.arrow_back),
-                  onPressed: () => Navigator.of(context).maybePop(),
-                ),
-                const Spacer(),
-                circleButton(
-                  tooltip: _hasNote
-                      ? context.l10n.flowViewNotes
-                      : context.l10n.flowAddNotes,
-                  icon: Icon(_hasNote ? Icons.note : Icons.note_add_outlined,
-                      size: 20),
-                  onPressed: () => _showNoteDialog(),
-                ),
-                const SizedBox(width: 8),
-                circleButton(
-                  tooltip: _isBookmarked
-                      ? context.l10n.flowFavorited
-                      : context.l10n.flowAddToAFavoritesFolder,
-                  // 收藏状态变化时心跳一下
-                  icon: TweenAnimationBuilder<double>(
-                    key: ValueKey(_isBookmarked),
-                    tween: Tween(begin: 0, end: 1),
-                    duration: AppDesignTokens.motion(
-                        context, const Duration(milliseconds: 400)),
-                    builder: (context, t, child) => Transform.scale(
-                      scale: t < 0.4
-                          ? 1 + 0.35 * (t / 0.4)
-                          : 1 + 0.35 * ((1 - t) / 0.6),
-                      child: child,
-                    ),
-                    child: Icon(
-                        _isBookmarked ? Icons.favorite : Icons.favorite_border,
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  circleButton(
+                    tooltip:
+                        MaterialLocalizations.of(context).backButtonTooltip,
+                    icon: const Icon(Icons.arrow_back),
+                    onPressed: () => Navigator.of(context).maybePop(),
+                  ),
+                  const Spacer(),
+                  circleButton(
+                    tooltip: _hasNote
+                        ? context.l10n.flowViewNotes
+                        : context.l10n.flowAddNotes,
+                    icon: Icon(_hasNote ? Icons.note : Icons.note_add_outlined,
                         size: 20),
+                    onPressed: () => _showNoteDialog(),
                   ),
-                  onPressed: () => _showBookmarkDialog(),
-                ),
-                const SizedBox(width: 8),
-                circleButton(
-                  tooltip: userRecord == null
-                      ? context.l10n.flowExportSongInformation
-                      : context.l10n.flowShareScore,
-                  icon: const Icon(Icons.ios_share_rounded, size: 20),
-                  onPressed: () {
-                    if (userRecord == null) {
-                      _exportSongInfoToImage();
-                    } else {
-                      _shareScoreCard(
-                        userRecord: userRecord,
-                        basicInfo: basicInfo,
-                        levels: levels,
-                      );
-                    }
-                  },
-                ),
-              ],
-            ),
-            const SizedBox(height: 18),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                FadeSwitcher(
-                  value: 'cover-${widget.songId}',
-                  child: _buildHeroCover(basicInfo, accentColor),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      FadeSwitcher(
-                        value: 'title-${widget.songId}',
-                        child: _buildHeroTitle(title),
+                  const SizedBox(width: 8),
+                  circleButton(
+                    tooltip: _isBookmarked
+                        ? context.l10n.flowFavorited
+                        : context.l10n.flowAddToAFavoritesFolder,
+                    // 收藏状态变化时心跳一下
+                    icon: TweenAnimationBuilder<double>(
+                      key: ValueKey(_isBookmarked),
+                      tween: Tween(begin: 0, end: 1),
+                      duration: AppDesignTokens.motion(
+                          context, const Duration(milliseconds: 400)),
+                      builder: (context, t, child) => Transform.scale(
+                        scale: t < 0.4
+                            ? 1 + 0.35 * (t / 0.4)
+                            : 1 + 0.35 * ((1 - t) / 0.6),
+                        child: child,
                       ),
-                      if (artist.isNotEmpty) ...[
-                        const SizedBox(height: 4),
-                        GestureDetector(
-                          onTap: () =>
-                              _showStatDialog(context.l10n.flowArtist, artist),
-                          child: MarqueeText(
-                            text: artist,
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.white.withValues(alpha: 0.85),
-                            ),
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 6),
-                      FadeSwitcher(
-                        value: 'type-${widget.songId}',
-                        child: _buildHeroTypeRow(),
-                      ),
-                      const SizedBox(height: 6),
-                      _buildAliasSection(title),
-                    ],
+                      child: Icon(
+                          _isBookmarked
+                              ? Icons.favorite
+                              : Icons.favorite_border,
+                          size: 20),
+                    ),
+                    onPressed: () => _showBookmarkDialog(),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  circleButton(
+                    tooltip: userRecord == null
+                        ? context.l10n.flowExportSongInformation
+                        : context.l10n.flowShareScore,
+                    icon: const Icon(Icons.ios_share_rounded, size: 20),
+                    onPressed: () {
+                      if (userRecord == null) {
+                        _exportSongInfoToImage();
+                      } else {
+                        _shareScoreCard(
+                          userRecord: userRecord,
+                          basicInfo: basicInfo,
+                          levels: levels,
+                        );
+                      }
+                    },
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 18),
-            _buildDifficultySelector(levels),
+            ClipRect(
+              child: AnimatedBuilder(
+                animation: _songScrollController,
+                builder: (context, child) {
+                  final offset = _songScrollController.hasClients
+                      ? _songScrollController.offset.clamp(0.0, double.infinity)
+                      : 0.0;
+                  // 抽屉上滑时，曲绘和歌曲信息以四分之一的速度跟随。
+                  return Transform.translate(
+                    offset: Offset(0, -offset * 0.25),
+                    child: child,
+                  );
+                },
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 18, 16, 44),
+                  child: _buildSongHeroDetails(
+                      basicInfo, levels, accentColor, title, artist),
+                ),
+              ),
+            ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildSongHeroDetails(dynamic basicInfo, dynamic levels,
+      Color accentColor, String title, String artist) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            FadeSwitcher(
+              value: 'cover-${widget.songId}',
+              child: _buildHeroCover(basicInfo, accentColor),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  FadeSwitcher(
+                    value: 'title-${widget.songId}',
+                    child: _buildHeroTitle(title),
+                  ),
+                  if (artist.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    GestureDetector(
+                      onTap: () =>
+                          _showStatDialog(context.l10n.flowArtist, artist),
+                      child: MarqueeText(
+                        text: artist,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.white.withValues(alpha: 0.85),
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 6),
+                  FadeSwitcher(
+                    value: 'type-${widget.songId}',
+                    child: _buildHeroTypeRow(),
+                  ),
+                  const SizedBox(height: 6),
+                  _buildAliasSection(title),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 18),
+        _buildDifficultySelector(levels),
+      ],
     );
   }
 
@@ -911,11 +939,24 @@ extension _SongInfoLayout on _SongInfoPageState {
     if (date == null || !RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(date)) {
       return null;
     }
+    return date.compareTo(_beijingToday()) > 0 ? date : null;
+  }
+
+  /// 北京时间（UTC+8）今天的 yyyy-MM-dd，与设备时区无关。
+  String _beijingToday() {
     final now = DateTime.now().toUtc().add(const Duration(hours: 8));
-    final today = '${now.year.toString().padLeft(4, '0')}-'
+    return '${now.year.toString().padLeft(4, '0')}-'
         '${now.month.toString().padLeft(2, '0')}-'
         '${now.day.toString().padLeft(2, '0')}';
-    return date.compareTo(today) > 0 ? date : null;
+  }
+
+  /// 歌曲在落雪曲库中，且当前谱面类型最早的国服上线日期不晚于今天（北京时间）。
+  bool _isReleasedOnLxnsCn() {
+    final date = _cnReleaseDate;
+    if (date == null || !RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(date)) {
+      return false;
+    }
+    return date.compareTo(_beijingToday()) <= 0;
   }
 
   Widget _buildIllegalScoreNotice(List<String> reasons) {
@@ -1699,6 +1740,103 @@ extension _SongInfoLayout on _SongInfoPageState {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _MoreSongActionsSheet extends StatefulWidget {
+  const _MoreSongActionsSheet({required this.actions});
+
+  final List<Widget> actions;
+
+  @override
+  State<_MoreSongActionsSheet> createState() => _MoreSongActionsSheetState();
+}
+
+class _MoreSongActionsSheetState extends State<_MoreSongActionsSheet> {
+  static const _hintHeight = 44.0;
+  final _scroll = ScrollController();
+  bool _hasOverflow = false;
+  bool _canScrollDown = false;
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  void _updateHint(ScrollMetrics metrics) {
+    final hasOverflow =
+        metrics.maxScrollExtent > (_hasOverflow ? _hintHeight + 1 : 1);
+    final canScrollDown = metrics.extentAfter > 1;
+    if (_hasOverflow != hasOverflow || _canScrollDown != canScrollDown) {
+      setState(() {
+        _hasOverflow = hasOverflow;
+        _canScrollDown = canScrollDown;
+      });
+    }
+  }
+
+  void _scrollDown() {
+    if (!_scroll.hasClients) return;
+    final position = _scroll.position;
+    final target = position.pixels + position.viewportDimension * .75;
+    final next = target
+        .clamp(position.minScrollExtent, position.maxScrollExtent)
+        .toDouble();
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _scroll.jumpTo(next);
+    } else {
+      _scroll.animateTo(next,
+          duration: const Duration(milliseconds: 240), curve: Curves.easeOut);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
+            child: NotificationListener<ScrollMetricsNotification>(
+              onNotification: (notice) {
+                _updateHint(notice.metrics);
+                return false;
+              },
+              child: NotificationListener<ScrollNotification>(
+                onNotification: (notice) {
+                  _updateHint(notice.metrics);
+                  return false;
+                },
+                child: Scrollbar(
+                  controller: _scroll,
+                  thumbVisibility: true,
+                  child: ListView(
+                    controller: _scroll,
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.only(bottom: 8, right: 8),
+                    children: widget.actions,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          if (_hasOverflow)
+            // 滑到底后保留占位，避免视口高度改变导致提示反复出现。
+            SizedBox(
+              height: _hintHeight,
+              child: _canScrollDown
+                  ? TextButton.icon(
+                      onPressed: _scrollDown,
+                      icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                      label: Text(context.l10n.songMoreActionsScroll),
+                    )
+                  : null,
+            ),
+        ],
+      ),
     );
   }
 }

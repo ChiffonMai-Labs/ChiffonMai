@@ -119,6 +119,7 @@ class _AppUpdateDownloadDialogState extends State<AppUpdateDownloadDialog>
           final total = (_task.state['total'] as num?)?.toInt() ?? 0;
           final received = (_task.state['received'] as num?)?.toInt() ?? 0;
           return AppAlertDialog(
+            animateHeight: true,
             title: Text(ready || installing ? context.l10n.flowInstallUpdate : context.l10n.flowDownloadUpdateInBackground),
             scrollable: true,
             subtitle: _task.state['version'] == null

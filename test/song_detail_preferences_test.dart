@@ -54,6 +54,59 @@ void main() {
     expect(reMasterEntry.initialLevelIndex, ChartDifficulty.reMaster);
   });
 
+  test('每首歌独立记忆，显式难度优先，关闭保留，支持清除并重新读盘', () async {
+    SharedPreferences.setMockInitialValues({});
+    final preferences = SongDetailPreferences.instance;
+    await preferences.reload();
+    const expert = (title: '同名歌曲', type: 'SD', index: ChartDifficulty.expert);
+    const reMaster =
+        (title: '同名歌曲', type: 'DX', index: ChartDifficulty.reMaster);
+
+    expect(preferences.rememberEnabled, isFalse);
+    await preferences.rememberDifficulty('1', expert);
+    expect(preferences.remembered, isEmpty);
+    await preferences.setDifficulty(ChartDifficulty.advanced);
+    await preferences.setRememberEnabled(true);
+    await Future.wait([
+      preferences.rememberDifficulty('1', expert),
+      preferences.rememberDifficulty('10001', reMaster),
+    ]);
+    expect(preferences.openingDifficulty('1', chartCount: 5),
+        ChartDifficulty.expert);
+    expect(preferences.openingDifficulty('10001', chartCount: 5),
+        ChartDifficulty.reMaster);
+    expect(preferences.openingDifficulty('10001', chartCount: 4),
+        ChartDifficulty.advanced);
+    expect(preferences.openingDifficulty('2', chartCount: 4),
+        ChartDifficulty.advanced);
+    expect(
+        preferences.openingDifficulty('1',
+            chartCount: 5, specified: ChartDifficulty.basic),
+        ChartDifficulty.basic);
+    expect(
+        preferences.openingDifficulty('123456', chartCount: 2, isUtage: true),
+        ChartDifficulty.basic);
+
+    await preferences.setRememberEnabled(false);
+    await preferences.rememberDifficulty('1', reMaster);
+    await preferences.reload();
+    expect(preferences.rememberEnabled, isFalse);
+    expect(preferences.remembered, {'1': expert, '10001': reMaster});
+    expect(preferences.openingDifficulty('1', chartCount: 5),
+        ChartDifficulty.advanced);
+    await preferences.clearRememberedDifficulties({'1'});
+    await preferences.setRememberEnabled(true);
+    expect(preferences.openingDifficulty('1', chartCount: 5),
+        ChartDifficulty.advanced);
+    expect(preferences.openingDifficulty('10001', chartCount: 5),
+        ChartDifficulty.reMaster);
+    await preferences
+        .clearRememberedDifficulties(preferences.remembered.keys.toSet());
+    await preferences.reload();
+    expect(preferences.remembered, isEmpty);
+    expect(preferences.rememberEnabled, isTrue);
+  });
+
   test('冷启动缺少附加缓存时，本地歌曲和成绩可先返回，慢网络只影响附加数据', () async {
     SharedPreferences.setMockInitialValues({
       CacheKeyConstant.cachedSongs: jsonEncode([

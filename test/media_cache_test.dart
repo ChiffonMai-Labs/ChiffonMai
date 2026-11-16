@@ -110,6 +110,39 @@ void main() {
     expect(requests, 0);
   });
 
+  test('播放加入已有音源下载时也能收到当前进度和完成进度', () async {
+    final started = Completer<void>();
+    final response = Completer<http.StreamedResponse>();
+    final pending = SongMediaCache(
+      documents: () async => documents,
+      temporary: () async => temporary,
+      readLegacyCache: false,
+      fetch: (_, __) {
+        requests++;
+        started.complete();
+        return response.future;
+      },
+    );
+    final first = pending.ensureAudio('11466', urls: song.audioUrls);
+    await started.future;
+    final progress = <double?>[];
+    final playback = pending.ensureAudio(
+      '1466',
+      urls: song.audioUrls,
+      onProgress: (value, _, __) => progress.add(value),
+    );
+    expect(progress, [null]);
+    response.complete(http.StreamedResponse(
+      Stream.value(audio),
+      200,
+      contentLength: audio.length,
+    ));
+    final files = await Future.wait([first, playback]);
+    expect(files[0].path, files[1].path);
+    expect(progress, [null, 1]);
+    expect(requests, 1);
+  });
+
   test('PV 首次缓存后重新进入不请求网络，并保留原始 songId', () async {
     final file =
         await cache.ensurePv('100018', url: 'https://probe.invalid/pv.mp4');
@@ -240,6 +273,58 @@ void main() {
     expect(await reopened.fetchMaidataForSongIds(['8']), hasLength(1));
     expect(reopened.isFullCacheReady, isFalse);
     expect(requests, 1);
+  });
+
+  test('全量 maidata 共享并发额度，DNS 故障后停止排队并保留旧缓存', () async {
+    final file = File('${documents.path}/maidata_full_cache.json');
+    const oldCache = '{"8":"&shortid=8"}';
+    await file.writeAsString(oldCache);
+    final prefs = await SharedPreferences.getInstance();
+    final oldTimestamp = DateTime.now()
+        .subtract(const Duration(days: 60))
+        .millisecondsSinceEpoch;
+    await prefs.setInt(CacheKeyConstant.maidataFullCacheTimestamp, oldTimestamp);
+
+    var active = 0;
+    var peak = 0;
+    var fileRequests = 0;
+    ApiClient.debugClient = MockClient((request) async {
+      if (!request.url.path.endsWith('/maidata.txt')) {
+        return http.Response(
+            List.generate(30, (i) => '<a href="song$i/">').join(), 200);
+      }
+      fileRequests++;
+      active++;
+      if (active > peak) peak = active;
+      await Future<void>.delayed(const Duration(milliseconds: 3));
+      active--;
+      throw const SocketException('Failed host lookup');
+    });
+
+    final manager = MaidataManager.forTesting();
+    await manager.initialize();
+    expect(await manager.isFullCacheValid(), isFalse);
+    expect(manager.getMaidata('8'), contains('&shortid=8'));
+    await expectLater(manager.fetchAndCacheFullMaidata(), throwsStateError);
+    expect(peak, 8);
+    expect(fileRequests, lessThanOrEqualTo(15));
+    expect(await file.readAsString(), oldCache);
+    expect(prefs.getInt(CacheKeyConstant.maidataFullCacheTimestamp), oldTimestamp);
+
+    ApiClient.debugClient = MockClient((request) async {
+      if (request.url.path.endsWith('/maidata.txt')) {
+        final segments = request.url.pathSegments;
+        expect(segments, hasLength(3));
+        return http.Response('&shortid=9', 200);
+      }
+      if (request.url.path.endsWith('/index.json')) {
+        return http.Response('{}', 200);
+      }
+      return http.Response('<a href="song/">', 200);
+    });
+    await manager.fetchAndCacheFullMaidata();
+    expect(await manager.isFullCacheValid(), isTrue);
+    expect(await file.readAsString(), '{"9":"&shortid=9"}');
   });
 
   test('WMC 兜底并发复用、持久恢复，清理删除正文和内存缓存', () async {

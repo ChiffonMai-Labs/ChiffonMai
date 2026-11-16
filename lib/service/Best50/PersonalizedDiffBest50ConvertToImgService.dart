@@ -1,5 +1,4 @@
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
-import 'dart:async';
 import 'ThunderBest50Export.dart';
 import 'dart:io';
 import 'dart:typed_data';
@@ -27,8 +26,10 @@ class PersonalizedDiffBest50ConvertToImg {
       {int? jpegQuality,
       bool thunderMode = false,
       bool thunderVertical = true,
+      Best50ExportBackground background = Best50ExportBackground.none,
       ExportImageTheme theme = ExportImageTheme.light}) async {
     OverlayEntry? overlayEntry;
+    var overlayInserted = false;
     try {
       debugPrint('=== STARTING PERSONALIZED DIFF B50 IMAGE CONVERSION ===');
       debugPrint(
@@ -45,6 +46,7 @@ class PersonalizedDiffBest50ConvertToImg {
             context, title, diffBest50Data, diffSongs, maimaiMusicData,
             thunderMode: thunderMode,
             thunderVertical: thunderVertical,
+            background: background,
             theme: theme),
       );
       final exportWidth = thunderMode
@@ -63,13 +65,15 @@ class PersonalizedDiffBest50ConvertToImg {
         ),
       );
 
-      await _preloadImages(context);
+      await background.precache(context);
       debugPrint('Images preloaded');
 
       Overlay.of(context).insert(overlayEntry);
+
+      overlayInserted = true;
       debugPrint('Overlay entry inserted');
 
-      await _waitForRender();
+      await ImageEncodeUtil.waitForRender();
       debugPrint('Render wait completed');
 
       final RenderRepaintBoundary? boundary = globalKey.currentContext
@@ -77,6 +81,7 @@ class PersonalizedDiffBest50ConvertToImg {
       if (boundary == null) {
         debugPrint('Error: RenderRepaintBoundary not found');
         overlayEntry.remove();
+        overlayInserted = false;
         return null;
       }
       debugPrint('RenderRepaintBoundary found successfully');
@@ -90,6 +95,7 @@ class PersonalizedDiffBest50ConvertToImg {
       final String extension = encoded.extension;
 
       overlayEntry.remove();
+      overlayInserted = false;
 
       Directory? directory;
 
@@ -139,7 +145,6 @@ class PersonalizedDiffBest50ConvertToImg {
 
       if (directory == null) {
         debugPrint('Error: No storage directory found');
-        overlayEntry.remove();
         return null;
       }
 
@@ -174,7 +179,7 @@ class PersonalizedDiffBest50ConvertToImg {
       return file;
     } catch (e) {
       debugPrint('Error converting to image: $e');
-      overlayEntry?.remove();
+      if (overlayInserted) overlayEntry?.remove();
       return null;
     }
   }
@@ -188,6 +193,7 @@ class PersonalizedDiffBest50ConvertToImg {
     List<dynamic>? maimaiMusicData, {
     bool thunderMode = false,
     bool thunderVertical = true,
+    Best50ExportBackground background = Best50ExportBackground.none,
     ExportImageTheme theme = ExportImageTheme.light,
   }) =>
       _buildExportImageWidget(
@@ -198,6 +204,7 @@ class PersonalizedDiffBest50ConvertToImg {
         maimaiMusicData,
         thunderMode: thunderMode,
         thunderVertical: thunderVertical,
+        background: background,
         theme: theme,
       );
 
@@ -210,6 +217,7 @@ class PersonalizedDiffBest50ConvertToImg {
       List<dynamic>? maimaiMusicData,
       {bool thunderMode = false,
       bool thunderVertical = true,
+      Best50ExportBackground background = Best50ExportBackground.none,
       ExportImageTheme theme = ExportImageTheme.light}) async {
     int diffRatingSum = diffBest50Data?['diffRatingSum'] ?? 0;
     int best50Diff = (diffBest50Data?['best50Diff'] as num?)?.toInt() ?? 0;
@@ -237,6 +245,7 @@ class PersonalizedDiffBest50ConvertToImg {
       final maxIdLength =
           diffSongs.any((song) => '${song['song_id']}'.length == 6) ? 6 : 5;
       return ThunderBest50Export.build(
+        background: background,
         theme: theme,
         title: title,
         vertical: thunderVertical,
@@ -255,6 +264,7 @@ class PersonalizedDiffBest50ConvertToImg {
     const double containerWidth = 1700.0;
 
     return ExportPage(
+      background: background,
       theme: theme,
       width: containerWidth,
       child: Column(
@@ -310,6 +320,7 @@ class PersonalizedDiffBest50ConvertToImg {
             Expanded(
               flex: 2,
               child: ExportHeroBlock(
+                centered: true,
                 label: context.l10n.flowFittedTotalRating,
                 value: '$diffRatingSum',
                 caption: context.l10n.flowAverageP02(
@@ -320,6 +331,7 @@ class PersonalizedDiffBest50ConvertToImg {
             Expanded(
               flex: 2,
               child: ExportStatBlock(
+                centered: true,
                 label: context.l10n.flowComparedWithThisTagSBest50,
                 value: '${best50Diff > 0 ? '+' : ''}$best50Diff',
                 positive: best50Diff >= 0,
@@ -327,8 +339,9 @@ class PersonalizedDiffBest50ConvertToImg {
             ),
             const SizedBox(width: 10),
             Expanded(
-              flex: 4,
+              flex: 3,
               child: ExportAchievementBlock(
+                centered: true,
                 label: context.l10n.flowAverageAchievementDXScoreRate2,
                 achievement: averageAchievement,
                 scoreRate: averageScoreRate,
@@ -370,6 +383,7 @@ class PersonalizedDiffBest50ConvertToImg {
       songName: songName,
       achievementRate: achievementRate,
       difficulty: difficulty,
+      isFitDiff: true,
       dxMode: dxMode,
       isUtage: isUtage,
       score: score,
@@ -383,6 +397,7 @@ class PersonalizedDiffBest50ConvertToImg {
       starsColor: starsColor,
       maxIdLength: maxIdLength,
       scale: 1.0,
+      forExport: true,
     );
   }
 
@@ -449,12 +464,10 @@ class PersonalizedDiffBest50ConvertToImg {
 
     int maxScore = _calculateMaxScore(songId, levelIndex, maimaiMusicData);
 
-    Color cardColor;
-    if (songId.toString().length == 6) {
-      cardColor = Color(0xFFFFB3D1);
-    } else {
-      cardColor = ColorUtil.getCardColor(levelIndex);
-    }
+    final cardColor = ColorUtil.getExportCardColor(
+      levelIndex,
+      isUtage: songId.toString().length == 6,
+    );
 
     bool dxMode = type == 'DX';
     bool isUtage = songId.toString().length == 6;
@@ -542,32 +555,6 @@ class PersonalizedDiffBest50ConvertToImg {
     }
   }
 
-  static Future<void> _preloadImages(BuildContext context) async {
-    try {
-      final bgImageProvider = AssetImage('assets/bg/b50_bg.png');
-      await precacheImage(bgImageProvider, context);
-      debugPrint('Background image preloaded');
-    } catch (e) {
-      debugPrint('Error preloading images: $e');
-    }
-  }
-
-  static Future<void> _waitForRender() async {
-    Completer<void> frameCompleter = Completer<void>();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      frameCompleter.complete();
-    });
-    await frameCompleter.future;
-
-    Completer<void> frameCompleter2 = Completer<void>();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      frameCompleter2.complete();
-    });
-    await frameCompleter2.future;
-
-    await Future.delayed(Duration(milliseconds: 500));
-    debugPrint('Render wait completed');
-  }
 
   static Future<String?> _saveImageToGallery(
       Uint8List imageBytes, String fileName) async {
@@ -633,6 +620,8 @@ class PersonalizedDiffBest50ConvertToImg {
   }
 
   static Future<PermissionStatus> _requestStoragePermission() async {
+    if (Platform.isIOS) return PermissionStatus.denied; // 先保存到应用文档。
+
     if (Platform.isAndroid) {
       PermissionStatus storageStatus = await Permission.storage.status;
       PermissionStatus photosStatus = await Permission.photos.status;

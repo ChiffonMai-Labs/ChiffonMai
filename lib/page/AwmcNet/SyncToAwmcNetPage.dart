@@ -70,6 +70,7 @@ class SyncToAwmcNetPage extends StatefulWidget {
 class _SyncToAwmcNetPageState extends State<SyncToAwmcNetPage> {
   bool _quickUpdate = false;
   int _credentialRevision = 0;
+  bool _submitting = false;
   final TextEditingController _qrController = TextEditingController();
   final TextEditingController _tokenController = TextEditingController();
 
@@ -135,6 +136,8 @@ class _SyncToAwmcNetPageState extends State<SyncToAwmcNetPage> {
   /// 这里刻意不发请求：等待进度要显示在按钮上，所以真正的导入由
   /// `AwmcNetSyncFlow.run` 在对话框关闭后跑。
   Future<void> _submit() async {
+    final route = ModalRoute.of(context);
+    if (_submitting || route == null || !route.isCurrent) return;
     final qr = _qrController.text.trim();
     if (!_quickUpdate && qr.isEmpty) {
       AppToast.show(context.l10n.flowPasteOrScanACabinetLoginQR,
@@ -147,19 +150,29 @@ class _SyncToAwmcNetPageState extends State<SyncToAwmcNetPage> {
           tone: AppToastTone.warning);
       return;
     }
-    // 用户是直接在输入框里填的（没点保存）：顺手存下来，下次不用再填
-    if (_savedToken == null) {
-      await SecureCredentialStore.write(
-          CacheKeyConstant.awmcNetImportToken, token);
+    setState(() => _submitting = true);
+    try {
+      // 用户是直接在输入框里填的（没点保存）：顺手存下来，下次不用再填
+      if (_savedToken == null) {
+        await SecureCredentialStore.write(
+            CacheKeyConstant.awmcNetImportToken, token);
+      }
+      final refreshRequest = await _refreshKey.currentState?.collectRequest();
+      if (!mounted || !route.isCurrent) return;
+      route.navigator!.pop(AwmcNetSyncInput(
+        qr: qr,
+        importToken: token,
+        refreshRequest: refreshRequest,
+        quickUpdate: _quickUpdate,
+      ));
+    } catch (_) {
+      if (mounted && route.isCurrent) {
+        AppToast.show(context.l10n.flowCouldNotSaveCredentialsTryAgain,
+            tone: AppToastTone.error);
+      }
+    } finally {
+      if (mounted && route.isActive) setState(() => _submitting = false);
     }
-    final refreshRequest = await _refreshKey.currentState?.collectRequest();
-    if (!mounted) return;
-    Navigator.of(context).pop(AwmcNetSyncInput(
-      qr: qr,
-      importToken: token,
-      refreshRequest: refreshRequest,
-      quickUpdate: _quickUpdate,
-    ));
   }
 
   // ---------------------------------------------------------------------------
@@ -221,8 +234,8 @@ class _SyncToAwmcNetPageState extends State<SyncToAwmcNetPage> {
             SyncDialogSection(
               icon: Icons.refresh_rounded,
               title: context.l10n.flowRefreshDataAfterSync,
-              caption: context.l10n
-                  .flowRefreshAutomaticallyAfterUploadRefreshErrorsAre,
+              caption: context
+                  .l10n.flowRefreshAutomaticallyAfterUploadRefreshErrorsAre,
               child: PostSyncRefreshOptions(
                 key: _refreshKey,
                 source: RefreshDataSource.awmc,
@@ -239,12 +252,15 @@ class _SyncToAwmcNetPageState extends State<SyncToAwmcNetPage> {
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () {
+            final route = ModalRoute.of(context);
+            if (route != null && route.isCurrent) route.navigator!.pop();
+          },
           child: Text(context.l10n.featureCancel),
         ),
         SyncStartButton(
           label: context.l10n.flowStartSync,
-          onPressed: _submit,
+          onPressed: _submitting ? null : _submit,
         ),
       ],
     );
@@ -339,8 +355,8 @@ class _SyncToAwmcNetPageState extends State<SyncToAwmcNetPage> {
     return SyncNoticeCard(
       icon: Icons.info_outline,
       color: AppColors.warningOrange(brightness),
-      child: Text(
-          context.l10n.flowCabinetScoresTakePriorityAndOverwriteMatching),
+      child:
+          Text(context.l10n.flowCabinetScoresTakePriorityAndOverwriteMatching),
     );
   }
 

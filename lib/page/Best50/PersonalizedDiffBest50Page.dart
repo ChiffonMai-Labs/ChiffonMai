@@ -261,6 +261,8 @@ class _PersonalizedDiffBest50PageState
 
   // 请求存储权限
   Future<bool> _requestStoragePermission() async {
+    if (Platform.isIOS) return true; // 写入相册时由 PhotoKit 请求权限。
+
     if (Platform.isAndroid) {
       PermissionStatus storageStatus = await Permission.storage.status;
       PermissionStatus photosStatus = await Permission.photos.status;
@@ -318,6 +320,7 @@ class _PersonalizedDiffBest50PageState
             ImageEncodeUtil.estimatePngSize(songCount: _diffSongs.length),
         exportingLabel: context.l10n.featureCustomFittedBest50,
         enableThunderMode: true,
+        enableBest50Background: true,
         previewBuilder: (previewContext, previewQuality) =>
             PersonalizedDiffBest50ConvertToImg.buildPreviewWidget(
           previewContext,
@@ -329,6 +332,7 @@ class _PersonalizedDiffBest50PageState
           thunderMode: previewQuality.thunderMode,
           thunderVertical: previewQuality.thunderVertical,
           theme: previewQuality.theme,
+          background: previewQuality.background,
         ),
       );
       if (quality == null) return;
@@ -347,6 +351,7 @@ class _PersonalizedDiffBest50PageState
           _maimaiMusicData,
           jpegQuality: quality.jpegQuality,
           theme: quality.theme,
+          background: quality.background,
           thunderMode: quality.thunderMode,
           thunderVertical: quality.thunderVertical,
         ),

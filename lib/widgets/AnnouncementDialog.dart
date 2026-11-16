@@ -85,18 +85,7 @@ class _AnnouncementDialogState extends State<_AnnouncementDialog> {
                               ?.copyWith(color: scheme.onSurfaceVariant)),
                       const SizedBox(height: 16),
                     ],
-                    for (final block in value.blocks)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 14),
-                        child: block.type == 'text'
-                            ? SelectableText(block.content,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodyMedium
-                                    ?.copyWith(height: 1.6))
-                            : _AnnouncementImage(
-                                block: block, version: value.version),
-                      ),
+                    AnnouncementContent(value: value),
                     CheckboxListTile(
                       contentPadding: EdgeInsets.zero,
                       controlAffinity: ListTileControlAffinity.leading,
@@ -121,6 +110,30 @@ class _AnnouncementDialogState extends State<_AnnouncementDialog> {
       ),
     );
   }
+}
+
+class AnnouncementContent extends StatelessWidget {
+  const AnnouncementContent({super.key, required this.value});
+
+  final Announcement value;
+
+  @override
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final block in value.blocks)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: block.type == 'text'
+                  ? SelectableText(block.content,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(height: 1.6))
+                  : _AnnouncementImage(block: block, version: value.version),
+            ),
+        ],
+      );
 }
 
 class _AnnouncementImage extends StatefulWidget {

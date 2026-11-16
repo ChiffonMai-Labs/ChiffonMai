@@ -75,6 +75,7 @@ class _CacheManagementDialogState extends State<_CacheManagementDialog> {
   Widget build(BuildContext context) {
     final usage = _usage;
     return AppAlertDialog(
+      animateHeight: true,
       title:  Text(context.l10n.featureCacheManagement),
       content: SizedBox(
         width: 420,

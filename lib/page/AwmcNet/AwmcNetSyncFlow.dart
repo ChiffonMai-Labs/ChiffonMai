@@ -12,7 +12,8 @@ import '../../utils/SyncRouteNotifier.dart';
 import '../../utils/SecureCredentialStore.dart';
 import 'SyncToAwmcNetPage.dart'
     show showAwmcNetSyncInputDialog, AwmcNetSyncInput;
-import '../../widgets/RefreshDataDialog.dart' show RefreshDataSource;
+import '../../widgets/RefreshDataDialog.dart'
+    show RefreshDataSource, SharedRefreshData;
 
 /// 一次「同步成绩到 AWMC NET」的结果。
 class AwmcNetSyncOutcome {
@@ -79,6 +80,7 @@ class AwmcNetSyncFlow {
   /// 使用已经收集好的输入执行导入，供「同步成绩到多端」复用同一张二维码。
   static Future<AwmcNetSyncOutcome> runWithInput(
     AwmcNetSyncInput input, {
+    SharedRefreshData? sharedRefresh,
     void Function(String label)? onBusy,
     void Function(double progress, String text)? onProgress,
     VoidCallback? onIdle,
@@ -95,10 +97,12 @@ class AwmcNetSyncFlow {
             onProgress?.call(p, text);
           },
         );
-        final refreshError = await refresh.run(onProgress: (p, text) {
-          onBusy?.call(text);
-          onProgress?.call(.7 + p * .003, text);
-        });
+        final refreshError = await refresh.run(
+            sharedRefresh: sharedRefresh,
+            onProgress: (p, text) {
+              onBusy?.call(text);
+              onProgress?.call(.7 + p * .003, text);
+            });
         return AwmcNetSyncOutcome(
             ok: true,
             quickUpdate: true,
@@ -147,10 +151,12 @@ class AwmcNetSyncFlow {
       String? refreshError;
       if (result.ok) {
         ticker.cancel();
-        refreshError = await refresh.run(onProgress: (p, text) {
-          onBusy?.call(text);
-          onProgress?.call(.7 + p * .003, text);
-        });
+        refreshError = await refresh.run(
+            sharedRefresh: sharedRefresh,
+            onProgress: (p, text) {
+              onBusy?.call(text);
+              onProgress?.call(.7 + p * .003, text);
+            });
       }
       return AwmcNetSyncOutcome(
         ok: result.ok,

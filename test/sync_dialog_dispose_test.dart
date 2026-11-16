@@ -13,6 +13,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:my_first_flutter_app/constant/CacheKeyConstant.dart';
+import 'package:my_first_flutter_app/utils/SecureCredentialStore.dart';
+import 'package:my_first_flutter_app/widgets/RefreshDataDialog.dart';
 import 'package:my_first_flutter_app/widgets/SyncScoreDialogs.dart';
 
 const String _qr = 'SGWCMAID0123456789012345678901234567890';
@@ -34,8 +37,7 @@ void main() {
   /// pop 的瞬间 + 退场动画期间（模拟键盘收起触发的重建）都不能有异常。
   Future<void> expectCleanExit(WidgetTester tester) async {
     await tester.pump();
-    expect(tester.takeException(), isNull,
-        reason: 'pop 的瞬间不该读已释放的 controller');
+    expect(tester.takeException(), isNull, reason: 'pop 的瞬间不该读已释放的 controller');
 
     tester.view.viewInsets = const FakeViewPadding(bottom: 0);
     addTearDown(tester.view.reset);
@@ -57,7 +59,13 @@ void main() {
 
     await tester.ensureVisible(find.text('开始同步'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('开始同步'));
+    final submit = tester
+        .widget<FilledButton>(
+          find.widgetWithText(FilledButton, '开始同步'),
+        )
+        .onPressed!;
+    submit();
+    submit();
     await expectCleanExit(tester);
 
     final result = await future;
@@ -67,16 +75,23 @@ void main() {
 
   testWidgets('落雪二维码弹窗：提交后退场全程无异常', (tester) async {
     final ctx = await pumpHost(tester);
+    await SecureCredentialStore.write(
+        CacheKeyConstant.probeLxnsImportToken, 'lxns-api-key-probe');
 
     final future = showLuoXueSyncInputDialog(ctx);
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField).at(0), _qr);
-    await tester.enterText(find.byType(TextField).at(1), 'lxns-api-key-probe');
+    await tester.enterText(find.byType(TextField), _qr);
     await tester.pump();
 
     await tester.ensureVisible(find.text('开始同步'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('开始同步'));
+    final submit = tester
+        .widget<FilledButton>(
+          find.widgetWithText(FilledButton, '开始同步'),
+        )
+        .onPressed!;
+    submit();
+    submit();
     await expectCleanExit(tester);
 
     final result = await future;
@@ -94,5 +109,27 @@ void main() {
     await expectCleanExit(tester);
 
     expect(await future, isNull);
+  });
+
+  testWidgets('刷新入口只打开一次，连点确认只关闭自己的弹窗', (tester) async {
+    final ctx = await pumpHost(tester);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(CacheKeyConstant.awmcLookupQQ, '123456');
+    final result =
+        showRefreshDataDialog(ctx, initialSource: RefreshDataSource.awmc);
+    final duplicate = showRefreshDataDialog(ctx);
+    await tester.pumpAndSettle();
+    expect(await duplicate, isNull);
+
+    final confirm = tester
+        .widget<TextButton>(
+          find.widgetWithText(TextButton, '确认'),
+        )
+        .onPressed!;
+    confirm();
+    confirm();
+    await expectCleanExit(tester);
+    expect((await result)?.qq, '123456');
+    expect(ModalRoute.of(ctx)?.isCurrent, isTrue);
   });
 }

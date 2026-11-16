@@ -5,6 +5,7 @@ import '../manager/DivingFishProbeManager.dart';
 import '../utils/AppTheme.dart';
 import 'QrQuickFillButtons.dart';
 import '../widgets/AppDialogs.dart';
+import 'AppUi.dart' show FadeSwitcher;
 
 /// 独立的 maimai Score Hub 登录入口。
 ///
@@ -82,6 +83,7 @@ class _MaimaiHubLoginDialogState extends State<_MaimaiHubLoginDialog> {
         });
         return;
       }
+      FocusManager.instance.primaryFocus?.unfocus();
       setState(() {
         _loggingIn = false;
         _success = true;
@@ -100,6 +102,7 @@ class _MaimaiHubLoginDialogState extends State<_MaimaiHubLoginDialog> {
     final brightness = Theme.of(context).brightness;
     final scheme = Theme.of(context).colorScheme;
     return AppAlertDialog(
+      animateHeight: true,
       title: Row(
         children: [
           Icon(
@@ -121,55 +124,60 @@ class _MaimaiHubLoginDialogState extends State<_MaimaiHubLoginDialog> {
         ],
       ),
       content: SingleChildScrollView(
-        child: _success
-            ? Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.check_circle,
-                      color: AppColors.successGreen(brightness), size: 52),
-                  const SizedBox(height: 12),
-                  Text(context.l10n.flowSignInSavedForOCRAndRoute,
-                      textAlign: TextAlign.center),
-                ],
-              )
-            : Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    context.l10n.flowAuthenticatesWithMaimaiScoreHubOnlyNo,
-                    style: TextStyle(
-                        fontSize: 13, color: AppColors.greyHint(brightness)),
-                  ),
-                  const SizedBox(height: 12),
-                  QrQuickFillButtons(
-                    controller: _qrController,
-                    enabled: !_loggingIn,
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _qrController,
-                    maxLines: 3,
-                    enabled: !_loggingIn,
-                    decoration: InputDecoration(
-                      hintText:
-                          context.l10n.flowMaimaiDXCHUNITHMLoginQRSGWCMAID,
-                      hintStyle: TextStyle(
-                          fontSize: 13,
-                          color: AppColors.greyHint(brightness, shade: 400)),
-                      errorText: _inputError,
-                      errorMaxLines: 3,
-                    ),
-                  ),
-                  if (_error != null) ...[
-                    const SizedBox(height: 8),
-                    Text(_error!,
-                        style: TextStyle(
-                            fontSize: 12,
-                            color: AppColors.errorRed(brightness))),
+        child: FadeSwitcher(
+          value: _success,
+          sizeFollowsCurrent: true,
+          alignment: Alignment.topCenter,
+          child: _success
+              ? Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.check_circle,
+                        color: AppColors.successGreen(brightness), size: 52),
+                    const SizedBox(height: 12),
+                    Text(context.l10n.flowSignInSavedForOCRAndRoute,
+                        textAlign: TextAlign.center),
                   ],
-                ],
-              ),
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      context.l10n.flowAuthenticatesWithMaimaiScoreHubOnlyNo,
+                      style: TextStyle(
+                          fontSize: 13, color: AppColors.greyHint(brightness)),
+                    ),
+                    const SizedBox(height: 12),
+                    QrQuickFillButtons(
+                      controller: _qrController,
+                      enabled: !_loggingIn,
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _qrController,
+                      maxLines: 3,
+                      enabled: !_loggingIn,
+                      decoration: InputDecoration(
+                        hintText:
+                            context.l10n.flowMaimaiDXCHUNITHMLoginQRSGWCMAID,
+                        hintStyle: TextStyle(
+                            fontSize: 13,
+                            color: AppColors.greyHint(brightness, shade: 400)),
+                        errorText: _inputError,
+                        errorMaxLines: 3,
+                      ),
+                    ),
+                    if (_error != null) ...[
+                      const SizedBox(height: 8),
+                      Text(_error!,
+                          style: TextStyle(
+                              fontSize: 12,
+                              color: AppColors.errorRed(brightness))),
+                    ],
+                  ],
+                ),
+        ),
       ),
       actions: [
         TextButton(

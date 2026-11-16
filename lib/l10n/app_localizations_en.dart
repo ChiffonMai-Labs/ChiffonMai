@@ -374,11 +374,31 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get defaultDifficultyHint =>
-      'Use this difficulty when opening a song without an explicitly selected chart difficulty.';
+      'Use this difficulty when a song opens without a specified or remembered difficulty.';
 
   @override
   String get defaultDifficultyNote =>
       'Defaults to MASTER on first use. Links from scores or charts that specify a difficulty keep that difficulty.';
+
+  @override
+  String get songDifficultyMemory => 'Remember song difficulty';
+
+  @override
+  String get songDifficultyMemoryHint =>
+      'Remember each song’s difficulty when you leave its details. Turning this off keeps your saved choices.';
+
+  @override
+  String get songDifficultyMemoryManage => 'Manage remembered difficulties';
+
+  @override
+  String get songDifficultyMemoryEmpty => 'No remembered difficulties yet';
+
+  @override
+  String get songDifficultyMemoryClearSelected => 'Clear selected';
+
+  @override
+  String get songDifficultyMemoryClearAllConfirm =>
+      'Clear the remembered difficulty for every song?';
 
   @override
   String get settingSaveFailed =>
@@ -1217,6 +1237,22 @@ class AppLocalizationsEn extends AppLocalizations {
       'Send the same scores to multiple trackers';
 
   @override
+  String get autoSyncKeepaliveAction => 'Renew';
+
+  @override
+  String get autoSyncKeepaliveDeadline => 'Renew by (Beijing time)';
+
+  @override
+  String get autoSyncKeepaliveSuccess => 'Renewed for 7 days';
+
+  @override
+  String get autoSyncKeepaliveExpired => 'Auto Sync expired. Turn it on again.';
+
+  @override
+  String get autoSyncKeepalivePolicy =>
+      'Renew manually every 7 days. Expired tasks leave the queue and their hosted credentials are deleted.';
+
+  @override
   String get featureAutoSync => 'Auto sync';
 
   @override
@@ -1303,6 +1339,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get featureCheckForANewerAppVersion => 'Check for a newer app version';
+
+  @override
+  String get featureTestFlightUpdateSubtitle =>
+      'Manage app updates in TestFlight';
 
   @override
   String get featureAboutTheApp => 'About the app';
@@ -1752,7 +1792,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String homeTotalRatingAction(String rating) {
-    return 'Total Rating $rating. Open advanced refresh.';
+    return 'Total Rating $rating. Refresh scores and data.';
   }
 
   @override
@@ -2040,7 +2080,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get rankingUploadIncompleteLead =>
-      'Your scores were refreshed and saved, but the leaderboards were not updated this time.';
+      'Your scores were refreshed and saved. Some or all leaderboard uploads did not complete.';
 
   @override
   String get rankingGuardFrozen =>
@@ -2523,7 +2563,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get flowWaitingForUpstreamRecovery => 'Waiting for upstream recovery';
 
   @override
-  String get flowPreviousRoundQueue => 'Previous round queue';
+  String get flowPreviousRoundQueue => 'Previous batch results';
+
+  @override
+  String get autoSyncCurrentBatchResults => 'Current batch results';
+
+  @override
+  String get autoSyncCompleteSuccess => 'All succeeded';
+
+  @override
+  String get autoSyncPartialSuccess => 'Partial success';
+
+  @override
+  String get autoSyncCompleteFailure => 'All failed';
 
   @override
   String get flowLoadingPreviousRoundStatistics =>
@@ -2740,6 +2792,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get flowSwitchingPleaseWait => 'Switching. Please wait.';
+
+  @override
+  String get accountSwitchSheetBusy =>
+      'Switching accounts. You can close this panel when the switch is complete.';
 
   @override
   String get flowNoCachedDataForThisAccount =>
@@ -3827,6 +3883,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get flowImageSavedToGallery => 'Image saved to gallery';
 
   @override
+  String get flowPhotoLibraryAddPermissionRequired =>
+      'Allow ChiffonMai to add photos in Settings.';
+
+  @override
+  String get flowCouldNotSaveToPhotoLibrary =>
+      'Could not save the image to Photos.';
+
+  @override
   String flowSaveFailedP0(String p0) {
     return 'Save failed: $p0';
   }
@@ -4694,7 +4758,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get flowOAuthInMeRefreshDataChooseLXNS =>
-      'OAuth: in Me → Pull scores & update data, choose LXNS and follow the authorization guide. ChiffonMai then appears in the OAuth app list.';
+      'OAuth: open Me → Account linking & authorization, choose LXNS authorization, and follow the prompts. ChiffonMai then appears in the OAuth app list.';
 
   @override
   String get flowPersonalAPIKeyResetItThenPaste =>
@@ -5686,6 +5750,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get flowFrameCollectible => 'Frames';
 
   @override
+  String get flowTravelBuddyCollectible => 'Tour Members';
+
+  @override
+  String get flowPartnerCollectible => 'Partners';
+
+  @override
   String get flowAwmcGateway => 'AWMC gateway';
 
   @override
@@ -5965,7 +6035,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get flowRankingBriefHint =>
-      'Share titles, appearance, level and best scores. Requires sign-in or identity verification. Off by default.';
+      'Share titles, appearance, tour members, your partner, level and best scores. Requires sign-in or identity verification. Off by default.';
 
   @override
   String get flowCacheFishSongs => 'Songs (Diving-Fish)';
@@ -6001,6 +6071,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get flowCacheFrames => 'Collectibles: frames';
 
   @override
+  String get flowCacheTravelBuddies => 'Collectibles – Tour Members';
+
+  @override
+  String get flowCachePartners => 'Collectibles – Partners';
+
+  @override
   String get flowCacheUnionMetadata => 'Union metadata';
 
   @override
@@ -6027,6 +6103,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get flowCacheFrameDescription => 'LXNS frames';
+
+  @override
+  String get flowCacheTravelBuddyDescription => 'AWMC tour members';
+
+  @override
+  String get flowCachePartnerDescription => 'AWMC partners';
 
   @override
   String get flowCacheMetadataDescription =>
@@ -7755,6 +7837,22 @@ class AppLocalizationsEn extends AppLocalizations {
       'In the order BPM markers appear in this chart';
 
   @override
+  String get chartBpmTimeRange => 'Chart time range';
+
+  @override
+  String get chartMetronome => 'Metronome';
+
+  @override
+  String get chartMetronomeSound => 'Metronome sound';
+
+  @override
+  String get chartMetronomeSoundUnavailable => 'Metronome sound unavailable';
+
+  @override
+  String get chartPlayerCreditDetails =>
+      'Provides chart parsing and playback under the MIT license';
+
+  @override
   String get flowChangeIndex => 'Change index';
 
   @override
@@ -8061,6 +8159,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get flowCopyPath => 'Copy path';
 
   @override
+  String get flowOpenExportFolder => 'Open folder';
+
+  @override
+  String get flowCouldNotOpenExportFolder =>
+      'Couldn\'t open the folder. Copy the path to find the file in your file manager.';
+
+  @override
   String flowPublicDirectoryIsNotWritableSavedTo(String p0) {
     return 'Public directory is not writable. Saved to the fallback path: $p0';
   }
@@ -8128,6 +8233,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get flowImageTheme => 'Image theme';
+
+  @override
+  String get exportImageBackground => 'Image background';
+
+  @override
+  String get exportNoBackground => 'No background';
 
   @override
   String get flowThunderMode => 'Thunder mode';
@@ -8287,6 +8398,19 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get flowReadingLocalVideo => 'Reading local video…';
+
+  @override
+  String get pvFullscreen => 'Landscape fullscreen';
+
+  @override
+  String get pvExitFullscreen => 'Exit fullscreen';
+
+  @override
+  String get pvAudioDelay => 'Audio delay';
+
+  @override
+  String get pvAudioDelayHint =>
+      'Positive values delay the audio. Negative values play it earlier. Saved per song.';
 
   @override
   String get flowBufferingVideo => 'Buffering video…';
@@ -8996,6 +9120,34 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get flowSending => 'Sending…';
+
+  @override
+  String get songChartConfirmationBilibili => 'View chart preview on Bilibili';
+
+  @override
+  String get songChartPlaybackInApp => 'Play chart in app';
+
+  @override
+  String get songMoreActionsScroll => 'Scroll for more actions';
+
+  @override
+  String get announcementCenter => 'Announcement Center';
+
+  @override
+  String get announcementCenterSubtitle =>
+      'Read service notices and project news';
+
+  @override
+  String get announcementDetail => 'Announcement';
+
+  @override
+  String get announcementEmpty => 'No announcements yet';
+
+  @override
+  String get announcementLoadFailed => 'Could not load announcements';
+
+  @override
+  String get announcementLoadMore => 'Load more';
 
   @override
   String get flowOpenBilibili2 => 'Open Bilibili';
@@ -10202,7 +10354,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get flowCouldNotGetYourLocationCheckThat =>
-      'Could not get your location. Check that location services are on and reception is good.';
+      'Your device could not provide a location. Try again in a moment.';
+
+  @override
+  String get arcadeLocationPermissionUnavailable =>
+      'Location permission is unavailable. Check your system settings.';
 
   @override
   String flowLocationFailedP0(String p0) {
@@ -15135,6 +15291,32 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chartCodeFont => 'Code font';
 
   @override
+  String get chartCodeSyntaxHighlight => 'Syntax highlighting';
+
+  @override
+  String get chartCodeHighlightSaveFailed =>
+      'Could not save the syntax highlighting setting';
+
+  @override
+  String get historyDateRange => 'Date range';
+
+  @override
+  String get historyLatestRecord => 'Last record in range';
+
+  @override
+  String get songDurationRanking => 'Song duration ranking';
+
+  @override
+  String get songDurationRankingDescription =>
+      'Ranks songs on the Chinese server by reference duration, with one entry per song';
+
+  @override
+  String get songDurationLongestFirst => 'Longest first';
+
+  @override
+  String get songDurationShortestFirst => 'Shortest first';
+
+  @override
   String get chartCodeFontDefault => 'Default';
 
   @override
@@ -15335,4 +15517,118 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get arcadeMapWeb => 'Open in browser';
+
+  @override
+  String get communityTravelAppearance => 'Tour Members & Partner';
+
+  @override
+  String get communityTravelLocalNote =>
+      'Tour members and your partner appear on your brief profile when it is public.';
+
+  @override
+  String get communityTravelLeader => 'Leader';
+
+  @override
+  String communityTravelSlot(int slot) {
+    return 'Member $slot';
+  }
+
+  @override
+  String get communityTravelSwap => 'Swap positions';
+
+  @override
+  String get communityTravelSetLeader => 'Set as leader';
+
+  @override
+  String get communityTravelEditLevel => 'Edit level and awakening';
+
+  @override
+  String get communityTravelSuperCount => 'Super awakening count';
+
+  @override
+  String communityTravelSuperBadge(int count) {
+    return 'Super awakening ×$count';
+  }
+
+  @override
+  String communityTravelStars(int count) {
+    return 'Awakening stars: $count';
+  }
+
+  @override
+  String communityTravelIntegerRange(int min, int max) {
+    return 'Enter a whole number from $min to $max';
+  }
+
+  @override
+  String get communityTravelSearch => 'Search by name or ID';
+
+  @override
+  String get cabinetAppearanceSync => 'Sync cabinet appearance';
+
+  @override
+  String get cabinetAppearanceSubtitle =>
+      'Scan to read your equipped cabinet items';
+
+  @override
+  String get cabinetAppearanceCheckingCloud =>
+      'Checking your cloud appearance…';
+
+  @override
+  String get cabinetAppearanceSignIn =>
+      'Sign in or verify your current account to save your community appearance to the cloud.';
+
+  @override
+  String get cabinetAppearanceCouldNotCheckCloud =>
+      'Could not check your cloud appearance. Try again later.';
+
+  @override
+  String get cabinetAppearanceQrHint =>
+      'Scan or paste the maimai login QR for the appearance you want to import. You can review the items before syncing.';
+
+  @override
+  String get cabinetAppearanceRead => 'Read appearance';
+
+  @override
+  String get cabinetAppearanceReading => 'Reading cabinet appearance…';
+
+  @override
+  String get cabinetAppearanceEmpty =>
+      'The cabinet returned no appearance items to sync.';
+
+  @override
+  String get cabinetAppearanceReview => 'Review cabinet appearance';
+
+  @override
+  String get cabinetAppearanceCommunityOnly =>
+      'For community appearance in this app only';
+
+  @override
+  String get cabinetAppearanceNotice =>
+      'Confirming replaces the corresponding community appearance items shown below. It never changes cabinet data. The cabinet does not provide travel buddy levels or super awakening counts. Set them manually and the app will save them to the cloud with your community appearance.';
+
+  @override
+  String get cabinetAppearanceKeepCurrent => 'Keep current setting';
+
+  @override
+  String get cabinetAppearanceKeepTeam =>
+      'The cabinet did not return five valid, distinct travel buddies. Your current team in the app will be kept.';
+
+  @override
+  String get cabinetAppearanceProgressDefaults =>
+      'Existing buddies keep their saved progress. New buddies start at level 1 with 0 super awakenings. Tap the edit button next to a buddy to change both values.';
+
+  @override
+  String get cabinetAppearanceConfirm => 'Confirm sync';
+
+  @override
+  String get cabinetAppearanceSaving => 'Saving community appearance…';
+
+  @override
+  String get cabinetAppearanceAccountChanged =>
+      'The active account changed. Open sync again.';
+
+  @override
+  String get cabinetAppearanceFailed =>
+      'Could not sync cabinet appearance. Try again later.';
 }

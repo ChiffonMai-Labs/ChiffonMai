@@ -14,6 +14,7 @@ import 'package:my_first_flutter_app/utils/NavigationPreferences.dart';
 import '../widgets/AnimatedChoiceBar.dart';
 import '../widgets/BackgroundPageScaffold.dart';
 import '../utils/AppDesignTokens.dart';
+import '../utils/PhotoLibrary.dart';
 import '../widgets/AppToast.dart';
 import '../widgets/AppDialogs.dart';
 
@@ -71,7 +72,7 @@ class ImagePreviewDialog extends StatelessWidget {
 
   Future<void> _saveImage(BuildContext context) async {
     try {
-      if (!await _requestStoragePermission()) {
+      if (!Platform.isIOS && !await _requestStoragePermission()) {
         if (context.mounted) {
           _showMessage(
               context, context.l10n.flowStoragePermissionIsNeededToSaveVersion);
@@ -80,7 +81,15 @@ class ImagePreviewDialog extends StatelessWidget {
       }
 
       final data = await rootBundle.load(imagePath);
-      final bytes = data.buffer.asUint8List();
+      final bytes =
+          data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+      if (Platform.isIOS) {
+        await PhotoLibrary.saveBytes(bytes, Uri.file(imagePath).pathSegments.last);
+        if (context.mounted) {
+          _showMessage(context, context.l10n.flowImageSavedToGallery);
+        }
+        return;
+      }
       final directory = Platform.isAndroid
           ? Directory('/storage/emulated/0/Pictures')
           : await getApplicationDocumentsDirectory();
@@ -100,7 +109,10 @@ class ImagePreviewDialog extends StatelessWidget {
     } catch (error) {
       if (context.mounted)
         _showMessage(
-            context, context.l10n.flowSaveFailedP0((error).toString()));
+            context,
+            Platform.isIOS
+                ? PhotoLibrary.failureMessage(error)
+                : context.l10n.flowSaveFailedP0(error.toString()));
     }
   }
 

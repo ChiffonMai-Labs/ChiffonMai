@@ -14,6 +14,9 @@ class AppLinks {
       'https://maimai.diving-fish.com/';
   static const String luoXueRegistrationUrl = 'https://maimai.lxns.net/';
   static const String michaelwucocGitHubUrl = 'https://github.com/Michaelwucoc';
+  static const String simaiFlutterCreditName = 'simai_flutter · Project Fukakai';
+  static const String simaiFlutterProjectUrl =
+      'https://github.com/Project-Fukakai/simai_flutter';
   static const String awmcNetUrl = 'https://net.wmc.pub/';
   static const String awmcNetSettingsUrl = 'https://net.wmc.pub/settings';
 
@@ -39,9 +42,9 @@ class AppLinks {
   /// 问卷。
   static const String surveyUrl = 'https://wj.qq.com/s2/26540572/7828/';
 
-  /// iOS 无签名 IPA 的下载页。
-  static const String iosDownloadUrl =
-      'https://wward.lanzn.com/chiffonmai-unsigned-ipa';
+  /// iOS 安装和更新使用的 TestFlight 邀请页。
+  static const String testFlightUrl =
+      'https://testflight.apple.com/join/MB5CGtv4';
 
   /// 最新的 GitHub Releases。
   static const String githubRepository = 'ChiffonMai-Labs/ChiffonMai';

@@ -75,6 +75,15 @@ class BasicInfo {
 
 // 外层：单个歌曲对象（对应 JSON 中的一个 {}）
 class Song {
+  // 水鱼曾将这五张宴谱的 Touch 数量记为 0。完整物量已与落雪、Union 核对。
+  static const _missingUtageTouches = {
+    '121852': (oldTotal: 799, touch: 32),
+    '131852': (oldTotal: 787, touch: 73),
+    '141852': (oldTotal: 724, touch: 5),
+    '151852': (oldTotal: 606, touch: 79),
+    '161852': (oldTotal: 702, touch: 5),
+  };
+
   final String id;
   final String title;
   final String type;
@@ -99,8 +108,23 @@ class Song {
   });
 
   factory Song.fromJson(Map<String, dynamic> json) {
+    final id = json['id']?.toString() ?? '';
+    final charts = (json['charts'] as List<dynamic>?)
+            ?.map((chart) => Chart.fromJson(chart as Map<String, dynamic>))
+            .toList() ??
+        <Chart>[];
+    final correction = _missingUtageTouches[id];
+    if (correction != null && json['type'] == 'DX' && charts.length == 1) {
+      final notes = charts.single.notes;
+      if (notes.length == 5 &&
+          notes[3] == 0 &&
+          notes.fold<int>(0, (total, count) => total + count) ==
+              correction.oldTotal) {
+        notes[3] = correction.touch;
+      }
+    }
     return Song(
-      id: json['id']?.toString() ?? '',
+      id: id,
       title: json['title'] ?? '',
       type: json['type'] ?? '',
       // 解析 double 数组
@@ -112,10 +136,7 @@ class Song {
       level: (json['level'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
       // 解析 int 数组
       cids: (json['cids'] as List<dynamic>?)?.map((e) => e as int).toList() ?? [],
-      // 解析 Chart 数组：遍历每个元素，调用 Chart.fromJson
-      charts: (json['charts'] as List<dynamic>?)
-              ?.map((chartJson) => Chart.fromJson(chartJson as Map<String, dynamic>))
-              .toList() ?? [],
+      charts: charts,
       // 解析嵌套的 BasicInfo 对象
       basicInfo: BasicInfo.fromJson(json['basic_info'] ?? {}),
       // 解析 isExtra 字段（兼容旧缓存，默认 false）

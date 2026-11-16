@@ -3,10 +3,25 @@ import '../api/ApiUrls.dart';
 /// 收藏品图片由自家后端缓存后返回，客户端不再直接请求落雪素材服务器。
 const String lxnsAssetBaseUrl = ApiUrls.CollectionAssetsUrl;
 const String _legacyBaseUrl = 'https://assets2.lxns.net/maimai';
+final _assetPathPattern =
+    RegExp(r'^(icon|plate|frame|chara|partner)/(\d{1,9})\.png$');
+final _awmcPathPattern = RegExp(r'^(chara|partner)/(\d+)\.png$');
 
 String lxnsIconUrl(int id) => '$lxnsAssetBaseUrl/icon/$id.png';
 String lxnsPlateUrl(int id) => '$lxnsAssetBaseUrl/plate/$id.png';
 String lxnsFrameUrl(int id) => '$lxnsAssetBaseUrl/frame/$id.png';
+String travelBuddyImageUrl(int id) => '$lxnsAssetBaseUrl/chara/$id.png';
+String partnerImageUrl(int id) => '$lxnsAssetBaseUrl/partner/$id.png';
+
+String? awmcCollectionAssetFallbackUrl(String url) =>
+    _awmcDownloadUrl(_collectionPath(url));
+
+String? _awmcDownloadUrl(String? path) {
+  if (path == null) return null;
+  final match = _awmcPathPattern.firstMatch(path);
+  if (match == null) return null;
+  return 'https://api.wmc.pub/api/collection/download/${match[1]}-${match[2]}';
+}
 
 String? _collectionPath(String url) {
   final uri = Uri.tryParse(url);
@@ -22,7 +37,7 @@ String? _collectionPath(String url) {
         !uri.path.startsWith('${proxy.path}/')) return null;
     path = uri.path.substring(proxy.path.length + 1);
   }
-  final match = RegExp(r'^(icon|plate|frame)/(\d{1,9})\.png$').firstMatch(path);
+  final match = _assetPathPattern.firstMatch(path);
   if (match == null) return null;
   return '${match[1]}/${int.parse(match[2]!)}.png';
 }
@@ -36,5 +51,7 @@ String collectionAssetProxyUrl(String url) {
 /// 延续旧 URL 作为磁盘缓存键，让升级前已下载的图片继续命中本地缓存。
 String collectionAssetCacheKey(String url) {
   final path = _collectionPath(url);
+  final awmcUrl = _awmcDownloadUrl(path);
+  if (awmcUrl != null) return awmcUrl;
   return path == null ? url : '$_legacyBaseUrl/$path';
 }

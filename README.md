@@ -3,7 +3,7 @@
 <div align="center">
   <img src="https://img.shields.io/badge/Platform-Android%20%7C%20iOS-blue.svg" alt="Platform">
   <img src="https://img.shields.io/badge/Flutter-3.x-02569B.svg?logo=flutter&logoColor=white" alt="Flutter">
-  <img src="https://img.shields.io/badge/Version-3.0.2%2B58-6C63FF.svg" alt="Version">
+  <img src="https://img.shields.io/badge/Version-3.0.3%2B59-6C63FF.svg" alt="Version">
   <img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License">
 </div>
 
@@ -37,8 +37,8 @@ ChiffonMai 是一款面向舞萌 DX 玩家的移动端工具应用。它把曲�
 - **自定义标签**：自定义标签名称、颜色和包含的谱面，并在歌曲详情页直接为当前谱面打标签。
 - **搜索历史**：保留最近使用过的搜索内容，方便重复查找。
 - **歌曲详情**：查看曲绘、艺术家、歌曲类型（ST、DX、UTAGE）、各难度谱面、定数、谱面信息、定数历史和国服 / 日服版本与上线日期；可在设置里选择默认打开的难度。
-- **谱面代码**：查看、复制和导出谱面代码，支持导出谱面文件或谱面包；代码字体可在默认与 Inconsolata 之间切换。
-- **自定义谱面播放**：导入本地谱面进行播放和预览。
+- **谱面代码**：查看、复制和导出谱面代码，可切换默认字体与 Inconsolata，并为 `inote` 开启音符语法高亮。
+- **谱面播放**：在歌曲详情中预览谱面，也可导入本地谱面；节奏轨随音符滚动，显示当前 BPM 和细分时值。
 - **曲绘识别**：使用图片或相机识别歌曲曲绘。
 - **结算画面识别**：从机台结算画面中识别歌曲和成绩。
 - **随机乐曲**：按筛选条件随机抽取歌曲，可用数字步进器选择抽取数量；抽取时卡片轮播，手动点击“停！”揭晓结果。
@@ -64,12 +64,12 @@ ChiffonMai 是一款面向舞萌 DX 玩家的移动端工具应用。它把曲�
 - **个性化 Best50**：按标签筛选和查看个人 Best50。
 - **个性化拟合 Best50**：按标签分析拟合 Rating 上限。
 - **理想 Best50**：根据理想成绩估算 Best50，宴会场等不计入 Rating 的歌曲不会被算入有效 Rating。
-- **Rating 历史**：查看 Rating 随时间的变化。
+- **Rating 历史与成绩提升历史**：按指定日期区间查看记录。
 - **Rating 排行榜**：查看玩家 Rating 排名，并切换不同排行类型。
 - **拟合总 Rating 排行榜**：比较拟合总 Rating 与官方 Best50 的差值。
 - **平均达成率排行榜**：按全量成绩的平均达成率查看排行。
 - **平均 DX 分数达成率排行榜**：按全量成绩的平均 DX 得分达成率查看排行。
-- **特殊排行榜**：浏览各种有趣的玩家数据排行，可切换正向和反向排行。
+- **特殊排行榜**：浏览各类玩家数据排行和国服歌曲时长榜，可切换正向和反向排行。
 - **好友对比**：对比自己与好友的成绩差异和 Rating 情况。
 - **定数分布**：查看自己的成绩或曲库中的谱面定数分布。
 - **段位表**：查看段位挑战内容，并记录每个段位的未挑战、不合格、合格或赤合格状态以及总达成率。
@@ -127,7 +127,7 @@ ChiffonMai 是一款面向舞萌 DX 玩家的移动端工具应用。它把曲�
 
 ## 下载和安装
 
-目前主要提供 Android 版本，iOS 提供未签名 IPA。
+Android 通过 APK 安装，iOS 已支持通过 TestFlight 安装和更新。详细更新见 [v3.0.3 更新说明](docs/release-notes-3.0.3.md)。
 
 1. 前往[下载页面](https://wward.lanzouw.com/chiffonmai)获取最新 APK。
 2. 根据系统提示允许安装来自浏览器或文件管理器的应用。
@@ -135,13 +135,13 @@ ChiffonMai 是一款面向舞萌 DX 玩家的移动端工具应用。它把曲�
 
 如果系统提示应用来源不明，请确认 APK 来自项目提供的下载页面，再决定是否继续安装。
 
-iOS 版本可在 [GitHub Releases](https://github.com/ChiffonMai-Labs/ChiffonMai/releases) 下载未签名 IPA，需要自行签名后安装（如 Sideloadly、AltStore、SideStore）；构建方式见 [iOS 构建说明](docs/ios-actions-build.md)。
+iOS 用户可通过 [TestFlight 邀请页](https://testflight.apple.com/join/MB5CGtv4) 加入 ChiffonMai Beta，后续在 TestFlight 中更新。自行构建请参阅 [iOS 构建说明](docs/ios-actions-build.md)。
 
 ## 数据来源
 
 为了提供曲库、成绩、谱面和机厅相关功能，应用会使用多个公开或获得授权的数据服务，包括但不限于：
 
-- [水鱼查分器](https://maimai.diving-fish.com/)
+- [水鱼查分器](https://www.diving-fish.com/maimaidx/prober/)
 - [DXRating.net](https://dxrating.net/)
 - [落雪咖啡屋](https://maimai.lxns.net/)
 - [AWMC NET](https://net.wmc.pub/)
@@ -178,7 +178,7 @@ iOS 版本可在 [GitHub Releases](https://github.com/ChiffonMai-Labs/ChiffonMai
 
 ### 数据与服务
 
-- **水鱼查分器**：提供曲目数据库和玩家游玩记录数据库。[官网](https://maimai.diving-fish.com/)
+- **水鱼查分器**：提供曲目数据库和玩家游玩记录数据库。[官网](https://www.diving-fish.com/maimaidx/prober/)
 - **DXRating.net**：提供谱面标签数据库和别名数据库。[官网](https://dxrating.net)
 - **Yuri-YuzuChaN**：提供别名数据库。[项目地址](https://github.com/Yuri-YuzuChaN/maimaiDX)
 - **落雪咖啡屋**：提供收藏品数据库、歌曲音源支持、曲目数据库和玩家游玩记录数据库。[官网](https://maimai.lxns.net)
@@ -187,10 +187,11 @@ iOS 版本可在 [GitHub Releases](https://github.com/ChiffonMai-Labs/ChiffonMai
 - **mai.chongxi.us**：提供舞萌服务器状态信息。[服务地址](https://mai.chongxi.us/)
 - **AWMC NET**：提供水鱼查分器同步支持、落雪查分器同步支持和对本项目开发的经济支持。[官网](https://net.wmc.pub/)
 - **Bakapiano**：提供水鱼查分器和落雪查分器成绩同步支持。[项目地址](https://github.com/bakapiano/maimai-score-hub)
-- **k4641321**：提供落雪查分器成绩同步支持。[项目地址](https://github.com/k4641321/chusearchsong_flutter/tree/master)
+- **DevinTom**：提供落雪查分器成绩同步支持。[项目地址](https://github.com/k4641321/chusearchsong_flutter/tree/master)
 - **Union**：提供曲目数据库。[官网](https://union.godserver.cn/)
 - **NearCade**：提供全球机厅相关数据。[官网](https://nearcade.cn/)
 - **SilentBlue.RemyWiki**：提供高清版本图片。[官网](https://silentblue.remywiki.com/Main_Page)
+- **simai_flutter · Project Fukakai**：提供谱面解析和播放器，采用 MIT 许可证。[项目地址](https://github.com/Project-Fukakai/simai_flutter) · [许可证](assets/legal/simai_flutter_MIT.txt) · [第三方声明](assets/legal/simai_flutter_THIRD_PARTY_NOTICES.md)
 
 ### 设计思路借鉴
 
@@ -204,11 +205,13 @@ iOS 版本可在 [GitHub Releases](https://github.com/ChiffonMai-Labs/ChiffonMai
 - **Pokcet**：感谢对本项目的捐献支持。
 - **ListaQwQ**：感谢对本项目的捐献支持。
 - **迪拉熊重度依赖**：感谢对本项目的捐献支持。[GitHub](https://github.com/Timome-Sudo)
-- **白嫖万岁**：感谢对本项目的捐献支持。
 - **鱼好呆**：感谢对本项目的捐献支持。
 - **Rinviolet**：感谢对本项目的捐献支持。[bilibili](https://b23.tv/hIpEBUO)
 - **Redapple_one**：感谢对本项目的捐献支持。[个人主页](https://me.redapple.one)
 - **苏洛依**：感谢对本项目的捐献支持。
+- **Roid**：感谢对本项目的捐献支持。
+- **Cartethyia～**：感谢对本项目的捐献支持。
+- **阳华**：感谢对本项目的捐献支持。
 
 ## 开源和参与
 

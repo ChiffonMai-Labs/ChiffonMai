@@ -9,7 +9,6 @@ import 'package:my_first_flutter_app/manager/LuoXue/LuoXueSongsManager.dart';
 import 'package:my_first_flutter_app/manager/MaidataManager.dart';
 import 'package:my_first_flutter_app/service/RecommendByTagsService.dart';
 import 'package:my_first_flutter_app/manager/DivingFish/UnionManager.dart';
-import 'package:my_first_flutter_app/service/ConnectivityService.dart';
 
 /// 首页服务类：处理首页相关的数据初始化和业务逻辑
 class HomeService {
@@ -43,18 +42,6 @@ class HomeService {
   }) async {
     final startTime = DateTime.now();
 
-    // 检查网络连接
-    final isOnline = await ConnectivityService().hasConnection();
-    if (!isOnline) {
-      final duration = DateTime.now().difference(startTime);
-      debugPrint('离线模式：跳过后台数据初始化，使用缓存数据');
-      return HomeInitResult(
-        success: true,
-        duration: duration,
-        durationStr: appL10n.svcP0MsOfflineMode(duration.inMilliseconds.toString()),
-      );
-    }
-
     try {
       // 第一阶段：初始化基础管理器（必须串行）
       onProgress(appL10n.svcLoadingTheSongAliasDatabase);
@@ -65,10 +52,16 @@ class HomeService {
       await maidataManager.initialize();
       
       // 如果缓存未就绪或过期，获取全量maidata
-      if (!maidataManager.isFullCacheReady) {
+      if (!maidataManager.isFullCacheReady ||
+          !await maidataManager.isFullCacheValid()) {
         debugPrint('Maidata缓存未就绪，开始获取全量maidata...');
         onProgress(appL10n.svcFetchingAllMaidataTheFirstLoadMay);
-        await maidataManager.fetchAndCacheFullMaidata();
+        try {
+          await maidataManager.fetchAndCacheFullMaidata();
+        } catch (error) {
+          // 谱面资源刷新失败时继续初始化曲库、难度和其它独立数据源。
+          debugPrint('[HomeInit] 全量谱面刷新未完成: $error');
+        }
       } else {
         onProgress(appL10n.svcLoadingMaidataFromCache);
       }

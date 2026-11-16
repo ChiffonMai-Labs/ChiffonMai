@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../constant/AppLinks.dart';
 import '../../constant/CacheKeyConstant.dart';
+import '../../utils/AppTheme.dart';
 import '../../utils/CurrentDataSourceNotifier.dart';
 import '../../utils/ExportUserInfoWidget.dart';
 import '../../widgets/B50GameCardWidget.dart';
@@ -28,6 +29,7 @@ class ThunderBest50Export {
     required int count,
     required Widget Function(int index) cardBuilder,
     required String statistics,
+    Best50ExportBackground background = Best50ExportBackground.none,
     bool showUserInfo = true,
     String? warning,
     String? sortLabel,
@@ -43,70 +45,81 @@ class ThunderBest50Export {
         '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')} '
         '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
     final avatar = user['avatarUrl'] as String? ?? '';
-    final info = SizedBox(
-      width: vertical ? cardWidth : verticalWidth,
-      child: ExportHeroSurface(
-        radius: 16,
-        padding: const EdgeInsets.all(18),
-        child: DefaultTextStyle(
-          style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.45),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title,
-                  style: const TextStyle(
-                      fontSize: 28, height: 1.15, fontWeight: FontWeight.w900)),
-              Text(appL10n.flowThunderMode,
-                  style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white.withValues(alpha: 0.8))),
-              if (showUserInfo) ...[
-                const SizedBox(height: 12),
-                Row(children: [
-                  Container(
-                    width: 56,
-                    height: 56,
-                    clipBehavior: Clip.antiAlias,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: avatar.isEmpty
-                        ? Icon(Icons.person_rounded,
-                            size: 40, color: ExportPalette.light.muted)
-                        : CachedNetworkImage(
-                            imageUrl: avatar, fit: BoxFit.cover),
+    final info = Builder(
+        builder: (context) => SizedBox(
+              width: vertical ? cardWidth : verticalWidth,
+              child: ExportHeroSurface(
+                radius: 16,
+                padding: const EdgeInsets.all(18),
+                child: DefaultTextStyle(
+                  style: AppTheme.font(
+                      color: Colors.white, fontSize: 15, height: 1.45),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title,
+                          style: AppTheme.font(
+                              fontSize: 28,
+                              height: 1.15,
+                              fontWeight: FontWeight.w900)),
+                      Text(appL10n.flowThunderMode,
+                          style: AppTheme.font(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white.withValues(alpha: 0.8))),
+                      if (showUserInfo) ...[
+                        const SizedBox(height: 12),
+                        Row(children: [
+                          Container(
+                            width: 56,
+                            height: 56,
+                            clipBehavior: Clip.antiAlias,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: avatar.isEmpty
+                                ? Icon(Icons.person_rounded,
+                                    size: 40, color: ExportPalette.light.muted)
+                                : CachedNetworkImage(
+                                    imageUrl: avatar, fit: BoxFit.cover),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                              child: Text('${user['nickname'] ?? ''}',
+                                  style: AppTheme.font(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.w700))),
+                        ]),
+                      ],
+                      const SizedBox(height: 12),
+                      Text(statistics),
+                      if (sortLabel != null && sortLabel.isNotEmpty)
+                        Text(appL10n.flowOrderP0((sortLabel).toString())),
+                      if (warning != null && warning.isNotEmpty)
+                        Text(warning,
+                            style: const TextStyle(color: Color(0xFFFFB4AB))),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        child: Container(
+                            height: 1,
+                            color: Colors.white.withValues(alpha: 0.25)),
+                      ),
+                      Text(
+                        appL10n.flowSourceP0ExportedP1GeneratedByChiffonMai(
+                            (source).toString(),
+                            (time).toString(),
+                            (AppLinks.qqGroupNumber).toString()),
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.white.withValues(alpha: 0.8)),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                      child: Text('${user['nickname'] ?? ''}',
-                          style: const TextStyle(
-                              fontSize: 20, fontWeight: FontWeight.w700))),
-                ]),
-              ],
-              const SizedBox(height: 12),
-              Text(statistics),
-              if (sortLabel != null && sortLabel.isNotEmpty)
-                Text(appL10n.flowOrderP0((sortLabel).toString())),
-              if (warning != null && warning.isNotEmpty)
-                Text(warning, style: const TextStyle(color: Color(0xFFFFB4AB))),
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                child: Container(
-                    height: 1, color: Colors.white.withValues(alpha: 0.25)),
+                ),
               ),
-              Text(
-                appL10n.flowSourceP0ExportedP1GeneratedByChiffonMai((source).toString(), (time).toString(), (AppLinks.qqGroupNumber).toString()),
-                style: TextStyle(
-                    fontSize: 12, color: Colors.white.withValues(alpha: 0.8)),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+            ));
     final cards = List.generate(
         count,
         (index) => SizedBox(
@@ -116,6 +129,8 @@ class ThunderBest50Export {
             ));
     return ExportPage(
       theme: theme,
+      background: background,
+      backgroundRepeat: vertical ? ImageRepeat.repeatY : ImageRepeat.repeatX,
       width: widthFor(count, vertical),
       padding: const EdgeInsets.all(20),
       child: vertical

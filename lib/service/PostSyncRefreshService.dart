@@ -5,7 +5,11 @@ import '../constant/CacheKeyConstant.dart';
 import '../manager/LuoXue/LuoXueOAuthManager.dart';
 import '../utils/SecureCredentialStore.dart';
 import '../widgets/RefreshDataDialog.dart'
-    show RefreshDataRequest, RefreshDataSource, executeAdvancedRefreshData;
+    show
+        RefreshDataRequest,
+        RefreshDataSource,
+        SharedRefreshData,
+        executeAdvancedRefreshData;
 import 'AccountStore.dart';
 import 'AccountSwitchService.dart';
 
@@ -108,10 +112,14 @@ class PostSyncRefreshOperation {
   }
 
   /// 返回刷新错误，null 表示成功；重复调用复用同一 Future，避免重复请求。
-  Future<String?> run({required void Function(int, String) onProgress}) =>
-      _running ??= _run(onProgress);
+  Future<String?> run({
+    required void Function(int, String) onProgress,
+    SharedRefreshData? sharedRefresh,
+  }) =>
+      _running ??= _run(onProgress, sharedRefresh);
 
-  Future<String?> _run(void Function(int, String) onProgress) async {
+  Future<String?> _run(void Function(int, String) onProgress,
+      SharedRefreshData? sharedRefresh) async {
     // 准备失败时不再读取凭据或获取活动槽锁，确保不会降级成缺少身份保护的刷新。
     if (_captureError != null) return _captureError;
     try {
@@ -121,11 +129,13 @@ class PostSyncRefreshOperation {
       if ((current.isNotEmpty && current != accountId) ||
           credential != _credential ||
           authorization != _authorization) {
-        throw StateError(appL10n.svcTheAccountOrSyncCredentialsChangedAutomatic);
+        throw StateError(
+            appL10n.svcTheAccountOrSyncCredentialsChangedAutomatic);
       }
       await AccountSwitchService.guardedRefresh(
         () => AccountSwitchService.revision == _revision,
-        () => executeAdvancedRefreshData(request, onProgress: onProgress),
+        () => executeAdvancedRefreshData(request,
+            onProgress: onProgress, sharedRefresh: sharedRefresh),
         accountId: accountId,
       );
       refreshed = true;

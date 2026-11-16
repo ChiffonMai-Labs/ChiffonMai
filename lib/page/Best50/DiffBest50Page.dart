@@ -496,6 +496,8 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
 
   // 请求存储权限
   Future<bool> _requestStoragePermission() async {
+    if (Platform.isIOS) return true; // 写入相册时由 PhotoKit 请求权限。
+
     debugPrint('Page: _requestStoragePermission called');
     debugPrint('Page: Platform.isAndroid = ${Platform.isAndroid}');
 
@@ -568,6 +570,7 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
         estimatedPngSize: ImageEncodeUtil.estimatePngSize(songCount: 50),
         exportingLabel: context.l10n.featureFittedBest50,
         enableThunderMode: true,
+        enableBest50Background: true,
         previewBuilder: (previewContext, previewQuality) =>
             DiffBest50ConvertToImg.buildPreviewWidget(
           previewContext,
@@ -578,6 +581,7 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
           thunderMode: previewQuality.thunderMode,
           thunderVertical: previewQuality.thunderVertical,
           theme: previewQuality.theme,
+          background: previewQuality.background,
         ),
       );
       if (quality == null) return;
@@ -593,6 +597,7 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
           currentMode: _resultMode,
           jpegQuality: quality.jpegQuality,
           theme: quality.theme,
+          background: quality.background,
           thunderMode: quality.thunderMode,
           thunderVertical: quality.thunderVertical,
         ),

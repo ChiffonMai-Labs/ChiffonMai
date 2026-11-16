@@ -10,7 +10,7 @@ import '../constant/CacheKeyConstant.dart';
 ///   cacheKey 用来判断"有没有缓存"，timestampKey 用来算剩余有效期。
 /// - [ttlDays] = -1 表示该缓存永不过期（如 MaiTagsManager）；其它正整数 = 有效期天数。
 /// - [groupKey] 把多个 UI 行映射到底层同一个缓存组（force refresh 时整组一起刷），
-///   例如别名 3 源共享 song_aliases，收藏品 4 类共享 CollectionsManager.refreshAllCollections。
+///   例如别名 3 源共享 song_aliases，收藏品 6 类共享 CollectionsManager.refreshAllCollections。
 class CacheSourceInfo {
   final String id;
   final String displayName;
@@ -33,12 +33,12 @@ class CacheSourceInfo {
   });
 }
 
-/// 全部缓存源注册表（13 条，按用户在「系统 → 刷新数据（高级）」看到的顺序）。
+/// 全部缓存源注册表，按用户在「系统 → 刷新数据（高级）」看到的顺序。
 ///
 /// 多个源共享同一 [groupKey] 时，任意一个被勾选强制刷新即触发整组刷新：
 ///   - 'songs'         歌曲数据（水鱼 + Union 合并写入 cachedSongs）
 ///   - 'aliases'       别名 3 源合并写入 song_aliases
-///   - 'collections'   收藏品 4 类各自独立缓存但由 CollectionsManager 一并刷新
+///   - 'collections'   收藏品 6 类各自独立缓存但由 CollectionsManager 一并刷新
 class CacheSourceRegistry {
   static const List<CacheSourceInfo> all = [
     // ── 歌曲数据 ─────────────────────────────────────────────
@@ -119,45 +119,65 @@ class CacheSourceRegistry {
       groupKey: 'aliases',
     ),
 
-    // ── 收藏品 4 类 ──────────────────────────────────────────
+    // ── 收藏品 ──────────────────────────────────────────────
     CacheSourceInfo(
       id: 'coll_trophies',
       displayName: '收藏品-称号',
       description: '落雪称号',
-      apiUrl: ApiUrls.TrophiesCollectionApi,
+      apiUrl: '${ApiUrls.CollectionCatalogUrl}/trophies',
       cacheKey: CacheKeyConstant.trophiesCollectionsCacheData,
       timestampKey: 'trophies_collections_last_update',
-      ttlDays: 7,
+      ttlDays: CacheKeyConstant.collectionCatalogTtlDays,
       groupKey: 'collections',
     ),
     CacheSourceInfo(
       id: 'coll_icons',
       displayName: '收藏品-头像',
       description: '落雪头像',
-      apiUrl: ApiUrls.IconsCollectionApi,
+      apiUrl: '${ApiUrls.CollectionCatalogUrl}/icons',
       cacheKey: CacheKeyConstant.iconsCollectionsCacheData,
       timestampKey: 'icons_collections_last_update',
-      ttlDays: 7,
+      ttlDays: CacheKeyConstant.collectionCatalogTtlDays,
       groupKey: 'collections',
     ),
     CacheSourceInfo(
       id: 'coll_plates',
       displayName: '收藏品-姓名框',
       description: '落雪姓名框',
-      apiUrl: ApiUrls.PlatesCollectionApi,
+      apiUrl: '${ApiUrls.CollectionCatalogUrl}/plates',
       cacheKey: CacheKeyConstant.platesCollectionsCacheData,
       timestampKey: 'plates_collections_last_update',
-      ttlDays: 7,
+      ttlDays: CacheKeyConstant.collectionCatalogTtlDays,
       groupKey: 'collections',
     ),
     CacheSourceInfo(
       id: 'coll_frames',
       displayName: '收藏品-背景',
       description: '落雪背景',
-      apiUrl: ApiUrls.FramesCollectionApi,
+      apiUrl: '${ApiUrls.CollectionCatalogUrl}/frames',
       cacheKey: CacheKeyConstant.framesCollectionsCacheData,
       timestampKey: 'frames_collections_last_update',
-      ttlDays: 7,
+      ttlDays: CacheKeyConstant.collectionCatalogTtlDays,
+      groupKey: 'collections',
+    ),
+    CacheSourceInfo(
+      id: 'coll_travel_buddies',
+      displayName: '收藏品-旅行伙伴',
+      description: 'AWMC 旅行伙伴',
+      apiUrl: '${ApiUrls.CollectionCatalogUrl}/travelBuddies',
+      cacheKey: CacheKeyConstant.travelBuddiesCollectionsCacheData,
+      timestampKey: CacheKeyConstant.travelBuddiesCollectionsTimestamp,
+      ttlDays: CacheKeyConstant.collectionCatalogTtlDays,
+      groupKey: 'collections',
+    ),
+    CacheSourceInfo(
+      id: 'coll_partners',
+      displayName: '收藏品-搭档',
+      description: 'AWMC 搭档',
+      apiUrl: '${ApiUrls.CollectionCatalogUrl}/partners',
+      cacheKey: CacheKeyConstant.partnersCollectionsCacheData,
+      timestampKey: CacheKeyConstant.partnersCollectionsTimestamp,
+      ttlDays: CacheKeyConstant.collectionCatalogTtlDays,
       groupKey: 'collections',
     ),
 

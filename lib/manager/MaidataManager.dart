@@ -252,27 +252,14 @@ class MaidataManager {
           prefs.getInt(CacheKeyConstant.maidataFullCacheTimestamp);
 
       if (timestamp != null) {
-        final now = DateTime.now().millisecondsSinceEpoch;
-
-        if (now - timestamp < CacheTimestampConstant.maidataFullCacheMillis) {
-          final file = await _getCacheFile();
-          if (await file.exists()) {
-            // 文件 I/O + JSON 解码在后台 isolate 中执行，避免阻塞 UI 线程
-            final content = await file.readAsString();
-            _cachedMaidata = await compute((String jsonStr) {
-              return Map<String, String>.from(json.decode(jsonStr) as Map);
-            }, content);
-            debugPrint(
-                '[DEBUG][MaidataManager] 已加载全量缓存（文件），共 ${_cachedMaidata.length} 首歌曲');
-            return;
-          }
-        } else {
-          debugPrint('[DEBUG][MaidataManager] 全量缓存已过期，删除旧缓存');
-          await prefs.remove(CacheKeyConstant.maidataFullCacheTimestamp);
-          final file = await _getCacheFile();
-          if (await file.exists()) {
-            await file.delete();
-          }
+        final file = await _getCacheFile();
+        if (await file.exists()) {
+          final content = await file.readAsString();
+          _cachedMaidata = await compute((String jsonStr) {
+            return Map<String, String>.from(json.decode(jsonStr) as Map);
+          }, content);
+          debugPrint('[MaidataManager] 已加载本地全量缓存，共 ${_cachedMaidata.length} 首歌曲');
+          return;
         }
       }
 
@@ -307,8 +294,7 @@ class MaidataManager {
   ///     不做这一档的话按钮上会一直空着，看起来像没点动。
   ///   * 阶段 2（下载）：总数已确定，按「已下载 / 总数」上报。
   ///
-  /// 文件数上千、`concurrency` 又是 100，按每批结束上报即可，不必逐文件回调，
-  /// 再叠一层 250ms 节流，避免高频 `setState` 把整页拖垮。
+  /// 所有流派共用并发额度，每 250ms 最多更新一次下载进度。
   Future<void> fetchAndCacheFullMaidata({
     void Function(int current, int total)? onProgress,
   }) async {
@@ -339,121 +325,107 @@ class MaidataManager {
       '${ApiUrls.MaidataServerBaseUrl}/POPSアニメ',
     ];
 
-    const int concurrency = 100;
-    int totalFetched = 0;
-    final Map<String, String> newUrlMap = {}; // 重建 songId→URL 映射
+    const concurrency = 8;
+    final newUrlMap = <String, String>{};
+    final downloaded = <String, String>{};
+    final lastIndexById = <String, int>{};
+    var foldersFound = 0;
+    var discoveryFailures = 0;
+    Object? firstFailure;
 
-    // 阶段 2 的「已下载 / 总数」。声明在 [report] 之前，供其闭包引用。
-    int urlsDiscovered = 0;
-    int urlsTotal = 0;
-
-    // 进度上报。**先累计、后节流显示**：计数本身永远是最新值，
-    // 被节流掉的只是「回调次数」。
-    //
-    // 这一点不能反过来写：阶段 2 是 7 个流派**并行**下载，若在累加之前就
-    // 按 250ms 提前 return，那第一个流派刷满窗口之后，其余流派紧接着完成的
-    // 几批连 `urlsDiscovered` 都不会加，按钮上的数字就卡住不动了。
-    int lastProgressMs = 0;
-    void report({bool force = false}) {
-      final callback = onProgress;
-      if (callback == null) return;
-      final now = DateTime.now().millisecondsSinceEpoch;
-      if (!force && now - lastProgressMs < 250) return;
-      lastProgressMs = now;
-      callback(urlsDiscovered, urlsTotal);
-    }
-
-    // ── 阶段 1：先并行拿到各流派的文件夹列表，汇总出**准确的总文件数** ──
-    //
-    // 原实现是「每个流派的列表一到手就开始下载它自己的文件」的流水线，
-    // 重叠了这部分 IO；但那样总数是随各流派陆续返回而增长的：进度会先报成
-    // 300/120（超过 100%），再跳成 300/5000。
-    // 收益（省下几次目录请求的等待）远小于「进度看起来是错的」的代价，
-    // 所以改成两阶段 —— 目录请求本身仍是并行的。
-    int foldersFound = 0;
-    final genreFolders = await Future.wait(
-      genrePaths.map((genrePath) async {
-        final folders = await _getFoldersInPath(genrePath);
-        // 总数还没确定，先按「已发现」给个反馈，免得按钮上一直空着
-        foldersFound += folders.length;
-        if (onProgress != null) {
-          onProgress(foldersFound, 0);
-        }
-        return (genrePath, folders);
-      }),
-    );
+    // 先发现全部文件，便于进度条使用固定的总数。
+    final genreUrls = await Future.wait(genrePaths.map((path) async {
+      final List<String> folders;
+      try {
+        folders = await _getFoldersInPath(path, strict: true);
+      } catch (error) {
+        firstFailure ??= error;
+        discoveryFailures++;
+        return const <String>[];
+      }
+      foldersFound += folders.length;
+      onProgress?.call(foldersFound, 0);
+      return folders.map((folder) => '$path/$folder/maidata.txt').toList();
+    }));
     if (_cacheGeneration != generation) return;
 
-    urlsTotal = genreFolders.fold<int>(
-      0,
-      (sum, entry) => sum + entry.$2.length,
-    );
+    final urls = {for (final group in genreUrls) ...group}.toList();
+    var nextIndex = 0;
+    var processed = 0;
+    var transportFailures = 0;
+    var missing = 0;
+    final reporting = Stopwatch()..start();
 
-    // ── 阶段 2：总数已定，并行下载 ──
-    report(force: true);
+    void report({bool force = false}) {
+      if (!force && reporting.elapsedMilliseconds < 250) return;
+      reporting.reset();
+      onProgress?.call(processed, urls.length);
+    }
 
-    final allGenreResults = await Future.wait(
-      genreFolders.map((entry) async {
-        final genrePath = entry.$1;
-        final folders = entry.$2;
-        if (folders.isEmpty) return <(String, String)>[];
-
-        final urls = folders.map((f) => '$genrePath/$f/maidata.txt').toList();
-        final results = <(String, String)>[];
-
-        for (int i = 0; i < urls.length; i += concurrency) {
-          if (_cacheGeneration != generation) return results;
-          final end =
-              (i + concurrency > urls.length) ? urls.length : i + concurrency;
-          final batch = urls.sublist(i, end);
-          final batchResults =
-              await Future.wait(batch.map((url) => _fetchSingleMaidata(url)));
-          for (int j = 0; j < batchResults.length; j++) {
-            final r = batchResults[j];
-            if (r != null) {
-              results.add(r);
-              // 记录 songId→URL 映射，供增量刷新使用
-              newUrlMap[r.$1] = batch[j];
-              urlsDiscovered++;
+    Future<void> download() async {
+      while (nextIndex < urls.length &&
+          transportFailures < concurrency &&
+          _cacheGeneration == generation) {
+        final index = nextIndex++;
+        final url = urls[index];
+        try {
+          final result = await _fetchSingleMaidata(url, strict: true);
+          if (result == null) {
+            missing++;
+          } else {
+            final (id, content) = result;
+            // 同一 ID 的覆盖顺序跟随目录顺序，避免网络完成顺序改变缓存内容。
+            if (index > (lastIndexById[id] ?? -1)) {
+              lastIndexById[id] = index;
+              downloaded[id] = content;
+              newUrlMap[id] = url;
             }
           }
-          report();
+        } catch (error) {
+          firstFailure ??= error;
+          transportFailures++;
         }
-        return results;
-      }),
-    );
-
-    // 收尾补报一次：最后几批可能被 250ms 节流吃掉，没这一步按钮上会停在中间数字。
-    report(force: true);
-
-    // 汇总所有流派结果写入缓存
-    if (_cacheGeneration != generation) return;
-    if (allGenreResults.every((results) => results.isEmpty)) {
-      throw StateError('未获取到基础量 maidata，原有缓存已保留，请检查网络后重试');
-    }
-    _cachedMaidata.clear();
-    for (final genreResults in allGenreResults) {
-      for (final (songId, content) in genreResults) {
-        _cachedMaidata[songId] = content;
-        totalFetched++;
+        processed++;
+        report();
+        if (processed % 32 == 0) await Future<void>.delayed(Duration.zero);
       }
     }
 
-    // 保存 URL 映射。
-    _idToUrlMap = newUrlMap;
-    await _saveUrlMap();
+    report(force: true);
+    if (discoveryFailures == 0) {
+      await Future.wait(List.generate(concurrency, (_) => download()));
+    }
+    if (_cacheGeneration != generation) return;
+    report(force: true);
+    debugPrint('[MaidataManager] 全量刷新：成功 ${downloaded.length} 首，'
+        '请求 $processed/${urls.length}，目录失败 $discoveryFailures，'
+        '下载失败 $transportFailures，无可用谱面 $missing'
+        '${firstFailure == null ? '' : '，首个错误：$firstFailure'}');
 
-    debugPrint('[DEBUG][MaidataManager] 全量缓存获取完成，共 $totalFetched 首歌曲');
+    // 网络异常时保留上一份完整缓存及其时间戳，避免半份数据冒充新缓存。
+    if (discoveryFailures > 0 || transportFailures > 0 || downloaded.isEmpty) {
+      throw StateError('全量谱面下载未完成，已保留原有缓存，请稍后重试');
+    }
 
     // JSON 编码在后台 isolate 中执行，写入文件而非 SharedPreferences。
     // 必须等待落盘完成后再结束刷新，否则下一次刷新会再次判断为缓存无效。
     // 文件直接写入比 SharedPreferences XML 快 10-100 倍（尤其是几十 MB 的大数据）
-    final cacheCopy = Map<String, String>.from(_cachedMaidata);
     final encoded = await compute((Map<String, String> data) {
       return json.encode(data);
-    }, cacheCopy);
+    }, downloaded);
+    if (_cacheGeneration != generation) return;
     final file = await _getCacheFile();
-    await file.writeAsString(encoded);
+    final temporary = File('${file.path}.tmp');
+    try {
+      await temporary.writeAsString(encoded);
+      if (_cacheGeneration != generation) return;
+      await temporary.rename(file.path);
+    } finally {
+      if (await temporary.exists()) await temporary.delete();
+    }
+    _cachedMaidata = downloaded;
+    _idToUrlMap = newUrlMap;
+    await _saveUrlMap();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(
       CacheKeyConstant.maidataFullCacheTimestamp,
@@ -470,27 +442,34 @@ class MaidataManager {
   }
 
   /// 获取单个maidata.txt并返回 (songId, content) 或 null
-  Future<(String, String)?> _fetchSingleMaidata(String url) async {
+  Future<(String, String)?> _fetchSingleMaidata(String url,
+      {bool strict = false}) async {
     try {
-      final response = await ApiClient.get(Uri.parse(url));
+      final response = await ApiClient.getAbortable(Uri.parse(url));
       if (response.statusCode == 200) {
         String content = _decodeContent(response.bodyBytes);
         String? songId = _extractSongId(content);
         if (songId != null) {
           return (songId, content);
         }
+      } else if (strict &&
+          response.statusCode != 404 &&
+          response.statusCode != 410) {
+        throw HttpException('HTTP ${response.statusCode}');
       }
     } catch (e) {
+      if (strict) rethrow;
       debugPrint('[DEBUG][MaidataManager] 获取 $url 失败: $e');
     }
     return null;
   }
 
-  Future<List<String>> _getFoldersInPath(String path) async {
+  Future<List<String>> _getFoldersInPath(String path,
+      {bool strict = false}) async {
     List<String> folders = [];
 
     try {
-      final response = await ApiClient.get(Uri.parse(path));
+      final response = await ApiClient.getAbortable(Uri.parse(path));
 
       if (response.statusCode == 200) {
         String decodedBody = _decodeContent(response.bodyBytes);
@@ -502,11 +481,14 @@ class MaidataManager {
           if (folder.isNotEmpty &&
               !folder.startsWith('.') &&
               !folder.startsWith('/')) {
-            folders.add(folder);
+            folders.add(folder.replaceFirst(RegExp(r'/+$'), ''));
           }
         }
+      } else if (strict) {
+        throw HttpException('HTTP ${response.statusCode}');
       }
     } catch (e) {
+      if (strict) rethrow;
       debugPrint('[DEBUG][MaidataManager] 获取文件夹列表失败: $e');
     }
 

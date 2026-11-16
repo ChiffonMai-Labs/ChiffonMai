@@ -1,6 +1,5 @@
 import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
-import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -15,10 +14,9 @@ import '../service/SongMaidataPageService.dart';
 import '../service/DxRatingCoverService.dart';
 import '../service/SongMediaCache.dart';
 import '../api/ApiUrls.dart';
-import '../service/ChartPlaySettingsStore.dart';
 import '../manager/MaidataManager.dart';
 import '../widgets/BackgroundPageScaffold.dart';
-import 'ChartPlayPage.dart';
+import 'ChartPlaybackPicker.dart';
 import 'package:my_first_flutter_app/utils/ApiClient.dart';
 import '../utils/AppDesignTokens.dart';
 import '../widgets/AppUi.dart';
@@ -26,6 +24,7 @@ import '../widgets/MarqueeText.dart';
 import '../widgets/AppDialogs.dart';
 import '../widgets/AppToast.dart';
 import '../utils/ChartCodeFontPreference.dart';
+import '../utils/MaidataDecodeUtil.dart';
 
 class SongMaidataPage extends StatefulWidget {
   final String songId;
@@ -55,7 +54,6 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
   List<String> _inoteList = [];
   String? _selectedInote;
   String? _displayedInote; // 当前显示的难度
-  bool _loadAudio = true;
 
   /// 公开目录不可写时，记录实际落盘的私有路径，用于在成功弹窗里提示用户
   String? _fallbackPath;
@@ -72,21 +70,75 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
       genre: widget.genre,
       songType: widget.songType,
     );
-    _loadAudioPreference();
-    _loadCodeFont();
+    _loadCodeOptions();
     _loadMaidata();
   }
 
   /// 记住的谱面代码字体；读取完成前先用默认字体。
   ChartCodeFont _codeFont = ChartCodeFont.standard;
+  bool _highlightCode = false;
+  bool _codeOptionsLoaded = false;
+  String? _highlightedCode;
+  Brightness? _highlightBrightness;
+  TextSpan? _highlightedSpan;
 
-  Future<void> _loadCodeFont() async {
-    final font = await ChartCodeFontPreference.load();
-    if (mounted) setState(() => _codeFont = font);
+  Future<void> _loadCodeOptions() async {
+    final options = await ChartCodeFontPreference.loadOptions();
+    if (!mounted) return;
+    setState(() {
+      _codeFont = options.font;
+      _highlightCode = options.highlight;
+      _codeOptionsLoaded = true;
+    });
+  }
+
+  Future<void> _setCodeHighlight(bool enabled) async {
+    setState(() => _highlightCode = enabled);
+    if (!await ChartCodeFontPreference.saveHighlight(enabled) && mounted) {
+      AppToast.show(context.l10n.chartCodeHighlightSaveFailed,
+          tone: AppToastTone.warning);
+    }
+  }
+
+  Widget _buildCode(ColorScheme scheme) {
+    final code = _getFilteredMaidata();
+    final style = _codeFont.apply(TextStyle(
+      fontSize: 12,
+      color: scheme.onSurface,
+      height: 1.4,
+    ));
+    if (!_highlightCode) {
+      return SelectionArea(child: Text(code, style: style));
+    }
+    if (_highlightedCode != code || _highlightBrightness != scheme.brightness) {
+      final palette = AppColors.chartCodeNoteColors(scheme.brightness);
+      final spans = <TextSpan>[];
+      var offset = 0;
+      for (final note in MaidataDecodeUtil.inoteNoteSpans(code)) {
+        if (note.start > offset) {
+          spans.add(TextSpan(text: code.substring(offset, note.start)));
+        }
+        spans.add(TextSpan(
+          text: code.substring(note.start, note.end),
+          style: TextStyle(color: palette[note.type.index]),
+        ));
+        offset = note.end;
+      }
+      if (offset < code.length) {
+        spans.add(TextSpan(text: code.substring(offset)));
+      }
+      _highlightedCode = code;
+      _highlightBrightness = scheme.brightness;
+      _highlightedSpan = TextSpan(children: spans);
+    }
+    return SelectionArea(
+      child: Text.rich(_highlightedSpan!, style: style),
+    );
   }
 
   Future<void> _chooseCodeFont() async {
     FocusManager.instance.primaryFocus?.unfocus();
+    var highlight = _highlightCode;
     final picked = await showDialog<ChartCodeFont>(
       context: context,
       builder: (ctx) => AppAlertDialog(
@@ -117,12 +169,23 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
                   onTap: () => Navigator.pop(ctx, font),
                 ),
               ),
+            StatefulBuilder(
+              builder: (context, setDialogState) => SwitchListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                title: Text(ctx.l10n.chartCodeSyntaxHighlight),
+                value: highlight,
+                onChanged: (enabled) {
+                  setDialogState(() => highlight = enabled);
+                  _setCodeHighlight(enabled);
+                },
+              ),
+            ),
           ],
         ),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: Text(ctx.l10n.featureCancel)),
+              child: Text(ctx.l10n.featureClose)),
         ],
       ),
     );
@@ -132,11 +195,6 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
       AppToast.show(context.l10n.chartCodeFontSaveFailed,
           tone: AppToastTone.warning);
     }
-  }
-
-  Future<void> _loadAudioPreference() async {
-    final value = await ChartPlayAudioPreference.load();
-    if (mounted) setState(() => _loadAudio = value);
   }
 
   Future<void> _loadMaidata() async {
@@ -327,41 +385,26 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
   Future<void> _runExport(
     Future<(String path, String fileName, String? warning)> Function() job,
   ) async {
+    if (!mounted || _isExporting || ModalRoute.of(context)?.isCurrent == false) {
+      return;
+    }
+    final page = ModalRoute.of(context);
     setState(() => _isExporting = true);
     _fallbackPath = null;
 
-    if (mounted) {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => AppAlertDialog(
-          content: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(width: 16),
-              Text(context.l10n.flowExporting2),
-            ],
-          ),
-        ),
-      );
-    }
+    final progress = showAppProgressDialog(context,
+        title: context.l10n.flowPleaseWait, message: context.l10n.flowExporting2);
 
     try {
       final (path, fileName, warning) = await job();
 
-      if (mounted) {
-        Navigator.of(context).pop();
-      }
-
-      if (mounted) {
+      dismissAppProgressDialog(progress);
+      if (mounted && page?.isCurrent != false) {
         await _showExportSuccessDialog(path, fileName, warning: warning);
       }
     } catch (e) {
-      if (mounted) {
-        Navigator.of(context).pop();
-      }
-      if (mounted) {
+      dismissAppProgressDialog(progress);
+      if (mounted && page?.isCurrent != false) {
         AppToast.show(context.l10n.flowExportFailedP0((e).toString()),
             tone: AppToastTone.error, duration: const Duration(seconds: 3));
       }
@@ -478,130 +521,18 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
   }
 
   void _navigateToChartPlay() {
-    _showDifficultySelector();
-  }
-
-  void _showDifficultySelector() {
-    if (_inoteList.isEmpty) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => ChartPlayPage(
-            maidataContent: _maidataContent,
-            songTitle: widget.songTitle,
-            songId: widget.songId,
-            songType: widget.songType,
-            selectedInote: null,
-            loadAudio: _loadAudio,
-          ),
-        ),
-      );
-      return;
-    }
-
-    var loadAudio = _loadAudio;
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AppAlertDialog(
-          title: Text(context.l10n.flowSelectDifficulty),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: Text(
-                    context.l10n.flowRenderedChartsAreForReferenceAndMay,
-                    style: TextStyle(
-                        fontSize: 12,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-                StatefulBuilder(
-                  builder: (context, setDialogState) => CheckboxListTile(
-                    contentPadding: EdgeInsets.zero,
-                    value: loadAudio,
-                    title: Text(context.l10n.flowLoadAudio),
-                    subtitle:
-                        Text(context.l10n.flowTurnOffToLoadTheChartWithout),
-                    onChanged: (value) {
-                      if (value == null) return;
-                      setDialogState(() => loadAudio = value);
-                      _loadAudio = value;
-                      ChartPlayAudioPreference.save(value);
-                    },
-                  ),
-                ),
-                ..._inoteList.map((inote) {
-                  String difficultyName = _getInoteDifficulty(inote);
-                  Color inoteColor = _getInoteColor(inote);
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => ChartPlayPage(
-                              maidataContent: _maidataContent,
-                              songTitle: widget.songTitle,
-                              songId: widget.songId,
-                              songType: widget.songType,
-                              selectedInote: inote,
-                              loadAudio: loadAudio,
-                            ),
-                          ),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: inoteColor,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 12,
-                        ),
-                        textStyle: AppTheme.font(fontSize: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(
-                              AppDesignTokens.radiusSmall),
-                        ),
-                      ),
-                      child: Text(difficultyName),
-                    ),
-                  );
-                }),
-              ],
-            ),
-          ),
-        );
-      },
+    showChartPlayback(
+      context,
+      song: _service,
+      content: _maidataContent,
+      inotes: _inoteList,
     );
   }
 
-  String _getInoteDifficulty(String inoteNum) {
-    if (widget.genre == '宴会場' ||
-        widget.songType == 'UTAGE' ||
-        (widget.songId.length == 6 && int.tryParse(widget.songId) != null)) {
-      final index = _inoteList.indexOf(inoteNum);
-      return _inoteList.length > 1 && index >= 0
-          ? '${ChartDifficulty.utageLabel} ${index + 1}'
-          : ChartDifficulty.utageLabel;
-    }
-    return SongMaidataPageService.inoteDifficultyMap[inoteNum] ?? inoteNum;
-  }
+  String _getInoteDifficulty(String inote) =>
+      chartInoteLabel(_service, _inoteList, inote);
 
-  Color _getInoteColor(String inoteNum) {
-    if (widget.genre == '宴会場' ||
-        widget.songType == 'UTAGE' ||
-        (widget.songId.length == 6 && int.tryParse(widget.songId) != null))
-      return AppColors.utageAccent(brightness: Theme.of(context).brightness);
-    int colorValue =
-        SongMaidataPageService.inoteColorMap[inoteNum] ?? 0xFF9E9E9E;
-    return Color(colorValue);
-  }
+  Color _getInoteColor(String inote) => chartInoteColor(context, _service, inote);
 
   void _scrollToInote(String inoteNum) {
     setState(() {
@@ -779,7 +710,7 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
         IconButton(
           tooltip: context.l10n.chartCodeFont,
           icon: const Icon(Icons.text_fields_rounded),
-          onPressed: _chooseCodeFont,
+          onPressed: _codeOptionsLoaded ? _chooseCodeFont : null,
         ),
       ],
       contentPadding: hasCode
@@ -843,15 +774,7 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
                                 child: SingleChildScrollView(
                                   controller: _scrollController,
                                   padding: const EdgeInsets.all(14),
-                                  child: SelectableText(
-                                    _getFilteredMaidata(),
-                                    style: _codeFont.apply(TextStyle(
-                                      fontSize: 12,
-                                      color: scheme.onSurface,
-                                      height: 1.4,
-                                    )),
-                                    textAlign: TextAlign.left,
-                                  ),
+                                  child: _buildCode(scheme),
                                 ),
                               ),
                             ),

@@ -11,7 +11,6 @@ import '../../constant/CacheKeyConstant.dart';
 import '../../constant/CacheTimestampConstant.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../MaidataManager.dart';
-import '../../service/ConnectivityService.dart';
 import 'package:my_first_flutter_app/utils/ApiClient.dart';
 
 class MaimaiMusicDataManager {
@@ -131,13 +130,6 @@ class MaimaiMusicDataManager {
     }
 
     try {
-      // 离线检查
-      final isOnline = await ConnectivityService().hasConnection();
-      if (!isOnline) {
-        debugPrint('离线模式：跳过获取音乐数据，使用缓存');
-        return false;
-      }
-
       // ── 1. 并行获取水鱼 API 和 union API 的歌曲数据 ──
       List<Song> songs = [];
 
@@ -338,7 +330,9 @@ class MaimaiMusicDataManager {
     bool forceMaidataRefresh = false,
   }) async {
     final maidataManager = MaidataManager();
-    if (!forceNetwork && await hasValidMusicCache()) {
+    if (!forceNetwork &&
+        !forceMaidataRefresh &&
+        await hasValidMusicCache()) {
       debugPrint('曲库缓存有效，跳过网络刷新');
       if (!await maidataManager.isFullCacheValid()) {
         _scheduleMaidataRefresh(maidataManager);
@@ -351,7 +345,13 @@ class MaimaiMusicDataManager {
       if (activeRefresh != null) {
         await activeRefresh;
       }
-      await maidataManager.fetchAndCacheFullMaidata();
+      try {
+        await maidataManager.fetchAndCacheFullMaidata();
+      } catch (_) {
+        // 公共谱面下载失败仍允许曲库更新，音游成绩继续使用可用曲库。
+        await fetchAndUpdateMusicData(forceNetwork: forceNetwork);
+        rethrow;
+      }
       return fetchAndUpdateMusicData(
         maidataTexts: maidataManager.getAllMaidataTexts(),
         forceNetwork: forceNetwork,

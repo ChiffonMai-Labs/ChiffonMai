@@ -1069,6 +1069,8 @@ class FeatureIconTile extends StatelessWidget {
 
   /// 标题颜色，默认正文色（「发现新版本」用绿色）。
   final Color? titleColor;
+  final bool blocked;
+  final String? blockedReason;
 
   const FeatureIconTile({
     super.key,
@@ -1079,21 +1081,26 @@ class FeatureIconTile extends StatelessWidget {
     this.loading = false,
     this.progress,
     this.titleColor,
+    this.blocked = false,
+    this.blockedReason,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final tint = AppColors.featureTint(title, theme.brightness);
-    return Semantics(
+    final tile = Semantics(
       button: true,
-      enabled: onTap != null,
+      enabled: onTap != null && !loading && !blocked,
       label: displayTitle ?? title,
+      hint: blockedReason,
+      onTap: loading || blocked ? null : onTap,
       excludeSemantics: true,
-      child: Opacity(
-        opacity: onTap == null ? 0.5 : 1,
+      child: AnimatedOpacity(
+        opacity: blocked || (onTap == null && !loading) ? 0.5 : 1,
+        duration: AppDesignTokens.motion(context, AppDesignTokens.fastMotion),
         child: InkWell(
-          onTap: onTap,
+          onTap: loading || blocked ? null : onTap,
           borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 4),
@@ -1120,31 +1127,36 @@ class FeatureIconTile extends StatelessWidget {
                               color: tint.foreground,
                             ),
                           )
-                        : Icon(icon, size: 26, color: tint.foreground),
+                        : Icon(blocked ? Icons.lock_outline_rounded : icon,
+                            size: 26, color: tint.foreground),
                   ),
                 ),
                 const SizedBox(height: 8),
-                  SizedBox(
-                    height: 30 * MediaQuery.textScalerOf(context).scale(1),
-                    child: DefaultTextStyle.merge(
-                      textAlign: TextAlign.center,
-                      child: MarqueeText(
-                        text: displayTitle ?? title,
-                        style: TextStyle(
-                          fontSize: 12,
-                          height: 1.25,
-                          fontWeight: FontWeight.w500,
-                          color: titleColor ?? theme.colorScheme.onSurface,
-                        ),
+                SizedBox(
+                  height: 30 * MediaQuery.textScalerOf(context).scale(1),
+                  child: DefaultTextStyle.merge(
+                    textAlign: TextAlign.center,
+                    child: MarqueeText(
+                      text: displayTitle ?? title,
+                      style: TextStyle(
+                        fontSize: 12,
+                        height: 1.25,
+                        fontWeight: FontWeight.w500,
+                        color: titleColor ?? theme.colorScheme.onSurface,
                       ),
                     ),
                   ),
+                ),
               ],
             ),
           ),
         ),
       ),
     );
+    final reason = blockedReason;
+    return reason == null
+        ? tile
+        : Tooltip(message: reason, excludeFromSemantics: true, child: tile);
   }
 }
 
@@ -1161,7 +1173,10 @@ class AnimatedReveal extends StatelessWidget {
       tween: Tween(end: visible ? 1 : 0),
       duration: AppDesignTokens.motion(context, AppDesignTokens.mediumMotion),
       curve: AppDesignTokens.emphasizedCurve,
-      child: child,
+      child: ExcludeFocus(
+        excluding: !visible,
+        child: ExcludeSemantics(excluding: !visible, child: child),
+      ),
       builder: (context, value, child) => IgnorePointer(
         ignoring: !visible,
         child: ClipRect(
@@ -2111,10 +2126,18 @@ class FadeSwitcher extends StatelessWidget {
       switchOutCurve: Curves.easeIn,
       layoutBuilder: (current, previous) => Stack(
         alignment: alignment,
+        clipBehavior: sizeFollowsCurrent ? Clip.none : Clip.hardEdge,
         children: [
           for (final old in previous)
             sizeFollowsCurrent
-                ? Positioned(top: 0, left: 0, right: 0, child: old)
+                ? Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: IgnorePointer(
+                      child: ExcludeFocus(child: ExcludeSemantics(child: old)),
+                    ),
+                  )
                 : old,
           if (current != null) current,
         ],

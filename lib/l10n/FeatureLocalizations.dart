@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'LocalizationsExtension.dart';
 import 'app_localizations.dart';
@@ -235,6 +236,8 @@ String localizeFeatureText(AppLocalizations l10n, String source) =>
       "拉取成绩并更新数据（高级）" => l10n.featureAdvancedRefresh,
       "按数据类型选择是否强制重新下载，并测试各接口连通性" => l10n.featureChooseCachesToRefreshAndTestAPI,
       "刷新机台游玩次数" => l10n.featureRefreshCabinetPlayCount,
+      "同步机台装扮" => l10n.cabinetAppearanceSync,
+      "扫码读取机台当前选中的装扮" => l10n.cabinetAppearanceSubtitle,
       "单独读取当前账号的 PC 数；不会附带同步成绩" =>
         l10n.featureReadOnlyTheCurrentAccountPlayCount,
       "数据备份" => l10n.featureDataBackup,
@@ -254,6 +257,10 @@ String localizeFeatureText(AppLocalizations l10n, String source) =>
       "查看社区最近评论" => l10n.featureViewRecentCommunityComments,
       "最近评分" => l10n.featureRecentRatings,
       "查看社区最近评分" => l10n.featureViewRecentCommunityRatings,
+      "检查更新" when defaultTargetPlatform == TargetPlatform.iOS =>
+        'TestFlight',
+      "检查应用是否有新版本" when defaultTargetPlatform == TargetPlatform.iOS =>
+        l10n.featureTestFlightUpdateSubtitle,
       "检查更新" => l10n.featureCheckForUpdates,
       "检查应用是否有新版本" => l10n.featureCheckForANewerAppVersion,
       "关于 APP" => l10n.featureAboutTheApp,
@@ -1421,6 +1428,8 @@ String localizeFeatureText(AppLocalizations l10n, String source) =>
       "头像" => l10n.flowIconCollectible,
       "姓名框" => l10n.flowPlateCollectible,
       "背景" => l10n.flowFrameCollectible,
+      "旅行伙伴" => l10n.flowTravelBuddyCollectible,
+      "搭档" => l10n.flowPartnerCollectible,
       "AWMC 网关" => l10n.flowAwmcGateway,
       "国服曲库" => l10n.flowNormalSource,
       "非国服曲库" => l10n.flowExtraSource,
@@ -1443,6 +1452,8 @@ String localizeFeatureText(AppLocalizations l10n, String source) =>
       "收藏品-头像" => l10n.flowCacheIcons,
       "收藏品-姓名框" => l10n.flowCachePlates,
       "收藏品-背景" => l10n.flowCacheFrames,
+      "收藏品-旅行伙伴" => l10n.flowCacheTravelBuddies,
+      "收藏品-搭档" => l10n.flowCachePartners,
       "Union 元数据" => l10n.flowCacheUnionMetadata,
       "全量歌曲主库（diving-fish）" => l10n.flowCacheFishDescription,
       "补充独有歌曲（godserver）" => l10n.flowCacheUnionDescription,
@@ -1452,6 +1463,8 @@ String localizeFeatureText(AppLocalizations l10n, String source) =>
       "落雪头像" => l10n.flowCacheIconDescription,
       "落雪姓名框" => l10n.flowCachePlateDescription,
       "落雪背景" => l10n.flowCacheFrameDescription,
+      "AWMC 旅行伙伴" => l10n.flowCacheTravelBuddyDescription,
+      "AWMC 搭档" => l10n.flowCachePartnerDescription,
       "cn/jp 可游玩地区等" => l10n.flowCacheMetadataDescription,
       "谱面追加辅助（追加列表 + 完整 maidata）" => l10n.flowCacheMaidataDescription,
       "BPM 范围" => l10n.flowBPMRange,
@@ -2231,6 +2244,8 @@ String localizeFeatureText(AppLocalizations l10n, String source) =>
       "评论内容不能超过500字" => l10n.flowCommentsCannotExceed500Characters,
       "发送中..." => l10n.flowSending,
       "跳转到B站" => l10n.flowOpenBilibili2,
+      "公告中心" => l10n.announcementCenter,
+      "查看服务公告与项目动态" => l10n.announcementCenterSubtitle,
       "时长" => l10n.flowDuration3,
       "成绩历史" => l10n.songTabHistory,
       "数据" => l10n.flowData,
@@ -2448,7 +2463,7 @@ String localizeFeatureText(AppLocalizations l10n, String source) =>
       "请先开启设备定位服务" => l10n.flowTurnOnDeviceLocationServicesFirst,
       "定位权限已被永久拒绝，请在系统设置中开启" =>
         l10n.flowLocationPermissionIsPermanentlyDeniedEnableIt,
-      "无法获取当前位置，请确认已开启定位服务且信号良好" => l10n.flowCouldNotGetYourLocationCheckThat,
+      "设备暂时未返回当前位置，请稍后重试。" => l10n.flowCouldNotGetYourLocationCheckThat,
       " (筛选)" => l10n.flowFiltered,
       "搜索店名或地址" => l10n.flowSearchArcadeNameOrAddress,
       "机台筛选" => l10n.flowMachineFilters,

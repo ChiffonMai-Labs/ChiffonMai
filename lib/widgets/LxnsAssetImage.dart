@@ -54,8 +54,16 @@ class LxnsAssetCacheManager extends CacheManager {
 
     final download = _downloads.putIfAbsent(
       cacheKey,
-      () => downloadFile(collectionAssetProxyUrl(url),
-          key: cacheKey, authHeaders: headers),
+      () async {
+        try {
+          return await downloadFile(collectionAssetProxyUrl(url),
+              key: cacheKey, authHeaders: headers);
+        } catch (_) {
+          final fallback = awmcCollectionAssetFallbackUrl(url);
+          if (fallback == null) rethrow;
+          return downloadFile(fallback, key: cacheKey);
+        }
+      },
     );
     try {
       yield await download;

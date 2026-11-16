@@ -460,6 +460,8 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
 
   // 请求存储权限
   Future<bool> _requestStoragePermission() async {
+    if (Platform.isIOS) return true; // 写入相册时由 PhotoKit 请求权限。
+
     debugPrint('Page: _requestStoragePermission called');
     debugPrint('Page: Platform.isAndroid = ${Platform.isAndroid}');
 
@@ -544,6 +546,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
         ),
         exportingLabel: context.l10n.featureCustomBest50Analysis,
         enableThunderMode: true,
+        enableBest50Background: true,
         previewBuilder: (previewContext, previewQuality) =>
             PersonalizedB50ConvertToImg.buildPreviewWidget(
           previewContext,
@@ -572,9 +575,11 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
           _maimaiMusicData,
           null,
           null,
+          averageDxScoreRate: _averageDxScoreRate,
           thunderMode: previewQuality.thunderMode,
           thunderVertical: previewQuality.thunderVertical,
           theme: previewQuality.theme,
+          background: previewQuality.background,
         ),
       );
       if (quality == null) {
@@ -606,8 +611,10 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
           title,
           _personalizedSongs,
           _maimaiMusicData,
+          averageDxScoreRate: _averageDxScoreRate,
           jpegQuality: quality.jpegQuality,
           theme: quality.theme,
+          background: quality.background,
           thunderMode: quality.thunderMode,
           thunderVertical: quality.thunderVertical,
         ),
@@ -627,6 +634,10 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
         child: Center(child: CircularProgressIndicator()),
       );
     }
+
+    final category = _options.firstWhere(
+        (option) => option['value'] == _selectedType)['label']!;
+    final selectSubOption = _subOptionPicker(_selectedType);
 
     return BackgroundPageScaffold(
       title: context.l10n.featureCustomBest50Analysis,
@@ -653,46 +664,21 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // 选择按钮
             Best50ActionButton(
               icon: Icons.tune_rounded,
               onPressed: _showTypeSelectionDialog,
-              label: (_selectedType == 'level_50' && _selectedLevel != null
-                  ? context.l10n.flowCategoryLevel50P0('Lv.$_selectedLevel')
-                  : _selectedType == 'charter_50' && _selectedCharter != null
-                  ? context.l10n.flowCategoryChartDesigner50P0(
-                      (_selectedCharter!).toString())
-                  : _selectedType == 'version_50' && _selectedVersion != null
-                      ? context.l10n.flowCategoryVersion50P0(
-                          (StringUtil.formatVersion2(_selectedVersion!))
-                              .toString())
-                      : _selectedType == 'genre_50' && _selectedGenre != null
-                          ? context.l10n.flowCategoryGenre50P0(
-                              (_selectedGenre!).toString())
-                          : _selectedType == 'star_50' && _selectedStar != null
-                              ? context.l10n.flowCategoryStar50P0(
-                                  (_selectedStar!).toString())
-                              : _selectedType == 'tag_50' &&
-                                      _selectedTagName != null
-                                  ? context.l10n.flowCategoryTag50P0(
-                                      (_selectedTagName!).toString())
-                                  : _selectedType == 'random_50'
-                                      ? context.l10n.flowCategoryRandom50
-                                      : _selectedType == 'beyond_50'
-                                          ? context.l10n.flowCategoryOverreach50
-                                          : _selectedType == 'difficulty_50' &&
-                                                  _selectedDifficultyLevel !=
-                                                      null
-                                              ? context.l10n.flowCategoryDifficulty50P0(
-                                                  (_difficultyLabel(_selectedDifficultyLevel!))
-                                                      .toString())
-                                              : _selectedType == 'best_n'
-                                                  ? context.l10n.flowCategoryBestP0(
-                                                      (_selectedN).toString())
-                                                  : context.l10n.flowCategoryP0(
-                                                      context.featureText(
-                                                          _options.firstWhere((option) => option['value'] == _selectedType)['label']!))),
+              label: _selectedType == 'best_n'
+                  ? context.l10n.flowCategoryBestP0('$_selectedN')
+                  : context.l10n.flowCategoryP0(context.featureText(category)),
             ),
+            if (selectSubOption != null) ...[
+              const SizedBox(height: 8),
+              Best50ActionButton(
+                icon: Icons.expand_more_rounded,
+                label: _subOptionLabel(context),
+                onPressed: selectSubOption,
+              ),
+            ],
             SizedBox(height: 12.0),
 
             // 包容关系模式开关（仅对连击/同步50类型显示）
@@ -719,6 +705,37 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
     );
   }
 
+  VoidCallback? _subOptionPicker(String type) => switch (type) {
+        'charter_50' => _showCharterSelectionDialog,
+        'version_50' => _showVersionSelectionDialog,
+        'genre_50' => _showGenreSelectionDialog,
+        'star_50' => _showStarSelectionDialog,
+        'tag_50' => _showTagSelectionDialog,
+        'difficulty_50' => _showDifficultySelectionDialog,
+        'level_50' => _showLevelSelectionDialog,
+        _ => null,
+      };
+
+  String _subOptionLabel(BuildContext context) {
+    final l10n = context.l10n;
+    return switch (_selectedType) {
+      'charter_50' => _selectedCharter ?? l10n.flowSelectCharter,
+      'version_50' => _selectedVersion == null
+          ? l10n.flowSelectVersion
+          : StringUtil.formatVersion2(_selectedVersion!),
+      'genre_50' => _selectedGenre ?? l10n.flowSelectGenre,
+      'star_50' => _selectedStar ?? l10n.flowSelectStars,
+      'tag_50' => _selectedTagName ?? l10n.flowSelectTag,
+      'difficulty_50' => _selectedDifficultyLevel == null
+          ? l10n.flowSelectDifficulty
+          : _difficultyLabel(_selectedDifficultyLevel!),
+      'level_50' => _selectedLevel == null
+          ? l10n.flowSelectLevel
+          : 'Lv.$_selectedLevel',
+      _ => '',
+    };
+  }
+
   // 显示类型选择对话框
   void _showTypeSelectionDialog() {
     showDialog(
@@ -733,34 +750,10 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
                   title: Text(context.featureText(option['label']!)),
                   selected: _selectedType == option['value'],
                   onTap: () {
-                    if (option['value'] == 'charter_50') {
-                      // 显示charter选择对话框
+                    final selectSubOption = _subOptionPicker(option['value']!);
+                    if (selectSubOption != null) {
                       Navigator.of(context).pop();
-                      _showCharterSelectionDialog();
-                    } else if (option['value'] == 'version_50') {
-                      // 显示版本选择对话框
-                      Navigator.of(context).pop();
-                      _showVersionSelectionDialog();
-                    } else if (option['value'] == 'genre_50') {
-                      // 显示流派选择对话框
-                      Navigator.of(context).pop();
-                      _showGenreSelectionDialog();
-                    } else if (option['value'] == 'star_50') {
-                      // 显示星数选择对话框
-                      Navigator.of(context).pop();
-                      _showStarSelectionDialog();
-                    } else if (option['value'] == 'tag_50') {
-                      // 显示标签选择对话框
-                      Navigator.of(context).pop();
-                      _showTagSelectionDialog();
-                    } else if (option['value'] == 'difficulty_50') {
-                      // 显示难度选择对话框
-                      Navigator.of(context).pop();
-                      _showDifficultySelectionDialog();
-                    } else if (option['value'] == 'level_50') {
-                      // 显示等级选择对话框
-                      Navigator.of(context).pop();
-                      _showLevelSelectionDialog();
+                      selectSubOption();
                     } else if (_selectedType == option['value']) {
                       Navigator.of(context).pop();
                     } else {
@@ -1132,6 +1125,8 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
               children: options.map((opt) {
                 return ListTile(
                   title: Text(opt.label),
+                  selected: _selectedType == 'difficulty_50' &&
+                      _selectedDifficultyLevel == opt.level,
                   onTap: () {
                     Navigator.of(context).pop();
                     if (_selectedType == 'difficulty_50' &&
@@ -1369,18 +1364,27 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
             children: [
               Expanded(
                   child: StatTile(
+                      centered: true,
                       label: context.l10n.flowTotalCharts,
                       value: '$totalSongs')),
               Expanded(
                   child: StatTile(
+                      centered: true,
                       label: context.l10n.flowAverageRA,
                       value: averageRa.toStringAsFixed(1))),
-              Expanded(
-                  child: StatTile(
-                      label: context.l10n.featureAverageAchievement,
-                      value: '${averageAchievement.toStringAsFixed(2)}%')),
             ],
           ),
+        ),
+        const SizedBox(height: AppDesignTokens.cardGap),
+        Best50AveragesCard(
+          title: context.l10n.flowAverageAchievementDXScoreRate,
+          rows: [
+            Best50AverageRow(
+              context.l10n.flowAverage,
+              averageAchievement,
+              _averageDxScoreRate,
+            ),
+          ],
         ),
       ],
     );
@@ -1562,6 +1566,20 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
 
   // 构建游戏卡片（委托至通用 widget B50GameCardWidget，
   // 字号按卡片**实际**宽度自适应（`scale: autoScale`）。
+
+  // 与谱面卡片的星级共用 DX 分数达成率口径。
+  double get _averageDxScoreRate {
+    if (_personalizedSongs.isEmpty) return 0.0;
+    final sum = _personalizedSongs.fold<double>(0.0, (sum, song) {
+      return sum +
+          _calculateScoreRate(
+            (song['song_id'] as num?)?.toInt() ?? 0,
+            (song['level_index'] as num?)?.toInt() ?? 0,
+            (song['dxScore'] as num?)?.toInt() ?? 0,
+          );
+    });
+    return sum / _personalizedSongs.length;
+  }
 
   // 计算scoreRate
   double _calculateScoreRate(int songId, int levelIndex, int score) {

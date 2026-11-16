@@ -13,6 +13,7 @@ import '../../service/Collection/CollectionInfoService.dart';
 import '../../entity/LuoXue/Collection.dart';
 import '../../utils/LuoXueToDivingFishUtil.dart';
 import '../../utils/CollectionsImageUtil.dart';
+import '../../utils/PhotoLibrary.dart';
 import '../../utils/CoverUtil.dart';
 import '../../utils/StringUtil.dart';
 import '../../utils/TranslationUtil.dart';
@@ -66,6 +67,10 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
         return lxnsPlateUrl(_collection!.id);
       case 'frames':
         return lxnsFrameUrl(_collection!.id);
+      case 'travelBuddies':
+        return travelBuddyImageUrl(_collection!.id);
+      case 'partners':
+        return partnerImageUrl(_collection!.id);
       default:
         return null;
     }
@@ -114,7 +119,8 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
     });
 
     try {
-      bool hasPermission = await _requestStoragePermission();
+      final hasPermission = Platform.isIOS || await _requestStoragePermission();
+      if (!mounted) return;
       if (!hasPermission) {
         showAppNoticeDialog(context,
             title: context.l10n.flowPermissionRequired,
@@ -125,6 +131,11 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
 
       // 保存也复用收藏品缓存，避免同一张图片再次从第三方下载。
       Uint8List imageBytes = await lxnsAssetCacheManager.readBytes(imageUrl);
+      if (Platform.isIOS) {
+        await PhotoLibrary.saveBytes(imageBytes, 'collection.png');
+        if (mounted) _showToast(context.l10n.flowImageSavedToGallery);
+        return;
+      }
 
       // 保存到相册
       Directory? directory;
@@ -147,14 +158,16 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
         await MediaScanner.loadMedia(path: file.path);
       }
 
-      _showToast(context.l10n.flowImageSavedToGallery);
+      if (mounted) _showToast(context.l10n.flowImageSavedToGallery);
     } catch (e) {
       debugPrint('保存图片失败: $e');
-      _showToast(context.l10n.flowCouldNotSaveImageP0((e).toString()));
+      if (mounted) {
+        _showToast(Platform.isIOS
+            ? PhotoLibrary.failureMessage(e)
+            : context.l10n.flowCouldNotSaveImageP0(e.toString()));
+      }
     } finally {
-      setState(() {
-        _isSavingImage = false;
-      });
+      if (mounted) setState(() => _isSavingImage = false);
     }
   }
 
@@ -342,6 +355,10 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
         return '姓名框';
       case 'frames':
         return context.l10n.flowFrameCollectible;
+      case 'travelBuddies':
+        return context.l10n.flowTravelBuddyCollectible;
+      case 'partners':
+        return context.l10n.flowPartnerCollectible;
       default:
         return '';
     }
@@ -683,6 +700,8 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
       'icons' => CollectionsImageUtil.getIconImageURL(_collection!),
       'plates' => CollectionsImageUtil.getPlateImageURL(_collection!),
       'frames' => CollectionsImageUtil.getFrameImageURL(_collection!),
+      'travelBuddies' => CollectionsImageUtil.getTravelBuddyImage(_collection!),
+      'partners' => CollectionsImageUtil.getPartnerImage(_collection!),
       _ => const SizedBox.shrink(),
     };
     final height = widget.collectionType == 'plates' ? 130.0 : 190.0;

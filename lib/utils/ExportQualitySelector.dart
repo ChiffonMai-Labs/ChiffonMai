@@ -34,6 +34,7 @@ class ExportQualityResult {
 
   /// 导出图片的主题。
   final ExportImageTheme theme;
+  final Best50ExportBackground background;
 
   const ExportQualityResult({
     required this.jpegQuality,
@@ -43,6 +44,7 @@ class ExportQualityResult {
     this.thunderMode = false,
     this.thunderVertical = true,
     this.theme = ExportImageTheme.light,
+    this.background = Best50ExportBackground.none,
   });
 
   /// 预设选项列表
@@ -98,6 +100,7 @@ class ExportQualitySelector {
     required int estimatedPngSize,
     String? exportingLabel,
     bool enableThunderMode = false,
+    bool enableBest50Background = false,
     bool initialThunderMode = false,
     bool initialThunderVertical = true,
     FutureOr<Widget> Function(
@@ -113,6 +116,14 @@ class ExportQualitySelector {
     // 不跟随 App 和系统：第一次是浅色，之后记住上次选的。
     var theme = ExportImageTheme.fromIndex(
         preferences.getInt(CacheKeyConstant.exportImageTheme));
+    final savedBackground =
+        preferences.getString(CacheKeyConstant.best50ExportBackground);
+    var background = enableBest50Background
+        ? Best50ExportBackground.values.firstWhere(
+            (item) => item.name == savedBackground,
+            orElse: () => Best50ExportBackground.none,
+          )
+        : Best50ExportBackground.none;
 
     final result = await showModalBottomSheet<_ExportSelection>(
       context: context,
@@ -216,6 +227,36 @@ class ExportQualitySelector {
                               },
                             ),
                             const SizedBox(height: 12),
+                            if (enableBest50Background) ...[
+                              Text(
+                                context.l10n.exportImageBackground,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: scheme.onSurfaceVariant,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              SegmentedTabs(
+                                height: 38,
+                                items: [
+                                  for (final item
+                                      in Best50ExportBackground.values)
+                                    SegmentedTabItem(item.label ??
+                                        context.l10n.exportNoBackground),
+                                ],
+                                selectedIndex: background.index,
+                                onChanged: (index) {
+                                  if (index == background.index) return;
+                                  setState(() => background =
+                                      Best50ExportBackground.values[index]);
+                                  unawaited(preferences.setString(
+                                      CacheKeyConstant.best50ExportBackground,
+                                      background.name));
+                                },
+                              ),
+                              const SizedBox(height: 12),
+                            ],
                             IntrinsicHeight(
                               child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -293,6 +334,7 @@ class ExportQualitySelector {
                                       thunderMode: thunderMode,
                                       thunderVertical: thunderVertical,
                                       theme: theme,
+                                      background: background,
                                     );
                                     // 对话框重建时复用同一次预览生成，避免反复构建长图。
                                     final preview = previewBuilder(context, q);
@@ -341,6 +383,7 @@ class ExportQualitySelector {
                                   thunderMode: thunderMode,
                                   thunderVertical: thunderVertical,
                                   theme: theme,
+                                  background: background,
                                 ),
                               ),
                               child: FittedBox(
@@ -372,6 +415,7 @@ class ExportQualitySelector {
       thunderMode: result.thunderMode,
       thunderVertical: result.thunderVertical,
       theme: result.theme,
+      background: result.background,
     );
   }
 
@@ -726,11 +770,13 @@ class _ExportSelection {
   final bool thunderMode;
   final bool thunderVertical;
   final ExportImageTheme theme;
+  final Best50ExportBackground background;
 
   const _ExportSelection({
     required this.selectedIndex,
     required this.thunderMode,
     required this.thunderVertical,
     required this.theme,
+    required this.background,
   });
 }

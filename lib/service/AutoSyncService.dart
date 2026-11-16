@@ -41,7 +41,8 @@ class AutoSyncQueue {
   final bool upcoming;
   final bool longQueue;
   final String? queueWarning;
-  final AutoSyncPreviousQueue? previousQueue;
+  final AutoSyncBatchResults? currentQueue;
+  final AutoSyncBatchResults? previousQueue;
   const AutoSyncQueue(
       {required this.waitingUsers,
       required this.waitingTasks,
@@ -52,6 +53,7 @@ class AutoSyncQueue {
       this.upcoming = false,
       this.longQueue = false,
       this.queueWarning,
+      this.currentQueue,
       this.previousQueue});
   factory AutoSyncQueue.fromJson(Map data) => AutoSyncQueue(
       waitingUsers: (data['waitingUsers'] as num?)?.toInt() ?? 0,
@@ -63,42 +65,56 @@ class AutoSyncQueue {
       upcoming: data['upcoming'] == true,
       longQueue: data['longQueue'] == true,
       queueWarning: data['queueWarning'] as String?,
+      currentQueue: data['currentQueue'] is Map
+          ? AutoSyncBatchResults.fromJson(data['currentQueue'])
+          : null,
       previousQueue: data['previousQueue'] is Map
-          ? AutoSyncPreviousQueue.fromJson(data['previousQueue'])
+          ? AutoSyncBatchResults.fromJson(data['previousQueue'])
           : null);
 }
 
-class AutoSyncPreviousQueue {
+class AutoSyncBatchResults {
   final DateTime? scheduledAt;
   final int processedUsers;
   final int processedTasks;
-  final int successUsers;
-  final int failedUsers;
+  final int completeSuccessUsers;
+  final int partialSuccessUsers;
+  final int completeFailureUsers;
   final int submitted;
   final int skipped;
   final int unchanged;
 
-  const AutoSyncPreviousQueue({
+  const AutoSyncBatchResults({
     this.scheduledAt,
     this.processedUsers = 0,
     this.processedTasks = 0,
-    this.successUsers = 0,
-    this.failedUsers = 0,
+    this.completeSuccessUsers = 0,
+    this.partialSuccessUsers = 0,
+    this.completeFailureUsers = 0,
     this.submitted = 0,
     this.skipped = 0,
     this.unchanged = 0,
   });
 
-  factory AutoSyncPreviousQueue.fromJson(Map data) => AutoSyncPreviousQueue(
+  factory AutoSyncBatchResults.fromJson(Map data) {
+    int? number(String key) => (data[key] as num?)?.toInt();
+    final processed = number('processedUsers') ?? 0;
+    final success = number('successUsers') ?? 0;
+    final failed = number('failedUsers') ?? 0;
+    // 旧接口把部分成功者同时计入成功和失败。
+    final mixed = (success + failed - processed).clamp(0, success < failed ? success : failed);
+    return AutoSyncBatchResults(
         scheduledAt: _syncDate(data['scheduledAt']),
-        processedUsers: (data['processedUsers'] as num?)?.toInt() ?? 0,
-        processedTasks: (data['processedTasks'] as num?)?.toInt() ?? 0,
-        successUsers: (data['successUsers'] as num?)?.toInt() ?? 0,
-        failedUsers: (data['failedUsers'] as num?)?.toInt() ?? 0,
-        submitted: (data['submitted'] as num?)?.toInt() ?? 0,
-        skipped: (data['skipped'] as num?)?.toInt() ?? 0,
-        unchanged: (data['unchanged'] as num?)?.toInt() ?? 0,
+        processedUsers: processed,
+        processedTasks: number('processedTasks') ?? 0,
+        completeSuccessUsers: number('completeSuccessUsers') ?? success - mixed,
+        partialSuccessUsers: number('partialSuccessUsers') ?? mixed,
+        completeFailureUsers: number('completeFailureUsers') ?? failed - mixed,
+        submitted: number('submitted') ?? 0,
+        skipped: number('skipped') ?? 0,
+        unchanged: number('unchanged') ?? 0,
       );
+  }
 }
 
 class AutoSyncTiming {
@@ -241,6 +257,7 @@ class AutoSyncTask {
   final String? error;
   final DateTime? nextRunAt;
   final DateTime? lastRunAt;
+  final DateTime? keepaliveExpiresAt;
   final int submitted;
   final int skipped;
   final AutoSyncQueue? queue;
@@ -254,6 +271,7 @@ class AutoSyncTask {
       this.error,
       this.nextRunAt,
       this.lastRunAt,
+      this.keepaliveExpiresAt,
       this.submitted = 0,
       this.skipped = 0,
       this.queue,
@@ -271,6 +289,7 @@ class AutoSyncTask {
         error: data['error'] as String?,
         nextRunAt: _syncDate(data['nextRunAt']),
         lastRunAt: _syncDate(data['lastRunAt']),
+        keepaliveExpiresAt: _syncDate(data['keepaliveExpiresAt']),
         submitted: (data['submitted'] as num?)?.toInt() ?? 0,
         skipped: (data['skipped'] as num?)?.toInt() ?? 0,
         queue:
@@ -424,10 +443,10 @@ class AutoSyncService {
 
   Future<AutoSyncTask> _request(
       String method, AutoSyncRegistration registration,
-      {Map<String, dynamic>? body}) async {
+      {Map<String, dynamic>? body, String? action}) async {
     try {
-      final uri = Uri.parse(
-          '${ApiUrls.AutoSyncTaskUrl}${method == 'POST' ? '/credential' : ''}');
+      final suffix = method == 'POST' ? '/${action ?? 'credential'}' : '';
+      final uri = Uri.parse('${ApiUrls.AutoSyncTaskUrl}$suffix');
       final headers = {
         'Authorization': 'Bearer ${registration._token}',
         'Content-Type': 'application/json'
@@ -457,12 +476,16 @@ class AutoSyncService {
           data['task'] is! Map ||
           data['task']['enabled'] is! bool) {
         final code = data is Map ? data['error']?.toString() : null;
+        if (code == 'invalid_config') {
+          debugPrint('[AutoSync] ${registration.platform.name} $method '
+              'HTTP ${response.statusCode}: invalid_config');
+        }
         throw AutoSyncException(errorMessage(code), code: code);
       }
       final task =
           AutoSyncTask.fromJson(Map<String, dynamic>.from(data['task']));
       // Hub 会后台查询摘要，旧查询不能覆盖刚开启/关闭任务的本机凭据。
-      if (method != 'GET') {
+      if (method != 'GET' && action != 'keepalive') {
         if (!task.enabled) {
           await _remove(registration.platform);
         } else {
@@ -498,6 +521,15 @@ class AutoSyncService {
     }
     return task;
   }
+
+  Future<AutoSyncTask> keepalive(SyncPlatform platform) =>
+      _mutate(platform, () async {
+        final entry = await registration(platform);
+        if (entry == null) {
+          throw AutoSyncException(errorMessage('task_not_found'));
+        }
+        return _request('POST', entry, action: 'keepalive');
+      });
 
   void _observeCompleted(AutoSyncRegistration entry, AutoSyncTask task) {
     final result = task.lastResult;
@@ -780,6 +812,7 @@ class AutoSyncService {
         'target_records_failed' => appL10n.svcCouldNotVerifyTheTargetAccountScores,
         'already_registered' => appL10n.svcAnAutoSyncTaskAlreadyExistsTrying,
         'task_not_found' => appL10n.svcNoMatchingAutoSyncTaskWasFound,
+        'keepalive_expired' => appL10n.autoSyncKeepaliveExpired,
         'task_running' => appL10n.svcTheTaskIsRunningRestoreManagementAccess,
         'account_changed' => appL10n.svcTheAccountLinkedToTheTaskChanged,
         'invalid_config' => appL10n.svcQuickSyncCredentialsAreIncompleteEnterA,

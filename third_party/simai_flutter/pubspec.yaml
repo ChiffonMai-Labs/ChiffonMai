@@ -1,0 +1,41 @@
+name: simai_flutter
+description: A Flutter package for parsing, converting, and rendering simai format charts. Supports chart visualization with Flame engine and audio synchronization.
+version: 0.5.0
+homepage: https://github.com/Project-Fukakai/simai_flutter
+repository: https://github.com/Project-Fukakai/simai_flutter
+issue_tracker: https://github.com/Project-Fukakai/simai_flutter/issues
+
+environment:
+  sdk: ^3.10.7
+  flutter: ">=3.38.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flame: ^1.37.0
+  flutter_soloud: ^4.0.12
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: dev.projectfukakai.simai_flutter
+        pluginClass: SimaiFlutterPlugin
+      ios:
+        pluginClass: SimaiFlutterPlugin
+  assets:
+    - assets/answer.wav
+    - assets/sensor.webp
+
+platforms:
+  android:
+  ios:
+  linux:
+  macos:
+  web:
+  windows:

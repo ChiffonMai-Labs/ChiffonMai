@@ -14,6 +14,7 @@ import '../../utils/AppTheme.dart';
 import '../../utils/CurrentDataSourceNotifier.dart';
 import '../../utils/UserProfileNotifier.dart';
 import '../../widgets/AppUi.dart';
+import '../../widgets/HistoryDateTimeDialog.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
 import '../../widgets/ScoreImprovementCard.dart';
 import '../../widgets/SongSearchEntry.dart';
@@ -43,6 +44,7 @@ class _ScoreImprovementHistoryPageState
   int _startedAtMs = 0;
   int _generation = 0;
   String? _selectedDay;
+  DateTimeRange? _dateRange;
   String? _historyKey;
   int _limit = 60;
 
@@ -161,7 +163,7 @@ class _ScoreImprovementHistoryPageState
     });
     if (query.isEmpty) return;
     try {
-      // 与乐曲查询的普通模式共用匹配规则，搜索结果仍限定在所选日期。
+      // 与乐曲查询的普通模式共用匹配规则，结果仍限定在所选日期或区间。
       final songs =
           await SongSearchService.searchSongs(query, titleOnly: false);
       if (!mounted || generation != _searchGeneration) return;
@@ -202,7 +204,23 @@ class _ScoreImprovementHistoryPageState
             ));
   }
 
-  /// 所选日期的概况：账号、记录起点和当天的变化数量。
+  Future<void> _pickDateRange(List<String> days) async {
+    final now = DateUtils.dateOnly(DateTime.now());
+    final selected = DateTime.tryParse(_selectedDay ?? '') ?? now;
+    final newest = DateTime.tryParse(days.firstOrNull ?? '');
+    final picked = await showHistoryDateRange(
+      context,
+      initial: _dateRange ?? DateTimeRange(start: selected, end: selected),
+      latest: newest,
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      _dateRange = picked;
+      _limit = 60;
+    });
+  }
+
+  /// 所选日期的概况：账号、记录起点和变化数量。
   Widget _buildOverview(List<DailyScoreImprovement> dayEntries) {
     final colors = Theme.of(context).colorScheme;
     final brightness = Theme.of(context).brightness;
@@ -340,9 +358,14 @@ class _ScoreImprovementHistoryPageState
     final days = _entries.map((entry) => entry.day).toSet().toList()
       ..sort((a, b) => b.compareTo(a));
     final query = _search.text.trim().toLowerCase();
-    final dayEntries =
-        _entries.where((entry) => entry.day == _selectedDay).toList();
-    final filtered = dayEntries.where((entry) {
+    final range = _dateRange;
+    final start = range == null ? null : _date(range.start);
+    final end = range == null ? null : _date(range.end);
+    final rangeEntries = _entries.where((entry) {
+      if (start == null || end == null) return entry.day == _selectedDay;
+      return entry.day.compareTo(start) >= 0 && entry.day.compareTo(end) <= 0;
+    }).toList();
+    final filtered = rangeEntries.where((entry) {
       return query.isEmpty ||
           (_searchLoading && _searchMatchIds == null) ||
           (_searchMatchIds?.contains(entry.after.songId) ?? false) ||
@@ -371,9 +394,20 @@ class _ScoreImprovementHistoryPageState
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _buildOverview(dayEntries),
-                    if (days.isNotEmpty) ...[
-                      const SizedBox(height: 10),
+                    _buildOverview(rangeEntries),
+                    if (days.isNotEmpty || range != null) ...[
+                      const SizedBox(height: 6),
+                      HistoryDateRangeFilter(
+                        range: range,
+                        onPick: () => _pickDateRange(days),
+                        onClear: () => setState(() {
+                          _dateRange = null;
+                          _limit = 60;
+                        }),
+                      ),
+                    ],
+                    if (range == null && days.isNotEmpty) ...[
+                      const SizedBox(height: 6),
                       _buildDayPills(days),
                     ],
                     const SizedBox(height: 10),
@@ -402,7 +436,7 @@ class _ScoreImprovementHistoryPageState
                                         .flowBestScoresThatChangeAfterASuccessful
                                     : context.l10n.flowTryAnotherKeywordOrDate)
                             : ListView.builder(
-                                key: ValueKey(_selectedDay),
+                                key: ValueKey(range ?? _selectedDay),
                                 keyboardDismissBehavior:
                                     ScrollViewKeyboardDismissBehavior.onDrag,
                                 padding: EdgeInsets.fromLTRB(
@@ -418,10 +452,13 @@ class _ScoreImprovementHistoryPageState
                                     return TextButton(
                                         onPressed: () =>
                                             setState(() => _limit += 60),
-                                        child: Text(context.l10n
-                                            .flowLoadMoreFromThisDayP0Charts(
-                                                (filtered.length - _limit)
-                                                    .toString())));
+                                        child: Text(range == null
+                                            ? context.l10n
+                                                .flowLoadMoreFromThisDayP0Charts(
+                                                    '${filtered.length - _limit}')
+                                            : context.l10n.flowLoadMoreP0P1(
+                                                '${shown.length}',
+                                                '${filtered.length}')));
                                   }
                                   final entry = shown[index];
                                   return Padding(
@@ -434,6 +471,7 @@ class _ScoreImprovementHistoryPageState
                                           const Duration(milliseconds: 300),
                                       child: ScoreImprovementCard(
                                           entry: entry,
+                                          showDate: range != null,
                                           onOpen: () {
                                             FocusManager.instance.primaryFocus
                                                 ?.unfocus();

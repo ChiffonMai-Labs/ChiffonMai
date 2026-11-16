@@ -9,12 +9,15 @@ import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show compute;
 import '../widgets/SmoothLinearProgressIndicator.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:marquee/marquee.dart';
+import 'package:simai_flutter/simai_flutter.dart' show SimaiFile;
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:media_scanner/media_scanner.dart';
@@ -25,6 +28,8 @@ import 'package:my_first_flutter_app/entity/LuoXue/Collection.dart';
 import 'package:my_first_flutter_app/manager/LuoXue/LuoXueSongsManager.dart';
 import 'package:my_first_flutter_app/entity/DivingFish/Song.dart';
 import 'package:my_first_flutter_app/page/SongMaidataPage.dart';
+import 'ChartPlaybackPicker.dart';
+import '../manager/MaidataManager.dart';
 import 'package:my_first_flutter_app/service/SongInfoService.dart';
 import 'package:my_first_flutter_app/service/SongMaidataPageService.dart';
 import 'package:my_first_flutter_app/utils/CoverUtil.dart';
@@ -34,6 +39,7 @@ import 'package:my_first_flutter_app/utils/MaidataDecodeUtil.dart';
 import 'package:my_first_flutter_app/utils/ExternalLaunchUtil.dart';
 import 'package:my_first_flutter_app/utils/ExportQualitySelector.dart';
 import 'package:my_first_flutter_app/utils/ImageEncodeUtil.dart';
+import 'package:my_first_flutter_app/utils/PhotoLibrary.dart';
 import 'Collection/CollectionInfoPage.dart';
 import 'SongPvPage.dart';
 import 'SongPlayPage.dart';
@@ -177,7 +183,8 @@ class _SongInfoPageState extends State<_SongInfoView> {
 
   // 数据加载状态
   bool _isLoading = true;
-  bool _defaultDifficultyApplied = false;
+  bool _openingChartPlayback = false;
+  bool _difficultyRememberedOnPop = false;
 
   /// 切换 ST / DX 的状态：见 [_switchSong]、[_onSongChanged]。
   int _songGeneration = 0;
@@ -215,6 +222,7 @@ class _SongInfoPageState extends State<_SongInfoView> {
   Map<int, String> _maidataBpmByDiffIndex =
       {}; // key: 难度索引，value: maidata 中该谱面的 BPM 或 BPM 区间
   Map<int, List<double>> _maidataBpmChangesByDiffIndex = {};
+  Map<int, String> _maidataInoteByDiffIndex = {};
   bool _maidataDecodedSuccessfully = false;
   bool _isBookmarked = false;
 
@@ -355,6 +363,7 @@ class _SongInfoPageState extends State<_SongInfoView> {
 
   @override
   void dispose() {
+    if (!_difficultyRememberedOnPop) _rememberCurrentDifficulty(widget.songId);
     _songScrollController
       ..removeListener(_updateSongTitleVisibility)
       ..dispose();
@@ -370,7 +379,16 @@ class _SongInfoPageState extends State<_SongInfoView> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => PopScope(
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) return;
+          _difficultyRememberedOnPop = true;
+          _rememberCurrentDifficulty(widget.songId);
+        },
+        child: _buildPage(context),
+      );
+
+  Widget _buildPage(BuildContext context) {
     if (_isLoading || _songData == null) {
       return BackgroundPageScaffold(
         title: context.l10n.flowSongDetails,
@@ -759,11 +777,16 @@ class _BookmarkFolderSelectorDialogState
                         ),
                         child: ListView(
                           shrinkWrap: true,
-                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 4,
+                          ),
                           children: _folders.map((folder) {
                             final isSelected =
                                 _selectedFolderIds.contains(folder.id);
                             return CheckboxListTile(
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
                               title: Text(
                                 folder.name,
                                 style: const TextStyle(fontSize: 14),

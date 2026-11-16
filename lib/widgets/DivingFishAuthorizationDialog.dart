@@ -14,6 +14,7 @@ import '../utils/AppTheme.dart';
 import '../utils/SecureCredentialStore.dart';
 import 'AppDialogs.dart';
 import 'AppToast.dart';
+import 'AppUi.dart' show FadeSwitcher;
 
 /// 读取水鱼账号资料；未登录水鱼时返回 null。
 Future<Map<String, dynamic>?> fetchDivingFishProfile() async {
@@ -149,8 +150,16 @@ class _DivingFishAuthorizationDialogState
       );
     }
     return AppAlertDialog(
+      animateHeight: true,
       title: Text(l10n.flowDivingFishAuthorization),
-      content: SingleChildScrollView(child: body),
+      content: SingleChildScrollView(
+        child: FadeSwitcher(
+          value: (_loading, _error != null, profile != null),
+          sizeFollowsCurrent: true,
+          alignment: Alignment.topCenter,
+          child: body,
+        ),
+      ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),

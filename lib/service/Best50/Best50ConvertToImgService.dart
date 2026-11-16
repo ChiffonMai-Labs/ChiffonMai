@@ -1,6 +1,5 @@
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:my_first_flutter_app/l10n/AppMessages.dart';
-import 'dart:async';
 import 'ThunderBest50Export.dart';
 import 'package:my_first_flutter_app/widgets/B50GameCardWidget.dart';
 import 'dart:io';
@@ -31,13 +30,16 @@ class B50ConvertToImg {
           List<Map<String, dynamic>> dxSongs,
           List<dynamic>? maimaiMusicData,
           {bool isTheoreticalMode = false,
+          String? title,
           int? jpegQuality,
           int? selectedPlateId,
           bool thunderMode = false,
           bool thunderVertical = true,
+          Best50ExportBackground background = Best50ExportBackground.none,
           ExportImageTheme theme = ExportImageTheme.light}) =>
       ExportDiagnostics.run('Best50转换', (log) async {
         OverlayEntry? overlayEntry;
+        var overlayInserted = false;
         try {
           debugPrint('=== STARTING IMAGE CONVERSION ===');
           debugPrint(
@@ -65,9 +67,11 @@ class B50ConvertToImg {
                 () => _buildExportImageWidget(
                     context, b50Data, sdSongs, dxSongs, maimaiMusicData,
                     isTheoreticalMode: isTheoreticalMode,
+                    title: title,
                     selectedPlateId: selectedPlateId,
                     thunderMode: thunderMode,
                     thunderVertical: thunderVertical,
+                    background: background,
                     theme: theme)),
           );
           final exportWidth = thunderMode
@@ -90,15 +94,16 @@ class B50ConvertToImg {
           );
 
           // 预加载图片资源
-          await log.step('预加载导出图片', () => _preloadImages(context));
+          await log.step('预加载导出图片', () => background.precache(context));
           debugPrint('Images preloaded');
 
           // 将OverlayEntry添加到widget树中
           Overlay.of(context).insert(overlayEntry);
+          overlayInserted = true;
           debugPrint('Overlay entry inserted');
 
           // 等待渲染完成（使用WidgetsBinding确保所有帧都已处理）
-          await log.step('等待Best50画布布局绘制', _waitForRender);
+          await log.step('等待Best50画布布局绘制', ImageEncodeUtil.waitForRender);
           debugPrint('Render wait completed');
 
           // 创建一个RenderRepaintBoundary
@@ -107,6 +112,7 @@ class B50ConvertToImg {
           if (boundary == null) {
             debugPrint('Error: RenderRepaintBoundary not found');
             overlayEntry.remove();
+            overlayInserted = false;
             return null;
           }
           debugPrint('RenderRepaintBoundary found successfully');
@@ -126,6 +132,7 @@ class B50ConvertToImg {
           // 立即移除Overlay，避免占用资源
           log.note('开始移除Best50图片画布');
           overlayEntry.remove();
+          overlayInserted = false;
           log.note('Best50图片画布已移除，编码结果=${finalBytes.lengthInBytes}B');
 
           // 优先使用相册目录（需要存储权限）
@@ -190,7 +197,6 @@ class B50ConvertToImg {
 
           if (directory == null) {
             debugPrint('Error: No storage directory found');
-            overlayEntry.remove();
             return null;
           }
 
@@ -233,7 +239,7 @@ class B50ConvertToImg {
           return file;
         } catch (e, stack) {
           log.note('Best50导出失败：$e\n$stack');
-          overlayEntry?.remove();
+          if (overlayInserted) overlayEntry?.remove();
           return null;
         }
       });
@@ -246,9 +252,11 @@ class B50ConvertToImg {
     List<Map<String, dynamic>> dxSongs,
     List<dynamic>? maimaiMusicData, {
     bool isTheoreticalMode = false,
+    String? title,
     int? selectedPlateId,
     bool thunderMode = false,
     bool thunderVertical = true,
+    Best50ExportBackground background = Best50ExportBackground.none,
     ExportImageTheme theme = ExportImageTheme.light,
   }) =>
       _buildExportImageWidget(
@@ -258,9 +266,11 @@ class B50ConvertToImg {
         dxSongs,
         maimaiMusicData,
         isTheoreticalMode: isTheoreticalMode,
+        title: title,
         selectedPlateId: selectedPlateId,
         thunderMode: thunderMode,
         thunderVertical: thunderVertical,
+        background: background,
         theme: theme,
       );
 
@@ -272,9 +282,11 @@ class B50ConvertToImg {
       List<Map<String, dynamic>> dxSongs,
       List<dynamic>? maimaiMusicData,
       {bool isTheoreticalMode = false,
+      String? title,
       int? selectedPlateId,
       bool thunderMode = false,
       bool thunderVertical = true,
+      Best50ExportBackground background = Best50ExportBackground.none,
       ExportImageTheme theme = ExportImageTheme.light}) async {
     // 计算各项指标
     // 计算Best35相关指标
@@ -361,12 +373,14 @@ class B50ConvertToImg {
       }
     }
 
+    final posterTitle = title ??
+        (isTheoreticalMode ? context.l10n.flowTheoreticalBest50 : 'Best50');
     if (thunderMode) {
       final songs = [...sdSongs, ...dxSongs];
       return ThunderBest50Export.build(
+        background: background,
         theme: theme,
-        title:
-            isTheoreticalMode ? context.l10n.flowTheoreticalBest50 : 'Best50',
+        title: posterTitle,
         vertical: thunderVertical,
         count: songs.length,
         showUserInfo: !isTheoreticalMode,
@@ -382,6 +396,7 @@ class B50ConvertToImg {
     }
 
     return ExportPage(
+      background: background,
       theme: theme,
       width: containerWidth,
       // 用 Stack 让元信息（数据源 / 导出时间 / Generated by / 交流群）作为悬浮卡片
@@ -394,9 +409,7 @@ class B50ConvertToImg {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 ExportPosterHeader(
-                  title: isTheoreticalMode
-                      ? context.l10n.flowTheoreticalBest50
-                      : 'Best50',
+                  title: posterTitle,
                   showUser: !isTheoreticalMode,
                   selectedPlateId: selectedPlateId,
                 ),
@@ -547,6 +560,7 @@ class B50ConvertToImg {
                 children: [
                   Expanded(
                     child: ExportHeroBlock(
+                      centered: true,
                       label: 'Rating',
                       value: '$rating',
                       caption: context.l10n.flowAverageP02(
@@ -1018,6 +1032,7 @@ class B50ConvertToImg {
       starsColor: starsColor,
       maxIdLength: maxIdLength,
       scale: 1.0,
+      forExport: true,
     );
   }
 
@@ -1093,13 +1108,10 @@ class B50ConvertToImg {
     // 构建完整grade（暂时注释，用 assets/grade/ 下的图片代替）
     // String grade = '评级:$rateText | 连击:$fcText | 同步:$fsText';
 
-    // 获取卡片颜色（与App一致，包括宴会场粉色）
-    Color cardColor;
-    if (songId.toString().length == 6) {
-      cardColor = Color(0xFFFFB3D1); // 宴会场粉色
-    } else {
-      cardColor = ColorUtil.getCardColor(levelIndex);
-    }
+    final cardColor = ColorUtil.getExportCardColor(
+      levelIndex,
+      isUtage: songId.toString().length == 6,
+    );
 
     // 判断是否为DX模式或UT模式
     bool dxMode = type == 'DX';
@@ -1201,38 +1213,6 @@ class B50ConvertToImg {
     }
   }
 
-  // 预加载所有需要的图片资源
-  static Future<void> _preloadImages(BuildContext context) async {
-    try {
-      // 预加载背景图片
-      final bgImageProvider = AssetImage('assets/bg/b50_bg.png');
-      await precacheImage(bgImageProvider, context);
-      debugPrint('Background image preloaded');
-    } catch (e) {
-      debugPrint('Error preloading images: $e');
-    }
-  }
-
-  // 等待渲染完成（使用WidgetsBinding确保所有帧都已处理）
-  static Future<void> _waitForRender() async {
-    // 使用addPostFrameCallback等待帧渲染完成
-    Completer<void> frameCompleter = Completer<void>();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      frameCompleter.complete();
-    });
-    await frameCompleter.future;
-
-    // 再等待一帧确保渲染稳定
-    Completer<void> frameCompleter2 = Completer<void>();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      frameCompleter2.complete();
-    });
-    await frameCompleter2.future;
-
-    // 额外等待一段时间确保所有异步操作完成（如图像加载）
-    await Future.delayed(Duration(milliseconds: 500));
-    debugPrint('Render wait completed');
-  }
 
   // 发送Android系统广播，通知相册刷新
   static Future<void> _sendMediaScanBroadcast(
@@ -1312,6 +1292,8 @@ class B50ConvertToImg {
 
   // 请求存储权限（图片与视频）
   static Future<PermissionStatus> _requestStoragePermission() async {
+    if (Platform.isIOS) return PermissionStatus.denied; // 先保存到应用文档。
+
     if (Platform.isAndroid) {
       debugPrint('Android platform detected');
 

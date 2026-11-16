@@ -1,0 +1,17 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
+
+    <application>
+        <provider
+            android:name="dev.projectfukakai.simai_flutter.SimaiFlutterFileProvider"
+            android:authorities="${applicationId}.simai_flutter.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/simai_flutter_file_paths" />
+        </provider>
+    </application>
+</manifest>

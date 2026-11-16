@@ -1,0 +1,1 @@
+enum SimaiCenterDisplayMode { achievement, combo }

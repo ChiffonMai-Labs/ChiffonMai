@@ -40,7 +40,7 @@ class SyncStatsFooter extends StatelessWidget {
           (context.l10n.flowQuick, SyncLine.quick)
         ])
           AnimatedReveal(
-            key: ValueKey((slot.$2, line)),
+            key: ValueKey((slot.$2, line == SyncLine.quick)),
             visible: line != SyncLine.quick || slot.$1 != SyncLine.scoreHub,
             child: SyncStatsView.summaryLine(
               context,

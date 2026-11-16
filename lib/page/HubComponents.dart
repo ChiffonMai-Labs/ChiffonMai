@@ -261,7 +261,6 @@ class HubActionTile extends StatelessWidget {
   /// 之前 hub 页单独传 13、收藏区走默认 14.5，同一个标题在两处观感不一致。
   static const Map<String, double> specialTitleFontSizes = {
     '登录 maimai Score Hub': 13,
-    '拉取成绩并更新数据（高级）': 13,
     '平均DX分数达成率排行榜': 13,
   };
 

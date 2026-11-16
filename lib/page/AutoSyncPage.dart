@@ -64,6 +64,7 @@ class _AutoSyncPageState extends State<AutoSyncPage>
   Timer? _pollTimer;
   int _queueRevision = 0;
   AutoSyncQueue? _queue;
+  AutoSyncBatchResults? _previousQueue;
   bool _queueLoading = true;
   bool _queueRefreshing = false;
   bool _queueError = false;
@@ -118,21 +119,24 @@ class _AutoSyncPageState extends State<AutoSyncPage>
       final key = await SecureCredentialStore.read(_personalKeyOf(platform));
       missingKey = key == null || key.trim().isEmpty;
       if (missingKey) {
-        reason = context.l10n.flowEnterYourPersonalKeyAboveToEnable;
+        reason = appL10n.flowEnterYourPersonalKeyAboveToEnable;
       } else if (account == null || account.id.isEmpty) {
-        reason = context.l10n
+        reason = appL10n
             .flowNoP0AccountYetSignInThrough(appLocalizeLabel(platform.label));
       } else {
         await AwmcQuickSyncService.accountFor(platform, requireData: false);
         ready = await AwmcQuickIdentityStore.read() != null;
         reason = ready
-            ? context.l10n.flowSyncCredentialsReady
-            : context.l10n.flowLinkTheCabinetIdentityAboveToEnable;
+            ? appL10n.flowSyncCredentialsReady
+            : appL10n.flowLinkTheCabinetIdentityAboveToEnable;
       }
     } on StateError catch (error) {
       reason = '${error.message}';
-    } catch (_) {
-      reason = context.l10n.flowCouldNotReadSyncCredentialsTryAgain;
+    } catch (error) {
+      // 部分机型安全存储读取会抛平台异常，记下类型便于从用户日志定位
+      debugPrint(
+          '[AutoSync] 读取 ${platform.name} 同步凭据失败: ${error.runtimeType}');
+      reason = appL10n.flowCouldNotReadSyncCredentialsTryAgain;
     }
     try {
       registration = await _service.registration(platform);
@@ -153,7 +157,7 @@ class _AutoSyncPageState extends State<AutoSyncPage>
           missingKey: missingKey,
           error: error is AutoSyncException
               ? error.message
-              : context.l10n.flowCouldNotReadAutoSyncStatusTry);
+              : appL10n.flowCouldNotReadAutoSyncStatusTry);
     }
   }
 
@@ -166,8 +170,9 @@ class _AutoSyncPageState extends State<AutoSyncPage>
     bool identityMissing = _identityMissing;
     try {
       identityMissing = await AwmcQuickIdentityStore.read() == null;
-    } catch (_) {
+    } catch (error) {
       // 安全存储读取失败时保持上一次的判断
+      debugPrint('[AutoSync] 读取机台身份失败: ${error.runtimeType}');
     }
     if (!mounted || request != _request) return;
     setState(() {
@@ -186,6 +191,13 @@ class _AutoSyncPageState extends State<AutoSyncPage>
       if (!mounted) return;
       setState(() {
         _queue = queue;
+        final previous = queue.previousQueue;
+        final previousAt = previous?.scheduledAt;
+        final shownAt = _previousQueue?.scheduledAt;
+        if (previousAt != null &&
+            (shownAt == null || previousAt.isAfter(shownAt))) {
+          _previousQueue = previous;
+        }
         _queueLoading = false;
         _queueError = false;
         _queueRevision++;
@@ -202,6 +214,30 @@ class _AutoSyncPageState extends State<AutoSyncPage>
     }
   }
 
+  Future<void> _keepalive(SyncPlatform platform) async {
+    if (_loading || _saving != null) return;
+    ++_request;
+    setState(() => _saving = platform);
+    try {
+      await _service.keepalive(platform);
+      if (!mounted) return;
+      AppToast.show(context.l10n.autoSyncKeepaliveSuccess,
+          tone: AppToastTone.success);
+    } catch (error) {
+      if (!mounted) return;
+      AppToast.show(
+          error is AutoSyncException
+              ? error.message
+              : context.l10n.svcTheAutoSyncServiceIsUnavailableTry,
+          tone: AppToastTone.error);
+    } finally {
+      if (mounted) {
+        await _load(silent: true);
+        if (mounted) setState(() => _saving = null);
+      }
+    }
+  }
+
   Future<void> _setEnabled(SyncPlatform platform, bool enabled) async {
     if (_loading || _saving != null) return;
     ++_request;
@@ -213,8 +249,7 @@ class _AutoSyncPageState extends State<AutoSyncPage>
             await AwmcQuickSyncService.accountFor(platform, requireData: false);
         final userId = await AwmcQuickIdentityStore.read();
         if (userId == null) {
-          throw AutoSyncException(
-              context.l10n.flowLinkCabinetIdentityAboveFirst);
+          throw AutoSyncException(appL10n.flowLinkCabinetIdentityAboveFirst);
         }
         await _service.enable(
             platform: platform,
@@ -234,6 +269,10 @@ class _AutoSyncPageState extends State<AutoSyncPage>
                   appLocalizeLabel(platform.label)),
           tone: AppToastTone.success);
     } catch (error) {
+      if (error is! AutoSyncException) {
+        debugPrint(
+            '[AutoSync] 设置 ${platform.name} 自动同步失败: ${error.runtimeType}');
+      }
       if (!mounted) return;
       if (error is AutoSyncException &&
           (error.code == 'quota_wait' ||
@@ -403,6 +442,13 @@ class _AutoSyncPageState extends State<AutoSyncPage>
                   style: theme.textTheme.bodySmall
                       ?.copyWith(color: scheme.onSurfaceVariant, height: 1.4))),
         ]),
+        if (_sources.values.any(
+            (source) => source.task?.keepaliveExpiresAt != null)) ...[
+          const SizedBox(height: 6),
+          Text(context.l10n.autoSyncKeepalivePolicy,
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: scheme.onSurfaceVariant, height: 1.4)),
+        ],
       ]),
     );
   }
@@ -583,6 +629,9 @@ class _AutoSyncPageState extends State<AutoSyncPage>
                   style: theme.textTheme.bodySmall
                       ?.copyWith(color: scheme.onSurfaceVariant)),
             ],
+          ] else if (task?.error == 'keepalive_expired') ...[
+            _statusLabel(Icons.event_busy_outlined,
+                context.l10n.autoSyncKeepaliveExpired, scheme.error),
           ] else
             Text(
                 _loading
@@ -593,6 +642,26 @@ class _AutoSyncPageState extends State<AutoSyncPage>
                 style: theme.textTheme.bodySmall
                     ?.copyWith(color: scheme.onSurfaceVariant, height: 1.5)),
         ])),
+        if (task?.keepaliveExpiresAt case final DateTime expiresAt) ...[
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text(
+                '${context.l10n.autoSyncKeepaliveDeadline} ${_beijingTime(expiresAt)}',
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: scheme.onSurfaceVariant),
+              ),
+              OutlinedButton(
+                onPressed: _saving == null && !_loading
+                    ? () => _keepalive(platform)
+                    : null,
+                child: Text(context.l10n.autoSyncKeepaliveAction),
+              ),
+            ],
+          ),
+        ],
         if (task?.lastResult != null ||
             state.enabled && state.error == null) ...[
           const SizedBox(height: 8),
@@ -785,7 +854,9 @@ class _AutoSyncPageState extends State<AutoSyncPage>
         .where((task) => task.enabled && task.queue != null)
         .toList();
     final queue = _queue;
-    final previous = queue?.previousQueue;
+    final current = queue?.currentQueue;
+    // 同一个已结算批次只替换一次。
+    final previous = _previousQueue;
     // 有成功快照时保留已有数字；首次失败显示占位，不把读取失败当作零任务。
     final empty = queue == null ? null : 0;
     final theme = Theme.of(context);
@@ -846,6 +917,15 @@ class _AutoSyncPageState extends State<AutoSyncPage>
                             height: 1.5))),
               ])
             ],
+            if (current != null) ...[
+              const SizedBox(height: 14),
+              Divider(height: 1, color: scheme.outlineVariant),
+              const SizedBox(height: 14),
+              Text(context.l10n.autoSyncCurrentBatchResults,
+                  style: theme.textTheme.titleSmall),
+              const SizedBox(height: 10),
+              _batchMetrics(current),
+            ],
             ...[
               const SizedBox(height: 14),
               Divider(height: 1, color: scheme.outlineVariant),
@@ -853,14 +933,7 @@ class _AutoSyncPageState extends State<AutoSyncPage>
               Text(context.l10n.flowPreviousRoundQueue,
                   style: theme.textTheme.titleSmall),
               const SizedBox(height: 10),
-              Row(children: [
-                _queueMetric(previous?.processedUsers ?? empty,
-                    context.l10n.flowProcessedUsers),
-                _queueMetric(previous?.successUsers ?? empty,
-                    context.l10n.flowSuccessfulUsers),
-                _queueMetric(previous?.failedUsers ?? empty,
-                    context.l10n.flowFailedUsers),
-              ]),
+              _batchMetrics(previous, historical: true, empty: empty),
               const SizedBox(height: 7),
               Text(
                   previous == null
@@ -899,14 +972,28 @@ class _AutoSyncPageState extends State<AutoSyncPage>
     ]);
   }
 
-  Widget _queueMetric(int? value, String label, {bool active = false}) {
+  Widget _batchMetrics(AutoSyncBatchResults? batch,
+      {bool historical = false, int? empty}) {
+    final l10n = context.l10n;
+    Widget metric(int? value, String label) => _queueMetric(value ?? empty, label,
+        historical: historical, scheduledAt: batch?.scheduledAt);
+    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      metric(batch?.processedUsers, l10n.flowProcessedUsers),
+      metric(batch?.completeSuccessUsers, l10n.autoSyncCompleteSuccess),
+      metric(batch?.partialSuccessUsers, l10n.autoSyncPartialSuccess),
+      metric(batch?.completeFailureUsers, l10n.autoSyncCompleteFailure),
+    ]);
+  }
+
+  Widget _queueMetric(int? value, String label,
+      {bool active = false, bool historical = false, DateTime? scheduledAt}) {
     return Expanded(
       child: AnimatedStatMetric(
-        key: ValueKey(label),
+        key: ValueKey((label, scheduledAt)),
         value: value,
         label: label,
         active: active,
-        revision: _queueRevision,
+        revision: historical ? 0 : _queueRevision,
         loading: _queueLoading,
       ),
     );

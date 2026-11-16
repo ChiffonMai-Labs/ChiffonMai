@@ -348,10 +348,28 @@ class AppLocalizationsZh extends AppLocalizations {
   String get defaultDifficulty => '歌曲详情默认难度';
 
   @override
-  String get defaultDifficultyHint => '从歌曲搜索等未指定难度的入口打开歌曲时，优先显示所选难度。';
+  String get defaultDifficultyHint => '打开歌曲时，若入口未指定难度且没有可用的难度记忆，则显示所选难度。';
 
   @override
   String get defaultDifficultyNote => '首次使用默认为 MASTER。成绩、谱面等已指定难度的跳转保持原有难度。';
+
+  @override
+  String get songDifficultyMemory => '记住歌曲详情难度';
+
+  @override
+  String get songDifficultyMemoryHint => '开启后，每首歌会记住离开详情时的难度。关闭后保留已有记录。';
+
+  @override
+  String get songDifficultyMemoryManage => '管理难度记忆';
+
+  @override
+  String get songDifficultyMemoryEmpty => '还没有保存的难度记忆';
+
+  @override
+  String get songDifficultyMemoryClearSelected => '清除所选';
+
+  @override
+  String get songDifficultyMemoryClearAllConfirm => '确定清除所有歌曲的难度记忆吗？';
 
   @override
   String get settingSaveFailed => '设置保存失败，请重试';
@@ -1093,6 +1111,21 @@ class AppLocalizationsZh extends AppLocalizations {
   String get featureSendTheSameScoresToMultipleTrackers => '一份成绩同步到多个查分器';
 
   @override
+  String get autoSyncKeepaliveAction => '手动保活';
+
+  @override
+  String get autoSyncKeepaliveDeadline => '保活截止（北京时间）';
+
+  @override
+  String get autoSyncKeepaliveSuccess => '已续期 7 天';
+
+  @override
+  String get autoSyncKeepaliveExpired => '自动同步已过期，请重新开启';
+
+  @override
+  String get autoSyncKeepalivePolicy => '开启后须每 7 天手动保活。到期未续期会退出队列并清除服务端托管凭据。';
+
+  @override
   String get featureAutoSync => '自动同步';
 
   @override
@@ -1173,6 +1206,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get featureCheckForANewerAppVersion => '检查应用是否有新版本';
+
+  @override
+  String get featureTestFlightUpdateSubtitle => '在 TestFlight 中管理应用更新';
 
   @override
   String get featureAboutTheApp => '关于 APP';
@@ -1599,7 +1635,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String homeTotalRatingAction(String rating) {
-    return '总 Rating $rating，打开高级刷新';
+    return '总 Rating $rating，拉取成绩并更新数据';
   }
 
   @override
@@ -1881,7 +1917,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get rankingUploadIncompleteTitle => '排行榜上传未完成';
 
   @override
-  String get rankingUploadIncompleteLead => '成绩已刷新并保存，只是这次没有更新排行榜。';
+  String get rankingUploadIncompleteLead => '成绩已刷新并保存。本次排行榜上传未全部完成。';
 
   @override
   String get rankingGuardFrozen => '排行榜上传资格已暂停，正在人工审核。审核期间你在排行榜上的数据会暂时隐藏。';
@@ -2337,7 +2373,19 @@ class AppLocalizationsZh extends AppLocalizations {
   String get flowWaitingForUpstreamRecovery => '等待上游恢复';
 
   @override
-  String get flowPreviousRoundQueue => '上轮队列处理';
+  String get flowPreviousRoundQueue => '上一批次处理结果';
+
+  @override
+  String get autoSyncCurrentBatchResults => '当前批次处理结果';
+
+  @override
+  String get autoSyncCompleteSuccess => '全部成功';
+
+  @override
+  String get autoSyncPartialSuccess => '部分成功';
+
+  @override
+  String get autoSyncCompleteFailure => '全部失败';
 
   @override
   String get flowLoadingPreviousRoundStatistics => '上轮统计读取中…';
@@ -2542,6 +2590,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get flowSwitchingPleaseWait => '正在切换，请稍候';
+
+  @override
+  String get accountSwitchSheetBusy => '正在切换账号，请稍候。切换完成后可关闭此面板。';
 
   @override
   String get flowNoCachedDataForThisAccount => '该账号暂无缓存';
@@ -3579,6 +3630,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get flowImageSavedToGallery => '图片已保存到相册';
 
   @override
+  String get flowPhotoLibraryAddPermissionRequired =>
+      '请在系统设置中允许 ChiffonMai 添加照片。';
+
+  @override
+  String get flowCouldNotSaveToPhotoLibrary => '无法将图片保存到相册。';
+
+  @override
   String flowSaveFailedP0(String p0) {
     return '保存失败：$p0';
   }
@@ -4415,7 +4473,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get flowOAuthInMeRefreshDataChooseLXNS =>
-      'OAuth 授权：在 App 的“我的 → 数据刷新 → 拉取成绩并更新数据 / 拉取成绩并更新数据（高级）”对话框里把数据源切换到落雪，按引导完成授权。授权后，这里的 OAuth 应用列表会出现 ChiffonMai。';
+      'OAuth 授权：在 App 的“我的 → 绑定与授权管理”中选择落雪账号授权，并按引导完成。授权后，这里的 OAuth 应用列表会出现 ChiffonMai。';
 
   @override
   String get flowPersonalAPIKeyResetItThenPaste =>
@@ -5375,6 +5433,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get flowFrameCollectible => '背景';
 
   @override
+  String get flowTravelBuddyCollectible => '旅行伙伴';
+
+  @override
+  String get flowPartnerCollectible => '搭档';
+
+  @override
   String get flowAwmcGateway => 'AWMC 网关';
 
   @override
@@ -5642,7 +5706,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get flowRankingShowBrief => '展示排行榜简要信息';
 
   @override
-  String get flowRankingBriefHint => '公开称号、装扮、等级与 Best 成绩；需登录或完成账号身份验证。默认关闭。';
+  String get flowRankingBriefHint =>
+      '公开称号、装扮、旅行伙伴、搭档、等级与 Best 成绩。需登录或完成账号身份验证，默认关闭。';
 
   @override
   String get flowCacheFishSongs => '歌曲数据（水鱼）';
@@ -5678,6 +5743,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get flowCacheFrames => '收藏品-背景';
 
   @override
+  String get flowCacheTravelBuddies => '收藏品-旅行伙伴';
+
+  @override
+  String get flowCachePartners => '收藏品-搭档';
+
+  @override
   String get flowCacheUnionMetadata => 'Union 元数据';
 
   @override
@@ -5703,6 +5774,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get flowCacheFrameDescription => '落雪背景';
+
+  @override
+  String get flowCacheTravelBuddyDescription => 'AWMC 旅行伙伴';
+
+  @override
+  String get flowCachePartnerDescription => 'AWMC 搭档';
 
   @override
   String get flowCacheMetadataDescription => 'cn/jp 可游玩地区等';
@@ -7372,6 +7449,21 @@ class AppLocalizationsZh extends AppLocalizations {
   String get flowInTheOrderBPMMarkersAppearIn => '按当前谱面中 BPM 标记的出现顺序';
 
   @override
+  String get chartBpmTimeRange => '谱面时间段';
+
+  @override
+  String get chartMetronome => '节拍器';
+
+  @override
+  String get chartMetronomeSound => '节拍音';
+
+  @override
+  String get chartMetronomeSoundUnavailable => '节拍音暂不可用';
+
+  @override
+  String get chartPlayerCreditDetails => '提供谱面解析和播放器，采用 MIT 许可证';
+
+  @override
   String get flowChangeIndex => '变化序号';
 
   @override
@@ -7668,6 +7760,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get flowCopyPath => '复制路径';
 
   @override
+  String get flowOpenExportFolder => '打开文件夹';
+
+  @override
+  String get flowCouldNotOpenExportFolder => '无法打开文件夹，请复制路径后在文件管理器中查找。';
+
+  @override
   String flowPublicDirectoryIsNotWritableSavedTo(String p0) {
     return '公开目录不可写，文件已保存到备用路径：$p0';
   }
@@ -7734,6 +7832,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get flowImageTheme => '图片主题';
+
+  @override
+  String get exportImageBackground => '图片背景';
+
+  @override
+  String get exportNoBackground => '无背景';
 
   @override
   String get flowThunderMode => '雷霆模式';
@@ -7887,6 +7991,18 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get flowReadingLocalVideo => '正在读取本地视频…';
+
+  @override
+  String get pvFullscreen => '横屏全屏';
+
+  @override
+  String get pvExitFullscreen => '退出全屏';
+
+  @override
+  String get pvAudioDelay => '音频延迟';
+
+  @override
+  String get pvAudioDelayHint => '正值让声音晚一点，负值让声音早一点。设置按歌曲保存。';
 
   @override
   String get flowBufferingVideo => '正在缓冲视频…';
@@ -8571,6 +8687,33 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get flowSending => '发送中...';
+
+  @override
+  String get songChartConfirmationBilibili => '跳转到B站查看谱面确认';
+
+  @override
+  String get songChartPlaybackInApp => 'APP内播放谱面';
+
+  @override
+  String get songMoreActionsScroll => '下滑查看更多操作';
+
+  @override
+  String get announcementCenter => '公告中心';
+
+  @override
+  String get announcementCenterSubtitle => '查看服务公告与项目动态';
+
+  @override
+  String get announcementDetail => '公告详情';
+
+  @override
+  String get announcementEmpty => '暂无公告';
+
+  @override
+  String get announcementLoadFailed => '公告加载失败';
+
+  @override
+  String get announcementLoadMore => '加载更多';
 
   @override
   String get flowOpenBilibili2 => '跳转到B站';
@@ -9746,7 +9889,10 @@ class AppLocalizationsZh extends AppLocalizations {
       '定位权限已被永久拒绝，请在系统设置中开启';
 
   @override
-  String get flowCouldNotGetYourLocationCheckThat => '无法获取当前位置，请确认已开启定位服务且信号良好';
+  String get flowCouldNotGetYourLocationCheckThat => '设备暂时未返回当前位置，请稍后重试。';
+
+  @override
+  String get arcadeLocationPermissionUnavailable => '当前无法使用位置权限，请在系统设置中检查。';
 
   @override
   String flowLocationFailedP0(String p0) {
@@ -14295,6 +14441,30 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chartCodeFont => '代码字体';
 
   @override
+  String get chartCodeSyntaxHighlight => '语法高亮';
+
+  @override
+  String get chartCodeHighlightSaveFailed => '语法高亮已切换，但未能保存设置';
+
+  @override
+  String get historyDateRange => '日期区间';
+
+  @override
+  String get historyLatestRecord => '区间内最后一条记录';
+
+  @override
+  String get songDurationRanking => '歌曲时长排行榜';
+
+  @override
+  String get songDurationRankingDescription => '仅收录国服歌曲，按参考时长排序，同一首歌只上榜一次';
+
+  @override
+  String get songDurationLongestFirst => '从长到短';
+
+  @override
+  String get songDurationShortestFirst => '从短到长';
+
+  @override
   String get chartCodeFontDefault => '默认';
 
   @override
@@ -14488,6 +14658,111 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get arcadeMapWeb => '在浏览器中打开';
+
+  @override
+  String get communityTravelAppearance => '旅行伙伴与搭档';
+
+  @override
+  String get communityTravelLocalNote => '旅行伙伴与搭档会随已公开的简要信息展示。';
+
+  @override
+  String get communityTravelLeader => '队长';
+
+  @override
+  String communityTravelSlot(int slot) {
+    return '队员 $slot';
+  }
+
+  @override
+  String get communityTravelSwap => '换位';
+
+  @override
+  String get communityTravelSetLeader => '设为队长';
+
+  @override
+  String get communityTravelEditLevel => '编辑等级与觉醒';
+
+  @override
+  String get communityTravelSuperCount => '超觉醒次数';
+
+  @override
+  String communityTravelSuperBadge(int count) {
+    return '超觉醒 ×$count';
+  }
+
+  @override
+  String communityTravelStars(int count) {
+    return '觉醒 $count 星';
+  }
+
+  @override
+  String communityTravelIntegerRange(int min, int max) {
+    return '请输入 $min–$max 之间的整数';
+  }
+
+  @override
+  String get communityTravelSearch => '搜索角色名称或 ID';
+
+  @override
+  String get cabinetAppearanceSync => '同步机台装扮';
+
+  @override
+  String get cabinetAppearanceSubtitle => '扫码读取机台当前选中的装扮';
+
+  @override
+  String get cabinetAppearanceCheckingCloud => '正在核对云端社区装扮…';
+
+  @override
+  String get cabinetAppearanceSignIn => '请先登录或验证当前账号，以便将社区装扮保存到云端。';
+
+  @override
+  String get cabinetAppearanceCouldNotCheckCloud => '暂时无法核对云端社区装扮，请稍后再试。';
+
+  @override
+  String get cabinetAppearanceQrHint =>
+      '请扫描或粘贴要导入装扮的舞萌登录二维码。读取成功后可以先预览，再决定是否同步。';
+
+  @override
+  String get cabinetAppearanceRead => '读取装扮';
+
+  @override
+  String get cabinetAppearanceReading => '正在读取机台装扮…';
+
+  @override
+  String get cabinetAppearanceEmpty => '机台未返回可同步的装扮。';
+
+  @override
+  String get cabinetAppearanceReview => '确认机台装扮';
+
+  @override
+  String get cabinetAppearanceCommunityOnly => '仅用于本 App 的社区装扮';
+
+  @override
+  String get cabinetAppearanceNotice =>
+      '确认后会替换预览中对应的社区装扮，不会修改任何机台数据。机台接口无法提供旅行伙伴的等级和超觉醒次数，请手动设置。这两项会随社区装扮保存到云端。';
+
+  @override
+  String get cabinetAppearanceKeepCurrent => '保留当前设置';
+
+  @override
+  String get cabinetAppearanceKeepTeam =>
+      '机台没有返回 5 个有效且不重复的旅行伙伴，本次将保留 App 中的队伍。';
+
+  @override
+  String get cabinetAppearanceProgressDefaults =>
+      '已有伙伴沿用 App 中保存的数值。新伙伴初始为 1 级、超觉醒 0 次，可点每位伙伴旁的编辑按钮修改。';
+
+  @override
+  String get cabinetAppearanceConfirm => '确认同步';
+
+  @override
+  String get cabinetAppearanceSaving => '正在保存社区装扮…';
+
+  @override
+  String get cabinetAppearanceAccountChanged => '当前账号已切换，请重新打开同步。';
+
+  @override
+  String get cabinetAppearanceFailed => '无法同步机台装扮，请稍后再试。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -14834,10 +15109,28 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get defaultDifficulty => '歌曲詳情預設難度';
 
   @override
-  String get defaultDifficultyHint => '從歌曲搜尋等未指定難度的入口開啟歌曲時，優先顯示所選難度。';
+  String get defaultDifficultyHint => '開啟歌曲時，若入口未指定難度且沒有可用的難度記憶，則顯示所選難度。';
 
   @override
   String get defaultDifficultyNote => '首次使用預設為 MASTER。成績、譜面等已指定難度的連結會保留原本的難度。';
+
+  @override
+  String get songDifficultyMemory => '記住歌曲詳情難度';
+
+  @override
+  String get songDifficultyMemoryHint => '開啟後，每首歌會記住離開詳情時的難度。關閉後會保留已有紀錄。';
+
+  @override
+  String get songDifficultyMemoryManage => '管理難度記憶';
+
+  @override
+  String get songDifficultyMemoryEmpty => '尚未儲存任何難度記憶';
+
+  @override
+  String get songDifficultyMemoryClearSelected => '清除所選';
+
+  @override
+  String get songDifficultyMemoryClearAllConfirm => '確定清除所有歌曲的難度記憶嗎？';
 
   @override
   String get settingSaveFailed => '設定儲存失敗，請重試';
@@ -15579,6 +15872,21 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get featureSendTheSameScoresToMultipleTrackers => '一份成績同步到多個查分器';
 
   @override
+  String get autoSyncKeepaliveAction => '手動保活';
+
+  @override
+  String get autoSyncKeepaliveDeadline => '保活截止（北京時間）';
+
+  @override
+  String get autoSyncKeepaliveSuccess => '已續期 7 天';
+
+  @override
+  String get autoSyncKeepaliveExpired => '自動同步已過期，請重新開啟';
+
+  @override
+  String get autoSyncKeepalivePolicy => '開啟後須每 7 天手動保活。到期未續期會退出佇列並清除伺服器託管憑證。';
+
+  @override
   String get featureAutoSync => '自動同步';
 
   @override
@@ -15659,6 +15967,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get featureCheckForANewerAppVersion => '檢查應用是否有新版本';
+
+  @override
+  String get featureTestFlightUpdateSubtitle => '在 TestFlight 中管理 App 更新';
 
   @override
   String get featureAboutTheApp => '關於 APP';
@@ -16085,7 +16396,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String homeTotalRatingAction(String rating) {
-    return '總 Rating $rating，打開高級刷新';
+    return '總 Rating $rating，拉取成績並更新資料';
   }
 
   @override
@@ -16367,7 +16678,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get rankingUploadIncompleteTitle => '排行榜上傳未完成';
 
   @override
-  String get rankingUploadIncompleteLead => '成績已重新整理並儲存，只是這次沒有更新排行榜。';
+  String get rankingUploadIncompleteLead => '成績已重新整理並儲存。本次排行榜上傳未全部完成。';
 
   @override
   String get rankingGuardFrozen => '排行榜上傳資格已暫停，正在人工審核。審核期間你在排行榜上的資料會暫時隱藏。';
@@ -16823,7 +17134,19 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get flowWaitingForUpstreamRecovery => '等待上游恢復';
 
   @override
-  String get flowPreviousRoundQueue => '上輪隊列處理';
+  String get flowPreviousRoundQueue => '上一批次處理結果';
+
+  @override
+  String get autoSyncCurrentBatchResults => '目前批次處理結果';
+
+  @override
+  String get autoSyncCompleteSuccess => '全部成功';
+
+  @override
+  String get autoSyncPartialSuccess => '部分成功';
+
+  @override
+  String get autoSyncCompleteFailure => '全部失敗';
 
   @override
   String get flowLoadingPreviousRoundStatistics => '上輪統計讀取中…';
@@ -17028,6 +17351,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get flowSwitchingPleaseWait => '正在切換，請稍候';
+
+  @override
+  String get accountSwitchSheetBusy => '正在切換帳號，請稍候。切換完成後可關閉此面板。';
 
   @override
   String get flowNoCachedDataForThisAccount => '該賬號暫無緩存';
@@ -18065,6 +18391,13 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get flowImageSavedToGallery => '圖片已保存到相冊';
 
   @override
+  String get flowPhotoLibraryAddPermissionRequired =>
+      '請在系統設定中允許 ChiffonMai 加入照片。';
+
+  @override
+  String get flowCouldNotSaveToPhotoLibrary => '無法將圖片儲存到相簿。';
+
+  @override
   String flowSaveFailedP0(String p0) {
     return '保存失敗：$p0';
   }
@@ -18901,7 +19234,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get flowOAuthInMeRefreshDataChooseLXNS =>
-      'OAuth 授權：在 App 的“我的 → 數據刷新 → 拉取成績並更新數據 / 拉取成績並更新數據（高級）”對話框裏把數據源切換到落雪，按引導完成授權。授權後，這裏的 OAuth 應用列表會出現 ChiffonMai。';
+      'OAuth 授權：在 App 的「我的 → 綁定與授權管理」中選擇落雪帳號授權，並依照指引完成。授權後，這裡的 OAuth 應用程式清單會顯示 ChiffonMai。';
 
   @override
   String get flowPersonalAPIKeyResetItThenPaste =>
@@ -19861,6 +20194,12 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get flowFrameCollectible => '背景';
 
   @override
+  String get flowTravelBuddyCollectible => '旅行夥伴';
+
+  @override
+  String get flowPartnerCollectible => '搭檔';
+
+  @override
   String get flowAwmcGateway => 'AWMC 網關';
 
   @override
@@ -20128,7 +20467,8 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get flowRankingShowBrief => '展示排行榜簡要信息';
 
   @override
-  String get flowRankingBriefHint => '公開稱號、裝扮、等級與 Best 成績；需登錄或完成賬號身份驗證。默認關閉。';
+  String get flowRankingBriefHint =>
+      '公開稱號、裝扮、旅行夥伴、搭檔、等級與 Best 成績。需登入或完成帳號身分驗證，預設關閉。';
 
   @override
   String get flowCacheFishSongs => '歌曲數據（水魚）';
@@ -20164,6 +20504,12 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get flowCacheFrames => '收藏品-背景';
 
   @override
+  String get flowCacheTravelBuddies => '收藏品－旅行夥伴';
+
+  @override
+  String get flowCachePartners => '收藏品－搭檔';
+
+  @override
   String get flowCacheUnionMetadata => 'Union 元數據';
 
   @override
@@ -20189,6 +20535,12 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get flowCacheFrameDescription => '落雪背景';
+
+  @override
+  String get flowCacheTravelBuddyDescription => 'AWMC 旅行夥伴';
+
+  @override
+  String get flowCachePartnerDescription => 'AWMC 搭檔';
 
   @override
   String get flowCacheMetadataDescription => 'cn/jp 可遊玩地區等';
@@ -21858,6 +22210,21 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get flowInTheOrderBPMMarkersAppearIn => '按當前譜面中 BPM 標記的出現順序';
 
   @override
+  String get chartBpmTimeRange => '譜面時間區間';
+
+  @override
+  String get chartMetronome => '節拍器';
+
+  @override
+  String get chartMetronomeSound => '節拍聲';
+
+  @override
+  String get chartMetronomeSoundUnavailable => '節拍聲暫不可用';
+
+  @override
+  String get chartPlayerCreditDetails => '提供譜面解析與播放器，採用 MIT 授權';
+
+  @override
   String get flowChangeIndex => '變化序號';
 
   @override
@@ -22154,6 +22521,12 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get flowCopyPath => '複製路徑';
 
   @override
+  String get flowOpenExportFolder => '開啟資料夾';
+
+  @override
+  String get flowCouldNotOpenExportFolder => '無法開啟資料夾，請複製路徑後在檔案管理員中查找。';
+
+  @override
   String flowPublicDirectoryIsNotWritableSavedTo(String p0) {
     return '公開目錄不可寫，文件已保存到備用路徑：$p0';
   }
@@ -22220,6 +22593,12 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get flowImageTheme => '圖片主題';
+
+  @override
+  String get exportImageBackground => '圖片背景';
+
+  @override
+  String get exportNoBackground => '無背景';
 
   @override
   String get flowThunderMode => '雷霆模式';
@@ -22373,6 +22752,18 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get flowReadingLocalVideo => '正在讀取本地視頻…';
+
+  @override
+  String get pvFullscreen => '橫向全螢幕';
+
+  @override
+  String get pvExitFullscreen => '退出全螢幕';
+
+  @override
+  String get pvAudioDelay => '音訊延遲';
+
+  @override
+  String get pvAudioDelayHint => '正值讓聲音晚一點，負值讓聲音早一點。設定依歌曲儲存。';
 
   @override
   String get flowBufferingVideo => '正在緩衝視頻…';
@@ -23057,6 +23448,33 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get flowSending => '發送中...';
+
+  @override
+  String get songChartConfirmationBilibili => '前往 B 站查看譜面確認';
+
+  @override
+  String get songChartPlaybackInApp => '在 APP 內播放譜面';
+
+  @override
+  String get songMoreActionsScroll => '向下滑動查看更多操作';
+
+  @override
+  String get announcementCenter => '公告中心';
+
+  @override
+  String get announcementCenterSubtitle => '查看服務公告與專案動態';
+
+  @override
+  String get announcementDetail => '公告詳情';
+
+  @override
+  String get announcementEmpty => '暫無公告';
+
+  @override
+  String get announcementLoadFailed => '公告載入失敗';
+
+  @override
+  String get announcementLoadMore => '載入更多';
 
   @override
   String get flowOpenBilibili2 => '跳轉到B站';
@@ -24232,7 +24650,10 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
       '定位權限已被永久拒絕，請在系統設置中開啓';
 
   @override
-  String get flowCouldNotGetYourLocationCheckThat => '無法獲取當前位置，請確認已開啓定位服務且信號良好';
+  String get flowCouldNotGetYourLocationCheckThat => '裝置暫時未回傳目前位置，請稍後再試。';
+
+  @override
+  String get arcadeLocationPermissionUnavailable => '目前無法使用位置權限，請在系統設定中檢查。';
 
   @override
   String flowLocationFailedP0(String p0) {
@@ -28783,6 +29204,30 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get chartCodeFont => '代碼字體';
 
   @override
+  String get chartCodeSyntaxHighlight => '語法醒目提示';
+
+  @override
+  String get chartCodeHighlightSaveFailed => '已切換語法醒目提示，但未能儲存設定';
+
+  @override
+  String get historyDateRange => '日期區間';
+
+  @override
+  String get historyLatestRecord => '區間內最後一筆紀錄';
+
+  @override
+  String get songDurationRanking => '歌曲時長排行榜';
+
+  @override
+  String get songDurationRankingDescription => '僅收錄國服歌曲，按參考時長排序，同一首歌只上榜一次';
+
+  @override
+  String get songDurationLongestFirst => '從長到短';
+
+  @override
+  String get songDurationShortestFirst => '從短到長';
+
+  @override
   String get chartCodeFontDefault => '預設';
 
   @override
@@ -28976,4 +29421,109 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get arcadeMapWeb => '在瀏覽器中開啟';
+
+  @override
+  String get communityTravelAppearance => '旅行夥伴與搭檔';
+
+  @override
+  String get communityTravelLocalNote => '旅行夥伴與搭檔會隨已公開的簡要資訊顯示。';
+
+  @override
+  String get communityTravelLeader => '隊長';
+
+  @override
+  String communityTravelSlot(int slot) {
+    return '隊員 $slot';
+  }
+
+  @override
+  String get communityTravelSwap => '換位';
+
+  @override
+  String get communityTravelSetLeader => '設為隊長';
+
+  @override
+  String get communityTravelEditLevel => '編輯等級與覺醒';
+
+  @override
+  String get communityTravelSuperCount => '超覺醒次數';
+
+  @override
+  String communityTravelSuperBadge(int count) {
+    return '超覺醒 ×$count';
+  }
+
+  @override
+  String communityTravelStars(int count) {
+    return '覺醒 $count 星';
+  }
+
+  @override
+  String communityTravelIntegerRange(int min, int max) {
+    return '請輸入 $min–$max 之間的整數';
+  }
+
+  @override
+  String get communityTravelSearch => '搜尋角色名稱或 ID';
+
+  @override
+  String get cabinetAppearanceSync => '同步機台裝扮';
+
+  @override
+  String get cabinetAppearanceSubtitle => '掃碼讀取機台目前選取的裝扮';
+
+  @override
+  String get cabinetAppearanceCheckingCloud => '正在核對雲端社群裝扮…';
+
+  @override
+  String get cabinetAppearanceSignIn => '請先登入或驗證目前帳號，以便將社群裝扮儲存到雲端。';
+
+  @override
+  String get cabinetAppearanceCouldNotCheckCloud => '暫時無法核對雲端社群裝扮，請稍後再試。';
+
+  @override
+  String get cabinetAppearanceQrHint =>
+      '請掃描或貼上要匯入裝扮的舞萌登入 QR 碼。讀取成功後可先預覽，再決定是否同步。';
+
+  @override
+  String get cabinetAppearanceRead => '讀取裝扮';
+
+  @override
+  String get cabinetAppearanceReading => '正在讀取機台裝扮…';
+
+  @override
+  String get cabinetAppearanceEmpty => '機台未回傳可同步的裝扮。';
+
+  @override
+  String get cabinetAppearanceReview => '確認機台裝扮';
+
+  @override
+  String get cabinetAppearanceCommunityOnly => '僅用於本 App 的社群裝扮';
+
+  @override
+  String get cabinetAppearanceNotice =>
+      '確認後會取代預覽中對應的社群裝扮，不會修改任何機台資料。機台介面無法提供旅行夥伴的等級和超覺醒次數，請手動設定。這兩項會隨社群裝扮儲存到雲端。';
+
+  @override
+  String get cabinetAppearanceKeepCurrent => '保留目前設定';
+
+  @override
+  String get cabinetAppearanceKeepTeam =>
+      '機台沒有回傳 5 位有效且不重複的旅行夥伴，本次將保留 App 中的隊伍。';
+
+  @override
+  String get cabinetAppearanceProgressDefaults =>
+      '已有夥伴沿用 App 中儲存的數值。新夥伴初始為 1 級、超覺醒 0 次，可點選每位夥伴旁的編輯按鈕修改。';
+
+  @override
+  String get cabinetAppearanceConfirm => '確認同步';
+
+  @override
+  String get cabinetAppearanceSaving => '正在儲存社群裝扮…';
+
+  @override
+  String get cabinetAppearanceAccountChanged => '目前帳號已切換，請重新開啟同步。';
+
+  @override
+  String get cabinetAppearanceFailed => '無法同步機台裝扮，請稍後再試。';
 }

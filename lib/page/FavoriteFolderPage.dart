@@ -1,9 +1,9 @@
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show LengthLimitingTextInputFormatter;
 import '../widgets/EmptyState.dart';
 import '../widgets/SmoothLinearProgressIndicator.dart';
-import 'package:flutter/services.dart';
 import 'package:my_first_flutter_app/entity/FavoriteFolder.dart';
 import 'package:my_first_flutter_app/entity/DivingFish/Song.dart';
 import 'package:my_first_flutter_app/manager/DivingFish/MaimaiMusicDataManager.dart';
@@ -24,6 +24,7 @@ import '../utils/AppDesignTokens.dart';
 import '../widgets/MarqueeText.dart';
 import '../widgets/AppDialogs.dart';
 import '../widgets/AppToast.dart';
+import '../widgets/ExportSuccessDialog.dart';
 
 /// 收藏夹管理页面：查看所有收藏夹、创建/重命名/删除收藏夹，浏览收藏夹内的谱面
 class FavoriteFolderPage extends StatefulWidget {
@@ -1179,107 +1180,19 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
       );
 
       if (!mounted) return;
-      await _showExportSuccessDialog(file.path, file.uri.pathSegments.last);
+      await showExportSuccessDialog(
+        context,
+        filePath: file.path,
+        fileName: file.uri.pathSegments.last,
+        description: context.l10n.flowImportItInTheAppOrOpen,
+        fallbackPath: _fallbackPath,
+      );
     } catch (e) {
       debugPrint('导出收藏夹失败: $e');
       if (mounted) {
         AppToast.show(context.l10n.flowExportFailedP0((e).toString()), tone: AppToastTone.error);
       }
     }
-  }
-
-  /// 显示导出成功对话框：展示导出路径并提供复制按钮
-  Future<void> _showExportSuccessDialog(String filePath,
-      [String? fileName]) async {
-    await showDialog(
-      context: context,
-      builder: (ctx) {
-        bool copied = false;
-        return StatefulBuilder(
-          builder: (ctx, setLocalState) => AppAlertDialog(
-            title: Row(
-              children: [
-                Icon(Icons.check_circle,
-                    color: AppColors.successGreen(Theme.of(context).brightness), size: 22),
-                const SizedBox(width: 8),
-                 Text(context.l10n.flowExportSuccessful),
-              ],
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (fileName != null) ...[
-                  Text(
-                    context.l10n.flowExportedP02((fileName).toString()),
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Theme.of(ctx).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  Text(
-                    context.l10n.flowImportItInTheAppOrOpen,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Theme.of(ctx).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                ],
-                Text(
-                  context.l10n.flowFileSavedTo,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Theme.of(ctx).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                AppDialogCodeBlock(filePath),
-                if (_fallbackPath != null) ...[
-                  const SizedBox(height: 10),
-                  Container(
-                    width: double.maxFinite,
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.warningOrange(Theme.of(context).brightness).withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-                    ),
-                    child:  Text(
-                      context.l10n.flowThePublicDirectoryIsNotWritableSaved,
-                      style: TextStyle(fontSize: 12, height: 1.4),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-            actions: [
-              TextButton.icon(
-                onPressed: () async {
-                  await Clipboard.setData(ClipboardData(text: filePath));
-                  if (!ctx.mounted) return;
-                  setLocalState(() => copied = true);
-                  AppToast.show(context.l10n.flowPathCopiedToClipboard);
-                },
-                icon: Icon(
-                  copied ? Icons.check : Icons.copy,
-                  size: 16,
-                  color: copied ? AppColors.successGreen(Theme.of(context).brightness) : null,
-                ),
-                label: Text(
-                  copied ? context.l10n.flowCopied : context.l10n.flowCopyPath,
-                  style:
-                      copied ? TextStyle(color: AppColors.successGreen(Theme.of(context).brightness)) : null,
-                ),
-              ),
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(),
-                child:  Text(context.l10n.featureClose),
-              ),
-            ],
-          ),
-        );
-      },
-    );
   }
 }
 

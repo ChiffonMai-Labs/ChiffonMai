@@ -1,11 +1,13 @@
 import '../l10n/LocalizationsExtension.dart';
 import '../widgets/AccountAuthorizationStatus.dart';
 import 'CustomTagsPage.dart';
-import '../widgets/DivingFishAuthorizationDialog.dart' show fetchDivingFishProfile;
+import '../widgets/DivingFishAuthorizationDialog.dart'
+    show fetchDivingFishProfile;
 import '../l10n/FeatureLocalizations.dart';
 import '../service/GuessChartGame/GuessAudioService.dart';
 import 'GuessChartGame/GuessGameSettingsPage.dart';
 import 'dart:async';
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import '../widgets/MainNavigationInsets.dart';
 import '../utils/SearchInteractionPreferences.dart';
@@ -31,7 +33,6 @@ import '../service/HomeService.dart';
 import '../manager/LZYCheckUpdateManager.dart';
 import '../widgets/ThemePreferenceControls.dart';
 import '../widgets/AccountRegistrationGuideDialog.dart';
-import '../service/CacheManagementService.dart';
 import '../widgets/SmoothLinearProgressIndicator.dart';
 import '../utils/AppTheme.dart';
 import '../utils/AppDesignTokens.dart';
@@ -94,6 +95,7 @@ import 'UnionUpdateComparePage.dart';
 import 'UpdateCalendarPage.dart';
 import 'UserScoreSearchPage.dart';
 import 'AboutAppPage.dart';
+import 'AnnouncementsPage.dart';
 import 'SupportDeveloperPage.dart';
 import 'FriendLinksPage.dart';
 import 'CoverRecognitionPage.dart';
@@ -104,15 +106,11 @@ import '../widgets/RefreshDataDialog.dart'
     show
         showRefreshDataDialog,
         executeRefreshData,
-        executeAdvancedRefreshData,
         RefreshDataRequest,
         CurrentDataSourceNotifier,
         RefreshDataSource,
         refreshBest50DataWithProgress,
         launchUrlFallback;
-// PLAYER OVERVIEW 卡片上半部分 → 「刷新数据（高级）」对话框
-import '../widgets/AdvancedRefreshDataDialog.dart'
-    show showAdvancedRefreshDataDialog;
 import 'FriendComparePage.dart';
 import 'RecentCommentsPage.dart';
 import 'RecentRatingsPage.dart';
@@ -131,7 +129,7 @@ import '../utils/RefreshErrorPresenter.dart';
 import '../widgets/ErrorMessageDialog.dart';
 import '../utils/UpdateNotifier.dart';
 import '../widgets/ConfettiEffect.dart';
-import '../widgets/SyncFlowMixin.dart';
+import '../utils/NavigationPreferences.dart';
 import '../widgets/QuickSearchBar.dart';
 import '../widgets/FeatureSearchOverlay.dart';
 import '../widgets/MarqueeText.dart';
@@ -484,9 +482,11 @@ class HomePage extends StatefulWidget {
   final VoidCallback? onFirstFrameRendered;
   final VoidCallback? onEntertainmentTap;
   final Future<void> Function(ButtonItem)? onSystemFeatureTap;
+  final ValueListenable<FeatureTask?> activeTask;
 
   const HomePage(
       {super.key,
+      required this.activeTask,
       this.onFirstFrameRendered,
       this.onEntertainmentTap,
       this.onSystemFeatureTap});
@@ -496,7 +496,7 @@ class HomePage extends StatefulWidget {
 }
 
 /// 首页状态类：处理页面状态、存储数据、实现布局构建
-class HomePageState extends State<HomePage> with SyncFlowMixin {
+class HomePageState extends State<HomePage> {
   void showAccountManageDialog() {
     if (!mounted) return;
     _showAccountManageDialog(context);
@@ -522,13 +522,11 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
 
   // 缓存的QQ号（实际数据来自 UserProfileNotifier，字段保留便于本地访问）
 
-  /// 任意长任务进行中：收藏区那三个同步入口之间也要互斥，
-  /// 否则能同时点起两个同步互相踩缓存（「系统」hub 页一直有这个保护）。
-  @override
-  bool get anyBusy =>
-      !syncFlowsIdle ||
-      _isRefreshing ||
-      CacheManagementService.instance.reloadingBase;
+  FeatureTask? get _activeTask => _isRefreshing
+      ? (title: '拉取成绩并更新数据', progress: _refreshProgress)
+      : widget.activeTask.value;
+
+  bool get anyBusy => _activeTask != null;
 
   // 初始化方法，用于从本地存储加载数据
   @override
@@ -551,7 +549,8 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
     _initializeDataInBackground();
     // 同步入口的线路 + 统计（与「系统」hub 页共享同一份状态；重复调用幂等）
     SyncRouteNotifier.instance.addListener(_onSyncRouteChanged);
-    CacheManagementService.instance.addListener(_onSyncRouteChanged);
+    widget.activeTask.addListener(_onSyncRouteChanged);
+    NavigationPreferences.instance.addListener(_onSyncRouteChanged);
     SyncRouteNotifier.instance.ensureLoaded();
     CommunityAvatarStore.instance.addListener(_pushDesktopProfile);
     unawaited(CommunityAvatarStore.instance.activate());
@@ -710,7 +709,8 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
     SearchInteractionPreferences.instance
         .removeListener(_onSearchInteractionChanged);
     SyncRouteNotifier.instance.removeListener(_onSyncRouteChanged);
-    CacheManagementService.instance.removeListener(_onSyncRouteChanged);
+    widget.activeTask.removeListener(_onSyncRouteChanged);
+    NavigationPreferences.instance.removeListener(_onSyncRouteChanged);
     _loginStateNotifier.dispose();
     super.dispose();
   }
@@ -1194,21 +1194,22 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                     return Material(
                       color: Colors.transparent,
                       child: InkWell(
-                        onTap:
-                            _isSyncBlockedFeature(entry.item.title) && anyBusy
-                                ? null
-                                : () {
-                                    FocusScope.of(context).unfocus();
-                                    // 必须先关搜索层再跳转：搜索层是 push 在同一个
-                                    // Navigator 上的透明路由，closeOverlay 内部就是
-                                    // Navigator.pop，弹的永远是「栈顶」而不是搜索层。
-                                    // 若先跳转后关闭，pop 会命中刚 push 的功能页——
-                                    // 功能页被弹掉、搜索层却留在栈顶进入 closing 态
-                                    // （IgnorePointer 且不再响应点击），表现就是点了
-                                    // 结果卡死，只能手势返回才恢复到首页。
-                                    closeOverlay?.call();
-                                    onSelected(entry.item);
-                                  },
+                        onTap: FeatureRegistry.taskRestrictedFeatures
+                                    .contains(entry.item.title) &&
+                                anyBusy
+                            ? null
+                            : () {
+                                FocusScope.of(context).unfocus();
+                                // 必须先关搜索层再跳转：搜索层是 push 在同一个
+                                // Navigator 上的透明路由，closeOverlay 内部就是
+                                // Navigator.pop，弹的永远是「栈顶」而不是搜索层。
+                                // 若先跳转后关闭，pop 会命中刚 push 的功能页——
+                                // 功能页被弹掉、搜索层却留在栈顶进入 closing 态
+                                // （IgnorePointer 且不再响应点击），表现就是点了
+                                // 结果卡死，只能手势返回才恢复到首页。
+                                closeOverlay?.call();
+                                onSelected(entry.item);
+                              },
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 14, vertical: 11),
@@ -1316,7 +1317,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
   /// 首页 Rating 总览（2026-11 B 方案）。
   ///
   /// 白卡片 + 大号等宽数字 + Rating 段位小标识 + B35/B15 占比条。
-  /// 交互与旧版一致：点上半部分（标签 + 总 Rating）打开「刷新数据（高级）」，
+  /// 交互与旧版一致：点上半部分（标签 + 总 Rating）打开「拉取成绩并更新数据」，
   /// 点右下角数据源胶囊切换 水鱼 / 落雪 / AWMC NET 账号（使用缓存，不联网）。
   Widget _buildDashboardSummary(BuildContext context, Brightness brightness) {
     final scheme = Theme.of(context).colorScheme;
@@ -1338,14 +1339,14 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // 大数字 → 「刷新数据（高级）」
+          // 大数字 → 「拉取成绩并更新数据」
           Semantics(
             button: true,
             label: context.l10n.homeTotalRatingAction(_displayBest50RA()),
             excludeSemantics: true,
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onTap: anyBusy ? null : _openAdvancedRefreshData,
+              onTap: anyBusy ? null : _openRefreshData,
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
@@ -1536,12 +1537,6 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
         },
       );
 
-  // 收藏区三个同步入口的编排（线路分发、按钮进度、统计上报）统一由 SyncFlowMixin
-  // 提供 —— 原先这里自己写了一份，导致同一功能在「系统」hub 页与收藏区表现不同：
-  // 水鱼弹模态框、落雪直接跳页且没有任何进度。
-  // 现在两边调用同一份代码：syncToDivingFishByCurrentRoute /
-  // syncToLuoXueByCurrentRoute / syncToAwmcNetWithButton。
-
   // 显示刷新数据对话框（旧版实现已抽离到 lib/widgets/RefreshDataDialog.dart，
   // 这里仅保留给其它可能的本地调用入口；首页/系统 Tab 现统一调用 showRefreshDataDialog）
   Future<void> _autoRefreshAfterSync({
@@ -1642,7 +1637,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                   setState(() {}); // 刷新按钮文字
                   _autoCloseTimer = Timer(const Duration(seconds: 1), tick);
                 } else {
-                  if (Navigator.of(dialogContext).canPop()) {
+                  if (ModalRoute.of(dialogContext)?.isCurrent == true) {
                     Navigator.of(dialogContext).pop();
                   }
                 }
@@ -1724,8 +1719,8 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                                 dialogContext.l10n.rankingGuardBlacklisted,
                               RankingGuardState.frozen =>
                                 dialogContext.l10n.rankingGuardFrozen,
-                              RankingGuardState.normal => dialogContext
-                                  .l10n.flowRankingDivingFishMasked,
+                              RankingGuardState.normal =>
+                                dialogContext.l10n.flowRankingDivingFishMasked,
                             };
                             if (blocked && participateRankings) {
                               WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1742,8 +1737,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                                   dialogContext.l10n.flowJoinLeaderboards,
                                   style: TextStyle(fontSize: 14)),
                               subtitle: blocked
-                                  ? Text(
-                                      reason,
+                                  ? Text(reason,
                                       style: TextStyle(
                                           fontSize: 12,
                                           color: Theme.of(dialogContext)
@@ -2085,7 +2079,9 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                                         (count).toString()));
                                 final fc =
                                     DivingFishProbeManager().currentFriendCode;
-                                Navigator.of(dialogContext).pop(fc);
+                                if (ModalRoute.of(dialogContext)?.isCurrent == true) {
+                                  Navigator.of(dialogContext).pop(fc);
+                                }
                               } else {
                                 setState(() {
                                   isBinding = false;
@@ -2515,7 +2511,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
     );
   }
 
-  /// 首页普通刷新与高级刷新共用摘要下方的进度条。
+  /// 首页刷新：进度条显示在 PLAYER OVERVIEW 摘要下方，避免反复弹出底部提示。
   Future<void> _openRefreshData({RefreshDataSource? initialSource}) async {
     if (anyBusy) return;
     final request = await showRefreshDataDialog(
@@ -2523,38 +2519,46 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
       initialSource: initialSource,
     );
     if (request == null || !mounted) return;
-    await _runHomeRefresh(request, advanced: false);
+    await _runHomeRefresh(request);
   }
 
-  /// 高级模式刷新数据：和「系统」Tab 的入口同源，只是这里把入口挂在
-  /// PLAYER OVERVIEW 卡片的上半部分（标题 + 总分）上。
-  ///
-  /// 高级对话框返回的 [RefreshDataRequest.forceSourceIds] 非空，
-  /// 交给 executeAdvancedRefreshData 按缓存源强制刷新；进度条显示在
-  /// PLAYER OVERVIEW 下方，避免刷新过程中反复弹出底部提示。
+  Future<void> _withHomeLoadingDialog(
+    String message,
+    Future<void> Function() task,
+  ) async {
+    final navigator = Navigator.of(context, rootNavigator: true);
+    final route = DialogRoute<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AppAlertDialog(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text(message),
+          ],
+        ),
+      ),
+    );
+    unawaited(navigator.push(route));
+    try {
+      await task();
+    } finally {
+      // 加载框可能已被返回手势关闭，或被更新结果覆盖；只移除自己创建的路由。
+      if (route.isActive) navigator.removeRoute(route);
+    }
+  }
+
   bool _isRefreshing = false;
   String _refreshText = '';
   double _refreshProgress = 0;
 
-  Future<void> _openAdvancedRefreshData(
-      {RefreshDataSource? initialSource}) async {
-    if (anyBusy) return;
-    final request = await showAdvancedRefreshDataDialog(
-      context,
-      initialSource: initialSource,
-    );
-    if (request == null || !mounted) return;
-    await _runHomeRefresh(request, advanced: true);
-  }
-
-  Future<void> _runHomeRefresh(RefreshDataRequest request,
-      {required bool advanced}) async {
+  Future<void> _runHomeRefresh(RefreshDataRequest request) async {
     if (anyBusy) return;
     setState(() {
       _isRefreshing = true;
-      _refreshText = advanced
-          ? context.l10n.flowAdvancedDataRefreshInProgress
-          : context.l10n.flowRefreshingData;
+      _refreshText = context.l10n.flowRefreshingData;
       _refreshProgress = 0;
     });
     HomeRefreshNotifier.setBusy(true);
@@ -2567,11 +2571,7 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
         });
       }
 
-      if (advanced) {
-        await executeAdvancedRefreshData(request, onProgress: updateProgress);
-      } else {
-        await executeRefreshData(request, onProgress: updateProgress);
-      }
+      await executeRefreshData(request, onProgress: updateProgress);
       if (mounted) {
         ConfettiEffect.show(context);
         AppToast.show(context.l10n.flowDataRefreshed,
@@ -3082,23 +3082,34 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
   // 功能按钮点击分发（提取为独立方法，作为回调传给 FeatureCategoryPage）
   Future<void> _handleFeatureTap(ButtonItem item) async {
     FocusManager.instance.primaryFocus?.unfocus();
+    if (anyBusy &&
+        FeatureRegistry.taskRestrictedFeatures.contains(item.title)) {
+      return;
+    }
     debugPrint("点击了：${item.title}");
     if (item.title == '账号注册引导') {
       await showAccountRegistrationGuide(context);
       return;
     }
+    if (item.title == '切换账号') {
+      await _showAccountSwitchSheet();
+      return;
+    }
     if (const {
       '绑定与授权管理',
       '登录 maimai Score Hub',
-      '切换账号',
       '落雪账号授权',
       '绑定 AWMC NET 账号',
       '绑定机台身份',
       '自动同步',
       '打印日志',
       '缓存管理',
-      '拉取成绩并更新数据（高级）',
       '刷新机台游玩次数',
+      FeatureRegistry.cabinetAppearanceTitle,
+      '同步成绩到水鱼',
+      '同步成绩到落雪',
+      '同步成绩到 AWMC NET',
+      '同步成绩到多端',
     }.contains(item.title)) {
       await widget.onSystemFeatureTap?.call(item);
       return;
@@ -3210,53 +3221,34 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
           ],
         ),
       );
-      if (confirmed == true) {
-        // 显示加载对话框
-        if (mounted) {
-          showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (ctx) => AppAlertDialog(
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text(context.l10n.flowRefreshingMaidata),
-                ],
-              ),
-            ),
-          );
-        }
+      if (confirmed == true && mounted) {
+        final refreshing = context.l10n.flowRefreshingMaidata;
         try {
-          // 清除所有maidata缓存
-          await MaidataManager().clearCache();
-          await MaimaiMusicDataManager().clearAddedSongsCache();
-          final prefs = await SharedPreferences.getInstance();
-          final keys = prefs.getKeys();
-          for (final key in keys) {
-            if (key.startsWith(CacheKeyConstant.maidataCachePrefix)) {
-              await prefs.remove(key);
+          await _withHomeLoadingDialog(refreshing, () async {
+            // 清除所有maidata缓存
+            await MaidataManager().clearCache();
+            await MaimaiMusicDataManager().clearAddedSongsCache();
+            final prefs = await SharedPreferences.getInstance();
+            final keys = prefs.getKeys();
+            for (final key in keys) {
+              if (key.startsWith(CacheKeyConstant.maidataCachePrefix)) {
+                await prefs.remove(key);
+              }
             }
-          }
-          // 重新拉取全量maidata
-          await MaimaiMusicDataManager().refreshDataWithSmartMaidata(
-            forceMaidataRefresh: true,
-          );
-          // 关闭加载对话框
-          if (mounted) Navigator.of(context).pop();
-          if (mounted) {
-            AppToast.show(context.l10n.flowMaidataRefreshed,
-                tone: AppToastTone.success);
-            ConfettiEffect.show(context);
-          }
+            // 重新拉取全量maidata
+            await MaimaiMusicDataManager().refreshDataWithSmartMaidata(
+              forceMaidataRefresh: true,
+            );
+          });
+          if (!mounted) return;
+          AppToast.show(context.l10n.flowMaidataRefreshed,
+              tone: AppToastTone.success);
+          ConfettiEffect.show(context);
         } catch (e) {
-          debugPrint('[HomePage] 刷新maidata失败: $e');
-          if (mounted) Navigator.of(context).pop();
-          if (mounted) {
-            await showErrorMessageDialog(context,
-                message: context.l10n.flowRefreshFailedP0((e).toString()));
-          }
+          debugPrint('[HomePage] 刷新 maidata 失败: $e');
+          if (!mounted) return;
+          await showErrorMessageDialog(context,
+              message: context.l10n.flowRefreshFailedP0(e.toString()));
         }
       }
     }
@@ -3433,6 +3425,12 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
             builder: (context) => PersonalizedChartPlayConfigure()),
       );
     }
+    if (item.title == '公告中心') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const AnnouncementsPage()),
+      );
+    }
     if (item.title == '关于 APP') {
       Navigator.push(
         context,
@@ -3507,11 +3505,6 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
           message: failMessage,
         );
       }
-    }
-    if (item.title == '同步成绩到水鱼') {
-      // 与「系统」hub 页同一份实现（SyncFlowMixin）：线路1 走 AWMC 网关，
-      // 线路2 走对话框输入 + 按钮上进度
-      await syncToDivingFishByCurrentRoute();
     }
     if (item.title == '成绩导入凭据') {
       _showAccountManageDialog(context);
@@ -3590,65 +3583,24 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
       );
     }
     if (item.title == '检查更新') {
-      // 显示加载对话框
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (BuildContext context) {
-          return AppAlertDialog(
-            title: Text(context.featureText('检查更新')),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 16),
-                Text(context.featureText('正在检查更新...')),
-              ],
-            ),
-          );
-        },
-      );
-
-      // 检查更新
       final updateManager = LZYCheckUpdateManager();
-      updateManager.showUpdateDialog(context, force: true).then((_) {
-        Navigator.of(context).pop(); // 关闭加载对话框
-      }).catchError((error) {
-        Navigator.of(context).pop(); // 关闭加载对话框
-        // 显示错误提示
-        if (context.mounted) {
-          showDialog(
-            context: context,
-            builder: (BuildContext context) {
-              return AppAlertDialog(
-                title: Text(context.featureText('检查更新失败')),
-                // 单列按原顺序排，确定在最下面。
-                actionColumns: 1,
-                content: Text(context.featureText('请检查网络连接后重试')),
-                actions: [
-                  TextButton(
-                    onPressed: () {
-                      Clipboard.setData(ClipboardData(
-                          text: LZYCheckUpdateManager.platformDownloadUrl));
-                      Navigator.of(context).pop();
-                      AppToast.show(context.featureText('下载链接已复制到剪贴板'),
-                          duration: Duration(seconds: 2));
-                    },
-                    child: Text(context.featureText('复制下载链接')),
-                  ),
-                  LZYCheckUpdateManager().buildReleasesButton(context),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                    },
-                    child: Text(context.featureText('确定')),
-                  ),
-                ],
-              );
-            },
-          );
-        }
-      });
+      if (LZYCheckUpdateManager.usesTestFlight) {
+        await updateManager.showUpdateDialog(context, force: true);
+        return;
+      }
+      try {
+        await _withHomeLoadingDialog(
+          context.featureText('正在检查更新...'),
+          () => updateManager.showUpdateDialog(context, force: true),
+        );
+      } catch (_) {
+        if (!mounted) return;
+        await showErrorMessageDialog(
+          context,
+          title: context.featureText('检查更新失败'),
+          message: context.featureText('请检查网络连接后重试'),
+        );
+      }
     }
     if (item.title == '定数分布') {
       Navigator.push(
@@ -3665,19 +3617,6 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
         context,
         MaterialPageRoute(builder: (context) => const FavoriteFolderPage()),
       );
-    }
-    if (item.title == '同步成绩到落雪') {
-      // 与「系统」hub 页同一份实现（SyncFlowMixin）：线路2 走对话框输入 +
-      // 按钮上进度，不再跳 UpdateLuoXueScorePage（那里没有任何进度反馈）
-      await syncToLuoXueByCurrentRoute();
-    }
-    if (item.title == '同步成绩到 AWMC NET') {
-      // AWMC NET 只有二维码这一条写入路径（与另外两个平台不同，没有线路概念）。
-      // 等待进度与另外两个同步入口一样显示在**按钮**上，不锁住整个页面。
-      await syncToAwmcNetWithButton();
-    }
-    if (item.title == '同步成绩到多端') {
-      await syncToMultiplePlatforms();
     }
     if (item.title == '每日推荐') {
       Navigator.push(
@@ -3751,6 +3690,14 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
     ];
 
     final scheme = Theme.of(context).colorScheme;
+    final task = _activeTask;
+    final busyReason = task != null &&
+            NavigationPreferences.instance.busyHintEnabled &&
+            items.any((item) =>
+                item.title != task.title &&
+                FeatureRegistry.taskRestrictedFeatures.contains(item.title))
+        ? context.l10n.hubBusyTask(context.featureText(task.title))
+        : null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -3779,6 +3726,18 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                 style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
           ),
         ),
+        AnimatedReveal(
+          visible: !_sortingFavorites && busyReason != null,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
+            child: Semantics(
+              liveRegion: true,
+              child: Text(busyReason ?? '',
+                  style:
+                      TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+            ),
+          ),
+        ),
         if (items.isEmpty)
           AppCard(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
@@ -3804,6 +3763,11 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                           isUpdate && update != null ? update : null;
                       final presentation =
                           AccountAuthorizationStatus.present(context, item);
+                      final loading = task?.title == item.title;
+                      final blocked = task != null &&
+                          !loading &&
+                          FeatureRegistry.taskRestrictedFeatures
+                              .contains(item.title);
                       return FavoriteEditItem(
                         title: item.title,
                         displayTitle: isUpdate
@@ -3815,11 +3779,11 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
                         titleColor: effective == null
                             ? null
                             : UpdateAvailableIcon.green,
-                        loading: _syncBusyFor(item.title),
-                        progress: _syncProgressFor(item.title),
-                        onTap: _isSyncBlockedFeature(item.title) &&
-                                anyBusy &&
-                                !_syncBusyFor(item.title)
+                        loading: loading,
+                        progress: loading ? task?.progress : null,
+                        blocked: blocked,
+                        blockedReason: blocked ? busyReason : null,
+                        onTap: loading || blocked
                             ? null
                             : () => _handleFeatureTap(item),
                       );
@@ -3863,42 +3827,6 @@ class HomePageState extends State<HomePage> with SyncFlowMixin {
             style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
       ),
     );
-  }
-
-  /// 收藏区某个同步入口是否正在跑（用来在按钮上出进度）。
-  ///
-  /// 只有这一个入口为 true 时按钮才会转；同一时刻最多一个在跑（[anyBusy] 互斥）。
-  bool _syncBusyFor(String title) {
-    if (title == '缓存管理') return CacheManagementService.instance.reloadingBase;
-    if (title == '同步成绩到水鱼') return syncingDivingFish;
-    if (title == '同步成绩到落雪') return syncingLuoXue;
-    if (title == '同步成绩到 AWMC NET') return syncingAwmcNet;
-    if (title == '同步成绩到多端') return syncingMulti;
-    return false;
-  }
-
-  bool _isSyncFeature(String title) =>
-      title == '同步成绩到水鱼' ||
-      title == '同步成绩到落雪' ||
-      title == '同步成绩到 AWMC NET' ||
-      title == '同步成绩到多端';
-
-  bool _isSyncBlockedFeature(String title) =>
-      _isSyncFeature(title) ||
-      title == '登录水鱼' ||
-      title == '登出水鱼账号' ||
-      title == '拉取成绩并更新数据' ||
-      title == '拉取成绩并更新数据（高级）' ||
-      title == '缓存管理' ||
-      title == '刷新机台游玩次数';
-
-  double? _syncProgressFor(String title) {
-    if (title == '缓存管理') return CacheManagementService.instance.reloadProgress;
-    if (title == '同步成绩到水鱼') return divingFishProgress;
-    if (title == '同步成绩到落雪') return luoXueProgress;
-    if (title == '同步成绩到 AWMC NET') return awmcNetProgress;
-    if (title == '同步成绩到多端') return multiSyncProgress;
-    return null;
   }
 
   // 构建大类导航卡片按钮

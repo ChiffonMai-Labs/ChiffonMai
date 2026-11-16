@@ -25,7 +25,8 @@ import '../../widgets/AppToast.dart';
 enum _DxScoreDisplayMode {
   starsBonus('星+'),
   nextStar('高一级星-'),
-  maxDiff('MAX-');
+  maxDiff('MAX-'),
+  achievementRate('达成率');
 
   const _DxScoreDisplayMode(this.label);
   final String label;
@@ -336,11 +337,14 @@ class _SongRankingPageState extends State<SongRankingPage> {
   }
 
   String _dxScoreDisplayText(int score) {
-    if ((_maxDxScore ?? 0) <= 0) return '';
+    final maxScore = _maxDxScore ?? 0;
+    if (maxScore <= 0) return '';
     return switch (_dxScoreDisplayMode) {
       _DxScoreDisplayMode.starsBonus => _calculateStarsBonus(score),
       _DxScoreDisplayMode.nextStar => _calculateNextStarDiff(score),
-      _DxScoreDisplayMode.maxDiff => 'MAX -${_maxDxScore! - score}',
+      _DxScoreDisplayMode.maxDiff => 'MAX -${maxScore - score}',
+      _DxScoreDisplayMode.achievementRate =>
+        '${(score / maxScore * 100).toStringAsFixed(2)}%',
     };
   }
 

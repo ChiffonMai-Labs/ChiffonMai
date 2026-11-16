@@ -88,8 +88,8 @@ class _AboutAppPageState extends State<AboutAppPage> {
         'https://net.wmc.pub/'),
     _Credit('Bakapiano', '提供水鱼查分器和落雪查分器成绩同步支持',
         'https://github.com/bakapiano/maimai-score-hub'),
-    _Credit('k4641321', '提供落雪查分器成绩同步支持',
-        'https://github.com/k4641321/chusearchsong_flutter/tree/master'),
+    _Credit('DevinTom', '提供落雪查分器成绩同步支持',
+        'https://github.com/k4641321/chusearchsong_flutter/tree/master', 'devintom'),
     _Credit('Union', '提供曲目数据库', 'https://union.godserver.cn/'),
     _Credit('NearCade', '提供全球机厅相关数据', 'https://nearcade.cn/'),
     _Credit('SilentBlue.RemyWiki', '提供高清版本图片',
@@ -113,13 +113,15 @@ class _AboutAppPageState extends State<AboutAppPage> {
     _Credit('ListaQwQ', '感谢对本项目的捐献支持'),
     _Credit('迪拉熊重度依赖', '感谢对本项目的捐献支持',
         'https://github.com/Timome-Sudo', 'dilaxiong'),
-    _Credit('白嫖万岁', '感谢对本项目的捐献支持'),
     _Credit('鱼好呆', '感谢对本项目的捐献支持'),
     _Credit('Rinviolet', '感谢对本项目的捐献支持', 'https://b23.tv/hIpEBUO',
         'rinviolet'),
     _Credit('Redapple_one', '感谢对本项目的捐献支持', 'https://me.redapple.one',
         'redapple_one'),
     _Credit('苏洛依', '感谢对本项目的捐献支持', null, 'suluoyi'),
+    _Credit('Roid', '感谢对本项目的捐献支持', null, 'roid'),
+    _Credit('Cartethyia～', '感谢对本项目的捐献支持', null, 'cartethyia'),
+    _Credit('阳华', '感谢对本项目的捐献支持', null, 'yanghua'),
   ];
 
   String _version = '';
@@ -245,7 +247,14 @@ class _AboutAppPageState extends State<AboutAppPage> {
                             _buildCreditGroup(
                               title: context.l10n.flowDataAndServices,
                               icon: Icons.hub_outlined,
-                              credits: _dataCredits,
+                              credits: [
+                                ..._dataCredits,
+                                _Credit(
+                                  AppLinks.simaiFlutterCreditName,
+                                  context.l10n.chartPlayerCreditDetails,
+                                  AppLinks.simaiFlutterProjectUrl,
+                                ),
+                              ],
                               personal: false,
                             ),
                             const SizedBox(height: 24),
@@ -548,7 +557,7 @@ class _AboutAppPageState extends State<AboutAppPage> {
     const size = 44.0;
     return ClipOval(
       child: CachedNetworkImage(
-        // 仅请求自家后端；QQ 请求头、限频和 24 小时磁盘缓存均由后端处理。
+        // 图片来源、限频和 24 小时磁盘缓存均由后端处理。
         imageUrl: ApiUrls.AboutAvatarUrl(key),
         width: size,
         height: size,

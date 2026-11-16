@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:my_first_flutter_app/constant/CacheKeyConstant.dart';
 import 'package:my_first_flutter_app/page/AwmcNet/SyncToAwmcNetPage.dart';
 import 'package:my_first_flutter_app/service/SyncStatsService.dart';
 import 'package:my_first_flutter_app/utils/SyncRouteNotifier.dart';
+import 'package:my_first_flutter_app/utils/SecureCredentialStore.dart';
 import 'package:my_first_flutter_app/widgets/SyncRouteSwitcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:my_first_flutter_app/widgets/AppDialogs.dart';
@@ -19,6 +21,7 @@ import 'package:my_first_flutter_app/widgets/AppDialogs.dart';
 ///      所以对话框里不该有任何「已等待 N 秒」之类的等待 UI，提交后立刻关闭。
 void main() {
   setUp(() {
+    FlutterSecureStorage.setMockInitialValues({});
     // 统计页脚会订阅 SyncRouteNotifier，订阅一建立就开始轮询 Redis（挂 Timer）。
     // 布局测试不该被迫管那个 Timer，所以关掉轮询、直接把统计注进去。
     SyncRouteNotifier.instance.debugResetForTest();
@@ -75,7 +78,8 @@ void main() {
 
     await tester.pumpWidget(MaterialApp(
       builder: (ctx, child) => MediaQuery(
-        data: MediaQuery.of(ctx).copyWith(textScaler: const TextScaler.linear(1.5)),
+        data: MediaQuery.of(ctx)
+            .copyWith(textScaler: const TextScaler.linear(1.5)),
         child: child!,
       ),
       home: Builder(
@@ -92,15 +96,15 @@ void main() {
     await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
 
-    expect(tester.takeException(), isNull,
-        reason: '用户把系统字体调大后标题区同样不能溢出');
+    expect(tester.takeException(), isNull, reason: '用户把系统字体调大后标题区同样不能溢出');
   });
 
   testWidgets('Token 引导：指向设置页 + 说清在最底部点「生成/轮换Token」', (tester) async {
     await openDialog(tester);
 
     // 链接必须带尾斜杠的 /settings/ —— 这是真的能生成 Token 的那个页面
-    expect(find.textContaining('https://net.wmc.pub/settings/'), findsOneWidget);
+    expect(
+        find.textContaining('https://net.wmc.pub/settings/'), findsOneWidget);
     // 「滑到底部」和按钮名都得写出来：按钮在页面最下面，不写用户在上面找不到
     expect(find.textContaining('滑到页面最底部'), findsOneWidget);
     expect(find.textContaining('生成/轮换Token'), findsOneWidget);
@@ -109,7 +113,8 @@ void main() {
 
   testWidgets('近 100 次统计：有数据时显示，且没有线路切换器', (tester) async {
     SyncRouteNotifier.instance.debugSetStats({
-      SyncStatsService.slotOf(SyncLine.direct, SyncPlatform.awmc): const SyncStats(
+      SyncStatsService.slotOf(SyncLine.direct, SyncPlatform.awmc):
+          const SyncStats(
         count: 42,
         successCount: 40,
         avgMs: 36000,
@@ -135,7 +140,8 @@ void main() {
     await openDialog(tester);
     // 没注数据 + 单测不连 Redis → notifier 里那份是 null
     expect(find.textContaining('近100次'), findsNothing);
-    expect(find.textContaining('统计不可用'), findsOneWidget);
+    expect(find.text('普通 统计不可用'), findsOneWidget);
+    expect(find.text('快速 统计不可用'), findsOneWidget);
   });
 
   // 需求：等待进度显示在**按钮上**，对话框只负责收输入。
@@ -143,8 +149,7 @@ void main() {
   testWidgets('对话框里没有等待进度（进度改到按钮上）', (tester) async {
     await openDialog(tester);
 
-    expect(find.textContaining('已等待'), findsNothing,
-        reason: '等待进度不该再出现在对话框里');
+    expect(find.textContaining('已等待'), findsNothing, reason: '等待进度不该再出现在对话框里');
     expect(find.textContaining('秒后自动关闭'), findsNothing);
     expect(find.textContaining('机台正在拉取'), findsNothing);
     // 覆盖式写入的警告要在**操作前**说清楚（原来在结果页才说）
@@ -178,7 +183,13 @@ void main() {
     await tester.enterText(find.byType(TextField).at(0), 'SGWCMAID0123456789');
     await tester.enterText(
         find.byType(TextField).at(1), 'yBtsz-lDrWUW2NB1EEv25Zy3MF0_SaJR');
-    await tester.tap(find.text('开始同步'));
+    final submit = tester
+        .widget<FilledButton>(
+          find.widgetWithText(FilledButton, '开始同步'),
+        )
+        .onPressed!;
+    submit();
+    submit();
     await tester.pumpAndSettle();
 
     expect(find.byType(AppAlertDialog), findsNothing,
@@ -187,8 +198,8 @@ void main() {
     expect(captured!.qr, 'SGWCMAID0123456789');
     expect(captured!.importToken, 'yBtsz-lDrWUW2NB1EEv25Zy3MF0_SaJR');
     // 顺手落盘：下次不用再填
-    final prefs = await SharedPreferences.getInstance();
-    expect(prefs.getString(CacheKeyConstant.awmcNetImportToken),
+    expect(
+        await SecureCredentialStore.read(CacheKeyConstant.awmcNetImportToken),
         'yBtsz-lDrWUW2NB1EEv25Zy3MF0_SaJR');
   });
 }

@@ -830,10 +830,11 @@ class _DialPainter extends CustomPainter {
       old.knobBorder != knobBorder;
 }
 
-/// 播放键：暂停时是圆角方块，播放时变成圆形，加载时转圈。
+/// 播放键：暂停时是圆角方块，播放时变成圆形，加载时显示音频下载进度。
 class NowPlayingPlayButton extends StatefulWidget {
   final bool isPlaying;
   final bool isBusy;
+  final double? loadingProgress;
   final bool enabled;
   final VoidCallback onPressed;
   final double size;
@@ -842,6 +843,7 @@ class NowPlayingPlayButton extends StatefulWidget {
     super.key,
     required this.isPlaying,
     required this.isBusy,
+    this.loadingProgress,
     required this.enabled,
     required this.onPressed,
     this.size = 76,
@@ -858,6 +860,51 @@ class _NowPlayingPlayButtonState extends State<NowPlayingPlayButton> {
     if (_pressed != value) setState(() => _pressed = value);
   }
 
+  Widget _loadingRing(ColorScheme scheme, double size) {
+    final target = widget.loadingProgress;
+    return SizedBox.square(
+      key: const ValueKey('busy'),
+      dimension: size * 0.58,
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0, end: target ?? 0),
+        duration: AppDesignTokens.motion(context, AppDesignTokens.fastMotion),
+        curve: Curves.easeOut,
+        builder: (context, value, _) => ExcludeSemantics(
+          child: Stack(
+            alignment: Alignment.center,
+            fit: StackFit.expand,
+            children: [
+              CircularProgressIndicator(
+                value: value,
+                strokeWidth: 3,
+                strokeCap: StrokeCap.round,
+                color: scheme.onPrimary,
+                backgroundColor: scheme.onPrimary.withValues(alpha: 0.28),
+              ),
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      target == null ? '…' : '${(value * 100).round()}%',
+                      maxLines: 1,
+                      style: TextStyle(
+                        fontSize: size * 0.14,
+                        fontWeight: FontWeight.w700,
+                        color: scheme.onPrimary,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -866,6 +913,9 @@ class _NowPlayingPlayButtonState extends State<NowPlayingPlayButton> {
         AppDesignTokens.motion(context, AppDesignTokens.mediumMotion);
     return Semantics(
       button: true,
+      value: widget.isBusy && widget.loadingProgress != null
+          ? '${(widget.loadingProgress! * 100).round()}%'
+          : null,
       label: widget.isBusy
           ? context.l10n.flowLoadingAudio
           : (widget.isPlaying ? context.l10n.flowPause : context.l10n.flowPlay),
@@ -896,14 +946,7 @@ class _NowPlayingPlayButtonState extends State<NowPlayingPlayButton> {
               child: AnimatedSwitcher(
                 duration: duration,
                 child: widget.isBusy
-                    ? SizedBox.square(
-                        key: const ValueKey('busy'),
-                        dimension: size * 0.34,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.6,
-                          color: scheme.onPrimary,
-                        ),
-                      )
+                    ? _loadingRing(scheme, size)
                     : Icon(
                         widget.isPlaying
                             ? Icons.pause_rounded

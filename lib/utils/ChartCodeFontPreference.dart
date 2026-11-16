@@ -27,7 +27,22 @@ class ChartCodeFontPreference {
 
   static Future<ChartCodeFont> load() async {
     final prefs = await SharedPreferences.getInstance();
-    return ChartCodeFont.fromKey(prefs.getString(CacheKeyConstant.chartCodeFont));
+    return ChartCodeFont.fromKey(
+        prefs.getString(CacheKeyConstant.chartCodeFont));
+  }
+
+  static Future<({ChartCodeFont font, bool highlight})> loadOptions() async {
+    final prefs = await SharedPreferences.getInstance();
+    return (
+      font: ChartCodeFont.fromKey(
+          prefs.getString(CacheKeyConstant.chartCodeFont)),
+      highlight: prefs.getBool(CacheKeyConstant.chartCodeHighlight) ?? false,
+    );
+  }
+
+  static Future<bool> saveHighlight(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.setBool(CacheKeyConstant.chartCodeHighlight, enabled);
   }
 
   static Future<bool> save(ChartCodeFont font) async {

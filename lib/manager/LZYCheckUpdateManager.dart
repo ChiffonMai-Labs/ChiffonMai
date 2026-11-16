@@ -49,11 +49,7 @@ class LZYCheckUpdateManager {
   static const String defaultDownloadUrl =
       'https://wward.lanzouw.com/chiffonmai';
 
-  /// 当前系统的兜底下载地址：iOS 下载无签名 IPA。
-  static String get platformDownloadUrl =>
-      defaultTargetPlatform == TargetPlatform.iOS
-          ? AppLinks.iosDownloadUrl
-          : defaultDownloadUrl;
+  static bool get usesTestFlight => defaultTargetPlatform == TargetPlatform.iOS;
   // ======================================================
 
   /// 正常发布从 app_version.json 读取版本、构建号、日志和下载配置。
@@ -210,10 +206,10 @@ class LZYCheckUpdateManager {
 
   /// 检查更新
   ///
-  /// 带**请求去重**：App 启动时（`main.dart` 为了点亮「发现新版本」按钮）和首页
-  /// 加载时（`HomePage._autoCheckUpdate`）都会调到这里，不去重就会白打两次网络。
+  /// 启动时的更新按钮状态与更新提示共用同一次网络请求。
   /// 同一次检查结果在 [checkUpdateCooldown] 内复用。
   Future<Map<String, dynamic>> checkUpdate({bool force = false}) async {
+    if (usesTestFlight) return {'hasUpdate': false};
     if (!force) {
       final cached = _cachedResult;
       final at = _cachedAt;
@@ -324,11 +320,8 @@ class LZYCheckUpdateManager {
     }
   }
 
-  /// 实际使用的下载地址：云端配置的是安卓包，iOS 固定用无签名 IPA。
+  /// 云端没有配置下载地址时使用默认下载页。
   String downloadUrlFor(String? cloudUrl) {
-    if (defaultTargetPlatform == TargetPlatform.iOS) {
-      return AppLinks.iosDownloadUrl;
-    }
     return cloudUrl == null || cloudUrl.isEmpty ? defaultDownloadUrl : cloudUrl;
   }
 
@@ -380,6 +373,7 @@ class LZYCheckUpdateManager {
   }
 
   Future<bool> shouldShowUpdateDialog() async {
+    if (usesTestFlight) return false;
     final prefs = await SharedPreferences.getInstance();
     final lastDismissTime = prefs.getInt('lastUpdateDismissTime');
     if (lastDismissTime != null) {
@@ -499,6 +493,18 @@ class LZYCheckUpdateManager {
   /// [force] 为 true 时强制显示，忽略3天内不提示的设置
   Future<void> showUpdateDialog(BuildContext context,
       {bool force = false}) async {
+    if (usesTestFlight) {
+      if (force &&
+          !await ExternalLaunchUtil.openString(AppLinks.testFlightUrl) &&
+          context.mounted) {
+        await ExternalLaunchUtil.copyFallback(
+          context,
+          AppLinks.testFlightUrl,
+          message: context.l10n.flowCouldNotOpenTheLinkCopiedTo,
+        );
+      }
+      return;
+    }
     // 手动打开更新入口时直接查看现有任务，不再要求用户重复检查或选择下载方式。
     if (force && defaultTargetPlatform == TargetPlatform.android) {
       final task = BackgroundAppUpdateService.instance;
@@ -540,7 +546,7 @@ class LZYCheckUpdateManager {
           actionColumns: 1,
           content: Text(info["message"] ?? context.l10n.flowCouldNotConnectToTheServerCheck),
           actions: [
-            _buildCopyDownloadButton(c, platformDownloadUrl),
+            _buildCopyDownloadButton(c, defaultDownloadUrl),
             buildReleasesButton(c),
             TextButton(
               onPressed: () {

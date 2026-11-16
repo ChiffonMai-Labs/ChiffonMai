@@ -1,5 +1,4 @@
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
-import 'dart:async';
 import 'ThunderBest50Export.dart';
 import 'dart:io';
 import 'dart:typed_data';
@@ -30,12 +29,15 @@ class PersonalizedB50ConvertToImg {
       List<Map<String, dynamic>> personalizedSongs,
       List<dynamic>? maimaiMusicData,
       {int? jpegQuality,
+      double? averageDxScoreRate,
       String? warningText,
       String? sortLabel,
       bool thunderMode = false,
       bool thunderVertical = true,
+      Best50ExportBackground background = Best50ExportBackground.none,
       ExportImageTheme theme = ExportImageTheme.light}) async {
     OverlayEntry? overlayEntry;
+    var overlayInserted = false;
     try {
       debugPrint('=== STARTING PERSONALIZED B50 IMAGE CONVERSION ===');
       debugPrint(
@@ -55,8 +57,10 @@ class PersonalizedB50ConvertToImg {
         key: globalKey,
         child: await _buildExportImageWidget(context, title, personalizedSongs,
             maimaiMusicData, warningText, sortLabel,
+            averageDxScoreRate: averageDxScoreRate,
             thunderMode: thunderMode,
             thunderVertical: thunderVertical,
+            background: background,
             theme: theme),
       );
 
@@ -79,15 +83,16 @@ class PersonalizedB50ConvertToImg {
       );
 
       // 预加载图片资源
-      await _preloadImages(context);
+      await background.precache(context);
       debugPrint('Images preloaded');
 
       // 将OverlayEntry添加到widget树中
       Overlay.of(context).insert(overlayEntry);
+      overlayInserted = true;
       debugPrint('Overlay entry inserted');
 
       // 等待渲染完成（使用WidgetsBinding确保所有帧都已处理）
-      await _waitForRender();
+      await ImageEncodeUtil.waitForRender();
       debugPrint('Render wait completed');
 
       // 创建一个RenderRepaintBoundary
@@ -96,6 +101,7 @@ class PersonalizedB50ConvertToImg {
       if (boundary == null) {
         debugPrint('Error: RenderRepaintBoundary not found');
         overlayEntry.remove();
+        overlayInserted = false;
         return null;
       }
       debugPrint('RenderRepaintBoundary found successfully');
@@ -112,6 +118,7 @@ class PersonalizedB50ConvertToImg {
 
       // 立即移除Overlay，避免占用资源
       overlayEntry.remove();
+      overlayInserted = false;
 
       // 优先使用相册目录（需要存储权限）
       Directory? directory;
@@ -173,7 +180,6 @@ class PersonalizedB50ConvertToImg {
 
       if (directory == null) {
         debugPrint('Error: No storage directory found');
-        overlayEntry.remove();
         return null;
       }
 
@@ -211,7 +217,7 @@ class PersonalizedB50ConvertToImg {
       return file;
     } catch (e) {
       debugPrint('Error converting to image: $e');
-      overlayEntry?.remove();
+      if (overlayInserted) overlayEntry?.remove();
       return null;
     }
   }
@@ -224,8 +230,10 @@ class PersonalizedB50ConvertToImg {
     List<dynamic>? maimaiMusicData,
     String? warningText,
     String? sortLabel, {
+    double? averageDxScoreRate,
     bool thunderMode = false,
     bool thunderVertical = true,
+    Best50ExportBackground background = Best50ExportBackground.none,
     ExportImageTheme theme = ExportImageTheme.light,
   }) =>
       _buildExportImageWidget(
@@ -235,8 +243,10 @@ class PersonalizedB50ConvertToImg {
         maimaiMusicData,
         warningText,
         sortLabel,
+        averageDxScoreRate: averageDxScoreRate,
         thunderMode: thunderMode,
         thunderVertical: thunderVertical,
+        background: background,
         theme: theme,
       );
 
@@ -248,29 +258,22 @@ class PersonalizedB50ConvertToImg {
       List<dynamic>? maimaiMusicData,
       String? warningText,
       String? sortLabel,
-      {bool thunderMode = false,
+      {double? averageDxScoreRate,
+      bool thunderMode = false,
       bool thunderVertical = true,
+      Best50ExportBackground background = Best50ExportBackground.none,
       ExportImageTheme theme = ExportImageTheme.light}) async {
     if (thunderMode) {
       final sum = personalizedSongs.fold<int>(
           0, (sum, song) => sum + ((song['ra'] as num?)?.toInt() ?? 0));
-      final scoreRateSum = personalizedSongs.fold<double>(0, (sum, song) {
-        return sum +
-            _calculateScoreRate(
-              (song['song_id'] as num?)?.toInt() ?? 0,
-              (song['level_index'] as num?)?.toInt() ?? 0,
-              (song['dxScore'] as num?)?.toInt() ?? 0,
-              maimaiMusicData,
-            );
-      });
-      final averageScoreRate = personalizedSongs.isEmpty
-          ? 0.0
-          : scoreRateSum / personalizedSongs.length;
+      final averageScoreRate = averageDxScoreRate ??
+          _averageScoreRate(personalizedSongs, maimaiMusicData);
       final maxIdLength =
           personalizedSongs.any((song) => '${song['song_id']}'.length == 6)
               ? 6
               : 5;
       return ThunderBest50Export.build(
+        background: background,
         theme: theme,
         title: title,
         vertical: thunderVertical,
@@ -293,6 +296,7 @@ class PersonalizedB50ConvertToImg {
     final c = ExportPalette.forTheme(theme);
 
     return ExportPage(
+      background: background,
       theme: theme,
       width: containerWidth,
       child: Column(
@@ -349,7 +353,8 @@ class PersonalizedB50ConvertToImg {
                 SizedBox(height: 16.0),
 
                 // 统计区域
-                _buildStatsSection(context, personalizedSongs),
+                _buildStatsSection(
+                    context, personalizedSongs, averageDxScoreRate),
                 SizedBox(height: 16.0),
 
                 // 歌曲卡片网格
@@ -372,8 +377,8 @@ class PersonalizedB50ConvertToImg {
       ExportSectionTitle(title);
 
   // 构建统计区域
-  static Widget _buildStatsSection(
-      BuildContext context, List<Map<String, dynamic>> songs) {
+  static Widget _buildStatsSection(BuildContext context,
+      List<Map<String, dynamic>> songs, double? averageDxScoreRate) {
     int totalSongs = songs.length;
     int totalRa =
         songs.fold(0, (sum, song) => sum + ((song['ra'] ?? 0) as int));
@@ -384,6 +389,7 @@ class PersonalizedB50ConvertToImg {
             sum + (double.tryParse(song['achievements'].toString()) ?? 0.0));
     double avgAchievement =
         totalSongs > 0 ? totalAchievement / totalSongs : 0.0;
+    final hasAverageDxScoreRate = averageDxScoreRate != null;
 
     return ExportStatsPanel(
       child: IntrinsicHeight(
@@ -391,8 +397,9 @@ class PersonalizedB50ConvertToImg {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Expanded(
-              flex: 3,
+              flex: hasAverageDxScoreRate ? 2 : 3,
               child: ExportHeroBlock(
+                centered: true,
                 label: context.l10n.flowTotalRA,
                 value: '$totalRa',
                 caption: context.l10n
@@ -401,17 +408,29 @@ class PersonalizedB50ConvertToImg {
             ),
             const SizedBox(width: 10),
             Expanded(
-              flex: 2,
+              flex: hasAverageDxScoreRate ? 1 : 2,
               child: ExportStatBlock(
-                  label: context.l10n.flowSongs, value: '$totalSongs'),
+                centered: true,
+                label: context.l10n.flowSongs,
+                value: '$totalSongs',
+                valueSize: 40,
+              ),
             ),
             const SizedBox(width: 10),
             Expanded(
-              flex: 4,
-              child: ExportStatBlock(
-                label: context.l10n.featureAverageAchievement,
-                value: '${avgAchievement.toStringAsFixed(4)}%',
-              ),
+              flex: hasAverageDxScoreRate ? 3 : 4,
+              child: averageDxScoreRate == null
+                  ? ExportStatBlock(
+                      centered: true,
+                      label: context.l10n.featureAverageAchievement,
+                      value: '${avgAchievement.toStringAsFixed(4)}%',
+                    )
+                  : ExportAchievementBlock(
+                      centered: true,
+                      label: context.l10n.flowAverageAchievementDXScoreRate2,
+                      achievement: avgAchievement,
+                      scoreRate: averageDxScoreRate,
+                    ),
             ),
           ],
         ),
@@ -492,13 +511,10 @@ class PersonalizedB50ConvertToImg {
     String stars = StringUtil.formatStars(scoreRate);
     Color starsColor = ColorUtil.getStarsColor(stars);
 
-    // 获取卡片颜色
-    Color cardColor;
-    if (songId.toString().length == 6) {
-      cardColor = Color(0xFFFFB3D1);
-    } else {
-      cardColor = ColorUtil.getCardColor(levelIndex);
-    }
+    final cardColor = ColorUtil.getExportCardColor(
+      levelIndex,
+      isUtage: songId.toString().length == 6,
+    );
 
     bool dxMode = type == 'DX';
     bool isUtage = songId.toString().length == 6;
@@ -521,6 +537,7 @@ class PersonalizedB50ConvertToImg {
       starsColor: starsColor,
       maxIdLength: maxIdLength,
       scale: 1.0,
+      forExport: true,
     );
 
     // PC50：导出的图片也带上游玩次数（叠层，不影响卡片本身布局）
@@ -530,6 +547,7 @@ class PersonalizedB50ConvertToImg {
       card: card,
       text: 'PC $playCount',
       scale: 1.0,
+      forExport: true,
     );
   }
 
@@ -562,6 +580,21 @@ class PersonalizedB50ConvertToImg {
       debugPrint('Error calculating max score: $e');
       return 0;
     }
+  }
+
+  static double _averageScoreRate(
+      List<Map<String, dynamic>> songs, List<dynamic>? maimaiMusicData) {
+    if (songs.isEmpty) return 0.0;
+    final sum = songs.fold<double>(0.0, (sum, song) {
+      return sum +
+          _calculateScoreRate(
+            (song['song_id'] as num?)?.toInt() ?? 0,
+            (song['level_index'] as num?)?.toInt() ?? 0,
+            (song['dxScore'] as num?)?.toInt() ?? 0,
+            maimaiMusicData,
+          );
+    });
+    return sum / songs.length;
   }
 
   // 计算scoreRate
@@ -599,6 +632,8 @@ class PersonalizedB50ConvertToImg {
 
   // 请求存储权限（图片与视频）
   static Future<PermissionStatus> _requestStoragePermission() async {
+    if (Platform.isIOS) return PermissionStatus.denied; // 先保存到应用文档。
+
     if (Platform.isAndroid) {
       debugPrint('Android platform detected');
 
@@ -696,36 +731,4 @@ class PersonalizedB50ConvertToImg {
     }
   }
 
-  // 预加载所有需要的图片资源
-  static Future<void> _preloadImages(BuildContext context) async {
-    try {
-      // 预加载背景图片
-      final bgImageProvider = AssetImage('assets/bg/b50_bg.png');
-      await precacheImage(bgImageProvider, context);
-      debugPrint('Background image preloaded');
-    } catch (e) {
-      debugPrint('Error preloading images: $e');
-    }
-  }
-
-  // 等待渲染完成（使用WidgetsBinding确保所有帧都已处理）
-  static Future<void> _waitForRender() async {
-    // 使用addPostFrameCallback等待帧渲染完成
-    Completer<void> frameCompleter = Completer<void>();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      frameCompleter.complete();
-    });
-    await frameCompleter.future;
-
-    // 再等待一帧确保渲染稳定
-    Completer<void> frameCompleter2 = Completer<void>();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      frameCompleter2.complete();
-    });
-    await frameCompleter2.future;
-
-    // 额外等待一段时间确保所有异步操作完成（如图像加载）
-    await Future.delayed(Duration(milliseconds: 500));
-    debugPrint('Render wait completed');
-  }
 }

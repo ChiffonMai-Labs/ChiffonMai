@@ -16,6 +16,8 @@ class FavoriteEditItem {
   final Color? titleColor;
   final bool loading;
   final double? progress;
+  final bool blocked;
+  final String? blockedReason;
 
   const FavoriteEditItem({
     required this.title,
@@ -25,6 +27,8 @@ class FavoriteEditItem {
     this.titleColor,
     this.loading = false,
     this.progress,
+    this.blocked = false,
+    this.blockedReason,
   });
 }
 
@@ -192,6 +196,8 @@ class _FavoriteEditGridState extends State<FavoriteEditGrid> {
           loading: item.loading,
           progress: item.progress,
           titleColor: item.titleColor,
+          blocked: !editing && item.blocked,
+          blockedReason: editing ? null : item.blockedReason,
           // 编辑态点击不打开功能，也不显示成禁用。
           onTap: editing ? () {} : item.onTap,
         );
@@ -229,34 +235,35 @@ class _FavoriteEditGridState extends State<FavoriteEditGrid> {
             ignoring: !editing || _dragging == item.title,
             child: AnimatedScale(
               scale: editing && _dragging != item.title ? 1 : 0,
-              duration: AppDesignTokens.motion(
-                  context, AppDesignTokens.mediumMotion),
+              duration:
+                  AppDesignTokens.motion(context, AppDesignTokens.mediumMotion),
               curve: AppDesignTokens.emphasizedCurve,
               child: Semantics(
-              button: true,
-              label: context.l10n.homeRemoveFavorite(context.featureText(item.title)),
-              onTap: () => _remove(item.title),
-              excludeSemantics: true,
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
+                button: true,
+                label: context.l10n
+                    .homeRemoveFavorite(context.featureText(item.title)),
                 onTap: () => _remove(item.title),
-                child: Padding(
-                  padding: const EdgeInsets.all(2),
-                  child: Container(
-                    width: 22,
-                    height: 22,
-                    decoration: BoxDecoration(
-                      color: scheme.error,
-                      shape: BoxShape.circle,
-                      border:
-                          Border.all(color: AppSurfaces.card(context), width: 2),
+                excludeSemantics: true,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => _remove(item.title),
+                  child: Padding(
+                    padding: const EdgeInsets.all(2),
+                    child: Container(
+                      width: 22,
+                      height: 22,
+                      decoration: BoxDecoration(
+                        color: scheme.error,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                            color: AppSurfaces.card(context), width: 2),
+                      ),
+                      child: Icon(Icons.close_rounded,
+                          size: 13, color: scheme.onError),
                     ),
-                    child: Icon(Icons.close_rounded,
-                        size: 13, color: scheme.onError),
                   ),
                 ),
               ),
-            ),
             ),
           ),
         ),
@@ -294,18 +301,16 @@ class _FavoriteEditGridState extends State<FavoriteEditGrid> {
           children: [
             Icon(Icons.delete_outline_rounded,
                 size: 20,
-                color: _dragging != null
-                    ? scheme.error
-                    : scheme.onSurfaceVariant),
+                color:
+                    _dragging != null ? scheme.error : scheme.onSurfaceVariant),
             const SizedBox(width: 6),
             Text(
               context.featureText(_overDelete ? '松手移除收藏' : '拖到这里移除收藏'),
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: _dragging != null
-                    ? scheme.error
-                    : scheme.onSurfaceVariant,
+                color:
+                    _dragging != null ? scheme.error : scheme.onSurfaceVariant,
               ),
             ),
           ],

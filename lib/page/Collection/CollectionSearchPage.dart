@@ -55,7 +55,12 @@ class _CollectionSearchPageState extends State<CollectionSearchPage> {
     {'value': 'icons', 'label': '头像'},
     {'value': 'plates', 'label': '姓名框'},
     {'value': 'frames', 'label': '背景'},
+    {'value': 'travelBuddies', 'label': '旅行伙伴'},
+    {'value': 'partners', 'label': '搭档'},
   ];
+
+  bool get _hasSongRequirements =>
+      _selectedType != 'travelBuddies' && _selectedType != 'partners';
 
   /// 只给首屏的列表项加入场动画，滚动时不反复播放。
   static const int _entranceItems = 10;
@@ -123,7 +128,7 @@ class _CollectionSearchPageState extends State<CollectionSearchPage> {
     List<Collection> results = List.from(_rawResults);
 
     // 筛选：仅显示需要歌曲要求的收藏品
-    if (_filterSongRequired) {
+    if (_hasSongRequirements && _filterSongRequired) {
       results = results.where(_requiresSongs).toList();
     }
 
@@ -450,11 +455,12 @@ class _CollectionSearchPageState extends State<CollectionSearchPage> {
             clipBehavior: Clip.none,
             child: Row(
               children: [
-                FilterPill(
-                  label: context.l10n.flowSongRequirements,
-                  selected: _filterSongRequired,
-                  onTap: _toggleSongRequiredFilter,
-                ),
+                if (_hasSongRequirements)
+                  FilterPill(
+                    label: context.l10n.flowSongRequirements,
+                    selected: _filterSongRequired,
+                    onTap: _toggleSongRequiredFilter,
+                  ),
                 if (_selectedType == 'trophies') ...[
                   const SizedBox(width: 6),
                   FilterPill(
@@ -465,7 +471,7 @@ class _CollectionSearchPageState extends State<CollectionSearchPage> {
                     onTap: _showColorFilterDialog,
                   ),
                 ],
-                const SizedBox(width: 6),
+                if (_hasSongRequirements) const SizedBox(width: 6),
                 FilterPill(
                   label: _sortDescending
                       ? context.l10n.flowIDDescending
@@ -588,6 +594,8 @@ class _CollectionSearchPageState extends State<CollectionSearchPage> {
     final Widget content;
     switch (_selectedType) {
       case 'icons':
+      case 'travelBuddies':
+      case 'partners':
         content = Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -596,7 +604,13 @@ class _CollectionSearchPageState extends State<CollectionSearchPage> {
               child: SizedBox(
                 width: 60,
                 height: 60,
-                child: CollectionsImageUtil.getIconImageURL(collection),
+                child: switch (_selectedType) {
+                  'travelBuddies' =>
+                    CollectionsImageUtil.getTravelBuddyImage(collection),
+                  'partners' =>
+                    CollectionsImageUtil.getPartnerImage(collection),
+                  _ => CollectionsImageUtil.getIconImageURL(collection),
+                },
               ),
             ),
             const SizedBox(width: 12),

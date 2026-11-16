@@ -9,6 +9,8 @@ import '../widgets/AppToast.dart';
 import '../widgets/ExportSuccessDialog.dart';
 import '../utils/AppTaskActivity.dart';
 import '../utils/ExportDiagnostics.dart';
+import '../utils/ImageEncodeUtil.dart';
+import '../utils/PhotoLibrary.dart';
 
 /// 在后台导出图片：不弹阻塞对话框，用户可以继续操作甚至离开页面，结束后在顶部提示。
 ///
@@ -93,7 +95,7 @@ class BackgroundExport {
     overlay.insert(anchor);
     log.note('导出上下文Overlay已挂载');
     try {
-      await log.step('等待导出上下文首帧', () => WidgetsBinding.instance.endOfFrame);
+      await log.step('等待导出上下文首帧', ImageEncodeUtil.waitForFrame);
       final context = taskContext;
       if (context == null || !context.mounted) {
         throw StateError(appL10n.svcTheExportCanvasIsNotReady);
@@ -102,17 +104,27 @@ class BackgroundExport {
       if (file == null) {
         log.note('导出失败：生成服务返回空文件');
         AppToast.show(
-            appL10n
-                .flowCouldNotExportP0CheckStoragePermission((label).toString()),
+            appL10n.flowCouldNotExportP0PleaseRetry(label),
             tone: AppToastTone.error);
         return;
       }
       log.note('生成服务已返回文件：${file.path}');
+      String? photosWarning;
+      if (Platform.isIOS) {
+        try {
+          await log.step('写入 iOS 照片图库', () => PhotoLibrary.saveFile(file));
+        } catch (error) {
+          photosWarning = PhotoLibrary.failureMessage(error);
+        }
+      }
       await _notifySystem(label, log);
       log.note('开始显示应用内导出完成提示');
       AppToast.show(
-        appL10n.flowP0Exported((label).toString()),
-        tone: AppToastTone.success,
+        photosWarning ??
+            (Platform.isIOS
+                ? appL10n.flowImageSavedToGallery
+                : appL10n.flowP0Exported(label)),
+        tone: photosWarning == null ? AppToastTone.success : AppToastTone.warning,
         actionLabel: appL10n.flowView,
         duration: const Duration(seconds: 6),
         onAction: () {
@@ -122,8 +134,11 @@ class BackgroundExport {
             current,
             filePath: file.path,
             fileName: file.path.split('/').last,
-            // iOS 的图片存在应用文档目录，不进相册。
-            showViewImage: Platform.isAndroid,
+            showViewImage: Platform.isAndroid || Platform.isIOS,
+            warning: photosWarning,
+            description: Platform.isIOS && photosWarning == null
+                ? appL10n.flowImageSavedToGallery
+                : null,
           );
         },
       );

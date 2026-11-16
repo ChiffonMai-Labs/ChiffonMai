@@ -112,8 +112,14 @@
   "burstAllEdges": "四方礼花",
   "previewNow": "立即播放预览",
   "defaultDifficulty": "歌曲详情默认难度",
-  "defaultDifficultyHint": "从歌曲搜索等未指定难度的入口打开歌曲时，优先显示所选难度。",
+  "defaultDifficultyHint": "打开歌曲时，若入口未指定难度且没有可用的难度记忆，则显示所选难度。",
   "defaultDifficultyNote": "首次使用默认为 MASTER。成绩、谱面等已指定难度的跳转保持原有难度。",
+  "songDifficultyMemory": "记住歌曲详情难度",
+  "songDifficultyMemoryHint": "开启后，每首歌会记住离开详情时的难度。关闭后保留已有记录。",
+  "songDifficultyMemoryManage": "管理难度记忆",
+  "songDifficultyMemoryEmpty": "还没有保存的难度记忆",
+  "songDifficultyMemoryClearSelected": "清除所选",
+  "songDifficultyMemoryClearAllConfirm": "确定清除所有歌曲的难度记忆吗？",
   "settingSaveFailed": "设置保存失败，请重试",
   "autoInstall": "自动安装更新",
   "experimental": "测试性",
@@ -408,6 +414,11 @@
   "featureImportScoresToAWMCNETUsingA": "用机台二维码导入成绩到 AWMC NET",
   "featureSyncToMultiplePlatforms": "同步成绩到多端",
   "featureSendTheSameScoresToMultipleTrackers": "一份成绩同步到多个查分器",
+  "autoSyncKeepaliveAction": "手动保活",
+  "autoSyncKeepaliveDeadline": "保活截止（北京时间）",
+  "autoSyncKeepaliveSuccess": "已续期 7 天",
+  "autoSyncKeepaliveExpired": "自动同步已过期，请重新开启",
+  "autoSyncKeepalivePolicy": "开启后须每 7 天手动保活。到期未续期会退出队列并清除服务端托管凭据。",
   "featureAutoSync": "自动同步",
   "featureQuickSyncDailyAt0000And": "每天北京时间 0 点和 12 点自动快速同步",
   "featureRefreshCachedData": "拉取成绩并更新数据",
@@ -434,6 +445,7 @@
   "featureViewRecentCommunityRatings": "查看社区最近评分",
   "featureCheckForUpdates": "检查更新",
   "featureCheckForANewerAppVersion": "检查应用是否有新版本",
+  "featureTestFlightUpdateSubtitle": "在 TestFlight 中管理应用更新",
   "featureAboutTheApp": "关于 APP",
   "featureViewProjectAndVersionInformation": "了解项目与版本信息",
   "featureOfficialWebsite": "访问官方网站",
@@ -585,7 +597,7 @@
       }
     }
   },
-  "homeTotalRatingAction": "总 Rating {rating}，打开高级刷新",
+  "homeTotalRatingAction": "总 Rating {rating}，拉取成绩并更新数据",
   "@homeTotalRatingAction": {
     "placeholders": {
       "rating": {
@@ -875,7 +887,7 @@
   "flowDXScoreMAXOverP0": "DX分数（MAX +{p0}）",
   "@flowDXScoreMAXOverP0": {"placeholders": {"p0": {"type": "String"}}},
   "rankingUploadIncompleteTitle": "排行榜上传未完成",
-  "rankingUploadIncompleteLead": "成绩已刷新并保存，只是这次没有更新排行榜。",
+  "rankingUploadIncompleteLead": "成绩已刷新并保存。本次排行榜上传未全部完成。",
   "rankingGuardFrozen": "排行榜上传资格已暂停，正在人工审核。审核期间你在排行榜上的数据会暂时隐藏。",
   "rankingGuardBlacklisted": "该账号已被禁止参与排行榜。",
   "rankingGuardUpgradeRequired": "请更新到最新版本后再上传排行榜。",
@@ -1177,7 +1189,11 @@
     }
   },
   "flowWaitingForUpstreamRecovery": "等待上游恢复",
-  "flowPreviousRoundQueue": "上轮队列处理",
+  "flowPreviousRoundQueue": "上一批次处理结果",
+  "autoSyncCurrentBatchResults": "当前批次处理结果",
+  "autoSyncCompleteSuccess": "全部成功",
+  "autoSyncPartialSuccess": "部分成功",
+  "autoSyncCompleteFailure": "全部失败",
   "flowLoadingPreviousRoundStatistics": "上轮统计读取中…",
   "flowStatisticsUnavailableRetryingAutomatically": "统计暂不可用，将自动重试",
   "flowNoPreviousRound": "暂无上轮记录",
@@ -1325,6 +1341,7 @@
   },
   "flowAccountSwitchFailedAttemptedToRestoreThe": "账号切换失败，已尝试恢复原账号",
   "flowSwitchingPleaseWait": "正在切换，请稍候",
+  "accountSwitchSheetBusy": "正在切换账号，请稍候。切换完成后可关闭此面板。",
   "flowNoCachedDataForThisAccount": "该账号暂无缓存",
   "flowNoDataHasBeenCachedForP0": "{p0}账号还没有缓存过数据，去刷新数据？",
   "@flowNoDataHasBeenCachedForP0": {
@@ -2017,6 +2034,8 @@
   "flowDragCornersToSelectTheResultArea": "拖动角点框选成绩区域",
   "flowStoragePermissionIsNeededToSaveVersion": "需要存储权限才能保存版本图，请在设置中开启权限",
   "flowImageSavedToGallery": "图片已保存到相册",
+  "flowPhotoLibraryAddPermissionRequired": "请在系统设置中允许 ChiffonMai 添加照片。",
+  "flowCouldNotSaveToPhotoLibrary": "无法将图片保存到相册。",
   "flowSaveFailedP0": "保存失败：{p0}",
   "@flowSaveFailedP0": {
     "placeholders": {
@@ -2692,7 +2711,7 @@
   "flowThenChooseNewUserRegistrationInThe": "，点击左侧边栏的“新用户注册”或页面中间处的“注册 maimai DX 查分器账号”。",
   "flowFollowThePageInstructionsToRegisterAn": "随页面引导填写信息，即可注册落雪咖啡屋账号。",
   "flowAfterSigningInOpenAccountDetailsIn": "登录后在侧边栏点“账号详情”，再点页面上方的“第三方应用”：",
-  "flowOAuthInMeRefreshDataChooseLXNS": "OAuth 授权：在 App 的“我的 → 数据刷新 → 拉取成绩并更新数据 / 拉取成绩并更新数据（高级）”对话框里把数据源切换到落雪，按引导完成授权。授权后，这里的 OAuth 应用列表会出现 ChiffonMai。",
+  "flowOAuthInMeRefreshDataChooseLXNS": "OAuth 授权：在 App 的“我的 → 绑定与授权管理”中选择落雪账号授权，并按引导完成。授权后，这里的 OAuth 应用列表会出现 ChiffonMai。",
   "flowPersonalAPIKeyResetItThenPaste": "个人 API 密钥：点“重置 API 密钥”，然后到 App 的“我的 → 成绩导入凭据”，下滑找到“落雪 API 密钥”并填入。",
   "flowYouCanAlsoVisitChiffonChuFromThe": "也欢迎支持一下中二查歌，在“首页游玩 → 出勤”的轮播图里可以跳转过去。",
   "flowMessage": "私聊 ",
@@ -3514,6 +3533,8 @@
   "flowIconCollectible": "头像",
   "flowPlateCollectible": "姓名框",
   "flowFrameCollectible": "背景",
+  "flowTravelBuddyCollectible": "旅行伙伴",
+  "flowPartnerCollectible": "搭档",
   "flowAwmcGateway": "AWMC 网关",
   "flowNormalSource": "国服曲库",
   "flowExtraSource": "非国服曲库",
@@ -3810,7 +3831,7 @@
   "flowRankingShowIdentity": "展示昵称与头像",
   "flowRankingIdentityHint": "关闭时显示匿名用户和默认头像；自选头像仍会保存并同步。",
   "flowRankingShowBrief": "展示排行榜简要信息",
-  "flowRankingBriefHint": "公开称号、装扮、等级与 Best 成绩；需登录或完成账号身份验证。默认关闭。",
+  "flowRankingBriefHint": "公开称号、装扮、旅行伙伴、搭档、等级与 Best 成绩。需登录或完成账号身份验证，默认关闭。",
   "flowCacheFishSongs": "歌曲数据（水鱼）",
   "flowCacheUnionSongs": "歌曲数据（Union）",
   "flowCacheDifficulties": "难度数据",
@@ -3822,6 +3843,8 @@
   "flowCacheIcons": "收藏品-头像",
   "flowCachePlates": "收藏品-姓名框",
   "flowCacheFrames": "收藏品-背景",
+  "flowCacheTravelBuddies": "收藏品-旅行伙伴",
+  "flowCachePartners": "收藏品-搭档",
   "flowCacheUnionMetadata": "Union 元数据",
   "flowCacheFishDescription": "全量歌曲主库（diving-fish）",
   "flowCacheUnionDescription": "补充独有歌曲（godserver）",
@@ -3831,6 +3854,8 @@
   "flowCacheIconDescription": "落雪头像",
   "flowCachePlateDescription": "落雪姓名框",
   "flowCacheFrameDescription": "落雪背景",
+  "flowCacheTravelBuddyDescription": "AWMC 旅行伙伴",
+  "flowCachePartnerDescription": "AWMC 搭档",
   "flowCacheMetadataDescription": "cn/jp 可游玩地区等",
   "flowCacheMaidataDescription": "谱面追加辅助（追加列表 + 完整 maidata）",
   "flowSongDetails": "歌曲详情",
@@ -5081,6 +5106,11 @@
   "flowGradeDistributionReferenceOnly": "评级分布(仅供参考)",
   "flowComboDistributionReferenceOnly": "连击分布(仅供参考)",
   "flowInTheOrderBPMMarkersAppearIn": "按当前谱面中 BPM 标记的出现顺序",
+  "chartBpmTimeRange": "谱面时间段",
+  "chartMetronome": "节拍器",
+  "chartMetronomeSound": "节拍音",
+  "chartMetronomeSoundUnavailable": "节拍音暂不可用",
+  "chartPlayerCreditDetails": "提供谱面解析和播放器，采用 MIT 许可证",
   "flowChangeIndex": "变化序号",
   "flowPlayOnBilibili": "B站播放",
   "flowPlayableRegions": "可游玩地区",
@@ -5294,6 +5324,8 @@
   "flowNoAppAvailableToViewImages": "没有找到能查看图片的应用",
   "flowCopied": "已复制",
   "flowCopyPath": "复制路径",
+  "flowOpenExportFolder": "打开文件夹",
+  "flowCouldNotOpenExportFolder": "无法打开文件夹，请复制路径后在文件管理器中查找。",
   "flowPublicDirectoryIsNotWritableSavedTo": "公开目录不可写，文件已保存到备用路径：{p0}",
   "@flowPublicDirectoryIsNotWritableSavedTo": {
     "placeholders": {
@@ -5361,6 +5393,8 @@
     }
   },
   "flowImageTheme": "图片主题",
+  "exportImageBackground": "图片背景",
+  "exportNoBackground": "无背景",
   "flowThunderMode": "雷霆模式",
   "flowArrangeCardsIn50RowsOr50": "将歌曲卡片改为单列 50 行或单行 50 列，适合超长图片",
   "flowExportPreview": "导出效果图",
@@ -5509,6 +5543,10 @@
   "flowNoAudioIsAvailableForThisSong": "这首歌暂时没有可用的音源",
   "flowCouldNotLoadAudioTryAgainLater": "音源加载失败，请稍后重试",
   "flowReadingLocalVideo": "正在读取本地视频…",
+  "pvFullscreen": "横屏全屏",
+  "pvExitFullscreen": "退出全屏",
+  "pvAudioDelay": "音频延迟",
+  "pvAudioDelayHint": "正值让声音晚一点，负值让声音早一点。设置按歌曲保存。",
   "flowBufferingVideo": "正在缓冲视频…",
   "flowNoMatchingChartCodeFound": "未找到匹配的谱面代码",
   "flowCouldNotFetchChartCodeP0": "获取谱面代码失败: {p0}",
@@ -6083,6 +6121,15 @@
   "flowContentCannotBeEmpty": "内容不能为空",
   "flowCommentsCannotExceed500Characters": "评论内容不能超过500字",
   "flowSending": "发送中...",
+  "songChartConfirmationBilibili": "跳转到B站查看谱面确认",
+  "songChartPlaybackInApp": "APP内播放谱面",
+  "songMoreActionsScroll": "下滑查看更多操作",
+  "announcementCenter": "公告中心",
+  "announcementCenterSubtitle": "查看服务公告与项目动态",
+  "announcementDetail": "公告详情",
+  "announcementEmpty": "暂无公告",
+  "announcementLoadFailed": "公告加载失败",
+  "announcementLoadMore": "加载更多",
   "flowOpenBilibili2": "跳转到B站",
   "flowRelatedCollectiblesP0": "相关收藏品 {p0}",
   "@flowRelatedCollectiblesP0": {
@@ -7130,7 +7177,8 @@
   },
   "flowTurnOnDeviceLocationServicesFirst": "请先开启设备定位服务",
   "flowLocationPermissionIsPermanentlyDeniedEnableIt": "定位权限已被永久拒绝，请在系统设置中开启",
-  "flowCouldNotGetYourLocationCheckThat": "无法获取当前位置，请确认已开启定位服务且信号良好",
+  "flowCouldNotGetYourLocationCheckThat": "设备暂时未返回当前位置，请稍后重试。",
+  "arcadeLocationPermissionUnavailable": "当前无法使用位置权限，请在系统设置中检查。",
   "flowLocationFailedP0": "定位失败: {p0}",
   "@flowLocationFailedP0": {
     "placeholders": {
@@ -10165,6 +10213,14 @@
   "customTagMarked": "{name}（自定义）",
   "@customTagMarked": {"placeholders": {"name": {"type": "String"}}},
   "chartCodeFont": "代码字体",
+  "chartCodeSyntaxHighlight": "语法高亮",
+  "chartCodeHighlightSaveFailed": "语法高亮已切换，但未能保存设置",
+  "historyDateRange": "日期区间",
+  "historyLatestRecord": "区间内最后一条记录",
+  "songDurationRanking": "歌曲时长排行榜",
+  "songDurationRankingDescription": "仅收录国服歌曲，按参考时长排序，同一首歌只上榜一次",
+  "songDurationLongestFirst": "从长到短",
+  "songDurationShortestFirst": "从短到长",
   "chartCodeFontDefault": "默认",
   "chartCodeFontSaveFailed": "字体已切换，但未能保存选择",
   "ratingSegmentTitle": "上分潜力与对照表分段",
@@ -10231,5 +10287,67 @@
   "arcadeMapGoogle": "Google 地图",
   "arcadeMapApple": "Apple 地图",
   "arcadeMapOther": "其他地图应用",
-  "arcadeMapWeb": "在浏览器中打开"
+  "arcadeMapWeb": "在浏览器中打开",
+  "communityTravelAppearance": "旅行伙伴与搭档",
+  "communityTravelLocalNote": "旅行伙伴与搭档会随已公开的简要信息展示。",
+  "communityTravelLeader": "队长",
+  "communityTravelSlot": "队员 {slot}",
+  "@communityTravelSlot": {
+    "placeholders": {
+      "slot": {
+        "type": "int"
+      }
+    }
+  },
+  "communityTravelSwap": "换位",
+  "communityTravelSetLeader": "设为队长",
+  "communityTravelEditLevel": "编辑等级与觉醒",
+  "communityTravelSuperCount": "超觉醒次数",
+  "communityTravelSuperBadge": "超觉醒 ×{count}",
+  "@communityTravelSuperBadge": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "communityTravelStars": "觉醒 {count} 星",
+  "@communityTravelStars": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "communityTravelIntegerRange": "请输入 {min}–{max} 之间的整数",
+  "@communityTravelIntegerRange": {
+    "placeholders": {
+      "min": {
+        "type": "int"
+      },
+      "max": {
+        "type": "int"
+      }
+    }
+  },
+  "communityTravelSearch": "搜索角色名称或 ID",
+  "cabinetAppearanceSync": "同步机台装扮",
+  "cabinetAppearanceSubtitle": "扫码读取机台当前选中的装扮",
+  "cabinetAppearanceCheckingCloud": "正在核对云端社区装扮…",
+  "cabinetAppearanceSignIn": "请先登录或验证当前账号，以便将社区装扮保存到云端。",
+  "cabinetAppearanceCouldNotCheckCloud": "暂时无法核对云端社区装扮，请稍后再试。",
+  "cabinetAppearanceQrHint": "请扫描或粘贴要导入装扮的舞萌登录二维码。读取成功后可以先预览，再决定是否同步。",
+  "cabinetAppearanceRead": "读取装扮",
+  "cabinetAppearanceReading": "正在读取机台装扮…",
+  "cabinetAppearanceEmpty": "机台未返回可同步的装扮。",
+  "cabinetAppearanceReview": "确认机台装扮",
+  "cabinetAppearanceCommunityOnly": "仅用于本 App 的社区装扮",
+  "cabinetAppearanceNotice": "确认后会替换预览中对应的社区装扮，不会修改任何机台数据。机台接口无法提供旅行伙伴的等级和超觉醒次数，请手动设置。这两项会随社区装扮保存到云端。",
+  "cabinetAppearanceKeepCurrent": "保留当前设置",
+  "cabinetAppearanceKeepTeam": "机台没有返回 5 个有效且不重复的旅行伙伴，本次将保留 App 中的队伍。",
+  "cabinetAppearanceProgressDefaults": "已有伙伴沿用 App 中保存的数值。新伙伴初始为 1 级、超觉醒 0 次，可点每位伙伴旁的编辑按钮修改。",
+  "cabinetAppearanceConfirm": "确认同步",
+  "cabinetAppearanceSaving": "正在保存社区装扮…",
+  "cabinetAppearanceAccountChanged": "当前账号已切换，请重新打开同步。",
+  "cabinetAppearanceFailed": "无法同步机台装扮，请稍后再试。"
 }

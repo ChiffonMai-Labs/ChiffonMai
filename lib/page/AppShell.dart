@@ -2,6 +2,7 @@ import '../l10n/FeatureLocalizations.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../entity/FeatureModels.dart';
 import '../utils/AppDesignTokens.dart';
 import '../utils/NavigationPreferences.dart';
 import '../widgets/LiquidGlassNavigationBar.dart';
@@ -41,6 +42,7 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   int _index = 0;
   late final List<Widget> _pages;
+  final _activeFeatureTask = ValueNotifier<FeatureTask?>(null);
   final GlobalKey<HomePageState> _homePageKey = GlobalKey<HomePageState>();
   final GlobalKey<SystemHubPageState> _systemPageKey =
       GlobalKey<SystemHubPageState>();
@@ -103,6 +105,7 @@ class _AppShellState extends State<AppShell> {
     _pages = [
       HomePage(
         key: _homePageKey,
+        activeTask: _activeFeatureTask,
         onEntertainmentTap: () {
           _selectIndex(_playZoneIndex);
           _playZoneKey.currentState?.showSection(1);
@@ -116,6 +119,7 @@ class _AppShellState extends State<AppShell> {
       PlayZoneHubPage(key: _playZoneKey),
       SystemHubPage(
         key: _systemPageKey,
+        activeTask: _activeFeatureTask,
         onAccountManageTap: () =>
             _homePageKey.currentState?.showAccountManageDialog(),
       ),
@@ -131,6 +135,7 @@ class _AppShellState extends State<AppShell> {
   @override
   void dispose() {
     _navSelectionDebounce?.cancel();
+    _activeFeatureTask.dispose();
     NavigationPreferences.instance
         .removeListener(_onNavigationPreferencesChanged);
     super.dispose();

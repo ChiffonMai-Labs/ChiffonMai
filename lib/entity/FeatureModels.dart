@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+/// 首页收藏和「我的」共同展示的任务进度。
+typedef FeatureTask = ({String title, double? progress});
+
 /// 功能按钮数据模型
 class ButtonItem {
   final IconData icon;

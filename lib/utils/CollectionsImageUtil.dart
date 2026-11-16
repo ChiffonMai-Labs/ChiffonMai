@@ -26,4 +26,12 @@ class CollectionsImageUtil {
   static Widget getFrameImageURL(Collection collection) {
     return LxnsAssetImage(url: lxnsFrameUrl(collection.id));
   }
+
+  static Widget getTravelBuddyImage(Collection collection) {
+    return LxnsAssetImage(url: travelBuddyImageUrl(collection.id));
+  }
+
+  static Widget getPartnerImage(Collection collection) {
+    return LxnsAssetImage(url: partnerImageUrl(collection.id));
+  }
 }

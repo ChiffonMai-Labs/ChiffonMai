@@ -1,0 +1,4 @@
+enum SlideMorph {
+  fadeIn,
+  suddenIn,
+}

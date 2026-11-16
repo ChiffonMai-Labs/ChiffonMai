@@ -36,6 +36,7 @@ class PaiziProgressConvertToImg {
     ExportImageTheme theme = ExportImageTheme.light,
   }) async {
     OverlayEntry? overlayEntry;
+    var overlayInserted = false;
     try {
       debugPrint('=== STARTING PAIZI PROGRESS IMAGE CONVERSION ===');
       debugPrint(
@@ -91,14 +92,19 @@ class PaiziProgressConvertToImg {
       onProgress?.call(context.l10n.flowPreloadingImages, 0.2);
 
       Overlay.of(context).insert(overlayEntry);
+
+      overlayInserted = true;
       debugPrint('Overlay entry inserted');
 
       onProgress?.call(context.l10n.flowRenderingExportContent, 0.3);
 
       // 曲绘分批挂载，全部挂完才能截图。
-      await mountedAll.future
-          .timeout(const Duration(seconds: 30), onTimeout: () {});
-      await _waitForRender();
+      final canvasNotReady = context.l10n.svcTheExportCanvasIsNotReady;
+      await mountedAll.future.timeout(
+        const Duration(seconds: 45),
+        onTimeout: () => throw StateError(canvasNotReady),
+      );
+      await ImageEncodeUtil.waitForRender();
       debugPrint('Render wait completed');
 
       final RenderRepaintBoundary? boundary = globalKey.currentContext
@@ -106,6 +112,7 @@ class PaiziProgressConvertToImg {
       if (boundary == null) {
         debugPrint('Error: RenderRepaintBoundary not found');
         overlayEntry.remove();
+        overlayInserted = false;
         return null;
       }
       debugPrint('RenderRepaintBoundary found successfully');
@@ -116,19 +123,13 @@ class PaiziProgressConvertToImg {
 
       debugPrint('Starting image capture...');
 
-      // 动态计算 pixelRatio：超过 GPU 最大纹理尺寸就是黑图（见 helper 注释）
-      final double pixelRatio = ImageEncodeUtil.safeCapturePixelRatio(
-          boundary.size.width, boundary.size.height);
-
-      debugPrint(
-          'Widget size: ${boundary.size.width}x${boundary.size.height}, calculated pixelRatio: $pixelRatio');
-
       final encoded = await ImageEncodeUtil.encodeBoundary(boundary,
           jpegQuality: jpegQuality);
       final Uint8List finalBytes = encoded.bytes;
       final String extension = encoded.extension;
 
       overlayEntry.remove();
+      overlayInserted = false;
 
       onProgress?.call(context.l10n.flowSavingImage, 0.8);
 
@@ -185,7 +186,6 @@ class PaiziProgressConvertToImg {
 
       if (directory == null) {
         debugPrint('Error: No storage directory found');
-        overlayEntry.remove();
         return null;
       }
 
@@ -222,7 +222,7 @@ class PaiziProgressConvertToImg {
       return file;
     } catch (e) {
       debugPrint('Error converting to image: $e');
-      overlayEntry?.remove();
+      if (overlayInserted) overlayEntry?.remove();
       return null;
     }
   }
@@ -518,22 +518,6 @@ class PaiziProgressConvertToImg {
     }
   }
 
-  static Future<void> _waitForRender() async {
-    Completer<void> frameCompleter = Completer<void>();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      frameCompleter.complete();
-    });
-    await frameCompleter.future;
-
-    Completer<void> frameCompleter2 = Completer<void>();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      frameCompleter2.complete();
-    });
-    await frameCompleter2.future;
-
-    await Future.delayed(Duration(milliseconds: 500));
-    debugPrint('Render wait completed');
-  }
 
   static Future<void> _sendMediaScanBroadcast(String filePath) async {
     try {
@@ -599,6 +583,8 @@ class PaiziProgressConvertToImg {
   }
 
   static Future<PermissionStatus> _requestStoragePermission() async {
+    if (Platform.isIOS) return PermissionStatus.denied; // 先保存到应用文档。
+
     if (Platform.isAndroid) {
       debugPrint('Android platform detected');
 

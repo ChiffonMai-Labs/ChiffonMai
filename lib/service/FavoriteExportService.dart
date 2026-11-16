@@ -1,4 +1,3 @@
-import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import '../utils/ExportPathUtil.dart';
@@ -38,15 +37,13 @@ class FavoriteExportService {
 
   /// 从给定的 GlobalKey（必须挂载在 RepaintBoundary 上）捕获图片
   Future<List<int>> renderFromKey(GlobalKey key) async {
-    await Future.delayed(const Duration(milliseconds: 200));
+    await ImageEncodeUtil.waitForRender(
+        frames: 1, settle: const Duration(milliseconds: 200));
     final boundary = key.currentContext?.findRenderObject() as RenderRepaintBoundary?;
     if (boundary == null) {
       throw Exception('无法获取 RepaintBoundary');
     }
-    final image = await boundary.toImage(pixelRatio: ImageEncodeUtil.safeCapturePixelRatio(boundary.size.width, boundary.size.height));
-    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-    // 立刻释放 ui.Image（上百 MB 的原生位图），别等 GC
-    image.dispose();
-    return byteData!.buffer.asUint8List();
+    final encoded = await ImageEncodeUtil.encodeBoundary(boundary);
+    return encoded.bytes;
   }
 }

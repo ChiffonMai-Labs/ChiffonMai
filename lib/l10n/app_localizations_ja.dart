@@ -352,12 +352,30 @@ class AppLocalizationsJa extends AppLocalizations {
   String get defaultDifficulty => '楽曲詳細の初期難易度';
 
   @override
-  String get defaultDifficultyHint =>
-      '楽曲検索など、難易度の指定がない場所から開くときに、この難易度を優先して表示します。';
+  String get defaultDifficultyHint => '難易度の指定も記録もない楽曲を開くときに、この難易度を表示します。';
 
   @override
   String get defaultDifficultyNote =>
       '初回は MASTER です。スコアや譜面などで難易度が指定されている場合は、その難易度を表示します。';
+
+  @override
+  String get songDifficultyMemory => '楽曲ごとの難易度を記憶';
+
+  @override
+  String get songDifficultyMemoryHint =>
+      '詳細画面を離れたときの難易度を楽曲ごとに記憶します。オフにしても記録は保持されます。';
+
+  @override
+  String get songDifficultyMemoryManage => '難易度の記録を管理';
+
+  @override
+  String get songDifficultyMemoryEmpty => '難易度の記録はまだありません';
+
+  @override
+  String get songDifficultyMemoryClearSelected => '選択した記録を消去';
+
+  @override
+  String get songDifficultyMemoryClearAllConfirm => 'すべての楽曲の難易度の記録を消去しますか？';
 
   @override
   String get settingSaveFailed => '設定を保存できませんでした。もう一度お試しください。';
@@ -1116,6 +1134,22 @@ class AppLocalizationsJa extends AppLocalizations {
   String get featureSendTheSameScoresToMultipleTrackers => '同じ成績を複数のスコアサービスに同期';
 
   @override
+  String get autoSyncKeepaliveAction => '手動で延長';
+
+  @override
+  String get autoSyncKeepaliveDeadline => '延長期限（中国標準時）';
+
+  @override
+  String get autoSyncKeepaliveSuccess => '7 日間延長しました';
+
+  @override
+  String get autoSyncKeepaliveExpired => '自動同期の期限が切れました。もう一度有効にしてください。';
+
+  @override
+  String get autoSyncKeepalivePolicy =>
+      '7 日ごとに手動で延長してください。期限が切れるとキューから外れ、サーバーに保存した認証情報が削除されます。';
+
+  @override
   String get featureAutoSync => '自動同期';
 
   @override
@@ -1197,6 +1231,9 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get featureCheckForANewerAppVersion => 'アプリの新しいバージョンを確認';
+
+  @override
+  String get featureTestFlightUpdateSubtitle => 'TestFlight でアプリのアップデートを管理';
 
   @override
   String get featureAboutTheApp => 'アプリについて';
@@ -1627,7 +1664,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String homeTotalRatingAction(String rating) {
-    return '総 Rating $rating。詳細更新を開く';
+    return '総 Rating $rating。スコアとデータを更新';
   }
 
   @override
@@ -1911,7 +1948,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get rankingUploadIncompleteLead =>
-      'スコアは更新・保存されましたが、今回はランキングを更新していません。';
+      'スコアは更新・保存されました。ランキングへのアップロードはすべて完了していません。';
 
   @override
   String get rankingGuardFrozen =>
@@ -2379,7 +2416,19 @@ class AppLocalizationsJa extends AppLocalizations {
   String get flowWaitingForUpstreamRecovery => '上流サービスの復旧待ち';
 
   @override
-  String get flowPreviousRoundQueue => '前回のキュー処理';
+  String get flowPreviousRoundQueue => '前回の処理結果';
+
+  @override
+  String get autoSyncCurrentBatchResults => '今回の処理結果';
+
+  @override
+  String get autoSyncCompleteSuccess => 'すべて成功';
+
+  @override
+  String get autoSyncPartialSuccess => '一部成功';
+
+  @override
+  String get autoSyncCompleteFailure => 'すべて失敗';
 
   @override
   String get flowLoadingPreviousRoundStatistics => '前回の統計を読み込み中…';
@@ -2590,6 +2639,9 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get flowSwitchingPleaseWait => '切り替え中です。お待ちください';
+
+  @override
+  String get accountSwitchSheetBusy => 'アカウントを切り替えています。完了するとこのパネルを閉じられます。';
 
   @override
   String get flowNoCachedDataForThisAccount => 'このアカウントのキャッシュはありません';
@@ -3646,6 +3698,13 @@ class AppLocalizationsJa extends AppLocalizations {
   String get flowImageSavedToGallery => '画像をアルバムに保存しました';
 
   @override
+  String get flowPhotoLibraryAddPermissionRequired =>
+      'システム設定で ChiffonMai に写真の追加を許可してください。';
+
+  @override
+  String get flowCouldNotSaveToPhotoLibrary => '画像を写真ライブラリに保存できませんでした。';
+
+  @override
   String flowSaveFailedP0(String p0) {
     return '保存失敗：$p0';
   }
@@ -4490,7 +4549,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get flowOAuthInMeRefreshDataChooseLXNS =>
-      'OAuth 認証：アプリの「マイページ → 成績取得とデータ更新」で落雪を選び、案内に従って認証すると、OAuth アプリ一覧に ChiffonMai が表示されます。';
+      'OAuth 認証：アプリの「マイページ → アカウント連携と認証」で落雪の認証を選び、案内に従うと OAuth アプリ一覧に ChiffonMai が表示されます。';
 
   @override
   String get flowPersonalAPIKeyResetItThenPaste =>
@@ -5461,6 +5520,12 @@ class AppLocalizationsJa extends AppLocalizations {
   String get flowFrameCollectible => 'フレーム';
 
   @override
+  String get flowTravelBuddyCollectible => 'つあーメンバー';
+
+  @override
+  String get flowPartnerCollectible => 'パートナー';
+
+  @override
   String get flowAwmcGateway => 'AWMC ゲートウェイ';
 
   @override
@@ -5731,7 +5796,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get flowRankingBriefHint =>
-      '称号・装飾・レベル・ベスト成績を公開します。ログインか本人確認が必要です。初期設定は無効です。';
+      '称号・装飾・つあーメンバー・パートナー・レベル・ベスト成績を公開します。ログインか本人確認が必要です。初期設定は無効です。';
 
   @override
   String get flowCacheFishSongs => '楽曲（水魚）';
@@ -5767,6 +5832,12 @@ class AppLocalizationsJa extends AppLocalizations {
   String get flowCacheFrames => 'コレクション：フレーム';
 
   @override
+  String get flowCacheTravelBuddies => 'コレクション：つあーメンバー';
+
+  @override
+  String get flowCachePartners => 'コレクション：パートナー';
+
+  @override
   String get flowCacheUnionMetadata => 'Union メタデータ';
 
   @override
@@ -5792,6 +5863,12 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get flowCacheFrameDescription => '落雪のフレーム';
+
+  @override
+  String get flowCacheTravelBuddyDescription => 'AWMC つあーメンバー';
+
+  @override
+  String get flowCachePartnerDescription => 'AWMC パートナー';
 
   @override
   String get flowCacheMetadataDescription => 'プレイ可能地域（cn/jp）など';
@@ -7484,6 +7561,21 @@ class AppLocalizationsJa extends AppLocalizations {
   String get flowInTheOrderBPMMarkersAppearIn => 'この譜面内でBPM指定が現れる順';
 
   @override
+  String get chartBpmTimeRange => '譜面の時間区間';
+
+  @override
+  String get chartMetronome => 'メトロノーム';
+
+  @override
+  String get chartMetronomeSound => 'メトロノーム音';
+
+  @override
+  String get chartMetronomeSoundUnavailable => 'メトロノーム音を再生できません';
+
+  @override
+  String get chartPlayerCreditDetails => '譜面解析とプレーヤーを提供。MIT ライセンス';
+
+  @override
   String get flowChangeIndex => '変更順';
 
   @override
@@ -7785,6 +7877,13 @@ class AppLocalizationsJa extends AppLocalizations {
   String get flowCopyPath => 'パスをコピー';
 
   @override
+  String get flowOpenExportFolder => 'フォルダを開く';
+
+  @override
+  String get flowCouldNotOpenExportFolder =>
+      'フォルダを開けませんでした。パスをコピーしてファイルマネージャーで探してください。';
+
+  @override
   String flowPublicDirectoryIsNotWritableSavedTo(String p0) {
     return '公開フォルダに書き込めないため、代替パスに保存しました：$p0';
   }
@@ -7851,6 +7950,12 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get flowImageTheme => '画像テーマ';
+
+  @override
+  String get exportImageBackground => '画像の背景';
+
+  @override
+  String get exportNoBackground => '背景なし';
 
   @override
   String get flowThunderMode => 'サンダーモード';
@@ -8005,6 +8110,18 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get flowReadingLocalVideo => 'ローカル動画を読み込み中…';
+
+  @override
+  String get pvFullscreen => '横画面で全画面表示';
+
+  @override
+  String get pvExitFullscreen => '全画面表示を終了';
+
+  @override
+  String get pvAudioDelay => '音声の遅延';
+
+  @override
+  String get pvAudioDelayHint => '正の値で音声を遅らせ、負の値で早めます。曲ごとに保存されます。';
 
   @override
   String get flowBufferingVideo => '動画をバッファ中…';
@@ -8692,6 +8809,33 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get flowSending => '送信中…';
+
+  @override
+  String get songChartConfirmationBilibili => 'Bilibiliで譜面確認動画を見る';
+
+  @override
+  String get songChartPlaybackInApp => 'アプリ内で譜面を再生';
+
+  @override
+  String get songMoreActionsScroll => '下にスクロールして他の操作を表示';
+
+  @override
+  String get announcementCenter => 'お知らせ';
+
+  @override
+  String get announcementCenterSubtitle => 'サービスやプロジェクトのお知らせを見る';
+
+  @override
+  String get announcementDetail => 'お知らせの詳細';
+
+  @override
+  String get announcementEmpty => 'お知らせはありません';
+
+  @override
+  String get announcementLoadFailed => 'お知らせを読み込めませんでした';
+
+  @override
+  String get announcementLoadMore => 'さらに読み込む';
 
   @override
   String get flowOpenBilibili2 => 'Bilibiliを開く';
@@ -9880,7 +10024,11 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get flowCouldNotGetYourLocationCheckThat =>
-      '現在地を取得できません。位置情報サービスと受信状況を確認してください。';
+      '端末から現在地を取得できませんでした。しばらくしてから再試行してください。';
+
+  @override
+  String get arcadeLocationPermissionUnavailable =>
+      '位置情報の利用が許可されていません。端末の設定を確認してください。';
 
   @override
   String flowLocationFailedP0(String p0) {
@@ -14601,6 +14749,30 @@ class AppLocalizationsJa extends AppLocalizations {
   String get chartCodeFont => 'コードフォント';
 
   @override
+  String get chartCodeSyntaxHighlight => '構文のハイライト';
+
+  @override
+  String get chartCodeHighlightSaveFailed => '構文ハイライトの設定を保存できませんでした';
+
+  @override
+  String get historyDateRange => '日付範囲';
+
+  @override
+  String get historyLatestRecord => '範囲内の最新記録';
+
+  @override
+  String get songDurationRanking => '楽曲の長さランキング';
+
+  @override
+  String get songDurationRankingDescription => '中国版の楽曲を参考再生時間で並べ替え、同じ楽曲は1回のみ掲載';
+
+  @override
+  String get songDurationLongestFirst => '長い順';
+
+  @override
+  String get songDurationShortestFirst => '短い順';
+
+  @override
   String get chartCodeFontDefault => 'デフォルト';
 
   @override
@@ -14795,4 +14967,112 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get arcadeMapWeb => 'ブラウザで開く';
+
+  @override
+  String get communityTravelAppearance => 'つあーメンバーとパートナー';
+
+  @override
+  String get communityTravelLocalNote => '簡易プロフィールを公開すると、つあーメンバーとパートナーも表示されます。';
+
+  @override
+  String get communityTravelLeader => 'リーダー';
+
+  @override
+  String communityTravelSlot(int slot) {
+    return 'メンバー $slot';
+  }
+
+  @override
+  String get communityTravelSwap => '配置を入れ替え';
+
+  @override
+  String get communityTravelSetLeader => 'リーダーにする';
+
+  @override
+  String get communityTravelEditLevel => 'レベルと覚醒を編集';
+
+  @override
+  String get communityTravelSuperCount => '超覚醒回数';
+
+  @override
+  String communityTravelSuperBadge(int count) {
+    return '超覚醒 ×$count';
+  }
+
+  @override
+  String communityTravelStars(int count) {
+    return '覚醒 $count 回';
+  }
+
+  @override
+  String communityTravelIntegerRange(int min, int max) {
+    return '$min～$max の整数を入力してください';
+  }
+
+  @override
+  String get communityTravelSearch => 'キャラクター名またはIDで検索';
+
+  @override
+  String get cabinetAppearanceSync => '筐体の装飾を同期';
+
+  @override
+  String get cabinetAppearanceSubtitle => 'QR コードで筐体で使用中の装飾を取得';
+
+  @override
+  String get cabinetAppearanceCheckingCloud => 'クラウドの装飾を確認しています…';
+
+  @override
+  String get cabinetAppearanceSignIn =>
+      'コミュニティ装飾をクラウドに保存するには、現在のアカウントでログインまたは本人確認してください。';
+
+  @override
+  String get cabinetAppearanceCouldNotCheckCloud =>
+      'クラウドの装飾を確認できませんでした。しばらくしてからお試しください。';
+
+  @override
+  String get cabinetAppearanceQrHint =>
+      '装飾を取り込みたい maimai のログイン QR コードを読み取るか貼り付けてください。同期する前に取得した装飾を確認できます。';
+
+  @override
+  String get cabinetAppearanceRead => '装飾を取得';
+
+  @override
+  String get cabinetAppearanceReading => '筐体の装飾を取得しています…';
+
+  @override
+  String get cabinetAppearanceEmpty => '同期できる装飾が返されませんでした。';
+
+  @override
+  String get cabinetAppearanceReview => '筐体の装飾を確認';
+
+  @override
+  String get cabinetAppearanceCommunityOnly => 'このアプリのコミュニティ装飾専用';
+
+  @override
+  String get cabinetAppearanceNotice =>
+      '確認すると、下に表示されたコミュニティ装飾が置き換わります。筐体データは変更されません。つあーメンバーのレベルと超覚醒回数は筐体から取得できないため、手動で設定してください。両方の値はコミュニティ装飾と一緒にクラウドに保存されます。';
+
+  @override
+  String get cabinetAppearanceKeepCurrent => '現在の設定を保持';
+
+  @override
+  String get cabinetAppearanceKeepTeam =>
+      '有効で重複しない 5 人のつあーメンバーを取得できなかったため、アプリの編成を保持します。';
+
+  @override
+  String get cabinetAppearanceProgressDefaults =>
+      '編成済みのメンバーは保存値を引き継ぎます。新しいメンバーはレベル 1、超覚醒 0 回から始まります。各メンバーの編集ボタンから値を変更できます。';
+
+  @override
+  String get cabinetAppearanceConfirm => '同期する';
+
+  @override
+  String get cabinetAppearanceSaving => 'コミュニティ装飾を保存しています…';
+
+  @override
+  String get cabinetAppearanceAccountChanged =>
+      'アカウントが切り替わりました。同期画面を開き直してください。';
+
+  @override
+  String get cabinetAppearanceFailed => '筐体の装飾を同期できませんでした。しばらくしてからお試しください。';
 }

@@ -1,64 +1,25 @@
-import '../service/AccountAuthorizationStore.dart';
 import '../l10n/AppMessages.dart';
 import '../l10n/FeatureLocalizations.dart';
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'RankingPrivacyOptions.dart';
 import '../widgets/AnimatedChoiceBar.dart';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../constant/CacheKeyConstant.dart';
 import '../manager/DivingFishProbeManager.dart';
 import '../manager/DivingFish/DivingFishOAuthManager.dart';
 import '../manager/LuoXue/LuoXueOAuthManager.dart';
-import '../service/ConnectivityService.dart';
 import '../service/AccountStore.dart';
 import '../utils/AppTheme.dart';
 import '../utils/ApiClient.dart';
 import '../utils/CacheSourceRegistry.dart';
-import '../utils/SecureCredentialStore.dart';
+import '../utils/AppDesignTokens.dart';
 import 'RefreshDataDialog.dart'
     show CurrentDataSourceNotifier, RefreshDataRequest, RefreshDataSource;
 import 'DivingFishAccountSection.dart';
 import '../widgets/AppDialogs.dart';
+import 'AppUi.dart' show AnimatedReveal, FadeSwitcher;
 import '../widgets/AppToast.dart';
-
-/// 高级模式"拉取成绩并更新数据"对话框的入口。
-///
-/// 与旧版 `_RefreshDataDialog` 的差别：
-///   - 同样的"当前数据源 / 已保存的账号授权 / 排行榜选项"区
-///   - 用一组复选框替换"强制完整刷新"，每条对应一个缓存源（来自 [CacheSourceRegistry]）
-///   - 每条旁边显示剩余有效期 + 一个测试连通性的按钮
-///
-/// 返回 [RefreshDataRequest]，其 [RefreshDataRequest.forceSourceIds] 非空（高级模式标识）。
-Future<RefreshDataRequest?> showAdvancedRefreshDataDialog(
-  BuildContext context, {
-  RefreshDataSource? initialSource,
-}) async {
-  await CurrentDataSourceNotifier.load();
-  final prefs = await SharedPreferences.getInstance();
-  final jwt =
-      await SecureCredentialStore.read(CacheKeyConstant.probeDivingFishToken) ??
-          '';
-  final bindQQ = prefs.getString(CacheKeyConstant.probeDivingFishBindQQ) ?? '';
-
-  // AWMC NET 的 QQ 取自它自己的账号存档，不用共用的 cachedQQ
-  // （活动槽里的 cachedQQ 此刻可能是另一个账号的 QQ）。
-  final awmcQQ = await AccountAuthorizationStore.awmcQQ();
-
-  if (!context.mounted) return null;
-
-  return showDialog<RefreshDataRequest>(
-    context: context,
-    builder: (_) => AdvancedRefreshDataPanel(
-      // 只传「有没有登录」：登录了但没填 QQ 要单独提示，见 DivingFishQqState
-      hasDivingFishLogin: jwt.isNotEmpty,
-      bindQQ: bindQQ,
-      awmcQQ: awmcQQ,
-      initialSource: initialSource,
-    ),
-  );
-}
 
 /// 单条连通性测试结果。
 class _TestResult {
@@ -87,6 +48,7 @@ class AdvancedRefreshDataPanel extends StatefulWidget {
   /// 打开对话框时预选的数据源（账号切换面板「去刷新」时传入）。
   final RefreshDataSource? initialSource;
   final bool embedded;
+  final Set<RefreshDataSource>? syncSources;
 
   const AdvancedRefreshDataPanel({
     super.key,
@@ -95,6 +57,7 @@ class AdvancedRefreshDataPanel extends StatefulWidget {
     required this.awmcQQ,
     this.initialSource,
     this.embedded = false,
+    this.syncSources,
   });
 
   @override
@@ -120,16 +83,18 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
   /// 正在手动重新检测授权状态。
   bool _recheckingAuth = false;
 
-  bool _participateRankings = false;
-  bool _showNickname = false;
-  bool _showBriefProfile = false;
+  final _rankingSettings =
+      <RefreshDataSource, ({bool participate, bool nickname, bool brief})>{};
   bool _hasSavedLuoXueToken = false;
+  bool _confirming = false;
   late final Future<void> _settingsReady;
+  late Future<void> _rankingSettingsReady;
 
-  /// 用户勾选要强制刷新的缓存源 ID 集合。默认空集（全不勾选）；在 initState
-  /// 里异步加载上次保存的勾选，被持久化到 SharedPreferences（key 见
-  /// CacheKeyConstant.advancedRefreshForceSources）。
-  late Set<String> _checkedIds;
+  /// 是否强制刷新。默认关闭，勾选后才展开缓存源选择区域并默认全选。
+  bool _forceRefresh = false;
+
+  /// 用户勾选要强制刷新的缓存源 ID 集合（仅在 [_forceRefresh] 开启时生效）。
+  final Set<String> _checkedIds = <String>{};
 
   /// 每个缓存源当前显示的剩余有效期文案（异步加载）
   late Map<String, String> _validities;
@@ -148,12 +113,10 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
     _validities = {
       for (final s in CacheSourceRegistry.all) s.id: appL10n.flowLoading2
     };
-    _checkedIds = <String>{}; // 同步初始化，避免 late 在 build 之前未赋值
-    _settingsReady = Future.wait([
-      _loadRankingSettings(),
-      _loadCheckedIds(),
-      _loadLuoXueToken(),
-    ]);
+    _rankingSettingsReady = _loadRankingSettings(widget.syncSources == null
+        ? [_currentDataSource]
+        : RefreshDataSource.values);
+    _settingsReady = _loadLuoXueToken();
     _loadAllValidities();
     if (_bindQQ.isNotEmpty) {
       _checkAuthorization();
@@ -164,11 +127,6 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
     final loggedIn = await LuoXueOAuthManager().isLoggedIn();
     if (mounted) setState(() => _hasSavedLuoXueToken = loggedIn);
   }
-
-  /// 本次选中的数据源要用的 QQ（水鱼取水鱼绑定 QQ，AWMC NET 取独立保存的查询 QQ）。
-  String get _activeQq => _currentDataSource == RefreshDataSource.awmc
-      ? widget.awmcQQ.trim()
-      : _bindQQ;
 
   Future<void> _checkAuthorization() async {
     final qq = _bindQQ;
@@ -256,28 +214,22 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
     }
   }
 
-  Future<void> _loadRankingSettings() async {
-    final source = _currentDataSource;
-    final settings = await AccountStore.settingsFor(source);
-    if (!mounted || source != _currentDataSource) return;
-    setState(() {
-      _participateRankings =
-          settings[CacheKeyConstant.participateRankings] == true;
-      _showNickname = settings[CacheKeyConstant.showNickname] == true;
-      _showBriefProfile = settings[CacheKeyConstant.showBriefProfile] == true;
-    });
-  }
-
-  /// 加载上次保存的勾选集合；为空则保持空集（全不勾选）。
-  Future<void> _loadCheckedIds() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (!mounted) return;
-    final saved =
-        prefs.getStringList(CacheKeyConstant.advancedRefreshForceSources);
-    if (saved == null) return; // 首次使用，保持空集
-    setState(() {
-      _checkedIds = saved.toSet();
-    });
+  Future<void> _loadRankingSettings(Iterable<RefreshDataSource> sources) async {
+    await Future.wait(sources.map((source) async {
+      try {
+        final settings = await AccountStore.settingsFor(source);
+        if (!mounted || _rankingSettings.containsKey(source)) return;
+        setState(() {
+          _rankingSettings[source] = (
+            participate: settings[CacheKeyConstant.participateRankings] == true,
+            nickname: settings[CacheKeyConstant.showNickname] == true,
+            brief: settings[CacheKeyConstant.showBriefProfile] == true,
+          );
+        });
+      } catch (error) {
+        debugPrint('读取 ${source.key} 的排行榜隐私设置失败：$error');
+      }
+    }));
   }
 
   Future<void> _loadAllValidities() async {
@@ -331,7 +283,7 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
   }
 
   Future<RefreshDataRequest?> collectRequest({bool validate = true}) async {
-    await _settingsReady;
+    await Future.wait([_settingsReady, _rankingSettingsReady]);
     if (!mounted) return null;
     // 同步表单先收集配置；缺少刷新授权只影响同步后的刷新，不阻止成绩上传。
     if (validate) {
@@ -373,45 +325,59 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
           return null;
         }
       }
-      // 离线检查
-      final isOnline = await ConnectivityService().hasConnection();
-      if (!isOnline) {
-        if (mounted) {
-          AppToast.show(
-              context.l10n.flowCannotRefreshWithoutAConnectionConnectAnd,
-              duration: Duration(seconds: 3),
-              tone: AppToastTone.error);
-        }
-        return null;
-      }
-      if (!mounted) return null;
     }
 
-    // 持久化本次勾选，下次打开对话框时自动恢复
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(
-      CacheKeyConstant.advancedRefreshForceSources,
-      _checkedIds.toList(),
-    );
+    return _requestFor(_currentDataSource, _selectedCacheIds);
+  }
 
-    final request = RefreshDataRequest(
-      dataSource: _currentDataSource,
-      qq: _activeQq,
+  Set<String> get _selectedCacheIds =>
+      _forceRefresh ? Set<String>.unmodifiable(_checkedIds) : const {};
+
+  Future<Map<RefreshDataSource, RefreshDataRequest>> collectSyncRequests(
+      Set<RefreshDataSource> sources) async {
+    await Future.wait([_settingsReady, _rankingSettingsReady]);
+    if (!mounted) return const {};
+    final cacheIds = _selectedCacheIds;
+    return {
+      for (final source in sources) source: _requestFor(source, cacheIds)
+    };
+  }
+
+  RefreshDataRequest _requestFor(
+      RefreshDataSource source, Set<String> cacheIds) {
+    final settings = _rankingSettings[source];
+    return RefreshDataRequest(
+      dataSource: source,
+      qq: source == RefreshDataSource.awmc ? widget.awmcQQ.trim() : _bindQQ,
       authCode: '',
-      participateRankings: _participateRankings,
-      showNickname: _showNickname,
-      showBriefProfile: _showBriefProfile,
-      forceFullRefresh: false, // 高级模式不依赖此字段
-      forceSourceIds: Set<String>.from(_checkedIds),
-      useSavedAuthorization: _currentDataSource == RefreshDataSource.luoxue &&
-          _hasSavedLuoXueToken,
+      participateRankings: settings?.participate ?? false,
+      showNickname: settings?.nickname ?? false,
+      showBriefProfile: settings?.brief ?? false,
+      forceFullRefresh: false,
+      forceSourceIds: cacheIds,
+      useSavedAuthorization:
+          source == RefreshDataSource.luoxue && _hasSavedLuoXueToken,
     );
-    return request;
   }
 
   Future<void> _onConfirm() async {
-    final request = await collectRequest();
-    if (request != null && mounted) Navigator.of(context).pop(request);
+    final route = ModalRoute.of(context);
+    if (_confirming || route == null || !route.isCurrent) return;
+    setState(() => _confirming = true);
+    try {
+      final request = await collectRequest();
+      if (request != null && mounted && route.isCurrent) {
+        route.navigator!.pop(request);
+      }
+    } catch (error) {
+      debugPrint('读取刷新设置失败: $error');
+      if (mounted && ModalRoute.of(context)?.isCurrent == true) {
+        AppToast.show(context.l10n.flowCouldNotRefreshData,
+            tone: AppToastTone.error);
+      }
+    } finally {
+      if (mounted && route.isActive) setState(() => _confirming = false);
+    }
   }
 
   // ====================================================================
@@ -424,7 +390,7 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
       return _buildPanelContent(context);
     }
     return AppAlertDialog(
-      title: Text(context.l10n.featureAdvancedRefresh),
+      title: Text(context.l10n.featureRefreshCachedData),
       content: SizedBox(
         width: 520,
         child: SingleChildScrollView(
@@ -433,32 +399,80 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () {
+            final route = ModalRoute.of(context);
+            if (route != null && route.isCurrent) route.navigator!.pop();
+          },
           child: Text(context.l10n.featureCancel),
         ),
         TextButton(
-          onPressed: _onConfirm,
-          child: Text(context.l10n.flowConfirm),
+          onPressed: _confirming ? null : _onConfirm,
+          child: Text(_confirming
+              ? context.l10n.flowLoading2
+              : context.l10n.flowConfirm),
         ),
       ],
     );
   }
 
   Widget _buildPanelContent(BuildContext context) {
-    final brightness = Theme.of(context).brightness;
+    final syncSources = widget.syncSources;
+    if (syncSources != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildCacheSourceSection(),
+          AppDialogAnimatedHeight(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final source in RefreshDataSource.values)
+                  if (syncSources.contains(source))
+                    Column(
+                      key: ValueKey(source),
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const Divider(),
+                        Text(source.displayName,
+                            style: Theme.of(context).textTheme.titleSmall),
+                        const SizedBox(height: 8),
+                        _buildAccountOptions(source),
+                        _buildRankingOptions(source),
+                      ],
+                    ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (!widget.embedded) _buildDataSourceRow(),
         if (!widget.embedded) const SizedBox(height: 12),
-        if (_currentDataSource == RefreshDataSource.shuiyu)
-          _buildShuiyuPanel(brightness),
-        if (_currentDataSource == RefreshDataSource.luoxue)
-          _buildLuoXuePanel(brightness),
-        if (_currentDataSource == RefreshDataSource.awmc)
-          _buildAwmcPanel(brightness),
-        _buildRankingOptions(brightness),
-        const SizedBox(height: 16),
+        ClipRect(
+          child: AnimatedSize(
+            duration:
+                AppDesignTokens.motion(context, AppDesignTokens.mediumMotion),
+            curve: AppDesignTokens.emphasizedCurve,
+            alignment: Alignment.topCenter,
+            child: FadeSwitcher(
+              value: _currentDataSource,
+              sizeFollowsCurrent: true,
+              alignment: AlignmentDirectional.topStart,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildAccountOptions(_currentDataSource),
+                  const SizedBox(height: 16),
+                  _buildRankingOptions(_currentDataSource),
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
         _buildCacheSourceSection(),
       ],
     );
@@ -476,26 +490,28 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
           values: RefreshDataSource.values,
           value: _currentDataSource,
           label: (source) => context.featureText(source.shortDisplayName),
-          onChanged: (source) {
-            // 只选「本次要刷新的数据源」；真正的切换由 executeAdvancedRefreshData
-            // 里的 prepareForRefresh 完成，避免活动槽与数据源不一致。
-            setState(() {
-              _currentDataSource = source;
-            });
-            _loadRankingSettings();
-          },
+          onChanged: _confirming
+              ? null
+              : (source) {
+                  // 这里只选本次请求的数据源，提交后才切换活动账号。
+                  setState(() {
+                    _currentDataSource = source;
+                    _rankingSettings.remove(source);
+                    _rankingSettingsReady = _loadRankingSettings([source]);
+                  });
+                },
         ),
       ],
     );
   }
 
   /// AWMC NET（net.wmc.pub）面板：只显示独立绑定入口保存的 QQ。
-  Widget _buildAwmcPanel(Brightness brightness) => Text(widget.awmcQQ.isEmpty
+  Widget _buildAwmcPanel() => Text(widget.awmcQQ.isEmpty
       ? context.l10n.accountLinkAWMCFirst
       : '${context.l10n.flowQQID}：${widget.awmcQQ}');
 
   /// 水鱼面板：整个委托给共享的 [DivingFishAccountSection]（同 RefreshDataDialog）。
-  Widget _buildShuiyuPanel(Brightness brightness) {
+  Widget _buildShuiyuPanel() {
     return DivingFishAccountSection(
       state: resolveDivingFishQqState(
         loggedIn: widget.hasDivingFishLogin,
@@ -513,37 +529,74 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
     );
   }
 
-  Widget _buildLuoXuePanel(Brightness brightness) => Text(_hasSavedLuoXueToken
+  Widget _buildLuoXuePanel() => Text(_hasSavedLuoXueToken
       ? context.l10n.flowLXNSAuthorizationSavedItRenewsAutomaticallyNo
       : context.l10n.accountAuthorizeLXNSFirst);
 
-  Widget _buildRankingOptions(Brightness brightness) {
-    return Column(
-      children: [
-        const SizedBox(height: 16),
-        RankingPrivacyOptions(
-            participate: _participateRankings,
-            showNickname: _showNickname,
-            showBriefProfile: _showBriefProfile,
-            divingFishSource:
-                _currentDataSource == RefreshDataSource.shuiyu,
-            dataSourceKey: _currentDataSource.key,
-            onChanged: (participate, nickname, brief) => setState(() {
-                  _participateRankings = participate;
-                  _showNickname = nickname;
-                  _showBriefProfile = brief;
-                })),
-      ],
+  Widget _buildAccountOptions(RefreshDataSource source) => switch (source) {
+        RefreshDataSource.shuiyu => _buildShuiyuPanel(),
+        RefreshDataSource.luoxue => _buildLuoXuePanel(),
+        RefreshDataSource.awmc => _buildAwmcPanel(),
+      };
+
+  Widget _buildRankingOptions(RefreshDataSource source) {
+    final settings = _rankingSettings[source];
+    return RankingPrivacyOptions(
+      key: ValueKey(source),
+      participate: settings?.participate ?? false,
+      showNickname: settings?.nickname ?? false,
+      showBriefProfile: settings?.brief ?? false,
+      divingFishSource: source == RefreshDataSource.shuiyu,
+      dataSourceKey: source.key,
+      onChanged: (participate, nickname, brief) {
+        if (widget.syncSources == null && source != _currentDataSource) return;
+        setState(() {
+          _rankingSettings[source] = (
+            participate: participate,
+            nickname: nickname,
+            brief: brief,
+          );
+        });
+      },
     );
   }
 
-  /// 新增：13 行"强制刷新缓存数据"列表。
+  /// 「强制刷新」开关 + 展开后的缓存源选择列表（默认收起）。
   Widget _buildCacheSourceSection() {
     final brightness = Theme.of(context).brightness;
     final mutedColor = AppColors.greyHint(brightness);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        CheckboxListTile(
+          title: Text(context.l10n.flowForceFullRefreshIgnoreStaticCaches),
+          value: _forceRefresh,
+          onChanged: (value) {
+            setState(() {
+              _forceRefresh = value ?? false;
+              // 每次勾选都从全选开始，用户再按需取消。
+              if (_forceRefresh) {
+                _checkedIds
+                  ..clear()
+                  ..addAll(CacheSourceRegistry.all.map((s) => s.id));
+              }
+            });
+          },
+          controlAffinity: ListTileControlAffinity.leading,
+        ),
+        AnimatedReveal(
+          visible: _forceRefresh,
+          child: _buildCacheSourceList(mutedColor),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCacheSourceList(Color mutedColor) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 4),
         Row(
           children: [
             Expanded(

@@ -15,7 +15,7 @@ enum RankingGuardState { normal, frozen, blacklisted }
 /// 排行榜上传没有完成的原因类别，决定独立对话框的语气。
 enum RankingUploadIssue { rejected, frozen, blacklisted, upgradeRequired, failed }
 
-/// 排行榜上传没有完成。成绩本身已经刷新并保存，只是排行榜没有更新，
+/// 排行榜上传没有全部完成。成绩本身已经刷新并保存，
 /// 所以由独立的「排行榜上传未完成」对话框展示，不当作刷新失败。
 class RankingUploadException implements Exception {
   /// 已本地化的具体原因。

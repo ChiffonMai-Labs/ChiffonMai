@@ -26,7 +26,6 @@ import 'package:my_first_flutter_app/utils/SecureCredentialStore.dart';
 import 'package:my_first_flutter_app/utils/ThemeManager.dart';
 import 'package:my_first_flutter_app/utils/UpdateNotifier.dart';
 import 'package:my_first_flutter_app/utils/UserProfileNotifier.dart';
-import 'package:my_first_flutter_app/service/ConnectivityService.dart';
 import 'package:my_first_flutter_app/widgets/PortablePlayerBadge.dart';
 import 'package:my_first_flutter_app/utils/NavigationPreferences.dart';
 import 'service/AccountSwitchService.dart';
@@ -136,10 +135,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   void _startMainBackgroundServices() {
     if (!mounted || _backgroundServicesStarted) return;
     setState(() => _backgroundServicesStarted = true);
-    // 主界面已呈现后再开启轮询、更新和导入监听，不与首次引导争用平台线程。
+    // 主界面已呈现后再启动后台服务，避免与首次引导争用平台线程。
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      ConnectivityService().start();
       unawaited(PlayerExperienceService.instance.start());
       unawaited(_initFileOpenHandling());
       _checkUpdateForBadge();
@@ -221,6 +219,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   ///
   /// 刻意**不 await**：检查要联网，不能拖慢启动。
   void _checkUpdateForBadge() {
+    if (LZYCheckUpdateManager.usesTestFlight) return;
     unawaited(() async {
       try {
         final info = await LZYCheckUpdateManager().checkUpdate();

@@ -4,10 +4,12 @@ import 'AppTaskActivity.dart';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:media_scanner/media_scanner.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../widgets/AppDialogs.dart';
 import '../widgets/AppToast.dart';
 import '../utils/AppDesignTokens.dart';
@@ -24,6 +26,31 @@ import '../utils/AppDesignTokens.dart';
 ///   4. 兜底：应用文档目录 `ChiffonMai`（iOS / 权限全部失败时）
 class ExportPathUtil {
   ExportPathUtil._();
+
+  static bool get supportsOpeningFolder =>
+      Platform.isAndroid ||
+      Platform.isWindows ||
+      Platform.isMacOS ||
+      Platform.isLinux;
+
+  /// 打开实际保存位置的父目录，保留用户自定义的导出路径。
+  static Future<bool> openContainingFolder(String filePath) async {
+    if (!supportsOpeningFolder || filePath.startsWith('content://')) {
+      return false;
+    }
+    final folder = File(filePath).absolute.parent;
+    try {
+      if (Platform.isAndroid) {
+        return await const MethodChannel('com.example.app/export_files')
+                .invokeMethod<bool>('openFolder', {'path': folder.path}) ??
+            false;
+      }
+      return await launchUrl(folder.uri, mode: LaunchMode.externalApplication);
+    } on Exception catch (error) {
+      debugPrint('[ExportPathUtil] 打开文件夹失败: $error');
+      return false;
+    }
+  }
 
   /// 所有导出产物统一收纳在这个名字的文件夹下，避免污染用户 Download 根目录。
   static const String appFolderName = 'ChiffonMai';

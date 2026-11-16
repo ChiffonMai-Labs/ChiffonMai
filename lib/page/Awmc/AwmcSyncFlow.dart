@@ -18,7 +18,7 @@ import '../../widgets/AppToast.dart';
 import '../../widgets/SyncScoreDialogs.dart'
     show showDivingFishSyncInputDialog, showLuoXueSyncInputDialog;
 import '../../widgets/RefreshDataDialog.dart'
-    show RefreshDataRequest, RefreshDataSource;
+    show RefreshDataRequest, RefreshDataSource, SharedRefreshData;
 
 /// 「通过 AWMC 网关同步成绩」的目标平台。
 enum AwmcSyncTarget {
@@ -216,6 +216,7 @@ class AwmcSyncFlow {
     required String qrCode,
     required AwmcSyncTarget target,
     RefreshDataRequest? refreshRequest,
+    SharedRefreshData? sharedRefresh,
     void Function(String label)? onBusy,
     void Function(double progress, String text)? onProgress,
     VoidCallback? onIdle,
@@ -235,6 +236,7 @@ class AwmcSyncFlow {
         target: target,
         credential: credential,
         refreshRequest: refreshRequest,
+        sharedRefresh: sharedRefresh,
         onBusy: onBusy,
         onProgress: onProgress,
       );
@@ -267,6 +269,7 @@ class AwmcSyncFlow {
     required AwmcSyncTarget target,
     required String credential,
     RefreshDataRequest? refreshRequest,
+    SharedRefreshData? sharedRefresh,
     void Function(String label)? onBusy,
     void Function(double progress, String text)? onProgress,
     VoidCallback? onIdle,
@@ -303,7 +306,7 @@ class AwmcSyncFlow {
     stopwatch.stop();
     String? refreshError;
     if (result.ok) {
-      refreshError = await refresh.run(onProgress: (p, text) {
+      refreshError = await refresh.run(sharedRefresh: sharedRefresh, onProgress: (p, text) {
         onBusy?.call(text);
         onProgress?.call(.7 + p * .003, text);
       });

@@ -107,7 +107,7 @@ extension _SongInfoLoaders on _SongInfoPageState {
       debugPrint('预读另一种谱面失败: $error');
       _preloadedSong = null;
     }
-    if (!mounted) return;
+    if (!mounted || _difficultyRememberedOnPop) return;
     _update(() => _songSwitching = false);
     widget.onSwitchSong(songId, levelIndex);
   }
@@ -120,22 +120,62 @@ extension _SongInfoLoaders on _SongInfoPageState {
     _tagSongsData = result['tagSongsData'];
   }
 
+  int get _availableDifficultyCount {
+    final levels = _songData?['level'];
+    final charts = _songData?['charts'];
+    return levels is List && charts is List
+        ? math.min(levels.length, charts.length)
+        : 0;
+  }
+
+  void _rememberCurrentDifficulty(String songId) {
+    final song = _songData;
+    if (_isLoading ||
+        song == null ||
+        song['id']?.toString() != songId ||
+        _currentDiffIndex >= _availableDifficultyCount) {
+      return;
+    }
+    final title = song['basic_info']?['title'] ?? song['title'] ?? songId;
+    unawaited(SongDetailPreferences.instance.rememberDifficulty(
+      songId,
+      (
+        title: title.toString(),
+        type: song['type']?.toString() ?? '',
+        index: _currentDiffIndex,
+      ),
+    ));
+  }
+
+  void _applyOpeningDifficulty() {
+    _currentDiffIndex = SongDetailPreferences.instance.openingDifficulty(
+      widget.songId,
+      chartCount: _availableDifficultyCount,
+      specified: widget.isDefaultLevelIndex ? null : widget.initialLevelIndex,
+      isUtage: ChartDifficulty.isUtageSong(widget.songId,
+          type: _songData?['type']?.toString()),
+    );
+  }
+
   /// 歌曲已换：清掉只属于旧歌的结果，再按新歌重新加载。
   void _onSongChanged(String previousSongId) {
+    _rememberCurrentDifficulty(previousSongId);
     _songGeneration++;
     BiliSearchService().cancel();
     final preloaded = _preloadedSong;
-    if (preloaded != null) _applySongResult(preloaded);
-    final levels = _songData?['level'];
-    final count = levels is List ? levels.length : 0;
-    final target = widget.initialLevelIndex;
-    _currentDiffIndex = count == 0 ? 0 : target.clamp(0, count - 1).toInt();
+    if (preloaded != null) {
+      _applySongResult(preloaded);
+      _applyOpeningDifficulty();
+    } else {
+      _isLoading = true;
+    }
     _alternativeSongId = previousSongId;
     _maidataNoteCounts = {};
     _maidataBreakCounts = {};
     _maidataProtectionStats = {};
     _maidataBpmByDiffIndex = {};
     _maidataBpmChangesByDiffIndex = {};
+    _maidataInoteByDiffIndex = {};
     _maidataDecodedSuccessfully = false;
     _referenceDurationSeconds = null;
     _referenceDurationLoading = false;
@@ -181,33 +221,18 @@ extension _SongInfoLoaders on _SongInfoPageState {
   Future<void> _loadData() async {
     final stopwatch = Stopwatch()..start();
     try {
-      final applyDefault =
-          widget.isDefaultLevelIndex && !_defaultDifficultyApplied;
       // 偏好读取与本地歌曲、成绩同时准备，显示页面前再应用最终难度。
-      final preferenceLoad =
-          applyDefault ? SongDetailPreferences.instance.load() : null;
+      final preferenceLoad = SongDetailPreferences.instance.load();
       // 使用SongInfoService加载数据
       final preloaded = _preloadedSong;
       _preloadedSong = null;
       final result = preloaded ??
           await SongInfoService()
               .loadData(widget.songId, includeSupplementaryData: false);
-      if (preferenceLoad != null) await preferenceLoad;
+      await preferenceLoad;
       if (!mounted || _isStaleSongLoad) return;
-      if (applyDefault) {
-        _currentDiffIndex = SongDetailPreferences.instance.difficulty;
-        _defaultDifficultyApplied = true;
-      }
       _applySongResult(result);
-
-      // 在加载评分、视频和成绩前确定有效难度；宴谱不套用普通谱面的四档偏好。
-      final levels = _songData?['level'];
-      if (applyDefault &&
-          ChartDifficulty.isUtageSong(widget.songId,
-              type: _songData?['type']?.toString())) _currentDiffIndex = 0;
-      _currentDiffIndex = levels is List && levels.isNotEmpty
-          ? _currentDiffIndex.clamp(0, levels.length - 1).toInt()
-          : 0;
+      if (_isLoading) _applyOpeningDifficulty();
     } catch (e) {
       debugPrint('加载数据失败: $e');
     } finally {
@@ -747,7 +772,7 @@ extension _SongInfoLoaders on _SongInfoPageState {
         onInoteParsed: (_) {},
       );
       // 离开页面后缓存仍可保存，但不能再刷新已销毁的页面。
-      if (!mounted) return;
+      if (!mounted || _isStaleSongLoad) return;
 
       // 日志：输出当前歌曲ID
       debugPrint('[MaidataDecode] 正在解析歌曲ID: ${widget.songId}');
@@ -757,6 +782,7 @@ extension _SongInfoLoaders on _SongInfoPageState {
         debugPrint('[MaidataDecode] maidata内容长度: ${maidataContent.length}');
 
         MaidataData maidata = MaidataDecodeUtil.decode(maidataContent);
+        final playbackFile = SimaiFile(maidataContent);
 
         // 日志：输出解析后的chart数量
         debugPrint('[MaidataDecode] 解析出 ${maidata.charts.length} 个chart');
@@ -766,6 +792,7 @@ extension _SongInfoLoaders on _SongInfoPageState {
         final newProtectionStats = <int, NoteStats>{};
         Map<int, String> newBpmByDiffIndex = {};
         final newBpmChanges = <int, List<double>>{};
+        final newInotes = <int, String>{};
         for (ChartData chart in maidata.charts) {
           // 难度索引转换：maidata的difficultyIndex是1-6，对应界面显示的0-4（跳过EASY）
           int index = chart.difficultyIndex - 2; // 转换为0-4
@@ -774,17 +801,21 @@ extension _SongInfoLoaders on _SongInfoPageState {
           debugPrint(
               '[MaidataDecode] chart[$index] difficultyIndex=${chart.difficultyIndex}, stats=${chart.stats}, breakStats=${chart.breakStats}');
 
-          final bpm = _parseMaidataBpmForChart(maidata, chart);
+          final inote = playbackFile.getValue('inote_${chart.difficultyIndex}') ??
+              chart.inote;
+          final changes = ChartBpmInfo.parse(inote);
+          final bpm = _formatBpmRange(changes);
           debugPrint(
               '[MaidataDecode] chart[$index] inoteLength=${chart.inote.length}, bpm=$bpm');
-          if (bpm != null && index >= 0 && index <= 5) {
-            newBpmByDiffIndex[index] = bpm;
-            newBpmChanges[index] = _bpmChangesForChart(maidata, chart);
-            // UTAGE 的 maidata 通常使用 difficultyIndex=7，页面仍以第一个
-            // 难度槽显示，所以同步写入索引 0。
-            if (widget.songId.length == 6 && index == 5) {
-              newBpmByDiffIndex[0] = bpm;
-              newBpmChanges[0] = newBpmChanges[index]!;
+          if (inote.isNotEmpty && index >= 0 && index <= 5) {
+            // UTAGE 的 inote_7 对应详情页的第一个难度槽。
+            final slots = [index, if (widget.songId.length == 6 && index == 5) 0];
+            for (final slot in slots) {
+              newInotes[slot] = inote;
+              if (bpm != null) {
+                newBpmByDiffIndex[slot] = bpm;
+                newBpmChanges[slot] = changes;
+              }
             }
           }
 
@@ -845,13 +876,14 @@ extension _SongInfoLoaders on _SongInfoPageState {
         // 更新状态并刷新界面
         if (newNoteCounts.isNotEmpty ||
             newBreakCounts.isNotEmpty ||
-            newBpmByDiffIndex.isNotEmpty) {
+            newInotes.isNotEmpty) {
           _update(() {
             _maidataNoteCounts = newNoteCounts;
             _maidataBreakCounts = newBreakCounts;
             _maidataProtectionStats = newProtectionStats;
             _maidataBpmByDiffIndex = newBpmByDiffIndex;
             _maidataBpmChangesByDiffIndex = newBpmChanges;
+            _maidataInoteByDiffIndex = newInotes;
             _maidataDecodedSuccessfully = true;
           });
         }
@@ -865,21 +897,6 @@ extension _SongInfoLoaders on _SongInfoPageState {
       // 获取失败保留原来的统计兜底，不打断详情页。
       debugPrint('[MaidataDecode] 加载歌曲 ${widget.songId} 的统计失败: $e');
     }
-  }
-
-  /// 从指定难度的 inote 中提取 `(数字或小数)` BPM 标记。
-  ///
-  /// 同一张谱面可能有多个 BPM：全部相同时显示单值，否则显示最小值-最大值。
-  /// 没有合法标记时返回 null，让页面继续使用曲库中的默认 BPM。
-  List<double> _parseBpmChanges(String inote) => ChartBpmInfo.parse(inote);
-
-  List<double> _bpmChangesForChart(MaidataData maidata, ChartData chart) {
-    final values = _parseBpmChanges(chart.inote);
-    if (values.isNotEmpty) return values;
-    final match =
-        RegExp('&inote_${chart.difficultyIndex}=([\\s\\S]*?)(?=\\r?\\n&|\$)')
-            .firstMatch(maidata.rawContent);
-    return _parseBpmChanges(match?.group(1) ?? '');
   }
 
   String _formatBpm(double value) => value == value.roundToDouble()
@@ -907,16 +924,17 @@ extension _SongInfoLoaders on _SongInfoPageState {
         : _displayBpmWithBase(basicInfo);
   }
 
-  String? _parseMaidataBpmForChart(MaidataData maidata, ChartData chart) {
-    final values = _bpmChangesForChart(maidata, chart).toSet().toList()..sort();
+  String? _formatBpmRange(List<double> changes) {
+    final values = changes.toSet().toList()..sort();
     if (values.isEmpty) return null;
     return values.length == 1
         ? _formatBpm(values.single)
         : '${_formatBpm(values.first)}-${_formatBpm(values.last)}';
   }
 
-  Widget _valueWithDirection(String text, int? direction) {
-    final scheme = Theme.of(context).colorScheme;
+  Widget _valueWithDirection(String text, int? direction,
+      {BuildContext? displayContext}) {
+    final scheme = Theme.of(displayContext ?? context).colorScheme;
     final arrow = direction == null
         ? ''
         : direction > 0

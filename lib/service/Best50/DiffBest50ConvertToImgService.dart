@@ -1,5 +1,4 @@
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
-import 'dart:async';
 import 'ThunderBest50Export.dart';
 import 'dart:io';
 import 'dart:typed_data';
@@ -31,8 +30,10 @@ class DiffBest50ConvertToImg {
       int? jpegQuality,
       bool thunderMode = false,
       bool thunderVertical = true,
+      Best50ExportBackground background = Best50ExportBackground.none,
       ExportImageTheme theme = ExportImageTheme.light}) async {
     OverlayEntry? overlayEntry;
+    var overlayInserted = false;
     try {
       debugPrint('=== STARTING DIFF IMAGE CONVERSION ===');
       debugPrint(
@@ -55,6 +56,7 @@ class DiffBest50ConvertToImg {
             currentMode: currentMode,
             thunderMode: thunderMode,
             thunderVertical: thunderVertical,
+            background: background,
             theme: theme),
       );
       final exportWidth = thunderMode
@@ -76,15 +78,16 @@ class DiffBest50ConvertToImg {
       );
 
       // 预加载图片资源
-      await _preloadImages(context);
+      await background.precache(context);
       debugPrint('Images preloaded');
 
       // 将OverlayEntry添加到widget树中
       Overlay.of(context).insert(overlayEntry);
+      overlayInserted = true;
       debugPrint('Overlay entry inserted');
 
       // 等待渲染完成（使用WidgetsBinding确保所有帧都已处理）
-      await _waitForRender();
+      await ImageEncodeUtil.waitForRender();
       debugPrint('Render wait completed');
 
       // 创建一个RenderRepaintBoundary
@@ -93,6 +96,7 @@ class DiffBest50ConvertToImg {
       if (boundary == null) {
         debugPrint('Error: RenderRepaintBoundary not found');
         overlayEntry.remove();
+        overlayInserted = false;
         return null;
       }
       debugPrint('RenderRepaintBoundary found successfully');
@@ -111,6 +115,7 @@ class DiffBest50ConvertToImg {
 
       // 立即移除Overlay，避免占用资源
       overlayEntry.remove();
+      overlayInserted = false;
 
       // 优先使用相册目录（需要存储权限）
       Directory? directory;
@@ -172,7 +177,6 @@ class DiffBest50ConvertToImg {
 
       if (directory == null) {
         debugPrint('Error: No storage directory found');
-        overlayEntry.remove();
         return null;
       }
 
@@ -211,7 +215,7 @@ class DiffBest50ConvertToImg {
       return file;
     } catch (e) {
       debugPrint('Error converting to image: $e');
-      overlayEntry?.remove();
+      if (overlayInserted) overlayEntry?.remove();
       return null;
     }
   }
@@ -225,6 +229,7 @@ class DiffBest50ConvertToImg {
     int currentMode = 0,
     bool thunderMode = false,
     bool thunderVertical = true,
+    Best50ExportBackground background = Best50ExportBackground.none,
     ExportImageTheme theme = ExportImageTheme.light,
   }) =>
       _buildExportImageWidget(
@@ -235,6 +240,7 @@ class DiffBest50ConvertToImg {
         currentMode: currentMode,
         thunderMode: thunderMode,
         thunderVertical: thunderVertical,
+        background: background,
         theme: theme,
       );
 
@@ -247,6 +253,7 @@ class DiffBest50ConvertToImg {
       {int currentMode = 0,
       bool thunderMode = false,
       bool thunderVertical = true,
+      Best50ExportBackground background = Best50ExportBackground.none,
       ExportImageTheme theme = ExportImageTheme.light}) async {
     // 计算各项指标
     int diffRatingSum = diffBest50Data?['diffRatingSum'] ?? 0;
@@ -278,6 +285,7 @@ class DiffBest50ConvertToImg {
       final maxIdLength =
           diffSongs.any((song) => '${song['song_id']}'.length == 6) ? 6 : 5;
       return ThunderBest50Export.build(
+        background: background,
         theme: theme,
         title: context.l10n.featureFittedBest50,
         vertical: thunderVertical,
@@ -295,6 +303,7 @@ class DiffBest50ConvertToImg {
     double containerWidth = thunderMode && !thunderVertical ? 17000 : 1700;
 
     return ExportPage(
+      background: background,
       theme: theme,
       width: containerWidth,
       child: Column(
@@ -367,6 +376,7 @@ class DiffBest50ConvertToImg {
                 Expanded(
                   flex: 3,
                   child: ExportHeroBlock(
+                    centered: true,
                     label: context.l10n.flowFittedTotalRating,
                     value: '$diffRatingSum',
                     caption: context.l10n.flowAverageP02(
@@ -377,8 +387,10 @@ class DiffBest50ConvertToImg {
                 Expanded(
                   flex: 2,
                   child: ExportStatBlock(
+                    centered: true,
                     label: context.l10n.flowDifferenceFromBest50,
                     value: '${best50Diff > 0 ? '+' : ''}$best50Diff',
+                    valueSize: 40,
                     positive: best50Diff >= 0,
                   ),
                 ),
@@ -386,6 +398,7 @@ class DiffBest50ConvertToImg {
                 Expanded(
                   flex: 5,
                   child: ExportAchievementBlock(
+                    centered: true,
                     label: context.l10n.flowAverageAchievementDXScoreRate2,
                     achievement: diffBest50AchievementAverage,
                     scoreRate: diffBest50ScoreRateAverage,
@@ -441,6 +454,7 @@ class DiffBest50ConvertToImg {
       songName: songName,
       achievementRate: achievementRate,
       difficulty: difficulty,
+      isFitDiff: true,
       dxMode: dxMode,
       isUtage: isUtage,
       score: score,
@@ -454,6 +468,7 @@ class DiffBest50ConvertToImg {
       starsColor: starsColor,
       maxIdLength: maxIdLength,
       scale: 1.0,
+      forExport: true,
     );
   }
 
@@ -525,13 +540,10 @@ class DiffBest50ConvertToImg {
     // 计算maxScore
     int maxScore = _calculateMaxScore(songId, levelIndex, maimaiMusicData);
 
-    // 获取卡片颜色（与App一致，包括宴会场粉色）
-    Color cardColor;
-    if (songId.toString().length == 6) {
-      cardColor = Color(0xFFFFB3D1); // 宴会场粉色
-    } else {
-      cardColor = ColorUtil.getCardColor(levelIndex);
-    }
+    final cardColor = ColorUtil.getExportCardColor(
+      levelIndex,
+      isUtage: songId.toString().length == 6,
+    );
 
     // 判断是否为DX模式或UT模式
     bool dxMode = type == 'DX';
@@ -633,38 +645,6 @@ class DiffBest50ConvertToImg {
     }
   }
 
-  // 预加载所有需要的图片资源
-  static Future<void> _preloadImages(BuildContext context) async {
-    try {
-      // 预加载背景图片
-      final bgImageProvider = AssetImage('assets/bg/b50_bg.png');
-      await precacheImage(bgImageProvider, context);
-      debugPrint('Background image preloaded');
-    } catch (e) {
-      debugPrint('Error preloading images: $e');
-    }
-  }
-
-  // 等待渲染完成（使用WidgetsBinding确保所有帧都已处理）
-  static Future<void> _waitForRender() async {
-    // 使用addPostFrameCallback等待帧渲染完成
-    Completer<void> frameCompleter = Completer<void>();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      frameCompleter.complete();
-    });
-    await frameCompleter.future;
-
-    // 再等待一帧确保渲染稳定
-    Completer<void> frameCompleter2 = Completer<void>();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      frameCompleter2.complete();
-    });
-    await frameCompleter2.future;
-
-    // 额外等待一段时间确保所有异步操作完成（如图像加载）
-    await Future.delayed(Duration(milliseconds: 500));
-    debugPrint('Render wait completed');
-  }
 
   // 使用 MediaStore API 将图片保存到系统相册（Android 13+）
   static Future<String?> _saveImageToGallery(
@@ -739,6 +719,8 @@ class DiffBest50ConvertToImg {
 
   // 请求存储权限（图片与视频）
   static Future<PermissionStatus> _requestStoragePermission() async {
+    if (Platform.isIOS) return PermissionStatus.denied; // 先保存到应用文档。
+
     if (Platform.isAndroid) {
       debugPrint('Android platform detected');
 

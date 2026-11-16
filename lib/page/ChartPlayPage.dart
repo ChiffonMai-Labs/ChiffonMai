@@ -15,7 +15,9 @@ import 'package:my_first_flutter_app/utils/CoverUtil.dart';
 import 'package:my_first_flutter_app/utils/RefreshRateUtil.dart';
 import 'package:my_first_flutter_app/widgets/SmoothLinearProgressIndicator.dart';
 import 'package:my_first_flutter_app/widgets/MarqueeText.dart';
+import '../utils/AppTheme.dart';
 import '../widgets/AppToast.dart';
+import '../widgets/ChartPlayMetronome.dart';
 
 class ChartPlayPage extends StatefulWidget {
   final String maidataContent;
@@ -53,12 +55,15 @@ class _ChartPlayPageState extends State<ChartPlayPage>
   SimaiVideoExportOptions _videoExportOptions = const SimaiVideoExportOptions();
   double _chartOffset = 0.0;
   Key _playerKey = UniqueKey();
+  final _metronomeKey = GlobalKey();
   String? _audioUrl;
   List<String> _audioUrls = const <String>[];
   ImageProvider? _bgImageProvider;
   bool _ignoreAudioLookupResult = false;
   bool _isLeaving = false;
   bool _hasLoggedPlayerBuild = false;
+  bool _metronomeEnabled = true;
+  bool _metronomeSoundEnabled = false;
   Timer? _loadingDiagnosticTimer;
   Timer? _loadingTipTimer;
   String _loadingStage = appL10n.flowPreparingChart;
@@ -77,10 +82,7 @@ class _ChartPlayPageState extends State<ChartPlayPage>
     // 谱面播放对帧率敏感：Flutter 引擎不会主动向系统要高刷，
     // 不投这一票就会一直在「几秒 120 → 掉 60」之间反复。
     RefreshRateUtil.requestMax();
-    // 锁竖屏：见 AGENTS.md § 5.3。SimaiPlayerPage 在横屏会自动进入
-    // SystemUiMode.immersiveSticky，那个模式会把屏幕边缘右滑全部吃掉用来
-    // 显示系统栏，导致返回手势永远不会派发 back 事件给 App —— 锁竖屏让它
-    // 永远走非全屏分支，返回手势才能用。
+    // 默认竖屏，只有明确点击全屏才主动请求横屏。
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     // 提前把上次的侧边栏设置读进内存，等控制器建好就能直接套用
     ChartPlaySettingsStore().load();
@@ -161,7 +163,11 @@ class _ChartPlayPageState extends State<ChartPlayPage>
 
     // 同步抓取当前值并记进内存（防抖只推迟「写盘」，不推迟「记下来」），
     // 这样即使中途重建了控制器，也不会读到已经过期的旧设置。
-    ChartPlaySettingsStore().remember(ChartPlaySettings.capture(controller));
+    ChartPlaySettingsStore().remember(ChartPlaySettings.capture(
+      controller,
+      metronomeEnabled: _metronomeEnabled,
+      metronomeSoundEnabled: _metronomeSoundEnabled,
+    ));
 
     _settingsSaveDebounce?.cancel();
     _settingsSaveDebounce = Timer(const Duration(milliseconds: 600), () {
@@ -196,8 +202,10 @@ class _ChartPlayPageState extends State<ChartPlayPage>
     // _createController 是同步读内存里的设置的，如果这里不等，
     // 一旦 SharedPreferences 读得比建控制器慢，就会拿默认值建控制器，
     // 退出时再把默认值写回去——用户的设置就被默默清掉了。
-    await ChartPlaySettingsStore().load();
+    final settings = await ChartPlaySettingsStore().load();
     if (!mounted || _isLeaving) return;
+    _metronomeEnabled = settings.metronomeEnabled;
+    _metronomeSoundEnabled = settings.metronomeSoundEnabled;
     debugPrint('[ChartPlay] settings-ready');
 
     if (widget.loadAudio) {
@@ -594,19 +602,53 @@ E
       _hasLoggedPlayerBuild = true;
       debugPrint('[ChartPlay] SimaiPlayerPage-build');
     }
+    final appBarTheme = AppBarTheme.of(context);
+    final titleStyle = appBarTheme.titleTextStyle ??
+        Theme.of(context).textTheme.titleLarge ??
+        const TextStyle();
     return Scaffold(
       backgroundColor: Colors.black,
       body: _controller == null
           ? _buildLoadingView()
-          : SimaiPlayerPage(
-              key: _playerKey,
-              controller: _controller!,
-              gameplayController: _gameplayController,
-              videoExportMetadata: _videoMetadata,
-              videoExportOptions: _videoExportOptions,
-              onVideoExported: _onVideoExported,
-              onBack: _leavePlayerPage,
-              disposeController: false,
+          : AppBarTheme(
+              // 黑底上保留纯白的标题、返回键和操作按钮。
+              data: appBarTheme.copyWith(
+                iconTheme: (appBarTheme.iconTheme ?? const IconThemeData())
+                    .copyWith(color: Colors.white, opacity: 1),
+                actionsIconTheme:
+                    (appBarTheme.actionsIconTheme ?? const IconThemeData())
+                        .copyWith(color: Colors.white, opacity: 1),
+                titleTextStyle: titleStyle.merge(AppTheme.font(
+                  fontWeight: titleStyle.fontWeight,
+                  color: Colors.white,
+                )),
+                systemOverlayStyle: SystemUiOverlayStyle.light,
+              ),
+              child: SimaiPlayerPage(
+                key: _playerKey,
+                controller: _controller!,
+                gameplayController: _gameplayController,
+                videoExportMetadata: _videoMetadata,
+                videoExportOptions: _videoExportOptions,
+                onVideoExported: _onVideoExported,
+                onBack: _leavePlayerPage,
+                disposeController: false,
+                displayFont: AppTheme.font(fontWeight: FontWeight.w700),
+                beforeTimeline: ChartPlayMetronome(
+                  key: _metronomeKey,
+                  controller: _controller!,
+                  enabled: _metronomeEnabled,
+                  soundEnabled: _metronomeSoundEnabled,
+                  onEnabledChanged: (enabled) {
+                    setState(() => _metronomeEnabled = enabled);
+                    _scheduleSettingsSave();
+                  },
+                  onSoundChanged: (enabled) {
+                    setState(() => _metronomeSoundEnabled = enabled);
+                    _scheduleSettingsSave();
+                  },
+                ),
+              ),
             ),
     );
   }

@@ -4,12 +4,14 @@ import 'TrophyTitleBadge.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../api/ApiUrls.dart';
+import '../service/CommunityTravelAppearanceStore.dart';
 import '../utils/ApiClient.dart';
 import '../utils/ChartDifficulty.dart';
 import '../utils/CurrentDataSourceNotifier.dart';
 import '../utils/CoverUtil.dart';
 import '../utils/StringUtil.dart';
 import 'CommunityAvatar.dart';
+import 'CommunityTravelAppearancePreview.dart';
 import 'LxnsAssetImage.dart';
 import 'PlayerExperienceStrip.dart';
 import 'SmoothLinearProgressIndicator.dart';
@@ -119,7 +121,7 @@ class _RankingPlayerBriefSheetState extends State<RankingPlayerBriefSheet> {
         Uri.parse(
             '${ApiUrls.RankingsBaseUrl}/player/${Uri.encodeComponent(widget.playerId)}/brief'),
         timeout: const Duration(seconds: 15));
-    final body = jsonDecode(response.body) as Map;
+    final body = jsonDecode(utf8.decode(response.bodyBytes)) as Map;
     if (response.statusCode != 200 || body['success'] != true) {
       throw _BriefError(
           body['error']?.toString() ?? appL10n.flowBriefProfileUnavailable,
@@ -184,6 +186,9 @@ class RankingPlayerBriefContent extends StatelessWidget {
     final frame = _collection('frame');
     final plate = _collection('nameplate');
     final trophy = _collection('trophy');
+    final travel = _collection('travelAppearance');
+    final travelTeam = CommunityTravelAppearanceStore.parseTeam(travel?['members']);
+    final travelPartner = CommunityTravelAppearanceStore.parseCharacter(travel?['partner']);
     final frameId = frame?['id'] as int?;
     final plateId = plate?['id'] as int?;
     Widget missing(String label, IconData icon) => ColoredBox(
@@ -274,6 +279,10 @@ class RankingPlayerBriefContent extends StatelessWidget {
               Text(context.l10n.flowNoTitleSet,
                   style:
                       TextStyle(color: scheme.onSurfaceVariant, fontSize: 13)),
+            if (travelTeam != null || travelPartner != null) ...[
+              const SizedBox(height: 18),
+              CommunityTravelAppearancePreview(members: travelTeam, partner: travelPartner),
+            ],
             const SizedBox(height: 18),
             PlayerExperienceStrip(
                 data: Map<String, dynamic>.from(

@@ -34,6 +34,7 @@ enum RankingType {
   masterAvgAchievement, // MASTER/Re:MASTER平均达成排行榜
   expertAvgAchievement, // EXPERT平均达成排行榜
   bpmRanking, // BPM排行榜（可正反向切换）
+  songDuration, // 歌曲时长排行榜
   breakRatio, // 绝赞占总物量的比例
   difficultyGap, // 同曲 EXPERT→MASTER / MASTER→Re:MASTER 的官方定数差
   slideRatio, // SLIDE 占比，ST/DX/UT 均参与
@@ -144,6 +145,8 @@ class _SpecialRankingListPageState extends State<SpecialRankingListPage> {
         return _isReverse
             ? _service.getReverseExpertAvgAchievementRanking(limit: 100)
             : _service.getExpertAvgAchievementRanking(limit: 100);
+      case RankingType.songDuration:
+        return _service.getSongDurationRanking(reverse: _isReverse);
       case RankingType.bpmRanking:
         return _isReverse
             ? _service.getReverseBpmRanking(limit: 100)
@@ -192,6 +195,8 @@ class _SpecialRankingListPageState extends State<SpecialRankingListPage> {
         return context.l10n.flowEXPERTAverageAchievementRanking;
       case RankingType.bpmRanking:
         return context.l10n.flowBPMRanking;
+      case RankingType.songDuration:
+        return context.l10n.songDurationRanking;
     }
   }
 
@@ -222,6 +227,8 @@ class _SpecialRankingListPageState extends State<SpecialRankingListPage> {
         return Colors.purple;
       case RankingType.bpmRanking:
         return Colors.red;
+      case RankingType.songDuration:
+        return Theme.of(context).colorScheme.primary;
     }
   }
 
@@ -254,6 +261,9 @@ class _SpecialRankingListPageState extends State<SpecialRankingListPage> {
         return (value / 100).toStringAsFixed(2);
       case RankingType.bpmRanking:
         return value.toString();
+      case RankingType.songDuration:
+        final seconds = (value % 60).toString().padLeft(2, '0');
+        return '${value ~/ 60}:$seconds';
     }
   }
 
@@ -288,6 +298,8 @@ class _SpecialRankingListPageState extends State<SpecialRankingListPage> {
         return context.l10n.featureAverageAchievement;
       case RankingType.bpmRanking:
         return 'BPM';
+      case RankingType.songDuration:
+        return context.l10n.flowReferenceDuration;
     }
   }
 
@@ -414,6 +426,12 @@ class _SpecialRankingListPageState extends State<SpecialRankingListPage> {
                   dialogContext.l10n.flowRankBySongBPMOrderCanBe,
                   RankingType.bpmRanking,
                 ),
+                _buildDialogTile(
+                  brightness,
+                  dialogContext.l10n.songDurationRanking,
+                  dialogContext.l10n.songDurationRankingDescription,
+                  RankingType.songDuration,
+                ),
               ],
             ),
           ),
@@ -463,7 +481,9 @@ class _SpecialRankingListPageState extends State<SpecialRankingListPage> {
             MaterialPageRoute(
               builder: (context) => SongInfoPage(
                 songId: entry.songId,
-                initialLevelIndex: entry.difficultyIndex,
+                initialLevelIndex: _resultType == RankingType.songDuration
+                    ? null
+                    : entry.difficultyIndex,
               ),
             ),
           );
@@ -518,7 +538,8 @@ class _SpecialRankingListPageState extends State<SpecialRankingListPage> {
                             ],
                           ),
                         ),
-                      ] else if (_resultType != RankingType.bpmRanking) ...[
+                      ] else if (_resultType != RankingType.bpmRanking &&
+                          _resultType != RankingType.songDuration) ...[
                         const SizedBox(width: 4),
                         ChartDifficultyBadge(
                           levelIndex: entry.difficultyIndex,
@@ -645,9 +666,16 @@ class _SpecialRankingListPageState extends State<SpecialRankingListPage> {
               child: AnimatedChoiceBar<bool>(
                 values: const [false, true],
                 value: _isReverse,
-                label: (reverse) => reverse
-                    ? context.l10n.flowReverse
-                    : context.l10n.flowForward,
+                label: (reverse) {
+                  if (_currentRankingType == RankingType.songDuration) {
+                    return reverse
+                        ? context.l10n.songDurationShortestFirst
+                        : context.l10n.songDurationLongestFirst;
+                  }
+                  return reverse
+                      ? context.l10n.flowReverse
+                      : context.l10n.flowForward;
+                },
                 onChanged: (reverse) {
                   if (reverse == _isReverse) return;
                   setState(() => _isReverse = reverse);

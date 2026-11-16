@@ -8,7 +8,9 @@ import '../entity/LuoXue/Collection.dart';
 import '../utils/ApiClient.dart';
 import '../utils/CurrentDataSourceNotifier.dart';
 import '../utils/SecureCredentialStore.dart';
+import 'AccountStore.dart';
 import 'CommunityProfileAuthorization.dart';
+import 'CommunityTravelAppearanceStore.dart';
 import 'RankingList/RatingRankListService.dart';
 import 'RankingList/AvgRankingListService.dart';
 import 'RankingList/FittedRatingRankingListService.dart';
@@ -20,6 +22,8 @@ class AvatarSyncState {
   final String? playerId;
   final int avatarId, generation;
   final Map<String, dynamic>? nameplate, frame, trophy;
+  final List<dynamic>? travelTeam;
+  final Map<String, dynamic>? travelPartner;
   final String message;
   final bool pending;
   final AvatarSyncLevel level;
@@ -32,6 +36,8 @@ class AvatarSyncState {
       this.nameplate,
       this.frame,
       this.trophy,
+      this.travelTeam,
+      this.travelPartner,
       this.generation = 0,
       this.message = '装扮仅保存在本机',
       this.pending = false,
@@ -41,6 +47,8 @@ class AvatarSyncState {
         'nameplate': nameplate,
         'frame': frame,
         'trophy': trophy,
+        'travelTeam': travelTeam,
+        'travelPartner': travelPartner,
         'generation': generation
       };
 }
@@ -55,10 +63,13 @@ class CommunityAvatarStore extends ValueNotifier<AvatarSyncState> {
   static const _endpoint = 'https://chiffonmai.cloud/api/me/appearance';
   static const _legacyOwner = 'community_avatar_legacy_owner';
   static const _localKey = 'community_appearance_local_v1';
-  static const _fields = ['avatarId', 'nameplate', 'frame', 'trophy'];
+  static const _fields = [
+    'avatarId', 'nameplate', 'frame', 'trophy', 'travelTeam', 'travelPartner',
+  ];
   static String _key(String player) => 'community_avatar_v1_$player';
   Future<void> _writes = Future.value();
-  final Set<String> _syncing = {}, _resync = {};
+  final Map<String, Future<void>> _syncing = {};
+  final Set<String> _resync = {};
   Future<void>? _activationFuture;
   bool _activateAgain = false;
   String? _lastActivatedPlayer;
@@ -104,6 +115,8 @@ class CommunityAvatarStore extends ValueNotifier<AvatarSyncState> {
         nameplate: item('nameplate'),
         frame: item('frame'),
         trophy: item('trophy'),
+        travelTeam: entry['travelTeam'] is List ? entry['travelTeam'] as List : null,
+        travelPartner: item('travelPartner'),
         generation: entry['generation'] as int? ?? 0,
         pending: entry['pending'] == true,
         message: message,
@@ -277,11 +290,87 @@ class CommunityAvatarStore extends ValueNotifier<AvatarSyncState> {
           'name': item.name,
           if (item.color != null) 'color': item.color
         };
-  Future<void> _select(String field, dynamic choice) {
+  Future<void> _select(String field, dynamic choice) =>
+      _selectFields({field: choice});
+
+  Future<String> _travelAccountKey(String player) {
+    final [source, id] = player.split(':');
+    return AccountStore.accountKey(sourceKey: source, accountId: id);
+  }
+
+  Future<void> publishTravelAppearance(String accountKey, {
+    List<CommunityTravelMember>? members,
+    Collection? partner,
+  }) async {
+    await activate();
+    final player = value.playerId;
+    if (player == null || await _travelAccountKey(player) != accountKey ||
+        value.playerId != player) return;
+    await _selectFields({
+      if (members != null) 'travelTeam': members.map((member) => member.toJson()).toList(),
+      if (partner != null) 'travelPartner': _item(partner),
+    });
+  }
+
+  Future<String?> cabinetImportPlayer() async {
+    await activate();
+    final player = value.playerId;
+    if (player == null) return null;
+    final headers = await CommunityProfileAuthorization.ownerHeaders(player);
+    return _canSync(player, headers) && value.playerId == player ? player : null;
+  }
+
+  Future<({List<CommunityTravelMember>? members, Collection? partner})>
+      loadTravelAppearance(String accountKey) async {
+    final local = await CommunityTravelAppearanceStore(accountKey).load();
+    await activate();
+    final player = value.playerId;
+    if (player == null || await _travelAccountKey(player) != accountKey) {
+      return local;
+    }
+    await sync(player);
+    final state = value;
+    if (state.playerId != player) return local;
+    return (
+      members: CommunityTravelAppearanceStore.parseTeam(state.travelTeam) ??
+          local.members,
+      partner:
+          CommunityTravelAppearanceStore.parseCharacter(state.travelPartner) ??
+              local.partner,
+    );
+  }
+
+  Future<bool?> importCabinetAppearance(
+    String player, {
+    required int? avatarId,
+    required Map<String, Collection?> collectibles,
+    required List<CommunityTravelMember>? members,
+    required Collection? partner,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (await _activePlayer(prefs) != player || value.playerId != player) {
+      return null;
+    }
+    // 所有已确认的选项共用一笔待发记录和同一次云端提交。
+    await _selectFields({
+      if (avatarId != null && avatarId > 0) 'avatarId': avatarId,
+      for (final field in ['nameplate', 'frame', 'trophy'])
+        if (collectibles.containsKey(field)) field: _item(collectibles[field]),
+      if (members != null)
+        'travelTeam': members.map((member) => member.toJson()).toList(),
+      if (partner != null) 'travelPartner': _item(partner),
+    });
+    await sync(player);
+    final entry = _entry(prefs, player);
+    return entry['pending'] != true;
+  }
+
+  Future<void> _selectFields(Map<String, dynamic> choices) {
+    if (choices.isEmpty) return Future.value();
     final player = value.playerId,
         optimistic = {
           ...value.appearance,
-          field: choice,
+          ...choices,
           'pending': true,
           'generation': value.generation + 1
         };
@@ -291,9 +380,9 @@ class CommunityAvatarStore extends ValueNotifier<AvatarSyncState> {
       final prefs = await SharedPreferences.getInstance(),
           key = player == null ? _localKey : _key(player);
       final entry = player == null ? _read(prefs, key) : _entry(prefs, player);
-      final dirty = _dirty(entry)..add(field);
+      final dirty = _dirty(entry)..addAll(choices.keys);
       entry.addAll({
-        field: choice,
+        ...choices,
         'dirtyFields': dirty.toList(),
         'pending': true,
         'generation': optimistic['generation'],
@@ -321,7 +410,46 @@ class CommunityAvatarStore extends ValueNotifier<AvatarSyncState> {
       return int.tryParse('$local') == int.tryParse('$remote');
     }
     if (local == null || remote == null) return local == remote;
+    if (key == 'travelTeam') {
+      final before = CommunityTravelAppearanceStore.parseTeam(local);
+      final after = CommunityTravelAppearanceStore.parseTeam(remote);
+      if (before == null || after == null) return false;
+      for (var slot = 0; slot < before.length; slot++) {
+        if (before[slot].character.id != after[slot].character.id ||
+            before[slot].level != after[slot].level ||
+            before[slot].superAwakening != after[slot].superAwakening) return false;
+      }
+      return true;
+    }
     return local is Map && remote is Map && local['id'] == remote['id'];
+  }
+
+  Future<void> _restorePendingTravel(
+      SharedPreferences prefs, String player, Map<String, dynamic> remote) async {
+    final needsTeam = remote['travelTeam'] == null;
+    final needsPartner = remote['travelPartner'] == null;
+    if (!needsTeam && !needsPartner) return;
+    final local = await CommunityTravelAppearanceStore(await _travelAccountKey(player)).load();
+    await _queue(() async {
+      final entry = _entry(prefs, player);
+      final dirty = _dirty(entry);
+      final restored = {
+        if (needsTeam && !dirty.contains('travelTeam') && local.members != null)
+          'travelTeam': local.members!.map((member) => member.toJson()).toList(),
+        if (needsPartner && !dirty.contains('travelPartner') && local.partner != null)
+          'travelPartner': _item(local.partner),
+      };
+      if (restored.isEmpty) return;
+      dirty.addAll(restored.keys);
+      entry.addAll({
+        ...restored,
+        'pending': true,
+        'dirtyFields': dirty.toList(),
+        'generation': (entry['generation'] as int? ?? 0) + 1,
+      });
+      await _persist(prefs, _key(player), entry);
+      _publish(player, entry, appL10n.svcSyncingCommunityAppearance, AvatarSyncLevel.syncing);
+    });
   }
 
   Future<void> _invalidateProfileCaches(SharedPreferences prefs) async {
@@ -340,23 +468,29 @@ class CommunityAvatarStore extends ValueNotifier<AvatarSyncState> {
     profileChanges.notifyListeners();
   }
 
-  Future<void> sync(String player) async {
-    if (!_syncing.add(player)) {
+  static bool _canSync(String player, Map<String, String> headers) =>
+      headers.containsKey('Authorization') ||
+      headers.containsKey('X-Auto-Sync-Token') ||
+      (headers['X-Profile-Source'] == 'awmc' &&
+          player == 'awmc:${headers['X-Profile-QQ']}');
+
+  Future<void> sync(String player) {
+    final running = _syncing[player];
+    if (running != null) {
       _resync.add(player);
-      return;
+      return running;
     }
+    return _syncing[player] = _sync(player);
+  }
+
+  Future<void> _sync(String player) async {
     var rerun = false;
     try {
       await _writes;
       final prefs = await SharedPreferences.getInstance(),
           headers = await CommunityProfileAuthorization.ownerHeaders(player);
       var entry = _entry(prefs, player);
-      final hasAwmcQq = headers['X-Profile-Source'] == 'awmc' &&
-          headers['X-Profile-QQ'] != null &&
-          player == 'awmc:${headers['X-Profile-QQ']}';
-      if (!hasAwmcQq &&
-          !headers.containsKey('Authorization') &&
-          !headers.containsKey('X-Auto-Sync-Token')) {
+      if (!_canSync(player, headers)) {
         _publish(
             player, entry, appL10n.svcSavedOnThisDeviceOnlySignIn2, AvatarSyncLevel.localOnly);
         return;
@@ -366,16 +500,18 @@ class CommunityAvatarStore extends ValueNotifier<AvatarSyncState> {
           Uri.parse(_endpoint).replace(queryParameters: {'playerId': player}),
           headers: headers);
       if (get.statusCode != 200) {
+        debugPrint('[Appearance] 读取装扮失败: HTTP ${get.statusCode}');
         _publish(
             player, entry, _failure(get.statusCode), AvatarSyncLevel.error);
         return;
       }
-      final readBody = jsonDecode(get.body) as Map;
+      final readBody = jsonDecode(utf8.decode(get.bodyBytes)) as Map;
       if (readBody['success'] != true || readBody['data'] is! Map) {
         throw StateError('装扮读取未被确认');
       }
       var remote = Map<String, dynamic>.from(readBody['data'] as Map);
       if (remote['playerId'] != player) throw StateError('装扮账号不匹配');
+      await _restorePendingTravel(prefs, player, remote);
       await _writes;
       entry = _entry(prefs, player);
       if (entry['pending'] != true) {
@@ -406,7 +542,7 @@ class CommunityAvatarStore extends ValueNotifier<AvatarSyncState> {
                 'expectedProfileRevision': remote['profileRevision'].toString(),
                 for (final key in dirty) key: entry[key]
               }));
-          final body = jsonDecode(result.body) as Map;
+          final body = jsonDecode(utf8.decode(result.bodyBytes)) as Map;
           await _writes;
           final latest = _entry(prefs, player);
           if (result.statusCode == 409 && body['data'] is Map) {
@@ -418,6 +554,7 @@ class CommunityAvatarStore extends ValueNotifier<AvatarSyncState> {
           if (result.statusCode != 200 ||
               body['success'] != true ||
               body['data']?['playerId'] != player) {
+            debugPrint('[Appearance] 写入装扮失败: HTTP ${result.statusCode}');
             _publish(player, latest, _failure(result.statusCode),
                 AvatarSyncLevel.error);
             return;
@@ -456,7 +593,8 @@ class CommunityAvatarStore extends ValueNotifier<AvatarSyncState> {
         if (entry['pending'] == true)
           _publish(player, entry, appL10n.svcAppearanceWaitingToSyncTapToRetry, AvatarSyncLevel.pending);
       }
-    } catch (_) {
+    } catch (error) {
+      debugPrint('[Appearance] 社区装扮同步失败: ${error.runtimeType}');
       final prefs = await SharedPreferences.getInstance();
       _publish(
           player, _entry(prefs, player), appL10n.svcAppearanceWaitingToSyncTapToRetry, AvatarSyncLevel.error);

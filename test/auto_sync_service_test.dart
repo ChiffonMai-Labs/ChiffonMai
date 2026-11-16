@@ -213,7 +213,9 @@ void main() {
     }
     final payloads = <Map>[];
     ApiClient.debugClient = MockClient((request) async {
-      payloads.add(jsonDecode(request.body) as Map);
+      if (request.method == 'PUT' && request.url.path == '/api/auto-sync/task') {
+        payloads.add(jsonDecode(request.body) as Map);
+      }
       return http.Response('{"success":true,"task":{"enabled":true}}', 200);
     });
     for (final platform in SyncPlatform.values) {

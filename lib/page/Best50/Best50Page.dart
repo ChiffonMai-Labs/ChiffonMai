@@ -1153,6 +1153,8 @@ class _B50PageState extends State<B50Page> {
 
   // 请求存储权限
   Future<bool> _requestStoragePermission() async {
+    if (Platform.isIOS) return true; // 写入相册时由 PhotoKit 请求权限。
+
     debugPrint('Page: _requestStoragePermission called');
     debugPrint('Page: Platform.isAndroid = ${Platform.isAndroid}');
 
@@ -1233,6 +1235,7 @@ class _B50PageState extends State<B50Page> {
         exportingLabel:
             _isTheoreticalMode ? context.l10n.flowTheoreticalBest50 : 'Best50',
         enableThunderMode: true,
+        enableBest50Background: true,
         previewBuilder: (previewContext, previewQuality) =>
             B50ConvertToImg.buildPreviewWidget(
           previewContext,
@@ -1244,6 +1247,7 @@ class _B50PageState extends State<B50Page> {
           thunderMode: previewQuality.thunderMode,
           thunderVertical: previewQuality.thunderVertical,
           theme: previewQuality.theme,
+          background: previewQuality.background,
         ),
       );
       if (quality == null) return; // user cancelled
@@ -1265,6 +1269,7 @@ class _B50PageState extends State<B50Page> {
           isTheoreticalMode: isTheoretical,
           jpegQuality: quality.jpegQuality,
           theme: quality.theme,
+          background: quality.background,
           thunderMode: quality.thunderMode,
           thunderVertical: quality.thunderVertical,
         ),

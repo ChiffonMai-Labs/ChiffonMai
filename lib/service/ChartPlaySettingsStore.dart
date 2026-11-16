@@ -50,14 +50,16 @@ class ChartPlaySettings {
   final bool highlightExNotes;
   final bool showCornerInfo;
   final bool showDetailedPerformanceInfo;
+  final bool metronomeEnabled;
 
   // ---- 音频设置 ----
   final bool hitSoundEnabled;
+  final bool metronomeSoundEnabled;
   final double musicVolume;
   final int musicOffsetMs;
   final int hitSoundOffsetMs;
 
-  /// 默认值与 `SimaiPlayerController` 的初始值保持一致。
+  /// 首次进入谱面播放页时应用的默认设置。
   const ChartPlaySettings({
     this.mirrorMode = SimaiMirrorMode.none,
     this.backgroundMode = SimaiBackgroundMode.judgeLine,
@@ -69,17 +71,23 @@ class ChartPlaySettings {
     this.showHitEffects = true,
     this.centerDisplayMode = SimaiCenterDisplayMode.achievement,
     this.showAchievementRate = true,
-    this.highlightExNotes = false,
+    this.highlightExNotes = true,
     this.showCornerInfo = true,
     this.showDetailedPerformanceInfo = false,
+    this.metronomeEnabled = true,
     this.hitSoundEnabled = false,
+    this.metronomeSoundEnabled = false,
     this.musicVolume = 0.8,
     this.musicOffsetMs = 0,
     this.hitSoundOffsetMs = 0,
   });
 
   /// 读取控制器当前的全部设置。
-  factory ChartPlaySettings.capture(SimaiPlayerController c) {
+  factory ChartPlaySettings.capture(
+    SimaiPlayerController c, {
+    bool metronomeEnabled = true,
+    bool metronomeSoundEnabled = false,
+  }) {
     return ChartPlaySettings(
       mirrorMode: c.mirrorMode,
       backgroundMode: c.backgroundMode,
@@ -94,7 +102,9 @@ class ChartPlaySettings {
       highlightExNotes: c.highlightExNotes,
       showCornerInfo: c.showCornerInfo,
       showDetailedPerformanceInfo: c.showDetailedPerformanceInfo,
+      metronomeEnabled: metronomeEnabled,
       hitSoundEnabled: c.hitSoundEnabled,
+      metronomeSoundEnabled: metronomeSoundEnabled,
       musicVolume: c.musicVolume,
       musicOffsetMs: c.musicOffsetMs,
       hitSoundOffsetMs: c.hitSoundOffsetMs,
@@ -138,7 +148,9 @@ class ChartPlaySettings {
         'highlightExNotes': highlightExNotes,
         'showCornerInfo': showCornerInfo,
         'showDetailedPerformanceInfo': showDetailedPerformanceInfo,
+        'metronomeEnabled': metronomeEnabled,
         'hitSoundEnabled': hitSoundEnabled,
+        'metronomeSoundEnabled': metronomeSoundEnabled,
         'musicVolume': musicVolume,
         'musicOffsetMs': musicOffsetMs,
         'hitSoundOffsetMs': hitSoundOffsetMs,
@@ -172,7 +184,11 @@ class ChartPlaySettings {
       showCornerInfo: _bool(json['showCornerInfo'], fallback.showCornerInfo),
       showDetailedPerformanceInfo: _bool(json['showDetailedPerformanceInfo'],
           fallback.showDetailedPerformanceInfo),
+      metronomeEnabled:
+          _bool(json['metronomeEnabled'], fallback.metronomeEnabled),
       hitSoundEnabled: _bool(json['hitSoundEnabled'], fallback.hitSoundEnabled),
+      metronomeSoundEnabled:
+          _bool(json['metronomeSoundEnabled'], fallback.metronomeSoundEnabled),
       musicVolume:
           _clampDouble(json['musicVolume'], 0.0, 1.0, fallback.musicVolume),
       musicOffsetMs:
@@ -293,7 +309,11 @@ class ChartPlaySettingsStore {
   /// 读取控制器当前值并落盘。控制器为 null 时忽略。
   Future<void> saveFrom(SimaiPlayerController? controller) async {
     if (controller == null) return;
-    await save(ChartPlaySettings.capture(controller));
+    await save(ChartPlaySettings.capture(
+      controller,
+      metronomeEnabled: _settings.metronomeEnabled,
+      metronomeSoundEnabled: _settings.metronomeSoundEnabled,
+    ));
   }
 
   Future<void> save(ChartPlaySettings settings) async {

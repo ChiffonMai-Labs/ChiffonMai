@@ -6,6 +6,8 @@ import 'ExternalUrlPolicy.dart';
 import 'ExternalLaunchUtil.dart';
 import '../widgets/ErrorMessageDialog.dart';
 import '../widgets/AppDialogs.dart';
+import '../widgets/AppToast.dart';
+import '../service/AccountSwitchService.dart';
 import '../service/RankingList/RankingUploadGuard.dart';
 
 /// 刷新水鱼成绩失败时，统一给用户的交代。
@@ -25,12 +27,17 @@ Future<void> presentRefreshError(
   Object error, {
   String qq = '',
 }) async {
+  if (error is AccountUpdateBusy) {
+    AppToast.show(error.toString(), tone: AppToastTone.warning);
+    return;
+  }
   // 排行榜上传没有完成：成绩已经刷新保存，单独说明原因，不当作刷新失败
   if (error is RankingUploadException) {
     await showAppNoticeDialog(
       context,
       title: context.l10n.rankingUploadIncompleteTitle,
-      message: '${context.l10n.rankingUploadIncompleteLead}\n\n${error.message}',
+      message:
+          '${context.l10n.rankingUploadIncompleteLead}\n\n${error.message}',
       tone: switch (error.issue) {
         RankingUploadIssue.blacklisted => AppDialogTone.error,
         RankingUploadIssue.upgradeRequired => AppDialogTone.info,

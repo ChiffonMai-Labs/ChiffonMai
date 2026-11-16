@@ -94,6 +94,8 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
   // ───────────────────────── 导出 ─────────────────────────
 
   Future<bool> _requestStoragePermission() async {
+    if (Platform.isIOS) return true; // 写入相册时由 PhotoKit 请求权限。
+
     if (Platform.isAndroid) {
       final storage = await Permission.storage.status;
       final photos = await Permission.photos.status;
@@ -144,13 +146,15 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
       return;
     }
 
+    final title = context.l10n.featureIdealBest50;
     final quality = await ExportQualitySelector.show(
       context,
       estimatedPngSize: ImageEncodeUtil.estimatePngSize(
         songCount: _sdSongs.length + _dxSongs.length,
       ),
-      exportingLabel: context.l10n.featureIdealBest50,
+      exportingLabel: title,
       enableThunderMode: true,
+      enableBest50Background: true,
       previewBuilder: (previewContext, previewQuality) =>
           B50ConvertToImg.buildPreviewWidget(
         previewContext,
@@ -162,9 +166,11 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
         _sdSongs,
         _dxSongs,
         _maimaiMusicData,
+        title: title,
         thunderMode: previewQuality.thunderMode,
         thunderVertical: previewQuality.thunderVertical,
         theme: previewQuality.theme,
+        background: previewQuality.background,
       ),
     );
     if (!mounted || quality == null) return;
@@ -175,15 +181,17 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
       'charts': {'sd': _sdSongs, 'dx': _dxSongs},
     };
     BackgroundExport.run(
-      label: context.l10n.featureIdealBest50,
+      label: title,
       task: (exportContext) => B50ConvertToImg.convertToImage(
         exportContext,
         b50Data,
         _sdSongs,
         _dxSongs,
         _maimaiMusicData,
+        title: title,
         jpegQuality: quality.jpegQuality,
         theme: quality.theme,
+        background: quality.background,
         thunderMode: quality.thunderMode,
         thunderVertical: quality.thunderVertical,
       ),

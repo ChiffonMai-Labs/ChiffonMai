@@ -263,10 +263,8 @@ class _DataBackupPageState extends State<DataBackupPage> {
         await showExportSuccessDialog(
           context,
           filePath: path,
-          fileName: '备份文件',
-          warning: fallbackPath == null
-              ? context.l10n.flowFindTheFileInDownloadsChiffonMaiIn
-              : context.l10n.flowThePublicDirectoryIsNotWritableSaved3,
+          fileName: context.l10n.flowBackupFile,
+          fallbackPath: fallbackPath,
         );
       } else {
         if (mounted) {

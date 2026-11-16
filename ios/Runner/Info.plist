@@ -2,15 +2,19 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>CFBundleLocalizations</key>
-	<array>
-		<string>zh-Hans</string>
-		<string>zh-Hant</string>
-		<string>en</string>
-		<string>ja</string>
-	</array>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>需要获取您的位置以显示当地天气</string>
+	<string>用于在全球音游街机地图上显示当前位置和附近机厅。</string>
+	<key>NSLocationTemporaryUsageDescriptionDictionary</key>
+	<dict>
+		<key>ArcadeMap</key>
+		<string>使用精确位置以更准确地显示附近机厅及距离。</string>
+		<key>ArcadeMapEnglish</key>
+		<string>Precise location improves the accuracy of nearby arcade results and distances.</string>
+		<key>ArcadeMapJapanese</key>
+		<string>正確な位置情報を使用して、近くのゲームセンターと距離をより正確に表示します。</string>
+		<key>ArcadeMapTraditionalChinese</key>
+		<string>使用精確位置以更準確地顯示附近機廳及距離。</string>
+	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>需要使用相机拍摄曲绘以进行识别</string>
 	<key>NSPhotoLibraryUsageDescription</key>

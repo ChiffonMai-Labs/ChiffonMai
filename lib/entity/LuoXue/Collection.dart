@@ -3,20 +3,48 @@ class CollectionData {
   final List<Collection>? icons;
   final List<Collection>? plates;
   final List<Collection>? frames;
+  final List<Collection>? travelBuddies;
+  final List<Collection>? partners;
 
   CollectionData({
     this.trophies,
     this.icons,
     this.plates,
     this.frames,
+    this.travelBuddies,
+    this.partners,
   });
+
+  List<Collection>? entriesFor(String type) => switch (type) {
+        'trophies' => trophies,
+        'icons' => icons,
+        'plates' => plates,
+        'frames' => frames,
+        'travelBuddies' => travelBuddies,
+        'partners' => partners,
+        _ => null,
+      };
 
   factory CollectionData.fromJson(Map<String, dynamic> json) {
     return CollectionData(
-      trophies: (json['trophies'] as List<dynamic>?)?.map((item) => Collection.fromJson(item)).toList(),
-      icons: (json['icons'] as List<dynamic>?)?.map((item) => Collection.fromJson(item)).toList(),
-      plates: (json['plates'] as List<dynamic>?)?.map((item) => Collection.fromJson(item)).toList(),
-      frames: (json['frames'] as List<dynamic>?)?.map((item) => Collection.fromJson(item)).toList(),
+      trophies: (json['trophies'] as List<dynamic>?)
+          ?.map((item) => Collection.fromJson(item))
+          .toList(),
+      icons: (json['icons'] as List<dynamic>?)
+          ?.map((item) => Collection.fromJson(item))
+          .toList(),
+      plates: (json['plates'] as List<dynamic>?)
+          ?.map((item) => Collection.fromJson(item))
+          .toList(),
+      frames: (json['frames'] as List<dynamic>?)
+          ?.map((item) => Collection.fromJson(item))
+          .toList(),
+      travelBuddies: (json['travelBuddies'] as List<dynamic>?)
+          ?.map((item) => Collection.fromJson(item))
+          .toList(),
+      partners: (json['partners'] as List<dynamic>?)
+          ?.map((item) => Collection.fromJson(item))
+          .toList(),
     );
   }
 
@@ -34,18 +62,24 @@ class CollectionData {
     if (frames != null) {
       data['frames'] = frames!.map((item) => item.toJson()).toList();
     }
+    if (travelBuddies != null) {
+      data['travelBuddies'] =
+          travelBuddies!.map((item) => item.toJson()).toList();
+    }
+    if (partners != null) {
+      data['partners'] = partners!.map((item) => item.toJson()).toList();
+    }
     return data;
   }
 }
 
-
 class Collection {
-  final int id;  //收藏品 ID
-  final String name;  //收藏品名称
-  String? color;  //值可空，仅玩家称号，称号颜色
-  String? description;  //值可空，收藏品说明
-  String? genre;  //值可空，除玩家称号，收藏品分类（日文）
-  List<CollectionRequired>? required;  //值可空，收藏品要求
+  final int id; //收藏品 ID
+  final String name; //收藏品名称
+  String? color; //值可空，仅玩家称号，称号颜色
+  String? description; //值可空，收藏品说明
+  String? genre; //值可空，除玩家称号，收藏品分类（日文）
+  List<CollectionRequired>? required; //值可空，收藏品要求
 
   Collection({
     required this.id,
@@ -63,7 +97,9 @@ class Collection {
       color: json['color'],
       description: json['description'],
       genre: json['genre'],
-      required: (json['required'] as List<dynamic>?)?.map((item) => CollectionRequired.fromJson(item)).toList(),
+      required: (json['required'] as List<dynamic>?)
+          ?.map((item) => CollectionRequired.fromJson(item))
+          .toList(),
     );
   }
 
@@ -89,8 +125,8 @@ class Collection {
 }
 
 class CollectionRequired {
-  List<int>? difficulties;  //值可空，要求的谱面难度，长度为 0 时代表任意难度
-  String? rate;  //值可空，要求的评级类型
+  List<int>? difficulties; //值可空，要求的谱面难度，长度为 0 时代表任意难度
+  String? rate; //值可空，要求的评级类型
   String? fc; //值可空，要求的 FULL COMBO 类型
   String? fs; //值可空，要求的 FULL SYNC 类型
   List<CollectionRequiredSong>? songs; //值可空，要求的曲目列表
@@ -107,11 +143,17 @@ class CollectionRequired {
 
   factory CollectionRequired.fromJson(Map<String, dynamic> json) {
     return CollectionRequired(
-      difficulties: (json['difficulties'] as List<dynamic>?)?.where((item) => item != null).map((item) => item as int).toList(),
+      difficulties: (json['difficulties'] as List<dynamic>?)
+          ?.where((item) => item != null)
+          .map((item) => item as int)
+          .toList(),
       rate: json['rate'],
       fc: json['fc'],
       fs: json['fs'],
-      songs: (json['songs'] as List<dynamic>?)?.where((item) => item != null).map((item) => CollectionRequiredSong.fromJson(item)).toList(),
+      songs: (json['songs'] as List<dynamic>?)
+          ?.where((item) => item != null)
+          .map((item) => CollectionRequiredSong.fromJson(item))
+          .toList(),
       completed: json['completed'],
     );
   }
@@ -140,12 +182,10 @@ class CollectionRequired {
   }
 }
 
- 
-
 class CollectionRequiredSong {
-  final int id;  //曲目 ID
-  final String title;  //曲名
-  final String type;  //谱面类型
+  final int id; //曲目 ID
+  final String title; //曲名
+  final String type; //谱面类型
   bool? completed; //值可空，要求的曲目是否完成
   List<int>? completedDifficulties; //值可空，已完成的难度
 
@@ -163,7 +203,10 @@ class CollectionRequiredSong {
       title: json['title'] ?? '',
       type: json['type'] ?? '',
       completed: json['completed'],
-      completedDifficulties: (json['completed_difficulties'] as List<dynamic>?)?.where((item) => item != null).map((item) => item as int).toList(),
+      completedDifficulties: (json['completed_difficulties'] as List<dynamic>?)
+          ?.where((item) => item != null)
+          .map((item) => item as int)
+          .toList(),
     );
   }
 

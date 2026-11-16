@@ -58,6 +58,7 @@ class _ManualRatingInput {
 class _RatingHistoryPageState extends State<RatingHistoryPage> {
   /// 0 = 全部。
   int _rangeDays = 90;
+  DateTimeRange? _dateRange;
 
   int _loadGeneration = 0;
   bool _loading = true;
@@ -278,11 +279,14 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
     final points = _visible;
     if (points.isEmpty) return;
     // 导出任务里不能再读页面状态，范围文案和数据在这里先取好
-    final rangeLabel = switch (_rangeDays) {
-      30 => context.l10n.flowLast30Days,
-      90 => context.l10n.flowLast90Days,
-      _ => context.l10n.flowAll,
-    };
+    final range = _dateRange;
+    final rangeLabel = range != null
+        ? historyDateRangeLabel(context, range)
+        : switch (_rangeDays) {
+            30 => context.l10n.flowLast30Days,
+            90 => context.l10n.flowLast90Days,
+            _ => context.l10n.flowAll,
+          };
     final quality = await ExportQualitySelector.show(
       context,
       estimatedPngSize: ImageEncodeUtil.estimatePngSize(
@@ -309,8 +313,32 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
     );
   }
 
-  /// 按时间范围裁剪（0 = 全部）。
+  Future<void> _pickDateRange() async {
+    final first =
+        DateUtils.dateOnly(DateTime.fromMillisecondsSinceEpoch(_all.first.tMs));
+    final last =
+        DateUtils.dateOnly(DateTime.fromMillisecondsSinceEpoch(_all.last.tMs));
+    final recent =
+        DateUtils.dateOnly(DateTime.now().subtract(Duration(days: _rangeDays)));
+    final start = _rangeDays == 0 || recent.isAfter(last)
+        ? first
+        : (recent.isBefore(first) ? first : recent);
+    final picked = await showHistoryDateRange(
+      context,
+      initial: _dateRange ?? DateTimeRange(start: start, end: last),
+      latest: last,
+    );
+    if (picked != null && mounted) setState(() => _dateRange = picked);
+  }
+
+  /// 自定义区间按本地日历日筛选，包含开始和结束日期。
   List<RatingPoint> get _visible {
+    final range = _dateRange;
+    if (range != null) {
+      final start = range.start.millisecondsSinceEpoch;
+      final end = DateUtils.addDaysToDate(range.end, 1).millisecondsSinceEpoch;
+      return _all.where((p) => p.tMs >= start && p.tMs < end).toList();
+    }
     if (_rangeDays <= 0 || _all.isEmpty) return _all;
     final cutoff = DateTime.now()
         .subtract(Duration(days: _rangeDays))
@@ -327,6 +355,7 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
   @override
   Widget build(BuildContext context) {
     final brightness = Theme.of(context).brightness;
+    final visible = _visible;
     final showAwmcSync =
         CurrentDataSourceNotifier.instance.value == RefreshDataSource.awmc;
     return Scaffold(
@@ -359,7 +388,7 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
                     icon: const Icon(Icons.add_chart_outlined),
                     onPressed: _addManualPoint,
                   ),
-                  if (_all.isNotEmpty)
+                  if (visible.isNotEmpty)
                     IconButton(
                       tooltip: context.l10n.flowExportAsImage,
                       icon: const Icon(Icons.image_outlined),
@@ -387,11 +416,21 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
                             if (_all.isEmpty)
                               _buildEmpty(brightness)
                             else ...[
-                              _buildOverviewCard(brightness),
+                              _buildOverviewCard(brightness, visible),
                               const SizedBox(height: AppDesignTokens.cardGap),
-                              _buildChartCard(brightness),
-                              const SizedBox(height: AppDesignTokens.cardGap),
-                              _buildPointList(brightness),
+                              if (visible.isEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.all(24),
+                                  child: Text(
+                                    context.l10n.flowNoMatchingRecords,
+                                    textAlign: TextAlign.center,
+                                  ),
+                                )
+                              else ...[
+                                _buildChartCard(visible),
+                                const SizedBox(height: AppDesignTokens.cardGap),
+                                _buildPointList(brightness, visible),
+                              ],
                             ],
                             const SizedBox(height: AppDesignTokens.cardGap),
                             _buildRecordNote(),
@@ -447,17 +486,19 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
   }
 
   /// 当前 Rating、所选范围内的变化、时间范围和最高值。
-  Widget _buildOverviewCard(Brightness brightness) {
+  Widget _buildOverviewCard(Brightness brightness, List<RatingPoint> visible) {
     const ranges = [30, 90, 0];
     final labels = [
       context.l10n.flowLast30Days,
       context.l10n.flowLast90Days,
-      context.l10n.flowAll
+      context.l10n.flowAll,
+      context.l10n.flowCustomRange,
     ];
     final scheme = Theme.of(context).colorScheme;
-    final visible = _visible;
-    final current = visible.last;
-    final best = visible.reduce((a, b) => a.rating >= b.rating ? a : b);
+    final current = visible.lastOrNull;
+    final best = current == null
+        ? null
+        : visible.reduce((a, b) => a.rating >= b.rating ? a : b);
     final delta =
         visible.length >= 2 ? visible.last.rating - visible.first.rating : 0;
     final deltaColor = delta > 0
@@ -470,91 +511,109 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            context.l10n.flowCurrent,
-            style: TextStyle(fontSize: 12.5, color: scheme.onSurfaceVariant),
-          ),
-          const SizedBox(height: 2),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    '${current.rating}',
-                    maxLines: 1,
-                    style: AppTheme.number(
-                      fontSize: 40,
-                      height: 1.1,
-                      fontWeight: FontWeight.w800,
-                      color: scheme.onSurface,
+          if (current != null) ...[
+            Text(
+              _dateRange == null
+                  ? context.l10n.flowCurrent
+                  : context.l10n.historyLatestRecord,
+              style: TextStyle(fontSize: 12.5, color: scheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 2),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      '${current.rating}',
+                      maxLines: 1,
+                      style: AppTheme.number(
+                        fontSize: 40,
+                        height: 1.1,
+                        fontWeight: FontWeight.w800,
+                        color: scheme.onSurface,
+                      ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: deltaColor.withValues(alpha: 0.14),
-                  borderRadius:
-                      BorderRadius.circular(AppDesignTokens.radiusPill),
-                ),
-                child: Text(
-                  '${delta >= 0 ? '+' : ''}$delta',
-                  style: AppTheme.number(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    color: deltaColor,
+                const SizedBox(width: 12),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: deltaColor.withValues(alpha: 0.14),
+                    borderRadius:
+                        BorderRadius.circular(AppDesignTokens.radiusPill),
+                  ),
+                  child: Text(
+                    '${delta >= 0 ? '+' : ''}$delta',
+                    style: AppTheme.number(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: deltaColor,
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
+              ],
+            ),
+            const SizedBox(height: 12),
+          ],
           SegmentedTabs(
             height: 38,
             items: [for (final label in labels) SegmentedTabItem(label)],
-            selectedIndex: ranges.indexOf(_rangeDays),
-            onChanged: (index) => setState(() => _rangeDays = ranges[index]),
+            selectedIndex:
+                _dateRange == null ? ranges.indexOf(_rangeDays) : ranges.length,
+            onChanged: (index) {
+              if (index == ranges.length) {
+                _pickDateRange();
+                return;
+              }
+              setState(() {
+                _rangeDays = ranges[index];
+                _dateRange = null;
+              });
+            },
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: StatTile(
-                  centered: true,
-                  label: context.l10n.flowHighest,
-                  value: '${best.rating}',
+          if (_dateRange != null) ...[
+            const SizedBox(height: 6),
+            HistoryDateRangeFilter(range: _dateRange, onPick: _pickDateRange),
+          ],
+          if (current != null && best != null) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: StatTile(
+                    centered: true,
+                    label: context.l10n.flowHighest,
+                    value: '${best.rating}',
+                  ),
                 ),
-              ),
-              Expanded(
-                child: StatTile(
-                  centered: true,
-                  label: 'Best35',
-                  value: current.best35 > 0 ? '${current.best35}' : '-',
+                Expanded(
+                  child: StatTile(
+                    centered: true,
+                    label: 'Best35',
+                    value: current.best35 > 0 ? '${current.best35}' : '-',
+                  ),
                 ),
-              ),
-              Expanded(
-                child: StatTile(
-                  centered: true,
-                  label: 'Best15',
-                  value: current.best15 > 0 ? '${current.best15}' : '-',
+                Expanded(
+                  child: StatTile(
+                    centered: true,
+                    label: 'Best15',
+                    value: current.best15 > 0 ? '${current.best15}' : '-',
+                  ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
+          ],
         ],
       ),
     );
   }
 
-  Widget _buildChartCard(Brightness brightness) {
-    final visible = _visible;
-
+  Widget _buildChartCard(List<RatingPoint> visible) {
     final firstMs = visible.first.tMs;
     const dayMs = 24 * 3600 * 1000;
     // 只有一个点时**必须**退回"日"：三个刻度都落在同一个点上，
@@ -607,9 +666,9 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
     );
   }
 
-  Widget _buildPointList(Brightness brightness) {
+  Widget _buildPointList(Brightness brightness, List<RatingPoint> points) {
     final scheme = Theme.of(context).colorScheme;
-    final visible = _visible.reversed.toList(growable: false);
+    final visible = points.reversed.toList(growable: false);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [

@@ -19,7 +19,7 @@ import '../utils/SecureCredentialStore.dart';
 import 'ErrorMessageDialog.dart';
 import 'QuickSyncOption.dart';
 import 'PostSyncRefreshOptions.dart';
-import 'RefreshDataDialog.dart' show RefreshDataRequest;
+import 'RefreshDataDialog.dart' show RefreshDataRequest, RefreshDataSource;
 import '../service/AWMC/AwmcQuickSyncService.dart';
 import '../widgets/AppDialogs.dart';
 import 'AppUi.dart' hide AnimatedReveal;
@@ -36,14 +36,20 @@ class MultiScoreSyncInput {
   final Map<SyncPlatform, int> routes;
   final Map<SyncPlatform, RefreshDataRequest> refreshRequests;
 
+  /// 所有目标共用的强制刷新选择。null 表示读取保存的默认配置。
+  final Set<String>? forceSourceIds;
+
   MultiScoreSyncInput({
     required this.qrCode,
     this.quickUpdate = false,
     required Set<SyncPlatform> platforms,
     Map<SyncPlatform, int> routes = const {},
     Map<SyncPlatform, RefreshDataRequest> refreshRequests = const {},
+    Set<String>? forceSourceIds,
   })  : platforms = Set.unmodifiable(platforms),
         refreshRequests = Map.unmodifiable(refreshRequests),
+        forceSourceIds =
+            forceSourceIds == null ? null : Set.unmodifiable(forceSourceIds),
         routes = Map.unmodifiable(routes);
 
   /// 旧调用未传线路时沿用原来的线路2行为。
@@ -97,10 +103,7 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
   String? _loadError;
   bool _loading = true;
   bool _submitting = false;
-  final _refreshKeys = {
-    for (final platform in SyncPlatform.values)
-      platform: GlobalKey<PostSyncRefreshOptionsState>(),
-  };
+  final _refreshKey = GlobalKey<PostSyncRefreshOptionsState>();
   bool _quickUpdate = false;
   int _quickRevision = 0;
   final _routesBeforeQuick = <SyncPlatform, int>{};
@@ -225,6 +228,7 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
         }
       }
       if (!mounted) return;
+      FocusManager.instance.primaryFocus?.unfocus();
       setState(() {
         _tokens[platform] = token;
         if (needsQQ) _qq = qq;
@@ -271,12 +275,14 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
     });
     if (_selectionError != null) return;
     setState(() => _submitting = true);
-    final requests = <SyncPlatform, RefreshDataRequest>{};
-    for (final platform in targets) {
-      final request =
-          await _refreshKeys[platform]?.currentState?.collectRequest();
-      if (!mounted) return;
-      if (request != null) requests[platform] = request;
+    final sources = targets.map(AwmcQuickSyncService.sourceOf).toSet();
+    final requests =
+        await _refreshKey.currentState?.collectSyncRequests(sources) ??
+            <RefreshDataSource, RefreshDataRequest>{};
+    if (!mounted) return;
+    if (ModalRoute.of(context)?.isCurrent != true) {
+      setState(() => _submitting = false);
+      return;
     }
     Navigator.pop(
         context,
@@ -287,7 +293,13 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
           quickUpdate: _quickUpdate,
           platforms: targets,
           routes: _routes,
-          refreshRequests: requests,
+          forceSourceIds: requests.values.firstOrNull?.forceSourceIds,
+          refreshRequests: {
+            for (final platform in targets)
+              if (requests[AwmcQuickSyncService.sourceOf(platform)]
+                  case final request?)
+                platform: request,
+          },
         ));
   }
 
@@ -393,103 +405,102 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
               : null,
         ),
         if (platform != SyncPlatform.awmc) _buildRouteSelector(platform),
-        if (_selected.contains(platform))
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(context.l10n.flowRefreshDataAfterSync,
-                    style: TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
-                        color: scheme.onSurfaceVariant)),
-                const SizedBox(height: 8),
-                PostSyncRefreshOptions(
-                    key: _refreshKeys[platform],
-                    source: AwmcQuickSyncService.sourceOf(platform),
-                    showHeader: false),
-              ],
-            ),
-          ),
-        if (!ready)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(context.l10n.flowFillInCredentialsToSelectThisSource,
-                  style:
-                      TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
-              TextButton.icon(
-                onPressed: _saving == null
-                    ? () => setState(() => _expanded.contains(platform)
-                        ? _expanded.remove(platform)
-                        : _expanded.add(platform))
-                    : null,
-                icon: Icon(
-                    _expanded.contains(platform)
-                        ? Icons.expand_less
-                        : Icons.edit_outlined,
-                    size: 18),
-                label: Text(_expanded.contains(platform)
-                    ? context.l10n.flowCollapse
-                    : context.l10n.flowFillInMissingCredentials),
-              ),
-              if (_expanded.contains(platform)) ...[
-                Text(
-                    switch (platform) {
-                      SyncPlatform.divingFish =>
-                        context.l10n.flowGetYourImportTokenFromTheDivingFish,
-                      SyncPlatform.luoXue =>
-                        context.l10n.flowSignInToLXNSAndGetYour,
-                      SyncPlatform.awmc =>
-                        context.l10n.flowEnterTheQQLinkedToAWMCNET,
-                    },
-                    style: TextStyle(
-                        fontSize: 12, color: scheme.onSurfaceVariant)),
-                TextButton(
-                    onPressed: () => _openSource(platform),
-                    child: Text(context.l10n.flowOpenWebsite)),
-                if (platform == SyncPlatform.awmc &&
-                    !_qqPattern.hasMatch(_qq)) ...[
-                  TextField(
-                    key: const ValueKey('multi-sync-qq'),
-                    controller: _qqController,
-                    enabled: _saving == null,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    decoration: InputDecoration(
-                      labelText: context.l10n.flowAWMCNETQQID,
-                    ).insetLabel(context),
-                  ),
-                  const SizedBox(height: 12),
-                ],
-                if (!hasToken)
-                  TextField(
-                    key: ValueKey('multi-sync-token-${platform.key}'),
-                    controller: _tokenControllers[platform],
-                    enabled: _saving == null,
-                    obscureText: true,
-                    autocorrect: false,
-                    enableSuggestions: false,
-                    decoration: InputDecoration(
-                      labelText: tokenLabel,
-                    ).insetLabel(context),
-                  ),
-                if (_errors[platform] != null)
-                  Text(_errors[platform]!,
-                      style: TextStyle(color: scheme.error)),
-                const SizedBox(height: 8),
-                FilledButton.tonal(
-                  onPressed:
-                      _saving == null ? () => _saveCredential(platform) : null,
-                  child: Text(saving
-                      ? context.l10n.flowSaving
-                      : context.l10n.flowSaveAndSelect),
+        AppDialogAnimatedHeight(
+          child: ready
+              ? const SizedBox(width: double.infinity)
+              : Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                            context
+                                .l10n.flowFillInCredentialsToSelectThisSource,
+                            style: TextStyle(
+                                fontSize: 12, color: scheme.onSurfaceVariant)),
+                        TextButton.icon(
+                          onPressed: _saving == null
+                              ? () {
+                                  if (_expanded.contains(platform)) {
+                                    FocusManager.instance.primaryFocus
+                                        ?.unfocus();
+                                  }
+                                  setState(() {
+                                    if (!_expanded.remove(platform)) {
+                                      _expanded.add(platform);
+                                    }
+                                  });
+                                }
+                              : null,
+                          icon: Icon(
+                              _expanded.contains(platform)
+                                  ? Icons.expand_less
+                                  : Icons.edit_outlined,
+                              size: 18),
+                          label: Text(_expanded.contains(platform)
+                              ? context.l10n.flowCollapse
+                              : context.l10n.flowFillInMissingCredentials),
+                        ),
+                        if (_expanded.contains(platform)) ...[
+                          Text(
+                              switch (platform) {
+                                SyncPlatform.divingFish => context.l10n
+                                    .flowGetYourImportTokenFromTheDivingFish,
+                                SyncPlatform.luoXue =>
+                                  context.l10n.flowSignInToLXNSAndGetYour,
+                                SyncPlatform.awmc =>
+                                  context.l10n.flowEnterTheQQLinkedToAWMCNET,
+                              },
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  color: scheme.onSurfaceVariant)),
+                          TextButton(
+                              onPressed: () => _openSource(platform),
+                              child: Text(context.l10n.flowOpenWebsite)),
+                          if (platform == SyncPlatform.awmc &&
+                              !_qqPattern.hasMatch(_qq)) ...[
+                            TextField(
+                              key: const ValueKey('multi-sync-qq'),
+                              controller: _qqController,
+                              enabled: _saving == null,
+                              keyboardType: TextInputType.number,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly
+                              ],
+                              decoration: InputDecoration(
+                                labelText: context.l10n.flowAWMCNETQQID,
+                              ).insetLabel(context),
+                            ),
+                            const SizedBox(height: 12),
+                          ],
+                          if (!hasToken)
+                            TextField(
+                              key: ValueKey('multi-sync-token-${platform.key}'),
+                              controller: _tokenControllers[platform],
+                              enabled: _saving == null,
+                              obscureText: true,
+                              autocorrect: false,
+                              enableSuggestions: false,
+                              decoration: InputDecoration(
+                                labelText: tokenLabel,
+                              ).insetLabel(context),
+                            ),
+                          if (_errors[platform] != null)
+                            Text(_errors[platform]!,
+                                style: TextStyle(color: scheme.error)),
+                          const SizedBox(height: 8),
+                          FilledButton.tonal(
+                            onPressed: _saving == null
+                                ? () => _saveCredential(platform)
+                                : null,
+                            child: Text(saving
+                                ? context.l10n.flowSaving
+                                : context.l10n.flowSaveAndSelect),
+                          ),
+                        ],
+                      ]),
                 ),
-              ],
-            ]),
-          ),
+        ),
       ]),
     );
   }
@@ -543,8 +554,7 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
                         if (_loading)
                           const Padding(
                               padding: EdgeInsets.all(16),
-                              child:
-                                  Center(child: CircularProgressIndicator()))
+                              child: Center(child: CircularProgressIndicator()))
                         else if (_loadError != null) ...[
                           Text(_loadError!,
                               style: TextStyle(
@@ -564,6 +574,18 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
                                   color: Theme.of(context).colorScheme.error)),
                         ],
                       ],
+                    ),
+                  ),
+                  SyncDialogSection(
+                    icon: Icons.refresh_rounded,
+                    title: context.l10n.flowRefreshDataAfterSync,
+                    caption: context.l10n
+                        .flowRefreshAutomaticallyAfterUploadRefreshErrorsAre,
+                    child: PostSyncRefreshOptions.multi(
+                      key: _refreshKey,
+                      syncSources:
+                          _selected.map(AwmcQuickSyncService.sourceOf).toSet(),
+                      awmcSyncQQ: _qq,
                     ),
                   ),
                   AnimatedReveal(

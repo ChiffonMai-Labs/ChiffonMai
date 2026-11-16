@@ -514,6 +514,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Widget _buildInteractionTab() => _tabColumn([
         const SongDetailDifficultySettings(),
+        const SongDetailDifficultyMemorySettings(),
         GuessSettingSection(
           card: true,
           title: context.l10n.ratingSegmentTitle,

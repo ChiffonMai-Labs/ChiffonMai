@@ -1173,6 +1173,8 @@ class _PersonalizedScorePageState extends State<PersonalizedScorePage> {
 
   // 请求存储权限
   Future<bool> _requestStoragePermission() async {
+    if (Platform.isIOS) return true; // 写入相册时由 PhotoKit 请求权限。
+
     debugPrint('PersonalizedScorePage: _requestStoragePermission called');
 
     if (Platform.isAndroid) {

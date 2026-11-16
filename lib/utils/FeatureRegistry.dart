@@ -17,7 +17,31 @@ class FeatureSection {
 
 /// 五个功能 Hub 的统一目录；首页保留收藏与快捷访问。
 class FeatureRegistry {
+  /// 与成绩、账号或基础缓存任务互斥的功能。
+  static const taskRestrictedFeatures = {
+    '切换账号',
+    '绑定与授权管理',
+    '登录水鱼',
+    '登出水鱼账号',
+    '登录 maimai Score Hub',
+    '落雪账号授权',
+    '绑定 AWMC NET 账号',
+    '绑定机台身份',
+    '同步成绩到水鱼',
+    '同步成绩到落雪',
+    '同步成绩到 AWMC NET',
+    '同步成绩到多端',
+    '自动同步',
+    '拉取成绩并更新数据',
+    '刷新机台游玩次数',
+    cabinetAppearanceTitle,
+    '缓存管理',
+  };
+
   FeatureRegistry._();
+
+  static const cabinetAppearanceTitle = '同步机台装扮';
+  static const cabinetAppearanceSubtitle = '扫码读取机台当前选中的装扮';
 
   static const Map<String, List<FeatureSection>> sections = {
     '曲库': [
@@ -158,17 +182,16 @@ class FeatureRegistry {
           title: '账号与授权',
           subtitle: '管理账号与数据源登录状态',
           icon: Icons.manage_accounts_outlined,
-          titles: [
-            '账号注册引导',
-            '成绩导入凭据',
-            '切换账号',
-            '绑定与授权管理'
-          ]),
+          titles: ['账号注册引导', '成绩导入凭据', '切换账号', '绑定与授权管理']),
       FeatureSection(
           title: '数据刷新',
           subtitle: '更新成绩缓存与机台游玩次数',
           icon: Icons.refresh_rounded,
-          titles: ['拉取成绩并更新数据', '拉取成绩并更新数据（高级）', '刷新机台游玩次数']),
+          titles: [
+            '拉取成绩并更新数据',
+            '刷新机台游玩次数',
+            cabinetAppearanceTitle,
+          ]),
       FeatureSection(
           title: '单平台同步',
           subtitle: '分别同步成绩到各查分器',
@@ -203,7 +226,7 @@ class FeatureRegistry {
           title: '版本与项目',
           subtitle: '版本更新、项目介绍与相关链接',
           icon: Icons.info_outline_rounded,
-          titles: ['检查更新', '关于 APP', '访问官方网站', '查看友情链接']),
+          titles: ['公告中心', '检查更新', '关于 APP', '访问官方网站', '查看友情链接']),
       FeatureSection(
           title: '反馈与支持',
           subtitle: '反馈问题、交流建议与支持开发',
@@ -452,14 +475,14 @@ class FeatureRegistry {
           icon: Icons.file_upload_sharp,
           title: '拉取成绩并更新数据',
           subtitle: '拉取所选账号的成绩并重算 Best50，同时更新曲目、定数与标签'),
-      '拉取成绩并更新数据（高级）': const ButtonItem(
-          icon: Icons.tune_rounded,
-          title: '拉取成绩并更新数据（高级）',
-          subtitle: '按数据类型选择是否强制重新下载，并测试各接口连通性'),
       '刷新机台游玩次数': const ButtonItem(
           icon: Icons.numbers_outlined,
           title: '刷新机台游玩次数',
           subtitle: '单独读取当前账号的 PC 数；不会附带同步成绩'),
+      cabinetAppearanceTitle: const ButtonItem(
+          icon: Icons.checkroom_outlined,
+          title: cabinetAppearanceTitle,
+          subtitle: cabinetAppearanceSubtitle),
       '数据备份': const ButtonItem(
           icon: Icons.backup, title: '数据备份', subtitle: '导入或导出本地数据'),
       '缓存管理': const ButtonItem(
@@ -482,6 +505,8 @@ class FeatureRegistry {
           icon: Icons.star, title: '最近评分', subtitle: '查看社区最近评分'),
       '检查更新': const ButtonItem(
           icon: Icons.update, title: '检查更新', subtitle: '检查应用是否有新版本'),
+      '公告中心': const ButtonItem(
+          icon: Icons.campaign_outlined, title: '公告中心', subtitle: '查看服务公告与项目动态'),
       '关于 APP': const ButtonItem(
           icon: Icons.info_outline, title: '关于 APP', subtitle: '了解项目与版本信息'),
       '访问官方网站': const ButtonItem(

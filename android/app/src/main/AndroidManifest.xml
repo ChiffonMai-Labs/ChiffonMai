@@ -12,8 +12,9 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <!-- 可选：允许访问WiFi状态 -->
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
-    <!-- GPS 定位（天气卡片） -->
+    <!-- 全球音游街机地图前台定位，粗略与精确权限需一起声明。 -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <!-- 传统存储权限（Android 12及以下） -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
@@ -115,16 +116,18 @@
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
               />
+            <!-- 收藏夹文件走原生导入通道，URI 无需交给 Flutter 路由。 -->
+            <meta-data android:name="flutter_deeplinking_enabled" android:value="false" />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
 
             <!--
-              收藏夹文件「一键导入」入口 1：文件管理器里点开文件。
-              只对下列后缀生效，避免 App 出现在所有文件的选择列表里。
-              注意：部分文件管理器（走 SAF）给出的 content:// URI 不带后缀，
-              pathPattern 匹配不到，这类情况请用下面的「分享」入口。
+              系统「打开方式」只关联 URI 路径以 .cmf 结尾的文件。
+              Android 要求同时声明 scheme 和 host，否则会忽略路径条件。
+              Android 12 起用 pathSuffix 匹配多点文件名，旧系统用 pathPattern。
+              URI 路径隐藏文件后缀时，用户可从收藏夹页手动导入。
             -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>
@@ -132,22 +135,22 @@
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="content"/>
                 <data android:scheme="file"/>
+                <data android:host="*"/>
                 <data android:mimeType="*/*"/>
                 <data android:pathPattern=".*\\.cmf"/>
-                <data android:pathPattern=".*\\.cmfavorite"/>
-                <data android:pathPattern=".*\\.chiffonmai"/>
-                <data android:pathPattern=".*\\.cmaifav"/>
+                <data android:pathSuffix=".cmf"/>
             </intent-filter>
 
-            <!--
-              收藏夹文件「一键导入」入口 2：分享 → ChiffonMai。
-              自定义后缀无法在编译期写进 pathPattern，所以这里放开成 */*，
-              任何后缀的文件都能通过分享导回，由 Dart 侧按内容校验。
-            -->
+            <!-- 兼容只提供 URI、未指定 MIME 类型的文件管理器。 -->
             <intent-filter>
-                <action android:name="android.intent.action.SEND"/>
+                <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
-                <data android:mimeType="*/*"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="content"/>
+                <data android:scheme="file"/>
+                <data android:host="*"/>
+                <data android:pathPattern=".*\\.cmf"/>
+                <data android:pathSuffix=".cmf"/>
             </intent-filter>
         </activity>
 

@@ -1,13 +1,12 @@
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../utils/AppTheme.dart';
 import '../utils/ExternalLaunchUtil.dart';
 import '../utils/ExportPathUtil.dart';
 import '../widgets/BackgroundPageScaffold.dart';
 import '../utils/AppDesignTokens.dart';
 import '../widgets/AppUi.dart';
-import '../widgets/AppDialogs.dart';
+import '../widgets/ExportSuccessDialog.dart';
 import '../widgets/AppToast.dart';
 
 /// 支持开发者页面：展示赞赏码与爱发电链接。
@@ -38,28 +37,13 @@ class _SupportDeveloperPageState extends State<SupportDeveloperPage> {
           subDir: '图片',
           onFallback: (path) => fallback = path);
       if (!mounted) return;
-      await showDialog<void>(
-          context: context,
-          builder: (ctx) => AppAlertDialog(
-                  title:  Text(context.l10n.flowSupportQRCodeSaved),
-                  content: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        SelectableText(file.path),
-                        if (fallback != null) ...[
-                          const SizedBox(height: 12),
-                          Text(context.l10n.flowThePublicDirectoryIsNotWritableSaved2,
-                              style: TextStyle(
-                                  color: AppColors.warningOrange(
-                                      Theme.of(ctx).brightness)))
-                        ],
-                      ]),
-                  actions: [
-                    TextButton(
-                        onPressed: () => Navigator.pop(ctx),
-                        child:  Text(context.l10n.featureGotIt))
-                  ]));
+      await showExportSuccessDialog(
+        context,
+        title: context.l10n.flowSupportQRCodeSaved,
+        filePath: file.path,
+        fileName: file.uri.pathSegments.last,
+        fallbackPath: fallback,
+      );
     } catch (e) {
       if (mounted)
         AppToast.show(context.l10n.flowSaveFailedP0((e).toString()), tone: AppToastTone.error);

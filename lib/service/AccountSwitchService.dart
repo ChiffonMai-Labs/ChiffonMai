@@ -21,6 +21,13 @@ import '../utils/AppTaskActivity.dart';
 
 enum SwitchOutcome { switched, noCache, sameSource, busy, failed }
 
+class AccountUpdateBusy implements Exception {
+  const AccountUpdateBusy();
+
+  @override
+  String toString() => appL10n.svcAccountDataIsUpdatingTryAgainWhen;
+}
+
 /// 活动槽的唯一协调入口。切换、刷新、清理共享一个锁；刷新锁覆盖整个请求周期。
 /// 每次破坏性写入前先保存原账号，失败/进程中断时从存档恢复。
 class AccountSwitchService {
@@ -48,7 +55,7 @@ class AccountSwitchService {
   static bool get isBusy => _busy;
 
   static void requireIdle() {
-    if (_busy) throw StateError(appL10n.svcAccountDataIsUpdatingTryAgainWhen);
+    if (_busy) throw const AccountUpdateBusy();
   }
 
   /// 同步等待期间允许切换账号；自动刷新在真正获取活动槽锁时再核对快照。
@@ -260,7 +267,8 @@ class AccountSwitchService {
           final ok = entry.value == null
               ? await prefs.remove(entry.key)
               : await prefs.setString(entry.key, entry.value as String);
-          if (!ok) throw StateError(appL10n.svcCouldNotRollBackTheAccountArchive);
+          if (!ok)
+            throw StateError(appL10n.svcCouldNotRollBackTheAccountArchive);
         }
       }
     }

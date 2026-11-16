@@ -22,6 +22,9 @@ import 'MaimaiServerStatusPage.dart';
 import 'RecentCommentsPage.dart';
 import 'RecentRatingsPage.dart';
 import 'AboutAppPage.dart';
+import 'AnnouncementsPage.dart';
+import 'CommunityTravelAppearancePage.dart';
+import 'Awmc/AwmcCabinetAppearanceFlow.dart';
 import 'Awmc/AwmcPlayCountSyncFlow.dart';
 import 'SupportDeveloperPage.dart';
 import 'FriendLinksPage.dart';
@@ -30,7 +33,6 @@ import '../manager/LZYCheckUpdateManager.dart';
 import '../manager/DivingFish/ProberException.dart';
 import '../manager/LuoXue/CollectionsManager.dart';
 import '../entity/LuoXue/Collection.dart';
-import '../service/ConnectivityService.dart';
 import '../service/SyncStatsService.dart';
 import '../utils/SyncRouteNotifier.dart';
 import '../utils/HomeRefreshNotifier.dart';
@@ -43,15 +45,13 @@ import '../widgets/SyncFlowMixin.dart';
 import '../widgets/SyncScoreDialogs.dart' show SyncScoreDialogs, SyncCallbacks;
 import '../widgets/CollectionPickerSheet.dart';
 import '../service/LogExportService.dart';
+import '../widgets/ExportSuccessDialog.dart';
 import '../widgets/RefreshDataDialog.dart'
     show
         showRefreshDataDialog,
         executeRefreshData,
         refreshBest50DataWithProgress,
-        executeAdvancedRefreshData,
         launchUrlFallback;
-import '../widgets/AdvancedRefreshDataDialog.dart'
-    show showAdvancedRefreshDataDialog;
 import '../widgets/MaimaiHubLoginDialog.dart' show showMaimaiHubLoginDialog;
 import '../constant/CacheKeyConstant.dart';
 import '../constant/AppLinks.dart';
@@ -68,14 +68,20 @@ import '../widgets/AccountRegistrationGuideDialog.dart';
 import '../widgets/ConfettiEffect.dart';
 import '../entity/FeatureModels.dart';
 import '../utils/AppDesignTokens.dart';
+import '../utils/AppTaskActivity.dart';
 import '../widgets/AppDialogs.dart';
 import '../widgets/AppToast.dart';
 import '../utils/MaimaiHubLoginNotifier.dart';
 
 class SystemHubPage extends StatefulWidget {
   final VoidCallback onAccountManageTap;
+  final ValueNotifier<FeatureTask?> activeTask;
 
-  const SystemHubPage({super.key, required this.onAccountManageTap});
+  const SystemHubPage({
+    super.key,
+    required this.onAccountManageTap,
+    required this.activeTask,
+  });
 
   @override
   State<SystemHubPage> createState() => SystemHubPageState();
@@ -83,9 +89,10 @@ class SystemHubPage extends StatefulWidget {
 
 class SystemHubPageState extends State<SystemHubPage>
     with SyncFlowMixin, WidgetsBindingObserver {
-  /// 首页搜索调用系统 Hub 的原有入口，沿用同一份进度与互斥状态。
+  /// 首页收藏和搜索沿用「我的」的功能入口、进度和互斥状态。
   Future<void> openFeature(ButtonItem item) async {
-    if (anyBusy) {
+    if (anyBusy &&
+        FeatureRegistry.taskRestrictedFeatures.contains(item.title)) {
       AppToast.show(context.featureText('正在处理其它任务，请稍候'));
       return;
     }
@@ -97,6 +104,18 @@ class SystemHubPageState extends State<SystemHubPage>
     if (item.title == '绑定与授权管理') {
       await _manageAccountBindings();
       return;
+    }
+    switch (item.title) {
+      case '同步成绩到水鱼':
+        return syncToDivingFishByCurrentRoute();
+      case '同步成绩到落雪':
+        return syncToLuoXueByCurrentRoute();
+      case '同步成绩到 AWMC NET':
+        return syncToAwmcNetWithButton();
+      case '同步成绩到多端':
+        return syncToMultiplePlatforms();
+      default:
+        break;
     }
     if (item.title == '落雪账号授权' || item.title == '绑定 AWMC NET 账号') {
       await showAccountAuthorizationDialog(context,
@@ -128,8 +147,13 @@ class SystemHubPageState extends State<SystemHubPage>
       await _refreshPlayCounts();
       return;
     }
+    if (item.title == FeatureRegistry.cabinetAppearanceTitle) {
+      await _syncCabinetAppearance();
+      return;
+    }
+    // 旧的「（高级）」收藏键已迁移；这里兜底指向合并后的刷新入口。
     if (item.title == '拉取成绩并更新数据（高级）') {
-      await _advancedRefreshData();
+      await _refreshData();
     }
   }
 
@@ -155,23 +179,46 @@ class SystemHubPageState extends State<SystemHubPage>
   bool _refreshing = false;
   String _refreshText = '';
   double _refreshProgress = 0;
-  bool _refreshingAdvanced = false;
-  String _refreshAdvancedText = '';
-  double _refreshAdvancedProgress = 0;
   bool _refreshingPlayCounts = false;
   String _refreshPlayCountsText = '';
+  String? _cabinetAppearanceProgress;
   // 三个同步入口的进行状态由 SyncFlowMixin 持有（同步按钮上进度 + 互斥）。
 
   /// 任意长任务进行中：用于禁用其它入口，避免并发刷新互相踩缓存
   @override
-  bool get anyBusy =>
-      _loggingOut ||
-      _refreshing ||
-      _refreshingAdvanced ||
-      _refreshingPlayCounts ||
-      CacheManagementService.instance.reloadingBase ||
-      !syncFlowsIdle ||
-      HomeRefreshNotifier.isBusy.value;
+  bool get anyBusy => _activeTask != null || HomeRefreshNotifier.isBusy.value;
+
+  FeatureTask? get _activeTask {
+    final cache = CacheManagementService.instance;
+    if (syncingDivingFish) {
+      return (title: '同步成绩到水鱼', progress: divingFishProgress);
+    }
+    if (syncingLuoXue) return (title: '同步成绩到落雪', progress: luoXueProgress);
+    if (syncingAwmcNet) {
+      return (title: '同步成绩到 AWMC NET', progress: awmcNetProgress);
+    }
+    if (syncingMulti) return (title: '同步成绩到多端', progress: multiSyncProgress);
+    if (_refreshing) return (title: '拉取成绩并更新数据', progress: _refreshProgress);
+    if (_refreshingPlayCounts) return (title: '刷新机台游玩次数', progress: null);
+    if (_cabinetAppearanceProgress != null) {
+      return (title: FeatureRegistry.cabinetAppearanceTitle, progress: null);
+    }
+    if (_loggingOut) return (title: '绑定与授权管理', progress: null);
+    if (cache.reloadingBase) {
+      return (title: '缓存管理', progress: cache.reloadProgress);
+    }
+    return null;
+  }
+
+  @override
+  void onSyncStateChanged() => _publishActiveTask();
+
+  void _publishActiveTask() => widget.activeTask.value = _activeTask;
+
+  void _onCacheTaskChanged() {
+    _onSyncRouteChanged();
+    _publishActiveTask();
+  }
 
   @override
   void initState() {
@@ -188,7 +235,7 @@ class SystemHubPageState extends State<SystemHubPage>
         [_fetchAvatarIcons(), _fetchExtraAppearance(), _fetchAvatarPlates()]);
     // 线路 + 统计（与首页收藏区共享同一份状态；重复调用幂等）
     SyncRouteNotifier.instance.addListener(_onSyncRouteChanged);
-    CacheManagementService.instance.addListener(_onSyncRouteChanged);
+    CacheManagementService.instance.addListener(_onCacheTaskChanged);
     SyncRouteNotifier.instance.ensureLoaded();
     HomeRefreshNotifier.isBusy.addListener(_onHomeRefreshBusyChanged);
   }
@@ -205,7 +252,7 @@ class SystemHubPageState extends State<SystemHubPage>
     LoginStateNotifier.instance.removeListener(_onAvatarLoginChanged);
     UserProfileNotifier.instance.removeListener(_onUserProfileChanged);
     SyncRouteNotifier.instance.removeListener(_onSyncRouteChanged);
-    CacheManagementService.instance.removeListener(_onSyncRouteChanged);
+    CacheManagementService.instance.removeListener(_onCacheTaskChanged);
     HomeRefreshNotifier.isBusy.removeListener(_onHomeRefreshBusyChanged);
     super.dispose();
   }
@@ -303,7 +350,8 @@ class SystemHubPageState extends State<SystemHubPage>
     }
   }
 
-  void _showCollectionPicker() {
+  /// [initialTab]：0 头像、1 姓名框、2 背景、3 称号（展开个人信息时点哪张图就进哪页）。
+  void _showCollectionPicker([int initialTab = 0]) {
     FocusManager.instance.primaryFocus?.unfocus();
     final store = CommunityAvatarStore.instance;
     final player = store.value.playerId;
@@ -314,14 +362,15 @@ class SystemHubPageState extends State<SystemHubPage>
         backgroundColor: Colors.transparent,
         builder: (ctx) {
           void choose(Future<void> Function() save) {
+            if (!ctx.mounted || ModalRoute.of(ctx)?.isCurrent != true) return;
             if (store.value.playerId != player) {
-              if (ctx.mounted) Navigator.pop(ctx);
+              Navigator.pop(ctx);
               AppToast.show(
                   context.l10n.flowAccountChangedChooseYourAppearanceAgain,
                   tone: AppToastTone.warning);
               return;
             }
-            if (ctx.mounted) Navigator.pop(ctx);
+            Navigator.pop(ctx);
             unawaited(save().catchError((Object _) {
               AppToast.show(
                   context.l10n.flowCouldNotSaveYourAppearanceChooseAgain,
@@ -335,6 +384,7 @@ class SystemHubPageState extends State<SystemHubPage>
                       AvatarSyncState>(
                   valueListenable: store,
                   builder: (context, state, _) => CollectionPickerSheet(
+                        initialTab: initialTab,
                         isLoading:
                             loaded.connectionState != ConnectionState.done,
                         avatarIcons: _avatarIcons,
@@ -372,17 +422,12 @@ class SystemHubPageState extends State<SystemHubPage>
     try {
       final file = await LogExportService.instance.export();
       if (!mounted) return;
-      await showDialog<void>(
-          context: context,
-          builder: (ctx) => AppAlertDialog(
-                title: Text(context.l10n.flowLogsExported),
-                content: AppDialogCodeBlock(file.path),
-                actions: [
-                  TextButton(
-                      onPressed: () => Navigator.pop(ctx),
-                      child: Text(context.l10n.featureGotIt))
-                ],
-              ));
+      await showExportSuccessDialog(
+        context,
+        title: context.l10n.flowLogsExported,
+        filePath: file.path,
+        fileName: file.uri.pathSegments.last,
+      );
     } catch (e) {
       if (mounted)
         AppToast.show(context.l10n.flowCouldNotExportLogsP0((e).toString()),
@@ -425,13 +470,14 @@ class SystemHubPageState extends State<SystemHubPage>
     if (anyBusy) return;
     final request =
         await showRefreshDataDialog(context, initialSource: initialSource);
-    if (request == null || !mounted) return;
+    if (request == null || !mounted || anyBusy) return;
 
     setState(() {
       _refreshing = true;
       _refreshText = context.l10n.flowRefreshingData;
       _refreshProgress = 0;
     });
+    _publishActiveTask();
     try {
       await executeRefreshData(request, onProgress: (p, t) {
         if (!mounted) return;
@@ -439,6 +485,7 @@ class SystemHubPageState extends State<SystemHubPage>
           _refreshText = '$t $p%';
           _refreshProgress = p / 100;
         });
+        _publishActiveTask();
       });
       if (!mounted) return;
       ConfettiEffect.show(context);
@@ -455,48 +502,7 @@ class SystemHubPageState extends State<SystemHubPage>
           _refreshing = false;
           _refreshText = '';
         });
-      }
-    }
-  }
-
-  /// 高级模式刷新数据：弹新对话框，让用户按缓存源勾选强制刷新，并测试 API 连通性。
-  /// 进度同样显示在按钮上（不再弹转圈对话框）。
-  Future<void> _advancedRefreshData() async {
-    if (anyBusy) return;
-    final request = await showAdvancedRefreshDataDialog(context);
-    if (request == null || !mounted) return;
-
-    setState(() {
-      _refreshingAdvanced = true;
-      _refreshAdvancedText = context.l10n.flowRefreshingData;
-      _refreshAdvancedProgress = 0;
-    });
-    try {
-      await executeAdvancedRefreshData(
-        request,
-        onProgress: (p, t) {
-          if (!mounted) return;
-          setState(() {
-            _refreshAdvancedText = '$t $p%';
-            _refreshAdvancedProgress = p / 100;
-          });
-        },
-      );
-      if (!mounted) return;
-      ConfettiEffect.show(context);
-      AppToast.show(context.l10n.flowDataRefreshed, tone: AppToastTone.success);
-    } on ProberException catch (e) {
-      // 未授权 → 直接拉起授权页；其余按统一文案提示。
-      // 与首页刷新入口共用 presentRefreshError，避免两边行为不一致。
-      if (mounted) await presentRefreshError(context, e, qq: request.qq.trim());
-    } catch (e) {
-      if (mounted) await presentRefreshError(context, e, qq: request.qq.trim());
-    } finally {
-      if (mounted) {
-        setState(() {
-          _refreshingAdvanced = false;
-          _refreshAdvancedText = '';
-        });
+        _publishActiveTask();
       }
     }
   }
@@ -526,6 +532,7 @@ class SystemHubPageState extends State<SystemHubPage>
       _refreshingPlayCounts = true;
       _refreshPlayCountsText = context.l10n.flowPreparingToReadCabinetPlayCount;
     });
+    _publishActiveTask();
     try {
       final outcome = await AwmcPlayCountSyncFlow.run(
         context,
@@ -549,20 +556,39 @@ class SystemHubPageState extends State<SystemHubPage>
           _refreshingPlayCounts = false;
           _refreshPlayCountsText = '';
         });
+        _publishActiveTask();
       }
     }
   }
 
-  Future<void> _checkUpdate() async {
-    final isOnline = await ConnectivityService().hasConnection();
-    if (!mounted) return;
-    if (!isOnline) {
-      AppToast.show(context.l10n.flowNoConnectionConnectAndTryAgain,
-          tone: AppToastTone.warning);
-      return;
+  Future<void> _checkUpdate() {
+    return LZYCheckUpdateManager().showUpdateDialog(context, force: true);
+  }
+
+  Future<void> _syncCabinetAppearance() async {
+    if (anyBusy) return;
+    setState(() => _cabinetAppearanceProgress =
+        context.l10n.cabinetAppearanceCheckingCloud);
+    _publishActiveTask();
+    try {
+      await AppTaskActivity.run(() => AwmcCabinetAppearanceFlow.run(
+            context,
+            onProgress: (label) {
+              if (mounted) setState(() => _cabinetAppearanceProgress = label);
+            },
+          ));
+    } catch (error) {
+      debugPrint('同步机台装扮失败: ${error.runtimeType}');
+      if (mounted) {
+        AppToast.show(context.l10n.cabinetAppearanceFailed,
+            tone: AppToastTone.error);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _cabinetAppearanceProgress = null);
+        _publishActiveTask();
+      }
     }
-    final updateManager = LZYCheckUpdateManager();
-    updateManager.showUpdateDialog(context, force: true);
   }
 
   // ===== 同步成绩 =====
@@ -620,7 +646,7 @@ class SystemHubPageState extends State<SystemHubPage>
   Future<void> _manageAccountBindings() async {
     if (anyBusy) return;
     final target = await showAccountBindingDialog(context);
-    if (target == null || !mounted) return;
+    if (target == null || !mounted || anyBusy) return;
     switch (target) {
       case AccountBindingTarget.scoreHub:
         await _loginMaimaiHub();
@@ -670,11 +696,12 @@ class SystemHubPageState extends State<SystemHubPage>
   /// 登出水鱼账号：先弹出确认对话框，再清除账号相关缓存。
   Future<void> _logoutDivingFish() async {
     if (_loggingOut) return;
-    if (!await _confirmLogout() || !mounted) return;
+    if (!await _confirmLogout() || !mounted || anyBusy) return;
     setState(() {
       _loggingOut = true;
       _logoutText = context.l10n.flowSigningOutOfDivingFish2;
     });
+    _publishActiveTask();
     try {
       await UserProfileNotifier.clearShuiyuAccountCache();
       if (!mounted) return;
@@ -694,38 +721,13 @@ class SystemHubPageState extends State<SystemHubPage>
           _loggingOut = false;
           _logoutText = '';
         });
+        _publishActiveTask();
       }
     }
   }
 
-  String get _busyReason {
-    final task = syncingDivingFish
-        ? '同步成绩到水鱼'
-        : syncingLuoXue
-            ? '同步成绩到落雪'
-            : syncingAwmcNet
-                ? '同步成绩到 AWMC NET'
-                : syncingMulti
-                    ? context.l10n.flowMultiPlatformSync
-                    : _refreshingAdvanced
-                        ? context.l10n.flowAdvancedDataRefresh
-                        : _refreshingPlayCounts
-                            ? context.l10n.flowReadPlayCounts
-                            : _loggingOut
-                                ? context.l10n.flowSignOut3
-                                : _refreshing
-                                    ? context.l10n.featureRefreshData
-                                    : context.l10n.flowHomeDataRefresh;
-    final label = switch (task) {
-      '多端同步' => '同步成绩到多端',
-      '高级数据刷新' => '拉取成绩并更新数据（高级）',
-      '读取游玩次数' => '刷新机台游玩次数',
-      '退出账号' => context.l10n.featureSignOutOfDivingFish,
-      '首页数据刷新' => '拉取成绩并更新数据',
-      _ => task,
-    };
-    return context.l10n.hubBusyTask(context.featureText(label));
-  }
+  String get _busyReason => context.l10n
+      .hubBusyTask(context.featureText(_activeTask?.title ?? '拉取成绩并更新数据'));
 
   @override
   Widget build(BuildContext context) =>
@@ -865,7 +867,9 @@ class SystemHubPageState extends State<SystemHubPage>
                 disabled: anyBusy,
                 footerLift: SyncStatsFooter.footerLift,
                 footer: AutoSyncStatusFooter(
-                  onTap: () => _open(context, const AutoSyncPage()),
+                  onTap: () {
+                    if (!anyBusy) _open(context, const AutoSyncPage());
+                  },
                 ),
               ),
               '拉取成绩并更新数据': HubActionTile(
@@ -882,20 +886,6 @@ class SystemHubPageState extends State<SystemHubPage>
                 disabledReason: _busyReason,
                 disabled: anyBusy && !_refreshing,
               ),
-              '拉取成绩并更新数据（高级）': HubActionTile(
-                title: '拉取成绩并更新数据（高级）',
-                subtitle: '按数据类型选择是否强制重新下载，并测试各接口连通性',
-                icon: Icons.tune_rounded,
-                isFavorited: _isFavorited('拉取成绩并更新数据（高级）'),
-                onToggleFavorite: () => _toggleFavorite('拉取成绩并更新数据（高级）'),
-                onTap: _advancedRefreshData,
-                loading: _refreshingAdvanced,
-                loadingText: _refreshAdvancedText,
-                showProgress: true,
-                progressValue: _refreshAdvancedProgress,
-                disabledReason: _busyReason,
-                disabled: anyBusy && !_refreshingAdvanced,
-              ),
               '刷新机台游玩次数': HubActionTile(
                 title: '刷新机台游玩次数',
                 subtitle: '单独读取当前账号的 PC 数；不会附带同步成绩',
@@ -907,6 +897,19 @@ class SystemHubPageState extends State<SystemHubPage>
                 loadingText: _refreshPlayCountsText,
                 disabledReason: _busyReason,
                 disabled: anyBusy && !_refreshingPlayCounts,
+              ),
+              FeatureRegistry.cabinetAppearanceTitle: HubActionTile(
+                title: FeatureRegistry.cabinetAppearanceTitle,
+                subtitle: FeatureRegistry.cabinetAppearanceSubtitle,
+                icon: Icons.checkroom_outlined,
+                isFavorited: _isFavorited(FeatureRegistry.cabinetAppearanceTitle),
+                onToggleFavorite: () =>
+                    _toggleFavorite(FeatureRegistry.cabinetAppearanceTitle),
+                onTap: _syncCabinetAppearance,
+                loading: _cabinetAppearanceProgress != null,
+                loadingText: _cabinetAppearanceProgress,
+                disabledReason: _busyReason,
+                disabled: anyBusy && _cabinetAppearanceProgress == null,
               ),
               '数据备份': HubActionTile(
                 title: '数据备份',
@@ -924,6 +927,7 @@ class SystemHubPageState extends State<SystemHubPage>
                 progressValue: CacheManagementService.instance.reloadProgress,
                 disabled:
                     anyBusy && !CacheManagementService.instance.reloadingBase,
+                disabledReason: _busyReason,
                 icon: Icons.storage_outlined,
                 isFavorited: _isFavorited('缓存管理'),
                 onToggleFavorite: () => _toggleFavorite('缓存管理'),
@@ -1010,6 +1014,14 @@ class SystemHubPageState extends State<SystemHubPage>
                   );
                 },
               ),
+              '公告中心': HubActionTile(
+                title: '公告中心',
+                subtitle: '查看服务公告与项目动态',
+                icon: Icons.campaign_outlined,
+                isFavorited: _isFavorited('公告中心'),
+                onToggleFavorite: () => _toggleFavorite('公告中心'),
+                onTap: () => _open(context, const AnnouncementsPage()),
+              ),
               '关于 APP': HubActionTile(
                 title: '关于 APP',
                 subtitle: '了解项目与版本信息',
@@ -1095,6 +1107,15 @@ class SystemHubPageState extends State<SystemHubPage>
                   onPickTap: _showCollectionPicker,
                   onRetry: () =>
                       unawaited(CommunityAvatarStore.instance.retry()),
+                  onTravelAppearanceTap: () {
+                    FocusManager.instance.primaryFocus?.unfocus();
+                    Navigator.push<void>(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const CommunityTravelAppearancePage(),
+                      ),
+                    );
+                  },
                 ),
                 const SizedBox(height: 8),
                 Container(

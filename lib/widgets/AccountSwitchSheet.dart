@@ -20,17 +20,63 @@ Future<void> showAccountSwitchSheet(
 }) async {
   final metas = await AccountStore.loadAll();
   if (!context.mounted) return;
-  await showModalBottomSheet<void>(
-    context: context,
-    showDragHandle: true,
+  final navigator = Navigator.of(context);
+  final localizations = MaterialLocalizations.of(context);
+  // 拖拽锁定会更换 Material 面板的包裹层，保留正在处理的表单状态。
+  final sheetKey = GlobalKey<_AccountSwitchSheetState>();
+  late final _AccountSwitchSheetRoute route;
+  route = _AccountSwitchSheetRoute(
+    capturedThemes:
+        InheritedTheme.capture(from: context, to: navigator.context),
+    barrierLabel: localizations.scrimLabel,
+    barrierOnTapHint:
+        localizations.scrimOnTapHint(localizations.bottomSheetLabel),
+    modalBarrierColor: Theme.of(context).bottomSheetTheme.modalBarrierColor,
     isScrollControlled: true,
     constraints:
         BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * .85),
     builder: (_) => _AccountSwitchSheet(
+      key: sheetKey,
       initialMetas: metas,
       onNeedRefresh: onNeedRefresh,
+      onBusyChanged: route.setBusy,
     ),
   );
+  await navigator.push(route);
+}
+
+/// 处理账号时锁定遮罩、拖拽和系统返回。
+class _AccountSwitchSheetRoute extends ModalBottomSheetRoute<void> {
+  _AccountSwitchSheetRoute({
+    required super.builder,
+    required super.isScrollControlled,
+    super.capturedThemes,
+    super.barrierLabel,
+    super.barrierOnTapHint,
+    super.modalBarrierColor,
+    super.constraints,
+  });
+
+  bool _busy = false;
+
+  @override
+  bool get barrierDismissible => !_busy;
+
+  @override
+  bool get enableDrag => !_busy;
+
+  @override
+  bool get showDragHandle => !_busy;
+
+  @override
+  RoutePopDisposition get popDisposition =>
+      _busy ? RoutePopDisposition.doNotPop : super.popDisposition;
+
+  void setBusy(bool busy) {
+    if (_busy == busy) return;
+    _busy = busy;
+    changedExternalState();
+  }
 }
 
 /// 我的页使用对话框，账号操作仍与首页底部面板共用。
@@ -63,11 +109,14 @@ class _AccountSwitchSheet extends StatefulWidget {
   final bool dialog;
   final Map<String, AccountMeta> initialMetas;
   final Future<void> Function(RefreshDataSource source) onNeedRefresh;
+  final ValueChanged<bool>? onBusyChanged;
 
   const _AccountSwitchSheet({
+    super.key,
     this.dialog = false,
     required this.initialMetas,
     required this.onNeedRefresh,
+    this.onBusyChanged,
   });
 
   @override
@@ -107,38 +156,37 @@ class _AccountSwitchSheetState extends State<_AccountSwitchSheet> {
         ],
       ),
     );
-    if (confirmed != true || !mounted) return;
+    if (confirmed != true || !mounted || _busy) return;
 
     setState(() {
       _busy = true;
       _clearing = source;
     });
+    widget.onBusyChanged?.call(true);
     try {
       await AccountSwitchService.clearAccountData(source);
+      final loaded = await AccountStore.loadAll();
+      if (!mounted) return;
+      setState(() => _metas
+        ..clear()
+        ..addAll(loaded));
+      AppToast.show(
+          context.l10n
+              .flowClearedP0AccountData(appLocalizeLabel(source.displayName)),
+          tone: AppToastTone.success);
     } catch (e) {
+      if (!mounted) return;
+      AppToast.show(context.l10n.flowCouldNotClearP0(e.toString()),
+          tone: AppToastTone.error);
+    } finally {
       if (mounted) {
         setState(() {
           _busy = false;
           _clearing = null;
         });
+        widget.onBusyChanged?.call(false);
       }
-      AppToast.show(context.l10n.flowCouldNotClearP0((e).toString()),
-          tone: AppToastTone.error);
-      return;
     }
-    final loaded = await AccountStore.loadAll();
-    if (!mounted) return;
-    setState(() {
-      _busy = false;
-      _clearing = null;
-      _metas
-        ..clear()
-        ..addAll(loaded);
-    });
-    AppToast.show(
-        context.l10n
-            .flowClearedP0AccountData(appLocalizeLabel(source.displayName)),
-        tone: AppToastTone.success);
   }
 
   Future<void> _onTapAccount(RefreshDataSource source) async {
@@ -153,12 +201,22 @@ class _AccountSwitchSheetState extends State<_AccountSwitchSheet> {
       _busy = true;
       _switchingTo = source;
     });
-    final outcome = await AccountSwitchService.switchTo(source);
-    if (!mounted) return;
-    setState(() {
-      _busy = false;
-      _switchingTo = null;
-    });
+    widget.onBusyChanged?.call(true);
+    var outcome = SwitchOutcome.failed;
+    try {
+      outcome = await AccountSwitchService.switchTo(source);
+    } catch (error) {
+      debugPrint('切换账号失败：$error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _switchingTo = null;
+        });
+        widget.onBusyChanged?.call(false);
+      }
+    }
+    if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
 
     switch (outcome) {
       case SwitchOutcome.switched:
@@ -199,7 +257,7 @@ class _AccountSwitchSheetState extends State<_AccountSwitchSheet> {
           ),
         );
         if (confirmed == true) {
-          if (!mounted) return;
+          if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
           Navigator.of(context).pop();
           await widget.onNeedRefresh(source);
         }
@@ -228,7 +286,7 @@ class _AccountSwitchSheetState extends State<_AccountSwitchSheet> {
                       color: scheme.onSurface)),
             const SizedBox(height: 4),
             // 切换中：在标题下方显示状态，避免点完没有任何反馈
-            if (_busy)
+            if (_switchingTo case final source?)
               Row(children: [
                 SizedBox(
                   width: 14,
@@ -239,13 +297,20 @@ class _AccountSwitchSheetState extends State<_AccountSwitchSheet> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  context.l10n.flowSwitchingToP0(
-                      (_switchingTo?.displayName ?? '').toString()),
-                  style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: scheme.primary),
+                Expanded(
+                  child: Semantics(
+                    liveRegion: true,
+                    child: Text(
+                      widget.dialog
+                          ? context.l10n.flowSwitchingToP0(
+                              appLocalizeLabel(source.displayName))
+                          : context.l10n.accountSwitchSheetBusy,
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: scheme.primary),
+                    ),
+                  ),
                 ),
               ])
             else
@@ -301,7 +366,7 @@ class _AccountSwitchSheetState extends State<_AccountSwitchSheet> {
       borderRadius: BorderRadius.circular(12),
       splashFactory: NoSplash.splashFactory,
       highlightColor: Colors.transparent,
-      onTap: () => _onTapAccount(source),
+      onTap: _busy ? null : () => _onTapAccount(source),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
@@ -377,7 +442,7 @@ class _AccountSwitchSheetState extends State<_AccountSwitchSheet> {
               // 只有缓存过数据才显示「清除」入口
               if (hasData)
                 IconButton(
-                  onPressed: () => _onClearAccount(source),
+                  onPressed: _busy ? null : () => _onClearAccount(source),
                   tooltip: context.l10n.flowClearP0AccountData(
                       appLocalizeLabel(source.displayName)),
                   visualDensity: VisualDensity.compact,

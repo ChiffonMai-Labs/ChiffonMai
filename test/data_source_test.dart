@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:flutter/material.dart' show Brightness;
+import 'package:flutter/material.dart' show Brightness, Locale;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:my_first_flutter_app/manager/AWMC/AwmcNetUserPlayDataManager.dart';
 import 'package:my_first_flutter_app/service/RankingList/SongRankingService.dart'
@@ -17,6 +17,11 @@ import 'package:my_first_flutter_app/widgets/DivingFishAccountSection.dart'
 /// 归一化少过滤一条未游玩谱面，单曲排行榜就会多传一条 0% 成绩；
 /// playerId 前缀解析少认一个源，排行榜就会把 AWMC NET 标成落雪。
 void main() {
+  final binding = TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(
+      () => binding.platformDispatcher.localesTestValue = [const Locale('zh')]);
+  tearDownAll(binding.platformDispatcher.clearLocalesTestValue);
+
   group('RefreshDataSource 三源枚举', () {
     test('三个源的持久化 key 与显示名', () {
       expect(RefreshDataSource.shuiyu.key, 'shuiyu');
@@ -83,7 +88,8 @@ void main() {
     });
 
     test('parseUserIdMarker 按第一个冒号切，兼容 id 内含冒号', () {
-      expect(RefreshDataSource.parseUserIdMarker('awmc:488581724'), '488581724');
+      expect(
+          RefreshDataSource.parseUserIdMarker('awmc:488581724'), '488581724');
       expect(RefreshDataSource.parseUserIdMarker('luoxue:a:b'), 'a:b');
       expect(RefreshDataSource.parseUserIdMarker('shuiyu:'), isNull);
       expect(RefreshDataSource.parseUserIdMarker('no-colon'), isNull);
@@ -160,8 +166,8 @@ void main() {
       };
       for (final brightness in [Brightness.light, Brightness.dark]) {
         expect(
-            sourceColors.contains(
-                developerStyle(brightness).foreground.toARGB32()),
+            sourceColors
+                .contains(developerStyle(brightness).foreground.toARGB32()),
             isFalse,
             reason: '$brightness 下「开发者喵」的颜色不能和某个数据源撞色');
       }
@@ -170,12 +176,10 @@ void main() {
 
   group('水鱼账号三态（登录 / 没填 QQ / 正常）', () {
     test('没登录 → notLoggedIn（不管 QQ 有没有值）', () {
-      expect(
-          resolveDivingFishQqState(loggedIn: false, bindQq: ''),
+      expect(resolveDivingFishQqState(loggedIn: false, bindQq: ''),
           DivingFishQqState.notLoggedIn);
       // 没登录时即使 prefs 里残留了 QQ，也不算已绑定
-      expect(
-          resolveDivingFishQqState(loggedIn: false, bindQq: '488581724'),
+      expect(resolveDivingFishQqState(loggedIn: false, bindQq: '488581724'),
           DivingFishQqState.notLoggedIn);
     });
 
@@ -208,14 +212,10 @@ void main() {
 
   group('导出截图尺寸保护 safeCapturePixelRatio', () {
     test('正常尺寸不降质（保持 3.0）', () {
-      // B50 导出容器 1700 逻辑宽 × ~2500 高：3.0 倍后仍在上限内
-      expect(ImageEncodeUtil.safeCapturePixelRatio(1700, 2500), 3.0);
-      // 小图更不该被动
       expect(ImageEncodeUtil.safeCapturePixelRatio(360, 640), 3.0);
     });
 
     test('超过纹理上限时按边长压下 pixelRatio', () {
-      // 高 10000 × 3.0 = 30000 > 8192 → 压到约 0.82
       final r = ImageEncodeUtil.safeCapturePixelRatio(1200, 10000);
       expect(r, lessThan(3.0));
       expect(1200 * r, lessThanOrEqualTo(kMaxCaptureTextureSize));
@@ -226,24 +226,25 @@ void main() {
       expect(20000 * rw, lessThanOrEqualTo(kMaxCaptureTextureSize));
     });
 
-    test('结果永远不超过上限（取宽高两个约束里更严的那个）', () {
+    test('三种格式的最终尺寸都符合单边和总像素预算', () {
       for (final size in [
         [1700.0, 2500.0],
         [1200.0, 9000.0],
         [3000.0, 3000.0],
         [8000.0, 400.0],
         [100.0, 20000.0],
+        [200.0, 100000.0],
       ]) {
-        final r = ImageEncodeUtil.safeCapturePixelRatio(size[0], size[1]);
-        expect(r, lessThanOrEqualTo(3.0));
-        expect(r, greaterThanOrEqualTo(kMinCapturePixelRatio));
-        // 这条才是保护的本意：算出来的比例必须真的把两边都压进上限内。
-        // 之前下限取 1.0 时，[100, 20000] 会被顶回 1.0 → 20000 > 16000，
-        // 保护形同虚设（本用例就是为这个回归加的）。
-        expect(size[0] * r, lessThanOrEqualTo(kMaxCaptureTextureSize),
-            reason: '宽度 ${size[0]} 在 ratio $r 下超出纹理上限');
-        expect(size[1] * r, lessThanOrEqualTo(kMaxCaptureTextureSize),
-            reason: '高度 ${size[1]} 在 ratio $r 下超出纹理上限');
+        for (final quality in [null, 95, 85]) {
+          final r = ImageEncodeUtil.safeCapturePixelRatio(size[0], size[1],
+              jpegQuality: quality);
+          final width = (size[0] * r).ceil();
+          final height = (size[1] * r).ceil();
+          expect(r, inInclusiveRange(0.0, 3.0));
+          expect(width, inInclusiveRange(1, kMaxCaptureTextureSize));
+          expect(height, inInclusiveRange(1, kMaxCaptureTextureSize));
+          expect(width * height, lessThanOrEqualTo(8000000));
+        }
       }
     });
 
@@ -345,8 +346,8 @@ void main() {
       expect(AwmcNetUserPlayDataManager.normalizeRecords({'nickname': 'X'}),
           isNull);
       // records 不是数组
-      expect(
-          AwmcNetUserPlayDataManager.normalizeRecords({'records': 'x'}), isNull);
+      expect(AwmcNetUserPlayDataManager.normalizeRecords({'records': 'x'}),
+          isNull);
     });
   });
 }

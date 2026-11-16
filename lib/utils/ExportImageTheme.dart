@@ -1,5 +1,28 @@
 import 'package:flutter/material.dart';
 
+/// Best50 导出画布的背景图。
+enum Best50ExportBackground {
+  none(null, null),
+  prism('PRiSM', 'assets/bg/b50_bg_prism.webp'),
+  prismPlus('PRiSM+', 'assets/bg/b50_bg_prism_plus.webp'),
+  circle('CiRCLE', 'assets/bg/b50_bg_circle.webp');
+
+  const Best50ExportBackground(this.label, this.assetPath);
+
+  final String? label;
+  final String? assetPath;
+
+  AssetImage? get image {
+    final path = assetPath;
+    return path == null ? null : AssetImage(path);
+  }
+
+  Future<void> precache(BuildContext context) async {
+    final provider = image;
+    if (provider != null) await precacheImage(provider, context);
+  }
+}
+
 /// 导出图片的主题。用户在导出抽屉里选，和 App 当前的主题、系统明暗都无关。
 enum ExportImageTheme {
   light('浅色'),

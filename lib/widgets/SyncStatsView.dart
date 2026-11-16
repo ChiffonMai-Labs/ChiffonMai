@@ -3,6 +3,8 @@ import 'AnimatedChoiceBar.dart';
 import 'package:flutter/material.dart';
 
 import '../service/SyncStatsService.dart';
+import '../utils/AppDesignTokens.dart';
+import '../utils/AppTheme.dart';
 import '../widgets/AppDialogs.dart';
 
 /// 同步统计的展示组件。
@@ -32,6 +34,10 @@ class SyncStatsView {
     String? label,
   }) {
     final scheme = Theme.of(context).colorScheme;
+    final duration =
+        AppDesignTokens.motion(context, AppDesignTokens.slowMotion);
+    final style =
+        AppTheme.number(fontSize: 11.5, color: scheme.onSurfaceVariant);
     final prefix = label == null ? '' : '$label ';
     final String text;
     if (loading) {
@@ -64,25 +70,19 @@ class SyncStatsView {
                       ? TweenAnimationBuilder<double>(
                           key: const ValueKey('sync-stats-values'),
                           tween: Tween<double>(end: stats.count.toDouble()),
-                          duration: MediaQuery.disableAnimationsOf(context)
-                              ? Duration.zero
-                              : const Duration(milliseconds: 450),
-                          curve: Curves.easeOutCubic,
+                          duration: duration,
+                          curve: AppDesignTokens.emphasizedCurve,
                           builder: (_, count, __) =>
                               TweenAnimationBuilder<double>(
                             tween: Tween<double>(end: stats.avgMs),
-                            duration: MediaQuery.disableAnimationsOf(context)
-                                ? Duration.zero
-                                : const Duration(milliseconds: 450),
-                            curve: Curves.easeOutCubic,
+                            duration: duration,
+                            curve: AppDesignTokens.emphasizedCurve,
                             builder: (_, avgMs, __) =>
                                 TweenAnimationBuilder<double>(
                               tween:
                                   Tween<double>(end: stats.successRate * 100),
-                              duration: MediaQuery.disableAnimationsOf(context)
-                                  ? Duration.zero
-                                  : const Duration(milliseconds: 450),
-                              curve: Curves.easeOutCubic,
+                              duration: duration,
+                              curve: AppDesignTokens.emphasizedCurve,
                               builder: (_, rate, __) => Text(
                                 context.l10n.flowP0Last100P1SamplesAvgP2(
                                     (prefix).toString(),
@@ -93,9 +93,7 @@ class SyncStatsView {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 softWrap: false,
-                                style: TextStyle(
-                                    fontSize: 11.5,
-                                    color: scheme.onSurfaceVariant),
+                                style: style,
                               ),
                             ),
                           ),

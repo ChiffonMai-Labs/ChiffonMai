@@ -776,7 +776,7 @@ abstract class AppLocalizations {
   /// No description provided for @defaultDifficultyHint.
   ///
   /// In zh, this message translates to:
-  /// **'从歌曲搜索等未指定难度的入口打开歌曲时，优先显示所选难度。'**
+  /// **'打开歌曲时，若入口未指定难度且没有可用的难度记忆，则显示所选难度。'**
   String get defaultDifficultyHint;
 
   /// No description provided for @defaultDifficultyNote.
@@ -784,6 +784,42 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'首次使用默认为 MASTER。成绩、谱面等已指定难度的跳转保持原有难度。'**
   String get defaultDifficultyNote;
+
+  /// No description provided for @songDifficultyMemory.
+  ///
+  /// In zh, this message translates to:
+  /// **'记住歌曲详情难度'**
+  String get songDifficultyMemory;
+
+  /// No description provided for @songDifficultyMemoryHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'开启后，每首歌会记住离开详情时的难度。关闭后保留已有记录。'**
+  String get songDifficultyMemoryHint;
+
+  /// No description provided for @songDifficultyMemoryManage.
+  ///
+  /// In zh, this message translates to:
+  /// **'管理难度记忆'**
+  String get songDifficultyMemoryManage;
+
+  /// No description provided for @songDifficultyMemoryEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'还没有保存的难度记忆'**
+  String get songDifficultyMemoryEmpty;
+
+  /// No description provided for @songDifficultyMemoryClearSelected.
+  ///
+  /// In zh, this message translates to:
+  /// **'清除所选'**
+  String get songDifficultyMemoryClearSelected;
+
+  /// No description provided for @songDifficultyMemoryClearAllConfirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'确定清除所有歌曲的难度记忆吗？'**
+  String get songDifficultyMemoryClearAllConfirm;
 
   /// No description provided for @settingSaveFailed.
   ///
@@ -2201,6 +2237,36 @@ abstract class AppLocalizations {
   /// **'一份成绩同步到多个查分器'**
   String get featureSendTheSameScoresToMultipleTrackers;
 
+  /// No description provided for @autoSyncKeepaliveAction.
+  ///
+  /// In zh, this message translates to:
+  /// **'手动保活'**
+  String get autoSyncKeepaliveAction;
+
+  /// No description provided for @autoSyncKeepaliveDeadline.
+  ///
+  /// In zh, this message translates to:
+  /// **'保活截止（北京时间）'**
+  String get autoSyncKeepaliveDeadline;
+
+  /// No description provided for @autoSyncKeepaliveSuccess.
+  ///
+  /// In zh, this message translates to:
+  /// **'已续期 7 天'**
+  String get autoSyncKeepaliveSuccess;
+
+  /// No description provided for @autoSyncKeepaliveExpired.
+  ///
+  /// In zh, this message translates to:
+  /// **'自动同步已过期，请重新开启'**
+  String get autoSyncKeepaliveExpired;
+
+  /// No description provided for @autoSyncKeepalivePolicy.
+  ///
+  /// In zh, this message translates to:
+  /// **'开启后须每 7 天手动保活。到期未续期会退出队列并清除服务端托管凭据。'**
+  String get autoSyncKeepalivePolicy;
+
   /// No description provided for @featureAutoSync.
   ///
   /// In zh, this message translates to:
@@ -2356,6 +2422,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'检查应用是否有新版本'**
   String get featureCheckForANewerAppVersion;
+
+  /// No description provided for @featureTestFlightUpdateSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'在 TestFlight 中管理应用更新'**
+  String get featureTestFlightUpdateSubtitle;
 
   /// No description provided for @featureAboutTheApp.
   ///
@@ -3182,7 +3254,7 @@ abstract class AppLocalizations {
   /// No description provided for @homeTotalRatingAction.
   ///
   /// In zh, this message translates to:
-  /// **'总 Rating {rating}，打开高级刷新'**
+  /// **'总 Rating {rating}，拉取成绩并更新数据'**
   String homeTotalRatingAction(String rating);
 
   /// No description provided for @homeFeatureCount.
@@ -3602,7 +3674,7 @@ abstract class AppLocalizations {
   /// No description provided for @rankingUploadIncompleteLead.
   ///
   /// In zh, this message translates to:
-  /// **'成绩已刷新并保存，只是这次没有更新排行榜。'**
+  /// **'成绩已刷新并保存。本次排行榜上传未全部完成。'**
   String get rankingUploadIncompleteLead;
 
   /// No description provided for @rankingGuardFrozen.
@@ -4370,8 +4442,32 @@ abstract class AppLocalizations {
   /// No description provided for @flowPreviousRoundQueue.
   ///
   /// In zh, this message translates to:
-  /// **'上轮队列处理'**
+  /// **'上一批次处理结果'**
   String get flowPreviousRoundQueue;
+
+  /// No description provided for @autoSyncCurrentBatchResults.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前批次处理结果'**
+  String get autoSyncCurrentBatchResults;
+
+  /// No description provided for @autoSyncCompleteSuccess.
+  ///
+  /// In zh, this message translates to:
+  /// **'全部成功'**
+  String get autoSyncCompleteSuccess;
+
+  /// No description provided for @autoSyncPartialSuccess.
+  ///
+  /// In zh, this message translates to:
+  /// **'部分成功'**
+  String get autoSyncPartialSuccess;
+
+  /// No description provided for @autoSyncCompleteFailure.
+  ///
+  /// In zh, this message translates to:
+  /// **'全部失败'**
+  String get autoSyncCompleteFailure;
 
   /// No description provided for @flowLoadingPreviousRoundStatistics.
   ///
@@ -4720,6 +4816,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'正在切换，请稍候'**
   String get flowSwitchingPleaseWait;
+
+  /// No description provided for @accountSwitchSheetBusy.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在切换账号，请稍候。切换完成后可关闭此面板。'**
+  String get accountSwitchSheetBusy;
 
   /// No description provided for @flowNoCachedDataForThisAccount.
   ///
@@ -6498,6 +6600,18 @@ abstract class AppLocalizations {
   /// **'图片已保存到相册'**
   String get flowImageSavedToGallery;
 
+  /// No description provided for @flowPhotoLibraryAddPermissionRequired.
+  ///
+  /// In zh, this message translates to:
+  /// **'请在系统设置中允许 ChiffonMai 添加照片。'**
+  String get flowPhotoLibraryAddPermissionRequired;
+
+  /// No description provided for @flowCouldNotSaveToPhotoLibrary.
+  ///
+  /// In zh, this message translates to:
+  /// **'无法将图片保存到相册。'**
+  String get flowCouldNotSaveToPhotoLibrary;
+
   /// No description provided for @flowSaveFailedP0.
   ///
   /// In zh, this message translates to:
@@ -7905,7 +8019,7 @@ abstract class AppLocalizations {
   /// No description provided for @flowOAuthInMeRefreshDataChooseLXNS.
   ///
   /// In zh, this message translates to:
-  /// **'OAuth 授权：在 App 的“我的 → 数据刷新 → 拉取成绩并更新数据 / 拉取成绩并更新数据（高级）”对话框里把数据源切换到落雪，按引导完成授权。授权后，这里的 OAuth 应用列表会出现 ChiffonMai。'**
+  /// **'OAuth 授权：在 App 的“我的 → 绑定与授权管理”中选择落雪账号授权，并按引导完成。授权后，这里的 OAuth 应用列表会出现 ChiffonMai。'**
   String get flowOAuthInMeRefreshDataChooseLXNS;
 
   /// No description provided for @flowPersonalAPIKeyResetItThenPaste.
@@ -9505,6 +9619,18 @@ abstract class AppLocalizations {
   /// **'背景'**
   String get flowFrameCollectible;
 
+  /// No description provided for @flowTravelBuddyCollectible.
+  ///
+  /// In zh, this message translates to:
+  /// **'旅行伙伴'**
+  String get flowTravelBuddyCollectible;
+
+  /// No description provided for @flowPartnerCollectible.
+  ///
+  /// In zh, this message translates to:
+  /// **'搭档'**
+  String get flowPartnerCollectible;
+
   /// No description provided for @flowAwmcGateway.
   ///
   /// In zh, this message translates to:
@@ -9928,7 +10054,7 @@ abstract class AppLocalizations {
   /// No description provided for @flowRankingBriefHint.
   ///
   /// In zh, this message translates to:
-  /// **'公开称号、装扮、等级与 Best 成绩；需登录或完成账号身份验证。默认关闭。'**
+  /// **'公开称号、装扮、旅行伙伴、搭档、等级与 Best 成绩。需登录或完成账号身份验证，默认关闭。'**
   String get flowRankingBriefHint;
 
   /// No description provided for @flowCacheFishSongs.
@@ -9997,6 +10123,18 @@ abstract class AppLocalizations {
   /// **'收藏品-背景'**
   String get flowCacheFrames;
 
+  /// No description provided for @flowCacheTravelBuddies.
+  ///
+  /// In zh, this message translates to:
+  /// **'收藏品-旅行伙伴'**
+  String get flowCacheTravelBuddies;
+
+  /// No description provided for @flowCachePartners.
+  ///
+  /// In zh, this message translates to:
+  /// **'收藏品-搭档'**
+  String get flowCachePartners;
+
   /// No description provided for @flowCacheUnionMetadata.
   ///
   /// In zh, this message translates to:
@@ -10050,6 +10188,18 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'落雪背景'**
   String get flowCacheFrameDescription;
+
+  /// No description provided for @flowCacheTravelBuddyDescription.
+  ///
+  /// In zh, this message translates to:
+  /// **'AWMC 旅行伙伴'**
+  String get flowCacheTravelBuddyDescription;
+
+  /// No description provided for @flowCachePartnerDescription.
+  ///
+  /// In zh, this message translates to:
+  /// **'AWMC 搭档'**
+  String get flowCachePartnerDescription;
 
   /// No description provided for @flowCacheMetadataDescription.
   ///
@@ -12943,6 +13093,36 @@ abstract class AppLocalizations {
   /// **'按当前谱面中 BPM 标记的出现顺序'**
   String get flowInTheOrderBPMMarkersAppearIn;
 
+  /// No description provided for @chartBpmTimeRange.
+  ///
+  /// In zh, this message translates to:
+  /// **'谱面时间段'**
+  String get chartBpmTimeRange;
+
+  /// No description provided for @chartMetronome.
+  ///
+  /// In zh, this message translates to:
+  /// **'节拍器'**
+  String get chartMetronome;
+
+  /// No description provided for @chartMetronomeSound.
+  ///
+  /// In zh, this message translates to:
+  /// **'节拍音'**
+  String get chartMetronomeSound;
+
+  /// No description provided for @chartMetronomeSoundUnavailable.
+  ///
+  /// In zh, this message translates to:
+  /// **'节拍音暂不可用'**
+  String get chartMetronomeSoundUnavailable;
+
+  /// No description provided for @chartPlayerCreditDetails.
+  ///
+  /// In zh, this message translates to:
+  /// **'提供谱面解析和播放器，采用 MIT 许可证'**
+  String get chartPlayerCreditDetails;
+
   /// No description provided for @flowChangeIndex.
   ///
   /// In zh, this message translates to:
@@ -13465,6 +13645,18 @@ abstract class AppLocalizations {
   /// **'复制路径'**
   String get flowCopyPath;
 
+  /// No description provided for @flowOpenExportFolder.
+  ///
+  /// In zh, this message translates to:
+  /// **'打开文件夹'**
+  String get flowOpenExportFolder;
+
+  /// No description provided for @flowCouldNotOpenExportFolder.
+  ///
+  /// In zh, this message translates to:
+  /// **'无法打开文件夹，请复制路径后在文件管理器中查找。'**
+  String get flowCouldNotOpenExportFolder;
+
   /// No description provided for @flowPublicDirectoryIsNotWritableSavedTo.
   ///
   /// In zh, this message translates to:
@@ -13572,6 +13764,18 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'图片主题'**
   String get flowImageTheme;
+
+  /// No description provided for @exportImageBackground.
+  ///
+  /// In zh, this message translates to:
+  /// **'图片背景'**
+  String get exportImageBackground;
+
+  /// No description provided for @exportNoBackground.
+  ///
+  /// In zh, this message translates to:
+  /// **'无背景'**
+  String get exportNoBackground;
 
   /// No description provided for @flowThunderMode.
   ///
@@ -13830,6 +14034,30 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'正在读取本地视频…'**
   String get flowReadingLocalVideo;
+
+  /// No description provided for @pvFullscreen.
+  ///
+  /// In zh, this message translates to:
+  /// **'横屏全屏'**
+  String get pvFullscreen;
+
+  /// No description provided for @pvExitFullscreen.
+  ///
+  /// In zh, this message translates to:
+  /// **'退出全屏'**
+  String get pvExitFullscreen;
+
+  /// No description provided for @pvAudioDelay.
+  ///
+  /// In zh, this message translates to:
+  /// **'音频延迟'**
+  String get pvAudioDelay;
+
+  /// No description provided for @pvAudioDelayHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'正值让声音晚一点，负值让声音早一点。设置按歌曲保存。'**
+  String get pvAudioDelayHint;
 
   /// No description provided for @flowBufferingVideo.
   ///
@@ -14959,6 +15187,60 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'发送中...'**
   String get flowSending;
+
+  /// No description provided for @songChartConfirmationBilibili.
+  ///
+  /// In zh, this message translates to:
+  /// **'跳转到B站查看谱面确认'**
+  String get songChartConfirmationBilibili;
+
+  /// No description provided for @songChartPlaybackInApp.
+  ///
+  /// In zh, this message translates to:
+  /// **'APP内播放谱面'**
+  String get songChartPlaybackInApp;
+
+  /// No description provided for @songMoreActionsScroll.
+  ///
+  /// In zh, this message translates to:
+  /// **'下滑查看更多操作'**
+  String get songMoreActionsScroll;
+
+  /// No description provided for @announcementCenter.
+  ///
+  /// In zh, this message translates to:
+  /// **'公告中心'**
+  String get announcementCenter;
+
+  /// No description provided for @announcementCenterSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'查看服务公告与项目动态'**
+  String get announcementCenterSubtitle;
+
+  /// No description provided for @announcementDetail.
+  ///
+  /// In zh, this message translates to:
+  /// **'公告详情'**
+  String get announcementDetail;
+
+  /// No description provided for @announcementEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无公告'**
+  String get announcementEmpty;
+
+  /// No description provided for @announcementLoadFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'公告加载失败'**
+  String get announcementLoadFailed;
+
+  /// No description provided for @announcementLoadMore.
+  ///
+  /// In zh, this message translates to:
+  /// **'加载更多'**
+  String get announcementLoadMore;
 
   /// No description provided for @flowOpenBilibili2.
   ///
@@ -16946,8 +17228,14 @@ abstract class AppLocalizations {
   /// No description provided for @flowCouldNotGetYourLocationCheckThat.
   ///
   /// In zh, this message translates to:
-  /// **'无法获取当前位置，请确认已开启定位服务且信号良好'**
+  /// **'设备暂时未返回当前位置，请稍后重试。'**
   String get flowCouldNotGetYourLocationCheckThat;
+
+  /// No description provided for @arcadeLocationPermissionUnavailable.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前无法使用位置权限，请在系统设置中检查。'**
+  String get arcadeLocationPermissionUnavailable;
 
   /// No description provided for @flowLocationFailedP0.
   ///
@@ -24854,6 +25142,54 @@ abstract class AppLocalizations {
   /// **'代码字体'**
   String get chartCodeFont;
 
+  /// No description provided for @chartCodeSyntaxHighlight.
+  ///
+  /// In zh, this message translates to:
+  /// **'语法高亮'**
+  String get chartCodeSyntaxHighlight;
+
+  /// No description provided for @chartCodeHighlightSaveFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'语法高亮已切换，但未能保存设置'**
+  String get chartCodeHighlightSaveFailed;
+
+  /// No description provided for @historyDateRange.
+  ///
+  /// In zh, this message translates to:
+  /// **'日期区间'**
+  String get historyDateRange;
+
+  /// No description provided for @historyLatestRecord.
+  ///
+  /// In zh, this message translates to:
+  /// **'区间内最后一条记录'**
+  String get historyLatestRecord;
+
+  /// No description provided for @songDurationRanking.
+  ///
+  /// In zh, this message translates to:
+  /// **'歌曲时长排行榜'**
+  String get songDurationRanking;
+
+  /// No description provided for @songDurationRankingDescription.
+  ///
+  /// In zh, this message translates to:
+  /// **'仅收录国服歌曲，按参考时长排序，同一首歌只上榜一次'**
+  String get songDurationRankingDescription;
+
+  /// No description provided for @songDurationLongestFirst.
+  ///
+  /// In zh, this message translates to:
+  /// **'从长到短'**
+  String get songDurationLongestFirst;
+
+  /// No description provided for @songDurationShortestFirst.
+  ///
+  /// In zh, this message translates to:
+  /// **'从短到长'**
+  String get songDurationShortestFirst;
+
   /// No description provided for @chartCodeFontDefault.
   ///
   /// In zh, this message translates to:
@@ -25213,6 +25549,192 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'在浏览器中打开'**
   String get arcadeMapWeb;
+
+  /// No description provided for @communityTravelAppearance.
+  ///
+  /// In zh, this message translates to:
+  /// **'旅行伙伴与搭档'**
+  String get communityTravelAppearance;
+
+  /// No description provided for @communityTravelLocalNote.
+  ///
+  /// In zh, this message translates to:
+  /// **'旅行伙伴与搭档会随已公开的简要信息展示。'**
+  String get communityTravelLocalNote;
+
+  /// No description provided for @communityTravelLeader.
+  ///
+  /// In zh, this message translates to:
+  /// **'队长'**
+  String get communityTravelLeader;
+
+  /// No description provided for @communityTravelSlot.
+  ///
+  /// In zh, this message translates to:
+  /// **'队员 {slot}'**
+  String communityTravelSlot(int slot);
+
+  /// No description provided for @communityTravelSwap.
+  ///
+  /// In zh, this message translates to:
+  /// **'换位'**
+  String get communityTravelSwap;
+
+  /// No description provided for @communityTravelSetLeader.
+  ///
+  /// In zh, this message translates to:
+  /// **'设为队长'**
+  String get communityTravelSetLeader;
+
+  /// No description provided for @communityTravelEditLevel.
+  ///
+  /// In zh, this message translates to:
+  /// **'编辑等级与觉醒'**
+  String get communityTravelEditLevel;
+
+  /// No description provided for @communityTravelSuperCount.
+  ///
+  /// In zh, this message translates to:
+  /// **'超觉醒次数'**
+  String get communityTravelSuperCount;
+
+  /// No description provided for @communityTravelSuperBadge.
+  ///
+  /// In zh, this message translates to:
+  /// **'超觉醒 ×{count}'**
+  String communityTravelSuperBadge(int count);
+
+  /// No description provided for @communityTravelStars.
+  ///
+  /// In zh, this message translates to:
+  /// **'觉醒 {count} 星'**
+  String communityTravelStars(int count);
+
+  /// No description provided for @communityTravelIntegerRange.
+  ///
+  /// In zh, this message translates to:
+  /// **'请输入 {min}–{max} 之间的整数'**
+  String communityTravelIntegerRange(int min, int max);
+
+  /// No description provided for @communityTravelSearch.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索角色名称或 ID'**
+  String get communityTravelSearch;
+
+  /// No description provided for @cabinetAppearanceSync.
+  ///
+  /// In zh, this message translates to:
+  /// **'同步机台装扮'**
+  String get cabinetAppearanceSync;
+
+  /// No description provided for @cabinetAppearanceSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'扫码读取机台当前选中的装扮'**
+  String get cabinetAppearanceSubtitle;
+
+  /// No description provided for @cabinetAppearanceCheckingCloud.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在核对云端社区装扮…'**
+  String get cabinetAppearanceCheckingCloud;
+
+  /// No description provided for @cabinetAppearanceSignIn.
+  ///
+  /// In zh, this message translates to:
+  /// **'请先登录或验证当前账号，以便将社区装扮保存到云端。'**
+  String get cabinetAppearanceSignIn;
+
+  /// No description provided for @cabinetAppearanceCouldNotCheckCloud.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂时无法核对云端社区装扮，请稍后再试。'**
+  String get cabinetAppearanceCouldNotCheckCloud;
+
+  /// No description provided for @cabinetAppearanceQrHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'请扫描或粘贴要导入装扮的舞萌登录二维码。读取成功后可以先预览，再决定是否同步。'**
+  String get cabinetAppearanceQrHint;
+
+  /// No description provided for @cabinetAppearanceRead.
+  ///
+  /// In zh, this message translates to:
+  /// **'读取装扮'**
+  String get cabinetAppearanceRead;
+
+  /// No description provided for @cabinetAppearanceReading.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在读取机台装扮…'**
+  String get cabinetAppearanceReading;
+
+  /// No description provided for @cabinetAppearanceEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'机台未返回可同步的装扮。'**
+  String get cabinetAppearanceEmpty;
+
+  /// No description provided for @cabinetAppearanceReview.
+  ///
+  /// In zh, this message translates to:
+  /// **'确认机台装扮'**
+  String get cabinetAppearanceReview;
+
+  /// No description provided for @cabinetAppearanceCommunityOnly.
+  ///
+  /// In zh, this message translates to:
+  /// **'仅用于本 App 的社区装扮'**
+  String get cabinetAppearanceCommunityOnly;
+
+  /// No description provided for @cabinetAppearanceNotice.
+  ///
+  /// In zh, this message translates to:
+  /// **'确认后会替换预览中对应的社区装扮，不会修改任何机台数据。机台接口无法提供旅行伙伴的等级和超觉醒次数，请手动设置。这两项会随社区装扮保存到云端。'**
+  String get cabinetAppearanceNotice;
+
+  /// No description provided for @cabinetAppearanceKeepCurrent.
+  ///
+  /// In zh, this message translates to:
+  /// **'保留当前设置'**
+  String get cabinetAppearanceKeepCurrent;
+
+  /// No description provided for @cabinetAppearanceKeepTeam.
+  ///
+  /// In zh, this message translates to:
+  /// **'机台没有返回 5 个有效且不重复的旅行伙伴，本次将保留 App 中的队伍。'**
+  String get cabinetAppearanceKeepTeam;
+
+  /// No description provided for @cabinetAppearanceProgressDefaults.
+  ///
+  /// In zh, this message translates to:
+  /// **'已有伙伴沿用 App 中保存的数值。新伙伴初始为 1 级、超觉醒 0 次，可点每位伙伴旁的编辑按钮修改。'**
+  String get cabinetAppearanceProgressDefaults;
+
+  /// No description provided for @cabinetAppearanceConfirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'确认同步'**
+  String get cabinetAppearanceConfirm;
+
+  /// No description provided for @cabinetAppearanceSaving.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在保存社区装扮…'**
+  String get cabinetAppearanceSaving;
+
+  /// No description provided for @cabinetAppearanceAccountChanged.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前账号已切换，请重新打开同步。'**
+  String get cabinetAppearanceAccountChanged;
+
+  /// No description provided for @cabinetAppearanceFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'无法同步机台装扮，请稍后再试。'**
+  String get cabinetAppearanceFailed;
 }
 
 class _AppLocalizationsDelegate

@@ -1,10 +1,7 @@
 import '../service/AccountAuthorizationStore.dart';
 import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
-import '../l10n/FeatureLocalizations.dart';
-import 'RankingPrivacyOptions.dart';
 import '../service/PlayerExperienceService.dart';
-import '../widgets/AnimatedChoiceBar.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -19,8 +16,6 @@ import '../entity/DivingFish/Song.dart';
 import '../entity/LuoXue/LuoXuePlayer.dart';
 import '../entity/LuoXue/LuoXueScore.dart';
 import '../manager/AWMC/AwmcNetUserPlayDataManager.dart';
-import '../manager/DivingFishProbeManager.dart';
-import '../manager/DivingFish/DivingFishOAuthManager.dart';
 import '../manager/DivingFish/DiffMusicDataManager.dart';
 import '../manager/DivingFish/MaimaiMusicDataManager.dart';
 import '../manager/DivingFish/UnionManager.dart';
@@ -32,25 +27,21 @@ import '../manager/LuoXue/LuoXueOAuthManager.dart';
 import '../manager/MaiTagsManager.dart';
 import '../manager/SongAliasManager.dart';
 import '../service/History/ChartHistoryStore.dart';
-import '../service/AccountStore.dart';
 import '../service/AccountSwitchService.dart';
 import '../utils/SecureCredentialStore.dart';
 import '../utils/DivingFishMaskStatus.dart';
 import '../service/CommunityNicknameSyncService.dart';
-import '../service/ConnectivityService.dart';
 import '../service/PaiziProgressService.dart';
 import '../service/PersonalizedScoreService.dart';
 import '../service/RecommendByTagsService.dart';
 import '../service/RankingList/SongRankingService.dart';
 import '../service/RankingList/RankingUploadGuard.dart';
 import '../utils/ApiClient.dart';
-import '../utils/AppTheme.dart';
 import '../utils/CacheSourceRegistry.dart';
 import '../utils/CurrentDataSourceNotifier.dart';
 import '../utils/StringUtil.dart';
 import '../utils/UserProfileNotifier.dart';
-import 'DivingFishAccountSection.dart';
-import '../widgets/AppDialogs.dart';
+import 'AdvancedRefreshDataDialog.dart' show AdvancedRefreshDataPanel;
 import '../widgets/AppToast.dart';
 
 // 数据源枚举 / 当前数据源 Notifier 已抽到 utils，这里 re-export，
@@ -126,6 +117,8 @@ class RefreshDataRequest {
   }
 }
 
+bool _refreshDialogOpen = false;
+
 /// 弹出「刷新数据」输入对话框。
 ///
 /// 返回值：
@@ -136,32 +129,43 @@ Future<RefreshDataRequest?> showRefreshDataDialog(
   BuildContext context, {
   RefreshDataSource? initialSource,
 }) async {
-  await CurrentDataSourceNotifier.load();
-  final prefs = await SharedPreferences.getInstance();
-  final jwt =
-      await SecureCredentialStore.read(CacheKeyConstant.probeDivingFishToken) ??
-          '';
-  final bindQQ = prefs.getString(CacheKeyConstant.probeDivingFishBindQQ) ?? '';
-
-  // AWMC NET 的 QQ 必须取自**它自己的**账号存档，不能用共用的 cachedQQ：
-  // 活动槽里的 cachedQQ 此刻装的可能是另一个账号（水鱼）的 QQ，
-  // 拿它预填会诱导用户直接点确认去查错人。
-  final awmcQQ = await AccountAuthorizationStore.awmcQQ();
-
-  if (!context.mounted) return null;
-
-  return showDialog<RefreshDataRequest>(
-    context: context,
-    builder: (_) => _RefreshDataDialog(
-      // 只传「有没有登录」，不传「登录且绑了 QQ」：
-      // 「登录了但水鱼账号没填 QQ」要单独提示（见 DivingFishQqState），
-      // 合并成一个 bool 就没法区分这两种情况了。
-      hasDivingFishLogin: jwt.isNotEmpty,
-      bindQQ: bindQQ,
-      awmcQQ: awmcQQ,
-      initialSource: initialSource,
-    ),
-  );
+  if (_refreshDialogOpen || !context.mounted) return null;
+  final origin = ModalRoute.of(context);
+  if (origin?.isCurrent == false) return null;
+  // 首页和系统页共用入口，读取设置期间也不能再开一份表单。
+  _refreshDialogOpen = true;
+  try {
+    AccountSwitchService.requireIdle();
+    final prefs = await SharedPreferences.getInstance();
+    final jwt =
+        await SecureCredentialStore.read(CacheKeyConstant.probeDivingFishToken);
+    final bindQQ =
+        prefs.getString(CacheKeyConstant.probeDivingFishBindQQ) ?? '';
+    // AWMC NET 使用自己的账号存档，不能用活动槽里的 cachedQQ。
+    final awmcQQ = await AccountAuthorizationStore.awmcQQ();
+    if (!context.mounted || origin?.isCurrent == false) return null;
+    AccountSwitchService.requireIdle();
+    return await showDialog<RefreshDataRequest>(
+      context: context,
+      builder: (_) => AdvancedRefreshDataPanel(
+        hasDivingFishLogin: jwt?.isNotEmpty == true,
+        bindQQ: bindQQ,
+        awmcQQ: awmcQQ,
+        initialSource: initialSource,
+      ),
+    );
+  } on AccountUpdateBusy catch (error) {
+    AppToast.show(error.toString(), tone: AppToastTone.warning);
+    return null;
+  } catch (_) {
+    if (context.mounted && origin?.isCurrent != false) {
+      AppToast.show(context.l10n.flowCouldNotRefreshData,
+          tone: AppToastTone.error);
+    }
+    return null;
+  } finally {
+    _refreshDialogOpen = false;
+  }
 }
 
 /// 执行刷新（由调用方在对话框关闭后调用）。
@@ -172,6 +176,10 @@ Future<bool> executeRefreshData(
   RefreshDataRequest request, {
   required void Function(int progress, String text) onProgress,
 }) async {
+  // 合并后的对话框按缓存源给出强制刷新集合，统一走按源刷新。
+  if (request.forceSourceIds != null) {
+    return executeAdvancedRefreshData(request, onProgress: onProgress);
+  }
   final source = request.dataSource;
   final bool willRefresh = request.canRefresh;
   if (!willRefresh) {
@@ -240,15 +248,10 @@ Future<bool> executeRefreshData(
 Future<bool> executeAdvancedRefreshData(
   RefreshDataRequest request, {
   required void Function(int progress, String text) onProgress,
+  SharedRefreshData? sharedRefresh,
 }) async {
-  // 把用户勾选的 CacheSourceInfo.id 集合按 groupKey 聚合
-  final forceMap = <String, bool>{};
-  final checkedIds = request.forceSourceIds ?? const <String>{};
-  for (final source in CacheSourceRegistry.all) {
-    if (checkedIds.contains(source.id)) {
-      forceMap[source.groupKey] = true;
-    }
-  }
+  final shared = sharedRefresh ??
+      SharedRefreshData(forceSourceIds: request.forceSourceIds ?? const {});
 
   final source = request.dataSource;
   final bool willRefresh = request.canRefresh;
@@ -272,7 +275,7 @@ Future<bool> executeAdvancedRefreshData(
             participateRankings: request.participateRankings,
             showNickname: request.showNickname,
             showBriefProfile: request.showBriefProfile,
-            forceMap: forceMap,
+            sharedRefresh: shared,
           );
           break;
         case RefreshDataSource.luoxue:
@@ -282,7 +285,7 @@ Future<bool> executeAdvancedRefreshData(
             participateRankings: request.participateRankings,
             showNickname: request.showNickname,
             showBriefProfile: request.showBriefProfile,
-            forceMap: forceMap,
+            sharedRefresh: shared,
           );
           break;
         case RefreshDataSource.awmc:
@@ -292,7 +295,7 @@ Future<bool> executeAdvancedRefreshData(
             participateRankings: request.participateRankings,
             showNickname: request.showNickname,
             showBriefProfile: request.showBriefProfile,
-            forceMap: forceMap,
+            sharedRefresh: shared,
           );
           break;
       }
@@ -301,391 +304,6 @@ Future<bool> executeAdvancedRefreshData(
     return true;
   } finally {
     LoadingTipsConstant.stopAutoSwitch();
-  }
-}
-
-// ============================================================
-// 对话框主体：与旧版 _showRefreshDataDialog 一致
-// ============================================================
-
-class _RefreshDataDialog extends StatefulWidget {
-  /// **只表示「有没有登录水鱼」**（JWT 非空）。
-  ///
-  /// 刻意不把「已绑定 QQ」并进来：登录了但水鱼账号没填 QQ 是需要单独引导的状态，
-  /// 两者合并成一个 bool 就区分不出来了（见 [DivingFishQqState]）。
-  final bool hasDivingFishLogin;
-
-  /// 从水鱼 `/player/profile` 读到的 `bind_qq`。
-  ///
-  /// 它**只能**来自水鱼：`/player/profile` 只接受登录验证（OAuth 的
-  /// `/oauth/userinfo` 不返回 QQ），所以这里也**不再**用共用的 `cachedQQ` 兜底
-  /// —— 那个值可能是别的数据源（如 AWMC NET）的 QQ，会刷错人。
-  final String bindQQ;
-
-  /// AWMC NET 账号存档里的 QQ（按源区分，不会串到别的账号）。
-  final String awmcQQ;
-
-  /// 打开对话框时预选的数据源（账号切换面板「去刷新」时传入）。
-  final RefreshDataSource? initialSource;
-
-  const _RefreshDataDialog({
-    required this.hasDivingFishLogin,
-    required this.bindQQ,
-    required this.awmcQQ,
-    this.initialSource,
-  });
-
-  @override
-  State<_RefreshDataDialog> createState() => _RefreshDataDialogState();
-}
-
-class _RefreshDataDialogState extends State<_RefreshDataDialog> {
-  late RefreshDataSource _currentDataSource;
-
-  /// 当前生效的水鱼 QQ。
-  ///
-  /// 用可变状态而不是直接读 `widget.bindQQ`：用户在面板上点「我已填好，重新读取」
-  /// 之后 QQ 会从无到有，界面要立刻跟着变。
-  late String _bindQQ = widget.bindQQ;
-
-  /// 正在重新读取水鱼账号里的「绑定 QQ 号」。
-  bool _reloadingQq = false;
-
-  bool? isAuthorized;
-  bool isCheckingAuth = false;
-
-  /// 已经把用户送去授权页、正等他回来点「重新检测」。
-  bool _consentPending = false;
-
-  /// 正在手动重新检测授权状态（点了「我已授权，重新检测」之后）。
-  bool _recheckingAuth = false;
-
-  // 排行榜相关选项
-  bool participateRankings = false;
-  bool showNickname = false;
-  bool showBriefProfile = false;
-  bool forceFullRefresh = false;
-  bool _hasSavedLuoXueToken = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _currentDataSource =
-        widget.initialSource ?? CurrentDataSourceNotifier.instance.value;
-    _loadRankingSettings();
-    // 只有真的拿到 QQ 才值得去探测授权状态
-    if (_bindQQ.isNotEmpty) {
-      _checkAuthorization();
-    }
-    _loadLuoXueToken();
-  }
-
-  Future<void> _loadLuoXueToken() async {
-    final loggedIn = await LuoXueOAuthManager().isLoggedIn();
-    if (mounted) setState(() => _hasSavedLuoXueToken = loggedIn);
-  }
-
-  /// 本次选中的数据源要用的 QQ（水鱼取水鱼绑定 QQ，AWMC NET 取独立保存的查询 QQ）。
-  String get _activeQq => _currentDataSource == RefreshDataSource.awmc
-      ? widget.awmcQQ.trim()
-      : _bindQQ;
-
-  /// 打开对话框时探测一次授权状态。
-  Future<void> _checkAuthorization() async {
-    final qq = _bindQQ;
-    if (qq.isEmpty) return;
-    setState(() => isCheckingAuth = true);
-    final result = await DivingFishOAuthManager().checkAuthorization(qq);
-    if (!mounted) return;
-    setState(() {
-      isAuthorized = result;
-      isCheckingAuth = false;
-    });
-  }
-
-  /// 「我已填好，重新读取」：重新读一次水鱼账号上的 `bind_qq`。
-  ///
-  /// 为什么需要这个：用户在水鱼官网补填 QQ 之后，本机缓存的
-  /// `probeDivingFishBindQQ` 还是旧值（空）。`fetchBindQQ()` 在缓存为空时
-  /// 会拿现有 JWT 重新请求 `/player/profile`，所以不用让用户重新登录一次。
-  Future<void> _reloadBindQq() async {
-    setState(() => _reloadingQq = true);
-    String? qq;
-    try {
-      qq = await DivingFishProbeManager().fetchBindQQ();
-    } catch (e) {
-      debugPrint('重新读取水鱼绑定 QQ 失败: $e');
-    }
-    if (!mounted) return;
-    setState(() {
-      _reloadingQq = false;
-      if (qq != null && qq.isNotEmpty) _bindQQ = qq;
-    });
-
-    if (qq == null || qq.isEmpty) {
-      AppToast.show(context.l10n.flowStillNoQQIDFoundCheckThat,
-          tone: AppToastTone.warning);
-      return;
-    }
-    AppToast.show(context.l10n.flowLinkedQQFoundP0((qq).toString()),
-        tone: AppToastTone.success);
-    // 拿到 QQ 了，顺手探一次授权状态
-    await _checkAuthorization();
-  }
-
-  /// 「去授权」：发起设备码绑定并打开授权页。
-  ///
-  /// 成功后**不**自动重查授权状态（用户此刻还没点同意），只把状态切成
-  /// 「等待授权」，让用户回来后手动点「我已授权，重新检测」。
-  Future<void> _startAuthorization() async {
-    final qq = _bindQQ;
-    if (qq.isEmpty) {
-      AppToast.show(context.l10n.flowNoQQIDFound, tone: AppToastTone.warning);
-      return;
-    }
-    setState(() => _recheckingAuth = true);
-    final ok = await DivingFishOAuthManager().openBindingLink(qq);
-    if (!mounted) return;
-    setState(() {
-      _recheckingAuth = false;
-      if (ok) _consentPending = true;
-    });
-    AppToast.show(
-        ok
-            ? context.l10n.flowAuthorizationOpenedReturnAfterAuthorizingAndTap
-            : context.l10n.flowCouldNotStartAuthorizationTryAgain,
-        tone: AppToastTone.success);
-  }
-
-  /// 「我已授权，重新检测」：显式重查一次授权状态。
-  Future<void> _recheckAuthorization() async {
-    final qq = _bindQQ;
-    if (qq.isEmpty) {
-      AppToast.show(context.l10n.flowNoQQIDFound, tone: AppToastTone.warning);
-      return;
-    }
-    setState(() => _recheckingAuth = true);
-    final result = await DivingFishOAuthManager().checkAuthorization(qq);
-    if (!mounted) return;
-    setState(() {
-      _recheckingAuth = false;
-      isAuthorized = result;
-      if (result == true) _consentPending = false;
-    });
-    if (result == true) {
-      AppToast.show(context.l10n.flowAuthorizedYouCanNowRefreshData,
-          tone: AppToastTone.success);
-    } else if (result == false) {
-      AppToast.show(
-          context.l10n.flowAuthorizationNotDetectedApproveAccessInYour,
-          tone: AppToastTone.warning);
-    } else {
-      AppToast.show(context.l10n.flowCheckFailedVerifyYourConnectionAndTry,
-          tone: AppToastTone.error);
-    }
-  }
-
-  Future<void> _loadRankingSettings() async {
-    final source = _currentDataSource;
-    final settings = await AccountStore.settingsFor(source);
-    if (!mounted || source != _currentDataSource) return;
-    setState(() {
-      participateRankings =
-          settings[CacheKeyConstant.participateRankings] == true;
-      showNickname = settings[CacheKeyConstant.showNickname] == true;
-      showBriefProfile = settings[CacheKeyConstant.showBriefProfile] == true;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final brightness = Theme.of(context).brightness;
-
-    return AppAlertDialog(
-      title: Text(context.l10n.featureRefreshCachedData),
-      content: SizedBox(
-        width: 520,
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 数据源选择。三个选项在窄屏上一行放不下（还有「当前数据源：」标题），
-              // 所以标题单独一行，避免 RenderFlex overflow。
-              Text(context.l10n.flowCurrentDataSource),
-              const SizedBox(height: 6),
-              AnimatedChoiceBar<RefreshDataSource>(
-                values: RefreshDataSource.values,
-                value: _currentDataSource,
-                label: (source) => context.featureText(source.shortDisplayName),
-                onChanged: (source) {
-                  // 这里只选「本次要刷新的数据源」，不直接切活动源：
-                  // 真正的切换/换槽在 executeRefreshData 里由 runRefresh 完成，
-                  // 否则活动槽与数据源会不一致。
-                  setState(() {
-                    _currentDataSource = source;
-                  });
-                  _loadRankingSettings();
-                },
-              ),
-              const SizedBox(height: 12),
-              if (_currentDataSource == RefreshDataSource.shuiyu)
-                _buildShuiyuPanel(brightness),
-              if (_currentDataSource == RefreshDataSource.luoxue)
-                _buildLuoXuePanel(brightness),
-              if (_currentDataSource == RefreshDataSource.awmc)
-                _buildAwmcPanel(brightness),
-              _buildRankingOptions(brightness),
-            ],
-          ),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () {
-            LoadingTipsConstant.stopAutoSwitch();
-            Navigator.of(context).pop();
-          },
-          child: Text(context.l10n.featureCancel),
-        ),
-        TextButton(
-          onPressed: _onConfirm,
-          child: Text(context.l10n.flowConfirm),
-        ),
-      ],
-    );
-  }
-
-  /// 水鱼面板：整个委托给共享的 [DivingFishAccountSection]。
-  ///
-  /// 原来的实现是一大坨内联 UI（禁用的输入框 + 两套提示 + 授权状态行），
-  /// 普通/高级两个对话框各抄了一份。抽出去之后两边不可能再漂移。
-  Widget _buildShuiyuPanel(Brightness brightness) {
-    return DivingFishAccountSection(
-      state: resolveDivingFishQqState(
-        loggedIn: widget.hasDivingFishLogin,
-        bindQq: _bindQQ,
-      ),
-      qq: _bindQQ,
-      authorized: isAuthorized,
-      checkingAuth: isCheckingAuth,
-      consentPending: _consentPending,
-      recheckingAuth: _recheckingAuth,
-      reloadingQq: _reloadingQq,
-      onStartAuthorization: _startAuthorization,
-      onRecheckAuthorization: _recheckAuthorization,
-      onReloadQq: _reloadBindQq,
-    );
-  }
-
-  Widget _buildLuoXuePanel(Brightness brightness) => Text(_hasSavedLuoXueToken
-      ? context.l10n.flowLXNSAuthorizationSavedItRenewsAutomaticallyNo
-      : context.l10n.accountAuthorizeLXNSFirst);
-
-  Widget _buildAwmcPanel(Brightness brightness) => Text(widget.awmcQQ.isEmpty
-      ? context.l10n.accountLinkAWMCFirst
-      : '${context.l10n.flowQQID}：${widget.awmcQQ}');
-
-  Widget _buildRankingOptions(Brightness brightness) {
-    return Column(
-      children: [
-        const SizedBox(height: 16),
-        RankingPrivacyOptions(
-            participate: participateRankings,
-            showNickname: showNickname,
-            showBriefProfile: showBriefProfile,
-            divingFishSource:
-                _currentDataSource == RefreshDataSource.shuiyu,
-            dataSourceKey: _currentDataSource.key,
-            onChanged: (participate, nickname, brief) => setState(() {
-                  participateRankings = participate;
-                  showNickname = nickname;
-                  showBriefProfile = brief;
-                })),
-        CheckboxListTile(
-          title: Text(context.l10n.flowForceFullRefreshIgnoreStaticCaches),
-          subtitle:
-              Text(context.l10n.flowMaidataStillUpdatesAsASeparateBackground),
-          value: forceFullRefresh,
-          onChanged: (value) {
-            setState(() => forceFullRefresh = value ?? false);
-          },
-          controlAffinity: ListTileControlAffinity.leading,
-        ),
-      ],
-    );
-  }
-
-  /// 校验输入并关闭对话框，把「要刷新什么」交给调用方执行。
-  ///
-  /// 这里刻意不执行刷新：刷新进度要显示在调用方的按钮上（见 SystemHubPage），
-  /// 所以对话框必须先关闭，再让调用方驱动 [executeRefreshData]。
-  Future<void> _onConfirm() async {
-    // 水鱼：三种状态分别给不同的交代，不要笼统地说「刷新失败」。
-    // 尤其是「登录了但账号没填 QQ」—— 那不是登录问题，用户按提示去填一下就好。
-    if (_currentDataSource == RefreshDataSource.shuiyu) {
-      switch (resolveDivingFishQqState(
-        loggedIn: widget.hasDivingFishLogin,
-        bindQq: _bindQQ,
-      )) {
-        case DivingFishQqState.notLoggedIn:
-          AppToast.show(context.l10n.flowSignInThroughMeSignInTo,
-              tone: AppToastTone.warning);
-          return;
-        case DivingFishQqState.noBindQq:
-          AppToast.show(context.l10n.flowYourDivingFishAccountHasNoQQ,
-              tone: AppToastTone.warning);
-          return;
-        case DivingFishQqState.bound:
-          break;
-      }
-    }
-    // 落雪必须先在独立授权入口保存令牌，刷新表单不处理授权码。
-    if (_currentDataSource == RefreshDataSource.luoxue &&
-        !_hasSavedLuoXueToken) {
-      AppToast.show(context.l10n.accountAuthorizeLXNSFirst,
-          tone: AppToastTone.warning);
-      return;
-    }
-    // AWMC NET 无需登录，但必须有 QQ 号才查得到
-    if (_currentDataSource == RefreshDataSource.awmc) {
-      final qq = widget.awmcQQ.trim();
-      if (qq.isEmpty) {
-        AppToast.show(context.l10n.accountLinkAWMCFirst,
-            tone: AppToastTone.warning);
-        return;
-      }
-      if (!RegExp(r'^\d{5,12}$').hasMatch(qq)) {
-        AppToast.show(context.l10n.flowInvalidQQID512DigitsRequired);
-        return;
-      }
-    }
-
-    final isOnline = await ConnectivityService().hasConnection();
-    if (!isOnline) {
-      if (mounted) {
-        AppToast.show(
-            context.l10n.flowCannotRefreshWithoutAConnectionConnectAnd,
-            duration: Duration(seconds: 3),
-            tone: AppToastTone.error);
-      }
-      return;
-    }
-    if (!mounted) return;
-
-    LoadingTipsConstant.stopAutoSwitch();
-
-    final request = RefreshDataRequest(
-      dataSource: _currentDataSource,
-      qq: _activeQq,
-      authCode: '',
-      participateRankings: participateRankings,
-      showNickname: showNickname,
-      showBriefProfile: showBriefProfile,
-      forceFullRefresh: forceFullRefresh,
-      useSavedAuthorization: _currentDataSource == RefreshDataSource.luoxue &&
-          _hasSavedLuoXueToken,
-    );
-    if (mounted) Navigator.of(context).pop(request);
   }
 }
 
@@ -773,6 +391,108 @@ Future<void> _saveUserData({
 // 累计 Best35 + Best15 RA 由调用方在分好 old/new 之后直接 fold 求和
 // 详见 refreshBest50DataWithProgress / _calculateBest50FromLuoXueRecords
 
+/// 一次刷新中的公共缓存。多端同步共享同一实例，账号数据仍各自刷新。
+class SharedRefreshData {
+  final Map<String, bool>? _forceMap;
+  final bool _forceFullRefresh;
+  final bool _reportFailures;
+  List<Future<void>>? _tasks;
+  final _failures = <String>[];
+
+  SharedRefreshData(
+      {required Set<String> forceSourceIds, bool reportFailures = false})
+      : this._(
+          forceMap: {
+            for (final source in CacheSourceRegistry.all)
+              if (forceSourceIds.contains(source.id)) source.groupKey: true,
+          },
+          reportFailures: reportFailures,
+        );
+
+  SharedRefreshData._({
+    Map<String, bool>? forceMap,
+    bool forceFullRefresh = false,
+    bool reportFailures = false,
+  })  : _forceMap = forceMap,
+        _forceFullRefresh = forceFullRefresh,
+        _reportFailures = reportFailures;
+
+  List<String> get failures => List.unmodifiable(_failures);
+
+  Future<void> finish(void Function(String) onComplete) async {
+    await Future.wait(tracked(onComplete));
+  }
+
+  /// 已启动的公共任务由首个刷新等待完成，随后各平台只更新自己的成绩。
+  List<Future<void>> tracked(void Function(String) onComplete) {
+    final previous = _tasks;
+    if (previous != null) return previous;
+    bool force(String group) => _forceMap?[group] ?? _forceFullRefresh;
+    final tasks = <Future<void>>[
+      _refresh(
+        !force('songs') && force('maidata') ? 'maidata' : 'songs_water_fish',
+        appL10n.flowSongDataRefreshed,
+        onComplete,
+        () => MaimaiMusicDataManager().refreshDataWithSmartMaidata(
+          forceNetwork: force('songs'),
+          forceMaidataRefresh: force('maidata'),
+        ),
+      ),
+      _refresh(
+          'diff',
+          appL10n.flowDifficultyDataRefreshed,
+          onComplete,
+          () => DiffMusicDataManager()
+              .fetchAndUpdateDiffData(forceNetwork: force('diff'))),
+      _refresh(
+          'tags',
+          appL10n.flowTagDataRefreshed,
+          onComplete,
+          () => force('tags')
+              ? MaiTagsManager().refreshCache()
+              : RecommendByTagsService.initializeTags()),
+      _refresh(
+          'coll_trophies',
+          appL10n.flowCollectibleDataRefreshed,
+          onComplete,
+          () => CollectionsManager()
+              .refreshAllCollections(forceNetwork: force('collections'))),
+      _refresh(
+          'alias_yuzuchan',
+          appL10n.flowAliasDataRefreshed,
+          onComplete,
+          () => SongAliasManager.instance
+              .refresh(forceNetwork: force('aliases'))),
+      _refresh('union', appL10n.flowUnionDataRefreshed, onComplete,
+          () => UnionManager().fetchAndCache(forceNetwork: force('union'))),
+    ];
+    return _tasks = tasks;
+  }
+
+  int get pendingTaskCount => _tasks == null ? 6 : 0;
+
+  Future<void> _refresh(String sourceId, String doneLabel,
+      void Function(String) onComplete, Future<dynamic> Function() task) async {
+    var failed = false;
+    try {
+      final result = await task();
+      failed = _reportFailures && result == false;
+    } catch (_) {
+      if (!_reportFailures) rethrow;
+      failed = true;
+    }
+    if (failed) {
+      final source =
+          CacheSourceRegistry.all.firstWhere((item) => item.id == sourceId);
+      final label = appLocalizeLabel(source.displayName);
+      _failures.add(label);
+      onComplete(appL10n.flowCouldNotRefreshDataP0(label));
+    } else {
+      onComplete(doneLabel);
+    }
+  }
+}
+
 Future<void> refreshBest50DataWithProgress(
   String qq,
   Function(int, String) onProgress, {
@@ -781,6 +501,7 @@ Future<void> refreshBest50DataWithProgress(
   bool? showBriefProfile,
   bool forceFullRefresh = false,
   Map<String, bool>? forceMap,
+  SharedRefreshData? sharedRefresh,
 }) async {
   return AccountSwitchService.runRefresh(RefreshDataSource.shuiyu, () async {
     await _refreshBest50DataWithProgressImpl(qq, onProgress,
@@ -788,7 +509,8 @@ Future<void> refreshBest50DataWithProgress(
         showNickname: showNickname,
         showBriefProfile: showBriefProfile,
         forceFullRefresh: forceFullRefresh,
-        forceMap: forceMap);
+        forceMap: forceMap,
+        sharedRefresh: sharedRefresh);
   });
 }
 
@@ -800,16 +522,8 @@ Future<void> _refreshBest50DataWithProgressImpl(
   bool? showBriefProfile,
   bool forceFullRefresh = false,
   Map<String, bool>? forceMap,
+  SharedRefreshData? sharedRefresh,
 }) async {
-  // per-source 标记：forceMap 优先，否则回退到 forceFullRefresh（兼容旧调用）
-  final bool fSongs = forceMap?['songs'] ?? forceFullRefresh;
-  final bool fDiff = forceMap?['diff'] ?? forceFullRefresh;
-  final bool fTags = forceMap?['tags'] ?? forceFullRefresh;
-  final bool fAliases = forceMap?['aliases'] ?? forceFullRefresh;
-  final bool fCollections = forceMap?['collections'] ?? forceFullRefresh;
-  final bool fUnion = forceMap?['union'] ?? forceFullRefresh;
-  final bool fMaidata = forceMap?['maidata'] ?? forceFullRefresh;
-
   final refreshStopwatch = Stopwatch()..start();
   final logRefresh = (String stage, int milliseconds) {
     debugPrint('[RefreshTiming] $stage: ${milliseconds}ms');
@@ -825,60 +539,35 @@ Future<void> _refreshBest50DataWithProgressImpl(
     }
 
     onProgress(10, appL10n.flowRefreshingDataInParallel);
-    // 把 7 个并行任务的完成度均匀映射到 10% → 80%，让进度条平滑爬升
+    // 把并行任务的完成度均匀映射到 10% → 80%，让进度条平滑爬升
     int _completed = 0;
-    const int _totalTasks = 7;
+    final shared = sharedRefresh ??
+        SharedRefreshData._(
+            forceMap: forceMap, forceFullRefresh: forceFullRefresh);
+    final int _totalTasks = 1 + shared.pendingTaskCount;
     const int _parallelStart = 10;
     const int _parallelSpan = 70; // 10 → 80
-    Future<T> _track<T>(Future<T> f, String msg) async {
-      final r = await f;
+    void onTaskComplete(String msg) {
       _completed++;
       final p =
           (_parallelStart + (_completed * _parallelSpan / _totalTasks).round())
               .clamp(_parallelStart, _parallelStart + _parallelSpan);
       onProgress(p, msg);
-      return r;
     }
 
-    final results = await Future.wait([
-      _track(
-        MaimaiMusicDataManager().refreshDataWithSmartMaidata(
-          forceNetwork: fSongs,
-          forceMaidataRefresh: fMaidata,
-        ),
-        appL10n.flowSongDataRefreshed,
-      ),
-      _track(
-        DiffMusicDataManager().fetchAndUpdateDiffData(forceNetwork: fDiff),
-        appL10n.flowDifficultyDataRefreshed,
-      ),
-      _track(
-        fTags
-            ? MaiTagsManager().refreshCache()
-            : RecommendByTagsService.initializeTags(),
-        appL10n.flowTagDataRefreshed,
-      ),
-      _track(
-        UserPlayDataManager().fetchUserPlayData(
-          qq,
-        ),
-        appL10n.flowUserDataRetrieved,
-      ),
-      _track(
-        CollectionsManager().refreshAllCollections(forceNetwork: fCollections),
-        appL10n.flowCollectibleDataRefreshed,
-      ),
-      _track(
-        SongAliasManager.instance.refresh(forceNetwork: fAliases),
-        appL10n.flowAliasDataRefreshed,
-      ),
-      _track(
-        UnionManager().fetchAndCache(forceNetwork: fUnion),
-        appL10n.flowUnionDataRefreshed,
-      ),
+    Future<T> _track<T>(Future<T> task, String label) async {
+      final result = await task;
+      onTaskComplete(label);
+      return result;
+    }
+
+    final results = await Future.wait<dynamic>([
+      _track(UserPlayDataManager().fetchUserPlayData(qq),
+          appL10n.flowUserDataRetrieved),
+      ...shared.tracked(onTaskComplete),
     ]);
     logRefresh('parallel-data', refreshStopwatch.elapsedMilliseconds);
-    final userPlayData = results[3] as Map<String, dynamic>?;
+    final userPlayData = results[0] as Map<String, dynamic>?;
     if (userPlayData == null)
       throw StateError(appL10n.flowCouldNotFetchDivingFishScores);
     await AccountSwitchService.bindIdentity(RefreshDataSource.shuiyu, qq);
@@ -937,8 +626,8 @@ Future<void> _refreshBest50DataWithProgressImpl(
     await prefs.setString(CacheKeyConstant.shuiyuUserId, userId);
 
     // 水鱼开了成绩掩码时，读到的成绩是打过码的，不上传排行榜
-    final divingFishMasked = participateRankings &&
-        await DivingFishMaskStatus.instance.refresh();
+    final divingFishMasked =
+        participateRankings && await DivingFishMaskStatus.instance.refresh();
     if (divingFishMasked) {
       debugPrint('[Ranking] 水鱼账号开启了成绩掩码，跳过排行榜上传');
     }
@@ -995,10 +684,9 @@ Future<void> _refreshBest50DataWithProgressImpl(
         final songRankingUpdated = rankingResults[1] as bool;
         if (rankingError != null || !songRankingUpdated) {
           throw RankingUploadException(
-              rankingError ??
-                  SongRankingService().lastGuardMessage ??
-                  appL10n.flowCouldNotUpdateSongLeaderboard,
-              RankingUploadException.issueOf(RankingUploadGuard.lastBlockedCode));
+              _rankingFailureMessage(rankingError, songRankingUpdated),
+              RankingUploadException.issueOf(
+                  RankingUploadGuard.lastBlockedCode));
         }
       } else {
         final deleteResults = await Future.wait<bool>([
@@ -1016,8 +704,8 @@ Future<void> _refreshBest50DataWithProgressImpl(
     PersonalizedScoreService().clearRecordsCache();
     PaiziProgressService().clearRecordsCache();
 
-    if (rankingError != null) {
-      debugPrint('排行榜异常: $rankingError');
+    if (rankingFailure != null) {
+      debugPrint('排行榜上传未完成: $rankingFailure');
     }
 
     logRefresh('refresh-total', refreshStopwatch.elapsedMilliseconds);
@@ -1048,6 +736,7 @@ Future<void> refreshAwmcNetDataWithProgress(
   bool? showBriefProfile,
   bool forceFullRefresh = false,
   Map<String, bool>? forceMap,
+  SharedRefreshData? sharedRefresh,
 }) async {
   return AccountSwitchService.runRefresh(RefreshDataSource.awmc, () async {
     await _refreshAwmcNetDataWithProgressImpl(qq, onProgress,
@@ -1055,7 +744,8 @@ Future<void> refreshAwmcNetDataWithProgress(
         showNickname: showNickname,
         showBriefProfile: showBriefProfile,
         forceFullRefresh: forceFullRefresh,
-        forceMap: forceMap);
+        forceMap: forceMap,
+        sharedRefresh: sharedRefresh);
   });
 }
 
@@ -1067,16 +757,8 @@ Future<void> _refreshAwmcNetDataWithProgressImpl(
   bool? showBriefProfile,
   bool forceFullRefresh = false,
   Map<String, bool>? forceMap,
+  SharedRefreshData? sharedRefresh,
 }) async {
-  // per-source 标记：forceMap 优先，否则回退到 forceFullRefresh（兼容旧调用）
-  final bool fSongs = forceMap?['songs'] ?? forceFullRefresh;
-  final bool fDiff = forceMap?['diff'] ?? forceFullRefresh;
-  final bool fTags = forceMap?['tags'] ?? forceFullRefresh;
-  final bool fAliases = forceMap?['aliases'] ?? forceFullRefresh;
-  final bool fCollections = forceMap?['collections'] ?? forceFullRefresh;
-  final bool fUnion = forceMap?['union'] ?? forceFullRefresh;
-  final bool fMaidata = forceMap?['maidata'] ?? forceFullRefresh;
-
   final refreshStopwatch = Stopwatch()..start();
   final logRefresh = (String stage, int milliseconds) {
     debugPrint('[RefreshTiming] $stage: ${milliseconds}ms');
@@ -1091,64 +773,38 @@ Future<void> _refreshAwmcNetDataWithProgressImpl(
   }
 
   onProgress(10, appL10n.flowRefreshingDataInParallel);
-  // 与另外两个源一致：7 个并行任务映射到 10% → 80%
+  // 与另外两个源一致：并行任务映射到 10% → 80%
   int completed = 0;
-  const int totalTasks = 7;
+  final shared = sharedRefresh ??
+      SharedRefreshData._(
+          forceMap: forceMap, forceFullRefresh: forceFullRefresh);
+  final int totalTasks = 1 + shared.pendingTaskCount;
   const int parallelStart = 10;
   const int parallelSpan = 70; // 10 → 80
-  Future<T> track<T>(Future<T> f, String msg) async {
-    final r = await f;
+  void onTaskComplete(String msg) {
     completed++;
     final p = (parallelStart + (completed * parallelSpan / totalTasks).round())
         .clamp(parallelStart, parallelStart + parallelSpan);
     onProgress(p, msg);
-    return r;
   }
 
-  final results = await Future.wait([
-    track(
-      MaimaiMusicDataManager().refreshDataWithSmartMaidata(
-        forceNetwork: fSongs,
-        forceMaidataRefresh: fMaidata,
-      ),
-      appL10n.flowSongDataRefreshed,
-    ),
-    track(
-      DiffMusicDataManager().fetchAndUpdateDiffData(forceNetwork: fDiff),
-      appL10n.flowDifficultyDataRefreshed,
-    ),
-    track(
-      fTags
-          ? MaiTagsManager().refreshCache()
-          : RecommendByTagsService.initializeTags(),
-      appL10n.flowTagDataRefreshed,
-    ),
-    // 失败会抛 AwmcNetException（中文文案），冒到调用方弹提示
-    track(
-      AwmcNetUserPlayDataManager().fetchUserPlayData(
-        qq,
-      ),
-      appL10n.flowAWMCNETScoresRetrieved,
-    ),
-    track(
-      CollectionsManager().refreshAllCollections(forceNetwork: fCollections),
-      appL10n.flowCollectibleDataRefreshed,
-    ),
-    track(
-      SongAliasManager.instance.refresh(forceNetwork: fAliases),
-      appL10n.flowAliasDataRefreshed,
-    ),
-    track(
-      UnionManager().fetchAndCache(forceNetwork: fUnion),
-      appL10n.flowUnionDataRefreshed,
-    ),
+  Future<T> track<T>(Future<T> task, String label) async {
+    final result = await task;
+    onTaskComplete(label);
+    return result;
+  }
+
+  final results = await Future.wait<dynamic>([
+    track(AwmcNetUserPlayDataManager().fetchUserPlayData(qq),
+        appL10n.flowAWMCNETScoresRetrieved),
+    ...shared.tracked(onTaskComplete),
   ]);
   logRefresh('awmc-parallel-data', refreshStopwatch.elapsedMilliseconds);
 
   // 注意：这里**必须**把 fetch 到的数据显式传下去。若传 null，
   // UserBest50Manager 会回落到 UserPlayDataManager（水鱼），拿同一个 QQ
   // 去问水鱼，把水鱼的成绩显示成 AWMC NET 的。
-  final userPlayData = results[3] as Map<String, dynamic>;
+  final userPlayData = results[0] as Map<String, dynamic>;
   await AccountSwitchService.bindIdentity(RefreshDataSource.awmc, qq);
   final settingsPrefs = await SharedPreferences.getInstance();
   await settingsPrefs.setBool(
@@ -1259,9 +915,7 @@ Future<void> _refreshAwmcNetDataWithProgressImpl(
       final songRankingUpdated = rankingResults[1] as bool;
       if (rankingError != null || !songRankingUpdated) {
         throw RankingUploadException(
-            rankingError ??
-                SongRankingService().lastGuardMessage ??
-                appL10n.flowCouldNotUpdateSongLeaderboard,
+            _rankingFailureMessage(rankingError, songRankingUpdated),
             RankingUploadException.issueOf(RankingUploadGuard.lastBlockedCode));
       }
     } else {
@@ -1277,8 +931,8 @@ Future<void> _refreshAwmcNetDataWithProgressImpl(
     rankingFailure = e;
   }
 
-  if (rankingError != null) {
-    debugPrint('排行榜异常: $rankingError');
+  if (rankingFailure != null) {
+    debugPrint('排行榜上传未完成: $rankingFailure');
   }
 
   logRefresh('awmc-refresh-total', refreshStopwatch.elapsedMilliseconds);
@@ -1294,6 +948,7 @@ Future<void> _handleLuoXueAuthWithProgress(
   bool? showBriefProfile,
   bool forceFullRefresh = false,
   Map<String, bool>? forceMap,
+  SharedRefreshData? sharedRefresh,
 }) async {
   return AccountSwitchService.runRefresh(RefreshDataSource.luoxue, () async {
     await _handleLuoXueAuthWithProgressImpl(authCode, onProgress,
@@ -1301,7 +956,8 @@ Future<void> _handleLuoXueAuthWithProgress(
         showNickname: showNickname,
         showBriefProfile: showBriefProfile,
         forceFullRefresh: forceFullRefresh,
-        forceMap: forceMap);
+        forceMap: forceMap,
+        sharedRefresh: sharedRefresh);
   });
 }
 
@@ -1313,16 +969,8 @@ Future<void> _handleLuoXueAuthWithProgressImpl(
   bool? showBriefProfile,
   bool forceFullRefresh = false,
   Map<String, bool>? forceMap,
+  SharedRefreshData? sharedRefresh,
 }) async {
-  // per-source 标记：forceMap 优先，否则回退到 forceFullRefresh（兼容旧调用）
-  final bool fSongs = forceMap?['songs'] ?? forceFullRefresh;
-  final bool fDiff = forceMap?['diff'] ?? forceFullRefresh;
-  final bool fTags = forceMap?['tags'] ?? forceFullRefresh;
-  final bool fAliases = forceMap?['aliases'] ?? forceFullRefresh;
-  final bool fCollections = forceMap?['collections'] ?? forceFullRefresh;
-  final bool fUnion = forceMap?['union'] ?? forceFullRefresh;
-  final bool fMaidata = forceMap?['maidata'] ?? forceFullRefresh;
-
   final refreshStopwatch = Stopwatch()..start();
   final logRefresh = (String stage, int milliseconds) {
     debugPrint('[RefreshTiming] $stage: ${milliseconds}ms');
@@ -1357,65 +1005,39 @@ Future<void> _handleLuoXueAuthWithProgressImpl(
     }
 
     onProgress(15, appL10n.flowAuthorizedRefreshingDataInParallel);
-    // 把 9 个并行任务的完成度均匀映射到 15% → 80%
+    // 把并行任务的完成度均匀映射到 15% → 80%
     int _completed = 0;
-    const int _totalTasks = 9;
+    final shared = sharedRefresh ??
+        SharedRefreshData._(
+            forceMap: forceMap, forceFullRefresh: forceFullRefresh);
+    final int _totalTasks = 2 + shared.pendingTaskCount;
     const int _parallelStart = 15;
     const int _parallelSpan = 65; // 15 → 80
-    Future<T> _track<T>(Future<T> f, String msg) async {
-      final r = await f;
+    void onTaskComplete(String msg) {
       _completed++;
       final p =
           (_parallelStart + (_completed * _parallelSpan / _totalTasks).round())
               .clamp(_parallelStart, _parallelStart + _parallelSpan);
       onProgress(p, msg);
-      return r;
     }
 
-    final results = await Future.wait([
-      _track(Future<void>.value(), appL10n.flowPreparingLXNSData),
-      _track(
-        MaimaiMusicDataManager().refreshDataWithSmartMaidata(
-          forceNetwork: fSongs,
-          forceMaidataRefresh: fMaidata,
-        ),
-        appL10n.flowSongDataRefreshed,
-      ),
-      _track(
-        DiffMusicDataManager().fetchAndUpdateDiffData(forceNetwork: fDiff),
-        appL10n.flowDifficultyDataRefreshed,
-      ),
-      _track(
-        fTags
-            ? MaiTagsManager().refreshCache()
-            : RecommendByTagsService.initializeTags(),
-        appL10n.flowTagDataRefreshed,
-      ),
-      _track(
-        LuoXueUserPlayDataManager().getPlayerInfo(),
-        appL10n.flowLXNSProfileRetrieved,
-      ),
-      _track(
-        LuoXueUserPlayDataManager().getPlayerRecords(),
-        appL10n.flowLXNSScoresRetrieved,
-      ),
-      _track(
-        CollectionsManager().refreshAllCollections(forceNetwork: fCollections),
-        appL10n.flowCollectibleDataRefreshed,
-      ),
-      _track(
-        SongAliasManager.instance.refresh(forceNetwork: fAliases),
-        appL10n.flowAliasDataRefreshed,
-      ),
-      _track(
-        UnionManager().fetchAndCache(forceNetwork: fUnion),
-        appL10n.flowUnionDataRefreshed,
-      ),
+    Future<T> _track<T>(Future<T> task, String label) async {
+      final result = await task;
+      onTaskComplete(label);
+      return result;
+    }
+
+    final results = await Future.wait<dynamic>([
+      _track(LuoXueUserPlayDataManager().getPlayerInfo(),
+          appL10n.flowLXNSProfileRetrieved),
+      _track(LuoXueUserPlayDataManager().getPlayerRecords(),
+          appL10n.flowLXNSScoresRetrieved),
+      ...shared.tracked(onTaskComplete),
     ]);
     logRefresh('luoxue-parallel-data', refreshStopwatch.elapsedMilliseconds);
 
-    final playerInfo = results[4] as LuoXuePlayer?;
-    final rawPlayerScores = results[5] as List<LuoXueScore>?;
+    final playerInfo = results[0] as LuoXuePlayer?;
+    final rawPlayerScores = results[1] as List<LuoXueScore>?;
     if (playerInfo == null || rawPlayerScores == null) {
       throw StateError(appL10n.flowCouldNotFetchLXNSProfileOrScores);
     }
@@ -1495,7 +1117,8 @@ Future<void> _handleLuoXueAuthWithProgressImpl(
       try {
         if (participateRankings) {
           final displayNickname = showNickname ? currentNickname : '匿名用户';
-          final records = playerRecords.map((record) => record.toJson()).toList();
+          final records =
+              playerRecords.map((record) => record.toJson()).toList();
           // 排行榜守卫预检：任何一处不合法就整次都不上传
           final uploadTicket = await _precheckRankingUpload(
             playerId: userId,
@@ -1540,10 +1163,9 @@ Future<void> _handleLuoXueAuthWithProgressImpl(
           final songRankingUpdated = rankingResults[1] as bool;
           if (rankingError != null || !songRankingUpdated) {
             throw RankingUploadException(
-                rankingError ??
-                    SongRankingService().lastGuardMessage ??
-                    appL10n.flowCouldNotUpdateSongLeaderboard,
-                RankingUploadException.issueOf(RankingUploadGuard.lastBlockedCode));
+                _rankingFailureMessage(rankingError, songRankingUpdated),
+                RankingUploadException.issueOf(
+                    RankingUploadGuard.lastBlockedCode));
           }
         } else {
           final deleteResults = await Future.wait<bool>([
@@ -1562,8 +1184,8 @@ Future<void> _handleLuoXueAuthWithProgressImpl(
     PersonalizedScoreService().clearRecordsCache();
     PaiziProgressService().clearRecordsCache();
 
-    if (rankingError != null) {
-      debugPrint('排行榜异常: $rankingError');
+    if (rankingFailure != null) {
+      debugPrint('排行榜上传未完成: $rankingFailure');
     }
 
     logRefresh('refresh-total', refreshStopwatch.elapsedMilliseconds);
@@ -1572,6 +1194,16 @@ Future<void> _handleLuoXueAuthWithProgressImpl(
   } catch (e) {
     rethrow;
   }
+}
+
+String _rankingFailureMessage(String? ratingError, bool songRankingUpdated) {
+  final songError = SongRankingService().lastGuardMessage;
+  return [
+    if (ratingError != null)
+      '${appL10n.featureRatingLeaderboard}\n$ratingError',
+    if (!songRankingUpdated) appL10n.flowCouldNotUpdateSongLeaderboard,
+    if (!songRankingUpdated && songError != null) songError,
+  ].join('\n');
 }
 
 Future<String?> _updateRankings({
@@ -1682,7 +1314,7 @@ Future<String?> _updateRankings({
     if (response.statusCode == 200) {
       final result = json.decode(response.body);
       if (result['success'] == true) {
-        debugPrint('排行榜数据更新成功: ${result['message']}');
+        debugPrint('Rating 排行榜更新成功: ${result['message']}');
       } else {
         return appL10n.flowCouldNotUpdateLeaderboardDataP0(
             (result['error'] ?? 'unknown').toString());
