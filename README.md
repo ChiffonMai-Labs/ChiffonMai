@@ -1,5 +1,7 @@
 # ChiffonMai
 
+<img width="3840" height="1646" alt="ChiffonMai-Header-3840x1646" src="https://github.com/user-attachments/assets/1b2a08bd-5543-469a-aa58-5f6709bc398d" />
+
 <div align="center">
   <img src="https://img.shields.io/badge/Platform-Android%20%7C%20iOS-blue.svg" alt="Platform">
   <img src="https://img.shields.io/badge/Flutter-3.x-02569B.svg?logo=flutter&logoColor=white" alt="Flutter">
@@ -10,6 +12,14 @@
 ChiffonMai 是一款面向舞萌 DX 玩家的移动端工具应用。它把曲库查询、成绩管理、Rating 分析、歌曲推荐、谱面工具、猜歌游戏和日常辅助功能集中在一起，方便你在游玩前查歌、游玩后看成绩，也方便整理自己的曲库和目标。
 
 项目由社区共同维护。欢迎反馈问题、提出建议，也欢迎喜欢这个项目的朋友支持开发。
+
+
+
+# 你好! Apple App Store!
+
+我们已经正式支持在 App Store 直接下载 ChiffonMai!
+
+### [点击跳转](https://apps.apple.com/cn/app/chiffonmai/id6832199686)
 
 ## 当前版本与导航
 
