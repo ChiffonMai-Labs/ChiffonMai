@@ -913,7 +913,8 @@ class SystemHubPageState extends State<SystemHubPage>
                 title: FeatureRegistry.cabinetAppearanceTitle,
                 subtitle: FeatureRegistry.cabinetAppearanceSubtitle,
                 icon: Icons.checkroom_outlined,
-                isFavorited: _isFavorited(FeatureRegistry.cabinetAppearanceTitle),
+                isFavorited:
+                    _isFavorited(FeatureRegistry.cabinetAppearanceTitle),
                 onToggleFavorite: () =>
                     _toggleFavorite(FeatureRegistry.cabinetAppearanceTitle),
                 onTap: _syncCabinetAppearance,
@@ -1143,6 +1144,7 @@ class SystemHubPageState extends State<SystemHubPage>
               children: [
                 for (final section in sections) ...[
                   HubSection(
+                    twoColumnOnWide: true,
                     title: section.title,
                     subtitle: section.subtitle,
                     icon: section.icon,

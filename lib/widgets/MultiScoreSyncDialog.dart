@@ -28,7 +28,7 @@ import 'SyncDialogUi.dart';
 import '../utils/AppDesignTokens.dart';
 import '../utils/AppTheme.dart';
 
-/// 已确认具备凭据的同步目标；顺序由执行器固定为水鱼 → 落雪 → AWMC NET。
+/// 已确认具备凭据的同步目标；顺序由执行器固定为 AWMC NET → 水鱼 → 落雪。
 class MultiScoreSyncInput {
   final String qrCode;
   final bool quickUpdate;
@@ -159,6 +159,7 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
   Future<void> _loadCredentials() async {
     try {
       final tokens = <SyncPlatform, String>{};
+      // 按 SyncPlatform 顺序读取，AWMC NET 的凭据与 QQ 排在最前。
       for (final platform in SyncPlatform.values) {
         tokens[platform] =
             (await SecureCredentialStore.read(_keys[platform]!) ?? '').trim();
@@ -566,6 +567,7 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
                               },
                               child: Text(context.l10n.flowReloadCredentials)),
                         ] else
+                          // 来源列表与执行顺序一致：AWMC NET → 水鱼 → 落雪。
                           ...SyncPlatform.values.map(_buildSource),
                         if (_selectionError != null) ...[
                           const SizedBox(height: 8),

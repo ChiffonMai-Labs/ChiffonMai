@@ -12,7 +12,7 @@ class MultiScoreSyncResult {
   });
 }
 
-/// 多端同步固定按水鱼 → 落雪 → AWMC NET 串行执行。
+/// 多端同步固定按 [SyncPlatform] 枚举顺序串行执行：AWMC NET → 水鱼 → 落雪。
 /// 不提前创建 Future；一个目标失败后仍继续下一个勾选的目标。
 class MultiScoreSyncRunner {
   static Future<List<MultiScoreSyncResult>> run({

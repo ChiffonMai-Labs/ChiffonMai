@@ -23,10 +23,10 @@ class ApiClient {
     ApiUrls.LuoXueSongsApi: 'lxns-songs',
     ApiUrls.AwmcNetMusicDataApi: 'awmc-net-songs',
     ApiUrls.TagDataApi: 'dxrating-tags',
+    // 别名主源是 AWMC（v.wmc.pub），yuzuchan 只在一个发布周期内作回退。
+    ApiUrls.AwmcMaimaidxAliasApi: 'awmc-aliases',
+    ApiUrls.AwmcCommunityAliasesApi: 'awmc-community-aliases',
     ApiUrls.SongAliasApi: 'yuzuchan-aliases',
-    ApiUrls.DXRatingSongAliasApi: 'dxrating-aliases',
-    ApiUrls.MaimaiHubMusicCatalogUrl: 'score-hub-songs',
-    ApiUrls.MaimaiHubMusicAliasesUrl: 'score-hub-aliases',
     ApiUrls.ServerStatusApi: 'cabinet-status',
   };
 

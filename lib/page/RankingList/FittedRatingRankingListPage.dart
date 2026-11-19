@@ -14,7 +14,6 @@ import '../../widgets/CommunityAvatar.dart';
 import '../../utils/CurrentDataSourceNotifier.dart';
 import '../../utils/RankingRowExtent.dart';
 import '../../widgets/RankingUi.dart';
-import '../../widgets/AppUi.dart';
 import '../../widgets/AppToast.dart';
 
 class FittedRatingRankingListPage extends StatefulWidget {
@@ -80,14 +79,19 @@ class _FittedRatingRankingListPageState
 
   /// 取当前玩家的排行榜 id（`'<source>:<id>'`）。
   ///
-  /// 优先当前活动数据源，拿不到再按 enum 顺序找任一有标记的源；全都没有才退化到
-  /// `cachedQQ`（历史上只有水鱼写它）。原来的二元写法只认 水鱼 / 落雪。
+  /// 优先当前活动数据源，拿不到再按 AWMC NET → 水鱼 → 落雪 兜底；全都没有才
+  /// 退化到 `cachedQQ`（历史上只有水鱼写它）。原来的二元写法只认 水鱼 / 落雪。
   Future<void> _loadCurrentUserInfo() async {
     final prefs = await SharedPreferences.getInstance();
     final current = CurrentDataSourceNotifier.instance.value;
     final ordered = <RefreshDataSource>[
       current,
-      ...RefreshDataSource.values.where((s) => s != current),
+      for (final source in const [
+        RefreshDataSource.awmc,
+        RefreshDataSource.shuiyu,
+        RefreshDataSource.luoxue,
+      ])
+        if (source != current) source,
     ];
     for (final source in ordered) {
       final marker = prefs.getString(source.userIdCacheKey);

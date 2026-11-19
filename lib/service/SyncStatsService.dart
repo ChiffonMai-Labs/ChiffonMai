@@ -31,12 +31,16 @@ enum SyncLine {
 }
 
 /// 同步目标平台。
+///
+/// **枚举顺序就是多端同步的执行顺序，也是各处展示顺序**：AWMC NET → 水鱼 → 落雪。
+/// 持久化键（fish / lx / awmc）和线路整数都不跟随位置，调整顺序不会影响已保存的
+/// 凭据与线路。
 enum SyncPlatform {
-  divingFish(key: 'fish', label: '水鱼'),
-  luoXue(key: 'lx', label: '落雪'),
-
   /// AWMC NET 查分器（支持二维码直传与快速同步）。
-  awmc(key: 'awmc', label: 'AWMC NET');
+  awmc(key: 'awmc', label: 'AWMC NET'),
+
+  divingFish(key: 'fish', label: '水鱼'),
+  luoXue(key: 'lx', label: '落雪');
 
   const SyncPlatform({required this.key, required this.label});
 
@@ -250,6 +254,7 @@ class SyncStatsService {
   /// 全部统计槽位 —— **显式列出，不要用 `SyncLine.values × SyncPlatform.values` 的叉乘**。
   ///
   /// 普通同步保留原来的五个槽位，快速同步按目标源各自保留近 100 次。
+  /// 组内平台顺序与 [SyncPlatform] 一致（AWMC NET 在前），统计详情照此顺序展示。
   static const List<SyncSlot> allSlots = [
     (SyncLine.scoreHub, SyncPlatform.divingFish),
     (SyncLine.scoreHub, SyncPlatform.luoXue),
@@ -257,9 +262,9 @@ class SyncStatsService {
     (SyncLine.awmc, SyncPlatform.luoXue),
     // 机台二维码直传 → AWMC NET（30 多秒一次，单列一项）
     (SyncLine.direct, SyncPlatform.awmc),
+    (SyncLine.quick, SyncPlatform.awmc),
     (SyncLine.quick, SyncPlatform.divingFish),
     (SyncLine.quick, SyncPlatform.luoXue),
-    (SyncLine.quick, SyncPlatform.awmc),
   ];
 
   /// 槽位名：`<line>:<platform>`（就是 Redis 键去掉前缀的部分）。

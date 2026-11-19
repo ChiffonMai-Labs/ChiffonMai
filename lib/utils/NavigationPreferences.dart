@@ -43,6 +43,9 @@ class NavigationPreferences extends ChangeNotifier {
   NavigationBarStyle _barStyle = NavigationBarStyle.standard;
   bool _immersiveStatusBarEnabled = false;
   bool _pvFullscreen = false;
+
+  /// 谱面播放页的显式全屏。与 PV 分开记录，回前台时据此保持状态栏隐藏。
+  bool _playerFullscreen = false;
   bool _pvOverlaysHidden = false;
   bool _busyHintEnabled = false;
   bool _loaded = false;
@@ -164,18 +167,23 @@ class NavigationPreferences extends ChangeNotifier {
   Future<void> _applySystemUiMode() async {
     if (kIsWeb) return;
     try {
+      final fullscreen = _pvFullscreen || _playerFullscreen;
       if (defaultTargetPlatform == TargetPlatform.iOS) {
-        if (!_pvFullscreen && !_pvOverlaysHidden) return;
-        _pvOverlaysHidden = _pvFullscreen;
+        if (!fullscreen && !_pvOverlaysHidden) return;
+        _pvOverlaysHidden = fullscreen;
         await SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual,
-            overlays: _pvFullscreen ? [] : SystemUiOverlay.values);
+            overlays: fullscreen ? [] : SystemUiOverlay.values);
         return;
       }
       if (defaultTargetPlatform != TargetPlatform.android) return;
       await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
       await _systemUiChannel.invokeMethod<void>(
         'setStatusBarHidden',
-        {'hidden': _immersiveStatusBarEnabled, 'fullscreen': _pvFullscreen},
+        {
+          'hidden': _immersiveStatusBarEnabled,
+          'fullscreen': _pvFullscreen,
+          'playerFullscreen': _playerFullscreen,
+        },
       );
     } catch (error) {
       debugPrint('[SystemUI] 状态栏模式应用失败：$error');
@@ -185,6 +193,15 @@ class NavigationPreferences extends ChangeNotifier {
   Future<void> setPvFullscreen(bool value) {
     if (_pvFullscreen == value) return Future<void>.value();
     _pvFullscreen = value;
+    return applySystemUiMode();
+  }
+
+  /// 谱面播放页进入 / 退出全屏时调用。
+  ///
+  /// 只影响系统栏沉浸；方向由播放页宿主按断点自行处理。
+  Future<void> setPlayerFullscreen(bool value) {
+    if (_playerFullscreen == value) return Future<void>.value();
+    _playerFullscreen = value;
     return applySystemUiMode();
   }
 

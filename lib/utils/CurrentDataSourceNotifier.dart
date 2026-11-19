@@ -4,26 +4,31 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../constant/CacheKeyConstant.dart';
 
-/// 数据源：水鱼（Diving-Fish）、落雪（LuoXue）、AWMC NET。
+/// 数据源：AWMC NET（默认）、水鱼（Diving-Fish）、落雪（LuoXue）。
+///
+/// 枚举顺序即业务兜底优先级（AWMC 最前）；换顺序前先确认清单里的排序约定。
 ///
 /// 原先定义在 RefreshDataDialog.dart 里；双账号系统需要在 service 层引用它，
 /// 所以抽到这里，RefreshDataDialog 内 export 出去，保持既有 import 不变。
 enum RefreshDataSource {
+  awmc,
   shuiyu,
-  luoxue,
-  awmc;
+  luoxue;
 
   /// 持久化用的键（写入 `last_data_source`）。
   String get key => name;
 
   static RefreshDataSource fromKey(String? key) {
     switch (key) {
+      case 'shuiyu':
+        return RefreshDataSource.shuiyu;
       case 'luoxue':
         return RefreshDataSource.luoxue;
       case 'awmc':
         return RefreshDataSource.awmc;
       default:
-        return RefreshDataSource.shuiyu;
+        // 未知 / 空 key 都按默认源 AWMC 处理（切账号需要一个确定值）。
+        return RefreshDataSource.awmc;
     }
   }
 
@@ -55,13 +60,14 @@ enum RefreshDataSource {
     }
   }
 
-  /// 把持久化的 key 翻成界面名字；未知 / 空 key 返回空串。
+  /// 把持久化的 key 翻成界面名字；空 key 返回空串，非空未知 key 回落 AWMC 文案。
   ///
-  /// 与 [fromKey] 的区别：`fromKey` 对未知 key 会**兜底成水鱼**（切账号需要个确定值），
-  /// 而导出图里的数据源标签宁可留空，也不能把未知来源错标成「水鱼」。
+  /// 空 key 表示「本来就没有来源信息」，留给调用方自行决定；非空的未知 key
+  /// 说明数据来自当前版本不认识的源，按默认源 AWMC 显示，避免导出图、
+  /// 榜单标签这类地方出现空白。
   static String displayNameOfKey(String? key) => _labelOfKey(key, short: false);
 
-  /// [shortDisplayName] 的 key 版本，同样对未知 / 空 key 返回空串。
+  /// [shortDisplayName] 的 key 版本；空 key 同样返回空串，未知 key 回落 AWMC 短名。
   static String shortDisplayNameOfKey(String? key) =>
       _labelOfKey(key, short: true);
 
@@ -72,7 +78,10 @@ enum RefreshDataSource {
         return short ? source.shortDisplayName : source.displayName;
       }
     }
-    return '';
+    // 非空但认不出的 key：按默认源 AWMC 的文案显示。
+    return short
+        ? RefreshDataSource.awmc.shortDisplayName
+        : RefreshDataSource.awmc.displayName;
   }
 
   /// 该源的账号 id 是不是 **QQ 号**。
@@ -112,18 +121,40 @@ enum RefreshDataSource {
 class CurrentDataSourceNotifier extends ValueNotifier<RefreshDataSource> {
   CurrentDataSourceNotifier._(super.source);
   static final CurrentDataSourceNotifier instance =
-      CurrentDataSourceNotifier._(RefreshDataSource.shuiyu);
+      CurrentDataSourceNotifier._(RefreshDataSource.awmc);
+
+  /// 本次 load 是否刚把旧默认水鱼迁移成了 AWMC。
+  /// [AccountSwitchService] 据此把活动槽也切到 AWMC（只改指针会留下水鱼的旧成绩）。
+  static bool migratedToAwmc = false;
 
   static Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
-    instance.value = RefreshDataSource.fromKey(
+    migratedToAwmc = false;
+    final source = RefreshDataSource.fromKey(
       prefs.getString(CacheKeyConstant.lastDataSource),
     );
+    instance.value = source;
+
+    // 默认源一次性迁移（清单 P1-01b）：只把「从未显式切换过、还停在旧默认
+    // 水鱼」的老用户改成 AWMC，显式选过的保持原值。完成标记保证只迁移一次。
+    // 这里直接写 prefs 而不调 set()，否则会把迁移误记成用户的显式选择。
+    if (!(prefs.getBool(CacheKeyConstant.dataSourceDefaultV2) ?? false)) {
+      if (source == RefreshDataSource.shuiyu &&
+          !(prefs.getBool(CacheKeyConstant.dataSourceExplicitlySet) ?? false)) {
+        await prefs.setString(
+            CacheKeyConstant.lastDataSource, RefreshDataSource.awmc.key);
+        instance.value = RefreshDataSource.awmc;
+        migratedToAwmc = true;
+      }
+      await prefs.setBool(CacheKeyConstant.dataSourceDefaultV2, true);
+    }
   }
 
   Future<void> set(RefreshDataSource source) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(CacheKeyConstant.lastDataSource, source.key);
+    // 记下用户显式切换过；一次性默认值迁移不得再覆盖这种选择。
+    await prefs.setBool(CacheKeyConstant.dataSourceExplicitlySet, true);
     value = source;
   }
 }

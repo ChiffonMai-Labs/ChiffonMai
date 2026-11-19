@@ -92,7 +92,9 @@ DataSourceStyle dataSourceStyleOf(String? key, Brightness brightness) {
     case 'awmc':
       source = RefreshDataSource.awmc;
     default:
-      return DataSourceStyle.unknown(brightness);
+      // 未知 key 的文案已回落成 AWMC，配色也跟随，避免同一条记录
+      // 一处显示「AWMC」、一处显示灰色「未知」。
+      source = RefreshDataSource.awmc;
   }
 
   switch (source) {

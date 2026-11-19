@@ -206,6 +206,7 @@ class _HomeAutoSyncWidgetState extends _PollingState<HomeAutoSyncWidget> {
       detail: summary.detail,
       tone: summary.tone,
       time: summary.time,
+      // 槽位固定按 AWMC NET → 水鱼 → 落雪推送，原生按 src1~src3 依次写入。
       sources: [
         for (final platform in SyncPlatform.values)
           _sourceBrief(platform, tasks[platform]),
@@ -252,7 +253,11 @@ class _HomeAutoSyncWidgetState extends _PollingState<HomeAutoSyncWidget> {
     if (_allFailed) {
       return (headline: context.featureText('状态未知'), detail: context.featureText('暂时读取不到'), tone: 'warn', time: null);
     }
-    final enabled = tasks.values.where((task) => task.enabled).toList();
+    // 与执行顺序一致：AWMC NET → 水鱼 → 落雪。
+    final enabled = [
+      for (final platform in SyncPlatform.values)
+        if (tasks[platform]?.enabled ?? false) tasks[platform]!,
+    ];
     if (enabled.isEmpty) {
       return (headline: context.featureText('未开启'), detail: context.featureText('点这里设置'), tone: 'off', time: null);
     }

@@ -223,7 +223,8 @@ class AccountSwitchService {
       await AccountStore.remove(source.key);
       await AwmcPlayCountStore.clear(source: source);
       if (CurrentDataSourceNotifier.instance.value == source) {
-        var fallback = RefreshDataSource.shuiyu;
+        // 按枚举顺序（AWMC 最前）选第一个仍有缓存的源；都没有就回 AWMC。
+        var fallback = RefreshDataSource.awmc;
         for (final candidate in RefreshDataSource.values) {
           if (candidate != source &&
               await AccountStore.hasCache(candidate.key)) {
@@ -297,6 +298,18 @@ class AccountSwitchService {
       await AccountStore.writeActiveSlotToArchive(source.key);
       await AccountStore.upsert(
           await AccountStore.buildMetaFromActiveSlot(source));
+    }
+    // 默认源迁移只改了指针，活动槽里仍是水鱼的成绩。这里补一次真正的切换：
+    // 先把当前槽存回水鱼存档，再按 AWMC 的空槽激活（元数据已在上面建好）。
+    if (CurrentDataSourceNotifier.migratedToAwmc) {
+      try {
+        await AccountStore.writeActiveSlotToArchive(
+            RefreshDataSource.shuiyu.key);
+        await _activate(RefreshDataSource.awmc);
+      } catch (error) {
+        // 切换失败不能挡启动；下次刷新仍会按 AWMC 重新归档并覆盖。
+        debugPrint('默认源迁移后切换活动槽失败（忽略）: $error');
+      }
     }
     const migration = 'account_history_identity_migrated_v1';
     const ownersKey = 'account_history_owners_v1';

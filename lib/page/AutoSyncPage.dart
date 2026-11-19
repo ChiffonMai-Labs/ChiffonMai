@@ -328,6 +328,7 @@ class _AutoSyncPageState extends State<AutoSyncPage>
               _IdentityBindCard(onBound: () => _load(silent: true)),
               const SizedBox(height: AppDesignTokens.cardGap),
             ],
+            // 来源顺序与执行顺序一致：AWMC NET → 水鱼 → 落雪。
             for (final (index, platform) in SyncPlatform.values.indexed)
               EntranceAnimation(
                 index: index + 2,
@@ -398,6 +399,7 @@ class _AutoSyncPageState extends State<AutoSyncPage>
         ],
         const SizedBox(height: 14),
         Wrap(spacing: 6, runSpacing: 6, children: [
+          // 概览胶囊与下方来源列表同序（AWMC NET → 水鱼 → 落雪）。
           for (final platform in SyncPlatform.values) _sourceChip(platform),
         ]),
         const SizedBox(height: 14),

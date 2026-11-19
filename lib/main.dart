@@ -158,6 +158,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     debugPrint(
         '[Window] 生命周期 $state，framesEnabled=${WidgetsBinding.instance.framesEnabled}');
     if (state == AppLifecycleState.resumed) {
+      // 只重新应用当前偏好（含 PV / 播放器全屏标志），
+      // 恢复前台不能把全屏期间被隐藏的状态栏拉回来。
       unawaited(NavigationPreferences.instance.applySystemUiMode());
     }
   }

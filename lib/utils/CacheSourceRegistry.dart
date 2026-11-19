@@ -37,7 +37,7 @@ class CacheSourceInfo {
 ///
 /// 多个源共享同一 [groupKey] 时，任意一个被勾选强制刷新即触发整组刷新：
 ///   - 'songs'         歌曲数据（水鱼 + Union 合并写入 cachedSongs）
-///   - 'aliases'       别名 3 源合并写入 song_aliases
+///   - 'aliases'       别名多源合并写入 song_aliases（AWMC 主源 + 回退源）
 ///   - 'collections'   收藏品 6 类各自独立缓存但由 CollectionsManager 一并刷新
 class CacheSourceRegistry {
   static const List<CacheSourceInfo> all = [
@@ -87,39 +87,51 @@ class CacheSourceRegistry {
       groupKey: 'tags',
     ),
 
-    // ── 别名 3 源 ────────────────────────────────────────────
+    // ── 别名源（AWMC → yuzuchan 回退） ─────────────────────
+    // 缓存键与超时不变；yuzuchan 只保留一个发布周期作开关回退。
+    // DXRating / Score Hub 两路已停止请求，对应行随之移除。
+    CacheSourceInfo(
+      id: 'alias_awmc',
+      displayName: '别名数据源1',
+      description: 'AWMC（推荐；配置只读令牌后走主接口）',
+      apiUrl: ApiUrls.AwmcMaimaidxAliasApi,
+      cacheKey: 'song_aliases',
+      timestampKey: 'alias_last_update',
+      ttlDays: 7,
+      groupKey: 'aliases',
+    ),
     CacheSourceInfo(
       id: 'alias_yuzuchan',
-      displayName: '别名数据源1',
-      description: 'yuzuchan.moe',
+      displayName: '别名数据源2',
+      description: 'yuzuchan.moe（回退）',
       apiUrl: ApiUrls.SongAliasApi,
       cacheKey: 'song_aliases',
       timestampKey: 'alias_last_update',
       ttlDays: 7,
       groupKey: 'aliases',
     ),
-    CacheSourceInfo(
-      id: 'alias_dxrating',
-      displayName: '别名数据源2',
-      description: 'DXRating',
-      apiUrl: ApiUrls.DXRatingSongAliasApi,
-      cacheKey: 'song_aliases',
-      timestampKey: 'alias_last_update',
-      ttlDays: 7,
-      groupKey: 'aliases',
-    ),
-    CacheSourceInfo(
-      id: 'alias_maimaihub',
-      displayName: '别名数据源3',
-      description: 'maimai Score Hub',
-      apiUrl: ApiUrls.MaimaiHubMusicAliasesUrl,
-      cacheKey: 'song_aliases',
-      timestampKey: 'alias_last_update',
-      ttlDays: 7,
-      groupKey: 'aliases',
-    ),
 
-    // ── 收藏品 ──────────────────────────────────────────────
+    // ── 收藏品（AWMC 两项在前，落雪在后） ───────────────────
+    CacheSourceInfo(
+      id: 'coll_travel_buddies',
+      displayName: '收藏品-旅行伙伴',
+      description: 'AWMC 旅行伙伴',
+      apiUrl: '${ApiUrls.CollectionCatalogUrl}/travelBuddies',
+      cacheKey: CacheKeyConstant.travelBuddiesCollectionsCacheData,
+      timestampKey: CacheKeyConstant.travelBuddiesCollectionsTimestamp,
+      ttlDays: CacheKeyConstant.collectionCatalogTtlDays,
+      groupKey: 'collections',
+    ),
+    CacheSourceInfo(
+      id: 'coll_partners',
+      displayName: '收藏品-搭档',
+      description: 'AWMC 搭档',
+      apiUrl: '${ApiUrls.CollectionCatalogUrl}/partners',
+      cacheKey: CacheKeyConstant.partnersCollectionsCacheData,
+      timestampKey: CacheKeyConstant.partnersCollectionsTimestamp,
+      ttlDays: CacheKeyConstant.collectionCatalogTtlDays,
+      groupKey: 'collections',
+    ),
     CacheSourceInfo(
       id: 'coll_trophies',
       displayName: '收藏品-称号',
@@ -157,26 +169,6 @@ class CacheSourceRegistry {
       apiUrl: '${ApiUrls.CollectionCatalogUrl}/frames',
       cacheKey: CacheKeyConstant.framesCollectionsCacheData,
       timestampKey: 'frames_collections_last_update',
-      ttlDays: CacheKeyConstant.collectionCatalogTtlDays,
-      groupKey: 'collections',
-    ),
-    CacheSourceInfo(
-      id: 'coll_travel_buddies',
-      displayName: '收藏品-旅行伙伴',
-      description: 'AWMC 旅行伙伴',
-      apiUrl: '${ApiUrls.CollectionCatalogUrl}/travelBuddies',
-      cacheKey: CacheKeyConstant.travelBuddiesCollectionsCacheData,
-      timestampKey: CacheKeyConstant.travelBuddiesCollectionsTimestamp,
-      ttlDays: CacheKeyConstant.collectionCatalogTtlDays,
-      groupKey: 'collections',
-    ),
-    CacheSourceInfo(
-      id: 'coll_partners',
-      displayName: '收藏品-搭档',
-      description: 'AWMC 搭档',
-      apiUrl: '${ApiUrls.CollectionCatalogUrl}/partners',
-      cacheKey: CacheKeyConstant.partnersCollectionsCacheData,
-      timestampKey: CacheKeyConstant.partnersCollectionsTimestamp,
       ttlDays: CacheKeyConstant.collectionCatalogTtlDays,
       groupKey: 'collections',
     ),

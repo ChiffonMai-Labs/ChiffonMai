@@ -86,7 +86,10 @@ class MainActivity : AudioServiceActivity() {
      */
     private val DISPLAY_CHANNEL = "com.example.app/display"
 
-    /** 只控制顶部状态栏；底部导航保持显示，避免沉浸全屏吃掉返回手势。 */
+    /**
+     * 系统栏控制：非全屏只隐藏顶部状态栏，底部导航保持显示，
+     * 避免沉浸模式吃掉返回手势；播放器 / PV 全屏时才隐藏全部系统栏。
+     */
     private val SYSTEM_UI_CHANNEL = "com.example.app/system_ui"
 
     /** 读取系统已生成的动态配色，无需访问壁纸图片或申请存储权限。 */
@@ -98,6 +101,9 @@ class MainActivity : AudioServiceActivity() {
     private val CRASH_REPORT_CHANNEL = "com.example.app/crash_report"
     private var statusBarHidden: Boolean? = null
     private var pvFullscreen = false
+
+    /// 谱面播放页的显式全屏。与 PV 分开记录：全屏期间恢复前台不能把状态栏拉回来。
+    private var playerFullscreen = false
 
     /**
      * 随身听自定义通知栏通道。
@@ -267,6 +273,7 @@ class MainActivity : AudioServiceActivity() {
                 if (call.method == "setStatusBarHidden") {
                     statusBarHidden = call.argument<Boolean>("hidden") ?: false
                     pvFullscreen = call.argument<Boolean>("fullscreen") ?: false
+                    playerFullscreen = call.argument<Boolean>("playerFullscreen") ?: false
                     applyStatusBarVisibility()
                     result.success(null)
                 } else {
@@ -390,18 +397,20 @@ class MainActivity : AudioServiceActivity() {
         // Android 14 及以前同时保留窗口级全屏标志，避免部分系统在刷新浅色
         // 状态栏外观时把 InsetsController 的隐藏请求覆盖。只隐藏顶部系统栏。
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-            if (hidden || pvFullscreen) window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
+            if (hidden || pvFullscreen || playerFullscreen) window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
             else window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             window.insetsController?.let { controller ->
-                if (pvFullscreen) {
+                if (pvFullscreen || playerFullscreen) {
                     controller.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
                     controller.hide(WindowInsets.Type.systemBars())
                 } else {
                     controller.systemBarsBehavior = WindowInsetsController.BEHAVIOR_DEFAULT
                     controller.show(WindowInsets.Type.navigationBars())
-                    if (hidden) controller.hide(WindowInsets.Type.statusBars())
+                    // 播放器全屏期间回到前台时，原生会先把系统栏 show 回来；
+                    // 这里按 playerFullscreen 再隐藏，状态栏不能出现。
+                    if (hidden || playerFullscreen) controller.hide(WindowInsets.Type.statusBars())
                     else controller.show(WindowInsets.Type.statusBars())
                 }
             }
@@ -411,7 +420,7 @@ class MainActivity : AudioServiceActivity() {
                 (View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE or
                     View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY).inv()
             flags = when {
-                pvFullscreen -> flags or View.SYSTEM_UI_FLAG_FULLSCREEN or
+                pvFullscreen || playerFullscreen -> flags or View.SYSTEM_UI_FLAG_FULLSCREEN or
                     View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
                 hidden -> flags or View.SYSTEM_UI_FLAG_FULLSCREEN
                 else -> flags and View.SYSTEM_UI_FLAG_FULLSCREEN.inv()

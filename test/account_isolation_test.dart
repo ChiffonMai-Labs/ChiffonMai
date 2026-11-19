@@ -48,7 +48,11 @@ void main() {
   setUp(() async {
     FlutterSecureStorage.setMockInitialValues({});
     ApiClient.debugClient = MockClient((_) async => http.Response('{}', 503));
-    SharedPreferences.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues({
+      // 本组用例以水鱼为起点；迁移标记置位后 load 不会再把它改成默认源 AWMC。
+      CacheKeyConstant.lastDataSource: 'shuiyu',
+      CacheKeyConstant.dataSourceDefaultV2: true,
+    });
     prefs = await SharedPreferences.getInstance();
     history = Directory.systemTemp.createTempSync('account_isolation_');
     ChartHistoryStore.debugDirectoryOverride = history.path;

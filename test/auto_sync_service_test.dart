@@ -229,10 +229,22 @@ void main() {
           userId: (await AwmcQuickIdentityStore.read())!);
     }
     expect(payloads.map((p) => p['userId']), [12345, 12345, 12345]);
-    expect(payloads.map((p) => p['credential']),
-        ['personal-key-0', 'personal-key-1', 'personal-key-2']);
-    expect(payloads.map((p) => p['accountId']),
-        ['12345670', '12345671', '12345672']);
+    // 期望值按 platform 映射，不随枚举顺序写死 key-0/1/2。
+    const keyIndexByPlatform = {
+      SyncPlatform.divingFish: 0,
+      SyncPlatform.luoXue: 1,
+      SyncPlatform.awmc: 2,
+    };
+    final expectedKeys = [
+      for (final platform in SyncPlatform.values)
+        'personal-key-${keyIndexByPlatform[platform]}',
+    ];
+    final expectedAccountIds = [
+      for (final platform in SyncPlatform.values)
+        '1234567${keyIndexByPlatform[platform]}',
+    ];
+    expect(payloads.map((p) => p['credential']), expectedKeys);
+    expect(payloads.map((p) => p['accountId']), expectedAccountIds);
   });
 
   test('删除共用凭据前关闭全部任务；服务不可用时保留凭据以便重试', () async {

@@ -50,16 +50,17 @@ ChiffonMai 是面向街机音游《舞萌 DX》（maimai DX）玩家的第三方
 | 落雪咖啡屋 maimai.lxns.net | 落雪授权、成绩读取与上传、曲目/收藏品/资源 | OAuth 授权码与令牌、好友代码、成绩、资源 ID |
 | AWMC NET net.wmc.pub | AWMC NET 成绩读取与上传、谱面资源 | QQ、导入 Token、成绩、谱面 ID |
 | maimai Score Hub maimai.bakapiano.com | 扫码登录、成绩图片 OCR、成绩读取 | 登录令牌、玩家标识、结算画面照片 |
-| DXRating.net（含 miruku / shama 资源域） | 曲库、标签、别名、曲绘索引与图片 | 资源请求 |
+| AWMC 曲库与资源（v.wmc.pub、oss.awmc.cc） | 曲库、标签、别名、曲绘索引与图片（默认源） | 资源请求 |
 | Union（godserver.cn） | 曲目与地区元数据 | 资源请求 |
-| Yuri-YuzuChaN 别名数据（yuzuchan.moe） | 歌曲别名 | 资源请求 |
+| DXRating.net | 谱面标签与定数（过渡期） | 资源请求 |
+| Yuri-YuzuChaN 别名数据（yuzuchan.moe） | 歌曲别名（回退源） | 资源请求 |
 | AWMC 图鉴与资源（api.wmc.pub、download.wmc.pub、v.wmc.pub） | 收藏品、谱面与音源资源 | 资源 ID 请求 |
 | NearCade nearcade.cn | 全球机厅数据 | 查询区域 / 机厅 ID |
 | 高德地图（webrd0x.is.autonavi.com 等） | 地图瓦片 | 所浏览区域的瓦片请求 |
 | 系统地图（Apple Maps / 高德 / Google Maps） | 点击机厅后的外部导航 | 目的地坐标 |
 | 百度翻译（经后端） | 界面外文本翻译 | 待翻译文本与语言 |
 | 哔哩哔哩 | 谱面相关视频搜索与打开 | 搜索词、视频 ID |
-| isMaiDown、status.awmc.cc | 舞萌服务器状态 | 状态查询 |
+| isMaiDown（mai.chongxi.us） | 舞萌服务器状态 | 状态查询 |
 | Google Fonts（fonts.googleapis.com / gstatic） | 运行时下载字体 | 字体资源请求 |
 | GitHub Releases / API、gh-proxy.com、ghfast.top、蓝奏云、TestFlight | 版本检查、Android 安装包下载与 iOS 测试版入口 | 版本查询、下载请求 |
 | 爱发电、微信赞赏码、QQ、问卷、画加、B 站、Gitee | 赞助与外部链接 | 浏览器打开链接 / 扫码 |
@@ -75,7 +76,7 @@ App 面向中国大陆玩家，同时提供简体中文、繁体中文、英文�
 ### B6. 第三方内容与权利
 
 - ChiffonMai 是个人开发的非官方工具，与 SEGA 没有隶属或官方合作关系；代码以 MIT 许可证开源。
-- 《舞萌 DX》的名称、商标、曲绘、音频与谱面归 SEGA 等各自权利人。App 从水鱼、落雪、DXRating.net、Union、AWMC NET 等公开数据服务读取或缓存这些资料，仅用于查询、展示与玩家的个人整理，不售卖。
+- 《舞萌 DX》的名称、商标、曲绘、音频与谱面归 SEGA 等各自权利人。App 从 AWMC、水鱼、落雪、Union、AWMC NET 等公开数据服务读取或缓存这些资料，仅用于查询、展示与玩家的个人整理，不售卖。
 - 应用内《用户协议》第六节写明第三方内容权利归属与导出内容的使用边界；「关于 APP → 致谢」逐项列出数据来源与许可证（含 `simai_flutter` 的 MIT 与第三方声明）；「关于 APP」常驻用户协议、隐私政策入口。
 - 可提供：用户协议、隐私政策、致谢页截图、`simai_flutter` 与 Outfit 的许可证文本。
 

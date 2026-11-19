@@ -37,14 +37,14 @@ class _RatingRankListPageState extends State<RatingRankListPage> {
   int? _resultTab; // 屏幕上这份榜单所属的 Tab
   String? _resultUserId; // 这份榜单里要高亮的玩家
 
-  /// Tab 1..N 依次对应的数据源。
+  /// Tab 1..N 依次对应的数据源（AWMC NET → 水鱼 → 落雪）。
   ///
   /// 抽成列表是为了**加源时不用改逻辑**：`_tabNames` 与它一一对应，
   /// `_loadRankings` 按下标取源，不再写死 1→水鱼 / 2→落雪 的 switch。
   static const List<RefreshDataSource> _tabSources = [
+    RefreshDataSource.awmc,
     RefreshDataSource.shuiyu,
     RefreshDataSource.luoxue,
-    RefreshDataSource.awmc,
   ];
 
   /// Tab 标题。第 0 个是跨源总榜，其余按 [_tabSources] 的**短名**生成。
@@ -98,8 +98,8 @@ class _RatingRankListPageState extends State<RatingRankListPage> {
   /// 推断当前玩家（数据源 + 排行榜 id）。
   ///
   /// 按源区分的标记键（`shuiyu_user_id` / `luoxue_user_id` / `awmc_user_id`）由各源的
-  /// 刷新流程写入，比共用的 `cachedQQ` 权威。优先当前活动数据源，拿不到再按 enum
-  /// 顺序兜底，全都没有才退化到 `cachedQQ`（历史上只有水鱼写它）。
+  /// 刷新流程写入，比共用的 `cachedQQ` 权威。优先当前活动数据源，拿不到再按
+  /// AWMC NET → 水鱼 → 落雪 兜底，全都没有才退化到 `cachedQQ`（历史上只有水鱼写它）。
   ///
   /// 原来的二元写法只认 水鱼 / 落雪，且 `lastDataSource == 'awmc'` 时会把数据源
   /// 标成水鱼、id 却取水鱼的 QQ —— 拿 AWMC 账号看排行榜会高亮错人。
@@ -110,7 +110,8 @@ class _RatingRankListPageState extends State<RatingRankListPage> {
     final current = CurrentDataSourceNotifier.instance.value;
     final ordered = <RefreshDataSource>[
       current,
-      ...RefreshDataSource.values.where((s) => s != current),
+      for (final source in _tabSources)
+        if (source != current) source,
     ];
 
     _currentDataSource = null;
@@ -250,7 +251,7 @@ class _RatingRankListPageState extends State<RatingRankListPage> {
         // 第 0 个 Tab 是跨源总榜
         items = await RatingRankListService.getTotalRankings(limit: 500);
       } else {
-        // 其余 Tab 按 _tabSources 取对应数据源的榜（水鱼 / 落雪 / AWMC NET）
+        // 其余 Tab 按 _tabSources 取对应数据源的榜（AWMC NET / 水鱼 / 落雪）
         items =
             await RatingRankListService.getSourceRankings(source, limit: 500);
       }

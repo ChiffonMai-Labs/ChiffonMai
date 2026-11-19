@@ -2876,7 +2876,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get flowSourcesWithSavedCredentialsAreSelectedBy =>
-      '凭据存在的端默认勾选；水鱼 → 落雪 → AWMC NET 依次同步。';
+      '凭据存在的端默认勾选；AWMC NET → 水鱼 → 落雪 依次同步。';
 
   @override
   String get flowReloadCredentials => '重新读取凭据';
@@ -10222,7 +10222,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get flowUseTheMultiplierWhenAchievementMeetsThe =>
-      '达成率不低于左列时使用对应乘数；超过 100.5% 按 100.5% 计算';
+      '达成率不低于左列时使用对应乘数；超过 101.0% 按 101.0% 计算';
 
   @override
   String get flowAchievement4 => '达成率 ≥';
@@ -14921,6 +14921,164 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get featureDeleteAccountSubtitle => '删除本机账号、成绩缓存与服务端记录';
+
+  @override
+  String get kopQualifierTitle => 'KOP 预选';
+
+  @override
+  String get kopQualifierSubtitle => 'Score Attack 预选榜与本地最佳模拟';
+
+  @override
+  String get kopQualifierSubtitleDeadline =>
+      'Score Attack 预选榜与本地最佳模拟（11-23 截止）';
+
+  @override
+  String get kopCountdownLabel => '距截止';
+
+  @override
+  String get kopStatusLive => '预选进行中';
+
+  @override
+  String get kopStatusEnded => '预选已结束';
+
+  @override
+  String kopDeadline(Object time) {
+    return '截止 $time';
+  }
+
+  @override
+  String get kopRegionInternational => '国际服';
+
+  @override
+  String get kopRegionJapan => '日服';
+
+  @override
+  String get kopRuleNotice => '国服不能参赛，这里用本地成绩做娱乐模拟，不是官方成绩，仅供参考。';
+
+  @override
+  String get kopSongsTitle => '课题曲 · DX / MASTER';
+
+  @override
+  String get kopNoRecord => '未记录';
+
+  @override
+  String kopBestAchievement(Object value) {
+    return '本地最佳 $value%';
+  }
+
+  @override
+  String kopCorrectedScore(Object score) {
+    return '修正 $score';
+  }
+
+  @override
+  String kopPenalty(Object value) {
+    return '扣 $value%';
+  }
+
+  @override
+  String kopDxScore(Object value) {
+    return 'DX 分 $value';
+  }
+
+  @override
+  String get kopEstimateTitle => '模拟排名';
+
+  @override
+  String get kopTotalScore => '三曲合计';
+
+  @override
+  String get kopTotalScorePartial => '已记录合计';
+
+  @override
+  String get kopTotalDx => 'DX 分合计';
+
+  @override
+  String get kopIncomplete => '三首都有成绩后才显示模拟名次';
+
+  @override
+  String get kopEstimateWaiting => '读取官方榜后显示模拟结果';
+
+  @override
+  String kopRankSimulated(Object rank) {
+    return '模拟约第 $rank 位';
+  }
+
+  @override
+  String get kopRankOutside => '前 100 名之外';
+
+  @override
+  String kopGapLabel(Object rank) {
+    return '距 #$rank';
+  }
+
+  @override
+  String get kopAlreadyAhead => '已超过';
+
+  @override
+  String kopRequiredAchievement(Object count, Object value) {
+    return '还缺 $count 首成绩；要进前 100，每首至少约 $value%（MASTER）';
+  }
+
+  @override
+  String get kopRequiredTooHigh => '需要的达成率超过 101.0%，当前成绩还不足以进榜';
+
+  @override
+  String get kopEstimateHint => '同分比 DX 分，再比达成先后；达成先后未纳入模拟。';
+
+  @override
+  String get kopLeaderboardTitle => '官方前 100';
+
+  @override
+  String kopOfficialUpdate(Object time) {
+    return '官方更新：$time（JST）';
+  }
+
+  @override
+  String kopStaleNotice(Object time) {
+    return '刷新失败，正在显示 $time 读取的缓存';
+  }
+
+  @override
+  String kopFetchedAt(Object time) {
+    return '读取于 $time';
+  }
+
+  @override
+  String get kopSource => '来源：maimai.sega.jp 公开 JSON，官方只公开前 100 名。';
+
+  @override
+  String get kopLocalDataHint => '本地最佳来自已缓存的成绩，重新同步后会更新。';
+
+  @override
+  String get kopBestsFailed => '本地成绩读取失败';
+
+  @override
+  String get kopLoadFailed => '官方榜读取失败';
+
+  @override
+  String get kopEmptyRanking => '官方榜暂时没有数据';
+
+  @override
+  String get kopRefresh => '刷新';
+
+  @override
+  String get kopDayUnit => '天 ';
+
+  @override
+  String get kopRankColumn => '#';
+
+  @override
+  String get homeSuggestedEntries => '推荐入口';
+
+  @override
+  String get homeSuggestedEntriesHint => '星标任意功能后会固定到上方「常用」';
+
+  @override
+  String get kopPlayerColumn => '玩家';
+
+  @override
+  String get kopScoreColumn => '总分 / DX';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -17795,7 +17953,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get flowSourcesWithSavedCredentialsAreSelectedBy =>
-      '憑據存在的端默認勾選；水魚 → 落雪 → AWMC NET 依次同步。';
+      '憑據存在的端默認勾選；AWMC NET → 水魚 → 落雪 依次同步。';
 
   @override
   String get flowReloadCredentials => '重新讀取憑據';
@@ -29842,4 +30000,162 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get featureDeleteAccountSubtitle => '刪除本機帳號、成績快取與服務端紀錄';
+
+  @override
+  String get kopQualifierTitle => 'KOP 預選';
+
+  @override
+  String get kopQualifierSubtitle => 'Score Attack 預選榜與本地最佳模擬';
+
+  @override
+  String get kopQualifierSubtitleDeadline =>
+      'Score Attack 預選榜與本地最佳模擬（11-23 截止）';
+
+  @override
+  String get kopCountdownLabel => '距截止';
+
+  @override
+  String get kopStatusLive => '預選進行中';
+
+  @override
+  String get kopStatusEnded => '預選已結束';
+
+  @override
+  String kopDeadline(Object time) {
+    return '截止 $time';
+  }
+
+  @override
+  String get kopRegionInternational => '國際服';
+
+  @override
+  String get kopRegionJapan => '日服';
+
+  @override
+  String get kopRuleNotice => '國服不能參賽，這裡用本地成績做娛樂模擬，不是官方成績，僅供參考。';
+
+  @override
+  String get kopSongsTitle => '課題曲 · DX / MASTER';
+
+  @override
+  String get kopNoRecord => '未記錄';
+
+  @override
+  String kopBestAchievement(Object value) {
+    return '本地最佳 $value%';
+  }
+
+  @override
+  String kopCorrectedScore(Object score) {
+    return '修正 $score';
+  }
+
+  @override
+  String kopPenalty(Object value) {
+    return '扣 $value%';
+  }
+
+  @override
+  String kopDxScore(Object value) {
+    return 'DX 分 $value';
+  }
+
+  @override
+  String get kopEstimateTitle => '模擬排名';
+
+  @override
+  String get kopTotalScore => '三曲合計';
+
+  @override
+  String get kopTotalScorePartial => '已記錄合計';
+
+  @override
+  String get kopTotalDx => 'DX 分合計';
+
+  @override
+  String get kopIncomplete => '三首都有成績後才顯示模擬名次';
+
+  @override
+  String get kopEstimateWaiting => '讀取官方榜後顯示模擬結果';
+
+  @override
+  String kopRankSimulated(Object rank) {
+    return '模擬約第 $rank 位';
+  }
+
+  @override
+  String get kopRankOutside => '前 100 名之外';
+
+  @override
+  String kopGapLabel(Object rank) {
+    return '距 #$rank';
+  }
+
+  @override
+  String get kopAlreadyAhead => '已超過';
+
+  @override
+  String kopRequiredAchievement(Object count, Object value) {
+    return '還缺 $count 首成績；要進前 100，每首至少約 $value%（MASTER）';
+  }
+
+  @override
+  String get kopRequiredTooHigh => '需要的達成率超過 101.0%，當前成績還不足以進榜';
+
+  @override
+  String get kopEstimateHint => '同分比 DX 分，再比達成交先；達成交先未納入模擬。';
+
+  @override
+  String get kopLeaderboardTitle => '官方前 100';
+
+  @override
+  String kopOfficialUpdate(Object time) {
+    return '官方更新：$time（JST）';
+  }
+
+  @override
+  String kopStaleNotice(Object time) {
+    return '重新整理失敗，正在顯示 $time 讀取的快取';
+  }
+
+  @override
+  String kopFetchedAt(Object time) {
+    return '讀取於 $time';
+  }
+
+  @override
+  String get kopSource => '來源：maimai.sega.jp 公開 JSON，官方只公開前 100 名。';
+
+  @override
+  String get kopLocalDataHint => '本地最佳來自已快取的成績，重新同步後會更新。';
+
+  @override
+  String get kopBestsFailed => '本地成績讀取失敗';
+
+  @override
+  String get kopLoadFailed => '官方榜讀取失敗';
+
+  @override
+  String get kopEmptyRanking => '官方榜暫時沒有資料';
+
+  @override
+  String get kopRefresh => '重新整理';
+
+  @override
+  String get kopDayUnit => '天 ';
+
+  @override
+  String get kopRankColumn => '#';
+
+  @override
+  String get homeSuggestedEntries => '推薦入口';
+
+  @override
+  String get homeSuggestedEntriesHint => '星標任意功能後會固定到上方「常用」';
+
+  @override
+  String get kopPlayerColumn => '玩家';
+
+  @override
+  String get kopScoreColumn => '總分 / DX';
 }

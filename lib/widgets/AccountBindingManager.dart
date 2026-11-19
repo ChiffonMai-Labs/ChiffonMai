@@ -17,14 +17,23 @@ import 'AccountAuthorizationStatus.dart';
 import 'AppDialogs.dart';
 
 /// 「绑定与授权管理」管理的目标。
+///
+/// 枚举顺序就是展示顺序：AWMC NET → 机台 → Score Hub → 水鱼 → 水鱼授权 → 落雪。
 enum AccountBindingTarget {
+  awmc,
+  cabinet,
   scoreHub,
   divingFish,
   divingFishAuth,
-  lxns,
-  awmc,
-  cabinet
+  lxns
 }
+
+/// 数据源标签的展示顺序（AWMC NET → 水鱼 → 落雪），持久化键不变。
+const List<RefreshDataSource> _dataSourceOrder = [
+  RefreshDataSource.awmc,
+  RefreshDataSource.shuiyu,
+  RefreshDataSource.luoxue,
+];
 
 extension AccountBindingTargetState on AccountBindingTarget {
   /// 当前是否已登录 / 授权 / 绑定；数据全部来自共享通知器，读值不触发 IO。
@@ -57,7 +66,8 @@ extension AccountBindingTargetState on AccountBindingTarget {
     final l10n = context.l10n;
     final ok = done;
     return switch (this) {
-      AccountBindingTarget.scoreHub || AccountBindingTarget.divingFish =>
+      AccountBindingTarget.scoreHub ||
+      AccountBindingTarget.divingFish =>
         ok ? l10n.accountBindingSignedIn : l10n.accountBindingSignedOut,
       AccountBindingTarget.divingFishAuth => ok
           ? l10n.accountBindingAuthorized
@@ -67,7 +77,8 @@ extension AccountBindingTargetState on AccountBindingTarget {
               : l10n.accountBindingUnauthorized,
       AccountBindingTarget.lxns =>
         ok ? l10n.accountBindingAuthorized : l10n.accountBindingUnauthorized,
-      AccountBindingTarget.awmc || AccountBindingTarget.cabinet =>
+      AccountBindingTarget.awmc ||
+      AccountBindingTarget.cabinet =>
         ok ? l10n.accountBindingLinked : l10n.accountBindingUnlinked,
     };
   }
@@ -77,9 +88,8 @@ extension AccountBindingTargetState on AccountBindingTarget {
     final l10n = context.l10n;
     return switch (this) {
       AccountBindingTarget.scoreHub => l10n.featureSignInToMaimaiScoreHub,
-      AccountBindingTarget.divingFish => done
-          ? l10n.featureSignOutOfDivingFish
-          : l10n.featureSignInToDivingFish,
+      AccountBindingTarget.divingFish =>
+        done ? l10n.featureSignOutOfDivingFish : l10n.featureSignInToDivingFish,
       AccountBindingTarget.divingFishAuth => l10n.flowDivingFishAuthorization,
       AccountBindingTarget.lxns => l10n.accountAuthorizeLXNS,
       AccountBindingTarget.awmc => l10n.accountLinkAWMC,
@@ -195,7 +205,7 @@ class StatusChipRow extends StatelessWidget {
       );
 }
 
-/// 「成绩导入凭据」按钮下方的三个状态标签：水鱼 / 落雪 / AWMC NET。
+/// 「成绩导入凭据」按钮下方的三个状态标签：AWMC NET / 水鱼 / 落雪。
 /// 凭据写入或删除后由 [SecureCredentialStore.revision] 触发重新读取。
 class ImportCredentialStatusFooter extends StatefulWidget {
   const ImportCredentialStatusFooter({super.key});
@@ -207,11 +217,24 @@ class ImportCredentialStatusFooter extends StatefulWidget {
 
 class _ImportCredentialStatusFooterState
     extends State<ImportCredentialStatusFooter> {
+  /// 凭据键即状态标签的展示顺序：AWMC NET → 水鱼 → 落雪。
   static const _keys = [
+    CacheKeyConstant.awmcNetImportToken,
     CacheKeyConstant.probeDivingFishImportToken,
     CacheKeyConstant.probeLxnsImportToken,
-    CacheKeyConstant.awmcNetImportToken,
   ];
+
+  /// 键对应的展示名称，与 [_keys] 一一对应，避免两个列表各排一份时串位。
+  String _nameOf(BuildContext context, String key) {
+    final l10n = context.l10n;
+    return switch (key) {
+      CacheKeyConstant.awmcNetImportToken => l10n.accountBindingAwmc,
+      CacheKeyConstant.probeDivingFishImportToken =>
+        l10n.accountBindingDivingFish,
+      _ => l10n.accountBindingLxns,
+    };
+  }
+
   List<bool> _saved = const [false, false, false];
   int _request = 0;
 
@@ -245,11 +268,7 @@ class _ImportCredentialStatusFooterState
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final names = [
-      l10n.accountBindingDivingFish,
-      l10n.accountBindingLxns,
-      l10n.accountBindingAwmc,
-    ];
+    final names = [for (final key in _keys) _nameOf(context, key)];
     // 只显示名称，状态由图标与配色表达，三个标签保持原尺寸放进一行。
     return StatusChipRow(chips: [
       for (var i = 0; i < names.length; i++)
@@ -297,8 +316,8 @@ Future<AccountBindingTarget?> showAccountBindingDialog(BuildContext context) {
                 title: target.action(ctx),
                 leading: Icon(target.icon,
                     size: 22, color: Theme.of(ctx).colorScheme.primary),
-                trailing: AccountBindingStatusChip(
-                    target: target, showName: false),
+                trailing:
+                    AccountBindingStatusChip(target: target, showName: false),
                 onTap: () => Navigator.of(ctx).pop(target),
               ),
               if (target != AccountBindingTarget.values.last)
@@ -363,7 +382,7 @@ class _AccountSwitchStatusFooterState extends State<AccountSwitchStatusFooter> {
     return ValueListenableBuilder<RefreshDataSource>(
       valueListenable: CurrentDataSourceNotifier.instance,
       builder: (context, current, _) => StatusChipRow(chips: [
-        for (final source in RefreshDataSource.values)
+        for (final source in _dataSourceOrder)
           StatusChip(
             done: _saved.contains(source.key),
             highlighted: source == current,

@@ -206,6 +206,7 @@ class _PlayHubPageState extends State<PlayHubPage> {
                   features['单人猜歌游戏设置']!
                 else
                   HubSection(
+                    twoColumnOnWide: true,
                     title: section.title,
                     subtitle: section.subtitle,
                     icon: section.icon,

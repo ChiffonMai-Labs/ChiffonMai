@@ -89,8 +89,10 @@ class CacheKeyConstant {
   // 标签数据相关
   static const String maiTagsCache = 'mai_tags_cache';
   static const String maiTagsCacheTimestamp = 'mai_tags_cache_timestamp';
+
   /// 用户自定义标签（名称、颜色、谱面），属于用户数据，随备份导出。
   static const String customTags = 'custom_tags_v1';
+
   /// 谱面代码页的字体选择（默认 / Inconsolata）。
   static const String chartCodeFont = 'chart_code_font';
   static const String chartCodeHighlight = 'chart_code_highlight';
@@ -166,6 +168,12 @@ class CacheKeyConstant {
 
   // 上次更新使用的数据源
   static const String lastDataSource = 'last_data_source';
+
+  /// 默认数据源一次性迁移（水鱼 → AWMC）的完成标记；有它就不再迁移。
+  static const String dataSourceDefaultV2 = 'data_source_default_v2';
+
+  /// 用户是否**显式切换过**数据源。显式选过的不参与上面的默认值迁移。
+  static const String dataSourceExplicitlySet = 'data_source_explicitly_set';
 
   // 排行榜相关设置
   static const String participateRankings = 'participate_rankings';

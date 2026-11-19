@@ -5282,7 +5282,7 @@ abstract class AppLocalizations {
   /// No description provided for @flowSourcesWithSavedCredentialsAreSelectedBy.
   ///
   /// In zh, this message translates to:
-  /// **'凭据存在的端默认勾选；水鱼 → 落雪 → AWMC NET 依次同步。'**
+  /// **'凭据存在的端默认勾选；AWMC NET → 水鱼 → 落雪 依次同步。'**
   String get flowSourcesWithSavedCredentialsAreSelectedBy;
 
   /// No description provided for @flowReloadCredentials.
@@ -17816,7 +17816,7 @@ abstract class AppLocalizations {
   /// No description provided for @flowUseTheMultiplierWhenAchievementMeetsThe.
   ///
   /// In zh, this message translates to:
-  /// **'达成率不低于左列时使用对应乘数；超过 100.5% 按 100.5% 计算'**
+  /// **'达成率不低于左列时使用对应乘数；超过 101.0% 按 101.0% 计算'**
   String get flowUseTheMultiplierWhenAchievementMeetsThe;
 
   /// No description provided for @flowAchievement4.
@@ -26041,6 +26041,276 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'删除本机账号、成绩缓存与服务端记录'**
   String get featureDeleteAccountSubtitle;
+
+  /// No description provided for @kopQualifierTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'KOP 预选'**
+  String get kopQualifierTitle;
+
+  /// No description provided for @kopQualifierSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'Score Attack 预选榜与本地最佳模拟'**
+  String get kopQualifierSubtitle;
+
+  /// No description provided for @kopQualifierSubtitleDeadline.
+  ///
+  /// In zh, this message translates to:
+  /// **'Score Attack 预选榜与本地最佳模拟（11-23 截止）'**
+  String get kopQualifierSubtitleDeadline;
+
+  /// No description provided for @kopCountdownLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'距截止'**
+  String get kopCountdownLabel;
+
+  /// No description provided for @kopStatusLive.
+  ///
+  /// In zh, this message translates to:
+  /// **'预选进行中'**
+  String get kopStatusLive;
+
+  /// No description provided for @kopStatusEnded.
+  ///
+  /// In zh, this message translates to:
+  /// **'预选已结束'**
+  String get kopStatusEnded;
+
+  /// No description provided for @kopDeadline.
+  ///
+  /// In zh, this message translates to:
+  /// **'截止 {time}'**
+  String kopDeadline(Object time);
+
+  /// No description provided for @kopRegionInternational.
+  ///
+  /// In zh, this message translates to:
+  /// **'国际服'**
+  String get kopRegionInternational;
+
+  /// No description provided for @kopRegionJapan.
+  ///
+  /// In zh, this message translates to:
+  /// **'日服'**
+  String get kopRegionJapan;
+
+  /// No description provided for @kopRuleNotice.
+  ///
+  /// In zh, this message translates to:
+  /// **'国服不能参赛，这里用本地成绩做娱乐模拟，不是官方成绩，仅供参考。'**
+  String get kopRuleNotice;
+
+  /// No description provided for @kopSongsTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'课题曲 · DX / MASTER'**
+  String get kopSongsTitle;
+
+  /// No description provided for @kopNoRecord.
+  ///
+  /// In zh, this message translates to:
+  /// **'未记录'**
+  String get kopNoRecord;
+
+  /// No description provided for @kopBestAchievement.
+  ///
+  /// In zh, this message translates to:
+  /// **'本地最佳 {value}%'**
+  String kopBestAchievement(Object value);
+
+  /// No description provided for @kopCorrectedScore.
+  ///
+  /// In zh, this message translates to:
+  /// **'修正 {score}'**
+  String kopCorrectedScore(Object score);
+
+  /// No description provided for @kopPenalty.
+  ///
+  /// In zh, this message translates to:
+  /// **'扣 {value}%'**
+  String kopPenalty(Object value);
+
+  /// No description provided for @kopDxScore.
+  ///
+  /// In zh, this message translates to:
+  /// **'DX 分 {value}'**
+  String kopDxScore(Object value);
+
+  /// No description provided for @kopEstimateTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'模拟排名'**
+  String get kopEstimateTitle;
+
+  /// No description provided for @kopTotalScore.
+  ///
+  /// In zh, this message translates to:
+  /// **'三曲合计'**
+  String get kopTotalScore;
+
+  /// No description provided for @kopTotalScorePartial.
+  ///
+  /// In zh, this message translates to:
+  /// **'已记录合计'**
+  String get kopTotalScorePartial;
+
+  /// No description provided for @kopTotalDx.
+  ///
+  /// In zh, this message translates to:
+  /// **'DX 分合计'**
+  String get kopTotalDx;
+
+  /// No description provided for @kopIncomplete.
+  ///
+  /// In zh, this message translates to:
+  /// **'三首都有成绩后才显示模拟名次'**
+  String get kopIncomplete;
+
+  /// No description provided for @kopEstimateWaiting.
+  ///
+  /// In zh, this message translates to:
+  /// **'读取官方榜后显示模拟结果'**
+  String get kopEstimateWaiting;
+
+  /// No description provided for @kopRankSimulated.
+  ///
+  /// In zh, this message translates to:
+  /// **'模拟约第 {rank} 位'**
+  String kopRankSimulated(Object rank);
+
+  /// No description provided for @kopRankOutside.
+  ///
+  /// In zh, this message translates to:
+  /// **'前 100 名之外'**
+  String get kopRankOutside;
+
+  /// No description provided for @kopGapLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'距 #{rank}'**
+  String kopGapLabel(Object rank);
+
+  /// No description provided for @kopAlreadyAhead.
+  ///
+  /// In zh, this message translates to:
+  /// **'已超过'**
+  String get kopAlreadyAhead;
+
+  /// No description provided for @kopRequiredAchievement.
+  ///
+  /// In zh, this message translates to:
+  /// **'还缺 {count} 首成绩；要进前 100，每首至少约 {value}%（MASTER）'**
+  String kopRequiredAchievement(Object count, Object value);
+
+  /// No description provided for @kopRequiredTooHigh.
+  ///
+  /// In zh, this message translates to:
+  /// **'需要的达成率超过 101.0%，当前成绩还不足以进榜'**
+  String get kopRequiredTooHigh;
+
+  /// No description provided for @kopEstimateHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'同分比 DX 分，再比达成先后；达成先后未纳入模拟。'**
+  String get kopEstimateHint;
+
+  /// No description provided for @kopLeaderboardTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'官方前 100'**
+  String get kopLeaderboardTitle;
+
+  /// No description provided for @kopOfficialUpdate.
+  ///
+  /// In zh, this message translates to:
+  /// **'官方更新：{time}（JST）'**
+  String kopOfficialUpdate(Object time);
+
+  /// No description provided for @kopStaleNotice.
+  ///
+  /// In zh, this message translates to:
+  /// **'刷新失败，正在显示 {time} 读取的缓存'**
+  String kopStaleNotice(Object time);
+
+  /// No description provided for @kopFetchedAt.
+  ///
+  /// In zh, this message translates to:
+  /// **'读取于 {time}'**
+  String kopFetchedAt(Object time);
+
+  /// No description provided for @kopSource.
+  ///
+  /// In zh, this message translates to:
+  /// **'来源：maimai.sega.jp 公开 JSON，官方只公开前 100 名。'**
+  String get kopSource;
+
+  /// No description provided for @kopLocalDataHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'本地最佳来自已缓存的成绩，重新同步后会更新。'**
+  String get kopLocalDataHint;
+
+  /// No description provided for @kopBestsFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'本地成绩读取失败'**
+  String get kopBestsFailed;
+
+  /// No description provided for @kopLoadFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'官方榜读取失败'**
+  String get kopLoadFailed;
+
+  /// No description provided for @kopEmptyRanking.
+  ///
+  /// In zh, this message translates to:
+  /// **'官方榜暂时没有数据'**
+  String get kopEmptyRanking;
+
+  /// No description provided for @kopRefresh.
+  ///
+  /// In zh, this message translates to:
+  /// **'刷新'**
+  String get kopRefresh;
+
+  /// No description provided for @kopDayUnit.
+  ///
+  /// In zh, this message translates to:
+  /// **'天 '**
+  String get kopDayUnit;
+
+  /// No description provided for @kopRankColumn.
+  ///
+  /// In zh, this message translates to:
+  /// **'#'**
+  String get kopRankColumn;
+
+  /// No description provided for @homeSuggestedEntries.
+  ///
+  /// In zh, this message translates to:
+  /// **'推荐入口'**
+  String get homeSuggestedEntries;
+
+  /// No description provided for @homeSuggestedEntriesHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'星标任意功能后会固定到上方「常用」'**
+  String get homeSuggestedEntriesHint;
+
+  /// No description provided for @kopPlayerColumn.
+  ///
+  /// In zh, this message translates to:
+  /// **'玩家'**
+  String get kopPlayerColumn;
+
+  /// No description provided for @kopScoreColumn.
+  ///
+  /// In zh, this message translates to:
+  /// **'总分 / DX'**
+  String get kopScoreColumn;
 }
 
 class _AppLocalizationsDelegate

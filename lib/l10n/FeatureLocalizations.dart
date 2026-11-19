@@ -102,6 +102,12 @@ String localizeFeatureText(AppLocalizations l10n, String source) =>
       "看日服已上、国服还没上的曲目" => l10n.featureFindSongsReleasedInJapanButNot,
       "更新日历" => l10n.featureUpdateCalendar,
       "按日期查看国服每次更新的谱面" => l10n.featureBrowseChinaChartUpdatesByDate,
+      "推荐入口" => l10n.homeSuggestedEntries,
+      "星标任意功能后会固定到上方「常用」" => l10n.homeSuggestedEntriesHint,
+      "KOP 预选" => l10n.kopQualifierTitle,
+      "Score Attack 预选榜与本地最佳模拟" => l10n.kopQualifierSubtitle,
+      "Score Attack 预选榜与本地最佳模拟（11-23 截止）" =>
+        l10n.kopQualifierSubtitleDeadline,
       "版本对照" => l10n.featureVersionComparison,
       "按版本整理可游玩曲目" => l10n.featureBrowsePlayableSongsByVersion,
       "定数分布" => l10n.featureChartConstantDistribution,

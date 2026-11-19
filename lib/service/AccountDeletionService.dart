@@ -50,7 +50,7 @@ class AccountDeletionService {
 
   static const int _batchConcurrency = 6;
 
-  /// 找出本机保存过身份或凭据的账号，按「水鱼、落雪、AWMC」固定顺序。
+  /// 找出本机保存过身份或凭据的账号，按枚举顺序（AWMC、水鱼、落雪）。
   static Future<List<DeletionAccount>> loadAccounts() async {
     final prefs = await SharedPreferences.getInstance();
     final metas = await AccountStore.loadAll();
@@ -140,7 +140,11 @@ class AccountDeletionService {
     ]) {
       await prefs.remove(key);
     }
-    await CurrentDataSourceNotifier.instance.set(RefreshDataSource.shuiyu);
+    // 所有账号都删掉了：活动槽也要清空，否则当前源标成 AWMC 时，
+    // 界面上还挂着上一个（已删除）账号的成绩与 Best50。
+    await AccountStore.clearActiveSlot();
+    UserProfileNotifier.replace(UserProfile.defaults);
+    await CurrentDataSourceNotifier.instance.set(RefreshDataSource.awmc);
     return report;
   }
 

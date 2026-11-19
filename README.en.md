@@ -28,16 +28,16 @@ ChiffonMai is a community-made, **unofficial** mobile toolbox for players of the
 
 ## Highlights
 
-- **Library and charts**: search by title, alias, artist, charter, version, type, difficulty and tags; song details with chart constants, version and release dates; chart code with syntax highlight; chart playback with metronome; cover and result-screen recognition; favorites, play queue, random picker, version comparison, update calendar and collectibles.
+- **Library and charts**: search by title, alias, artist, charter, version, type, difficulty and tags; song details with chart constants, version and release dates; chart code with syntax highlight; chart playback with metronome; cover and result-screen recognition; favorites, play queue, random picker, version comparison, update calendar and collectibles. Library and chart data come from AWMC by default.
 - **Scores and Rating**: full records and filters, Best50 family (fitting, per-tag, ideal, custom), Rating and achievement-rate calculators with reverse calculation, history, friend comparison, rating/achievement leaderboards, plate progress, dan table, KALEIDXSCOPE, and image export.
 - **Recommendations and daily tools**: tag / target Rating / constant-range recommendations, daily and gain recommendations, attendance wheel, portable player, song download, national and global arcade maps.
 - **Guessing games**: solo modes (blank, alias, initials, partial/blurred/pixel/flash/puzzle cover, audio clip, reversed, pitch-shifted, chart snippet) and multiplayer rooms.
-- **Sync and system**: account switching and authorization, import credentials, single-platform / multi-platform / scheduled sync, cache management, backup, announcements, widgets, in-app updates, themes and multilingual UI (zh-Hans, zh-Hant, en, ja).
+- **Sync and system**: account switching and authorization, import credentials, single-platform / multi-platform / scheduled sync (AWMC by default; Diving-Fish and LuoXue remain switchable), cache management, backup, announcements, widgets, in-app updates, themes and multilingual UI (zh-Hans, zh-Hant, en, ja).
 
 ## FAQ
 
 - **Do I need an account?** No. Only personal score queries, sync and community features require an account on the matching service.
-- **Which data sources are supported?** Diving-Fish, LuoXue and AWMC NET; single-platform, multi-platform and scheduled sync are available.
+- **Which data sources are supported?** AWMC by default (library, charts and covers; score sync via AWMC NET); Diving-Fish and LuoXue stay available as switchable alternatives. Single-platform, multi-platform and scheduled sync are available.
 - **Which chart package format is used?** `.adx` for AstroDX (a folder named after the song inside) and `.zip` for the generic flat package.
 - **Can favorites move between devices?** Yes — as a versioned JSON exchange file (default extension `.cmf`, configurable), validated by content and imported as merge or replace.
 - **Where is the iOS build?** The release version comes from the App Store; betas come via TestFlight.
@@ -60,7 +60,7 @@ Code contributions: open an issue first, work on a branch, keep `flutter analyze
 
 ## Credits, license
 
-Creator and community credits are listed in the [Chinese README](README.md#特别致谢), together with data sources and open-source components.
+Creator and community credits are listed in the [Chinese README](README.md#特别致谢), together with data sources (AWMC as the default source, with switchable Diving-Fish and LuoXue; DXRating.net still supplies tags and chart constants during the transition) and open-source components.
 
 Project code is [MIT licensed](LICENSE). Bundled third-party components, fonts and data keep their own licenses — see [simai_flutter MIT](assets/legal/simai_flutter_MIT.txt), [third-party notices](assets/legal/simai_flutter_THIRD_PARTY_NOTICES.md) and [Outfit OFL](assets/legal/outfit_OFL.txt).
 

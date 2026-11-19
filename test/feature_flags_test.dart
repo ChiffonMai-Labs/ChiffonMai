@@ -32,6 +32,7 @@ void main() {
     expect(titles, contains('加入 QQ 群'));
     expect(titles, contains('数据备份'));
     expect(titles, contains('系统设置'));
-    expect(titles.length, 28, reason: '我的分类新增账号注册引导，其它入口保留');
+    // 计数只作「没有整块丢失」的兜底；新增入口时同步上调。
+    expect(titles.length, 30, reason: '我的分类其它入口保留，新增项只做增量');
   });
 }

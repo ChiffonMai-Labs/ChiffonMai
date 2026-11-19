@@ -12,7 +12,7 @@ import '../widgets/AppToast.dart';
 
 /// 弹出「切换账号」底部面板。
 ///
-/// 三个数据源（水鱼 / 落雪 / AWMC NET）各占一行；点击即用**缓存**切换数据源与
+/// 三个数据源（AWMC NET / 水鱼 / 落雪）各占一行；点击即用**缓存**切换数据源与
 /// 玩家信息，不联网。目标账号没有缓存时提示并回调 [onNeedRefresh] 引导去刷新。
 Future<void> showAccountSwitchSheet(
   BuildContext context, {
@@ -124,6 +124,13 @@ class _AccountSwitchSheet extends StatefulWidget {
 }
 
 class _AccountSwitchSheetState extends State<_AccountSwitchSheet> {
+  /// 展示顺序：AWMC NET → 水鱼 → 落雪。持久化键与枚举值不变。
+  static const List<RefreshDataSource> _sourceOrder = [
+    RefreshDataSource.awmc,
+    RefreshDataSource.shuiyu,
+    RefreshDataSource.luoxue,
+  ];
+
   late final Map<String, AccountMeta> _metas = widget.initialMetas;
   bool _busy = false;
 
@@ -318,9 +325,9 @@ class _AccountSwitchSheetState extends State<_AccountSwitchSheet> {
                   style:
                       TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
             const SizedBox(height: 12),
-            // 逐个源渲染（水鱼 / 落雪 / AWMC NET）。
-            // 原来是写死两行，加第三个源时必须记得再加一行；改成枚举就不会漏。
-            for (final source in RefreshDataSource.values) ...[
+            // 逐个源按 AWMC NET / 水鱼 / 落雪 渲染。
+            // 顺序由 [_sourceOrder] 统一给出，加源时只改那一处。
+            for (final source in _sourceOrder) ...[
               _buildAccountTile(source),
               const SizedBox(height: 8),
             ],

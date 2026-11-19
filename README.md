@@ -62,8 +62,8 @@ ChiffonMai 是面向街机音游《舞萌 DX》玩家的**第三方非官方**�
 当前源码版本为 **3.0.3+60**（构建号 60 用于避开已用过的 59，更新说明见 [v3.0.3](docs/release-notes-3.0.3.md)）。3.0.0 完成了全 App 的界面重做，底部导航为 **首页、曲库、成绩、游玩、我的** 五个标签；「游玩」内分为出勤和休闲。首页「常用」即收藏列表，可拖动排序，并带自动同步和服务器状态小组件。
 
 - **多语言**：界面、服务提示和系统通知支持简体中文、繁体中文、英语、日语，默认跟随系统；歌曲资料、服务端原文和用户内容保持原文。用户协议和隐私政策另有四语版本，随安装包离线可读。
-- **绑定与授权管理**：maimai Score Hub、水鱼登录与授权、落雪授权、AWMC NET 账号和机台身份集中在一个入口，按钮下方的状态标签即时更新。
-- **成绩导入凭据**：集中管理水鱼 ImportToken、落雪个人 API 密钥和 AWMC NET 成绩导入 Token，并显示各自是否已设置。
+- **绑定与授权管理**：AWMC NET 账号与机台身份、maimai Score Hub（扫码登录与结算画面识别）、水鱼登录与授权、落雪授权集中在一个入口，按钮下方的状态标签即时更新。
+- **成绩导入凭据**：集中管理 AWMC NET 成绩导入 Token、水鱼 ImportToken 和落雪个人 API 密钥，并显示各自是否已设置。
 - **删除账号**：清除本机账号、登录凭据、成绩缓存与自动同步任务，并尽力删除服务端的评论、评分和排行记录；第三方平台账号不受影响。
 - **评论举报与屏蔽**：歌曲详情可举报评论，也可按评论者屏蔽；屏蔽列表在系统设置里管理。
 - **社区装扮与机台装扮**：设置社区头像、编排旅行伙伴与搭档，也可扫码读取机台当前的装扮。
@@ -164,20 +164,20 @@ ChiffonMai 是面向街机音游《舞萌 DX》玩家的**第三方非官方**�
 
 ### 数据同步、系统和开发支持
 
-- **账号注册引导**：集中提供水鱼、落雪注册入口和 AWMC NET 档案创建引导。
+- **账号注册引导**：集中提供 AWMC NET 档案创建引导和水鱼、落雪注册入口。
 - **切换账号**：切换数据源与玩家信息，使用本地缓存。
 - **拉取成绩并更新数据**：拉取所选账号的成绩并重算 Best50，同时更新曲目、定数与标签；高级模式可按数据类型强制重新下载并测试接口连通性。
 - **刷新机台游玩次数**：单独读取当前账号的 PC 数，不附带成绩同步。
 - **同步机台装扮**：扫码或粘贴舞萌登录二维码，读取机台当前选中的头像、姓名框、背景、称号、旅行伙伴和搭档。
 - **缓存管理**：查看、清理音源、PV 与 maidata，并重新拉取基础量 maidata。
+- **同步成绩到 AWMC NET**：通过二维码等方式同步成绩到 AWMC NET（默认数据源）。
 - **同步成绩到水鱼**：通过机台二维码或导入流程同步成绩到水鱼查分器。
 - **同步成绩到落雪**：将本地成绩同步到落雪咖啡屋。
-- **同步成绩到 AWMC NET**：通过二维码等方式同步成绩到 AWMC NET。
 - **同步成绩到多端**：一次同步到多个支持的查分服务。
 - **自动同步**：每天北京时间 0 点和 12 点自动快速同步，任务需在七天内手动续期。
-- **绑定与授权管理**：登录 maimai Score Hub、登录 / 登出水鱼并管理水鱼授权、授权落雪、绑定 AWMC NET 账号和机台身份。
+- **绑定与授权管理**：绑定 AWMC NET 账号和机台身份、登录 maimai Score Hub（扫码登录与结算画面识别）、登录 / 登出水鱼并管理水鱼授权、授权落雪。
 - **删除账号**：清除本机账号数据与服务端记录，见「账号和隐私」。
-- **成绩导入凭据**：管理水鱼 ImportToken、落雪个人 API 密钥和 AWMC NET 成绩导入 Token。
+- **成绩导入凭据**：管理 AWMC NET 成绩导入 Token、水鱼 ImportToken 和落雪个人 API 密钥。
 - **服务器状态**：查看舞萌相关服务的当前状态，数据来源于 isMaiDown by Chongxi。
 - **公告中心**：浏览公告历史并打开公告详情。
 - **数据备份**：导入或导出本地用户资料、偏好与用户文件，不包含登录凭据和可重新获取的缓存。
@@ -237,7 +237,7 @@ flutter build apk --release --dart-define="CLIENT_API_KEY=<客户端网关 Key>"
 ## 常见问题
 
 - **必须登录数据源才能使用吗？** 不需要。曲库、歌曲详情、计算器、推荐、随机、谱面播放、地图和多数本地工具无需登录；只有个人成绩查询、同步和社区功能需要对应账号。
-- **支持哪些数据源？** 水鱼查分器、落雪咖啡屋和 AWMC NET，可单平台、多端或定时自动同步。
+- **支持哪些数据源？** 默认使用 AWMC（曲库、谱面与曲绘资源；成绩同步走 AWMC NET），可切换到水鱼查分器或落雪咖啡屋；支持单平台、多端或定时自动同步。
 - **导出的谱面包是什么格式？** AstroDX 使用 `.adx`（包内按曲名套一层文件夹），通用谱面包使用 `.zip`（三件套平铺）。
 - **收藏夹可以在设备之间转移吗？** 可以。导出为带版本与去重键的 JSON 交换文件（默认后缀 `.cmf`，可自定义），导入按内容校验，支持合并或覆盖。
 - **iOS 版在哪里下载？** 正式版走 App Store，测试版走 TestFlight。
@@ -249,17 +249,18 @@ flutter build apk --release --dart-define="CLIENT_API_KEY=<客户端网关 Key>"
 
 为了提供曲库、成绩、谱面、机厅与社区功能，应用会在对应功能中请求以下公开或获得授权的数据服务，包括但不限于：
 
-- [水鱼查分器](https://www.diving-fish.com/maimaidx/prober/)
-- [DXRating.net](https://dxrating.net/)
-- [落雪咖啡屋](https://maimai.lxns.net/)
-- [AWMC NET](https://net.wmc.pub/)
+- [AWMC](https://v.wmc.pub/)（默认数据源：曲库、谱面与别名；曲绘走 oss.awmc.cc）
+- [DXRating.net](https://dxrating.net/)（过渡期仍在使用的谱面标签与定数源）
+- [AWMC NET](https://net.wmc.pub/)（成绩同步）
+- [水鱼查分器](https://www.diving-fish.com/maimaidx/prober/)（可切换源）
+- [落雪咖啡屋](https://maimai.lxns.net/)（可切换源）
 - [Union](https://union.godserver.cn/)
-- [Yuri-YuzuChaN/maimaiDX](https://github.com/Yuri-YuzuChaN/maimaiDX)
+- [Yuri-YuzuChaN/maimaiDX](https://github.com/Yuri-YuzuChaN/maimaiDX)（别名回退源）
 - [NearCade](https://nearcade.cn/)
 - [全国音游地图](https://map.bemanicn.com/)
 - [AWMC KALEIDXSCOPE](https://kaleidxscope.awmc.team/)
 - [isMaiDown by Chongxi](https://mai.chongxi.us/)（舞萌服务器状态）
-- [maimai Score Hub](https://github.com/bakapiano/maimai-score-hub)（账号登录、结算识别与社区接口）
+- [maimai Score Hub](https://github.com/bakapiano/maimai-score-hub)（扫码登录、结算画面识别 OCR 与社区接口）
 - [高德地图](https://www.amap.com/) 底图与 [哔哩哔哩](https://www.bilibili.com/) 谱面确认 / PV
 - 百度翻译（经自家服务端代理，用于界面外文本翻译）
 
@@ -344,20 +345,18 @@ ChiffonMai 免费、无广告、不接入统计 SDK。赞助用于服务器开�
 
 ### 数据与服务
 
-- **水鱼查分器**：提供曲目数据库和玩家游玩记录数据库。[官网](https://www.diving-fish.com/maimaidx/prober/)
-- **DXRating.net**：提供谱面标签数据库和别名数据库。[官网](https://dxrating.net)
-- **Yuri-YuzuChaN**：提供别名数据库。[项目地址](https://github.com/Yuri-YuzuChaN/maimaiDX)
-- **落雪咖啡屋**：提供收藏品数据库、歌曲音源支持、曲目数据库和玩家游玩记录数据库。[官网](https://maimai.lxns.net)
+- **水鱼查分器**：提供曲目数据库和玩家游玩记录数据库（可切换源）。[官网](https://www.diving-fish.com/maimaidx/prober/)
+- **Yuri-YuzuChaN**：提供别名数据库（回退源）。[项目地址](https://github.com/Yuri-YuzuChaN/maimaiDX)
+- **落雪咖啡屋**：提供收藏品数据库、歌曲音源支持、曲目数据库和玩家游玩记录数据库（可切换源）。[官网](https://maimai.lxns.net)
 - **Neskol**：提供谱面转换支持。[项目地址](https://github.com/Neskol/Maichart-Converts/tree/master)
-- **AWMC NET**：提供水鱼查分器同步支持、落雪查分器同步支持和对本项目开发的经济支持。[官网](https://net.wmc.pub/)
-- **Bakapiano**：提供水鱼查分器和落雪查分器成绩同步支持。[项目地址](https://github.com/bakapiano/maimai-score-hub)
+- **AWMC**：提供默认数据源，包括曲库与谱面（v.wmc.pub）、成绩同步（net.wmc.pub）和曲绘资源（oss.awmc.cc），并对本项目开发提供经济支持。[官网](https://net.wmc.pub/)
+- **Bakapiano**：提供成绩同步支持与结算画面识别 OCR 支持。[项目地址](https://github.com/bakapiano/maimai-score-hub)
 - **DevinTom**：提供落雪查分器成绩同步支持。[项目地址](https://github.com/k4641321/chusearchsong_flutter/tree/master)
 - **Union**：提供曲目数据库。[官网](https://union.godserver.cn/)
 - **NearCade**：提供全球机厅相关数据。[官网](https://nearcade.cn/)
 - **全国音游地图**：提供国内机厅相关数据。[官网](https://map.bemanicn.com/)
 - **AWMC KALEIDXSCOPE**：提供 KALEIDXSCOPE 门数据。[官网](https://kaleidxscope.awmc.team/)
-- **status.awmc.cc**：提供舞萌服务器状态信息。[服务地址](https://status.awmc.cc/status/maimai)
-- **mai.chongxi.us**：提供舞萌服务器状态信息（应用当前实际接口）。[服务地址](https://mai.chongxi.us/)
+- **mai.chongxi.us**：提供舞萌服务器状态信息。[服务地址](https://mai.chongxi.us/)
 - **SilentBlue.RemyWiki**：提供高清版本图片。[官网](https://silentblue.remywiki.com/Main_Page)
 - **simai_flutter · Project Fukakai**：提供谱面解析和播放器，采用 MIT 许可证；谱面引擎部分改编自 maimai-chart-engine（MIT）。[项目地址](https://github.com/Project-Fukakai/simai_flutter) · [许可证](assets/legal/simai_flutter_MIT.txt) · [第三方声明](assets/legal/simai_flutter_THIRD_PARTY_NOTICES.md)
 

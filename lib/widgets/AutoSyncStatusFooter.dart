@@ -141,6 +141,7 @@ class _AutoSyncStatusFooterState extends State<AutoSyncStatusFooter>
                       fontSize: 10.5,
                       color: Theme.of(context).colorScheme.onSurfaceVariant)),
             ),
+          // 与自动同步页和执行顺序一致：AWMC NET → 水鱼 → 落雪。
           for (final platform in SyncPlatform.values) _label(platform)
         ],
       ),

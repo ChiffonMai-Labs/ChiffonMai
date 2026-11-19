@@ -8,7 +8,7 @@
 
 **Access**: Most features need no account. For personalized features use the demo account `{{DEMO_ACCOUNT}}` / `{{DEMO_PASSWORD}}`: Profile → Bindings & Authorization → Diving Fish → sign in → Profile → Pull scores and refresh data → confirm. Then open any song → Community to rate/comment. Accounts are free third-party score trackers; in-app "Account registration guide" walks through sign-up.
 
-**External services**: chiffonmai.cloud (own backend: OAuth proxy, public chart proxy, comments, rankings, announcements, auto-sync, translation proxy); Diving Fish; LXNS; AWMC NET; maimai Score Hub (includes score-photo OCR); DXRating.net; Union; YuzuChaN aliases; NearCade; AMap tiles; Baidu Translate (via backend); Bilibili; isMaiDown/status.awmc.cc; Google Fonts; GitHub Releases. Details and data types: B4.
+**External services**: chiffonmai.cloud (own backend: OAuth proxy, public chart proxy, comments, rankings, announcements, auto-sync, translation proxy); Diving Fish; LXNS; AWMC (v.wmc.pub, oss.awmc.cc, net.wmc.pub); maimai Score Hub (includes score-photo OCR); DXRating.net (tags/chart constants, transitional); Union; YuzuChaN aliases (fallback); NearCade; AMap tiles; Baidu Translate (via backend); Bilibili; isMaiDown (mai.chongxi.us); Google Fonts; GitHub Releases. Details and data types: B4.
 
 **Regional differences**: UI in Simplified/Traditional Chinese, English and Japanese, following the system language. No region lock. Data keeps separate CN/JP releases and dates; accounts are mainly CN-side; AMap tiles may be slower abroad. iOS updates via App Store/TestFlight.
 

@@ -98,7 +98,10 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
       child: Material(
         color: barBackground ?? Colors.transparent,
         child: Padding(
-          padding: EdgeInsets.only(top: MediaQuery.paddingOf(context).top),
+          padding: EdgeInsets.only(
+            top: MediaQuery.paddingOf(context).top +
+                (MediaQuery.sizeOf(context).width >= 480 ? 12 : 0),
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,

@@ -2222,6 +2222,7 @@ class _OcrImageCropPageState extends State<_OcrImageCropPage> {
   bool _loading = true;
   bool _cropping = false;
   Rect _imageRect = Rect.zero;
+  // 裁剪框以相对 _imageRect 的分数（0–1，左右/上下）保存，尺寸变化后仍框住同一处
   Rect _cropRect = Rect.zero;
   _OcrCropHandle _activeHandle = _OcrCropHandle.none;
   Offset? _dragStart;
@@ -2297,15 +2298,39 @@ class _OcrImageCropPageState extends State<_OcrImageCropPage> {
     return Rect.fromLTWH(dx, dy, dw, dh);
   }
 
+  // 按当前 _imageRect 把分数选区换算成绝对像素
+  Rect get _cropRectPx => Rect.fromLTRB(
+        _imageRect.left + _cropRect.left * _imageRect.width,
+        _imageRect.top + _cropRect.top * _imageRect.height,
+        _imageRect.left + _cropRect.right * _imageRect.width,
+        _imageRect.top + _cropRect.bottom * _imageRect.height,
+      );
+
+  // 绝对像素选区换算成相对 _imageRect 的分数，并夹在图片内
+  Rect _toCropFraction(Rect rect) => Rect.fromLTRB(
+        ((rect.left - _imageRect.left) / _imageRect.width)
+            .clamp(0.0, 1.0)
+            .toDouble(),
+        ((rect.top - _imageRect.top) / _imageRect.height)
+            .clamp(0.0, 1.0)
+            .toDouble(),
+        ((rect.right - _imageRect.left) / _imageRect.width)
+            .clamp(0.0, 1.0)
+            .toDouble(),
+        ((rect.bottom - _imageRect.top) / _imageRect.height)
+            .clamp(0.0, 1.0)
+            .toDouble(),
+      );
+
   void _initCropRect() {
     final size = math.min(_imageRect.width, _imageRect.height) * 0.7;
     setState(() {
-      _cropRect = Rect.fromLTWH(
+      _cropRect = _toCropFraction(Rect.fromLTWH(
         _imageRect.left + (_imageRect.width - size) / 2,
         _imageRect.top + (_imageRect.height - size) / 2,
         size,
         size,
-      );
+      ));
     });
   }
 
@@ -2334,22 +2359,23 @@ class _OcrImageCropPageState extends State<_OcrImageCropPage> {
 
   _OcrCropHandle _hitTest(Offset p) {
     const r = 20.0;
-    if ((p - _cropRect.topLeft).distance < r) return _OcrCropHandle.topLeft;
-    if ((p - _cropRect.topRight).distance < r) return _OcrCropHandle.topRight;
-    if ((p - _cropRect.bottomLeft).distance < r) {
+    final cropRect = _cropRectPx;
+    if ((p - cropRect.topLeft).distance < r) return _OcrCropHandle.topLeft;
+    if ((p - cropRect.topRight).distance < r) return _OcrCropHandle.topRight;
+    if ((p - cropRect.bottomLeft).distance < r) {
       return _OcrCropHandle.bottomLeft;
     }
-    if ((p - _cropRect.bottomRight).distance < r) {
+    if ((p - cropRect.bottomRight).distance < r) {
       return _OcrCropHandle.bottomRight;
     }
-    if (_cropRect.contains(p)) return _OcrCropHandle.body;
+    if (cropRect.contains(p)) return _OcrCropHandle.body;
     return _OcrCropHandle.none;
   }
 
   void _onPanStart(DragStartDetails d) {
     _activeHandle = _hitTest(d.localPosition);
     _dragStart = d.localPosition;
-    _cropRectStart = _cropRect;
+    _cropRectStart = _cropRectPx;
   }
 
   void _onPanUpdate(DragUpdateDetails d) {
@@ -2444,7 +2470,7 @@ class _OcrImageCropPageState extends State<_OcrImageCropPage> {
       case _OcrCropHandle.none:
         return;
     }
-    setState(() => _cropRect = newRect);
+    setState(() => _cropRect = _toCropFraction(newRect));
   }
 
   void _onPanEnd(DragEndDetails d) {
@@ -2458,7 +2484,7 @@ class _OcrImageCropPageState extends State<_OcrImageCropPage> {
       return widget.imagePath;
     }
     try {
-      final crop = _cropRect.intersect(_imageRect);
+      final crop = _cropRectPx.intersect(_imageRect);
       if (crop.isEmpty || crop.width <= 0 || crop.height <= 0) {
         return widget.imagePath;
       }
@@ -2559,7 +2585,9 @@ class _OcrImageCropPageState extends State<_OcrImageCropPage> {
                     child: CircularProgressIndicator(color: Colors.white),
                   );
                 }
-                _cropRect = _clampCropRect(_cropRect, _imageRect);
+                // 选区保存的是分数，按新的图片区域反算绝对位置并夹在图片内
+                final cropRect = _clampCropRect(_cropRectPx, _imageRect);
+                _cropRect = _toCropFraction(cropRect);
                 return GestureDetector(
                   onPanStart: _onPanStart,
                   onPanUpdate: _onPanUpdate,
@@ -2577,7 +2605,7 @@ class _OcrImageCropPageState extends State<_OcrImageCropPage> {
                           child: CustomPaint(
                             painter: _OcrCropOverlayPainter(
                               imageRect: _imageRect,
-                              cropRect: _cropRect,
+                              cropRect: cropRect,
                               handleSize: _handleSize,
                               handleBorderColor:
                                   Theme.of(context).colorScheme.onSurface,

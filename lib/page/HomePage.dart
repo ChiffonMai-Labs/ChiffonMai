@@ -73,6 +73,7 @@ import 'GuessChartGame/GuessChartByFlashCoverPage.dart';
 import 'GuessChartGame/GuessChartByTileRevealPage.dart';
 import 'GuessChartGame/GuessChartByChartPeekPage.dart';
 import 'KaleidXScope/KaleidXScopeSelectPage.dart';
+import 'KopQualifierPage.dart';
 import 'FavoriteFolderPage.dart';
 import 'MaimaiServerStatusPage.dart';
 import 'Multiplayer/MultiplayerLobbyPage.dart';
@@ -836,7 +837,8 @@ class HomePageState extends State<HomePage> {
         child: ListView(
           padding: EdgeInsets.fromLTRB(
             AppDesignTokens.gutter + 4,
-            10,
+            // 横屏 / 宽屏没有状态栏高度撑着，页头贴边太紧，补一段呼吸空间。
+            MediaQuery.sizeOf(context).width >= 480 ? 28 : 10,
             AppDesignTokens.gutter + 4,
             24 + MainNavigationInsets.bottomOf(context),
           ),
@@ -987,7 +989,7 @@ class HomePageState extends State<HomePage> {
     );
   }
 
-  /// 点「数据源」即可切换 水鱼 / 落雪 / AWMC NET 账号（使用缓存，不联网）。
+  /// 点「数据源」即可切换 AWMC NET / 水鱼 / 落雪 账号（使用缓存，不联网）。
   /// 用**短名**：`AWMC NET` 在窄屏上放不下，与排行榜 Tab 的叫法一致。
   Widget _buildDataSourceChip(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -1147,19 +1149,33 @@ class HomePageState extends State<HomePage> {
     return keyword.isNotEmpty;
   }
 
+  /// 结果项是否命中 AWMC：标题 / 副标题（含当前语言译文）任一命中即算。
+  bool _isAwmcEntry(_HomeFeatureSearchEntry entry) {
+    final text = [
+      entry.item.title,
+      entry.item.subtitle,
+      context.featureText(entry.item.title),
+      context.featureText(entry.item.subtitle),
+    ].join('\n').toLowerCase();
+    return text.contains('awmc');
+  }
+
   List<_HomeFeatureSearchEntry> _homeFeatureSearchResults(String query) {
-    final results = <_HomeFeatureSearchEntry>[];
+    // 命中 AWMC 的项稳定置顶，其余项与分类的原有相对顺序都不动。
+    final awmcHits = <_HomeFeatureSearchEntry>[];
+    final others = <_HomeFeatureSearchEntry>[];
     for (final category in _searchableCategories) {
       for (final item in category.items) {
         if (_matchesHomeFeature(item.title, query) ||
             _matchesHomeFeature(item.subtitle, query) ||
             _matchesHomeFeature(context.featureText(item.title), query) ||
             _matchesHomeFeature(context.featureText(item.subtitle), query)) {
-          results.add(_HomeFeatureSearchEntry(category, item));
+          final entry = _HomeFeatureSearchEntry(category, item);
+          (_isAwmcEntry(entry) ? awmcHits : others).add(entry);
         }
       }
     }
-    return results;
+    return [...awmcHits, ...others];
   }
 
   Widget _buildHomeFeatureSearchResults(
@@ -1318,7 +1334,7 @@ class HomePageState extends State<HomePage> {
   ///
   /// 白卡片 + 大号等宽数字 + Rating 段位小标识 + B35/B15 占比条。
   /// 交互与旧版一致：点上半部分（标签 + 总 Rating）打开「拉取成绩并更新数据」，
-  /// 点右下角数据源胶囊切换 水鱼 / 落雪 / AWMC NET 账号（使用缓存，不联网）。
+  /// 点右下角数据源胶囊切换 AWMC NET / 水鱼 / 落雪 账号（使用缓存，不联网）。
   Widget _buildDashboardSummary(BuildContext context, Brightness brightness) {
     final scheme = Theme.of(context).colorScheme;
     final total = _best50TotalRA;
@@ -2079,7 +2095,8 @@ class HomePageState extends State<HomePage> {
                                         (count).toString()));
                                 final fc =
                                     DivingFishProbeManager().currentFriendCode;
-                                if (ModalRoute.of(dialogContext)?.isCurrent == true) {
+                                if (ModalRoute.of(dialogContext)?.isCurrent ==
+                                    true) {
                                   Navigator.of(dialogContext).pop(fc);
                                 }
                               } else {
@@ -2593,106 +2610,125 @@ class HomePageState extends State<HomePage> {
 
   void _showAccountManageDialog(BuildContext context) {
     final brightness = Theme.of(context).brightness;
+    // 水鱼资料只发起一次请求；整体不再包在 FutureBuilder 里，接口失败只影响水鱼
+    // 这一段，AWMC NET 与落雪的 Token 仍然可以正常操作。
+    final profileFuture = fetchDivingFishProfile();
     showDialog(
       context: context,
       barrierDismissible: true,
       builder: (BuildContext dialogContext) {
-        return FutureBuilder<Map<String, dynamic>?>(
-          future: fetchDivingFishProfile(),
-          builder: (ctx, snapshot) {
-            final isLoading = snapshot.connectionState != ConnectionState.done;
-            final errorMsg = snapshot.hasError ? '${snapshot.error}' : null;
-            final profile = snapshot.data;
-
-            return AppAlertDialog(
-              title: Row(
-                children: [
-                  Icon(Icons.manage_accounts, size: 22),
-                  SizedBox(width: 8),
-                  Text(dialogContext.l10n.featureAccountManagement),
-                ],
-              ),
-              content: SingleChildScrollView(
-                child: isLoading
-                    ? const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(24),
-                          child: CircularProgressIndicator(),
+        return AppAlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.manage_accounts, size: 22),
+              SizedBox(width: 8),
+              Text(dialogContext.l10n.featureAccountManagement),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              // AWMC NET 成绩导入 Token 独立于其它源，置顶。
+              _buildAwmcNetTokenSection(brightness),
+              // 水鱼资料 / 成绩导入 Token：单独一个 FutureBuilder，
+              // 加载失败只在本段提示，不挡住其它源。
+              FutureBuilder<Map<String, dynamic>?>(
+                future: profileFuture,
+                builder: (ctx, snapshot) {
+                  final isLoading =
+                      snapshot.connectionState != ConnectionState.done;
+                  final errorMsg =
+                      snapshot.hasError ? '${snapshot.error}' : null;
+                  final profile = snapshot.data;
+                  if (isLoading) {
+                    return const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(24),
+                        child: CircularProgressIndicator(),
+                      ),
+                    );
+                  }
+                  if (errorMsg != null) {
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Divider(height: 24),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Text(errorMsg,
+                              style: TextStyle(
+                                  color: AppColors.errorRed(brightness))),
                         ),
-                      )
-                    : errorMsg != null
-                        ? Text(errorMsg,
+                      ],
+                    );
+                  }
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Divider(height: 24),
+                      // 已登录水鱼：只显示成绩导入 Token
+                      if (profile != null) ...[
+                        // 标题样式与下方落雪、AWMC NET 两节一致：
+                        // 已有 Token 显示绿色勾，否则灰色钥匙。
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Row(
+                            children: [
+                              Builder(builder: (_) {
+                                final hasToken =
+                                    (profile.tryGet<String>('import_token') ??
+                                            '')
+                                        .isNotEmpty;
+                                return Icon(
+                                  hasToken ? Icons.check_circle : Icons.vpn_key,
+                                  size: 18,
+                                  color: hasToken
+                                      ? AppColors.successGreen(brightness)
+                                      : AppColors.greyHint(brightness),
+                                );
+                              }),
+                              const SizedBox(width: 8),
+                              Text(
+                                dialogContext.l10n.flowDivingFishProfile,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: Theme.of(dialogContext)
+                                      .colorScheme
+                                      .onSurface,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        // 水鱼账号资料与授权已移到「绑定与授权管理 → 水鱼授权」。
+                        _buildAccountInfo(profile, dialogContext),
+                      ] else
+                        // 未登录水鱼：友好提示用户去登录水鱼（落雪 / AWMC 仍可操作）
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Text(
+                            dialogContext.l10n.flowNotSignedInToDivingFishOnly,
                             style: TextStyle(
-                                color: AppColors.errorRed(brightness)))
-                        : Column(mainAxisSize: MainAxisSize.min, children: [
-                            // 已登录水鱼：只显示成绩导入 Token
-                            if (profile != null) ...[
-                              // 标题样式与下方落雪、AWMC NET 两节一致：
-                              // 已有 Token 显示绿色勾，否则灰色钥匙。
-                              Padding(
-                                padding: const EdgeInsets.only(top: 4),
-                                child: Row(
-                                  children: [
-                                    Builder(builder: (_) {
-                                      final hasToken = (profile.tryGet<String>(
-                                                  'import_token') ??
-                                              '')
-                                          .isNotEmpty;
-                                      return Icon(
-                                        hasToken
-                                            ? Icons.check_circle
-                                            : Icons.vpn_key,
-                                        size: 18,
-                                        color: hasToken
-                                            ? AppColors.successGreen(brightness)
-                                            : AppColors.greyHint(brightness),
-                                      );
-                                    }),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      dialogContext.l10n.flowDivingFishProfile,
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w600,
-                                        color: Theme.of(dialogContext)
-                                            .colorScheme
-                                            .onSurface,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              // 水鱼账号资料与授权已移到「绑定与授权管理 → 水鱼授权」。
-                              _buildAccountInfo(profile, dialogContext),
-                            ] else
-                              // 未登录水鱼：友好提示用户去登录水鱼（落雪 token 仍可操作）
-                              Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 8),
-                                child: Text(
-                                  dialogContext
-                                      .l10n.flowNotSignedInToDivingFishOnly,
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: AppColors.greyHint(brightness),
-                                  ),
-                                ),
-                              ),
-                            // 始终显示：落雪 API 密钥管理（不依赖水鱼登录）
-                            _buildLxnsTokenSection(brightness),
-                            // AWMC NET 成绩导入 Token 同样独立于水鱼登录
-                            _buildAwmcNetTokenSection(brightness),
-                          ]),
+                              fontSize: 13,
+                              color: AppColors.greyHint(brightness),
+                            ),
+                          ),
+                        ),
+                    ],
+                  );
+                },
               ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(),
-                  child: Text(dialogContext.l10n.featureClose),
-                ),
-              ],
-            );
-          },
+              // 始终显示：落雪 API 密钥管理（不依赖水鱼登录）
+              _buildLxnsTokenSection(brightness),
+            ]),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(dialogContext.l10n.featureClose),
+            ),
+          ],
         );
       },
     );
@@ -3376,6 +3412,12 @@ class HomePageState extends State<HomePage> {
         MaterialPageRoute(builder: (context) => KaleidXScopeSelectPage()),
       );
     }
+    if (item.title == 'KOP 预选') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const KopQualifierPage()),
+      );
+    }
     if (item.title == '曲绘识别') {
       Navigator.push(
         context,
@@ -3738,7 +3780,7 @@ class HomePageState extends State<HomePage> {
             ),
           ),
         ),
-        if (items.isEmpty)
+        if (items.isEmpty) ...[
           AppCard(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
             child: Text(
@@ -3746,8 +3788,14 @@ class HomePageState extends State<HomePage> {
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
             ),
-          )
-        else
+          ),
+          // 宽屏首页没有收藏时，下面会剩一大片空白：给几个常用入口，
+          // 顺便把「这里可以放什么」演示出来。窄屏保持原来的单张提示卡。
+          if (MediaQuery.sizeOf(context).width >= 480) ...[
+            const SizedBox(height: 20),
+            _buildWideSuggestions(context),
+          ],
+        ] else
           // 正常态和编辑态共用一棵树：切换时图标不重新入场。
           ValueListenableBuilder<UpdateAvailability?>(
             valueListenable: UpdateNotifier.available,
@@ -3799,6 +3847,64 @@ class HomePageState extends State<HomePage> {
               ),
             ),
           ),
+      ],
+    );
+  }
+
+  /// 宽屏空收藏时的建议入口：取目录里前 8 个未被长任务限制的功能。
+  Widget _buildWideSuggestions(BuildContext context) {
+    final candidates = [
+      for (final category in _searchableCategories)
+        for (final item in category.items)
+          if (!FeatureRegistry.taskRestrictedFeatures.contains(item.title) &&
+              !UpdateNotifier.isUpdateEntry(item.title))
+            item,
+    ].take(8).toList();
+    if (candidates.isEmpty) return const SizedBox.shrink();
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Text(context.featureText('推荐入口'),
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+        ),
+        const SizedBox(height: 8),
+        AppCard(
+          padding: const EdgeInsets.all(14),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              const gap = 12.0;
+              final columns = constraints.maxWidth >= 720 ? 4 : 3;
+              final width =
+                  (constraints.maxWidth - gap * (columns - 1)) / columns;
+              return Wrap(
+                spacing: gap,
+                runSpacing: gap,
+                children: [
+                  for (final item in candidates)
+                    SizedBox(
+                      width: width,
+                      child: FeatureIconTile(
+                        title: item.title,
+                        icon: item.icon,
+                        onTap: () => _handleFeatureTap(item),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 6),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Text(
+            context.featureText('星标任意功能后会固定到上方「常用」'),
+            style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
+          ),
+        ),
       ],
     );
   }

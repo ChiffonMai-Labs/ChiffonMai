@@ -120,17 +120,11 @@ Flutter 引擎**从不**调用 Android 的 `Surface.setFrameRate()`（[flutter/f
 - **防抖只推迟写盘，不推迟记录**：改动要同步 `remember()` 进内存，否则中途重建控制器会读到过期值
 - **`_loadChart()` 必须先 `await ChartPlaySettingsStore().load()` 再建控制器**，否则会拿默认值建控制器、退出时再写回默认值，**把用户设置静默清空**
 
-### 5.3 必须锁竖屏 —— 否则返回手势不会派发 back 事件
+### 5.3 方向策略：手机默认竖屏，平板方向自由
 
-**真机反馈**：在 `ChartPlayPage` 里旋转到横屏后，手机**从屏幕边缘右滑的返回手势不再生效**，但 AppBar 左上角的返回按钮和硬件返回键都还能用。
+**真机反馈（旧版）**：在 `ChartPlayPage` 里旋转到横屏后，手机**从屏幕边缘右滑的返回手势不再生效**，但 AppBar 左上角的返回按钮和硬件返回键都还能用。
 
-**根因**：第三方包 `simai_flutter` 的 `SimaiPlayerPage` 在横屏会自动进全屏（见 `simai_player.dart:1664-1672`），调用：
-
-```dart
-await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-```
-
-`immersiveSticky` 对应的 Android 行为是 `BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE`——Android 系统**把所有屏幕边缘的滑动都吃掉用来临时显示状态栏/导航栏**，**根本不会当作 back gesture 派发**给 App。这跟 § 6.3 的预测性返回竞态是**不同**的问题：
+**根因**：`SimaiPlayerPage` 进入全屏时用 `SystemUiMode.immersiveSticky`（`fullscreen_utils_io.dart`），对应的 Android 行为是 `BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE`——Android 系统**把所有屏幕边缘的滑动都吃掉用来临时显示状态栏/导航栏**，**根本不会当作 back gesture 派发**给 App。这跟 § 6.3 的预测性返回竞态是**不同**的问题：
 
 | | § 6.3 的卡死 | § 5.3 的返回手势 |
 |---|---|---|
@@ -138,22 +132,23 @@ await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
 | 修复位置 | manifest + AppTheme 两处都要 | 必须在用户层绕过 immersive 模式 |
 | 表现 | 部分时间卡死 | 一直没用 |
 
-**修复**（`lib/page/ChartPlayPage.dart`）：`initState` 里锁竖屏、`dispose` 里恢复全部方向，让 `SimaiPlayerPage` 永远走非全屏分支：
+**方向规则（2026-11 起，`ChartPlayPage` 与 `SongPvPage` 一致）**：
 
-```dart
-// initState
-SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+- **手机（`shortestSide < 600`）默认竖屏**，全屏按钮是唯一的横屏入口；全屏时只允许左右横屏，退出全屏锁回 `portraitUp`。
+- **平板 / 折叠屏展开态（`shortestSide >= 600`）方向自由**（四方向），全屏按钮只切系统栏沉浸，不强制方向；退出全屏也不锁 `portraitUp`。
+- 断点只看窗口 `shortestSide`，不看型号：iPhone Pro Max 横屏 956 宽仍算手机。
+- **方向只由宿主恢复**：`initState` 按断点申请，`dispose` / 返回按断点恢复（手机 `portraitUp`，平板四方向）；播放器自己的 `exitFullScreen` 只复原沉浸，宽屏下不碰方向。
+- 折叠 / 展开等断点变化走 `WidgetsBindingObserver.didChangeMetrics`，**只重发方向，不重建播放器**。
+- `simai_player.dart` 的自动全屏只对窄屏生效（`simai_player.dart:1721-1758` 按 `shortestSide >= 600` 跳过），宽屏不再因为横屏自动进全屏。`_isManualExit` 只用于窄屏「退出全屏后等系统转回竖屏」期间保持沉浸布局，宽屏退出后 AppBar 必须立刻回来。
+- 播放器全屏标志接入 `NavigationPreferences.setPlayerFullscreen`，由 `MainActivity` 的 `system_ui` 通道识别，切后台再回前台时状态栏不会被拉回来。
 
-// dispose
-SystemChrome.setPreferredOrientations([
-  DeviceOrientation.portraitUp,
-  DeviceOrientation.portraitDown,
-  DeviceOrientation.landscapeLeft,
-  DeviceOrientation.landscapeRight,
-]);
-```
+**为什么手机不能自由横屏**：手机一旦放开自由横屏，一转过去就等于回到「横屏自动全屏、immersive 吃掉边缘手势」的老路；不进全屏的横屏则只是把竖屏布局硬转过来，空间也浪费。所以手机横屏必须显式点全屏，此时页面自带返回按钮。以后若要给手机加自由横屏，只能在用户层自己实现 back gesture 检测（`Listener` + 自定义 `GestureRecognizer`），不能再依赖系统手势。
 
-**不要给 `ChartPlayPage` 加横屏支持**。横屏游玩体验重要，但**返回手势必须能用**是更高的优先级 —— 而两者在 `SimaiPlayerPage` 当前实现下不能兼得。如果以后要加横屏，只能在用户层自己实现 back gesture 检测（`Listener` + 自定义 `GestureRecognizer`），不能再依赖系统手势。
+**回归项（真机）**：
+
+- Android：竖屏进入播放页可正常右滑返回；点全屏进入横屏后，点退出回到竖屏且 AppBar 恢复。
+- iPhone：竖屏进入播放页 → 点全屏转横屏 → 右滑返回能退出全屏，不会卡在横屏也不能用。
+- 全屏中切后台再回，状态栏不出现；平板全屏 → 退出 → 拉宽窗口仍有 AppBar。
 
 ---
 

@@ -1021,6 +1021,11 @@ class SimaiPlayerPage extends StatefulWidget {
   final Widget? beforeTimeline;
   final TextStyle? displayFont;
 
+  /// 全屏状态变化回调（进入为 true，退出 / 页面销毁为 false）。
+  ///
+  /// 宿主用它把全屏标志同步给系统栏偏好，播放器本身不依赖 App 层。
+  final ValueChanged<bool>? onFullScreenChanged;
+
   const SimaiPlayerPage({
     super.key,
     required this.controller,
@@ -1033,6 +1038,7 @@ class SimaiPlayerPage extends StatefulWidget {
     this.onVideoExported,
     this.beforeTimeline,
     this.displayFont,
+    this.onFullScreenChanged,
   });
 
   @override
@@ -1090,10 +1096,10 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
     _disposeOwnedGameplayController();
     widget.controller.removeListener(_onControllerChanged);
     widget.controller.onToggleFullScreen = null;
-    if (_isFullScreen) {
-      widget.controller.isFullScreen = false;
-      unawaited(FullScreenUtils.exitFullScreen());
-    }
+    // 无条件复位：即使全屏状态已经和系统不同步，也把沉浸和方向交还给宿主。
+    widget.controller.isFullScreen = false;
+    widget.onFullScreenChanged?.call(false);
+    unawaited(FullScreenUtils.exitFullScreen());
     if (widget.disposeController) {
       widget.controller.dispose();
     }
@@ -1270,6 +1276,7 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
       _isManualExit = false;
     });
     widget.controller.isFullScreen = true;
+    widget.onFullScreenChanged?.call(true);
     await FullScreenUtils.enterFullScreen();
     if (mounted && _isFullScreen) _startHideTimer();
   }
@@ -1279,6 +1286,7 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
       _isFullScreen = false;
     });
     widget.controller.isFullScreen = false;
+    widget.onFullScreenChanged?.call(false);
     await FullScreenUtils.exitFullScreen();
   }
 
@@ -1713,15 +1721,30 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
   @override
   Widget build(BuildContext context) {
     final orientation = MediaQuery.of(context).orientation;
-    final canRotate = !kIsWeb &&
+    // 平板 / 展开态方向自由，转动不再自动进出全屏；手机仍以「横屏 = 全屏」
+    // 兜底全屏按钮转屏过程中的状态。
+    final wideScreen = MediaQuery.sizeOf(context).shortestSide >= 600;
+    final canRotate =
+        !kIsWeb &&
         (defaultTargetPlatform == TargetPlatform.android ||
             defaultTargetPlatform == TargetPlatform.iOS);
-    final returningToPortrait = canRotate &&
+    // _isManualExit 只在窄屏有意义：退出全屏后等系统转回竖屏期间保持沉浸布局，
+    // 避免旋转动画里先闪出 AppBar。宽屏退出后方向不变，AppBar 必须立刻回来。
+    final returningToPortrait =
+        canRotate &&
+        !wideScreen &&
         _isManualExit &&
         orientation == Orientation.landscape;
 
+    // 宽屏不自动进出全屏，但朝向记录要继续跟随：否则展开期间冻结在
+    // landscape，折回窄屏时会拿旧值把宿主刚申请的横屏改回竖屏。
+    if (wideScreen) _observedOrientation = orientation;
+
     // 手动进入全屏时，等系统完成旋转；同一竖屏尺寸的重建不能撤销这次切换。
-    if (!_isLoading && canRotate && _observedOrientation != orientation) {
+    if (!_isLoading &&
+        canRotate &&
+        !wideScreen &&
+        _observedOrientation != orientation) {
       _observedOrientation = orientation;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || _observedOrientation != orientation) return;

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart' show Brightness, Locale;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:my_first_flutter_app/constant/CacheKeyConstant.dart';
 import 'package:my_first_flutter_app/manager/AWMC/AwmcNetUserPlayDataManager.dart';
 import 'package:my_first_flutter_app/service/RankingList/SongRankingService.dart'
     show parseDataSource;
@@ -10,6 +11,7 @@ import 'package:my_first_flutter_app/utils/ImageEncodeUtil.dart';
 import 'package:my_first_flutter_app/widgets/DataSourceTag.dart';
 import 'package:my_first_flutter_app/widgets/DivingFishAccountSection.dart'
     show DivingFishQqState, resolveDivingFishQqState;
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// AWMC NET（net.wmc.pub）接入相关：数据源枚举 + records 归一化。
 ///
@@ -37,17 +39,19 @@ void main() {
       expect(RefreshDataSource.fromKey('awmc'), RefreshDataSource.awmc);
       expect(RefreshDataSource.fromKey('luoxue'), RefreshDataSource.luoxue);
       expect(RefreshDataSource.fromKey('shuiyu'), RefreshDataSource.shuiyu);
-      // 未知 / 空按老行为兜底成水鱼
-      expect(RefreshDataSource.fromKey(''), RefreshDataSource.shuiyu);
-      expect(RefreshDataSource.fromKey(null), RefreshDataSource.shuiyu);
+      // 未知 / 空 key 兜底成默认源 AWMC（切账号需要一个确定值）
+      expect(RefreshDataSource.fromKey(''), RefreshDataSource.awmc);
+      expect(RefreshDataSource.fromKey(null), RefreshDataSource.awmc);
+      expect(RefreshDataSource.fromKey('nope'), RefreshDataSource.awmc);
     });
 
-    test('displayNameOfKey 对未知 key 返回空串，不误标成水鱼', () {
+    test('displayNameOfKey：空 key 返回空串，未知 key 回落 AWMC 文案', () {
       expect(RefreshDataSource.displayNameOfKey('awmc'), 'AWMC NET');
       expect(RefreshDataSource.displayNameOfKey('luoxue'), '落雪');
       expect(RefreshDataSource.displayNameOfKey('shuiyu'), '水鱼');
-      // 导出图的数据源标签：宁可留空，也不能把未知来源错标成「水鱼」
-      expect(RefreshDataSource.displayNameOfKey('nope'), '');
+      // 导出图 / 榜单标签不能空白：非空但认不出的来源按默认源 AWMC 显示
+      expect(RefreshDataSource.displayNameOfKey('nope'), 'AWMC NET');
+      // 空 key 仍返回空串（表示本来就没有来源信息）
       expect(RefreshDataSource.displayNameOfKey(''), '');
       expect(RefreshDataSource.displayNameOfKey(null), '');
     });
@@ -61,7 +65,9 @@ void main() {
 
       expect(RefreshDataSource.shortDisplayNameOfKey('awmc'), 'AWMC');
       expect(RefreshDataSource.shortDisplayNameOfKey('shuiyu'), '水鱼');
-      expect(RefreshDataSource.shortDisplayNameOfKey('nope'), '');
+      // 未知 key 回落 AWMC 短名；空 key 仍是空串
+      expect(RefreshDataSource.shortDisplayNameOfKey('nope'), 'AWMC');
+      expect(RefreshDataSource.shortDisplayNameOfKey(''), '');
       expect(RefreshDataSource.shortDisplayNameOfKey(null), '');
     });
 
@@ -97,6 +103,73 @@ void main() {
     });
   });
 
+  group('默认数据源与一次性迁移', () {
+    setUp(() => SharedPreferences.setMockInitialValues({}));
+
+    test('新装（无任何键）load 后是 AWMC，并写迁移完成标记', () async {
+      await CurrentDataSourceNotifier.load();
+      expect(CurrentDataSourceNotifier.instance.value, RefreshDataSource.awmc);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getBool(CacheKeyConstant.dataSourceDefaultV2), isTrue);
+      expect(prefs.getBool(CacheKeyConstant.dataSourceExplicitlySet), isNull);
+    });
+
+    test('老装无标记且停在旧默认水鱼 → 迁移成 AWMC，且只迁移一次', () async {
+      SharedPreferences.setMockInitialValues({
+        CacheKeyConstant.lastDataSource: 'shuiyu',
+      });
+      await CurrentDataSourceNotifier.load();
+      expect(CurrentDataSourceNotifier.instance.value, RefreshDataSource.awmc);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString(CacheKeyConstant.lastDataSource), 'awmc');
+      expect(prefs.getBool(CacheKeyConstant.dataSourceDefaultV2), isTrue);
+
+      // 标记已写：即使又变回水鱼也不再迁移
+      await prefs.setString(CacheKeyConstant.lastDataSource, 'shuiyu');
+      await CurrentDataSourceNotifier.load();
+      expect(
+          CurrentDataSourceNotifier.instance.value, RefreshDataSource.shuiyu);
+    });
+
+    test('老装显式切换过水鱼 → 保留水鱼，仍写完成标记', () async {
+      SharedPreferences.setMockInitialValues({
+        CacheKeyConstant.lastDataSource: 'shuiyu',
+        CacheKeyConstant.dataSourceExplicitlySet: true,
+      });
+      await CurrentDataSourceNotifier.load();
+      expect(
+          CurrentDataSourceNotifier.instance.value, RefreshDataSource.shuiyu);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString(CacheKeyConstant.lastDataSource), 'shuiyu');
+      expect(prefs.getBool(CacheKeyConstant.dataSourceDefaultV2), isTrue);
+    });
+
+    test('老装停在落雪 → 保持落雪', () async {
+      SharedPreferences.setMockInitialValues({
+        CacheKeyConstant.lastDataSource: 'luoxue',
+      });
+      await CurrentDataSourceNotifier.load();
+      expect(
+          CurrentDataSourceNotifier.instance.value, RefreshDataSource.luoxue);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString(CacheKeyConstant.lastDataSource), 'luoxue');
+      expect(prefs.getBool(CacheKeyConstant.dataSourceDefaultV2), isTrue);
+    });
+
+    test('set() 写入显式标记，之后的 load 不再迁移', () async {
+      await CurrentDataSourceNotifier.instance.set(RefreshDataSource.shuiyu);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getBool(CacheKeyConstant.dataSourceExplicitlySet), isTrue);
+      expect(prefs.getBool(CacheKeyConstant.dataSourceDefaultV2), isNull);
+
+      await CurrentDataSourceNotifier.load();
+      expect(
+          CurrentDataSourceNotifier.instance.value, RefreshDataSource.shuiyu);
+      expect(prefs.getString(CacheKeyConstant.lastDataSource), 'shuiyu');
+      expect(prefs.getBool(CacheKeyConstant.dataSourceDefaultV2), isTrue);
+    });
+  });
+
   group('parseDataSource（排行榜 playerId 前缀）', () {
     test('三个源都要认出来', () {
       expect(parseDataSource('shuiyu:488581724'), 'shuiyu');
@@ -119,8 +192,9 @@ void main() {
       expect(dataSourceStyleOf('luoxue', Brightness.light).label, '落雪');
     });
 
-    test('未知 / 空数据源退回「未知」，不会错标成水鱼', () {
-      expect(dataSourceStyleOf('nope', Brightness.light).label, '未知');
+    test('未知非空 key 回落 AWMC；空值仍是「未知」', () {
+      // 与 displayNameOfKey 的回落保持一致，避免同一记录两处标签不同
+      expect(dataSourceStyleOf('nope', Brightness.light).label, 'AWMC');
       expect(dataSourceStyleOf('', Brightness.light).label, '未知');
       expect(dataSourceStyleOf(null, Brightness.light).label, '未知');
     });

@@ -97,6 +97,15 @@ class _AppShellState extends State<AppShell> {
   static const double navigationBottomGap = 14;
   static const double contentBottomGap = 8;
 
+  // ===== 宽屏右侧竖向导航 =====
+  static const double wideBarW = 72;
+  static const double wideBarTopGap = 10;
+  static const double wideBarPadding = 8;
+  static const double wideItemH = 56;
+  static const double widePillW = 44;
+  static const double widePillH = 30;
+  static const double navigationSideGap = 12;
+
   @override
   void initState() {
     super.initState();
@@ -186,14 +195,23 @@ class _AppShellState extends State<AppShell> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    // 宽屏（平板 / Duo 展开）把主导航改到右侧竖排，内容让出右侧轨道；
+    // 窄屏保持底部悬浮栏。断点只看最短边，和播放页一致。
+    // 侧栏的断点比「平板」更宽泛：横屏手机、Duo 外屏竖屏都不该再挤底部栏。
+    final wide = MediaQuery.sizeOf(context).width >= 480;
+    final systemRightInset = MediaQuery.viewPaddingOf(context).right;
+    final systemLeftInset = wide ? MediaQuery.viewPaddingOf(context).left : 0.0;
     // viewPadding 是窗口当前真实的系统底部 inset：系统导航栏隐藏时为 0，
     // 手势条/三键导航栏出现时则自动变成对应设备的实际高度。
     // 不使用 padding，避免 SafeArea 或键盘状态改变后把系统栏高度算错。
     final systemBottomInset = MediaQuery.viewPaddingOf(context).bottom;
     // Hub 列表的尾部留白由布局参数和系统 inset 共同计算，而不是写死某个
     // 设备的导航栏高度。这样有无系统栏时，最后一个功能按钮到悬浮栏的视觉距离相同。
-    final navigationReserve =
-        barH + systemBottomInset + navigationBottomGap + contentBottomGap;
+    final navigationReserve = wide
+        ? contentBottomGap
+        : barH + systemBottomInset + navigationBottomGap + contentBottomGap;
+    // 右侧竖向导航占用的宽度：栏宽 + 与边缘的间距 + 安全区 + 内容间隙。
+    final wideNavigationReserve = wide ? wideBarW + navigationSideGap * 2 : 0.0;
     return Scaffold(
       extendBody: true,
       resizeToAvoidBottomInset: false,
@@ -226,15 +244,20 @@ class _AppShellState extends State<AppShell> {
                   showDecorativeImage: _index == 0,
                   child: MainNavigationInsets(
                     bottom: navigationReserve,
-                    child: Center(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(
-                            maxWidth: AppDesignTokens.maxContentWidth),
-                        child: MainNavigationViewport(
-                          pages: _pages,
-                          index: _index,
-                          transitionEnabled:
-                              NavigationPreferences.instance.transitionEnabled,
+                    child: Padding(
+                      // 宽屏给右侧导航让位，窄屏为 0，不影响原布局。
+                      padding: EdgeInsets.only(
+                          left: systemLeftInset, right: wideNavigationReserve),
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(
+                              maxWidth: AppDesignTokens.maxContentWidth),
+                          child: MainNavigationViewport(
+                            pages: _pages,
+                            index: _index,
+                            transitionEnabled: NavigationPreferences
+                                .instance.transitionEnabled,
+                          ),
                         ),
                       ),
                     ),
@@ -245,13 +268,106 @@ class _AppShellState extends State<AppShell> {
           ),
           // 导航栏属于页面内容层：它只占自己的圆角浮层，不再挂在
           // Scaffold.bottomNavigationBar，也不会铺满设备底部。
-          Positioned(
-            left: 12,
-            right: 12,
-            bottom: systemBottomInset + navigationBottomGap,
-            child: _buildFloatingNavigation(scheme),
-          ),
+          if (wide)
+            Positioned(
+              // 横向状态栏占的是右侧安全区：让侧栏真正贴到屏幕右缘，
+              // 顶部避开时间 / Wi-Fi，不再被安全区挤到内容中间。
+              top: MediaQuery.paddingOf(context).top +
+                  (systemRightInset > 0 ? 104 : wideBarTopGap),
+              right: navigationSideGap,
+              child: _buildWideNavigation(scheme),
+            )
+          else
+            Positioned(
+              left: 12,
+              right: 12,
+              bottom: systemBottomInset + navigationBottomGap,
+              child: _buildFloatingNavigation(scheme),
+            ),
         ],
+      ),
+    );
+  }
+
+  /// 宽屏右侧竖向导航。
+  ///
+  /// 贴住右侧安全区、通高侧栏，而不是悬在屏幕中间的浮条：宽屏下它是
+  /// 导航而不是悬浮控件。三种导航样式在宽屏统一收敛成这一套。
+  Widget _buildWideNavigation(ColorScheme scheme) {
+    return SizedBox(
+      width: wideBarW,
+      child: Material(
+        color: AppSurfaces.card(context).withValues(alpha: 0.97),
+        clipBehavior: Clip.antiAlias,
+        borderRadius: BorderRadius.circular(26),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: wideBarPadding),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var i = 0; i < _tabs.length; i++)
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => _selectIndex(i),
+                  child: SizedBox(
+                    height: wideItemH,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        AnimatedContainer(
+                          duration: AppDesignTokens.motion(
+                              context, AppDesignTokens.mediumMotion),
+                          curve: Curves.easeOutCubic,
+                          width: widePillW,
+                          height: widePillH,
+                          decoration: BoxDecoration(
+                            color: i == _index
+                                ? scheme.secondaryContainer
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(widePillH / 2),
+                          ),
+                          child: Center(
+                            child: AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 180),
+                              child: Icon(
+                                i == _index
+                                    ? _tabs[i].activeIcon
+                                    : _tabs[i].icon,
+                                key: ValueKey(i == _index),
+                                size: 22,
+                                color: i == _index
+                                    ? scheme.onSecondaryContainer
+                                    : scheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: labelGap),
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            context.featureText(_tabs[i].label),
+                            maxLines: 1,
+                            softWrap: false,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: i == _index
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                              letterSpacing: 0,
+                              color: i == _index
+                                  ? scheme.onSurface
+                                  : scheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -297,106 +413,106 @@ class _AppShellState extends State<AppShell> {
         ],
       ),
       child: Material(
-      color: AppSurfaces.card(context).withValues(alpha: 0.97),
-      borderRadius: BorderRadius.circular(26),
-      clipBehavior: Clip.antiAlias,
-      child: SizedBox(
-        height: barH,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final double tabW = constraints.maxWidth / _tabs.length;
-            return Stack(
-              children: [
-                // 滑动的药丸 indicator（核心改动：AnimatedPositioned）
-                AnimatedPositioned(
-                  duration: const Duration(milliseconds: 360),
-                  curve: Curves.easeOutCubic,
-                  left: _index * tabW + (tabW - pillW) / 2,
-                  top: iconTop,
-                  width: pillW,
-                  height: pillH,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: scheme.secondaryContainer,
-                      borderRadius: BorderRadius.circular(pillH / 2),
+        color: AppSurfaces.card(context).withValues(alpha: 0.97),
+        borderRadius: BorderRadius.circular(26),
+        clipBehavior: Clip.antiAlias,
+        child: SizedBox(
+          height: barH,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final double tabW = constraints.maxWidth / _tabs.length;
+              return Stack(
+                children: [
+                  // 滑动的药丸 indicator（核心改动：AnimatedPositioned）
+                  AnimatedPositioned(
+                    duration: const Duration(milliseconds: 360),
+                    curve: Curves.easeOutCubic,
+                    left: _index * tabW + (tabW - pillW) / 2,
+                    top: iconTop,
+                    width: pillW,
+                    height: pillH,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: scheme.secondaryContainer,
+                        borderRadius: BorderRadius.circular(pillH / 2),
+                      ),
                     ),
                   ),
-                ),
-                // Tab row：icon + label，点击切换 _index
-                Row(
-                  children: [
-                    for (int i = 0; i < _tabs.length; i++)
-                      Expanded(
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: () => _selectIndex(i),
-                          child: Padding(
-                            // 图标槽与药丸同高同顶，保证图标在药丸内垂直居中
-                            padding: const EdgeInsets.only(top: iconTop),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                SizedBox(
-                                  height: pillH,
-                                  child: Center(
-                                    child: AnimatedSwitcher(
-                                      duration:
-                                          const Duration(milliseconds: 180),
-                                      switchInCurve: Curves.easeOut,
-                                      switchOutCurve: Curves.easeIn,
-                                      transitionBuilder: (child, animation) =>
-                                          FadeTransition(
-                                        opacity: animation,
-                                        child: child,
-                                      ),
-                                      child: Icon(
-                                        i == _index
-                                            ? _tabs[i].activeIcon
-                                            : _tabs[i].icon,
-                                        key: ValueKey(i == _index),
-                                        size: 22,
-                                        color: i == _index
-                                            ? scheme.onSecondaryContainer
-                                            : scheme.onSurfaceVariant,
+                  // Tab row：icon + label，点击切换 _index
+                  Row(
+                    children: [
+                      for (int i = 0; i < _tabs.length; i++)
+                        Expanded(
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () => _selectIndex(i),
+                            child: Padding(
+                              // 图标槽与药丸同高同顶，保证图标在药丸内垂直居中
+                              padding: const EdgeInsets.only(top: iconTop),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  SizedBox(
+                                    height: pillH,
+                                    child: Center(
+                                      child: AnimatedSwitcher(
+                                        duration:
+                                            const Duration(milliseconds: 180),
+                                        switchInCurve: Curves.easeOut,
+                                        switchOutCurve: Curves.easeIn,
+                                        transitionBuilder: (child, animation) =>
+                                            FadeTransition(
+                                          opacity: animation,
+                                          child: child,
+                                        ),
+                                        child: Icon(
+                                          i == _index
+                                              ? _tabs[i].activeIcon
+                                              : _tabs[i].icon,
+                                          key: ValueKey(i == _index),
+                                          size: 22,
+                                          color: i == _index
+                                              ? scheme.onSecondaryContainer
+                                              : scheme.onSurfaceVariant,
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
-                                const SizedBox(height: labelGap),
-                                SizedBox(
-                                  width: tabW,
-                                  child: FittedBox(
-                                    fit: BoxFit.scaleDown,
-                                    child: Text(
-                                    context.featureText(_tabs[i].label),
-                                    maxLines: 1,
-                                    softWrap: false,
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: i == _index
-                                          ? FontWeight.w700
-                                          : FontWeight.w500,
-                                      letterSpacing: 0,
-                                      color: i == _index
-                                          ? scheme.onSurface
-                                          : scheme.onSurfaceVariant,
+                                  const SizedBox(height: labelGap),
+                                  SizedBox(
+                                    width: tabW,
+                                    child: FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      child: Text(
+                                        context.featureText(_tabs[i].label),
+                                        maxLines: 1,
+                                        softWrap: false,
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: i == _index
+                                              ? FontWeight.w700
+                                              : FontWeight.w500,
+                                          letterSpacing: 0,
+                                          color: i == _index
+                                              ? scheme.onSurface
+                                              : scheme.onSurfaceVariant,
+                                        ),
+                                      ),
                                     ),
                                   ),
-                                  ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                  ],
-                ),
-              ],
-            );
-          },
+                    ],
+                  ),
+                ],
+              );
+            },
+          ),
         ),
-      ),
       ),
     );
   }

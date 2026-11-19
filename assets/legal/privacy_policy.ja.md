@@ -86,12 +86,12 @@
 
 - **[水魚](https://www.diving-fish.com/maimaidx/prober/)・[落雪カフェ](https://maimai.lxns.net/)・[AWMC NET](https://net.wmc.pub/)：** 選択した識別子、認証・取り込み情報、照会条件、送信する成績を処理し、本人確認、成績取得、同期を提供します。
 - **[maimai Score Hub](https://maimai.bakapiano.com/)：** QRログインや同期に必要なアカウント情報、ゲームの識別子、トークン、送信した成績画像を処理し、認証、成績取得、画像認識を提供します。
-- **[DXRating.net](https://dxrating.net/)・[Union](https://union.godserver.cn/)・[Yuri-YuzuChaNの別名データ](https://github.com/Yuri-YuzuChaN/maimaiDX)：** 公開の楽曲、タグ、別名、ジャケットのリソース要求を受けます。これらの公開情報の取得のために成績同期の認証情報は渡しません。
+- **[AWMCの楽曲・リソース](https://v.wmc.pub/)・[DXRating.net](https://dxrating.net/)（移行期のタグ・定数）・[Union](https://union.godserver.cn/)・[Yuri-YuzuChaNの別名データ](https://github.com/Yuri-YuzuChaN/maimaiDX)：** 公開の楽曲、タグ、別名、ジャケットのリソース要求を受けます。これらの公開情報の取得のために成績同期の認証情報は渡しません。
 - **落雪のリソースサービス・AWMC NETの譜面サービス：** ジャケット、音源、装飾、譜面の識別子を受けて、ダウンロードと再生を提供します。
 - **[NearCade](https://nearcade.cn/)・[高徳地図](https://www.amap.com/)のマップサービス：** 店舗の照会や閲覧地域のマップ要求を受け、店舗情報と地図を提供します。外部の経路案内は選択した地図アプリが提供します。
 - **[Baidu翻訳](https://fanyi-api.baidu.com/)：** 本アプリのサーバー経由で原文、元の言語、翻訳先の言語を受け、翻訳を提供します。
 - **[Bilibili](https://www.bilibili.com/)：** 動画検索や関連内容を開く際に、検索語、動画識別子、対応する要求を受けます。移動後の処理には同サービスの規則が適用されます。
-- **[isMaiDown](https://mai.chongxi.us/)・[status.awmc.cc](https://status.awmc.cc/status/maimai)：** 状態照会を受けて、maimaiのサーバー状態を提供します。
+- **[isMaiDown](https://mai.chongxi.us/)：** 状態照会を受けて、maimaiのサーバー状態を提供します。
 
 Flutterのシステムプラグインで、安全な保存、画像・ファイル選択、撮影・QR読取り、位置、ネットワーク状態、メディア再生を実装しています。コンポーネントは機能に応じてOSのAPIを使い、インストールしただけですべての権限を得るわけではありません。安全な保存はflutter_secure_storage、画像・QRはimage_pickerやmobile_scanner、位置はgeolocator、再生はjust_audio、audio_service、audioplayersなどを使用します。
 

@@ -75,6 +75,9 @@ class HubSection extends StatelessWidget {
   final Widget? trailing;
   final EdgeInsetsGeometry contentPadding;
 
+  /// 宽屏时把条目排成两列，避免每块 tile 横跨整个平板。
+  final bool twoColumnOnWide;
+
   const HubSection({
     super.key,
     required this.title,
@@ -84,6 +87,7 @@ class HubSection extends StatelessWidget {
     this.badgeCount,
     this.trailing,
     this.contentPadding = EdgeInsets.zero,
+    this.twoColumnOnWide = false,
   });
 
   @override
@@ -168,7 +172,22 @@ class HubSection extends StatelessWidget {
           ),
           child: Padding(
             padding: contentPadding,
-            child: Column(children: children),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final twoColumn = twoColumnOnWide &&
+                    MediaQuery.sizeOf(context).width >= 480;
+                if (!twoColumn) return Column(children: children);
+                final width = (constraints.maxWidth - 12) / 2;
+                return Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    for (final child in children)
+                      SizedBox(width: width, child: child),
+                  ],
+                );
+              },
+            ),
           ),
         ),
       ],
@@ -634,7 +653,6 @@ class HubPageScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       resizeToAvoidBottomInset: false,
       backgroundColor: Colors.transparent,
@@ -644,7 +662,9 @@ class HubPageScaffold extends StatelessWidget {
           padding: AppDesignTokens.pagePadding
               .copyWith(
                 top: showHeader
-                    ? null
+                    ? (MediaQuery.sizeOf(context).width >= 480
+                        ? 28
+                        : null)
                     : hero != null
                         ? 4
                         : AppDesignTokens.sectionGap - 8,

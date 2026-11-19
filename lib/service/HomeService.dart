@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'package:flutter/foundation.dart';
 import 'package:my_first_flutter_app/manager/SongAliasManager.dart';
@@ -8,6 +10,7 @@ import 'package:my_first_flutter_app/manager/LuoXue/CollectionsManager.dart';
 import 'package:my_first_flutter_app/manager/LuoXue/LuoXueSongsManager.dart';
 import 'package:my_first_flutter_app/manager/MaidataManager.dart';
 import 'package:my_first_flutter_app/service/RecommendByTagsService.dart';
+import 'package:my_first_flutter_app/service/AwmcCoverService.dart';
 import 'package:my_first_flutter_app/manager/DivingFish/UnionManager.dart';
 
 /// 首页服务类：处理首页相关的数据初始化和业务逻辑
@@ -44,9 +47,6 @@ class HomeService {
 
     try {
       // 第一阶段：初始化基础管理器（必须串行）
-      onProgress(appL10n.svcLoadingTheSongAliasDatabase);
-      await SongAliasManager.instance.init();
-      
       onProgress(appL10n.svcInitializingTheMaidataManager);
       final maidataManager = MaidataManager();
       await maidataManager.initialize();
@@ -79,6 +79,15 @@ class HomeService {
         maimaiMusicManager.fetchAndUpdateMusicData(maidataTexts: maidataTexts),
         diffMusicManager.fetchAndUpdateDiffData(),
       ]);
+
+      // 别名已换 AWMC，接口按曲目 id 返回、要经本地曲库换成曲名，
+      // 所以必须等曲库就绪后再初始化（曲库未就绪时会自行短暂等待）。
+      onProgress(appL10n.svcLoadingTheSongAliasDatabase);
+      await SongAliasManager.instance.init();
+
+      // 曲绘兜底索引很小（随包），提前读进内存，避免第一次解析曲绘时
+      // 因 500ms 超时落回必然 404 的水鱼 DX 地址。
+      unawaited(AwmcCoverService.instance.ensureLoaded());
       
       // 第三阶段：并行初始化收藏品、标签、落雪歌曲、知识库等数据
       onProgress(appL10n.svcLoadingCollectiblesTagsSongsKnowledgeBaseAnd);

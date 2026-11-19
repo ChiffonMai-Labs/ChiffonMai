@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../entity/FeatureModels.dart';
+import '../service/Kop/KopQualifierService.dart';
 
 /// Hub 分组与首页搜索共用的分类定义；标题同时是现有收藏的键。
 class FeatureSection {
@@ -111,7 +112,7 @@ class FeatureRegistry {
           title: '进度与挑战',
           subtitle: '牌子、段位与 KALEIDXSCOPE',
           icon: Icons.flag_outlined,
-          titles: ['牌子进度', '段位表', 'KALEIDXSCOPE']),
+          titles: ['牌子进度', '段位表', 'KALEIDXSCOPE', 'KOP 预选']),
       FeatureSection(
           title: '数值计算',
           subtitle: 'Rating、达成率与判定反推',
@@ -182,7 +183,13 @@ class FeatureRegistry {
           title: '账号与授权',
           subtitle: '管理账号与数据源登录状态',
           icon: Icons.manage_accounts_outlined,
-          titles: ['账号注册引导', '成绩导入凭据', '切换账号', '绑定与授权管理', '删除账号']),
+          // 绑定 / 切换是高频操作，排在账号区最前面。
+          titles: ['账号注册引导', '绑定与授权管理', '切换账号', '成绩导入凭据', '删除账号']),
+      FeatureSection(
+          title: '单平台同步',
+          subtitle: '分别同步成绩到各查分器',
+          icon: Icons.cloud_sync_outlined,
+          titles: ['同步成绩到 AWMC NET', '同步成绩到水鱼', '同步成绩到落雪']),
       FeatureSection(
           title: '数据刷新',
           subtitle: '更新成绩缓存与机台游玩次数',
@@ -192,11 +199,6 @@ class FeatureRegistry {
             '刷新机台游玩次数',
             cabinetAppearanceTitle,
           ]),
-      FeatureSection(
-          title: '单平台同步',
-          subtitle: '分别同步成绩到各查分器',
-          icon: Icons.cloud_sync_outlined,
-          titles: ['同步成绩到水鱼', '同步成绩到落雪', '同步成绩到 AWMC NET']),
       FeatureSection(
           title: '批量与定时同步',
           subtitle: '多端同步与自动同步',
@@ -260,11 +262,19 @@ class FeatureRegistry {
   }
 
   static List<ButtonCategory> allCategories(bool isDivingFishLoggedIn) {
+    // 限时功能到期后从目录隐藏；收藏记录保留，恢复赛期即可再出现。
+    final kopAvailable = KopQualifierService.isAvailable(DateTime.now());
     final items = <String, ButtonItem>{
       '乐曲查询': const ButtonItem(
           icon: Icons.music_note, title: '乐曲查询', subtitle: '按歌名、别名、谱师和标签搜索'),
       '自定义标签': const ButtonItem(
-          icon: Icons.sell_outlined, title: '自定义标签', subtitle: '自定义标签名称、颜色与谱面，接入标签筛选与统计'),
+          icon: Icons.sell_outlined,
+          title: '自定义标签',
+          subtitle: '自定义标签名称、颜色与谱面，接入标签筛选与统计'),
+      'KOP 预选': const ButtonItem(
+          icon: Icons.emoji_events_outlined,
+          title: 'KOP 预选',
+          subtitle: 'Score Attack 预选榜与本地最佳模拟（11-23 截止）'),
       '非国服乐曲查询': const ButtonItem(
           icon: Icons.travel_explore_rounded,
           title: '非国服乐曲查询',
@@ -510,7 +520,9 @@ class FeatureRegistry {
       '检查更新': const ButtonItem(
           icon: Icons.update, title: '检查更新', subtitle: '检查应用是否有新版本'),
       '公告中心': const ButtonItem(
-          icon: Icons.campaign_outlined, title: '公告中心', subtitle: '查看服务公告与项目动态'),
+          icon: Icons.campaign_outlined,
+          title: '公告中心',
+          subtitle: '查看服务公告与项目动态'),
       '关于 APP': const ButtonItem(
           icon: Icons.info_outline, title: '关于 APP', subtitle: '了解项目与版本信息'),
       '访问官方网站': const ButtonItem(
@@ -547,7 +559,8 @@ class FeatureRegistry {
           },
           items: [
             for (final section in category.value)
-              for (final title in section.titles) items[title]!,
+              for (final title in section.titles)
+                if (title != 'KOP 预选' || kopAvailable) items[title]!,
           ],
         ),
     ];

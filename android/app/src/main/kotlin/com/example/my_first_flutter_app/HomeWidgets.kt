@@ -256,6 +256,8 @@ object HomeWidgetStore {
         )
         setDot(context, views, R.id.w_sync_dot, store.getString("sync_tone", null))
 
+        // 槽位固定：src1 = AWMC NET，src2 = 水鱼，src3 = 落雪。
+        // 槽位名是 kwgt 小部件按名命中的公开接口，改顺序要同步 Dart 端 pushSync。
         val rows = listOf(
             Triple(R.id.w_src1_name, R.id.w_src1_value, R.id.w_src1_dot),
             Triple(R.id.w_src2_name, R.id.w_src2_value, R.id.w_src2_dot),

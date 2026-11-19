@@ -83,7 +83,8 @@ class _LibraryHubPageState extends State<LibraryHubPage> {
           setState(() {
             _coverIndexBuilding = false;
           });
-          AppToast.show(context.l10n.hubCoverIndexFailed(e.toString()), tone: AppToastTone.error);
+          AppToast.show(context.l10n.hubCoverIndexFailed(e.toString()),
+              tone: AppToastTone.error);
         }
         return;
       }
@@ -194,6 +195,7 @@ class _LibraryHubPageState extends State<LibraryHubPage> {
             children: [
               for (final section in sections) ...[
                 HubSection(
+                  twoColumnOnWide: true,
                   title: section.title,
                   subtitle: section.subtitle,
                   icon: section.icon,

@@ -37,7 +37,7 @@
 
 ## 与第三方共享
 
-不用于广告，不追踪。第三方服务（水鱼、落雪、AWMC NET、maimai Score Hub、DXRating.net、Union、NearCade、高德、B 站等）仅接收实现对应功能所需的数据；完整清单见隐私政策第三节。
+不用于广告，不追踪。第三方服务（AWMC、水鱼、落雪、AWMC NET、maimai Score Hub、DXRating.net（标签与定数）、Union、NearCade、高德、B 站等）仅接收实现对应功能所需的数据；完整清单见隐私政策第三节。
 
 ## 说明字段（如被问）
 

@@ -511,15 +511,21 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
       );
       var completedPlatforms = 0;
       final quickReadSession = AwmcQuickReadSession();
-      // 多端同步里只要有一个线路2目标，就先复用/建立 Score Hub 登录态。
-      // 若这次确实需要登录，对话框里提前输入的二维码可能已经过期，
+      // 多端同步按 AWMC NET → 水鱼 → 落雪执行。只有 AWMC 走**二维码直传**时，
+      // 提前输入的二维码才会在 Hub 登录前被先消费；AWMC 走快速同步不读二维码，
+      // 登录期间它照样会过期，仍需重新输入。
+      // 其余情况若这次确实需要 Hub 登录，对话框里提前输入的二维码可能已经过期，
       // 必须重新输入；否则本次二维码仍只用于第一个需要它的目标。
+      final firstTarget = SyncPlatform.values.firstWhere(input.platforms.contains,
+          orElse: () => SyncPlatform.values.first);
+      final awmcFirst =
+          firstTarget == SyncPlatform.awmc && !input.quickUpdateFor(firstTarget);
       final needsHubSession = input.platforms.any((platform) =>
           !input.quickUpdateFor(platform) &&
           platform != SyncPlatform.awmc &&
           input.routeOf(platform) == SyncRouteStore.routeScoreHub);
       var pendingQr = input.qrCode;
-      if (needsHubSession) {
+      if (needsHubSession && !awmcFirst) {
         final hadSession = await DivingFishProbeManager().hasValidHubSession();
         if (!mounted) return;
         if (!hadSession) pendingQr = '';
@@ -687,6 +693,7 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
                 );
                 return context.l10n.flowLXNSRoute2P0Scores((count).toString());
               case SyncPlatform.awmc:
+                // AWMC 排在最前，takeQr 会先消费对话框里提前输入的二维码。
                 final qrCode =
                     await takeQr('AWMC NET', context.l10n.flowDirectQRUpload);
                 if (qrCode == null) {

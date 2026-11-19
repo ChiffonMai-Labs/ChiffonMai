@@ -153,6 +153,9 @@ flutter:
     # 见 tool/gen_dxrating_cover_index.cjs）。dxdata 有 4MB、实测下载 200s+，
     # 所以必须随包带一份基线，运行时只在必要时尝试更新。
     - assets/dxrating_cover_index.json
+    # AWMC 曲绘兜底的索引（构建期由 tool/gen_awmc_cover_index.cjs 生成）；
+    # 本地 assets 与水鱼主封面都缺图时才用，运行时按 shortid 自愈并落到 SharedPreferences。
+    - assets/awmc_cover_index.json
     - assets/cover_manifest.json
     - assets/res/
     - assets/title/

@@ -2931,7 +2931,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get flowSourcesWithSavedCredentialsAreSelectedBy =>
-      '保存した認証情報があるサービスを初期選択します。水魚 → 落雪 → AWMC NET の順に同期します。';
+      '保存した認証情報があるサービスを初期選択します。AWMC NET → 水魚 → 落雪 の順に同期します。';
 
   @override
   String get flowReloadCredentials => '認証情報を再取得';
@@ -15234,4 +15234,163 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get featureDeleteAccountSubtitle => '端末のアカウント・スコアキャッシュ・サーバー記録を削除';
+
+  @override
+  String get kopQualifierTitle => 'KOP 予選';
+
+  @override
+  String get kopQualifierSubtitle => 'Score Attack 予選ボードとローカルベストのシミュレーション';
+
+  @override
+  String get kopQualifierSubtitleDeadline =>
+      'Score Attack 予選ボードとローカルベストのシミュレーション（11-23 締切）';
+
+  @override
+  String get kopCountdownLabel => '締切まで';
+
+  @override
+  String get kopStatusLive => '予選開催中';
+
+  @override
+  String get kopStatusEnded => '予選終了';
+
+  @override
+  String kopDeadline(Object time) {
+    return '締切 $time';
+  }
+
+  @override
+  String get kopRegionInternational => '国際版';
+
+  @override
+  String get kopRegionJapan => '日本版';
+
+  @override
+  String get kopRuleNotice =>
+      '中国大陸版は参加できません。ローカルスコアによる娯楽シミュレーションで、公式成績ではありません。';
+
+  @override
+  String get kopSongsTitle => '課題曲 · DX / MASTER';
+
+  @override
+  String get kopNoRecord => '記録なし';
+
+  @override
+  String kopBestAchievement(Object value) {
+    return 'ローカルベスト $value%';
+  }
+
+  @override
+  String kopCorrectedScore(Object score) {
+    return '補正後 $score';
+  }
+
+  @override
+  String kopPenalty(Object value) {
+    return '-$value%';
+  }
+
+  @override
+  String kopDxScore(Object value) {
+    return 'DX スコア $value';
+  }
+
+  @override
+  String get kopEstimateTitle => 'シミュレーション順位';
+
+  @override
+  String get kopTotalScore => '3曲合計';
+
+  @override
+  String get kopTotalScorePartial => '記録済み合計';
+
+  @override
+  String get kopTotalDx => 'DX スコア合計';
+
+  @override
+  String get kopIncomplete => '3曲すべてに記録があるとシミュレーション順位を表示します';
+
+  @override
+  String get kopEstimateWaiting => '公式ボードの読み込み後にシミュレーションを表示します';
+
+  @override
+  String kopRankSimulated(Object rank) {
+    return 'シミュレーション約 $rank 位';
+  }
+
+  @override
+  String get kopRankOutside => '100 位圏外';
+
+  @override
+  String kopGapLabel(Object rank) {
+    return '「$rank 位」まで';
+  }
+
+  @override
+  String get kopAlreadyAhead => '超えています';
+
+  @override
+  String kopRequiredAchievement(Object count, Object value) {
+    return '$count 曲未記録。100 位に入るには各曲約 $value%（MASTER）が必要です';
+  }
+
+  @override
+  String get kopRequiredTooHigh => '101.0% を超えるため、現在のスコアでは足りません';
+
+  @override
+  String get kopEstimateHint => '同点は DX スコア、次に達成順で比較します。達成順はシミュレーションに含みません。';
+
+  @override
+  String get kopLeaderboardTitle => '公式トップ 100';
+
+  @override
+  String kopOfficialUpdate(Object time) {
+    return '公式更新：$time（JST）';
+  }
+
+  @override
+  String kopStaleNotice(Object time) {
+    return '更新に失敗しました。$time に読み込んだキャッシュを表示しています';
+  }
+
+  @override
+  String kopFetchedAt(Object time) {
+    return '読込時刻 $time';
+  }
+
+  @override
+  String get kopSource => '出典：maimai.sega.jp の公開 JSON。公式はトップ 100 のみ公開しています。';
+
+  @override
+  String get kopLocalDataHint => 'ローカルベストはキャッシュ済みスコアから取得します。再同期後に更新されます。';
+
+  @override
+  String get kopBestsFailed => 'ローカルスコアを読み込めませんでした';
+
+  @override
+  String get kopLoadFailed => '公式ボードを読み込めませんでした';
+
+  @override
+  String get kopEmptyRanking => '公式ボードにデータがありません';
+
+  @override
+  String get kopRefresh => '更新';
+
+  @override
+  String get kopDayUnit => '日 ';
+
+  @override
+  String get kopRankColumn => '#';
+
+  @override
+  String get homeSuggestedEntries => 'おすすめ';
+
+  @override
+  String get homeSuggestedEntriesHint => 'スターを付けた機能は上の「よく使う」に固定されます';
+
+  @override
+  String get kopPlayerColumn => 'プレイヤー';
+
+  @override
+  String get kopScoreColumn => '合計 / DX';
 }

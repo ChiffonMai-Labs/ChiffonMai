@@ -1,22 +1,39 @@
 import 'dart:convert' show utf8, jsonDecode, jsonEncode;
 import 'package:flutter/foundation.dart';
 import 'package:my_first_flutter_app/api/ApiUrls.dart';
+import 'package:my_first_flutter_app/entity/DivingFish/Song.dart';
 import 'package:my_first_flutter_app/entity/SongAliasModel.dart';
-import 'package:my_first_flutter_app/entity/DXRating/DXRatingSongAliasModel.dart';
+import 'package:my_first_flutter_app/manager/DivingFish/MaimaiMusicDataManager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:my_first_flutter_app/utils/ApiClient.dart';
+
+/// yuzuchan 回退开关：只在 AWMC 两路别名都失败时才请求 yuzuchan。
+///
+/// 数据已整体换到 AWMC，这里保留一个发布周期兜底；确认线上稳定后，
+/// 连同 [SongAliasManager._fetchFromSongAliasApi] 和 [ApiUrls.SongAliasApi] 一起删除。
+const bool useYuzuchanAliasFallback = true;
 
 class SongAliasManager {
   // 单例模式，全局唯一实例
   static final SongAliasManager instance = SongAliasManager._internal();
   SongAliasManager._internal();
 
-  // 本地缓存的key
+  // 本地缓存的key（沿用旧键，历史缓存仍可读）
   static const _keyAliases = 'song_aliases';
   static const _keyLastUpdate = 'alias_last_update';
 
   // 内存中缓存的别名数据：key=歌曲名(String)，value=别名列表
+  //
+  // AWMC 两路接口都按曲目 id 返回，合并时先按 baseSongId（DX 去 10000、宴原样）
+  // 归并去重，再经本地曲库的 id → 曲名映射转成曲名键——调用方一律按
+  // `aliases[song.title]` 取值，对外形态不变。
   Map<String, List<String>> _aliases = {};
+
+  /// 数据版本：网络刷新成功后自增，用来淘汰迟到的本地缓存解析。
+  int _revision = 0;
+
+  /// 正在进行的刷新任务，HomePage 与 HomeService 同时 init 时复用同一次请求。
+  Future<bool>? _refreshFuture;
 
   // 对外暴露的别名数据（只读）
   Map<String, List<String>> get aliases => _aliases;
@@ -50,16 +67,21 @@ class SongAliasManager {
     final prefs = await SharedPreferences.getInstance();
     final jsonString = prefs.getString(_keyAliases);
     final aliasesAtStart = _aliases;
+    final revisionAtStart = _revision;
 
     if (jsonString != null) {
       try {
         // 冷启动时别名可能有数千条，解析与列表转换一起放到后台，避免阻塞首页动画。
         final aliases = await compute(_decodeAliases, jsonString);
         // 解析期间若接口已经返回新数据，旧缓存不能再覆盖它。
-        if (identical(_aliases, aliasesAtStart)) _aliases = aliases;
+        if (revisionAtStart == _revision && identical(_aliases, aliasesAtStart)) {
+          _aliases = aliases;
+        }
       } catch (e) {
         // 缓存解析失败则清空，避免脏数据
-        if (identical(_aliases, aliasesAtStart)) _aliases = {};
+        if (revisionAtStart == _revision && identical(_aliases, aliasesAtStart)) {
+          _aliases = {};
+        }
         debugPrint('本地别名缓存解析失败：$e');
       }
     }
@@ -70,49 +92,56 @@ class SongAliasManager {
     return map.map((key, value) => MapEntry(key, List<String>.from(value)));
   }
 
-  /// 调用第三方API获取最新别名（同时获取三个API的数据并合并）
-  Future<bool> fetchFromApi() async {
+  /// 获取最新别名：AWMC 主接口 → AWMC 社区全量 → （开关打开时）yuzuchan。
+  ///
+  /// 并发的重复调用复用同一次请求，避免首页与后台初始化各拉一遍。
+  Future<bool> fetchFromApi() {
+    final active = _refreshFuture;
+    if (active != null) return active;
+    final future = _fetchFromApiOnce();
+    _refreshFuture = future;
+    future.whenComplete(() {
+      if (identical(_refreshFuture, future)) _refreshFuture = null;
+    });
+    return future;
+  }
+
+  Future<bool> _fetchFromApiOnce() async {
     try {
-      // 同时调用三个API
-      final futures = await Future.wait([
-        _fetchFromSongAliasApi(),
-        _fetchFromDXRatingSongAliasApi(),
-        _fetchFromMaimaiHubAliases(),
-      ]);
-
-      // 合并三个API的数据：第一个作为基底，其余依次并入
-      Map<String, List<String>> combinedAliases = {};
-
-      // 处理第一个API的数据
-      if (futures[0] != null) {
-        debugPrint('SongAliasApi返回${futures[0]!.length}首歌曲的别名');
-        combinedAliases.addAll(futures[0]!);
-      } else {
-        debugPrint('SongAliasApi返回null');
+      // 曲库可能还没加载完：先等它给出 id → 曲名映射，再决定是否请求。
+      final idToTitle = await _buildBaseIdToTitle();
+      // 曲库没就绪时不要改用 yuzuchan：它一成功就写入 alias_last_update，
+      // 之后曲库就绪时 HomeService 的 init 会以为缓存仍新鲜而不再重试 AWMC。
+      if (idToTitle.isEmpty) {
+        debugPrint('曲库尚未就绪，本次跳过别名刷新');
+        return false;
+      }
+      final revision = _revision;
+      var newAliases = await _loadAwmcAliases(idToTitle);
+      if ((newAliases == null || newAliases.isEmpty) &&
+          useYuzuchanAliasFallback) {
+        debugPrint('AWMC 别名不可用，回退 yuzuchan');
+        newAliases = await _fetchFromSongAliasApi();
       }
 
-      // 处理后两个API的数据，合并到已有数据中
-      _mergeAliasSource(combinedAliases, futures[1], 'DXRatingSongAliasApi');
-      _mergeAliasSource(combinedAliases, futures[2], 'maimai Score Hub 曲目别名');
-
       // 只有在成功获取到新数据时才更新缓存，否则保留原有数据
-      if (combinedAliases.isNotEmpty) {
-        // 更新内存数据
-        _aliases = combinedAliases;
-
-        // 保存到本地缓存
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString(_keyAliases, jsonEncode(_aliases));
-        await prefs.setInt(
-            _keyLastUpdate, DateTime.now().millisecondsSinceEpoch);
-
-        debugPrint('别名数据更新成功，共加载${_aliases.length}首歌曲的别名');
-        return true;
-      } else {
-        // 如果没有获取到任何新数据，保留原有缓存
+      if (newAliases == null || newAliases.isEmpty) {
         debugPrint('未获取到新的别名数据，保留原有缓存');
         return false;
       }
+
+      // 更新内存数据（并让还在解析的旧缓存知道已被超越）
+      if (revision != _revision) return false;
+      _aliases = newAliases;
+      _revision++;
+
+      // 保存到本地缓存
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keyAliases, jsonEncode(_aliases));
+      await prefs.setInt(_keyLastUpdate, DateTime.now().millisecondsSinceEpoch);
+
+      debugPrint('别名数据更新成功，共加载${_aliases.length}首歌曲的别名');
+      return true;
     } catch (e) {
       // 捕获所有异常，避免崩溃，继续使用旧缓存
       debugPrint('获取别名API异常：$e');
@@ -120,39 +149,240 @@ class SongAliasManager {
     }
   }
 
-  /// 把一路别名数据并入 [combined]：同名歌曲合并别名列表并去重，新歌则新建条目。
-  ///
-  /// [source] 为 null 表示该路本次没取到数据，只记日志、不影响其它来源。
-  void _mergeAliasSource(
-    Map<String, List<String>> combined,
-    Map<String, List<String>>? source,
-    String label,
-  ) {
-    if (source == null) {
-      debugPrint('$label返回null');
-      return;
-    }
-    int addedCount = 0;
-    int mergedCount = 0;
-    source.forEach((songName, aliases) {
-      final existing = combined[songName];
-      if (existing != null) {
-        // 合并别名列表，去重
-        for (final alias in aliases) {
-          if (!existing.contains(alias)) {
-            existing.add(alias);
-            mergedCount++;
-          }
-        }
-      } else {
-        combined[songName] = List<String>.from(aliases);
-        addedCount++;
-      }
-    });
-    debugPrint('$label新增$addedCount首歌曲，合并$mergedCount个别名到已有歌曲');
+  /// 先请求 AWMC 主别名接口，落败再退到社区全量别名，仍为空则返回 null。
+  Future<Map<String, List<String>>?> _loadAwmcAliases(
+    Map<int, String> idToTitle,
+  ) async {
+    final bundle = await _fetchFromAwmcMaimaidxAlias() ??
+        await _fetchFromAwmcCommunityAliases();
+    if (bundle == null) return null;
+    final byTitle = _mapToTitles(bundle, idToTitle);
+    return byTitle.isEmpty ? null : byTitle;
   }
 
-  /// 从 SongAliasApi 获取别名数据
+  /// AWMC 主别名接口：目录自带别名 + 社区 approved，记录含曲目 id 与别名数组。
+  ///
+  /// 解析容忍字符串 id、`null` 字段，以及 content 为「曲名 → 别名列表」的旧形态。
+  Future<_AliasBundle?> _fetchFromAwmcMaimaidxAlias() async {
+    try {
+      final token = ApiUrls.AwmcAliasToken;
+      final response = await ApiClient.get(
+        Uri.parse(ApiUrls.AwmcMaimaidxAliasApi),
+        headers: token.isEmpty ? null : {'X-Alias-Token': token},
+      );
+      if (response.statusCode != 200) {
+        debugPrint('AWMC 主别名接口请求失败，状态码=${response.statusCode}');
+        return null;
+      }
+
+      final dynamic jsonData = jsonDecode(utf8.decode(response.bodyBytes));
+      if (jsonData is! Map) {
+        debugPrint('AWMC 主别名接口格式异常，类型: ${jsonData.runtimeType}');
+        return null;
+      }
+      final code = _asInt(jsonData['code']);
+      if (code != null && code != 0) {
+        debugPrint('AWMC 主别名接口返回失败，code=$code');
+        return null;
+      }
+
+      final bundle = _AliasBundle();
+      final dynamic content = jsonData['content'];
+      if (content is List) {
+        for (final entry in content) {
+          if (entry is! Map) continue;
+          // 该接口的 SongID 是谱面文件 id（DX 为 曲号 +10000，如 12025 是
+          // 曲号 2025 的 DX 谱），必须归一成基础曲号后再挂曲名。
+          final baseId = _toBaseSongId(_asInt(
+            entry['SongID'] ??
+                entry['songId'] ??
+                entry['song_id'] ??
+                entry['id'],
+          ));
+          if (baseId == null) continue;
+          bundle.addBaseAliases(
+            baseId,
+            _asStrings(entry['Alias'] ?? entry['alias'] ?? entry['aliases']),
+          );
+        }
+      } else if (content is Map) {
+        content.forEach((title, value) {
+          if (title is! String) return;
+          bundle.addTitleAliases(title, _asStrings(value));
+        });
+      } else {
+        debugPrint('AWMC 主别名接口缺少 content 字段');
+        return null;
+      }
+
+      if (bundle.isEmpty) {
+        debugPrint('AWMC 主别名接口未解析出别名');
+        return null;
+      }
+      debugPrint('AWMC 主别名接口解析到${bundle.byBaseId.length}个 baseSongId、'
+          '${bundle.byTitle.length}个曲名');
+      return bundle;
+    } catch (e) {
+      debugPrint('获取 AWMC 主别名接口异常：$e');
+      return null;
+    }
+  }
+
+  /// AWMC 社区全量别名：`{ items: [{ songId, baseSongId?, text }] }`。
+  ///
+  /// 同一 baseSongId 会对应多个谱面和多条别名，按 baseSongId 合并去重。
+  Future<_AliasBundle?> _fetchFromAwmcCommunityAliases() async {
+    try {
+      final response =
+          await ApiClient.get(Uri.parse(ApiUrls.AwmcCommunityAliasesApi));
+      if (response.statusCode != 200) {
+        debugPrint('AWMC 社区别名接口请求失败，状态码=${response.statusCode}');
+        return null;
+      }
+
+      final dynamic jsonData = jsonDecode(utf8.decode(response.bodyBytes));
+      final dynamic rawItems = jsonData is Map ? jsonData['items'] : jsonData;
+      if (rawItems is! List) {
+        debugPrint('AWMC 社区别名接口格式异常，类型: ${jsonData.runtimeType}');
+        return null;
+      }
+
+      final bundle = _AliasBundle();
+      for (final entry in rawItems) {
+        if (entry is! Map) continue;
+        // baseSongId 已是基础曲号，直接用；只有缺字段时才把 songId 归一。
+        final explicitBase = _asInt(entry['baseSongId']);
+        final baseId = explicitBase ??
+            _toBaseSongId(_asInt(entry['baseSongId'] ?? entry['songId']));
+        if (baseId == null) continue;
+        bundle.addBaseAliases(
+          baseId,
+          _asStrings(entry['text'] ?? entry['alias'] ?? entry['aliases']),
+        );
+      }
+
+      if (bundle.isEmpty) {
+        debugPrint('AWMC 社区别名接口未解析出别名');
+        return null;
+      }
+      debugPrint('AWMC 社区别名接口解析到${bundle.byBaseId.length}个 baseSongId');
+      return bundle;
+    } catch (e) {
+      debugPrint('获取 AWMC 社区别名接口异常：$e');
+      return null;
+    }
+  }
+
+  /// 建立 baseSongId → 曲名映射。
+  ///
+  /// 曲库可能仍在加载，先等它就绪（最多 10 秒）；仍为空就只能等下一次刷新。
+  Future<Map<int, String>> _buildBaseIdToTitle() async {
+    final songs = await _loadSongsForIndex();
+    final idToTitle = <int, String>{};
+    for (final song in songs) {
+      final rawId = int.tryParse(song.id);
+      // 曲库的 id 是谱面文件 id：DX 条目才有 +10000。不能只按数值区间归一，
+      // 否则 ST 的 5 位新曲号（如 12025）会被错减成 2025。
+      final baseId = rawIdToBase(rawId, song.type);
+      // 键保留曲库里的原始标题，调用方就是按 `aliases[song.title]` 取的
+      final title = song.title;
+      if (baseId == null || title.trim().isEmpty) continue;
+      // 同一 baseSongId 的 ST / DX 谱面共用曲名，只留第一条
+      idToTitle.putIfAbsent(baseId, () => title);
+    }
+    if (idToTitle.isEmpty) debugPrint('曲库尚未就绪，暂不刷新别名');
+    return idToTitle;
+  }
+
+  Future<List<Song>> _loadSongsForIndex() async {
+    final manager = MaimaiMusicDataManager();
+    // 首页提前 init 时曲库通常还没好，等 3 秒即可；真正的重试由 HomeService
+    // 在曲库 Future.wait 之后的那次 init 负责，不必在这里空转 10 秒。
+    for (var attempt = 0;; attempt++) {
+      final songs = await manager.getCachedSongs();
+      if (songs != null && songs.isNotEmpty) return songs;
+      if (attempt >= 5) return const <Song>[];
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+    }
+  }
+
+  /// 把按 baseSongId / 曲名收集的别名转成对外的曲名键，并按曲名去重。
+  Map<String, List<String>> _mapToTitles(
+    _AliasBundle bundle,
+    Map<int, String> idToTitle,
+  ) {
+    final result = <String, List<String>>{};
+    var skipped = 0;
+
+    bundle.byTitle.forEach((title, aliases) {
+      _appendAliases(result, title, aliases);
+    });
+    bundle.byBaseId.forEach((baseId, aliases) {
+      final title = idToTitle[baseId];
+      if (title == null) {
+        skipped++;
+        return;
+      }
+      _appendAliases(result, title, aliases);
+    });
+
+    if (skipped > 0) {
+      debugPrint('$skipped个 baseSongId 在本地曲库里找不到曲名，已跳过');
+    }
+    return result;
+  }
+
+  void _appendAliases(
+    Map<String, List<String>> target,
+    String title,
+    Iterable<String> aliases,
+  ) {
+    if (aliases.isEmpty) return;
+    final list = target.putIfAbsent(title, () => <String>[]);
+    for (final raw in aliases) {
+      final alias = raw.trim();
+      if (alias.isEmpty || alias == title || list.contains(alias)) continue;
+      list.add(alias);
+    }
+    if (list.isEmpty) target.remove(title);
+  }
+
+  static int? _asInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value.trim());
+    return null;
+  }
+
+  static Iterable<String> _asStrings(dynamic value) sync* {
+    if (value is String) {
+      yield value;
+      return;
+    }
+    if (value is List) {
+      for (final item in value) {
+        if (item is String) yield item;
+      }
+    }
+  }
+
+  /// 按 AWMC 语义归一曲目 id：DX（10000–99999）去掉 10000，6 位宴谱与普通谱原样。
+  static int? _toBaseSongId(int? songId) {
+    if (songId == null) return null;
+    if (songId >= 10000 && songId < 100000) return songId - 10000;
+    return songId;
+  }
+
+  /// 曲库条目用明确的 `type` 判断：只有 DX 条目才减 10000，ST 条目即使 5 位也原样。
+  static int? rawIdToBase(int? chartFileId, String type) {
+    if (chartFileId == null) return null;
+    if (type == 'DX' && chartFileId >= 10000 && chartFileId < 100000) {
+      return chartFileId - 10000;
+    }
+    return chartFileId;
+  }
+
+  /// 从 yuzuchan 获取别名数据（临时回退源，返回曲名键）。
   Future<Map<String, List<String>>?> _fetchFromSongAliasApi() async {
     try {
       final url = ApiUrls.SongAliasApi;
@@ -182,160 +412,6 @@ class SongAliasManager {
       }
     } catch (e) {
       debugPrint('获取SongAliasApi异常：$e');
-    }
-    return null;
-  }
-
-  /// 从 DXRatingSongAliasApi 获取别名数据
-  Future<Map<String, List<String>>?> _fetchFromDXRatingSongAliasApi() async {
-    try {
-      final url = ApiUrls.DXRatingSongAliasApi;
-      debugPrint('开始请求DXRatingSongAliasApi: $url');
-      final response = await ApiClient.get(Uri.parse(url));
-
-      if (response.statusCode == 200) {
-        final responseBody = utf8.decode(response.bodyBytes);
-        debugPrint('DXRatingSongAliasApi返回数据长度: ${responseBody.length}');
-
-        // 打印前500个字符用于调试
-        if (responseBody.length > 0) {
-          debugPrint(
-              'DXRatingSongAliasApi返回数据预览: ${responseBody.substring(0, responseBody.length > 500 ? 500 : responseBody.length)}...');
-        }
-
-        final dynamic jsonData = jsonDecode(responseBody);
-
-        // 检查数据格式
-        if (jsonData is List) {
-          debugPrint('DXRatingSongAliasApi返回的是列表，长度: ${jsonData.length}');
-          final aliasModel = DXRatingSongAliasModel.fromJson(jsonData);
-
-          Map<String, List<String>> newAliases = {};
-          for (var song in aliasModel.data) {
-            // songId 实际上是歌曲名，name 才是别名
-            String songName = song.songId;
-            String alias = song.name;
-
-            // 调试：打印前几个数据
-            if (newAliases.length < 3) {
-              debugPrint(
-                  'DXRatingSongAliasApi解析数据: songName="$songName", alias="$alias"');
-            }
-
-            // 将同一首歌的多个别名收集到一起
-            if (newAliases.containsKey(songName)) {
-              // 如果歌曲已存在，添加别名（去重）
-              if (!newAliases[songName]!.contains(alias)) {
-                newAliases[songName]!.add(alias);
-              }
-            } else {
-              // 如果歌曲不存在，创建新列表
-              newAliases[songName] = [alias];
-            }
-          }
-          debugPrint('成功从DXRatingSongAliasApi加载${newAliases.length}首歌曲的别名');
-          return newAliases;
-        } else {
-          debugPrint(
-              'DXRatingSongAliasApi返回的数据不是列表格式，类型: ${jsonData.runtimeType}');
-          return null;
-        }
-      } else {
-        debugPrint('DXRatingSongAliasApi请求失败，状态码=${response.statusCode}');
-      }
-    } catch (e) {
-      debugPrint('获取DXRatingSongAliasApi异常：$e');
-    }
-    return null;
-  }
-
-  /// 从 maimai Score Hub 的曲目别名接口获取别名数据
-  ///
-  /// 该接口按 `musicId` 返回别名，而本管理器与所有调用方都按**歌曲名**索引
-  /// （调用方一律写 `aliases[song.title]`），所以要先拉一次 `/catalog/music`
-  /// 建出 musicId → 曲名 的映射，再据此把别名挂到曲名上。
-  ///
-  /// 任何一步失败都返回 null，由 `_mergeAliasSource` 记日志后跳过，
-  /// 不影响另外两路别名来源。
-  Future<Map<String, List<String>>?> _fetchFromMaimaiHubAliases() async {
-    try {
-      // 1) 曲目目录：musicId -> title
-      final catalogResp =
-          await ApiClient.get(Uri.parse(ApiUrls.MaimaiHubMusicCatalogUrl));
-      if (catalogResp.statusCode != 200) {
-        debugPrint('maimai Score Hub 曲目表请求失败，状态码=${catalogResp.statusCode}');
-        return null;
-      }
-      final dynamic catalogJson =
-          jsonDecode(utf8.decode(catalogResp.bodyBytes));
-      if (catalogJson is! List) {
-        debugPrint('maimai Score Hub 曲目表格式异常，类型: ${catalogJson.runtimeType}');
-        return null;
-      }
-
-      final Map<String, String> idToTitle = {};
-      for (final item in catalogJson) {
-        if (item is! Map) continue;
-        final id = item['id'];
-        final title = item['title'];
-        if (id == null || title is! String || title.trim().isEmpty) continue;
-        // 规范里 id 是 string | number，统一转字符串再当 key
-        idToTitle[id.toString().trim()] = title.trim();
-      }
-      if (idToTitle.isEmpty) {
-        debugPrint('maimai Score Hub 曲目表为空，跳过该来源');
-        return null;
-      }
-
-      // 2) 别名：{ revision, aliases: [{ musicId, aliases: [...] }] }
-      final aliasResp =
-          await ApiClient.get(Uri.parse(ApiUrls.MaimaiHubMusicAliasesUrl));
-      if (aliasResp.statusCode != 200) {
-        debugPrint('maimai Score Hub 别名请求失败，状态码=${aliasResp.statusCode}');
-        return null;
-      }
-      final dynamic aliasJson = jsonDecode(utf8.decode(aliasResp.bodyBytes));
-      if (aliasJson is! Map<String, dynamic>) {
-        debugPrint('maimai Score Hub 别名格式异常，类型: ${aliasJson.runtimeType}');
-        return null;
-      }
-      final rawList = aliasJson['aliases'];
-      if (rawList is! List) {
-        debugPrint('maimai Score Hub 别名缺少 aliases 字段');
-        return null;
-      }
-
-      final Map<String, List<String>> newAliases = {};
-      int skippedNoTitle = 0;
-      for (final entry in rawList) {
-        if (entry is! Map) continue;
-        final musicId = entry['musicId']?.toString().trim();
-        final title = musicId == null ? null : idToTitle[musicId];
-        if (title == null) {
-          // musicId 在曲目表里找不到标题：没法挂到曲名上，只能跳过
-          skippedNoTitle++;
-          continue;
-        }
-        final rawAliases = entry['aliases'];
-        if (rawAliases is! List) continue;
-
-        final list = newAliases.putIfAbsent(title, () => <String>[]);
-        for (final a in rawAliases) {
-          if (a is! String) continue;
-          final alias = a.trim();
-          if (alias.isEmpty || list.contains(alias)) continue;
-          list.add(alias);
-        }
-      }
-      // 丢掉只有空别名列表的条目，避免污染合并结果
-      newAliases.removeWhere((_, v) => v.isEmpty);
-
-      debugPrint('成功从 maimai Score Hub 别名接口加载${newAliases.length}首歌曲的别名'
-          '（revision=${aliasJson['revision']}，'
-          '${skippedNoTitle}条 musicId 在曲目表里找不到标题）');
-      return newAliases;
-    } catch (e) {
-      debugPrint('获取 maimai Score Hub 别名异常：$e');
     }
     return null;
   }
@@ -379,5 +455,31 @@ class SongAliasManager {
   /// 根据用户输入的歌曲名查找对应的别名列表
   List<String>? findAliasesBySongName(String songName) {
     return _aliases[songName];
+  }
+}
+
+/// 单次接口解析结果：按 baseSongId 与按曲名两种索引。
+///
+/// 同一 baseSongId 的多个谱面会落到同一个集合里，天然完成别名去重。
+class _AliasBundle {
+  final Map<int, Set<String>> byBaseId = {};
+  final Map<String, Set<String>> byTitle = {};
+
+  bool get isEmpty => byBaseId.isEmpty && byTitle.isEmpty;
+
+  void addBaseAliases(int baseId, Iterable<String> aliases) {
+    final set = byBaseId.putIfAbsent(baseId, () => <String>{});
+    for (final alias in aliases) {
+      if (alias.trim().isNotEmpty) set.add(alias);
+    }
+    if (set.isEmpty) byBaseId.remove(baseId);
+  }
+
+  void addTitleAliases(String title, Iterable<String> aliases) {
+    final set = byTitle.putIfAbsent(title, () => <String>{});
+    for (final alias in aliases) {
+      if (alias.trim().isNotEmpty) set.add(alias);
+    }
+    if (set.isEmpty) byTitle.remove(title);
   }
 }

@@ -59,7 +59,9 @@ class HomeWidgetService {
         'server_fetch_ms': DateTime.now().millisecondsSinceEpoch,
       });
 
-  /// [sources] 依次是各数据源的（名称、结果、语气）。
+  /// [sources] 固定三个槽位、按 AWMC NET → 水鱼 → 落雪 排列，每项是
+  /// （名称、结果、语气）。槽位名 `src1`~`src3` 是 kwgt 小部件按名命中的
+  /// 公开接口，改顺序要同步原生 `HomeWidgets.kt`。
   static Future<void> pushSync({
     required String headline,
     required String detail,

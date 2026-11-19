@@ -35,7 +35,9 @@ class _FriendComparePageState extends State<FriendComparePage> {
   /// 我的成绩固定用当前数据源。
   final RefreshDataSource _mySource = CurrentDataSourceNotifier.instance.value;
 
-  /// 好友的数据源，可以和我的不同。水鱼和 AWMC NET 按 QQ 号查，落雪按好友码查。
+  /// 好友的数据源，可以和我的不同。默认跟随我的当前源。
+  /// 切换顺序与数据源优先级一致：AWMC NET → 水鱼 → 落雪；
+  /// 水鱼和 AWMC NET 按 QQ 号查，落雪按好友码查。
   late RefreshDataSource _friendSource = _mySource;
 
   bool _isLoading = false;
@@ -234,7 +236,11 @@ class _FriendComparePageState extends State<FriendComparePage> {
       borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
       borderSide: BorderSide.none,
     );
-    const sources = RefreshDataSource.values;
+    const sources = [
+      RefreshDataSource.awmc,
+      RefreshDataSource.shuiyu,
+      RefreshDataSource.luoxue,
+    ];
     return AppCard(
       padding: const EdgeInsets.all(12),
       child: Column(

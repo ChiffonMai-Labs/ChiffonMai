@@ -54,11 +54,14 @@ class _AttendanceHubPageState extends State<AttendanceHubPage> {
       if (await ExternalLaunchUtil.open(uri)) {
         return;
       } else if (context.mounted) {
-        AppToast.show(context.l10n.hubLinkUnavailable(context.featureText(fallbackHint)), tone: AppToastTone.error);
+        AppToast.show(
+            context.l10n.hubLinkUnavailable(context.featureText(fallbackHint)),
+            tone: AppToastTone.error);
       }
     } catch (e) {
       if (context.mounted) {
-        AppToast.show(context.l10n.hubOpenFailed(e.toString()), tone: AppToastTone.error);
+        AppToast.show(context.l10n.hubOpenFailed(e.toString()),
+            tone: AppToastTone.error);
       }
     }
   }
@@ -171,6 +174,7 @@ class _AttendanceHubPageState extends State<AttendanceHubPage> {
             children: [
               for (final section in sections) ...[
                 HubSection(
+                  twoColumnOnWide: true,
                   title: section.title,
                   subtitle: section.subtitle,
                   icon: section.icon,

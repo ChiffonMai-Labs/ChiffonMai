@@ -245,9 +245,10 @@ class _AccountRegistrationGuideDialogState
             selectedIndex: _tab,
             onChanged: _selectTab,
             items: [
+              // 标签顺序与数据源优先级一致：AWMC NET → 水鱼 → 落雪，默认停在 AWMC。
+              const SegmentedTabItem('AWMC NET'),
               SegmentedTabItem(context.l10n.featureFish),
               SegmentedTabItem(context.l10n.featureLxns),
-              const SegmentedTabItem('AWMC NET'),
             ],
           ),
           const SizedBox(height: 14),
@@ -263,9 +264,9 @@ class _AccountRegistrationGuideDialogState
                   sizeFollowsCurrent: true,
                   alignment: Alignment.topCenter,
                   child: switch (_tab) {
-                    0 => _buildDivingFish(),
-                    1 => _buildLuoXue(),
-                    _ => _buildAwmc(),
+                    0 => _buildAwmc(),
+                    1 => _buildDivingFish(),
+                    _ => _buildLuoXue(),
                   },
                 ),
               ),

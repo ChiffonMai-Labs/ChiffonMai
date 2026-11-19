@@ -57,6 +57,8 @@ lib/api/DeveloperToken.dart
 lib/api/AwmcToken.dart
 lib/api/AwmcTokenShow.dart
 test/awmc_*_test.dart
+# 纯映射工具，不含任何生成凭据，需要随客户端追踪
+!test/awmc_id_map_test.dart
 
 # AWMC 网关令牌（构建期注入用，绝不要提交）
 # 用法：flutter build apk --release --dart-define-from-file=awmc_secret.json
@@ -85,7 +87,9 @@ tool/backup/
 /flutter_*.log
 
 # 本地开发工具、批量脚本与测试服务依赖
-/tool/
+# 曲绘索引生成脚本随客户端提交（构建期要能重建索引），其余工具仍只在本地
+/tool/*
+!/tool/gen_awmc_cover_index.cjs
 /analyze_maidata.py
 /build_apk.ps1
 

@@ -59,8 +59,27 @@ class ApiUrls {
   /// union 歌曲元数据（含 cn/jp 可游玩地区、releaseDate 等）
   static const String UnionApi = 'https://union.godserver.cn//api/union/uni';
   static const String TagDataApi = 'https://miruku.dxrating.net/api/v1/tags';
+
+  // ── AWMC 别名（v.wmc.pub，只读直连） ───────────────────────────────────
+  // 首选接口返回「曲库目录自带 + 社区已通过」的别名，记录里带曲目 id 与别名数组；
+  // 落败再退到社区全量别名（`{ items: [{ songId, baseSongId?, text }] }`）。
+  //
+  // 两路都不用 Key 也能请求。部署若开启 `ALIAS_BOT_TOKEN`，构建时用
+  // `--dart-define=AWMC_ALIAS_TOKEN=...` 注入只读令牌，请求会随带
+  // `X-Alias-Token`；未注入时为空串，不带该头。
+  static const String AwmcAliasBaseUrl = 'https://v.wmc.pub/api';
+  static const String AwmcMaimaidxAliasApi =
+      '$AwmcAliasBaseUrl/maimaidx/maimaidxalias';
+  static const String AwmcCommunityAliasesApi =
+      '$AwmcAliasBaseUrl/chart-community/aliases/all';
+  static const String AwmcAliasToken =
+      String.fromEnvironment('AWMC_ALIAS_TOKEN', defaultValue: '');
+
+  /// 旧别名源（yuzuchan），保留一个发布周期作回退，见 `useYuzuchanAliasFallback`。
   static const String SongAliasApi =
       'https://www.yuzuchan.moe/api/maimaidx/maimaidxalias';
+
+  /// 旧 dxrating 别名源，已不再请求；`CacheSourceRegistry` 仍按 URL 注册。
   static const String DXRatingSongAliasApi =
       'https://miruku.dxrating.net/api/v1/aliases';
 
@@ -350,7 +369,8 @@ class ApiUrls {
       '$MaimaiHubBaseUrl/me/score-exports/version';
 
   // ── Catalog / 曲目目录与别名 ──
-  /// 曲目目录：`[{ id, title, ... }]`。用来把别名接口的 musicId 映射成曲名。
+  // 别名已整体换到 AWMC（见上方 v.wmc.pub），这两条只保留给 `CacheSourceRegistry` 注册。
+  /// 曲目目录：`[{ id, title, ... }]`。
   static const String MaimaiHubMusicCatalogUrl =
       '$MaimaiHubBaseUrl/catalog/music';
 
@@ -380,4 +400,13 @@ class ApiUrls {
   static const String RatingsCreateUrl = '$RatingsBaseUrl/create';
   static const String RatingsDeleteUrl = RatingsBaseUrl;
   static const String RatingsRecentUrl = '$RatingsBaseUrl/recent';
+
+  // ── KOP 8th Score Attack 预选榜（sega 官网公开 JSON） ─────────────────
+  // 两条都是无需鉴权的公开只读接口，允许客户端直连（不走自家后端代理），
+  // 只公开前 100 名。结构：`{ update, ranking: [{ rank, userName, score, subScore, recordDate }] }`，
+  // `update` 与 `recordDate` 均为 JST。
+  static const String Kop8thInternationalRankingApi =
+      'https://maimai.sega.jp/kop8th/json/maimai_itr/maimai_scoreattack_ranking.json';
+  static const String Kop8thJapanRankingApi =
+      'https://maimai.sega.jp/kop8th/json/maimai/maimai_scoreattack_ranking.json';
 }

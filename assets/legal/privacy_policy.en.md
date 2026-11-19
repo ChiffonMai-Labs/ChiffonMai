@@ -86,12 +86,12 @@ The following services receive relevant information according to the features yo
 
 - **[Diving-Fish](https://www.diving-fish.com/maimaidx/prober/), [LXNS](https://maimai.lxns.net/), [AWMC NET](https://net.wmc.pub/):** selected identifiers, authorization or import credentials, query conditions and scores to upload for verification, queries and sync.
 - **[maimai Score Hub](https://maimai.bakapiano.com/):** account information, game player identifiers and login tokens required for QR sign-in and synchronization, and submitted score photos, for authorization, score reading or recognition.
-- **[DXRating.net](https://dxrating.net/), [Union](https://union.godserver.cn/), [Yuri-YuzuChaN alias data](https://github.com/Yuri-YuzuChaN/maimaiDX):** requests for public songs, tags, aliases or covers. Your score-sync credentials are not submitted to obtain these public materials.
+- **[AWMC library and resources](https://v.wmc.pub/), [DXRating.net](https://dxrating.net/) (tags and chart constants, transitional), [Union](https://union.godserver.cn/), [Yuri-YuzuChaN alias data](https://github.com/Yuri-YuzuChaN/maimaiDX):** requests for public songs, tags, aliases or covers. Your score-sync credentials are not submitted to obtain these public materials.
 - **LXNS resource services and AWMC NET chart resource services:** cover, audio, appearance or chart identifiers to download and play materials.
 - **[NearCade](https://nearcade.cn/) and [Amap](https://www.amap.com/) map resources:** arcade queries or requests for resources in the browsed area to provide arcade information and maps. External navigation uses the map app you choose.
 - **[Baidu Translate](https://fanyi-api.baidu.com/):** text, source language and target language forwarded through our server for translation.
 - **[Bilibili](https://www.bilibili.com/):** search terms, video identifiers and corresponding requests when you search for videos or open related content. Its rules apply after you leave the app.
-- **[isMaiDown](https://mai.chongxi.us/) and [status.awmc.cc](https://status.awmc.cc/status/maimai):** status queries to provide maimai server status.
+- **[isMaiDown](https://mai.chongxi.us/):** status queries to provide maimai server status.
 
 Flutter system plugins implement secure storage, photo/file selection, photography and scanning, location, network state and media playback. They call system interfaces according to the feature in use; installing the app does not grant every permission. Secure storage uses flutter_secure_storage; image picking and scanning use image_picker, mobile_scanner and related components; location uses geolocator; playback uses just_audio, audio_service, audioplayers and related components.
 

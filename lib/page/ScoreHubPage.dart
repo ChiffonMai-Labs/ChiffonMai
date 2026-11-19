@@ -13,6 +13,8 @@ import 'History/ScoreImprovementHistoryPage.dart';
 import 'History/RatingHistoryPage.dart';
 import 'FriendComparePage.dart';
 import 'PaiziProgressPage.dart';
+import 'KopQualifierPage.dart';
+import '../service/Kop/KopQualifierService.dart';
 import 'RankTable/RankTablePage.dart';
 import 'KaleidXScope/KaleidXScopeSelectPage.dart';
 import 'SingleRatingCalculatorPage.dart';
@@ -175,8 +177,7 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
                   ),
                   LinkPill(
                     label: context.featureText('特殊'),
-                    onTap: () =>
-                        _open(context, const SpecialRankingListPage()),
+                    onTap: () => _open(context, const SpecialRankingListPage()),
                   ),
                 ],
               ),
@@ -192,13 +193,13 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
             ),
             const SizedBox(width: gap),
             Expanded(
-              child: _goalTile(context, '段位表',
-                  Icons.arrow_circle_up_rounded, const RankListPage()),
+              child: _goalTile(context, '段位表', Icons.arrow_circle_up_rounded,
+                  const RankListPage()),
             ),
             const SizedBox(width: gap),
             Expanded(
-              child: _goalTile(
-                  context, context.l10n.featureCalculators2, Icons.calculate_outlined, null),
+              child: _goalTile(context, context.l10n.featureCalculators2,
+                  Icons.calculate_outlined, null),
             ),
           ],
         ),
@@ -230,11 +231,23 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
           builder: (sheet, _, __) => Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              item(sheet, '单曲 Rating 计算', context.l10n.featureCalculateASongRatingFromAchievement,
-                  Icons.calculate_outlined, const SingleRatingCalculator()),
-              item(sheet, '达成率计算', context.l10n.featureCalculateAchievementFromJudgements, Icons.percent_rounded,
+              item(
+                  sheet,
+                  '单曲 Rating 计算',
+                  context.l10n.featureCalculateASongRatingFromAchievement,
+                  Icons.calculate_outlined,
+                  const SingleRatingCalculator()),
+              item(
+                  sheet,
+                  '达成率计算',
+                  context.l10n.featureCalculateAchievementFromJudgements,
+                  Icons.percent_rounded,
                   const AchievementRateCalculator()),
-              item(sheet, '达成率反推', context.l10n.featureInferBREAKDetailsFromJudgements, Icons.replay_rounded,
+              item(
+                  sheet,
+                  '达成率反推',
+                  context.l10n.featureInferBREAKDetailsFromJudgements,
+                  Icons.replay_rounded,
                   const AchievementFullReverseCalculator()),
             ],
           ),
@@ -264,7 +277,8 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
             child: Icon(icon, size: 18, color: tint.foreground),
           ),
           const SizedBox(height: 8),
-          MarqueeText(text: context.featureText(title),
+          MarqueeText(
+              text: context.featureText(title),
               style:
                   const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
         ],
@@ -286,8 +300,7 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
             child: Text(context.l10n.featureTitleAliasIDArtistCharterBPM,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style:
-                    TextStyle(fontSize: 15, color: scheme.onSurfaceVariant)),
+                style: TextStyle(fontSize: 15, color: scheme.onSurfaceVariant)),
           ),
           IconButton(
             tooltip: context.featureText('个性化成绩查询'),
@@ -314,8 +327,8 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
           builder: (context, constraints) {
             const cell = 30.0; // 26 + 间距 4
             const labelWidth = 34.0, moreWidth = 32.0;
-            final fit =
-                ((constraints.maxWidth - labelWidth - moreWidth) / cell).floor();
+            final fit = ((constraints.maxWidth - labelWidth - moreWidth) / cell)
+                .floor();
             final shown = covers.take(fit < 0 ? 0 : fit).toList();
             return Row(
               children: [
@@ -370,8 +383,7 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
           const SizedBox(height: 12),
           if (_b35Covers.isEmpty && _b15Covers.isEmpty)
             Text(context.featureText('刷新数据后这里会显示 Best35 与 Best15'),
-                style:
-                    TextStyle(fontSize: 12, color: scheme.onSurfaceVariant))
+                style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant))
           else ...[
             strip('B35', _b35Covers),
             const SizedBox(height: 4),
@@ -387,8 +399,7 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
                   onTap: () => _open(context, const DiffBest50Page())),
               LinkPill(
                   label: context.featureText('个性化'),
-                  onTap: () =>
-                      _open(context, const PersonalizedBest50Page())),
+                  onTap: () => _open(context, const PersonalizedBest50Page())),
               LinkPill(
                   label: context.featureText('个性化拟合'),
                   onTap: () =>
@@ -452,33 +463,36 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
               style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
           if (days.isNotEmpty) ...[
-          SizedBox(
-            height: 56,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                for (var i = 0; i < days.length; i++) ...[
-                  if (i > 0) const SizedBox(width: 5),
-                  Expanded(
-                    child: FractionallySizedBox(
-                      heightFactor:
-                          peak == 0 ? 0.1 : (days[i] / peak).clamp(0.1, 1.0),
-                      alignment: Alignment.bottomCenter,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: scheme.primary.withValues(alpha: 0.55),
-                          borderRadius: BorderRadius.circular(4),
+            SizedBox(
+              height: 56,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  for (var i = 0; i < days.length; i++) ...[
+                    if (i > 0) const SizedBox(width: 5),
+                    Expanded(
+                      child: FractionallySizedBox(
+                        heightFactor:
+                            peak == 0 ? 0.1 : (days[i] / peak).clamp(0.1, 1.0),
+                        alignment: Alignment.bottomCenter,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: scheme.primary.withValues(alpha: 0.55),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
                         ),
                       ),
                     ),
-                  ),
+                  ],
                 ],
-              ],
+              ),
             ),
-          ),
             const SizedBox(height: 8),
           ],
-          Text(days.isEmpty ? context.featureText('同步后开始记录') : context.featureText('按日回顾'),
+          Text(
+              days.isEmpty
+                  ? context.featureText('同步后开始记录')
+                  : context.featureText('按日回顾'),
               style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
         ],
       ),
@@ -523,6 +537,14 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
                 FocusManager.instance.primaryFocus?.unfocus();
                 _open(context, const ScoreImprovementHistoryPage());
               },
+            ),
+            'KOP 预选': HubActionTile(
+              title: 'KOP 预选',
+              subtitle: 'Score Attack 预选榜与本地最佳模拟',
+              icon: Icons.emoji_events_outlined,
+              isFavorited: _isFavorited('KOP 预选'),
+              onToggleFavorite: () => _toggleFavorite('KOP 预选'),
+              onTap: () => _open(context, const KopQualifierPage()),
             ),
             'Rating 历史': HubActionTile(
               title: 'Rating 历史',
@@ -684,23 +706,37 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
           };
 
           final sections = FeatureRegistry.sections['成绩']!;
+          // KOP 预选到期后隐藏入口；功能标题和收藏键保持原样，不删收藏。
+          final kopVisible = KopQualifierService.isAvailable(DateTime.now());
+          final visibleSections = [
+            for (final section in sections)
+              if (section.titles
+                  .any((title) => title != 'KOP 预选' || kopVisible))
+                (
+                  section: section,
+                  titles: [
+                    for (final title in section.titles)
+                      if (title != 'KOP 预选' || kopVisible) title,
+                  ],
+                ),
+          ];
           return HubPageScaffold(
             title: '成绩',
             subtitle: '查成绩、看提升、比排名与追踪进度',
             icon: Icons.analytics_rounded,
             hero: _buildOverview(context),
             children: [
-              for (final section in sections) ...[
+              for (final (:section, :titles) in visibleSections) ...[
                 HubSection(
+                  twoColumnOnWide: true,
                   title: section.title,
                   subtitle: section.subtitle,
                   icon: section.icon,
-                  badgeCount: section.titles.length,
-                  children: [
-                    for (final title in section.titles) features[title]!
-                  ],
+                  badgeCount: titles.length,
+                  children: [for (final title in titles) features[title]!],
                 ),
-                if (section != sections.last) const SizedBox(height: 24),
+                if (section != visibleSections.last.section)
+                  const SizedBox(height: 24),
               ],
             ],
           );

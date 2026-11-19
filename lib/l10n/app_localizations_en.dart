@@ -3091,7 +3091,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get flowSourcesWithSavedCredentialsAreSelectedBy =>
-      'Sources with saved credentials are selected by default. Sync order: Diving-Fish → LXNS → AWMC NET.';
+      'Sources with saved credentials are selected by default. Sync order: AWMC NET → Diving-Fish → LXNS.';
 
   @override
   String get flowReloadCredentials => 'Reload credentials';
@@ -15803,4 +15803,171 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get featureDeleteAccountSubtitle =>
       'Delete the local account, score cache and server records';
+
+  @override
+  String get kopQualifierTitle => 'KOP Qualifier';
+
+  @override
+  String get kopQualifierSubtitle =>
+      'Score Attack qualifier board and local best simulation';
+
+  @override
+  String get kopQualifierSubtitleDeadline =>
+      'Score Attack qualifier board and local best simulation (ends 11-23)';
+
+  @override
+  String get kopCountdownLabel => 'Time left';
+
+  @override
+  String get kopStatusLive => 'Qualifier in progress';
+
+  @override
+  String get kopStatusEnded => 'Qualifier ended';
+
+  @override
+  String kopDeadline(Object time) {
+    return 'Deadline $time';
+  }
+
+  @override
+  String get kopRegionInternational => 'International';
+
+  @override
+  String get kopRegionJapan => 'Japan';
+
+  @override
+  String get kopRuleNotice =>
+      'Mainland China cannot enter. This is an entertainment simulation using local scores, not an official result.';
+
+  @override
+  String get kopSongsTitle => 'Assigned charts · DX / MASTER';
+
+  @override
+  String get kopNoRecord => 'No record';
+
+  @override
+  String kopBestAchievement(Object value) {
+    return 'Local best $value%';
+  }
+
+  @override
+  String kopCorrectedScore(Object score) {
+    return 'Adjusted $score';
+  }
+
+  @override
+  String kopPenalty(Object value) {
+    return '-$value%';
+  }
+
+  @override
+  String kopDxScore(Object value) {
+    return 'DX score $value';
+  }
+
+  @override
+  String get kopEstimateTitle => 'Simulated ranking';
+
+  @override
+  String get kopTotalScore => 'Three-song total';
+
+  @override
+  String get kopTotalScorePartial => 'Recorded subtotal';
+
+  @override
+  String get kopTotalDx => 'Total DX score';
+
+  @override
+  String get kopIncomplete =>
+      'The simulated rank appears after all three songs have a record';
+
+  @override
+  String get kopEstimateWaiting =>
+      'The simulation appears after the official board loads';
+
+  @override
+  String kopRankSimulated(Object rank) {
+    return 'Simulated rank ~#$rank';
+  }
+
+  @override
+  String get kopRankOutside => 'Outside the top 100';
+
+  @override
+  String kopGapLabel(Object rank) {
+    return 'To #$rank';
+  }
+
+  @override
+  String get kopAlreadyAhead => 'Ahead';
+
+  @override
+  String kopRequiredAchievement(Object count, Object value) {
+    return '$count song(s) missing; to enter the top 100, each needs about $value% (MASTER)';
+  }
+
+  @override
+  String get kopRequiredTooHigh =>
+      'That exceeds 101.0%, so the current scores are not enough to enter';
+
+  @override
+  String get kopEstimateHint =>
+      'Ties compare DX score, then achievement time; the simulation omits achievement time.';
+
+  @override
+  String get kopLeaderboardTitle => 'Official top 100';
+
+  @override
+  String kopOfficialUpdate(Object time) {
+    return 'Official update: $time (JST)';
+  }
+
+  @override
+  String kopStaleNotice(Object time) {
+    return 'Refresh failed; showing the cache read at $time';
+  }
+
+  @override
+  String kopFetchedAt(Object time) {
+    return 'Read at $time';
+  }
+
+  @override
+  String get kopSource =>
+      'Source: public JSON on maimai.sega.jp; only the top 100 are published.';
+
+  @override
+  String get kopLocalDataHint =>
+      'Local bests come from cached scores and update after the next sync.';
+
+  @override
+  String get kopBestsFailed => 'Could not read local scores';
+
+  @override
+  String get kopLoadFailed => 'Could not load the official board';
+
+  @override
+  String get kopEmptyRanking => 'The official board has no data yet';
+
+  @override
+  String get kopRefresh => 'Refresh';
+
+  @override
+  String get kopDayUnit => 'd ';
+
+  @override
+  String get kopRankColumn => '#';
+
+  @override
+  String get homeSuggestedEntries => 'Suggested';
+
+  @override
+  String get homeSuggestedEntriesHint =>
+      'Star any feature to pin it under Favorites';
+
+  @override
+  String get kopPlayerColumn => 'Player';
+
+  @override
+  String get kopScoreColumn => 'Score / DX';
 }

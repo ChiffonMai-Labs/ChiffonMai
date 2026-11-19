@@ -858,12 +858,17 @@ class SongInfoService {
     }
 
     // 2. 自动从缓存的用户数据构建（与 SongRankingService.getCurrentPlayerId() 对齐）
-    //    优先当前活动数据源，拿不到再按 enum 顺序兜底 —— 三个源都要认，
-    //    原来只试着读 落雪 / 水鱼，AWMC NET 账号永远拿不到评论身份。
+    //    优先当前活动数据源，拿不到再按 AWMC NET → 水鱼 → 落雪 兜底 —— 三个源都
+    //    要认，原来只试着读 落雪 / 水鱼，AWMC NET 账号永远拿不到评论身份。
     final current = CurrentDataSourceNotifier.instance.value;
     final ordered = <RefreshDataSource>[
       current,
-      ...RefreshDataSource.values.where((s) => s != current),
+      for (final source in const [
+        RefreshDataSource.awmc,
+        RefreshDataSource.shuiyu,
+        RefreshDataSource.luoxue,
+      ])
+        if (source != current) source,
     ];
     for (final source in ordered) {
       final marker = prefs.getString(source.userIdCacheKey);
@@ -1299,8 +1304,9 @@ class SongInfoService {
   }) async {
     final stopwatch = Stopwatch()..start();
     // 整个读取流程都受限时约束，包含读取账号身份，超时后不等待迟到响应。
-    final result = await _fetchChartRating(songId: songId, levelIndex: levelIndex)
-        .timeout(chartRatingTimeout, onTimeout: () {
+    final result =
+        await _fetchChartRating(songId: songId, levelIndex: levelIndex)
+            .timeout(chartRatingTimeout, onTimeout: () {
       debugPrint('[ChartRating] 读取超时');
       return {'success': false, 'error': appL10n.ratingFetchFailed};
     });

@@ -12,21 +12,29 @@
  *
  * 网络 fallback（本地资源全都找不到时）：
  *   1. diving-fish：`https://www.diving-fish.com/covers/{coverId}.png`
- *   2. dxrating（shama）：`songId → dxdata.imageName → /images/cover/v2/{imageName}.jpg`
- *      带磁盘缓存，见 [DxRatingCoverImage] / `DxRatingCoverService`
+ *   2. AWMC：主链 `https://oss.awmc.cc/covers/{版本目录}/{曲目目录}/{imageRev}/w{240|360|480}.webp`，
+ *      404 时走次链 `https://download.wmc.pub/cdn/v1/img/{版本目录}/{曲目目录}?w=360&src=origin`
+ *      自愈并更新索引缓存；缺图时还会按 ST / DX 孪生 id 再试。见 [AwmcCoverService]
  *   3. `assets/cover/0.webp`（默认曲绘）
  *
- * ⚠️ 第 2 条是 2026-09 新增的兜底：水鱼的 DX 条目 id 是 `10000 + 基础 id`
- * （如 `10030`），第 1 条的 URL 规则会拼成 `10030.png` → **404**，
- * 必须靠第 2 条（它按基础 id 归一化后再查 imageName）才出得来图。
+ * ⚠️ 第 1 条仍是水鱼主封面；水鱼的 DX 条目 id 是 `10000 + 基础 id`
+ * （如 `10030`），按原 id 拼 `10030.png` 会 **404**，所以必须保留第 2 条兜底。
  */
+
+library;
+
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
-import '../service/DxRatingCoverService.dart';
-import '../widgets/DxRatingCoverImage.dart';
+import '../service/AwmcCoverService.dart';
 import '../widgets/ImageLoadingIndicator.dart';
+import 'AwmcIdMap.dart';
+
+/// 所有网络兜底都失败时的默认曲绘。
+const String _defaultCoverAsset = 'assets/cover/0.webp';
 
 class CoverUtil {
   // ===========================================================================
@@ -104,8 +112,7 @@ class CoverUtil {
   static String getLocalCoverPathRetry1(String songId) {
     if (songId.length == 6) {
       // 方法2: 先剔除第一个 '1'，再应用 5 位规则
-      final afterRemoveOne =
-          songId[0] == '1' ? songId.substring(1) : songId;
+      final afterRemoveOne = songId[0] == '1' ? songId.substring(1) : songId;
       return buildCoverPath(_stripLeadingOneAndZeros(afterRemoveOne));
     }
     return getLocalCoverPath(songId);
@@ -174,18 +181,11 @@ class CoverUtil {
   // ===========================================================================
 
   /// 解析曲绘的 [ImageProvider]，采用与 [buildCoverWidget] 一致的多级 fallback：
-  /// 原始 songId → 本地主路径 → 备用路径1 → 备用路径2 → dxrating / 网络曲绘。
+  /// 原始 songId → 本地主路径 → 备用路径1 → 备用路径2 → AWMC / diving-fish。
   ///
-  /// 本地路径通过 [rootBundle.load] 实际探测是否存在，命中即返回 [AssetImage]；
-  /// 否则回退到网络曲绘（[NetworkImage]），与歌曲详情页的行为一致。
-  ///
-  /// 网络这一段只能选一个 provider（拿不到加载失败的信息），所以优先用 dxrating：
-  /// 曲绘索引里有映射时它几乎必定命中（实测覆盖 99.8%），图还小得多
-  /// （14~32 KB vs diving-fish 的 240~300 KB）且走磁盘缓存。
-  /// 索引没就绪 / 没这首歌 → 回落到原来的 diving-fish，行为与改动前一致。
-  ///
-  /// ⚠️ 这里**不 await** 索引加载：dxdata 有 4MB，首次拉取可能很慢，
-  /// 不能拖住调用方（如 ChartPlayPage 的页面初始化 / 猜歌翻牌）。
+  /// 本地路径通过 [rootBundle.load] 实际探测是否存在，命中即返回 [AssetImage]。
+  /// 网络这一段只能选一个 provider（拿不到失败信息）：水鱼对 DX（`10000 + 基础 id`）
+  /// 和宴谱必 404，所以这两类先试 AWMC；ST 仍以水鱼主封面为先。
   static Future<ImageProvider> resolveCoverProvider(String songId) async {
     final localCandidates = <String>[
       buildCoverPath(songId),
@@ -201,14 +201,22 @@ class CoverUtil {
         // 本地资源不存在，继续尝试下一条候选路径
       }
     }
-    // 网络兜底：先在后台把索引补齐（不阻塞本次），这一轮能命中就先用 dxrating
-    DxRatingCoverService.instance.ensureLoaded();
-    final dxUrl = DxRatingCoverService.instance.coverUrlFor(songId);
-    if (dxUrl != null) {
-      return CachedNetworkImageProvider(
-        dxUrl,
-        cacheManager: dxRatingCoverCacheManager,
-      );
+    final chartFileId = AwmcIdMap.chartFileIdFromShortId(songId.trim());
+    if (chartFileId != null) {
+      try {
+        await AwmcCoverService.instance
+            .ensureLoaded()
+            .timeout(const Duration(milliseconds: 500));
+      } catch (_) {
+        // 索引加载慢了不拖住调用方，本轮直接走水鱼
+      }
+      final awmcUrl = AwmcCoverService.instance.coverUrlFor(songId);
+      if (awmcUrl != null) {
+        return CachedNetworkImageProvider(
+          awmcUrl,
+          cacheManager: awmcCoverCacheManager,
+        );
+      }
     }
     return NetworkImage(getNetworkCoverUrl(songId));
   }
@@ -219,12 +227,13 @@ class CoverUtil {
 
   /// 多级 fallback 链（两个公开方法共用一份，别再各抄一份嵌套 errorBuilder）。
   ///
-  /// 顺序：原始路径 → 主路径 → 备用1 → 备用2 → diving-fish → dxrating → 默认曲绘。
+  /// 顺序：原始路径 → 主路径 → 备用1 → 备用2 → diving-fish → AWMC → 默认曲绘。
   static Widget _buildFallbackChain(String songId, double size) {
     // 原图 256×256。按导出用的 3 倍清晰度解码，小曲绘的列表省下大半解码量，
     // 导出图和高分屏也不会变糊；放大显示时仍用原图。
     final target = size.isFinite ? (size * 3).ceil() : 256;
     final int? cacheWidth = target > 0 && target < 256 ? target : null;
+    final int requestWidth = size.isFinite ? (size * 3).ceil() : 360;
     return Image.asset(
       buildCoverPath(songId),
       fit: BoxFit.cover,
@@ -254,8 +263,12 @@ class CoverUtil {
                               ? child
                               : const ImageLoadingIndicator(),
                       errorBuilder: (context, error, stackTrace) {
-                        // 新增：dxrating 兜底（自带磁盘缓存 + 默认曲绘兜底）
-                        return DxRatingCoverImage(songId: songId);
+                        // AWMC 主链 / 次链 / 孪生 id，最后收尾到默认曲绘
+                        return _AwmcCoverImage(
+                          songId: songId,
+                          cacheWidth: cacheWidth,
+                          requestWidth: requestWidth,
+                        );
                       },
                     );
                   },
@@ -276,7 +289,7 @@ class CoverUtil {
   /// 3. 本地备用路径1
   /// 4. 本地备用路径2
   /// 5. 网络加载（diving-fish）
-  /// 6. dxrating（shama，带磁盘缓存）
+  /// 6. AWMC（主链 → 次链，带磁盘缓存；见 [_AwmcCoverImage]）
   /// 7. 默认曲绘 0.webp
   static Widget buildCoverWidget(String songId, double size) {
     return Container(
@@ -306,6 +319,126 @@ class CoverUtil {
     return ClipRRect(
       borderRadius: BorderRadius.circular(8),
       child: buildCoverWidgetWithContext(context, songId, size),
+    );
+  }
+}
+
+/// AWMC 曲绘：按候选顺序（主链 → 次链 → 孪生 id 的同样顺序）逐张尝试。
+///
+/// 主链 404 时让 [AwmcCoverService] 按 shortid 重拉目录自愈并落盘；修好的
+/// 新链补在末尾再试一次（同一条谱面只修一次）。全部失败显示默认曲绘。
+class _AwmcCoverImage extends StatefulWidget {
+  const _AwmcCoverImage({
+    required this.songId,
+    required this.requestWidth,
+    this.cacheWidth,
+  });
+
+  final String songId;
+  final int requestWidth;
+  final int? cacheWidth;
+
+  @override
+  State<_AwmcCoverImage> createState() => _AwmcCoverImageState();
+}
+
+class _AwmcCoverImageState extends State<_AwmcCoverImage> {
+  List<AwmcCoverCandidate> _candidates = const [];
+  final Set<int> _healed = {};
+  int _index = 0;
+  int _generation = 0;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _resolve();
+  }
+
+  @override
+  void didUpdateWidget(covariant _AwmcCoverImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.songId != widget.songId) {
+      _candidates = const [];
+      _healed.clear();
+      _index = 0;
+      _loading = true;
+      _resolve();
+    }
+  }
+
+  Future<void> _resolve() async {
+    final generation = ++_generation;
+    List<AwmcCoverCandidate> candidates;
+    try {
+      candidates = await AwmcCoverService.instance.coverCandidates(
+        widget.songId,
+        width: widget.requestWidth,
+      );
+    } catch (_) {
+      candidates = const [];
+    }
+    if (!mounted || generation != _generation) return;
+    setState(() {
+      _candidates = candidates;
+      _loading = false;
+    });
+  }
+
+  /// 当前候选失败：先切下一张，再在后台自愈（不阻塞画面）。
+  void _onError(AwmcCoverCandidate candidate) {
+    if (!mounted || _index >= _candidates.length) return;
+    if (!identical(_candidates[_index], candidate)) return;
+    setState(() => _index++);
+    if (candidate.isPrimary) unawaited(_heal(candidate));
+  }
+
+  Future<void> _heal(AwmcCoverCandidate candidate) async {
+    final generation = _generation;
+    final url =
+        await AwmcCoverService.instance.reportBrokenPrimary(candidate.variant);
+    // 切歌后迟到的自愈结果不能再拼进新歌的候选表
+    if (!mounted || generation != _generation || url == null) return;
+    if (!_healed.add(candidate.variant.chartFileId)) return;
+    setState(() {
+      // 修好的新主链补在末尾；再失败就直接落到默认曲绘
+      _candidates = [
+        ..._candidates,
+        AwmcCoverCandidate(
+          url: url,
+          isPrimary: true,
+          variant: candidate.variant,
+        ),
+      ];
+    });
+  }
+
+  Widget _defaultCover() => Image.asset(
+        _defaultCoverAsset,
+        fit: BoxFit.cover,
+        cacheWidth: widget.cacheWidth,
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const ImageLoadingIndicator();
+    if (_index >= _candidates.length) return _defaultCover();
+    final candidate = _candidates[_index];
+    return CachedNetworkImage(
+      imageUrl: candidate.url,
+      cacheManager: awmcCoverCacheManager,
+      fit: BoxFit.cover,
+      memCacheWidth: widget.cacheWidth,
+      maxWidthDiskCache: widget.requestWidth,
+      fadeInDuration: const Duration(milliseconds: 120),
+      placeholder: (context, _) => const ImageLoadingIndicator(),
+      errorWidget: (context, _, __) {
+        // errorWidget 可能在构建期回调，推到帧后再 setState
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _onError(candidate);
+        });
+        return const SizedBox.shrink();
+      },
     );
   }
 }

@@ -12,12 +12,30 @@ import 'package:my_first_flutter_app/service/SongPlayService.dart';
 import 'package:my_first_flutter_app/service/SongMediaCache.dart';
 import 'package:my_first_flutter_app/api/ApiUrls.dart';
 import 'package:my_first_flutter_app/utils/CoverUtil.dart';
+import 'package:my_first_flutter_app/utils/NavigationPreferences.dart';
 import 'package:my_first_flutter_app/utils/RefreshRateUtil.dart';
 import 'package:my_first_flutter_app/widgets/SmoothLinearProgressIndicator.dart';
 import 'package:my_first_flutter_app/widgets/MarqueeText.dart';
 import '../utils/AppTheme.dart';
 import '../widgets/AppToast.dart';
 import '../widgets/ChartPlayMetronome.dart';
+
+/// 手机：默认竖屏，全屏按钮是唯一的横屏入口。
+const _portraitOrientations = [DeviceOrientation.portraitUp];
+
+/// 手机全屏：只放开左右横屏。
+const _landscapeOrientations = [
+  DeviceOrientation.landscapeLeft,
+  DeviceOrientation.landscapeRight,
+];
+
+/// 平板 / 折叠屏展开态：方向自由。
+const _allOrientations = [
+  DeviceOrientation.portraitUp,
+  DeviceOrientation.portraitDown,
+  DeviceOrientation.landscapeLeft,
+  DeviceOrientation.landscapeRight,
+];
 
 class ChartPlayPage extends StatefulWidget {
   final String maidataContent;
@@ -71,6 +89,10 @@ class _ChartPlayPageState extends State<ChartPlayPage>
   double _loadingSpeed = 0;
   String _loadingTip = '';
 
+  /// 当前窗口是否达到平板断点（`shortestSide >= 600`）。
+  /// 折叠 / 展开时会变化，变化时只重发方向。
+  bool _isWideLayout = false;
+
   /// 设置落盘防抖：侧边栏每拖一下滑块都会 notifyListeners，
   /// 不防抖会写爆 SharedPreferences。
   Timer? _settingsSaveDebounce;
@@ -82,8 +104,11 @@ class _ChartPlayPageState extends State<ChartPlayPage>
     // 谱面播放对帧率敏感：Flutter 引擎不会主动向系统要高刷，
     // 不投这一票就会一直在「几秒 120 → 掉 60」之间反复。
     RefreshRateUtil.requestMax();
-    // 默认竖屏，只有明确点击全屏才主动请求横屏。
-    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+    // 方向按断点申请：平板方向自由，手机默认竖屏，只有全屏按钮能进横屏。
+    _isWideLayout = _detectWideLayout();
+    _applyOrientation();
+    // 回前台可能被系统重置过系统栏，按当前偏好补一次（含播放器全屏）。
+    unawaited(NavigationPreferences.instance.applySystemUiMode());
     // 提前把上次的侧边栏设置读进内存，等控制器建好就能直接套用
     ChartPlaySettingsStore().load();
     // 短期心跳仅输出到调试日志：计时器也停住时，说明 Dart 主线程被阻塞，
@@ -134,6 +159,45 @@ class _ChartPlayPageState extends State<ChartPlayPage>
       // 切后台/被划掉前立刻把设置写下去，别等 dispose
       _flushSettingsNow();
     }
+  }
+
+  @override
+  void didChangeMetrics() {
+    final wide = _detectWideLayout();
+    if (wide == _isWideLayout) return;
+    _isWideLayout = wide;
+    // 叠在上面的游玩页会自己管方向，宿主不要跟它抢；等回到本页再按断点补发。
+    if (ModalRoute.of(context)?.isCurrent != true) return;
+    // 折叠 / 展开只重发方向，不重建播放器。
+    _applyOrientation();
+  }
+
+  /// 断点只看窗口最短边，不看型号：iPhone Pro Max 横屏 956 宽仍算手机。
+  bool _detectWideLayout() {
+    final view = WidgetsBinding.instance.platformDispatcher.implicitView;
+    final size = view?.physicalSize ?? Size.zero;
+    final ratio = view?.devicePixelRatio ?? 1;
+    return size.shortestSide / ratio >= 600;
+  }
+
+  /// 按当前断点和播放器全屏状态申请方向。
+  void _applyOrientation() {
+    if (_isWideLayout) {
+      unawaited(SystemChrome.setPreferredOrientations(_allOrientations));
+      return;
+    }
+    unawaited(SystemChrome.setPreferredOrientations(
+      _controller?.isFullScreen == true
+          ? _landscapeOrientations
+          : _portraitOrientations,
+    ));
+  }
+
+  /// 播放器全屏变化：系统栏沉浸写进 NavigationPreferences，
+  /// 方向由本页按断点补发。
+  void _onFullScreenChanged(bool fullscreen) {
+    unawaited(NavigationPreferences.instance.setPlayerFullscreen(fullscreen));
+    _applyOrientation();
   }
 
   /// 建控制器：统一在这里套用上次保存的侧边栏设置并挂上变更监听。
@@ -577,13 +641,12 @@ E
     WidgetsBinding.instance.removeObserver(this);
     // 离开播放页就把刷新率交还系统，避免整个 App 一直顶着高刷耗电
     RefreshRateUtil.restore();
-    // 解除 initState 里的竖屏锁，让其它页面（视频播放等）能正常横屏
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-    ]);
+    // 方向只由宿主恢复，且按断点恢复：手机锁回竖屏，平板重新放开四方向。
+    unawaited(SystemChrome.setPreferredOrientations(
+      _isWideLayout ? _allOrientations : _portraitOrientations,
+    ));
+    // 播放器全屏标志兜底清掉，避免回前台时状态栏被一直按全屏隐藏。
+    unawaited(NavigationPreferences.instance.setPlayerFullscreen(false));
     // 先把设置读出来写下去，再拆控制器——saveFrom 需要读控制器的当前值。
     // 这里不能 await，但 saveFrom 是同步跑到第一个 await 才挂起的，
     // capture 一定发生在 dispose 之前。
@@ -632,6 +695,7 @@ E
                 videoExportOptions: _videoExportOptions,
                 onVideoExported: _onVideoExported,
                 onBack: _leavePlayerPage,
+                onFullScreenChanged: _onFullScreenChanged,
                 disposeController: false,
                 displayFont: AppTheme.font(fontWeight: FontWeight.w700),
                 beforeTimeline: ChartPlayMetronome(

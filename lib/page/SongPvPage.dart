@@ -37,7 +37,7 @@ class SongPvPage extends StatefulWidget {
   State<SongPvPage> createState() => _SongPvPageState();
 }
 
-class _SongPvPageState extends State<SongPvPage> {
+class _SongPvPageState extends State<SongPvPage> with WidgetsBindingObserver {
   static const _videoHeaders = <String, String>{
     'User-Agent': 'Mozilla/5.0 (Android) AppleWebKit/537.36',
     'Referer': 'https://download.wmc.pub/',
@@ -73,6 +73,26 @@ class _SongPvPageState extends State<SongPvPage> {
     DeviceOrientation.landscapeLeft,
     DeviceOrientation.landscapeRight,
   ];
+  static const _allOrientations = [
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+    DeviceOrientation.landscapeLeft,
+    DeviceOrientation.landscapeRight,
+  ];
+
+  /// 平板 / 折叠屏展开态断点：只看窗口最短边，不看型号。
+  bool _isWideLayout = false;
+
+  bool _detectWideLayout() {
+    final view = WidgetsBinding.instance.platformDispatcher.implicitView;
+    final size = view?.physicalSize ?? Size.zero;
+    final ratio = view?.devicePixelRatio ?? 1;
+    return size.shortestSide / ratio >= 600;
+  }
+
+  /// 非全屏时允许的方向：平板自由旋转，手机锁竖屏。
+  List<DeviceOrientation> get _restingOrientations =>
+      _isWideLayout ? _allOrientations : _portrait;
 
   PvVideoStream? _videoStream;
   Timer? _speedTimer;
@@ -94,7 +114,9 @@ class _SongPvPageState extends State<SongPvPage> {
   @override
   void initState() {
     super.initState();
-    unawaited(SystemChrome.setPreferredOrientations(_portrait));
+    WidgetsBinding.instance.addObserver(this);
+    _isWideLayout = _detectWideLayout();
+    unawaited(SystemChrome.setPreferredOrientations(_restingOrientations));
     _videoUri = Uri.parse(
       'https://download.wmc.pub/s/${widget.songId}/pv.mp4',
     );
@@ -110,6 +132,21 @@ class _SongPvPageState extends State<SongPvPage> {
       _videoStream?.close();
       throw error;
     });
+  }
+
+  @override
+  void didChangeMetrics() {
+    final wide = _detectWideLayout();
+    if (wide == _isWideLayout) return;
+    _isWideLayout = wide;
+    // 折叠 / 展开只重发方向，不打断播放。
+    if (wide) {
+      unawaited(SystemChrome.setPreferredOrientations(_allOrientations));
+    } else if (_fullscreen) {
+      unawaited(SystemChrome.setPreferredOrientations(_landscape));
+    } else {
+      unawaited(SystemChrome.setPreferredOrientations(_portrait));
+    }
   }
 
   Future<void> _initializeVideo() async {
@@ -304,6 +341,7 @@ class _SongPvPageState extends State<SongPvPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _tipTimer?.cancel();
     _speedTimer?.cancel();
     _hideControlsTimer?.cancel();
@@ -314,7 +352,8 @@ class _SongPvPageState extends State<SongPvPage> {
       unawaited(_controller.dispose());
     }
     if (!_leaving) {
-      unawaited(SystemChrome.setPreferredOrientations(_portrait));
+      // 离开页面按断点恢复方向：手机锁回竖屏，平板重新放开四方向。
+      unawaited(SystemChrome.setPreferredOrientations(_restingOrientations));
       unawaited(NavigationPreferences.instance.setPvFullscreen(false));
     }
     super.dispose();
@@ -330,7 +369,10 @@ class _SongPvPageState extends State<SongPvPage> {
     });
     try {
       await Future.wait([
-        SystemChrome.setPreferredOrientations(enabled ? _landscape : _portrait),
+        // 平板方向自由，全屏只切系统栏；手机全屏才转横屏。
+        if (!_isWideLayout)
+          SystemChrome.setPreferredOrientations(
+              enabled ? _landscape : _portrait),
         NavigationPreferences.instance.setPvFullscreen(enabled),
       ]);
     } finally {
@@ -351,7 +393,7 @@ class _SongPvPageState extends State<SongPvPage> {
     _leaving = true;
     try {
       await Future.wait([
-        SystemChrome.setPreferredOrientations(_portrait),
+        SystemChrome.setPreferredOrientations(_restingOrientations),
         NavigationPreferences.instance.setPvFullscreen(false),
       ]);
     } finally {

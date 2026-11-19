@@ -12,6 +12,7 @@ import '../manager/LuoXue/LuoXueOAuthManager.dart';
 import '../service/AccountStore.dart';
 import '../utils/AppTheme.dart';
 import '../utils/ApiClient.dart';
+import '../api/ApiUrls.dart';
 import '../utils/CacheSourceRegistry.dart';
 import '../utils/AppDesignTokens.dart';
 import 'RefreshDataDialog.dart'
@@ -66,6 +67,13 @@ class AdvancedRefreshDataPanel extends StatefulWidget {
 }
 
 class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
+  /// 数据源展示顺序：AWMC NET → 水鱼 → 落雪。单源选择条与多端设置共用。
+  static const List<RefreshDataSource> _sourceOrder = [
+    RefreshDataSource.awmc,
+    RefreshDataSource.shuiyu,
+    RefreshDataSource.luoxue,
+  ];
+
   late RefreshDataSource _currentDataSource;
 
   /// 当前生效的水鱼 QQ（「我已填好，重新读取」后可变）。
@@ -113,9 +121,8 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
     _validities = {
       for (final s in CacheSourceRegistry.all) s.id: appL10n.flowLoading2
     };
-    _rankingSettingsReady = _loadRankingSettings(widget.syncSources == null
-        ? [_currentDataSource]
-        : RefreshDataSource.values);
+    _rankingSettingsReady = _loadRankingSettings(
+        widget.syncSources == null ? [_currentDataSource] : _sourceOrder);
     _settingsReady = _loadLuoXueToken();
     _loadAllValidities();
     if (_bindQQ.isNotEmpty) {
@@ -253,6 +260,10 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
     try {
       final response = await ApiClient.get(
         Uri.parse(source.apiUrl),
+        // 主别名接口在部署开启 ALIAS_BOT_TOKEN 时强制校验，连通性测试也要带。
+        headers: sourceId == 'alias_awmc' && ApiUrls.AwmcAliasToken.isNotEmpty
+            ? {'X-Alias-Token': ApiUrls.AwmcAliasToken}
+            : null,
         timeout: const Duration(seconds: 8),
       );
       sw.stop();
@@ -426,7 +437,7 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                for (final source in RefreshDataSource.values)
+                for (final source in _sourceOrder)
                   if (syncSources.contains(source))
                     Column(
                       key: ValueKey(source),
@@ -487,7 +498,7 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
         Text(context.l10n.flowCurrentDataSource),
         const SizedBox(height: 6),
         AnimatedChoiceBar<RefreshDataSource>(
-          values: RefreshDataSource.values,
+          values: _sourceOrder,
           value: _currentDataSource,
           label: (source) => context.featureText(source.shortDisplayName),
           onChanged: _confirming
