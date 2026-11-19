@@ -50,7 +50,7 @@ FriendLinkIconType friendLinkIconType(String name) =>
     FriendLinkIconType.values.asNameMap()[name] ?? FriendLinkIconType.web;
 
 IconData friendLinkIcon(FriendLinkIconType type) => switch (type) {
-      FriendLinkIconType.github => FontAwesomeIcons.github,
+      FriendLinkIconType.github => FontAwesomeIcons.github.data,
       FriendLinkIconType.web => Icons.language,
       FriendLinkIconType.app => Icons.phone_android,
       FriendLinkIconType.game => Icons.sports_esports,

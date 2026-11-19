@@ -16,6 +16,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'HubComponents.dart';
 import '../utils/FeatureRegistry.dart';
 import 'SettingsPage.dart';
+import 'DeleteAccountPage.dart';
 import 'DataBackupPage.dart';
 import 'AutoSyncPage.dart';
 import 'MaimaiServerStatusPage.dart';
@@ -780,6 +781,16 @@ class SystemHubPageState extends State<SystemHubPage>
                 disabledReason: _busyReason,
                 disabled: anyBusy && !_loggingOut,
                 footer: const AccountBindingStatusFooter(),
+              ),
+              '删除账号': HubActionTile(
+                title: '删除账号',
+                subtitle: '删除本机账号、成绩缓存与服务端记录',
+                icon: Icons.delete_forever_outlined,
+                isFavorited: _isFavorited('删除账号'),
+                onToggleFavorite: () => _toggleFavorite('删除账号'),
+                onTap: () => _open(context, const DeleteAccountPage()),
+                disabled: anyBusy,
+                disabledReason: _busyReason,
               ),
               '同步成绩到水鱼': HubActionTile(
                 title: '同步成绩到水鱼',

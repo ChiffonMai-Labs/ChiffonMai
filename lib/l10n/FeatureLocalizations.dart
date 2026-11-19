@@ -214,6 +214,8 @@ String localizeFeatureText(AppLocalizations l10n, String source) =>
       "管理水鱼、落雪与 AWMC NET 的成绩导入 Token" => l10n.featureViewYourLinkedDivingFishAccount,
       "账号注册引导" => l10n.featureAccountSetupGuide,
       "水鱼注册、落雪注册与 AWMC NET 档案创建引导" => l10n.featureSetUpDivingFishLXNSAndAWMC,
+      "删除账号" => l10n.featureDeleteAccount,
+      "删除本机账号、成绩缓存与服务端记录" => l10n.featureDeleteAccountSubtitle,
       "登录 maimai Score Hub" => l10n.featureSignInToMaimaiScoreHub,
       "仅登录，不同步成绩；用于 OCR 与 maimai Score Hub 功能" =>
         l10n.featureSignInForOCRAndScoreHub,

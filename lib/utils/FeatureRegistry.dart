@@ -182,7 +182,7 @@ class FeatureRegistry {
           title: '账号与授权',
           subtitle: '管理账号与数据源登录状态',
           icon: Icons.manage_accounts_outlined,
-          titles: ['账号注册引导', '成绩导入凭据', '切换账号', '绑定与授权管理']),
+          titles: ['账号注册引导', '成绩导入凭据', '切换账号', '绑定与授权管理', '删除账号']),
       FeatureSection(
           title: '数据刷新',
           subtitle: '更新成绩缓存与机台游玩次数',
@@ -485,6 +485,10 @@ class FeatureRegistry {
           subtitle: cabinetAppearanceSubtitle),
       '数据备份': const ButtonItem(
           icon: Icons.backup, title: '数据备份', subtitle: '导入或导出本地数据'),
+      '删除账号': const ButtonItem(
+          icon: Icons.delete_forever_outlined,
+          title: '删除账号',
+          subtitle: '删除本机账号、成绩缓存与服务端评论/评分'),
       '缓存管理': const ButtonItem(
           icon: Icons.storage_outlined,
           title: '缓存管理',

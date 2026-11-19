@@ -18,6 +18,7 @@ import 'ExportDiagnostics.dart';
 /// （约 3000 逻辑高，3 倍约 9000 像素）右侧和下侧被截断约 10%，比例正好对应
 /// 8192 的上限。预览走的是屏幕渲染，不受影响。
 const double kMaxCaptureTextureSize = 8192.0;
+const double kMinCapturePixelRatio = 0.01;
 
 // 整张截图还有原生纹理、像素读回和编码缓冲，单边限制无法约束总内存。
 const int _maxCapturePixels = 8000000;

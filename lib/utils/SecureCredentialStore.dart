@@ -54,6 +54,18 @@ class SecureCredentialStore {
     revision.value++;
   }
 
+  /// 删除全部已知凭据。删除账号时使用；单个键失败不影响其余键。
+  static Future<void> deleteAll() async {
+    for (final key in _keys) {
+      try {
+        await _storage.delete(key: key);
+      } catch (error) {
+        debugPrint('[SecureStore] 删除 $key 失败: ${error.runtimeType}');
+      }
+    }
+    revision.value++;
+  }
+
   /// 将旧版明文偏好迁移到系统安全存储；重复执行是安全的。
   static Future<void> migrateLegacy() async {
     try {

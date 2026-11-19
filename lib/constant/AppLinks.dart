@@ -9,6 +9,9 @@ class AppLinks {
   /// 官网。
   static const String officialSite = 'https://chiffonmai.cloud/';
 
+  /// 联系邮箱（数据删除、账号问题）。
+  static const String supportEmail = 'chiffonowo@foxmail.com';
+
   /// 查分器账号注册入口。
   static const String divingFishRegistrationUrl =
       'https://maimai.diving-fish.com/';

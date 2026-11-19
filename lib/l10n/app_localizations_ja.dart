@@ -15075,4 +15075,163 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get cabinetAppearanceFailed => '筐体の装飾を同期できませんでした。しばらくしてからお試しください。';
+
+  @override
+  String get deleteAccountTitle => 'アカウントを削除';
+
+  @override
+  String get deleteAccountHero =>
+      'ChiffonMai が保存したアカウントデータを削除します。Diving Fish・LXNS・AWMC NET のアカウント自体は各サイトに残ります。';
+
+  @override
+  String get deleteAccountAccountsHeader => '削除するアカウントデータ';
+
+  @override
+  String get deleteAccountEmpty => 'この端末に保存されたアカウントはありません。';
+
+  @override
+  String get deleteAccountWillDelete => '削除されるもの';
+
+  @override
+  String get deleteAccountLocal => '端末内のアカウント情報・ログイントークン・スコアキャッシュ';
+
+  @override
+  String get deleteAccountServer => 'ChiffonMai サーバー上のコメント・評価・ランキング記録（可能な範囲）';
+
+  @override
+  String get deleteAccountAutoSync => 'このアカウントの自動同期タスク';
+
+  @override
+  String get deleteAccountKeep => '残るもの';
+
+  @override
+  String get deleteAccountKeepExternal => '外部プラットフォーム上のアカウントとスコア';
+
+  @override
+  String get deleteAccountKeepLocal => 'テーマ・お気に入り・カスタムタグなどアカウント以外のデータ';
+
+  @override
+  String get deleteAccountExternalHint => '外部アカウントも削除する場合は各サイトで操作してください：';
+
+  @override
+  String get deleteAccountOpenFish => 'Diving Fish を開く';
+
+  @override
+  String get deleteAccountOpenLxns => 'LXNS を開く';
+
+  @override
+  String get deleteAccountOpenAwmc => 'AWMC NET を開く';
+
+  @override
+  String get deleteAccountBackupHint => '端末の記録を残す場合は先に「データバックアップ」で書き出してください。';
+
+  @override
+  String get deleteAccountButton => 'アカウントとデータを削除';
+
+  @override
+  String get deleteAccountConfirmTitle => '削除の確認';
+
+  @override
+  String get deleteAccountConfirmBody =>
+      '端末内のアカウント・スコアキャッシュ・自動同期タスクが消え、元に戻せません。外部アカウントは影響を受けません。';
+
+  @override
+  String get deleteAccountProgressTitle => '削除中';
+
+  @override
+  String get deleteAccountProgressHint => 'この画面を開いたままお待ちください。完了後に結果を表示します。';
+
+  @override
+  String get deleteAccountResultTitle => '削除しました';
+
+  @override
+  String deleteAccountResultCounts(int p0, int p1, int p2) {
+    return 'コメント $p0 件・評価 $p1 件・ランキング記録 $p2 件を削除しました。';
+  }
+
+  @override
+  String get deleteAccountResultFailures => '以下は自動削除できませんでした。メールで申請できます：';
+
+  @override
+  String get deleteAccountEmailButton => 'メールで残りの削除を申請';
+
+  @override
+  String get deleteAccountEmailSubject => 'ChiffonMai アカウントデータ削除依頼';
+
+  @override
+  String get deleteAccountEmailIntro =>
+      '次のアカウントの ChiffonMai サーバー側データを削除してください：';
+
+  @override
+  String get deleteAccountDone => '完了';
+
+  @override
+  String get deleteAccountNothing => '削除するアカウントはありません。';
+
+  @override
+  String get deleteAccountFailed => '削除が完了しませんでした。後でもう一度お試しください。';
+
+  @override
+  String get commentReport => '通報';
+
+  @override
+  String get commentBlock => 'ブロック';
+
+  @override
+  String get commentBlocked => 'ブロック中';
+
+  @override
+  String get commentUnblock => 'ブロック解除';
+
+  @override
+  String get commentReportTitle => 'コメントを通報';
+
+  @override
+  String get commentReportHint =>
+      '広告・暴言・ネタバレは禁止です。違反は管理者が削除します。理由を選んで送信すると、このコメントを添えたメールが開きます。';
+
+  @override
+  String get commentReasonAd => '広告・スパム';
+
+  @override
+  String get commentReasonAbuse => '暴言・荒らし';
+
+  @override
+  String get commentReasonSpoiler => 'ネタバレ';
+
+  @override
+  String get commentReasonOther => 'その他';
+
+  @override
+  String get commentReportSubmit => '通報を送信';
+
+  @override
+  String get commentReportCopied => '通報内容をコピーしました。連絡先メールへ送ってください。';
+
+  @override
+  String get commentBlockToast => 'このユーザーをブロックしました';
+
+  @override
+  String get commentUnblockToast => 'ブロックを解除しました';
+
+  @override
+  String get blockedUsersTitle => 'ブロックしたユーザー';
+
+  @override
+  String get blockedUsersEmpty => 'ブロックしたユーザーはいません。';
+
+  @override
+  String get blockedUsersHint => 'ブロックしたユーザーのコメントは一覧に表示されません。';
+
+  @override
+  String get blockedUsersEntry => 'ブロックしたユーザー';
+
+  @override
+  String get blockedUsersSection => 'コミュニティとコメント';
+
+  @override
+  String get featureDeleteAccount => 'アカウントを削除';
+
+  @override
+  String get featureDeleteAccountSubtitle => '端末のアカウント・スコアキャッシュ・サーバー記録を削除';
 }

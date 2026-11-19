@@ -12,6 +12,14 @@ analyzer:
     file_names: ignore
     slash_for_doc_comments: ignore
     unnecessary_null_comparison: ignore
+  exclude:
+    - build/**
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
+    - macos/**
+    - linux/**
 include: package:flutter_lints/flutter.yaml
 
 linter:

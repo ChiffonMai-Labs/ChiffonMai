@@ -430,7 +430,7 @@ class _AboutAppPageState extends State<AboutAppPage> {
             _buildContactButton(Icons.play_circle_outline_rounded, context.l10n.flowBilibili,
                 () => _openUrl(_bilibiliUrl)),
             _buildContactButton(
-                FontAwesomeIcons.github, 'GitHub', () => _openUrl(_githubUrl)),
+                FontAwesomeIcons.github.data, 'GitHub', () => _openUrl(_githubUrl)),
             _buildContactButton(Icons.email_outlined, context.l10n.flowEmail, _openEmail),
           ]),
           const SizedBox(height: 8),
@@ -576,7 +576,7 @@ class _AboutAppPageState extends State<AboutAppPage> {
   IconData _creditIcon(_Credit credit, {required bool personal}) {
     final url = credit.url?.toLowerCase() ?? '';
     final name = credit.name.toLowerCase();
-    if (Uri.tryParse(url)?.host == 'github.com') return FontAwesomeIcons.github;
+    if (Uri.tryParse(url)?.host == 'github.com') return FontAwesomeIcons.github.data;
     if (personal) return Icons.person_rounded;
     if (url.contains('bilibili.com') || url.contains('huajia.163.com')) {
       return Icons.play_circle_outline_rounded;

@@ -29,6 +29,7 @@ import 'WallpaperCropPage.dart';
 import '../utils/AppDesignTokens.dart';
 import '../widgets/AppUi.dart';
 import '../widgets/AppDialogs.dart';
+import '../service/CommentBlockStore.dart';
 import '../widgets/AppToast.dart';
 import '../widgets/AppSwitch.dart';
 import '../widgets/AppUpdateAutoInstallControl.dart';
@@ -544,8 +545,81 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
       ]);
 
+  Widget _buildBlockedUsersSection() => GuessSettingSection(
+        card: true,
+        title: context.l10n.blockedUsersSection,
+        icon: Icons.block_outlined,
+        children: [
+          ValueListenableBuilder<int>(
+            valueListenable: CommentBlockStore.revision,
+            builder: (context, _, __) => FutureBuilder<List<BlockedCommentUser>>(
+              future: CommentBlockStore.load(),
+              builder: (context, snapshot) {
+                final count = snapshot.data?.length ?? 0;
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(context.l10n.blockedUsersEntry),
+                  subtitle: Text(
+                    count == 0
+                        ? context.l10n.blockedUsersEmpty
+                        : '$count · ${context.l10n.blockedUsersHint}',
+                  ),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: _showBlockedUsers,
+                );
+              },
+            ),
+          ),
+        ],
+      );
+
+  Future<void> _showBlockedUsers() async {
+    final users = await CommentBlockStore.load();
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AppAlertDialog(
+          icon: appDialogIconTile(
+              Icons.block_outlined, Theme.of(ctx).colorScheme.primary),
+          title: Text(ctx.l10n.blockedUsersTitle),
+          subtitle: ctx.l10n.blockedUsersHint,
+          content: users.isEmpty
+              ? Text(ctx.l10n.blockedUsersEmpty)
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (final user in List<BlockedCommentUser>.from(users))
+                      AppDialogOption(
+                        title: user.label,
+                        subtitle: user.key,
+                        trailing: Text(ctx.l10n.commentUnblock,
+                            style: TextStyle(
+                                fontSize: 12,
+                                color: Theme.of(ctx).colorScheme.primary)),
+                        onTap: () async {
+                          await CommentBlockStore.unblock(
+                              user.dataSource, user.originalId);
+                          if (!ctx.mounted) return;
+                          setLocal(() => users.remove(user));
+                        },
+                      ),
+                  ],
+                ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: Text(ctx.l10n.featureClose),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildOtherTab() => _tabColumn([
         _buildLanguageSection(),
+        _buildBlockedUsersSection(),
         if (Platform.isAndroid)
           GuessSettingSection(
             card: true,

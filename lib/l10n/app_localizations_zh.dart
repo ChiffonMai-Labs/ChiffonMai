@@ -14763,6 +14763,164 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get cabinetAppearanceFailed => '无法同步机台装扮，请稍后再试。';
+
+  @override
+  String get deleteAccountTitle => '删除账号';
+
+  @override
+  String get deleteAccountHero =>
+      '这里删除的是 ChiffonMai 保存的账号数据。水鱼、落雪、AWMC NET 的账号本身仍保留在对应平台。';
+
+  @override
+  String get deleteAccountAccountsHeader => '将删除以下账号数据';
+
+  @override
+  String get deleteAccountEmpty => '本机没有已保存的账号。';
+
+  @override
+  String get deleteAccountWillDelete => '会删除';
+
+  @override
+  String get deleteAccountLocal => '本机的账号档案、登录令牌与成绩缓存';
+
+  @override
+  String get deleteAccountServer => 'ChiffonMai 服务端的评论、评分与排行榜记录（尽力删除）';
+
+  @override
+  String get deleteAccountAutoSync => '该账号的自动同步任务';
+
+  @override
+  String get deleteAccountKeep => '不会删除';
+
+  @override
+  String get deleteAccountKeepExternal => '第三方平台上的账号与成绩';
+
+  @override
+  String get deleteAccountKeepLocal => '主题、收藏夹、自定义标签等非账号数据';
+
+  @override
+  String get deleteAccountExternalHint => '需要一并注销第三方账号时，请到对应平台操作：';
+
+  @override
+  String get deleteAccountOpenFish => '打开水鱼';
+
+  @override
+  String get deleteAccountOpenLxns => '打开落雪';
+
+  @override
+  String get deleteAccountOpenAwmc => '打开 AWMC NET';
+
+  @override
+  String get deleteAccountBackupHint => '想保留本机记录的话，建议先到「数据备份」导出一份。';
+
+  @override
+  String get deleteAccountButton => '删除账号与数据';
+
+  @override
+  String get deleteAccountConfirmTitle => '确认删除';
+
+  @override
+  String get deleteAccountConfirmBody =>
+      '本机账号、成绩缓存与自动同步任务会被清除，删除后无法恢复。第三方平台账号不受影响。';
+
+  @override
+  String get deleteAccountProgressTitle => '正在删除';
+
+  @override
+  String get deleteAccountProgressHint => '请保持页面打开，完成后会显示结果。';
+
+  @override
+  String get deleteAccountResultTitle => '删除完成';
+
+  @override
+  String deleteAccountResultCounts(int p0, int p1, int p2) {
+    return '已删除评论 $p0 条、评分 $p1 条、排行榜记录 $p2 条。';
+  }
+
+  @override
+  String get deleteAccountResultFailures => '以下内容未能自动删除，可以发邮件申请：';
+
+  @override
+  String get deleteAccountEmailButton => '邮件申请删除剩余资料';
+
+  @override
+  String get deleteAccountEmailSubject => 'ChiffonMai 账号数据删除请求';
+
+  @override
+  String get deleteAccountEmailIntro => '请帮我删除以下账号在 ChiffonMai 服务端的数据：';
+
+  @override
+  String get deleteAccountDone => '完成';
+
+  @override
+  String get deleteAccountNothing => '没有需要删除的账号。';
+
+  @override
+  String get deleteAccountFailed => '删除没有全部完成，请稍后重试。';
+
+  @override
+  String get commentReport => '举报';
+
+  @override
+  String get commentBlock => '屏蔽';
+
+  @override
+  String get commentBlocked => '已屏蔽';
+
+  @override
+  String get commentUnblock => '取消屏蔽';
+
+  @override
+  String get commentReportTitle => '举报评论';
+
+  @override
+  String get commentReportHint =>
+      '评论请勿广告引流、辱骂或剧透，违规内容由维护者清理。选择原因后提交，会打开邮件把这条评论发给维护者。';
+
+  @override
+  String get commentReasonAd => '广告 / 引流';
+
+  @override
+  String get commentReasonAbuse => '辱骂 / 攻击';
+
+  @override
+  String get commentReasonSpoiler => '剧透';
+
+  @override
+  String get commentReasonOther => '其他';
+
+  @override
+  String get commentReportSubmit => '提交举报';
+
+  @override
+  String get commentReportCopied => '举报内容已复制，请发送到联系邮箱';
+
+  @override
+  String get commentBlockToast => '已屏蔽该用户';
+
+  @override
+  String get commentUnblockToast => '已取消屏蔽';
+
+  @override
+  String get blockedUsersTitle => '已屏蔽用户';
+
+  @override
+  String get blockedUsersEmpty => '暂无屏蔽用户。';
+
+  @override
+  String get blockedUsersHint => '被屏蔽用户的评论会从列表中隐藏。';
+
+  @override
+  String get blockedUsersEntry => '已屏蔽用户';
+
+  @override
+  String get blockedUsersSection => '社区与评论';
+
+  @override
+  String get featureDeleteAccount => '删除账号';
+
+  @override
+  String get featureDeleteAccountSubtitle => '删除本机账号、成绩缓存与服务端记录';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -29526,4 +29684,162 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get cabinetAppearanceFailed => '無法同步機台裝扮，請稍後再試。';
+
+  @override
+  String get deleteAccountTitle => '刪除帳號';
+
+  @override
+  String get deleteAccountHero =>
+      '這裡刪除的是 ChiffonMai 儲存的帳號資料。水魚、落雪、AWMC NET 的帳號本身仍保留在對應平台。';
+
+  @override
+  String get deleteAccountAccountsHeader => '將刪除以下帳號資料';
+
+  @override
+  String get deleteAccountEmpty => '本機沒有已儲存的帳號。';
+
+  @override
+  String get deleteAccountWillDelete => '會刪除';
+
+  @override
+  String get deleteAccountLocal => '本機的帳號檔案、登入權杖與成績快取';
+
+  @override
+  String get deleteAccountServer => 'ChiffonMai 服務端的評論、評分與排行榜紀錄（盡力刪除）';
+
+  @override
+  String get deleteAccountAutoSync => '該帳號的自動同步任務';
+
+  @override
+  String get deleteAccountKeep => '不會刪除';
+
+  @override
+  String get deleteAccountKeepExternal => '第三方平台上的帳號與成績';
+
+  @override
+  String get deleteAccountKeepLocal => '主題、收藏夾、自訂標籤等非帳號資料';
+
+  @override
+  String get deleteAccountExternalHint => '需要一併註銷第三方帳號時，請到對應平台操作：';
+
+  @override
+  String get deleteAccountOpenFish => '開啟水魚';
+
+  @override
+  String get deleteAccountOpenLxns => '開啟落雪';
+
+  @override
+  String get deleteAccountOpenAwmc => '開啟 AWMC NET';
+
+  @override
+  String get deleteAccountBackupHint => '想保留本機紀錄的話，建議先到「資料備份」匯出一份。';
+
+  @override
+  String get deleteAccountButton => '刪除帳號與資料';
+
+  @override
+  String get deleteAccountConfirmTitle => '確認刪除';
+
+  @override
+  String get deleteAccountConfirmBody =>
+      '本機帳號、成績快取與自動同步任務會被清除，刪除後無法復原。第三方平台帳號不受影響。';
+
+  @override
+  String get deleteAccountProgressTitle => '正在刪除';
+
+  @override
+  String get deleteAccountProgressHint => '請保持頁面開啟，完成後會顯示結果。';
+
+  @override
+  String get deleteAccountResultTitle => '刪除完成';
+
+  @override
+  String deleteAccountResultCounts(int p0, int p1, int p2) {
+    return '已刪除評論 $p0 則、評分 $p1 則、排行榜紀錄 $p2 則。';
+  }
+
+  @override
+  String get deleteAccountResultFailures => '以下內容未能自動刪除，可以寄信申請：';
+
+  @override
+  String get deleteAccountEmailButton => '寄信申請刪除剩餘資料';
+
+  @override
+  String get deleteAccountEmailSubject => 'ChiffonMai 帳號資料刪除請求';
+
+  @override
+  String get deleteAccountEmailIntro => '請幫我刪除以下帳號在 ChiffonMai 服務端的資料：';
+
+  @override
+  String get deleteAccountDone => '完成';
+
+  @override
+  String get deleteAccountNothing => '沒有需要刪除的帳號。';
+
+  @override
+  String get deleteAccountFailed => '刪除沒有全部完成，請稍後重試。';
+
+  @override
+  String get commentReport => '檢舉';
+
+  @override
+  String get commentBlock => '封鎖';
+
+  @override
+  String get commentBlocked => '已封鎖';
+
+  @override
+  String get commentUnblock => '取消封鎖';
+
+  @override
+  String get commentReportTitle => '檢舉評論';
+
+  @override
+  String get commentReportHint =>
+      '評論請勿廣告導流、辱罵或劇透，違規內容由維護者清理。選擇原因後送出，會開啟郵件把這則評論寄給維護者。';
+
+  @override
+  String get commentReasonAd => '廣告 / 導流';
+
+  @override
+  String get commentReasonAbuse => '辱罵 / 攻擊';
+
+  @override
+  String get commentReasonSpoiler => '劇透';
+
+  @override
+  String get commentReasonOther => '其他';
+
+  @override
+  String get commentReportSubmit => '送出檢舉';
+
+  @override
+  String get commentReportCopied => '檢舉內容已複製，請寄到聯絡信箱';
+
+  @override
+  String get commentBlockToast => '已封鎖該使用者';
+
+  @override
+  String get commentUnblockToast => '已取消封鎖';
+
+  @override
+  String get blockedUsersTitle => '已封鎖使用者';
+
+  @override
+  String get blockedUsersEmpty => '暫無封鎖使用者。';
+
+  @override
+  String get blockedUsersHint => '被封鎖使用者的評論會從列表中隱藏。';
+
+  @override
+  String get blockedUsersEntry => '已封鎖使用者';
+
+  @override
+  String get blockedUsersSection => '社群與評論';
+
+  @override
+  String get featureDeleteAccount => '刪除帳號';
+
+  @override
+  String get featureDeleteAccountSubtitle => '刪除本機帳號、成績快取與服務端紀錄';
 }

@@ -7,6 +7,7 @@ import '../entity/DivingFish/Song.dart';
 import '../manager/DivingFish/MaimaiMusicDataManager.dart';
 import '../page/SongInfoPage.dart';
 import '../service/SongInfoService.dart';
+import '../service/CommentBlockStore.dart';
 import '../utils/AppTheme.dart';
 import '../utils/CoverUtil.dart';
 import 'package:my_first_flutter_app/utils/ApiClient.dart';
@@ -77,8 +78,16 @@ class _RecentCommentsPageState extends State<RecentCommentsPage> {
         final result = json.decode(response.body);
         if (result['success'] == true) {
           final List<dynamic> data = result['data'] ?? [];
+          final blocked = await CommentBlockStore.load();
+          final blockedKeys =
+              blocked.map((e) => '${e.dataSource}:${e.originalId}').toSet();
+          if (!mounted) return;
           setState(() {
-            _comments = data.map((json) => CommentItem.fromJson(json)).toList();
+            _comments = data
+                .map((json) => CommentItem.fromJson(json))
+                .where((c) =>
+                    !blockedKeys.contains('${c.dataSource}:${c.originalId}'))
+                .toList();
             _isLoading = false;
           });
         } else {

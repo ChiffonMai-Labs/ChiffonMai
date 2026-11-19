@@ -25735,6 +25735,312 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'无法同步机台装扮，请稍后再试。'**
   String get cabinetAppearanceFailed;
+
+  /// No description provided for @deleteAccountTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除账号'**
+  String get deleteAccountTitle;
+
+  /// No description provided for @deleteAccountHero.
+  ///
+  /// In zh, this message translates to:
+  /// **'这里删除的是 ChiffonMai 保存的账号数据。水鱼、落雪、AWMC NET 的账号本身仍保留在对应平台。'**
+  String get deleteAccountHero;
+
+  /// No description provided for @deleteAccountAccountsHeader.
+  ///
+  /// In zh, this message translates to:
+  /// **'将删除以下账号数据'**
+  String get deleteAccountAccountsHeader;
+
+  /// No description provided for @deleteAccountEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'本机没有已保存的账号。'**
+  String get deleteAccountEmpty;
+
+  /// No description provided for @deleteAccountWillDelete.
+  ///
+  /// In zh, this message translates to:
+  /// **'会删除'**
+  String get deleteAccountWillDelete;
+
+  /// No description provided for @deleteAccountLocal.
+  ///
+  /// In zh, this message translates to:
+  /// **'本机的账号档案、登录令牌与成绩缓存'**
+  String get deleteAccountLocal;
+
+  /// No description provided for @deleteAccountServer.
+  ///
+  /// In zh, this message translates to:
+  /// **'ChiffonMai 服务端的评论、评分与排行榜记录（尽力删除）'**
+  String get deleteAccountServer;
+
+  /// No description provided for @deleteAccountAutoSync.
+  ///
+  /// In zh, this message translates to:
+  /// **'该账号的自动同步任务'**
+  String get deleteAccountAutoSync;
+
+  /// No description provided for @deleteAccountKeep.
+  ///
+  /// In zh, this message translates to:
+  /// **'不会删除'**
+  String get deleteAccountKeep;
+
+  /// No description provided for @deleteAccountKeepExternal.
+  ///
+  /// In zh, this message translates to:
+  /// **'第三方平台上的账号与成绩'**
+  String get deleteAccountKeepExternal;
+
+  /// No description provided for @deleteAccountKeepLocal.
+  ///
+  /// In zh, this message translates to:
+  /// **'主题、收藏夹、自定义标签等非账号数据'**
+  String get deleteAccountKeepLocal;
+
+  /// No description provided for @deleteAccountExternalHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'需要一并注销第三方账号时，请到对应平台操作：'**
+  String get deleteAccountExternalHint;
+
+  /// No description provided for @deleteAccountOpenFish.
+  ///
+  /// In zh, this message translates to:
+  /// **'打开水鱼'**
+  String get deleteAccountOpenFish;
+
+  /// No description provided for @deleteAccountOpenLxns.
+  ///
+  /// In zh, this message translates to:
+  /// **'打开落雪'**
+  String get deleteAccountOpenLxns;
+
+  /// No description provided for @deleteAccountOpenAwmc.
+  ///
+  /// In zh, this message translates to:
+  /// **'打开 AWMC NET'**
+  String get deleteAccountOpenAwmc;
+
+  /// No description provided for @deleteAccountBackupHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'想保留本机记录的话，建议先到「数据备份」导出一份。'**
+  String get deleteAccountBackupHint;
+
+  /// No description provided for @deleteAccountButton.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除账号与数据'**
+  String get deleteAccountButton;
+
+  /// No description provided for @deleteAccountConfirmTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'确认删除'**
+  String get deleteAccountConfirmTitle;
+
+  /// No description provided for @deleteAccountConfirmBody.
+  ///
+  /// In zh, this message translates to:
+  /// **'本机账号、成绩缓存与自动同步任务会被清除，删除后无法恢复。第三方平台账号不受影响。'**
+  String get deleteAccountConfirmBody;
+
+  /// No description provided for @deleteAccountProgressTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在删除'**
+  String get deleteAccountProgressTitle;
+
+  /// No description provided for @deleteAccountProgressHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'请保持页面打开，完成后会显示结果。'**
+  String get deleteAccountProgressHint;
+
+  /// No description provided for @deleteAccountResultTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除完成'**
+  String get deleteAccountResultTitle;
+
+  /// No description provided for @deleteAccountResultCounts.
+  ///
+  /// In zh, this message translates to:
+  /// **'已删除评论 {p0} 条、评分 {p1} 条、排行榜记录 {p2} 条。'**
+  String deleteAccountResultCounts(int p0, int p1, int p2);
+
+  /// No description provided for @deleteAccountResultFailures.
+  ///
+  /// In zh, this message translates to:
+  /// **'以下内容未能自动删除，可以发邮件申请：'**
+  String get deleteAccountResultFailures;
+
+  /// No description provided for @deleteAccountEmailButton.
+  ///
+  /// In zh, this message translates to:
+  /// **'邮件申请删除剩余资料'**
+  String get deleteAccountEmailButton;
+
+  /// No description provided for @deleteAccountEmailSubject.
+  ///
+  /// In zh, this message translates to:
+  /// **'ChiffonMai 账号数据删除请求'**
+  String get deleteAccountEmailSubject;
+
+  /// No description provided for @deleteAccountEmailIntro.
+  ///
+  /// In zh, this message translates to:
+  /// **'请帮我删除以下账号在 ChiffonMai 服务端的数据：'**
+  String get deleteAccountEmailIntro;
+
+  /// No description provided for @deleteAccountDone.
+  ///
+  /// In zh, this message translates to:
+  /// **'完成'**
+  String get deleteAccountDone;
+
+  /// No description provided for @deleteAccountNothing.
+  ///
+  /// In zh, this message translates to:
+  /// **'没有需要删除的账号。'**
+  String get deleteAccountNothing;
+
+  /// No description provided for @deleteAccountFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除没有全部完成，请稍后重试。'**
+  String get deleteAccountFailed;
+
+  /// No description provided for @commentReport.
+  ///
+  /// In zh, this message translates to:
+  /// **'举报'**
+  String get commentReport;
+
+  /// No description provided for @commentBlock.
+  ///
+  /// In zh, this message translates to:
+  /// **'屏蔽'**
+  String get commentBlock;
+
+  /// No description provided for @commentBlocked.
+  ///
+  /// In zh, this message translates to:
+  /// **'已屏蔽'**
+  String get commentBlocked;
+
+  /// No description provided for @commentUnblock.
+  ///
+  /// In zh, this message translates to:
+  /// **'取消屏蔽'**
+  String get commentUnblock;
+
+  /// No description provided for @commentReportTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'举报评论'**
+  String get commentReportTitle;
+
+  /// No description provided for @commentReportHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'评论请勿广告引流、辱骂或剧透，违规内容由维护者清理。选择原因后提交，会打开邮件把这条评论发给维护者。'**
+  String get commentReportHint;
+
+  /// No description provided for @commentReasonAd.
+  ///
+  /// In zh, this message translates to:
+  /// **'广告 / 引流'**
+  String get commentReasonAd;
+
+  /// No description provided for @commentReasonAbuse.
+  ///
+  /// In zh, this message translates to:
+  /// **'辱骂 / 攻击'**
+  String get commentReasonAbuse;
+
+  /// No description provided for @commentReasonSpoiler.
+  ///
+  /// In zh, this message translates to:
+  /// **'剧透'**
+  String get commentReasonSpoiler;
+
+  /// No description provided for @commentReasonOther.
+  ///
+  /// In zh, this message translates to:
+  /// **'其他'**
+  String get commentReasonOther;
+
+  /// No description provided for @commentReportSubmit.
+  ///
+  /// In zh, this message translates to:
+  /// **'提交举报'**
+  String get commentReportSubmit;
+
+  /// No description provided for @commentReportCopied.
+  ///
+  /// In zh, this message translates to:
+  /// **'举报内容已复制，请发送到联系邮箱'**
+  String get commentReportCopied;
+
+  /// No description provided for @commentBlockToast.
+  ///
+  /// In zh, this message translates to:
+  /// **'已屏蔽该用户'**
+  String get commentBlockToast;
+
+  /// No description provided for @commentUnblockToast.
+  ///
+  /// In zh, this message translates to:
+  /// **'已取消屏蔽'**
+  String get commentUnblockToast;
+
+  /// No description provided for @blockedUsersTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'已屏蔽用户'**
+  String get blockedUsersTitle;
+
+  /// No description provided for @blockedUsersEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无屏蔽用户。'**
+  String get blockedUsersEmpty;
+
+  /// No description provided for @blockedUsersHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'被屏蔽用户的评论会从列表中隐藏。'**
+  String get blockedUsersHint;
+
+  /// No description provided for @blockedUsersEntry.
+  ///
+  /// In zh, this message translates to:
+  /// **'已屏蔽用户'**
+  String get blockedUsersEntry;
+
+  /// No description provided for @blockedUsersSection.
+  ///
+  /// In zh, this message translates to:
+  /// **'社区与评论'**
+  String get blockedUsersSection;
+
+  /// No description provided for @featureDeleteAccount.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除账号'**
+  String get featureDeleteAccount;
+
+  /// No description provided for @featureDeleteAccountSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除本机账号、成绩缓存与服务端记录'**
+  String get featureDeleteAccountSubtitle;
 }
 
 class _AppLocalizationsDelegate

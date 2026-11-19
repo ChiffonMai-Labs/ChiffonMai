@@ -125,3 +125,7 @@ tool/backup/
 
 # 宣传片配乐（第三方授权音频，不进仓库）
 promo/**/music/
+
+# App Store 提交用构建产物（体积超过 GitHub 100MB 单文件限制，可重新生成）
+app_store_submission/build/
+app_store_submission/simulator-walkthrough.mp4

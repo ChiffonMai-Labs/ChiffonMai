@@ -930,14 +930,23 @@ extension _SongInfoCommunity on _SongInfoPageState {
           levelIndex: _currentDiffIndex,
           forceRefresh: true,
           serverRefresh: serverRefresh);
+      final blocked = await CommentBlockStore.load();
+      final blockedKeys =
+          blocked.map((e) => '${e.dataSource}:${e.originalId}').toSet();
+      final visible = blockedKeys.isEmpty
+          ? comments
+          : comments
+              .where((c) =>
+                  !blockedKeys.contains('${c.dataSource}:${c.originalId}'))
+              .toList();
       if (!mounted) return;
       _update(() {
-        _comments = comments;
+        _comments = visible;
         _commentPage = 0;
         _commentsLoading = false;
       });
       debugPrint(
-          'SongInfoPage: 评论加载完成，数量=${comments.length}，levelIndex=$_currentDiffIndex');
+          'SongInfoPage: 评论加载完成，数量=${visible.length}，levelIndex=$_currentDiffIndex');
     } catch (e) {
       debugPrint('SongInfoPage: 评论加载失败: $e');
       if (!mounted) return;
@@ -1066,6 +1075,15 @@ extension _SongInfoCommunity on _SongInfoPageState {
     );
   }
 
+  Widget _commentAction(String label, VoidCallback onTap) {
+    final color = Theme.of(context).colorScheme.primary;
+    return GestureDetector(
+      onTap: onTap,
+      child: Text(label,
+          style: TextStyle(fontSize: 12, color: color)),
+    );
+  }
+
   // 删除评论
   Future<void> _deleteComment(int commentId) async {
     if (_commentDataSource == null || _commentOriginalId == null) {
@@ -1113,6 +1131,100 @@ extension _SongInfoCommunity on _SongInfoPageState {
     } else {
       AppToast.show(result['message'] ?? context.l10n.flowCouldNotDeleteComment,
           tone: AppToastTone.error);
+    }
+  }
+
+  // 举报评论：选择原因后拼一封邮件，由维护者处理。
+  Future<void> _reportComment(CommentItem comment) async {
+    final l10n = context.l10n;
+    final reasons = [
+      l10n.commentReasonAd,
+      l10n.commentReasonAbuse,
+      l10n.commentReasonSpoiler,
+      l10n.commentReasonOther,
+    ];
+    var selected = 0;
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AppAlertDialog(
+          title: Text(l10n.commentReportTitle),
+          subtitle: l10n.commentReportHint,
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var i = 0; i < reasons.length; i++)
+                AppDialogOption(
+                  title: reasons[i],
+                  selected: selected == i,
+                  onTap: () => setDialogState(() => selected = i),
+                ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: Text(l10n.cancel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(reasons[selected]),
+              child: Text(l10n.commentReportSubmit),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (reason == null || !mounted) return;
+
+    final songTitle = _songData?['title']?.toString() ?? widget.songId;
+    final isUtage =
+        (_songData?['ds'] as List?)?.length == 2 && widget.songId.length == 6;
+    final diffLabel =
+        ChartDifficulty.labelOf(_currentDiffIndex, isUtage: isUtage);
+    final body = [
+      '${l10n.commentReportTitle}：$reason',
+      '',
+      '歌曲：$songTitle',
+      '难度：$diffLabel',
+      '评论 ID：${comment.id}',
+      '评论者：${comment.displayName}（${comment.dataSource}:${comment.originalId}）',
+      '时间：${comment.createdAt ?? ''}',
+      '',
+      comment.content,
+    ].join('\n');
+    final uri = Uri(
+      scheme: 'mailto',
+      path: AppLinks.supportEmail,
+      queryParameters: {
+        'subject': '${l10n.commentReportTitle}：$songTitle',
+        'body': body,
+      },
+    );
+    if (await ExternalLaunchUtil.open(uri)) return;
+    await Clipboard.setData(ClipboardData(text: body));
+    if (!mounted) return;
+    AppToast.show(l10n.commentReportCopied);
+  }
+
+  Future<void> _toggleBlockCommentAuthor(CommentItem comment) async {
+    final l10n = context.l10n;
+    final blocked =
+        await CommentBlockStore.isBlocked(comment.dataSource, comment.originalId);
+    if (!mounted) return;
+    if (blocked) {
+      await CommentBlockStore.unblock(comment.dataSource, comment.originalId);
+      if (!mounted) return;
+      AppToast.show(l10n.commentUnblockToast);
+      _loadComments();
+    } else {
+      await CommentBlockStore.block(BlockedCommentUser(
+        dataSource: comment.dataSource,
+        originalId: comment.originalId,
+        nickname: comment.nickname ?? '',
+      ));
+      if (!mounted) return;
+      AppToast.show(l10n.commentBlockToast);
+      _loadComments();
     }
   }
 
@@ -1518,6 +1630,23 @@ extension _SongInfoCommunity on _SongInfoPageState {
                                 height: 1.5,
                               ),
                             ),
+                            if (!isOwn &&
+                                comment.dataSource.isNotEmpty &&
+                                comment.originalId.isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: Wrap(
+                                  spacing: 14,
+                                  children: [
+                                    _commentAction(context.l10n.commentReport,
+                                        () => _reportComment(comment)),
+                                    _commentAction(context.l10n.commentBlock,
+                                        () => _toggleBlockCommentAuthor(comment)),
+                                  ],
+                                ),
+                              ),
+                            ],
                             if (isOwn) ...[
                               const SizedBox(height: 6),
                               Align(

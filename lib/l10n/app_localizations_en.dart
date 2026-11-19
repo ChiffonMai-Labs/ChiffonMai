@@ -15631,4 +15631,176 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get cabinetAppearanceFailed =>
       'Could not sync cabinet appearance. Try again later.';
+
+  @override
+  String get deleteAccountTitle => 'Delete account';
+
+  @override
+  String get deleteAccountHero =>
+      'This deletes account data saved by ChiffonMai. Your Diving Fish, LXNS and AWMC NET accounts stay on their own platforms.';
+
+  @override
+  String get deleteAccountAccountsHeader => 'Account data to delete';
+
+  @override
+  String get deleteAccountEmpty => 'No saved account on this device.';
+
+  @override
+  String get deleteAccountWillDelete => 'Will be deleted';
+
+  @override
+  String get deleteAccountLocal =>
+      'Local profile, login tokens and score cache';
+
+  @override
+  String get deleteAccountServer =>
+      'Comments, ratings and ranking records on ChiffonMai (best effort)';
+
+  @override
+  String get deleteAccountAutoSync => 'The auto-sync task for this account';
+
+  @override
+  String get deleteAccountKeep => 'Will be kept';
+
+  @override
+  String get deleteAccountKeepExternal =>
+      'Accounts and scores on third-party platforms';
+
+  @override
+  String get deleteAccountKeepLocal =>
+      'Theme, favorites, custom tags and other non-account data';
+
+  @override
+  String get deleteAccountExternalHint =>
+      'To also delete a third-party account, use its own site:';
+
+  @override
+  String get deleteAccountOpenFish => 'Open Diving Fish';
+
+  @override
+  String get deleteAccountOpenLxns => 'Open LXNS';
+
+  @override
+  String get deleteAccountOpenAwmc => 'Open AWMC NET';
+
+  @override
+  String get deleteAccountBackupHint =>
+      'Export a backup under Data backup first if you want to keep local records.';
+
+  @override
+  String get deleteAccountButton => 'Delete account and data';
+
+  @override
+  String get deleteAccountConfirmTitle => 'Confirm deletion';
+
+  @override
+  String get deleteAccountConfirmBody =>
+      'The local account, score cache and auto-sync task will be cleared. This cannot be undone. Third-party accounts are not affected.';
+
+  @override
+  String get deleteAccountProgressTitle => 'Deleting';
+
+  @override
+  String get deleteAccountProgressHint =>
+      'Keep this page open. The result will appear when finished.';
+
+  @override
+  String get deleteAccountResultTitle => 'Deleted';
+
+  @override
+  String deleteAccountResultCounts(int p0, int p1, int p2) {
+    return 'Deleted $p0 comments, $p1 ratings and $p2 ranking records.';
+  }
+
+  @override
+  String get deleteAccountResultFailures =>
+      'These items could not be deleted automatically; request deletion by email:';
+
+  @override
+  String get deleteAccountEmailButton => 'Request deletion by email';
+
+  @override
+  String get deleteAccountEmailSubject =>
+      'ChiffonMai account data deletion request';
+
+  @override
+  String get deleteAccountEmailIntro =>
+      'Please delete the server-side ChiffonMai data of:';
+
+  @override
+  String get deleteAccountDone => 'Done';
+
+  @override
+  String get deleteAccountNothing => 'Nothing to delete.';
+
+  @override
+  String get deleteAccountFailed =>
+      'Deletion did not fully finish. Try again later.';
+
+  @override
+  String get commentReport => 'Report';
+
+  @override
+  String get commentBlock => 'Block';
+
+  @override
+  String get commentBlocked => 'Blocked';
+
+  @override
+  String get commentUnblock => 'Unblock';
+
+  @override
+  String get commentReportTitle => 'Report comment';
+
+  @override
+  String get commentReportHint =>
+      'No ads, abuse or spoilers; the maintainer removes offending content. Pick a reason — submitting opens an email with this comment.';
+
+  @override
+  String get commentReasonAd => 'Advertising / spam';
+
+  @override
+  String get commentReasonAbuse => 'Abuse / harassment';
+
+  @override
+  String get commentReasonSpoiler => 'Spoiler';
+
+  @override
+  String get commentReasonOther => 'Other';
+
+  @override
+  String get commentReportSubmit => 'Submit report';
+
+  @override
+  String get commentReportCopied =>
+      'Report copied. Send it to the contact email.';
+
+  @override
+  String get commentBlockToast => 'User blocked';
+
+  @override
+  String get commentUnblockToast => 'User unblocked';
+
+  @override
+  String get blockedUsersTitle => 'Blocked users';
+
+  @override
+  String get blockedUsersEmpty => 'No blocked users.';
+
+  @override
+  String get blockedUsersHint =>
+      'Comments from blocked users are hidden from lists.';
+
+  @override
+  String get blockedUsersEntry => 'Blocked users';
+
+  @override
+  String get blockedUsersSection => 'Community & comments';
+
+  @override
+  String get featureDeleteAccount => 'Delete account';
+
+  @override
+  String get featureDeleteAccountSubtitle =>
+      'Delete the local account, score cache and server records';
 }

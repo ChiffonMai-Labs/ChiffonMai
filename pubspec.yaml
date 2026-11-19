@@ -18,7 +18,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # of the product and file versions while build-number is used as the build suffix.
 
 # version: 1.12.2+35
-version: 3.0.3+59
+version: 3.0.3+60
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -54,6 +54,8 @@ dependencies:
   archive: ^4.0.9
   marquee: ^2.3.0
   flutter_screenutil: ^5.2.0 # 屏幕适配
+  # 网络连接监听（离线横幅与在线功能门控）
+  internet_connection_checker: ^3.0.1
   shared_preferences: ^2.4.1 # 本地存储
   shared_preferences_android: ^2.4.21 # 猜歌设置使用 apply() 异步写入 Android 偏好
   flutter_secure_storage: ^9.2.4 # 登录令牌与导入密钥使用系统安全存储
@@ -97,7 +99,7 @@ dependencies:
   geolocator: ^14.0.2
   geocoding: ^5.0.0
   charset: ^2.0.1
-  font_awesome_flutter: ^10.7.0  # 友链页 GitHub 图标
+  font_awesome_flutter: ^11.0.0  # 适配 Flutter 3.47 的 IconData
   # flutter_colorpicker 已移除：它的取色区宽度写死 300，在手机 AlertDialog
   # 里溢出、取不到色，设置页改成自绘的自适应取色器（见 SettingsPage 里的
   # _ColorPickerDialog / _ColorPickerArea）。
