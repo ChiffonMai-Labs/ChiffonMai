@@ -544,7 +544,7 @@ class HomePageState extends State<HomePage> {
     // 包整个 Scaffold，确保 IndexedStack 内任意子页面点星标时首页都能立即重建。
     // 无论冷却状态如何，都先加载别名缓存到内存
     // 防止冷却期间别名丢失（详见：冷却逻辑在_initializeDataInBackground内）
-    SongAliasManager.instance.init();
+    SongAliasManager.instance.init(refreshFromNetwork: false);
     _initializeDataInBackground();
     // 同步入口的线路 + 统计（与「系统」hub 页共享同一份状态；重复调用幂等）
     SyncRouteNotifier.instance.addListener(_onSyncRouteChanged);

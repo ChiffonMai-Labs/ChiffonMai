@@ -24,9 +24,6 @@ class ApiClient {
     ApiUrls.AwmcNetMusicDataApi: 'awmc-net-songs',
     ApiUrls.TagDataApi: 'dxrating-tags',
     ApiUrls.SongAliasApi: 'yuzuchan-aliases',
-    ApiUrls.DXRatingSongAliasApi: 'dxrating-aliases',
-    ApiUrls.MaimaiHubMusicCatalogUrl: 'score-hub-songs',
-    ApiUrls.MaimaiHubMusicAliasesUrl: 'score-hub-aliases',
     ApiUrls.ServerStatusApi: 'cabinet-status',
   };
 

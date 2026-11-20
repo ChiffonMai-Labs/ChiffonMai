@@ -44,9 +44,6 @@ class HomeService {
 
     try {
       // 第一阶段：初始化基础管理器（必须串行）
-      onProgress(appL10n.svcLoadingTheSongAliasDatabase);
-      await SongAliasManager.instance.init();
-      
       onProgress(appL10n.svcInitializingTheMaidataManager);
       final maidataManager = MaidataManager();
       await maidataManager.initialize();
@@ -79,6 +76,8 @@ class HomeService {
         maimaiMusicManager.fetchAndUpdateMusicData(maidataTexts: maidataTexts),
         diffMusicManager.fetchAndUpdateDiffData(),
       ]);
+      onProgress(appL10n.svcLoadingTheSongAliasDatabase);
+      await SongAliasManager.instance.init();
       
       // 第三阶段：并行初始化收藏品、标签、落雪歌曲、知识库等数据
       onProgress(appL10n.svcLoadingCollectiblesTagsSongsKnowledgeBaseAnd);

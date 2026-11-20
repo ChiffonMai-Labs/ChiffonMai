@@ -1,6 +1,7 @@
 import '../l10n/AppMessages.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../api/ApiUrls.dart';
+import '../manager/SongAliasManager.dart';
 import '../constant/CacheKeyConstant.dart';
 
 /// 应用内一个可被强制刷新的缓存源。
@@ -10,7 +11,7 @@ import '../constant/CacheKeyConstant.dart';
 ///   cacheKey 用来判断"有没有缓存"，timestampKey 用来算剩余有效期。
 /// - [ttlDays] = -1 表示该缓存永不过期（如 MaiTagsManager）；其它正整数 = 有效期天数。
 /// - [groupKey] 把多个 UI 行映射到底层同一个缓存组（force refresh 时整组一起刷），
-///   例如别名 3 源共享 song_aliases，收藏品 6 类共享 CollectionsManager.refreshAllCollections。
+///   例如收藏品 6 类共享 CollectionsManager.refreshAllCollections。
 class CacheSourceInfo {
   final String id;
   final String displayName;
@@ -37,7 +38,7 @@ class CacheSourceInfo {
 ///
 /// 多个源共享同一 [groupKey] 时，任意一个被勾选强制刷新即触发整组刷新：
 ///   - 'songs'         歌曲数据（水鱼 + Union 合并写入 cachedSongs）
-///   - 'aliases'       别名 3 源合并写入 song_aliases
+///   - 'aliases'       歌曲别名写入 song_aliases
 ///   - 'collections'   收藏品 6 类各自独立缓存但由 CollectionsManager 一并刷新
 class CacheSourceRegistry {
   static const List<CacheSourceInfo> all = [
@@ -87,32 +88,14 @@ class CacheSourceRegistry {
       groupKey: 'tags',
     ),
 
-    // ── 别名 3 源 ────────────────────────────────────────────
+    // ── 别名 ────────────────────────────────────────────────
     CacheSourceInfo(
       id: 'alias_yuzuchan',
-      displayName: '别名数据源1',
-      description: 'yuzuchan.moe',
-      apiUrl: ApiUrls.SongAliasApi,
-      cacheKey: 'song_aliases',
-      timestampKey: 'alias_last_update',
-      ttlDays: 7,
-      groupKey: 'aliases',
-    ),
-    CacheSourceInfo(
-      id: 'alias_dxrating',
-      displayName: '别名数据源2',
-      description: 'DXRating',
-      apiUrl: ApiUrls.DXRatingSongAliasApi,
-      cacheKey: 'song_aliases',
-      timestampKey: 'alias_last_update',
-      ttlDays: 7,
-      groupKey: 'aliases',
-    ),
-    CacheSourceInfo(
-      id: 'alias_maimaihub',
-      displayName: '别名数据源3',
-      description: 'maimai Score Hub',
-      apiUrl: ApiUrls.MaimaiHubMusicAliasesUrl,
+      displayName: '别名数据',
+      description: SongAliasManager.useAwmc ? 'AWMC' : 'yuzuchan.moe',
+      apiUrl: SongAliasManager.useAwmc
+          ? ApiUrls.AwmcCommunityAliasesApi
+          : ApiUrls.SongAliasApi,
       cacheKey: 'song_aliases',
       timestampKey: 'alias_last_update',
       ttlDays: 7,

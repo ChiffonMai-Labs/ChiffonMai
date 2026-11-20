@@ -61,8 +61,8 @@ class ApiUrls {
   static const String TagDataApi = 'https://miruku.dxrating.net/api/v1/tags';
   static const String SongAliasApi =
       'https://www.yuzuchan.moe/api/maimaidx/maimaidxalias';
-  static const String DXRatingSongAliasApi =
-      'https://miruku.dxrating.net/api/v1/aliases';
+  static const String AwmcCommunityAliasesApi =
+      'https://v.wmc.pub/api/chart-community/aliases/all';
 
   /// dxrating 全量数据（曲库/标签/别名/谱面定数等，直连）
   static const String DXDataApi = 'https://miruku.dxrating.net/api/v1/dxdata';
@@ -348,15 +348,6 @@ class ApiUrls {
       '$MaimaiHubBaseUrl/me/score-exports/level';
   static const String MaimaiHubScoreExportsVersionUrl =
       '$MaimaiHubBaseUrl/me/score-exports/version';
-
-  // ── Catalog / 曲目目录与别名 ──
-  /// 曲目目录：`[{ id, title, ... }]`。用来把别名接口的 musicId 映射成曲名。
-  static const String MaimaiHubMusicCatalogUrl =
-      '$MaimaiHubBaseUrl/catalog/music';
-
-  /// 曲目别名：`{ revision, aliases: [{ musicId, aliases: [...] }] }`
-  static const String MaimaiHubMusicAliasesUrl =
-      '$MaimaiHubBaseUrl/catalog/music/aliases';
 
   // ── OCR / 结算画面识别 ──
   // maimai Score Hub 的 OCR 是独立 FastAPI 服务（仓库 ocr-api/），只监听 127.0.0.1:19100，
