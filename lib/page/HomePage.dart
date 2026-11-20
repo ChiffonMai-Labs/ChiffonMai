@@ -622,6 +622,8 @@ class HomePageState extends State<HomePage> {
           if (diff < _InitInterval.initializationCooldown) {
             debugPrint(
                 '距上次初始化仅 ${diff.inHours} 小时，跳过自动初始化（冷却时间：${_InitInterval.initializationCooldown.inHours} 小时）');
+            // 别名有独立的缓存时效，升级后的首次刷新也不受曲库冷却期限制。
+            unawaited(SongAliasManager.instance.init());
             return;
           }
         }
