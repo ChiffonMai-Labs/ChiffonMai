@@ -312,6 +312,7 @@ extension _SongInfoLoaders on _SongInfoPageState {
 
   Future<void> _loadChartMetadata() async {
     final stopwatch = Stopwatch()..start();
+    unawaited(_loadAwmcChartTags());
     final result =
         await SongInfoService().loadSupplementaryData(widget.songId);
     if (!mounted || _isStaleSongLoad) return;
@@ -326,6 +327,19 @@ extension _SongInfoLoaders on _SongInfoPageState {
       _tagSongsData = result['tagSongsData'];
     });
     debugPrint('[SongInfo] chart-metadata: ${stopwatch.elapsedMilliseconds}ms');
+  }
+
+  Future<void> _loadAwmcChartTags() async {
+    final key = AwmcChartTagService.chartKey(widget.songId, _currentDiffIndex);
+    if (key == null || _awmcTagChartKey == key) return;
+    _awmcTagChartKey = key;
+    _awmcChartTags = null;
+    final groups = await AwmcChartTagService.load(key);
+    if (!mounted || _isStaleSongLoad || _awmcTagChartKey != key ||
+        AwmcChartTagService.chartKey(widget.songId, _currentDiffIndex) != key) {
+      return;
+    }
+    _update(() => _awmcChartTags = groups);
   }
 
   /// 判断当前谱面在理论上能否挤进对应的 Best35 / Best15。
@@ -1319,6 +1333,11 @@ extension _SongInfoLoaders on _SongInfoPageState {
 
   // 获取标签分组
   Map<String, List<dynamic>> _getTagsByGroup() {
+    final awmc = _awmcChartTags;
+    if (awmc != null && awmc.isNotEmpty &&
+        _awmcTagChartKey == AwmcChartTagService.chartKey(widget.songId, _currentDiffIndex)) {
+      return awmc;
+    }
     final Map<String, List<dynamic>> groupedTags = {
       '配置': [],
       '评价': [],

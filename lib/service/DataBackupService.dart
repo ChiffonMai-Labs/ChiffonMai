@@ -23,6 +23,7 @@ import '../utils/SongDetailPreferences.dart';
 import '../utils/AppLanguagePreferences.dart';
 import '../utils/ConfettiPreferences.dart';
 import 'AccountSwitchService.dart';
+import 'AWMC/AwmcChartTagService.dart';
 import 'History/ChartHistoryStore.dart';
 import 'RankTable/RankCompletionStore.dart';
 import 'NextPlayQueueStore.dart';
@@ -109,6 +110,7 @@ class DataBackupService {
 
   /// 前缀匹配的缓存键（这些键按歌曲 / 模式 / 难度拼接，数量不固定）
   static const List<String> _cacheKeyPrefixes = [
+    AwmcChartTagService.cachePrefix,
     CacheKeyConstant.maidataCachePrefix, // maidata_cache_<shortId>
     CacheKeyConstant.fittedRankingsCachePrefix, // fitted_rankings_cache_<mode>
     CacheKeyConstant.fittedRankingsCacheTimestampPrefix,

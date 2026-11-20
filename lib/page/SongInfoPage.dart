@@ -32,6 +32,7 @@ import 'package:my_first_flutter_app/page/SongMaidataPage.dart';
 import 'ChartPlaybackPicker.dart';
 import '../manager/MaidataManager.dart';
 import 'package:my_first_flutter_app/service/SongInfoService.dart';
+import 'package:my_first_flutter_app/service/AWMC/AwmcChartTagService.dart';
 import 'package:my_first_flutter_app/service/SongMaidataPageService.dart';
 import 'package:my_first_flutter_app/utils/CoverUtil.dart';
 import 'package:my_first_flutter_app/utils/CommentTextValidator.dart';
@@ -208,6 +209,8 @@ class _SongInfoPageState extends State<_SongInfoView> {
   List<dynamic>? _diffData; // 保持为dynamic类型，兼容Map和DiffData
   Map<String, dynamic>? _userData;
   List<dynamic>? _tagData;
+  String? _awmcTagChartKey;
+  Map<String, List<Map<String, String>>>? _awmcChartTags;
   List<dynamic>? _tagSongsData;
 
   // 定数历史（dxrating 静态数据）

@@ -35,6 +35,7 @@ extension _SongInfoLayout on _SongInfoPageState {
     _checkNoteStatus();
     _loadBiliPlayCount();
     _loadBest50Opportunity();
+    _loadAwmcChartTags();
   }
 
   /// 点曲绘：放大查看并可保存到相册（与旧版一致）。
@@ -1585,6 +1586,7 @@ extension _SongInfoLayout on _SongInfoPageState {
   }
 
   Widget _buildTagChip(dynamic tag, String groupKey, Brightness brightness) {
+    final source = tag['source']?.toString() ?? 'https://dxrating.net/';
     return GestureDetector(
       onTap: () {
         final description = tag['description']?.toString();
@@ -1627,14 +1629,14 @@ extension _SongInfoLayout on _SongInfoPageState {
                         style: TextStyle(color: AppColors.greyHint(brightness)),
                       ),
                       TextSpan(
-                        text: 'https://dxrating.net/',
+                        text: source,
                         style: TextStyle(
                           color: Theme.of(context).colorScheme.primary,
                           decoration: TextDecoration.underline,
                         ),
                         recognizer: TapGestureRecognizer()
                           ..onTap = () async {
-                            final uri = Uri.parse('https://dxrating.net/');
+                            final uri = Uri.parse(source);
                             await ExternalLaunchUtil.open(uri);
                           },
                       ),
