@@ -6,6 +6,7 @@ import 'package:my_first_flutter_app/manager/AWMC/AwmcNetUserPlayDataManager.dar
 import 'package:my_first_flutter_app/service/RankingList/SongRankingService.dart'
     show parseDataSource;
 import 'package:my_first_flutter_app/utils/CurrentDataSourceNotifier.dart';
+import 'package:my_first_flutter_app/utils/AwmcIdMap.dart';
 import 'package:my_first_flutter_app/utils/ImageEncodeUtil.dart';
 import 'package:my_first_flutter_app/widgets/DataSourceTag.dart';
 import 'package:my_first_flutter_app/widgets/DivingFishAccountSection.dart'
@@ -21,6 +22,34 @@ void main() {
   setUpAll(
       () => binding.platformDispatcher.localesTestValue = [const Locale('zh')]);
   tearDownAll(binding.platformDispatcher.clearLocalesTestValue);
+
+  group('AWMC 目录 ID', () {
+    test('标准、DX 和宴谱可双向转换', () {
+      const samples = [
+        (1103, '001103', 1103, AwmcChartKind.standard),
+        (11633, '011633', 1633, AwmcChartKind.dx),
+        (100227, '100227', 100227, AwmcChartKind.utage),
+      ];
+      for (final (songId, fileId, baseId, kind) in samples) {
+        final entry = AwmcIdMap.fromSongId(songId)!;
+        expect((entry.chartFileId, entry.baseSongId, entry.kind),
+            (fileId, baseId, kind));
+        expect(AwmcIdMap.fromChartFileId(fileId)?.songId, songId);
+        expect(AwmcIdMap.fromBaseSongId(baseId, kind)?.chartFileId, fileId);
+      }
+    });
+
+    test('无效 ID 或类型冲突返回空', () {
+      for (final id in [0, -1, 10000, 1000000]) {
+        expect(AwmcIdMap.fromSongId(id), isNull);
+      }
+      for (final id in ['000000', '11633', '+16330', '01163x']) {
+        expect(AwmcIdMap.fromChartFileId(id), isNull);
+      }
+      expect(AwmcIdMap.fromBaseSongId(100227, AwmcChartKind.dx), isNull);
+      expect(AwmcIdMap.fromBaseSongId(11633, AwmcChartKind.standard), isNull);
+    });
+  });
 
   group('RefreshDataSource 三源枚举', () {
     test('三个源的持久化 key 与显示名', () {
