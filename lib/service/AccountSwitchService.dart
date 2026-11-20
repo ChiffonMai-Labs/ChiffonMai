@@ -223,7 +223,7 @@ class AccountSwitchService {
       await AccountStore.remove(source.key);
       await AwmcPlayCountStore.clear(source: source);
       if (CurrentDataSourceNotifier.instance.value == source) {
-        var fallback = RefreshDataSource.shuiyu;
+        var fallback = RefreshDataSource.defaultSource;
         for (final candidate in RefreshDataSource.values) {
           if (candidate != source &&
               await AccountStore.hasCache(candidate.key)) {
@@ -291,6 +291,27 @@ class AccountSwitchService {
   static Future<void> _initialize() async {
     final prefs = await SharedPreferences.getInstance();
     await _restorePending();
+    final savedSource = prefs.get(CacheKeyConstant.lastDataSource);
+    if (RefreshDataSource.tryFromKey(savedSource is String ? savedSource : null) ==
+        null) {
+      // 旧版缺少来源时按水鱼归档，避免升级后把活动槽的旧身份或成绩归入 AWMC。
+      final hasLegacyAccountData =
+          prefs.containsKey(CacheKeyConstant.accountStore) ||
+          prefs.containsKey(CacheKeyConstant.awmcPlayCountsLegacy) ||
+          prefs.containsKey(CacheKeyConstant.probeDivingFishBindQQ) ||
+          prefs.getKeys().any((key) =>
+              AccountStore.playKeys.contains(key) ||
+              AccountStore.identityKeys.contains(key) ||
+              key.startsWith(CacheKeyConstant.accountArchiveIdentityPrefix) ||
+              key.startsWith(CacheKeyConstant.accountArchivePlayPrefix) ||
+              key.startsWith('best50_data_'));
+      final source = hasLegacyAccountData
+          ? RefreshDataSource.shuiyu
+          : RefreshDataSource.defaultSource;
+      if (!await prefs.setString(CacheKeyConstant.lastDataSource, source.key)) {
+        throw StateError('保存当前数据源失败');
+      }
+    }
     await CurrentDataSourceNotifier.load();
     if (!prefs.containsKey(CacheKeyConstant.accountStore)) {
       final source = CurrentDataSourceNotifier.instance.value;

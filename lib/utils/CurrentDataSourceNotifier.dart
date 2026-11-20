@@ -13,19 +13,20 @@ enum RefreshDataSource {
   shuiyu,
   luoxue;
 
+  static const defaultSource = RefreshDataSource.awmc;
+
   /// 持久化用的键（写入 `last_data_source`）。
   String get key => name;
 
-  static RefreshDataSource fromKey(String? key) {
-    switch (key) {
-      case 'luoxue':
-        return RefreshDataSource.luoxue;
-      case 'awmc':
-        return RefreshDataSource.awmc;
-      default:
-        return RefreshDataSource.shuiyu;
-    }
-  }
+  static RefreshDataSource fromKey(String? key) =>
+      tryFromKey(key) ?? defaultSource;
+
+  static RefreshDataSource? tryFromKey(String? key) => switch (key) {
+        'awmc' => RefreshDataSource.awmc,
+        'shuiyu' => RefreshDataSource.shuiyu,
+        'luoxue' => RefreshDataSource.luoxue,
+        _ => null,
+      };
 
   /// 界面上显示的名字。
   String get displayName {
@@ -57,8 +58,7 @@ enum RefreshDataSource {
 
   /// 把持久化的 key 翻成界面名字；未知 / 空 key 返回空串。
   ///
-  /// 与 [fromKey] 的区别：`fromKey` 对未知 key 会**兜底成水鱼**（切账号需要个确定值），
-  /// 而导出图里的数据源标签宁可留空，也不能把未知来源错标成「水鱼」。
+  /// [fromKey] 用于选择当前源，导出图的标签只显示已知的来源。
   static String displayNameOfKey(String? key) => _labelOfKey(key, short: false);
 
   /// [shortDisplayName] 的 key 版本，同样对未知 / 空 key 返回空串。
@@ -66,13 +66,9 @@ enum RefreshDataSource {
       _labelOfKey(key, short: true);
 
   static String _labelOfKey(String? key, {required bool short}) {
-    if (key == null || key.isEmpty) return '';
-    for (final source in values) {
-      if (source.key == key) {
-        return short ? source.shortDisplayName : source.displayName;
-      }
-    }
-    return '';
+    final source = tryFromKey(key);
+    if (source == null) return '';
+    return short ? source.shortDisplayName : source.displayName;
   }
 
   /// 该源的账号 id 是不是 **QQ 号**。
@@ -112,13 +108,12 @@ enum RefreshDataSource {
 class CurrentDataSourceNotifier extends ValueNotifier<RefreshDataSource> {
   CurrentDataSourceNotifier._(super.source);
   static final CurrentDataSourceNotifier instance =
-      CurrentDataSourceNotifier._(RefreshDataSource.shuiyu);
+      CurrentDataSourceNotifier._(RefreshDataSource.defaultSource);
 
   static Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
-    instance.value = RefreshDataSource.fromKey(
-      prefs.getString(CacheKeyConstant.lastDataSource),
-    );
+    final key = prefs.get(CacheKeyConstant.lastDataSource);
+    instance.value = RefreshDataSource.fromKey(key is String ? key : null);
   }
 
   Future<void> set(RefreshDataSource source) async {

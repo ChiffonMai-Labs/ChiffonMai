@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:my_first_flutter_app/constant/CacheKeyConstant.dart';
+import 'package:my_first_flutter_app/service/AccountDeletionService.dart';
 import 'package:my_first_flutter_app/service/AccountStore.dart';
 import 'package:my_first_flutter_app/service/AccountSwitchService.dart';
 import 'package:my_first_flutter_app/service/History/ChartHistoryStore.dart';
@@ -68,6 +69,38 @@ void main() {
     history.deleteSync(recursive: true);
   });
 
+  test('全新安装默认 AWMC，并持久化已解析的数据源', () async {
+    await prefs.clear();
+    await AccountSwitchService.ensureMigrated();
+
+    expect(CurrentDataSourceNotifier.instance.value, RefreshDataSource.awmc);
+    expect(prefs.getString(CacheKeyConstant.lastDataSource), 'awmc');
+    await AccountSwitchService.ensureMigrated();
+    expect(prefs.getString(CacheKeyConstant.lastDataSource), 'awmc');
+  });
+
+  test('缺失来源的旧水鱼活动槽按原归属归档', () async {
+    await prefs.clear();
+    await seed(RefreshDataSource.shuiyu, 16000);
+    await AccountSwitchService.ensureMigrated();
+
+    expect(CurrentDataSourceNotifier.instance.value, RefreshDataSource.shuiyu);
+    expect(prefs.getString(CacheKeyConstant.lastDataSource), 'shuiyu');
+    expect(await AccountStore.hasCache('shuiyu'), isTrue);
+    expect(await AccountStore.hasCache('awmc'), isFalse);
+    expect(prefs.getInt('best50TotalRA'), 16000);
+  });
+
+  test('没有剩余账号时，全部删号流程回到 AWMC', () async {
+    await prefs.clear();
+    await prefs.setString(CacheKeyConstant.lastDataSource, 'shuiyu');
+    await AccountSwitchService.ensureMigrated();
+
+    await AccountDeletionService.deleteAll([]);
+    expect(CurrentDataSourceNotifier.instance.value, RefreshDataSource.awmc);
+    expect(prefs.getString(CacheKeyConstant.lastDataSource), 'awmc');
+  });
+
   for (final source in [RefreshDataSource.luoxue, RefreshDataSource.awmc]) {
     test('首次刷新 ${source.key} 的活动槽为空，原账号与相同 ID 的 Best50 不被覆盖', () async {
       await AccountSwitchService.runRefresh(source, () async {
@@ -114,17 +147,20 @@ void main() {
       await seed(RefreshDataSource.awmc, 13000);
     });
     await started.future;
-    await expectLater(
-        AccountSwitchService.runRefresh(RefreshDataSource.luoxue, () async {}),
-        throwsStateError);
-    expect(await AccountSwitchService.switchTo(RefreshDataSource.shuiyu),
-        SwitchOutcome.busy);
-    await expectLater(
-        UserProfileNotifier.clearShuiyuAccountCache(), throwsStateError);
-    expect(AccountSwitchService.isBusy, isTrue);
-    expect(CurrentDataSourceNotifier.instance.value, RefreshDataSource.awmc);
-    release.complete();
-    await first;
+    try {
+      await expectLater(
+          AccountSwitchService.runRefresh(RefreshDataSource.luoxue, () async {}),
+          throwsA(isA<AccountUpdateBusy>()));
+      expect(await AccountSwitchService.switchTo(RefreshDataSource.shuiyu),
+          SwitchOutcome.busy);
+      await expectLater(UserProfileNotifier.clearShuiyuAccountCache(),
+          throwsA(isA<AccountUpdateBusy>()));
+      expect(AccountSwitchService.isBusy, isTrue);
+      expect(CurrentDataSourceNotifier.instance.value, RefreshDataSource.awmc);
+    } finally {
+      release.complete();
+      await first;
+    }
     expect(prefs.getInt('best50TotalRA'), 13000);
   });
 

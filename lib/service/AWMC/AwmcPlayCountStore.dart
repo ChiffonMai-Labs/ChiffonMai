@@ -142,9 +142,9 @@ class AwmcPlayCountStore {
   static Future<void> _migrateLegacySharedKey(SharedPreferences prefs) async {
     final legacy = prefs.getString(CacheKeyConstant.awmcPlayCountsLegacy);
     if (legacy == null || legacy.isEmpty) return;
-    final source = RefreshDataSource.fromKey(
-      prefs.getString(CacheKeyConstant.lastDataSource),
-    );
+    final key = prefs.get(CacheKeyConstant.lastDataSource);
+    final source = RefreshDataSource.tryFromKey(key is String ? key : null);
+    if (source == null) return;
     final targetKey = _prefsKeyOf(source);
     if (!prefs.containsKey(targetKey)) {
       await prefs.setString(targetKey, legacy);

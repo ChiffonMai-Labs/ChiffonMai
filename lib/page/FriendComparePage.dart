@@ -92,8 +92,8 @@ class _FriendComparePageState extends State<FriendComparePage> {
 
   /// 旧历史没有 friendSource，那时只能比同数据源。
   RefreshDataSource _friendSourceOf(Map<String, dynamic> entry) {
-    final key = entry['friendSource'] as String?;
-    return key == null ? _mySource : RefreshDataSource.fromKey(key);
+    final key = entry['friendSource'];
+    return RefreshDataSource.tryFromKey(key is String ? key : null) ?? _mySource;
   }
 
   @override

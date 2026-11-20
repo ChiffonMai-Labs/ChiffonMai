@@ -33,13 +33,15 @@ void main() {
       expect(RefreshDataSource.awmc.displayName, 'AWMC NET');
     });
 
-    test('fromKey 认得 awmc（切账号要靠它还原数据源）', () {
+    test('保留三个已知来源，空或未知来源默认 AWMC', () {
       expect(RefreshDataSource.fromKey('awmc'), RefreshDataSource.awmc);
       expect(RefreshDataSource.fromKey('luoxue'), RefreshDataSource.luoxue);
       expect(RefreshDataSource.fromKey('shuiyu'), RefreshDataSource.shuiyu);
-      // 未知 / 空按老行为兜底成水鱼
-      expect(RefreshDataSource.fromKey(''), RefreshDataSource.shuiyu);
-      expect(RefreshDataSource.fromKey(null), RefreshDataSource.shuiyu);
+      expect(RefreshDataSource.fromKey(''), RefreshDataSource.awmc);
+      expect(RefreshDataSource.fromKey(null), RefreshDataSource.awmc);
+      expect(RefreshDataSource.fromKey('unknown'), RefreshDataSource.awmc);
+      expect(RefreshDataSource.values.map((source) => source.key),
+          ['awmc', 'shuiyu', 'luoxue']);
     });
 
     test('displayNameOfKey 对未知 key 返回空串，不误标成水鱼', () {

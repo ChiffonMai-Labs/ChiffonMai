@@ -50,10 +50,11 @@ class AccountDeletionService {
 
   static const int _batchConcurrency = 6;
 
-  /// 找出本机保存过身份或凭据的账号，按「水鱼、落雪、AWMC」固定顺序。
+  /// 找出本机保存过身份或凭据的账号，按数据源顺序展示。
   static Future<List<DeletionAccount>> loadAccounts() async {
     final prefs = await SharedPreferences.getInstance();
     final metas = await AccountStore.loadAll();
+    final current = CurrentDataSourceNotifier.instance.value;
     final result = <DeletionAccount>[];
     for (final source in RefreshDataSource.values) {
       var id = metas[source.key]?.id ?? '';
@@ -65,7 +66,9 @@ class AccountDeletionService {
       }
       if (id.isEmpty && source == RefreshDataSource.shuiyu) {
         id = prefs.getString(CacheKeyConstant.probeDivingFishBindQQ)?.trim() ??
-            prefs.getString(CacheKeyConstant.cachedQQ)?.trim() ??
+            (current == source
+                ? prefs.getString(CacheKeyConstant.cachedQQ)?.trim()
+                : null) ??
             '';
       }
       if (id.isEmpty && source == RefreshDataSource.awmc) {
@@ -136,11 +139,10 @@ class AccountDeletionService {
       CacheKeyConstant.commentDataSource,
       CacheKeyConstant.commentOriginalId,
       CacheKeyConstant.commentNickname,
-      CacheKeyConstant.lastDataSource,
     ]) {
       await prefs.remove(key);
     }
-    await CurrentDataSourceNotifier.instance.set(RefreshDataSource.shuiyu);
+    await CurrentDataSourceNotifier.instance.set(RefreshDataSource.defaultSource);
     return report;
   }
 

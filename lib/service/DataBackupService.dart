@@ -8,7 +8,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../constant/CacheKeyConstant.dart';
 import '../manager/DivingFish/MaimaiMusicDataManager.dart';
-import '../utils/CurrentDataSourceNotifier.dart';
 import '../utils/FavoriteFeaturesNotifier.dart';
 import '../utils/LoginStateNotifier.dart';
 import '../utils/SyncRouteNotifier.dart';
@@ -23,6 +22,7 @@ import '../utils/RatingSegmentPreferences.dart';
 import '../utils/SongDetailPreferences.dart';
 import '../utils/AppLanguagePreferences.dart';
 import '../utils/ConfettiPreferences.dart';
+import 'AccountSwitchService.dart';
 import 'History/ChartHistoryStore.dart';
 import 'RankTable/RankCompletionStore.dart';
 import 'NextPlayQueueStore.dart';
@@ -564,9 +564,9 @@ class DataBackupService {
     // 账号身份 / 主题 / 星标 / 昵称 / 线路。
     await ThemeManager().loadThemePreference();
     await FavoriteFeaturesNotifier.load();
+    await AccountSwitchService.ensureMigrated();
     await LoginStateNotifier.load();
     await UserProfileNotifier.load();
-    await CurrentDataSourceNotifier.load();
     await CommunityAvatarStore.instance.activate();
 
     // 曲库：内存里可能还留着恢复前的旧列表，必须先丢。
