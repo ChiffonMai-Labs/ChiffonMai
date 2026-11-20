@@ -65,7 +65,7 @@ Guideline 5.1.1(v) 的前提是「App 支持创建账号」。本 App **不创�
 - [ ] 确认归档内包含隐私清单（`PrivacyInfo.xcprivacy`，UserDefaults / 文件时间戳等 required-reason API）；仓库当前没有该文件，需新增并随包提交。
 - [ ] 用户协议四语点名 SEGA、关于页补「与 SEGA 无隶属关系」，并给三份许可证文件加入口（见 B6）。
 - [ ] 关于页增加 Flutter 开源许可页（`showLicensePage`），并给 Font Awesome（CC BY 4.0）补署名；目前全 App 没有许可页。
-- [ ] 隐私政策第三方清单补 Google Fonts（`fonts.gstatic.com`，启动时下载字体），并把 api.wmc.pub、下载/镜像域、外部地图、TestFlight 等实际流量补全；核对 status.awmc.cc 是否真的被请求。
+- [ ] 隐私政策第三方清单补 Google Fonts（`fonts.gstatic.com`，启动时下载字体），并把 api.wmc.pub、下载/镜像域、外部地图、TestFlight 等实际流量补全。
 - [ ] 补 `NSHumanReadableCopyright`（可选，但建议）。
 - [ ] 评估 4.8：登录身份来自第三方平台（水鱼密码、落雪 OAuth）。若被追问，说明这是外部平台账号而非 App 自建账号；被要求时再接 Sign in with Apple。
 - [ ] ATS 目前 `NSAllowsArbitraryLoads=true`，业务全为 HTTPS，可保留；被追问时说明为兼容第三方资源域。
@@ -135,7 +135,8 @@ ChiffonMai 是面向街机音游《舞萌 DX》（maimai DX）玩家的第三方
 | 落雪咖啡屋 maimai.lxns.net | 落雪授权、成绩读取与上传、曲目/收藏品/资源 | OAuth 授权码与令牌、好友代码、成绩、资源 ID |
 | AWMC NET net.wmc.pub | AWMC NET 成绩读取与上传、谱面资源 | QQ、导入 Token、成绩、谱面 ID |
 | maimai Score Hub maimai.bakapiano.com | 扫码登录、成绩图片 OCR、成绩读取 | 登录令牌、玩家标识、结算画面照片 |
-| DXRating.net（含 miruku / shama 资源域） | 曲库、标签、别名、曲绘索引与图片 | 资源请求 |
+| DXRating.net（含 miruku / shama 资源域） | 定数历史、全局标签、备用曲绘 | 资源请求 |
+| AWMC 谱面服务及公开 CDN | 社区别名、歌曲详情的谱面标签、曲绘 | 公开资源请求 |
 | Union（godserver.cn） | 曲目与地区元数据 | 资源请求 |
 | Yuri-YuzuChaN 别名数据（yuzuchan.moe） | 歌曲别名 | 资源请求 |
 | AWMC 图鉴与资源（api.wmc.pub、download.wmc.pub、v.wmc.pub） | 收藏品、谱面与音源资源 | 资源 ID 请求 |
@@ -144,7 +145,7 @@ ChiffonMai 是面向街机音游《舞萌 DX》（maimai DX）玩家的第三方
 | 系统地图（Apple Maps / 高德 / Google Maps） | 点击机厅后的外部导航 | 目的地坐标 |
 | 百度翻译（经后端） | 界面外文本翻译 | 待翻译文本与语言 |
 | 哔哩哔哩 | 谱面相关视频搜索与打开 | 搜索词、视频 ID |
-| isMaiDown、status.awmc.cc | 舞萌服务器状态 | 状态查询 |
+| isMaiDown | 舞萌服务器状态 | 状态查询 |
 | Google Fonts（fonts.googleapis.com / gstatic） | 运行时下载字体 | 字体资源请求 |
 | GitHub Releases / API、gh-proxy.com、ghfast.top、蓝奏云、TestFlight | 版本检查、Android 安装包下载与 iOS 测试版入口 | 版本查询、下载请求 |
 | 爱发电、微信赞赏码、QQ、问卷、画加、B 站、Gitee | 赞助与外部链接 | 浏览器打开链接 / 扫码 |
@@ -213,7 +214,7 @@ App 完全免费，无内购、订阅、会员、广告与追踪。唯一涉及�
 
 **Access**: Most features need no account. For personalized features use the demo account `{{DEMO_ACCOUNT}}` / `{{DEMO_PASSWORD}}`: Profile → Bindings & Authorization → Diving Fish → sign in → Profile → Pull scores and refresh data → confirm. Then open any song → Community to rate/comment. Accounts are free third-party score trackers; in-app "Account registration guide" walks through sign-up.
 
-**External services**: chiffonmai.cloud (own backend: OAuth proxy, public chart proxy, comments, rankings, announcements, auto-sync, translation proxy); Diving Fish; LXNS; AWMC NET; maimai Score Hub (includes score-photo OCR); DXRating.net; Union; YuzuChaN aliases; NearCade; AMap tiles; Baidu Translate (via backend); Bilibili; isMaiDown/status.awmc.cc; Google Fonts; GitHub Releases. Details and data types: B4.
+**External services**: chiffonmai.cloud (own backend: OAuth proxy, public chart proxy, comments, rankings, announcements, auto-sync, translation proxy); Diving Fish; LXNS; AWMC NET; maimai Score Hub (includes score-photo OCR); DXRating.net; AWMC chart tags, community aliases and covers; Union; YuzuChaN fallback aliases; NearCade; AMap tiles; Baidu Translate (via backend); Bilibili; isMaiDown; Google Fonts; GitHub Releases. Details and data types: B4.
 
 **Regional differences**: UI in Simplified/Traditional Chinese, English and Japanese, following the system language. No region lock. Data keeps separate CN/JP releases and dates; accounts are mainly CN-side; AMap tiles may be slower abroad. iOS updates via App Store/TestFlight.
 

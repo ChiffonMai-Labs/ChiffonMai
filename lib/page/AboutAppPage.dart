@@ -74,15 +74,15 @@ class _AboutAppPageState extends State<AboutAppPage> {
   static const List<_Credit> _dataCredits = [
     _Credit('水鱼查分器', '提供曲目数据库和玩家游玩记录数据库',
         'https://www.diving-fish.com/maimaidx/prober/'),
-    _Credit('DXRating.net', '提供谱面标签数据库和别名数据库', 'https://dxrating.net'),
+    _Credit('AWMC', '提供别名数据库', 'https://v.wmc.pub/'),
+    _Credit('AWMC MaiArchive', '曲绘', 'https://download.wmc.pub/'),
+    _Credit('DXRating.net', '定数历史', 'https://dxrating.net'),
     _Credit('Yuri-YuzuChaN', '提供别名数据库',
         'https://github.com/Yuri-YuzuChaN/maimaiDX'),
     _Credit(
         '落雪咖啡屋', '提供收藏品数据库、歌曲音源支持、曲目数据库和玩家游玩记录数据库', 'https://maimai.lxns.net'),
     _Credit('Neskol', '提供谱面转换支持',
         'https://github.com/Neskol/Maichart-Converts/tree/master'),
-    _Credit('status.awmc.cc', '提供舞萌服务器状态信息',
-        'https://status.awmc.cc/status/maimai'),
     _Credit('mai.chongxi.us', '提供舞萌服务器状态信息', 'https://mai.chongxi.us/'),
     _Credit('AWMC NET', '提供水鱼查分器同步支持、落雪查分器同步支持和对本项目开发的经济支持',
         'https://net.wmc.pub/'),

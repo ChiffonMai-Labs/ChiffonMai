@@ -345,8 +345,9 @@ ChiffonMai 免费、无广告、不接入统计 SDK。赞助用于服务器开�
 ### 数据与服务
 
 - **水鱼查分器**：提供曲目数据库和玩家游玩记录数据库。[官网](https://www.diving-fish.com/maimaidx/prober/)
-- **DXRating.net**：提供谱面标签数据库和别名数据库。[官网](https://dxrating.net)
-- **Yuri-YuzuChaN**：提供别名数据库。[项目地址](https://github.com/Yuri-YuzuChaN/maimaiDX)
+- **DXRating.net** 提供定数历史、全局标签和备用曲绘。[官网](https://dxrating.net)
+- **AWMC** 提供社区歌曲别名、歌曲详情的谱面标签和曲绘。[谱面预览](https://v.wmc.pub/) · [曲绘与谱面目录](https://download.wmc.pub/)
+- **Yuri-YuzuChaN** 提供备用别名数据库。[项目地址](https://github.com/Yuri-YuzuChaN/maimaiDX)
 - **落雪咖啡屋**：提供收藏品数据库、歌曲音源支持、曲目数据库和玩家游玩记录数据库。[官网](https://maimai.lxns.net)
 - **Neskol**：提供谱面转换支持。[项目地址](https://github.com/Neskol/Maichart-Converts/tree/master)
 - **AWMC NET**：提供水鱼查分器同步支持、落雪查分器同步支持和对本项目开发的经济支持。[官网](https://net.wmc.pub/)
@@ -356,7 +357,6 @@ ChiffonMai 免费、无广告、不接入统计 SDK。赞助用于服务器开�
 - **NearCade**：提供全球机厅相关数据。[官网](https://nearcade.cn/)
 - **全国音游地图**：提供国内机厅相关数据。[官网](https://map.bemanicn.com/)
 - **AWMC KALEIDXSCOPE**：提供 KALEIDXSCOPE 门数据。[官网](https://kaleidxscope.awmc.team/)
-- **status.awmc.cc**：提供舞萌服务器状态信息。[服务地址](https://status.awmc.cc/status/maimai)
 - **mai.chongxi.us**：提供舞萌服务器状态信息（应用当前实际接口）。[服务地址](https://mai.chongxi.us/)
 - **SilentBlue.RemyWiki**：提供高清版本图片。[官网](https://silentblue.remywiki.com/Main_Page)
 - **simai_flutter · Project Fukakai**：提供谱面解析和播放器，采用 MIT 许可证；谱面引擎部分改编自 maimai-chart-engine（MIT）。[项目地址](https://github.com/Project-Fukakai/simai_flutter) · [许可证](assets/legal/simai_flutter_MIT.txt) · [第三方声明](assets/legal/simai_flutter_THIRD_PARTY_NOTICES.md)

@@ -62,6 +62,8 @@ Code contributions: open an issue first, work on a branch, keep `flutter analyze
 
 Creator and community credits are listed in the [Chinese README](README.md#特别致谢), together with data sources and open-source components.
 
+[AWMC Chart Preview](https://v.wmc.pub/) supplies community aliases and chart detail tags. [AWMC MaiArchive](https://download.wmc.pub/) supplies cover art. DXRating supplies rating history, global tags and fallback covers.
+
 Project code is [MIT licensed](LICENSE). Bundled third-party components, fonts and data keep their own licenses — see [simai_flutter MIT](assets/legal/simai_flutter_MIT.txt), [third-party notices](assets/legal/simai_flutter_THIRD_PARTY_NOTICES.md) and [Outfit OFL](assets/legal/outfit_OFL.txt).
 
 ChiffonMai is not affiliated with SEGA. Game names, trademarks, artwork, audio and charts belong to their respective owners. APP registration: 津ICP备2024015256号-3A.

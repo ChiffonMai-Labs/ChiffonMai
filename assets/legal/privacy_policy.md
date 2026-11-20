@@ -86,12 +86,12 @@
 
 - **[水鱼查分器](https://www.diving-fish.com/maimaidx/prober/)、[落雪咖啡屋](https://maimai.lxns.net/)、[AWMC NET](https://net.wmc.pub/)：** 处理您选择的账号标识、授权或导入凭据、查询条件及待上传成绩，提供账号验证、成绩查询与同步。
 - **[maimai Score Hub](https://maimai.bakapiano.com/)：** 处理扫码登录和同步所需的账号信息、游戏玩家标识、登录令牌，以及您提交的成绩照片，提供相应的授权、成绩读取或图片识别服务。
-- **[DXRating.net](https://dxrating.net/)、[Union](https://union.godserver.cn/)、[Yuri-YuzuChaN 的别名数据](https://github.com/Yuri-YuzuChaN/maimaiDX)：** 接收曲库、标签、别名或曲绘等公开资料的资源请求。本应用不为获取这些公开资料而向其提交您的成绩同步凭据。
+- **[AWMC 谱面预览](https://v.wmc.pub/)、[AWMC 曲绘](https://download.wmc.pub/)、[DXRating.net](https://dxrating.net/)、[Union](https://union.godserver.cn/)、[Yuri-YuzuChaN 的别名数据](https://github.com/Yuri-YuzuChaN/maimaiDX)：** 接收曲库、标签、别名或曲绘等公开资料的资源请求。本应用不为获取这些公开资料而向其提交您的成绩同步凭据。
 - **落雪咖啡屋的资源服务及 AWMC NET 的谱面资源服务：** 接收曲绘、音源、装扮或谱面的资源标识，用于下载和播放相关资料。
 - **[NearCade](https://nearcade.cn/) 与[高德地图](https://www.amap.com/)的地图资源服务：** 接收机厅资料查询或所浏览区域的地图资源请求，提供机厅资料及地图显示。外部导航由您选择的地图应用提供。
 - **[百度翻译](https://fanyi-api.baidu.com/)：** 经本应用服务端接收待翻译文本、来源语言及目标语言，提供文本翻译。
 - **[哔哩哔哩](https://www.bilibili.com/)：** 在您使用视频搜索或打开相关内容时接收搜索词、视频标识及对应网络请求；跳转后的信息处理适用其规则。
-- **[isMaiDown](https://mai.chongxi.us/) 与 [status.awmc.cc](https://status.awmc.cc/status/maimai)：** 接收服务状态查询请求，提供舞萌服务器状态信息。
+- **[isMaiDown](https://mai.chongxi.us/)：** 接收服务状态查询请求，提供舞萌服务器状态信息。
 
 本应用使用 Flutter 的系统功能插件实现安全存储、相册和文件选择、图片拍摄与扫码、定位、网络状态及媒体播放。相关组件按您使用的功能调用系统接口，不因安装应用而取得所有权限。系统安全存储由 flutter_secure_storage 调用；图片选择与扫码由 image_picker、mobile_scanner 等组件实现；定位由 geolocator 实现；媒体播放由 just_audio、audio_service、audioplayers 等组件实现。
 
