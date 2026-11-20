@@ -262,6 +262,29 @@ void main() {
     expect(await service.registration(SyncPlatform.awmc), isNull);
   });
 
+  test('注销没有本机管理令牌的机台身份时可以查询服务端任务', () async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(CacheKeyConstant.accountStore, jsonEncode({
+      'awmc': {'source': 'awmc', 'id': '12345672', 'hasData': false},
+    }));
+    await SecureCredentialStore.write(
+        CacheKeyConstant.awmcNetImportToken, 'synthetic-user-credential');
+    await AwmcQuickIdentityStore.write(12345);
+    final recovered = <Object?>[];
+    ApiClient.debugClient = MockClient((request) async {
+      expect(request.url.path, '/api/auto-sync/task/recover');
+      final body = jsonDecode(request.body) as Map;
+      expect(body['userId'], 12345);
+      recovered.add(body['platform']);
+      return http.Response('{"error":"task_not_found"}', 404);
+    });
+
+    await AwmcQuickIdentityStore.forget();
+
+    expect(recovered, ['awmc']);
+    expect(await AwmcQuickIdentityStore.read(), isNull);
+  });
+
   test('登出前撤销失败时，不清除本机账号凭据', () async {
     await enable();
     failDelete = true;

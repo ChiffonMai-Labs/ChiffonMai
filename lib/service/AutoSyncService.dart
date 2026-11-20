@@ -603,7 +603,7 @@ class AutoSyncService {
     try {
       final account =
           await AwmcQuickSyncService.accountFor(platform, requireData: false);
-      final userId = await AwmcQuickIdentityStore.read();
+      final userId = await AwmcQuickIdentityStore.readForTaskRecovery();
       if (userId == null) return null;
       final task = await _recoverTask(
           platform: platform,

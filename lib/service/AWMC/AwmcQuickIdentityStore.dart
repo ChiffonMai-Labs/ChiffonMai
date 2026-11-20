@@ -43,7 +43,7 @@ class AwmcQuickIdentityStore {
     _linked.value = true;
   }
 
-  static Future<int?> _sharedId(Map<String, dynamic> data) async {
+  static int? _idFrom(Map<String, dynamic> data) {
     if (data.containsKey('userId')) return _validId(data['userId']);
     // 兼容旧的逐源缓存。旧记录有不同身份时不猜测，重新扫一次二维码即可统一。
     final ids = data.values
@@ -51,11 +51,17 @@ class AwmcQuickIdentityStore {
         .map((item) => _validId(item['userId']))
         .whereType<int>()
         .toSet();
-    if (ids.length != 1) return null;
-    final id = ids.single;
-    await _save(id);
+    return ids.length == 1 ? ids.single : null;
+  }
+
+  static Future<int?> _sharedId(Map<String, dynamic> data) async {
+    final id = _idFrom(data);
+    if (id != null && !data.containsKey('userId')) await _save(id);
     return id;
   }
+
+  /// 撤销共用身份时可能需要先找回自动任务，只读已保存的身份以避免等待正在撤销的事务。
+  static Future<int?> readForTaskRecovery() async => _idFrom(await _read());
 
   static Future<int?> read() async {
     await _writes;
