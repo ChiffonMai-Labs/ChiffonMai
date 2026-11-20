@@ -190,26 +190,31 @@ void main() {
   });
 
   test('三个自动同步共用 userId，分别提交个人 key，不要求缓存本机成绩', () async {
-    const sources = ['shuiyu', 'luoxue', 'awmc'];
-    const keys = [
-      CacheKeyConstant.probeDivingFishImportToken,
-      CacheKeyConstant.probeLxnsImportToken,
-      CacheKeyConstant.awmcNetImportToken
-    ];
+    const credentials = {
+      SyncPlatform.divingFish: CacheKeyConstant.probeDivingFishImportToken,
+      SyncPlatform.luoXue: CacheKeyConstant.probeLxnsImportToken,
+      SyncPlatform.awmc: CacheKeyConstant.awmcNetImportToken,
+    };
+    const accountIds = {
+      SyncPlatform.divingFish: '12345670',
+      SyncPlatform.luoXue: '12345671',
+      SyncPlatform.awmc: '12345672',
+    };
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(
         CacheKeyConstant.accountStore,
         jsonEncode({
-          for (var i = 0; i < 3; i++)
-            sources[i]: {
-              'source': sources[i],
-              'id': '1234567$i',
+           for (final entry in accountIds.entries)
+             AwmcQuickSyncService.sourceOf(entry.key).key: {
+               'source': AwmcQuickSyncService.sourceOf(entry.key).key,
+               'id': entry.value,
               'hasData': false
             },
         }));
     await AwmcQuickIdentityStore.write(12345);
-    for (var i = 0; i < 3; i++) {
-      await SecureCredentialStore.write(keys[i], 'personal-key-$i');
+    for (final entry in credentials.entries) {
+      await SecureCredentialStore.write(
+          entry.value, 'personal-key-${entry.key.key}');
     }
     final payloads = <Map>[];
     ApiClient.debugClient = MockClient((request) async {
@@ -230,9 +235,9 @@ void main() {
     }
     expect(payloads.map((p) => p['userId']), [12345, 12345, 12345]);
     expect(payloads.map((p) => p['credential']),
-        ['personal-key-0', 'personal-key-1', 'personal-key-2']);
+        SyncPlatform.values.map((platform) => 'personal-key-${platform.key}'));
     expect(payloads.map((p) => p['accountId']),
-        ['12345670', '12345671', '12345672']);
+        SyncPlatform.values.map((platform) => accountIds[platform]));
   });
 
   test('删除共用凭据前关闭全部任务；服务不可用时保留凭据以便重试', () async {

@@ -119,7 +119,9 @@ class SyncStatsView {
 
   /// 详情弹窗：所有槽位的耗时与成功率（按线路分组）。
   static Future<void> showDetail(BuildContext context) async {
-    final stats = await SyncStatsService.loadMany(SyncStatsService.allSlots);
+    const slots = SyncStatsService.allSlots;
+    final lines = slots.map((slot) => slot.$1).toSet();
+    final stats = await SyncStatsService.loadMany(slots);
     if (!context.mounted) return;
 
     await showDialog<void>(
@@ -142,27 +144,24 @@ class SyncStatsView {
                 const SizedBox(height: 12),
                 // 按 SyncLine 分组、组内平台取自 allSlots 而不是叉乘：
                 // 二维码直传没有线路，叉乘会多出一堆永远「暂无记录」的行。
-                for (final line in SyncLine.values)
-                  if (_hasSlotFor(line)) ...[
-                    Text(
-                      line == SyncLine.quick
-                          ? line.label
-                          : context.l10n
-                              .flowNormalSyncP0((line.label).toString()),
-                      style: const TextStyle(
-                          fontSize: 13, fontWeight: FontWeight.w700),
-                    ),
-                    const SizedBox(height: 4),
-                    for (final (slotLine, platform)
-                        in SyncStatsService.allSlots)
-                      if (slotLine == line)
-                        _row(
-                          ctx,
-                          platform.label,
-                          stats[SyncStatsService.slotOf(line, platform)],
-                        ),
-                    const SizedBox(height: 10),
-                  ],
+                for (final line in lines) ...[
+                  Text(
+                    line == SyncLine.quick
+                        ? line.label
+                        : context.l10n.flowNormalSyncP0(line.label),
+                    style: const TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 4),
+                  for (final (slotLine, platform) in slots)
+                    if (slotLine == line)
+                      _row(
+                        ctx,
+                        platform.label,
+                        stats[SyncStatsService.slotOf(line, platform)],
+                      ),
+                  const SizedBox(height: 10),
+                ],
               ],
             ),
           ),
@@ -176,9 +175,6 @@ class SyncStatsView {
       },
     );
   }
-
-  static bool _hasSlotFor(SyncLine line) =>
-      SyncStatsService.allSlots.any((slot) => slot.$1 == line);
 
   static Widget _row(BuildContext context, String name, SyncStats? stats) {
     final scheme = Theme.of(context).colorScheme;

@@ -32,11 +32,11 @@ enum SyncLine {
 
 /// 同步目标平台。
 enum SyncPlatform {
-  divingFish(key: 'fish', label: '水鱼'),
-  luoXue(key: 'lx', label: '落雪'),
-
   /// AWMC NET 查分器（支持二维码直传与快速同步）。
-  awmc(key: 'awmc', label: 'AWMC NET');
+  awmc(key: 'awmc', label: 'AWMC NET'),
+
+  divingFish(key: 'fish', label: '水鱼'),
+  luoXue(key: 'lx', label: '落雪');
 
   const SyncPlatform({required this.key, required this.label});
 
@@ -251,15 +251,15 @@ class SyncStatsService {
   ///
   /// 普通同步保留原来的五个槽位，快速同步按目标源各自保留近 100 次。
   static const List<SyncSlot> allSlots = [
-    (SyncLine.scoreHub, SyncPlatform.divingFish),
-    (SyncLine.scoreHub, SyncPlatform.luoXue),
-    (SyncLine.awmc, SyncPlatform.divingFish),
-    (SyncLine.awmc, SyncPlatform.luoXue),
     // 机台二维码直传 → AWMC NET（30 多秒一次，单列一项）
     (SyncLine.direct, SyncPlatform.awmc),
+    (SyncLine.awmc, SyncPlatform.divingFish),
+    (SyncLine.awmc, SyncPlatform.luoXue),
+    (SyncLine.scoreHub, SyncPlatform.divingFish),
+    (SyncLine.scoreHub, SyncPlatform.luoXue),
+    (SyncLine.quick, SyncPlatform.awmc),
     (SyncLine.quick, SyncPlatform.divingFish),
     (SyncLine.quick, SyncPlatform.luoXue),
-    (SyncLine.quick, SyncPlatform.awmc),
   ];
 
   /// 槽位名：`<line>:<platform>`（就是 Redis 键去掉前缀的部分）。

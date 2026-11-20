@@ -28,7 +28,7 @@ import 'SyncDialogUi.dart';
 import '../utils/AppDesignTokens.dart';
 import '../utils/AppTheme.dart';
 
-/// 已确认具备凭据的同步目标；顺序由执行器固定为水鱼 → 落雪 → AWMC NET。
+/// 已确认具备凭据的同步目标，由执行器按 AWMC NET → 水鱼 → 落雪依次执行。
 class MultiScoreSyncInput {
   final String qrCode;
   final bool quickUpdate;
