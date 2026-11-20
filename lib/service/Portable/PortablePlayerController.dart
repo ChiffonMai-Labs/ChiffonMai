@@ -31,6 +31,7 @@ import 'package:just_audio_background/just_audio_background.dart';
 
 import '../../entity/Portable/PortableSong.dart';
 import '../DxRatingCoverService.dart';
+import '../AwmcCoverService.dart';
 import 'PortableAudioCache.dart';
 import 'CachedSongAudioSource.dart';
 import '../SongMediaCache.dart';
@@ -462,6 +463,7 @@ class PortablePlayerController extends ChangeNotifier {
 
   /// 取通知栏曲绘的**本地缓存文件路径**，没有就下载一次。
   Future<String?> _cachedArtPath(PortableSong song) async {
+    await AwmcCoverService.instance.ensureLoaded();
     final url = _notificationArtUri(song);
     try {
       final file = await DefaultCacheManager()
@@ -872,17 +874,15 @@ class PortablePlayerController extends ChangeNotifier {
   }
 }
 
-/// 通知栏曲绘 URL。
+/// 通知栏需要网络地址。读取已有的 AWMC 和旧索引，最终回到水鱼曲绘。
 ///
-/// 必须是网络 URL（Android 通知栏取不到 Flutter assets）。优先 dxrating：
-/// 索引里有映射时（实测覆盖 99.8%）图只有 14~32KB 且走磁盘缓存，
-/// 而水鱼 covers 是 240~300KB。索引没就绪就回落到水鱼 covers。
-///
-/// ⚠️ 水鱼 covers 的命名是**规范水鱼 id 左补零到 5 位**，不能用音源 id
-/// （宴会场两者不同，见 [PortableSong.coverNetworkId]）。
 String _notificationArtUri(PortableSong song) {
   try {
-    DxRatingCoverService.instance.ensureLoaded();
+    final awmc = AwmcCoverService.instance;
+    unawaited(awmc.ensureLoaded());
+    final cover = awmc.coverUrlFor(song.divingFishId);
+    if (cover != null) return cover;
+    unawaited(DxRatingCoverService.instance.ensureLoaded(allowNetwork: false));
     final dxUrl = DxRatingCoverService.instance.coverUrlFor(song.divingFishId);
     if (dxUrl != null && dxUrl.isNotEmpty) return dxUrl;
   } catch (e) {

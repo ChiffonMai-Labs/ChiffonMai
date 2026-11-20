@@ -10,20 +10,13 @@
  *   - 6 位：剔除前两位及其后面连续的 '0'，直到遇到第一个非 '0' 数字
  *           例: 121634 → 1634, 110234 → 234, 100034 → 34
  *
- * 网络 fallback（本地资源全都找不到时）：
- *   1. diving-fish：`https://www.diving-fish.com/covers/{coverId}.png`
- *   2. dxrating（shama）：`songId → dxdata.imageName → /images/cover/v2/{imageName}.jpg`
- *      带磁盘缓存，见 [DxRatingCoverImage] / `DxRatingCoverService`
- *   3. `assets/cover/0.webp`（默认曲绘）
- *
- * ⚠️ 第 2 条是 2026-09 新增的兜底：水鱼的 DX 条目 id 是 `10000 + 基础 id`
- * （如 `10030`），第 1 条的 URL 规则会拼成 `10030.png` → **404**，
- * 必须靠第 2 条（它按基础 id 归一化后再查 imageName）才出得来图。
+ * 本地资源缺失时，曲绘组件依次尝试水鱼、AWMC、旧曲绘索引和默认图。
  */
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
+import '../service/AwmcCoverService.dart';
 import '../service/DxRatingCoverService.dart';
 import '../widgets/DxRatingCoverImage.dart';
 import '../widgets/ImageLoadingIndicator.dart';
@@ -173,19 +166,8 @@ class CoverUtil {
   // 曲绘资源解析（供 ImageProvider / 视频导出等需要真实可加载资源处使用）
   // ===========================================================================
 
-  /// 解析曲绘的 [ImageProvider]，采用与 [buildCoverWidget] 一致的多级 fallback：
-  /// 原始 songId → 本地主路径 → 备用路径1 → 备用路径2 → dxrating / 网络曲绘。
-  ///
-  /// 本地路径通过 [rootBundle.load] 实际探测是否存在，命中即返回 [AssetImage]；
-  /// 否则回退到网络曲绘（[NetworkImage]），与歌曲详情页的行为一致。
-  ///
-  /// 网络这一段只能选一个 provider（拿不到加载失败的信息），所以优先用 dxrating：
-  /// 曲绘索引里有映射时它几乎必定命中（实测覆盖 99.8%），图还小得多
-  /// （14~32 KB vs diving-fish 的 240~300 KB）且走磁盘缓存。
-  /// 索引没就绪 / 没这首歌 → 回落到原来的 diving-fish，行为与改动前一致。
-  ///
-  /// ⚠️ 这里**不 await** 索引加载：dxdata 有 4MB，首次拉取可能很慢，
-  /// 不能拖住调用方（如 ChartPlayPage 的页面初始化 / 猜歌翻牌）。
+  /// 优先加载本地曲绘，单一 ImageProvider 的网络候选取 AWMC、旧曲绘索引或水鱼。
+  /// 索引只读随包或已有文件，避免在谱面播放器初始化时下载目录。
   static Future<ImageProvider> resolveCoverProvider(String songId) async {
     final localCandidates = <String>[
       buildCoverPath(songId),
@@ -201,12 +183,14 @@ class CoverUtil {
         // 本地资源不存在，继续尝试下一条候选路径
       }
     }
-    // 网络兜底：先在后台把索引补齐（不阻塞本次），这一轮能命中就先用 dxrating
-    DxRatingCoverService.instance.ensureLoaded();
-    final dxUrl = DxRatingCoverService.instance.coverUrlFor(songId);
-    if (dxUrl != null) {
+    final awmc = AwmcCoverService.instance;
+    await awmc.ensureLoaded();
+    final legacy = DxRatingCoverService.instance;
+    await legacy.ensureLoaded(allowNetwork: false);
+    final coverUrl = awmc.coverUrlFor(songId) ?? legacy.coverUrlFor(songId);
+    if (coverUrl != null) {
       return CachedNetworkImageProvider(
-        dxUrl,
+        coverUrl,
         cacheManager: dxRatingCoverCacheManager,
       );
     }
@@ -219,7 +203,7 @@ class CoverUtil {
 
   /// 多级 fallback 链（两个公开方法共用一份，别再各抄一份嵌套 errorBuilder）。
   ///
-  /// 顺序：原始路径 → 主路径 → 备用1 → 备用2 → diving-fish → dxrating → 默认曲绘。
+  /// 顺序：原始路径 → 主路径 → 备用1 → 备用2 → 水鱼 → AWMC → 旧曲绘索引 → 默认曲绘。
   static Widget _buildFallbackChain(String songId, double size) {
     // 原图 256×256。按导出用的 3 倍清晰度解码，小曲绘的列表省下大半解码量，
     // 导出图和高分屏也不会变糊；放大显示时仍用原图。
@@ -254,7 +238,7 @@ class CoverUtil {
                               ? child
                               : const ImageLoadingIndicator(),
                       errorBuilder: (context, error, stackTrace) {
-                        // 新增：dxrating 兜底（自带磁盘缓存 + 默认曲绘兜底）
+                        // AWMC 曲绘和旧缓存的网络兜底。
                         return DxRatingCoverImage(songId: songId);
                       },
                     );
@@ -276,7 +260,7 @@ class CoverUtil {
   /// 3. 本地备用路径1
   /// 4. 本地备用路径2
   /// 5. 网络加载（diving-fish）
-  /// 6. dxrating（shama，带磁盘缓存）
+  /// 6. AWMC 和旧索引（带磁盘缓存）
   /// 7. 默认曲绘 0.webp
   static Widget buildCoverWidget(String songId, double size) {
     return Container(
