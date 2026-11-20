@@ -182,7 +182,12 @@ class FeatureRegistry {
           title: '账号与授权',
           subtitle: '管理账号与数据源登录状态',
           icon: Icons.manage_accounts_outlined,
-          titles: ['账号注册引导', '成绩导入凭据', '切换账号', '绑定与授权管理', '删除账号']),
+          titles: ['绑定与授权管理', '切换账号', '账号注册引导', '成绩导入凭据', '删除账号']),
+      FeatureSection(
+          title: '单平台同步',
+          subtitle: '分别同步成绩到各查分器',
+          icon: Icons.cloud_sync_outlined,
+          titles: ['同步成绩到 AWMC NET', '同步成绩到水鱼', '同步成绩到落雪']),
       FeatureSection(
           title: '数据刷新',
           subtitle: '更新成绩缓存与机台游玩次数',
@@ -192,11 +197,6 @@ class FeatureRegistry {
             '刷新机台游玩次数',
             cabinetAppearanceTitle,
           ]),
-      FeatureSection(
-          title: '单平台同步',
-          subtitle: '分别同步成绩到各查分器',
-          icon: Icons.cloud_sync_outlined,
-          titles: ['同步成绩到水鱼', '同步成绩到落雪', '同步成绩到 AWMC NET']),
       FeatureSection(
           title: '批量与定时同步',
           subtitle: '多端同步与自动同步',

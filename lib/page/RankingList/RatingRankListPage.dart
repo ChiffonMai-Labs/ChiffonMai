@@ -41,11 +41,7 @@ class _RatingRankListPageState extends State<RatingRankListPage> {
   ///
   /// 抽成列表是为了**加源时不用改逻辑**：`_tabNames` 与它一一对应，
   /// `_loadRankings` 按下标取源，不再写死 1→水鱼 / 2→落雪 的 switch。
-  static const List<RefreshDataSource> _tabSources = [
-    RefreshDataSource.shuiyu,
-    RefreshDataSource.luoxue,
-    RefreshDataSource.awmc,
-  ];
+  static const _tabSources = RefreshDataSource.values;
 
   /// Tab 标题。第 0 个是跨源总榜，其余按 [_tabSources] 的**短名**生成。
   ///

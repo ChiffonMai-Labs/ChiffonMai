@@ -9,9 +9,9 @@ import '../constant/CacheKeyConstant.dart';
 /// 原先定义在 RefreshDataDialog.dart 里；双账号系统需要在 service 层引用它，
 /// 所以抽到这里，RefreshDataDialog 内 export 出去，保持既有 import 不变。
 enum RefreshDataSource {
+  awmc,
   shuiyu,
-  luoxue,
-  awmc;
+  luoxue;
 
   /// 持久化用的键（写入 `last_data_source`）。
   String get key => name;

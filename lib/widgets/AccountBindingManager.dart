@@ -18,12 +18,12 @@ import 'AppDialogs.dart';
 
 /// 「绑定与授权管理」管理的目标。
 enum AccountBindingTarget {
+  awmc,
+  cabinet,
   scoreHub,
   divingFish,
   divingFishAuth,
-  lxns,
-  awmc,
-  cabinet
+  lxns
 }
 
 extension AccountBindingTargetState on AccountBindingTarget {
@@ -195,7 +195,7 @@ class StatusChipRow extends StatelessWidget {
       );
 }
 
-/// 「成绩导入凭据」按钮下方的三个状态标签：水鱼 / 落雪 / AWMC NET。
+/// 「成绩导入凭据」按钮下方的三个数据源状态标签。
 /// 凭据写入或删除后由 [SecureCredentialStore.revision] 触发重新读取。
 class ImportCredentialStatusFooter extends StatefulWidget {
   const ImportCredentialStatusFooter({super.key});
@@ -207,12 +207,12 @@ class ImportCredentialStatusFooter extends StatefulWidget {
 
 class _ImportCredentialStatusFooterState
     extends State<ImportCredentialStatusFooter> {
-  static const _keys = [
-    CacheKeyConstant.probeDivingFishImportToken,
-    CacheKeyConstant.probeLxnsImportToken,
-    CacheKeyConstant.awmcNetImportToken,
-  ];
-  List<bool> _saved = const [false, false, false];
+  static const _keys = {
+    RefreshDataSource.awmc: CacheKeyConstant.awmcNetImportToken,
+    RefreshDataSource.shuiyu: CacheKeyConstant.probeDivingFishImportToken,
+    RefreshDataSource.luoxue: CacheKeyConstant.probeLxnsImportToken,
+  };
+  Map<RefreshDataSource, bool> _saved = const {};
   int _request = 0;
 
   @override
@@ -230,36 +230,39 @@ class _ImportCredentialStatusFooterState
 
   Future<void> _load() async {
     final request = ++_request;
-    final saved = await Future.wait(_keys.map((key) async {
+    final saved = await Future.wait(_keys.entries.map((entry) async {
+      var hasToken = false;
       try {
-        return (await SecureCredentialStore.read(key))?.trim().isNotEmpty ??
+        hasToken = (await SecureCredentialStore.read(entry.value))
+                ?.trim()
+                .isNotEmpty ??
             false;
-      } catch (_) {
-        return false;
-      }
+      } catch (_) {}
+      return MapEntry(entry.key, hasToken);
     }));
     // 旧请求不覆盖新结果。
-    if (mounted && request == _request) setState(() => _saved = saved);
+    if (mounted && request == _request) {
+      setState(() => _saved = Map.fromEntries(saved));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final names = [
-      l10n.accountBindingDivingFish,
-      l10n.accountBindingLxns,
-      l10n.accountBindingAwmc,
-    ];
     // 只显示名称，状态由图标与配色表达，三个标签保持原尺寸放进一行。
-    return StatusChipRow(chips: [
-      for (var i = 0; i < names.length; i++)
-        StatusChip(
-          done: _saved[i],
-          text: names[i],
-          semanticsLabel:
-              '${names[i]} · ${_saved[i] ? l10n.flowSet : l10n.flowNotSet}',
-        ),
-    ]);
+    return StatusChipRow(chips: RefreshDataSource.values.map((source) {
+      final name = switch (source) {
+        RefreshDataSource.awmc => l10n.accountBindingAwmc,
+        RefreshDataSource.shuiyu => l10n.accountBindingDivingFish,
+        RefreshDataSource.luoxue => l10n.accountBindingLxns,
+      };
+      final done = _saved[source] == true;
+      return StatusChip(
+        done: done,
+        text: name,
+        semanticsLabel: '$name · ${done ? l10n.flowSet : l10n.flowNotSet}',
+      );
+    }).toList());
   }
 }
 

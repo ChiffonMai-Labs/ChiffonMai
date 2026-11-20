@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../constant/AppLinks.dart';
+import '../utils/CurrentDataSourceNotifier.dart';
 import '../utils/AppDesignTokens.dart';
 import '../utils/ExternalLaunchUtil.dart';
 import 'AppUi.dart';
@@ -245,9 +246,8 @@ class _AccountRegistrationGuideDialogState
             selectedIndex: _tab,
             onChanged: _selectTab,
             items: [
-              SegmentedTabItem(context.l10n.featureFish),
-              SegmentedTabItem(context.l10n.featureLxns),
-              const SegmentedTabItem('AWMC NET'),
+              for (final source in RefreshDataSource.values)
+                SegmentedTabItem(source.displayName),
             ],
           ),
           const SizedBox(height: 14),
@@ -262,10 +262,10 @@ class _AccountRegistrationGuideDialogState
                   value: _tab,
                   sizeFollowsCurrent: true,
                   alignment: Alignment.topCenter,
-                  child: switch (_tab) {
-                    0 => _buildDivingFish(),
-                    1 => _buildLuoXue(),
-                    _ => _buildAwmc(),
+                  child: switch (RefreshDataSource.values[_tab]) {
+                    RefreshDataSource.awmc => _buildAwmc(),
+                    RefreshDataSource.shuiyu => _buildDivingFish(),
+                    RefreshDataSource.luoxue => _buildLuoXue(),
                   },
                 ),
               ),

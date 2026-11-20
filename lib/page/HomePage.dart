@@ -248,7 +248,6 @@ class _AwmcNetTokenSectionState extends State<_AwmcNetTokenSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Divider(height: 24),
         Row(
           children: [
             Icon(
@@ -1148,6 +1147,8 @@ class HomePageState extends State<HomePage> {
   }
 
   List<_HomeFeatureSearchEntry> _homeFeatureSearchResults(String query) {
+    final preferAwmc = query.toLowerCase().contains('awmc');
+    final awmcResults = <_HomeFeatureSearchEntry>[];
     final results = <_HomeFeatureSearchEntry>[];
     for (final category in _searchableCategories) {
       for (final item in category.items) {
@@ -1155,11 +1156,14 @@ class HomePageState extends State<HomePage> {
             _matchesHomeFeature(item.subtitle, query) ||
             _matchesHomeFeature(context.featureText(item.title), query) ||
             _matchesHomeFeature(context.featureText(item.subtitle), query)) {
-          results.add(_HomeFeatureSearchEntry(category, item));
+          final matchesAwmcTitle =
+              preferAwmc && item.title.toLowerCase().contains('awmc');
+          (matchesAwmcTitle ? awmcResults : results)
+              .add(_HomeFeatureSearchEntry(category, item));
         }
       }
     }
-    return results;
+    return [...awmcResults, ...results];
   }
 
   Widget _buildHomeFeatureSearchResults(
@@ -2593,108 +2597,95 @@ class HomePageState extends State<HomePage> {
 
   void _showAccountManageDialog(BuildContext context) {
     final brightness = Theme.of(context).brightness;
+    final divingFishProfile = fetchDivingFishProfile();
     showDialog(
       context: context,
-      barrierDismissible: true,
-      builder: (BuildContext dialogContext) {
-        return FutureBuilder<Map<String, dynamic>?>(
-          future: fetchDivingFishProfile(),
-          builder: (ctx, snapshot) {
-            final isLoading = snapshot.connectionState != ConnectionState.done;
-            final errorMsg = snapshot.hasError ? '${snapshot.error}' : null;
-            final profile = snapshot.data;
-
-            return AppAlertDialog(
-              title: Row(
-                children: [
-                  Icon(Icons.manage_accounts, size: 22),
-                  SizedBox(width: 8),
-                  Text(dialogContext.l10n.featureAccountManagement),
-                ],
-              ),
-              content: SingleChildScrollView(
-                child: isLoading
-                    ? const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(24),
-                          child: CircularProgressIndicator(),
+      builder: (dialogContext) => AppAlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.manage_accounts, size: 22),
+            const SizedBox(width: 8),
+            Text(dialogContext.l10n.featureAccountManagement),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _AwmcNetTokenSection(brightness: brightness),
+              const Divider(height: 24),
+              FutureBuilder<Map<String, dynamic>?>(
+                future: divingFishProfile,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState != ConnectionState.done) {
+                    return const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(24),
+                        child: CircularProgressIndicator(),
+                      ),
+                    );
+                  }
+                  if (snapshot.hasError) {
+                    return Text(
+                      '${snapshot.error}',
+                      style: TextStyle(color: AppColors.errorRed(brightness)),
+                    );
+                  }
+                  final profile = snapshot.data;
+                  if (profile == null) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Text(
+                        context.l10n.flowNotSignedInToDivingFishOnly,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: AppColors.greyHint(brightness),
                         ),
-                      )
-                    : errorMsg != null
-                        ? Text(errorMsg,
-                            style: TextStyle(
-                                color: AppColors.errorRed(brightness)))
-                        : Column(mainAxisSize: MainAxisSize.min, children: [
-                            // 已登录水鱼：只显示成绩导入 Token
-                            if (profile != null) ...[
-                              // 标题样式与下方落雪、AWMC NET 两节一致：
-                              // 已有 Token 显示绿色勾，否则灰色钥匙。
-                              Padding(
-                                padding: const EdgeInsets.only(top: 4),
-                                child: Row(
-                                  children: [
-                                    Builder(builder: (_) {
-                                      final hasToken = (profile.tryGet<String>(
-                                                  'import_token') ??
-                                              '')
-                                          .isNotEmpty;
-                                      return Icon(
-                                        hasToken
-                                            ? Icons.check_circle
-                                            : Icons.vpn_key,
-                                        size: 18,
-                                        color: hasToken
-                                            ? AppColors.successGreen(brightness)
-                                            : AppColors.greyHint(brightness),
-                                      );
-                                    }),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      dialogContext.l10n.flowDivingFishProfile,
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w600,
-                                        color: Theme.of(dialogContext)
-                                            .colorScheme
-                                            .onSurface,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              // 水鱼账号资料与授权已移到「绑定与授权管理 → 水鱼授权」。
-                              _buildAccountInfo(profile, dialogContext),
-                            ] else
-                              // 未登录水鱼：友好提示用户去登录水鱼（落雪 token 仍可操作）
-                              Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 8),
-                                child: Text(
-                                  dialogContext
-                                      .l10n.flowNotSignedInToDivingFishOnly,
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: AppColors.greyHint(brightness),
-                                  ),
-                                ),
-                              ),
-                            // 始终显示：落雪 API 密钥管理（不依赖水鱼登录）
-                            _buildLxnsTokenSection(brightness),
-                            // AWMC NET 成绩导入 Token 同样独立于水鱼登录
-                            _buildAwmcNetTokenSection(brightness),
-                          ]),
+                      ),
+                    );
+                  }
+                  final hasToken =
+                      (profile.tryGet<String>('import_token') ?? '').isNotEmpty;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            hasToken ? Icons.check_circle : Icons.vpn_key,
+                            size: 18,
+                            color: hasToken
+                                ? AppColors.successGreen(brightness)
+                                : AppColors.greyHint(brightness),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            context.l10n.flowDivingFishProfile,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      _buildAccountInfo(profile, dialogContext),
+                    ],
+                  );
+                },
               ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(),
-                  child: Text(dialogContext.l10n.featureClose),
-                ),
-              ],
-            );
-          },
-        );
-      },
+              _buildLxnsTokenSection(brightness),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(dialogContext.l10n.featureClose),
+          ),
+        ],
+      ),
     );
   }
 
@@ -2929,11 +2920,6 @@ class HomePageState extends State<HomePage> {
         );
       },
     );
-  }
-
-  /// 管理 AWMC NET 成绩导入 Token。
-  Widget _buildAwmcNetTokenSection(Brightness brightness) {
-    return _AwmcNetTokenSection(brightness: brightness);
   }
 
   Widget _buildAccountInfo(Map<String, dynamic> p, BuildContext dialogContext) {
