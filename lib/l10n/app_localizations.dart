@@ -101,6 +101,156 @@ abstract class AppLocalizations {
     Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hant')
   ];
 
+  /// No description provided for @qqPlayerMerge.
+  ///
+  /// In zh, this message translates to:
+  /// **'将机台玩家「{arcade}」关联到已有档案「{archive}」。确认两者都是你的成绩后再导入。'**
+  String qqPlayerMerge(String archive, String arcade);
+
+  /// No description provided for @qqPlayerScoreCount.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 条成绩'**
+  String qqPlayerScoreCount(int count);
+
+  /// No description provided for @qqPlayerResend.
+  ///
+  /// In zh, this message translates to:
+  /// **'重新发送验证码'**
+  String get qqPlayerResend;
+
+  /// No description provided for @qqPlayerConnect.
+  ///
+  /// In zh, this message translates to:
+  /// **'连接我的舞萌'**
+  String get qqPlayerConnect;
+
+  /// No description provided for @qqPlayerIntro.
+  ///
+  /// In zh, this message translates to:
+  /// **'用 QQ 连接成绩。已有 Bot 档案可直接查看 Best 50，第一次连接可扫码导入。'**
+  String get qqPlayerIntro;
+
+  /// No description provided for @qqPlayerLibrary.
+  ///
+  /// In zh, this message translates to:
+  /// **'浏览曲库'**
+  String get qqPlayerLibrary;
+
+  /// No description provided for @qqPlayerBest.
+  ///
+  /// In zh, this message translates to:
+  /// **'查看 Best50'**
+  String get qqPlayerBest;
+
+  /// No description provided for @qqPlayerSend.
+  ///
+  /// In zh, this message translates to:
+  /// **'发送邮箱验证码'**
+  String get qqPlayerSend;
+
+  /// No description provided for @qqPlayerCode.
+  ///
+  /// In zh, this message translates to:
+  /// **'邮箱验证码'**
+  String get qqPlayerCode;
+
+  /// No description provided for @qqPlayerVerified.
+  ///
+  /// In zh, this message translates to:
+  /// **'读取我的成绩'**
+  String get qqPlayerVerified;
+
+  /// No description provided for @qqPlayerSwitch.
+  ///
+  /// In zh, this message translates to:
+  /// **'更换 QQ'**
+  String get qqPlayerSwitch;
+
+  /// No description provided for @qqPlayerImport.
+  ///
+  /// In zh, this message translates to:
+  /// **'从舞萌二维码导入'**
+  String get qqPlayerImport;
+
+  /// No description provided for @qqPlayerPreview.
+  ///
+  /// In zh, this message translates to:
+  /// **'读取机台昵称'**
+  String get qqPlayerPreview;
+
+  /// No description provided for @qqPlayerConfirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'确认导入成绩'**
+  String get qqPlayerConfirm;
+
+  /// No description provided for @qqPlayerQrHelp.
+  ///
+  /// In zh, this message translates to:
+  /// **'打开微信「舞萌DX／中二节奏」的玩家二维码，保存图片后从相册选择。'**
+  String get qqPlayerQrHelp;
+
+  /// No description provided for @qqPlayerBusy.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在处理，请稍候…'**
+  String get qqPlayerBusy;
+
+  /// No description provided for @qqPlayerOffline.
+  ///
+  /// In zh, this message translates to:
+  /// **'连接服务暂不可用，请稍后重试。'**
+  String get qqPlayerOffline;
+
+  /// No description provided for @qqPlayerInvalid.
+  ///
+  /// In zh, this message translates to:
+  /// **'验证码有误或已过期。'**
+  String get qqPlayerInvalid;
+
+  /// No description provided for @qqPlayerLimited.
+  ///
+  /// In zh, this message translates to:
+  /// **'操作过于频繁，请稍后重试。'**
+  String get qqPlayerLimited;
+
+  /// No description provided for @qqPlayerExpired.
+  ///
+  /// In zh, this message translates to:
+  /// **'连接已过期，请重新验证 QQ。'**
+  String get qqPlayerExpired;
+
+  /// No description provided for @qqPlayerQrError.
+  ///
+  /// In zh, this message translates to:
+  /// **'二维码读取失败，请使用新的舞萌二维码。'**
+  String get qqPlayerQrError;
+
+  /// No description provided for @qqPlayerConflict.
+  ///
+  /// In zh, this message translates to:
+  /// **'这张二维码属于另一个机台账号，已保留原档案。'**
+  String get qqPlayerConflict;
+
+  /// No description provided for @qqPlayerEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'尚未读到可导入的游玩成绩。'**
+  String get qqPlayerEmpty;
+
+  /// No description provided for @qqPlayerTicket.
+  ///
+  /// In zh, this message translates to:
+  /// **'导入预览已过期，请重新读取二维码。'**
+  String get qqPlayerTicket;
+
+  /// No description provided for @qqPlayerConsent.
+  ///
+  /// In zh, this message translates to:
+  /// **'先阅读并确认以下协议，即可浏览曲库或连接舞萌。'**
+  String get qqPlayerConsent;
+
   /// No description provided for @autoUpdateSuccessTitle.
   ///
   /// In zh, this message translates to:

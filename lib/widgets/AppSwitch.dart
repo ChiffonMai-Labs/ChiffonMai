@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' as ios;
 import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -39,6 +40,9 @@ class AppSwitch extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (Theme.of(context).platform == TargetPlatform.iOS) {
+      return ios.CupertinoSwitch(value: value, onChanged: onChanged);
+    }
     final images = _images(context, onChanged != null);
     return Switch(
       value: value,
@@ -71,6 +75,16 @@ class AppSwitchListTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (Theme.of(context).platform == TargetPlatform.iOS) {
+      return SwitchListTile.adaptive(
+        title: title,
+        subtitle: subtitle,
+        secondary: secondary,
+        contentPadding: contentPadding,
+        value: value,
+        onChanged: onChanged,
+      );
+    }
     final images = AppSwitch._images(context, onChanged != null);
     return SwitchListTile(
       title: title,

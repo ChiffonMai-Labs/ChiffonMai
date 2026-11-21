@@ -9,6 +9,85 @@ class AppLocalizationsZh extends AppLocalizations {
   AppLocalizationsZh([String locale = 'zh']) : super(locale);
 
   @override
+  String qqPlayerMerge(String archive, String arcade) {
+    return '将机台玩家「$arcade」关联到已有档案「$archive」。确认两者都是你的成绩后再导入。';
+  }
+
+  @override
+  String qqPlayerScoreCount(int count) {
+    return '$count 条成绩';
+  }
+
+  @override
+  String get qqPlayerResend => '重新发送验证码';
+
+  @override
+  String get qqPlayerConnect => '连接我的舞萌';
+
+  @override
+  String get qqPlayerIntro => '用 QQ 连接成绩。已有 Bot 档案可直接查看 Best 50，第一次连接可扫码导入。';
+
+  @override
+  String get qqPlayerLibrary => '浏览曲库';
+
+  @override
+  String get qqPlayerBest => '查看 Best50';
+
+  @override
+  String get qqPlayerSend => '发送邮箱验证码';
+
+  @override
+  String get qqPlayerCode => '邮箱验证码';
+
+  @override
+  String get qqPlayerVerified => '读取我的成绩';
+
+  @override
+  String get qqPlayerSwitch => '更换 QQ';
+
+  @override
+  String get qqPlayerImport => '从舞萌二维码导入';
+
+  @override
+  String get qqPlayerPreview => '读取机台昵称';
+
+  @override
+  String get qqPlayerConfirm => '确认导入成绩';
+
+  @override
+  String get qqPlayerQrHelp => '打开微信「舞萌DX／中二节奏」的玩家二维码，保存图片后从相册选择。';
+
+  @override
+  String get qqPlayerBusy => '正在处理，请稍候…';
+
+  @override
+  String get qqPlayerOffline => '连接服务暂不可用，请稍后重试。';
+
+  @override
+  String get qqPlayerInvalid => '验证码有误或已过期。';
+
+  @override
+  String get qqPlayerLimited => '操作过于频繁，请稍后重试。';
+
+  @override
+  String get qqPlayerExpired => '连接已过期，请重新验证 QQ。';
+
+  @override
+  String get qqPlayerQrError => '二维码读取失败，请使用新的舞萌二维码。';
+
+  @override
+  String get qqPlayerConflict => '这张二维码属于另一个机台账号，已保留原档案。';
+
+  @override
+  String get qqPlayerEmpty => '尚未读到可导入的游玩成绩。';
+
+  @override
+  String get qqPlayerTicket => '导入预览已过期，请重新读取二维码。';
+
+  @override
+  String get qqPlayerConsent => '先阅读并确认以下协议，即可浏览曲库或连接舞萌。';
+
+  @override
   String get autoUpdateSuccessTitle => '自动更新成功';
 
   @override
@@ -14926,6 +15005,85 @@ class AppLocalizationsZh extends AppLocalizations {
 /// The translations for Chinese, using the Han script (`zh_Hant`).
 class AppLocalizationsZhHant extends AppLocalizationsZh {
   AppLocalizationsZhHant() : super('zh_Hant');
+
+  @override
+  String qqPlayerMerge(String archive, String arcade) {
+    return '將機台玩家「$arcade」連接到已有檔案「$archive」。請確認兩者都是你的成績後再匯入。';
+  }
+
+  @override
+  String qqPlayerScoreCount(int count) {
+    return '$count 筆成績';
+  }
+
+  @override
+  String get qqPlayerResend => '重新傳送驗證碼';
+
+  @override
+  String get qqPlayerConnect => '連接我的舞萌';
+
+  @override
+  String get qqPlayerIntro => '用 QQ 連接成績。已有 Bot 檔案可直接查看 Best 50，第一次連接可掃碼匯入。';
+
+  @override
+  String get qqPlayerLibrary => '瀏覽曲庫';
+
+  @override
+  String get qqPlayerBest => '查看 Best50';
+
+  @override
+  String get qqPlayerSend => '傳送信箱驗證碼';
+
+  @override
+  String get qqPlayerCode => '信箱驗證碼';
+
+  @override
+  String get qqPlayerVerified => '讀取我的成績';
+
+  @override
+  String get qqPlayerSwitch => '更換 QQ';
+
+  @override
+  String get qqPlayerImport => '從舞萌 QR 碼匯入';
+
+  @override
+  String get qqPlayerPreview => '讀取機台暱稱';
+
+  @override
+  String get qqPlayerConfirm => '確認匯入成績';
+
+  @override
+  String get qqPlayerQrHelp => '在微信開啟玩家 QR 碼並儲存圖片，再從相簿選取。';
+
+  @override
+  String get qqPlayerBusy => '處理中，請稍候…';
+
+  @override
+  String get qqPlayerOffline => '連接服務暫時無法使用，請稍後重試。';
+
+  @override
+  String get qqPlayerInvalid => '驗證碼錯誤或已過期。';
+
+  @override
+  String get qqPlayerLimited => '操作過於頻繁，請稍後重試。';
+
+  @override
+  String get qqPlayerExpired => '連接已過期，請重新驗證 QQ。';
+
+  @override
+  String get qqPlayerQrError => 'QR 碼讀取失敗，請使用新的舞萌 QR 碼。';
+
+  @override
+  String get qqPlayerConflict => '這個 QR 碼屬於其他機台帳號，已保留原檔案。';
+
+  @override
+  String get qqPlayerEmpty => '尚未讀到可匯入的遊玩成績。';
+
+  @override
+  String get qqPlayerTicket => '匯入預覽已過期，請重新讀取 QR 碼。';
+
+  @override
+  String get qqPlayerConsent => '請先閱讀並確認以下條款，即可瀏覽曲庫或連接舞萌。';
 
   @override
   String get autoUpdateSuccessTitle => '自動更新成功';

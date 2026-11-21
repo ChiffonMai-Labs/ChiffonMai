@@ -30,6 +30,7 @@ class AppEntryPage extends StatefulWidget {
 
 class _AppEntryPageState extends State<AppEntryPage> {
   bool _checked = false;
+  bool _completedAppleWelcome = false;
   bool? _needsOnboarding;
   bool _preparingMain = false;
 
@@ -80,6 +81,7 @@ class _AppEntryPageState extends State<AppEntryPage> {
     if (_checked) return;
     _checked = true;
     widget.onFirstFrameRendered?.call();
+    if (_completedAppleWelcome) return;
     final service = AnnouncementService();
     // 主界面就绪后再加载公告，不在引导期间触发额外请求和解析。
     final announcement = service.load().onError((error, stackTrace) => null);
@@ -115,7 +117,11 @@ class _AppEntryPageState extends State<AppEntryPage> {
     if (_needsOnboarding!) {
       // 不在引导背后创建五个 Hub：首页首次拉取全量曲库会严重干扰引导动画。
       return OnboardingPage(
-        onCompleted: () => unawaited(_openMain()),
+        onCompleted: () {
+          _completedAppleWelcome =
+              Theme.of(context).platform == TargetPlatform.iOS;
+          unawaited(_openMain());
+        },
       );
     }
     return AppShell(onFirstFrameRendered: _checkStartupNotices);

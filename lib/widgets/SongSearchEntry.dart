@@ -1,3 +1,4 @@
+import 'AppleSearchField.dart';
 import '../l10n/FeatureLocalizations.dart';
 import 'package:flutter/material.dart';
 
@@ -73,6 +74,26 @@ class _SongSearchEntryState extends State<SongSearchEntry> {
         listenable: SearchInteractionPreferences.instance,
         builder: (context, _) {
           final usesOverlay = SearchInteractionPreferences.instance.usesOverlay;
+          final hint = context
+              .featureText(widget.titleOnly ? '只按歌名搜索' : '曲名、别名、ID、曲师、谱师、BPM');
+          if (Theme.of(context).platform == TargetPlatform.iOS) {
+            return Opacity(
+              key: _fieldKey,
+              opacity: _overlayOpen ? 0 : 1,
+              child: AppleSearchField(
+                controller: widget.controller,
+                focusNode: widget.focusNode,
+                placeholder: hint,
+                onOpen: usesOverlay ? _openOverlay : null,
+                onChanged: widget.onChanged,
+                onSubmitted: widget.onSubmitted,
+                onClear: () {
+                  widget.controller.clear();
+                  widget.onSubmitted('');
+                },
+              ),
+            );
+          }
           final colors = Theme.of(context).colorScheme;
           final fontSize =
               widget.fontSize ?? MediaQuery.sizeOf(context).width * .04;
@@ -96,9 +117,7 @@ class _SongSearchEntryState extends State<SongSearchEntry> {
                 textInputAction: TextInputAction.search,
                 style: TextStyle(fontSize: fontSize),
                 decoration: InputDecoration(
-                    hintText: widget.titleOnly
-                        ? context.featureText('只按歌名搜索')
-                        : context.featureText('曲名、别名、ID、曲师、谱师、BPM'),
+                    hintText: hint,
                     hintStyle: TextStyle(
                         fontSize: widget.hintFontSize ?? fontSize * .875),
                     isDense: true,

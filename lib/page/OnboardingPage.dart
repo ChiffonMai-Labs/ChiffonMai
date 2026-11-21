@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' as ios;
 import 'package:my_first_flutter_app/l10n/FeatureLocalizations.dart';
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
@@ -107,7 +108,10 @@ class _OnboardingPageState extends State<OnboardingPage> {
   ];
 
   int get _pageCount => _steps.length + 3;
-  bool get _isLastPage => _page == _pageCount - 1;
+  bool get _appleWelcome =>
+      widget.onCompleted != null &&
+      Theme.of(context).platform == TargetPlatform.iOS;
+  bool get _isLastPage => _appleWelcome || _page == _pageCount - 1;
   bool get _isConsentPage => _page == _pageCount - 2;
   bool get _canProceed =>
       !_closing &&
@@ -250,6 +254,35 @@ class _OnboardingPageState extends State<OnboardingPage> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    if (_appleWelcome) {
+      return Scaffold(
+          backgroundColor: scheme.surface,
+          body: SafeArea(
+              child: Center(
+                  child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 540),
+                      child: ListView(
+                          shrinkWrap: true,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 24, vertical: 32),
+                          children: [
+                            Semantics(
+                                header: true,
+                                child: Text('ChiffonMai',
+                                    style: ios.CupertinoTheme.of(context)
+                                        .textTheme
+                                        .navLargeTitleTextStyle)),
+                            const SizedBox(height: 12),
+                            Text(context.l10n.qqPlayerConsent),
+                            const SizedBox(height: 24),
+                            _buildAgreementSection(context),
+                            const SizedBox(height: 24),
+                            ios.CupertinoButton.filled(
+                                onPressed:
+                                    _hasAgreed && !_closing ? _finish : null,
+                                child: Text(context.l10n.flowStartExploring)),
+                          ])))));
+    }
     final safeBottom = MediaQuery.paddingOf(context).bottom;
     return PopScope(
       canPop: false,

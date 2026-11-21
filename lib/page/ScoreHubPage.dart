@@ -1,3 +1,5 @@
+import 'package:flutter/cupertino.dart' as ios;
+import 'AwmcNet/PlayerConnectionPage.dart';
 import '../l10n/LocalizationsExtension.dart';
 import '../l10n/FeatureLocalizations.dart';
 import 'package:flutter/material.dart';
@@ -690,6 +692,12 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
             icon: Icons.analytics_rounded,
             hero: _buildOverview(context),
             children: [
+              if (Theme.of(context).platform == TargetPlatform.iOS)
+                ios.CupertinoListTile(
+                    leading: const Icon(ios.CupertinoIcons.link),
+                    title: Text(context.l10n.qqPlayerConnect),
+                    trailing: const ios.CupertinoListTileChevron(),
+                    onTap: () => PlayerConnectionPage.open(context)),
               for (final section in sections) ...[
                 HubSection(
                   title: section.title,

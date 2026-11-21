@@ -9,6 +9,86 @@ class AppLocalizationsJa extends AppLocalizations {
   AppLocalizationsJa([String locale = 'ja']) : super(locale);
 
   @override
+  String qqPlayerMerge(String archive, String arcade) {
+    return '筐体のプレイヤー「$arcade」を既存の「$archive」に連携します。両方が自分の成績であることを確認してください。';
+  }
+
+  @override
+  String qqPlayerScoreCount(int count) {
+    return 'スコア $count 件';
+  }
+
+  @override
+  String get qqPlayerResend => '確認コードを再送信';
+
+  @override
+  String get qqPlayerConnect => '舞萌を連携';
+
+  @override
+  String get qqPlayerIntro =>
+      'QQでスコアを表示できます。Botに記録があればBest 50を、初回はプレイヤーQRコードから読み込めます。';
+
+  @override
+  String get qqPlayerLibrary => '楽曲を見る';
+
+  @override
+  String get qqPlayerBest => 'Best50 を見る';
+
+  @override
+  String get qqPlayerSend => '確認コードを送信';
+
+  @override
+  String get qqPlayerCode => 'メール確認コード';
+
+  @override
+  String get qqPlayerVerified => '自分の成績を表示';
+
+  @override
+  String get qqPlayerSwitch => '別の QQ を使う';
+
+  @override
+  String get qqPlayerImport => 'プレイヤー QR コードから取込';
+
+  @override
+  String get qqPlayerPreview => 'プレイヤー名を確認';
+
+  @override
+  String get qqPlayerConfirm => 'この成績を取り込む';
+
+  @override
+  String get qqPlayerQrHelp => 'WeChat のプレイヤー QR コードを保存し、写真から選んでください。';
+
+  @override
+  String get qqPlayerBusy => '処理中…';
+
+  @override
+  String get qqPlayerOffline => '接続できません。しばらくしてからお試しください。';
+
+  @override
+  String get qqPlayerInvalid => '確認コードが違うか、有効期限が切れています。';
+
+  @override
+  String get qqPlayerLimited => '時間をおいてからお試しください。';
+
+  @override
+  String get qqPlayerExpired => '連携の期限が切れました。QQ を再確認してください。';
+
+  @override
+  String get qqPlayerQrError => '読み取れませんでした。新しいプレイヤー QR コードをお試しください。';
+
+  @override
+  String get qqPlayerConflict => '別のプレイヤーの QR コードです。元の成績は保持されています。';
+
+  @override
+  String get qqPlayerEmpty => '取り込めるプレイ成績がありません。';
+
+  @override
+  String get qqPlayerTicket => '確認の有効期限が切れました。再度 QR コードを読み取ってください。';
+
+  @override
+  String get qqPlayerConsent => '規約を確認すると楽曲の閲覧やプレイヤー連携ができます。';
+
+  @override
   String get autoUpdateSuccessTitle => '自動更新が完了しました';
 
   @override

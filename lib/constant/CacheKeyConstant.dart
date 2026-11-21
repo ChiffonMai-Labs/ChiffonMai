@@ -1,5 +1,6 @@
 /// 缓存键常量统一管理
 class CacheKeyConstant {
+  static const String awmcPlayerSession = 'awmc_player_session';
   static const String searchInteractionMode = 'search_interaction_mode';
 
   /// 全球机厅地图：收藏的机厅（NearCade 的数字 ID）。

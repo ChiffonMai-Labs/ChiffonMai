@@ -1,3 +1,4 @@
+import '../../service/AWMC/AwmcPlayerConnection.dart';
 import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -82,6 +83,22 @@ class AwmcNetUserPlayDataManager {
     }
     if (!_qqPattern.hasMatch(id)) {
       throw const AwmcNetException('QQ 号格式不对（应为 5–12 位数字）');
+    }
+
+    final session = await AwmcPlayerConnection.restore();
+    if (session != null && session.qq == id) {
+      try {
+        final response =
+            await AwmcPlayerConnection.request('records', token: session.token);
+        final data = normalizeRecords(response['player']);
+        if (data == null)
+          throw AwmcNetException(appL10n.svcAWMCNETHasNoDataForQQ(id));
+        return data;
+      } on PlayerConnectionError catch (error) {
+        throw AwmcNetException(error.code == 'expired_session'
+            ? appL10n.qqPlayerExpired
+            : appL10n.qqPlayerOffline);
+      }
     }
 
     final uri = Uri.parse(ApiUrls.AwmcNetRecordsProxyApi)
@@ -174,7 +191,6 @@ class AwmcNetUserPlayDataManager {
   ///   2. 只透传下游真正读的字段，顺便给 `additional_rating` 等兜底默认值。
   ///
   /// 返回 null 表示结构无法识别（调用方会转成 [AwmcNetException]）。
-  @visibleForTesting
   static Map<String, dynamic>? normalizeRecords(dynamic decoded) {
     dynamic payload = decoded;
     // 容错：万一以后外面套了一层 { data: {...} }
@@ -223,12 +239,10 @@ class AwmcNetUserPlayDataManager {
 
   /// 清除 AWMC NET 的账号数据与存档。
   ///
-  /// AWMC NET 没有登录态（凭据是项目自带的开发者密钥），所以「登出」
-  /// 等价于「清掉这个源缓存的成绩」——交给 [AccountSwitchService] 处理，
-  /// 它会按当前活动源决定要不要回落到另一个账号，**不要**在这里直接
-  /// 删 `user_play_data`（那可能正装的是水鱼的数据）。
+  /// 清理本机成绩前撤销移动端的 QQ 会话。
   Future<void> logout() async {
-    await AccountSwitchService.onAccountLoggedOut(RefreshDataSource.awmc);
+    await AccountSwitchService.onAccountLoggedOut(RefreshDataSource.awmc,
+        clearCredentials: AwmcPlayerConnection.disconnect);
     debugPrint('✓ 已清除 AWMC NET 账号数据');
   }
 }

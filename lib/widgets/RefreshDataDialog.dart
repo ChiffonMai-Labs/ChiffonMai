@@ -736,6 +736,7 @@ Future<void> refreshAwmcNetDataWithProgress(
   bool? showBriefProfile,
   bool forceFullRefresh = false,
   Map<String, bool>? forceMap,
+  Map<String, dynamic>? verifiedPlayerData,
   SharedRefreshData? sharedRefresh,
 }) async {
   return AccountSwitchService.runRefresh(RefreshDataSource.awmc, () async {
@@ -745,6 +746,7 @@ Future<void> refreshAwmcNetDataWithProgress(
         showBriefProfile: showBriefProfile,
         forceFullRefresh: forceFullRefresh,
         forceMap: forceMap,
+        verifiedPlayerData: verifiedPlayerData,
         sharedRefresh: sharedRefresh);
   });
 }
@@ -757,6 +759,7 @@ Future<void> _refreshAwmcNetDataWithProgressImpl(
   bool? showBriefProfile,
   bool forceFullRefresh = false,
   Map<String, bool>? forceMap,
+  Map<String, dynamic>? verifiedPlayerData,
   SharedRefreshData? sharedRefresh,
 }) async {
   final refreshStopwatch = Stopwatch()..start();
@@ -778,7 +781,8 @@ Future<void> _refreshAwmcNetDataWithProgressImpl(
   final shared = sharedRefresh ??
       SharedRefreshData._(
           forceMap: forceMap, forceFullRefresh: forceFullRefresh);
-  final int totalTasks = 1 + shared.pendingTaskCount;
+  final int totalTasks =
+      verifiedPlayerData == null ? 1 + shared.pendingTaskCount : 2;
   const int parallelStart = 10;
   const int parallelSpan = 70; // 10 → 80
   void onTaskComplete(String msg) {
@@ -795,9 +799,16 @@ Future<void> _refreshAwmcNetDataWithProgressImpl(
   }
 
   final results = await Future.wait<dynamic>([
-    track(AwmcNetUserPlayDataManager().fetchUserPlayData(qq),
+    track(
+        verifiedPlayerData != null
+            ? Future.value(verifiedPlayerData)
+            : AwmcNetUserPlayDataManager().fetchUserPlayData(qq),
         appL10n.flowAWMCNETScoresRetrieved),
-    ...shared.tracked(onTaskComplete),
+    if (verifiedPlayerData == null)
+      ...shared.tracked(onTaskComplete)
+    else
+      track(MaimaiMusicDataManager().fetchAndUpdateMusicData(),
+          appL10n.flowSongDataRefreshed),
   ]);
   logRefresh('awmc-parallel-data', refreshStopwatch.elapsedMilliseconds);
 
@@ -807,6 +818,13 @@ Future<void> _refreshAwmcNetDataWithProgressImpl(
   final userPlayData = results[0] as Map<String, dynamic>;
   await AccountSwitchService.bindIdentity(RefreshDataSource.awmc, qq);
   final settingsPrefs = await SharedPreferences.getInstance();
+  // bindIdentity 已恢复本人存档，换 QQ 则已清空；快捷连接沿用该玩家的公开偏好。
+  if (verifiedPlayerData != null) {
+    participateRankings =
+        settingsPrefs.getBool(CacheKeyConstant.participateRankings) ?? false;
+    showNickname =
+        settingsPrefs.getBool(CacheKeyConstant.showNickname) ?? false;
+  }
   await settingsPrefs.setBool(
       CacheKeyConstant.participateRankings, participateRankings);
   await settingsPrefs.setBool(CacheKeyConstant.showNickname, showNickname);
@@ -918,7 +936,7 @@ Future<void> _refreshAwmcNetDataWithProgressImpl(
             _rankingFailureMessage(rankingError, songRankingUpdated),
             RankingUploadException.issueOf(RankingUploadGuard.lastBlockedCode));
       }
-    } else {
+    } else if (verifiedPlayerData == null) {
       final deleteResults = await Future.wait<bool>([
         _deleteRankings(userId),
         SongRankingService().deleteSongRankings(userId),

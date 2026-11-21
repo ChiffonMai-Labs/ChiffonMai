@@ -1,3 +1,5 @@
+import 'AppleSearchField.dart';
+import 'package:flutter/cupertino.dart' as ios;
 import '../l10n/FeatureLocalizations.dart';
 import 'dart:async';
 
@@ -187,6 +189,23 @@ class _SongSearchOverlayState extends State<SongSearchOverlay> {
   }
 
   Widget _buildInput() {
+    final hint = context.featureText(widget.hintText ??
+        (widget.titleOnly ? '只按歌名搜索' : '歌名/BPM/谱师/曲师/别名/歌曲ID/...'));
+    if (Theme.of(context).platform == TargetPlatform.iOS) {
+      return Row(children: [
+        Expanded(
+            child: AppleSearchField(
+                controller: _controller,
+                focusNode: _focusNode,
+                placeholder: hint,
+                onClear: _controller.clear,
+                onSubmitted: (query) => _close(query: query))),
+        ios.CupertinoButton(
+            onPressed: () => _close(submit: false),
+            padding: const EdgeInsetsDirectional.only(start: 8),
+            child: Text(context.featureText('取消'))),
+      ]);
+    }
     final colors = Theme.of(context).colorScheme;
     final screenWidth = MediaQuery.sizeOf(context).width;
     return Row(
@@ -199,8 +218,7 @@ class _SongSearchOverlayState extends State<SongSearchOverlay> {
             onSubmitted: (query) => _close(query: query),
             style: TextStyle(fontSize: screenWidth * .04),
             decoration: InputDecoration(
-              hintText: widget.hintText == null ?
-                  (widget.titleOnly ? context.featureText('只按歌名搜索') : context.featureText('歌名/BPM/谱师/曲师/别名/歌曲ID/...')) : context.featureText(widget.hintText!),
+              hintText: hint,
               hintStyle: TextStyle(fontSize: screenWidth * .035),
               prefixIcon: IconButton(
                 tooltip: context.featureText('收起搜索'),

@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' as ios;
 import '../l10n/FeatureLocalizations.dart';
 import 'package:flutter/material.dart';
 import '../widgets/AnimatedReveal.dart';
@@ -160,17 +161,36 @@ class HubSection extends StatelessWidget {
         ),
         // ===== 内容卡片 =====
         // 白卡片、无描边（B 方案）。用 Material 承载底色，子项的水波纹裁在圆角内。
-        Material(
-          color: AppSurfaces.card(context),
-          clipBehavior: Clip.antiAlias,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
-          ),
-          child: Padding(
+        if (Theme.of(context).platform == TargetPlatform.iOS &&
+            children.isNotEmpty)
+          Padding(
             padding: contentPadding,
-            child: Column(children: children),
+            child: ios.CupertinoListSection.insetGrouped(
+              margin: EdgeInsets.zero,
+              topMargin: 0,
+              backgroundColor: Colors.transparent,
+              decoration: BoxDecoration(
+                color: AppSurfaces.card(context),
+                borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
+              ),
+              dividerMargin: 66,
+              additionalDividerMargin: 0,
+              separatorColor: scheme.outlineVariant,
+              children: children,
+            ),
+          )
+        else
+          Material(
+            color: AppSurfaces.card(context),
+            clipBehavior: Clip.antiAlias,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
+            ),
+            child: Padding(
+              padding: contentPadding,
+              child: Column(children: children),
+            ),
           ),
-        ),
       ],
     );
   }
@@ -302,6 +322,7 @@ class HubActionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final apple = Theme.of(context).platform == TargetPlatform.iOS;
     final bool _isInactive = loading || disabled;
     // 二次确认态：用 error 色覆盖默认 primary tint，让按钮视觉上"危险"且醒目
     final Color activeTint =
@@ -315,139 +336,162 @@ class HubActionTile extends StatelessWidget {
         (loading
             ? hasProgressBar
                 ? const SizedBox(width: 20, height: 20) // 进度条替代 spinner
-                : SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.2,
-                      color: scheme.primary,
-                    ),
-                  )
+                : apple
+                    ? const ios.CupertinoActivityIndicator()
+                    : SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.2,
+                          color: scheme.primary,
+                        ),
+                      )
             : _showStar
                 // B 方案：有星标时不再叠一个箭头，整行本身就是可点的
                 ? FavoriteStarButton(
                     isFavorited: isFavorited!,
                     onTap: onToggleFavorite!,
                   )
-                : Icon(
-                    Icons.chevron_right,
-                    color: scheme.onSurfaceVariant.withValues(alpha: 0.55),
-                    size: 20,
-                  ));
+                : apple
+                    ? const ios.CupertinoListTileChevron()
+                    : Icon(
+                        Icons.chevron_right,
+                        color: scheme.onSurfaceVariant.withValues(alpha: 0.55),
+                        size: 20,
+                      ));
     final trailingAnimationDuration = MediaQuery.disableAnimationsOf(context)
         ? Duration.zero
         : const Duration(milliseconds: 260);
-    final tile = ListTile(
-      contentPadding: EdgeInsets.symmetric(
-        horizontal: 14,
-        vertical: dense ? 0 : 8,
-      ),
-      minVerticalPadding: dense ? 4 : 8,
-      visualDensity: dense ? VisualDensity.compact : VisualDensity.standard,
-      leading: leading ??
-          Builder(builder: (context) {
-            // 没指定颜色时按标题取功能色，与首页「常用」的图标块同色。
-            final tint =
-                AppColors.featureTint(title, Theme.of(context).brightness);
-            final useTint = iconColor == null && !awaitingConfirm;
-            final fg = useTint ? tint.foreground : activeTint;
-            final bg =
-                useTint ? tint.background : activeTint.withValues(alpha: 0.12);
-            return Opacity(
-              opacity: _isInactive ? 0.5 : 1,
-              child: Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: bg,
-                  borderRadius:
-                      BorderRadius.circular(AppDesignTokens.radiusSmall),
-                ),
-                alignment: Alignment.center,
-                child: Icon(icon, color: fg, size: 20),
+    final tileLeading = leading ??
+        Builder(builder: (context) {
+          // 没指定颜色时按标题取功能色，与首页「常用」的图标块同色。
+          final tint =
+              AppColors.featureTint(title, Theme.of(context).brightness);
+          final useTint = iconColor == null && !awaitingConfirm;
+          final fg = useTint ? tint.foreground : activeTint;
+          final bg =
+              useTint ? tint.background : activeTint.withValues(alpha: 0.12);
+          return Opacity(
+            opacity: _isInactive ? 0.5 : 1,
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: bg,
+                borderRadius:
+                    BorderRadius.circular(AppDesignTokens.radiusSmall),
               ),
-            );
-          }),
-      title: Text(
-        context.featureText(displayTitle ?? title),
-        softWrap: true,
-        overflow: TextOverflow.visible,
-        style: TextStyle(
-          fontWeight: FontWeight.w600,
-          fontSize: titleFontSize ?? titleFontSizeFor(title),
-          color: _isInactive
-              ? scheme.onSurface.withValues(alpha: 0.6)
-              : (awaitingConfirm ? scheme.error : titleColor),
-        ),
+              alignment: Alignment.center,
+              child: Icon(icon, color: fg, size: 20),
+            ),
+          );
+        });
+    final tileTitle = Text(
+      context.featureText(displayTitle ?? title),
+      softWrap: true,
+      overflow: TextOverflow.visible,
+      style: TextStyle(
+        fontWeight: FontWeight.w600,
+        fontSize: titleFontSize ?? (apple ? 16 : titleFontSizeFor(title)),
+        color: _isInactive
+            ? scheme.onSurface.withValues(alpha: 0.6)
+            : (awaitingConfirm ? scheme.error : titleColor),
       ),
-      subtitle: hasProgressBar
-          ? Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (_hasProgress)
-                    Text(
-                      '(${progressCurrent!} / $progressTotal)',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: scheme.primary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  if (!_hasProgress)
-                    _MarqueeSubtitle(
-                      text: context.featureText(loadingText ?? subtitle),
+    );
+    final tileSubtitle = hasProgressBar
+        ? Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (_hasProgress)
+                  Text(
+                    '(${progressCurrent!} / $progressTotal)',
+                    style: TextStyle(
+                      fontSize: 12,
                       color: scheme.primary,
                       fontWeight: FontWeight.w600,
-                      fontSize: 12,
-                    ),
-                  const SizedBox(height: 4),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(2),
-                    child: SmoothLinearProgressIndicator(
-                      value: _hasProgress
-                          ? (progressCurrent! / progressTotal!).clamp(0.0, 1.0)
-                          : progressValue?.clamp(0.0, 1.0),
-                      minHeight: 4,
-                      backgroundColor: scheme.primary.withValues(alpha: 0.12),
-                      color: scheme.primary,
                     ),
                   ),
-                ],
-              ),
-            )
-          : Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: _MarqueeSubtitle(
-                text: context.featureText(
-                    loading ? (loadingText ?? subtitle) : subtitle),
-                color: loading ? scheme.primary : scheme.onSurfaceVariant,
-                fontWeight: loading ? FontWeight.w600 : FontWeight.normal,
-                fontSize: 12,
-              ),
+                if (!_hasProgress)
+                  _MarqueeSubtitle(
+                    text: context.featureText(loadingText ?? subtitle),
+                    color: scheme.primary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                  ),
+                const SizedBox(height: 4),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(2),
+                  child: SmoothLinearProgressIndicator(
+                    value: _hasProgress
+                        ? (progressCurrent! / progressTotal!).clamp(0.0, 1.0)
+                        : progressValue?.clamp(0.0, 1.0),
+                    minHeight: 4,
+                    backgroundColor: scheme.primary.withValues(alpha: 0.12),
+                    color: scheme.primary,
+                  ),
+                ),
+              ],
             ),
-      trailing: AnimatedSwitcher(
-        duration: trailingAnimationDuration,
-        switchInCurve: Curves.easeOutCubic,
-        switchOutCurve: Curves.easeInCubic,
-        transitionBuilder: (child, animation) =>
-            FadeTransition(opacity: animation, child: child),
-        layoutBuilder: (currentChild, previousChildren) => Stack(
-          alignment: Alignment.centerRight,
-          fit: StackFit.passthrough,
-          children: [
-            ...previousChildren,
-            if (currentChild != null) currentChild,
-          ],
-        ),
-        child: KeyedSubtree(
-          key: ValueKey(sorting),
-          child: trailing,
-        ),
+          )
+        : Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: _MarqueeSubtitle(
+              text: context
+                  .featureText(loading ? (loadingText ?? subtitle) : subtitle),
+              color: loading ? scheme.primary : scheme.onSurfaceVariant,
+              fontWeight: loading ? FontWeight.w600 : FontWeight.normal,
+              fontSize: 12,
+            ),
+          );
+    final tileTrailing = AnimatedSwitcher(
+      duration: trailingAnimationDuration,
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      transitionBuilder: (child, animation) =>
+          FadeTransition(opacity: animation, child: child),
+      layoutBuilder: (currentChild, previousChildren) => Stack(
+        alignment: Alignment.centerRight,
+        fit: StackFit.passthrough,
+        children: [
+          ...previousChildren,
+          if (currentChild != null) currentChild,
+        ],
       ),
-      onTap: _isInactive || sorting ? null : onTap,
+      child: KeyedSubtree(
+        key: ValueKey(sorting),
+        child: trailing,
+      ),
     );
+    final activate = _isInactive || sorting ? null : onTap;
+    final tile = apple
+        ? ios.CupertinoListTile(
+            leadingSize: 40,
+            leadingToTitle: 12,
+            padding:
+                EdgeInsets.symmetric(horizontal: 14, vertical: dense ? 4 : 8),
+            backgroundColorActivated: Colors.transparent,
+            leading: tileLeading,
+            title: tileTitle,
+            subtitle: tileSubtitle,
+            trailing: tileTrailing,
+            onTap: activate,
+          )
+        : ListTile(
+            contentPadding: EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: dense ? 0 : 8,
+            ),
+            minVerticalPadding: dense ? 4 : 8,
+            visualDensity:
+                dense ? VisualDensity.compact : VisualDensity.standard,
+            leading: tileLeading,
+            title: tileTitle,
+            subtitle: tileSubtitle,
+            trailing: tileTrailing,
+            onTap: activate,
+          );
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -600,11 +644,15 @@ class HubPageTitle extends StatelessWidget {
           header: true,
           child: Text(
             context.featureText(title),
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontSize: 30,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.2,
-                ),
+            style: Theme.of(context).platform == TargetPlatform.iOS
+                ? ios.CupertinoTheme.of(context)
+                    .textTheme
+                    .navLargeTitleTextStyle
+                : Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontSize: 30,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.2,
+                    ),
           ),
         ),
       );

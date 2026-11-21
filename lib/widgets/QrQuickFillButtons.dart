@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' as ios;
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -48,15 +49,33 @@ class QrQuickFillButtons extends StatelessWidget {
     this.runSpacing = 8,
   });
 
+  /// 只提取官方链接路径中的凭据，不向剪贴板里的地址发请求。
+  static String? gameCode(String value) {
+    final text = value.trim();
+    if (RegExp(r'^SGWCMAID[0-9A-Za-z]{13,504}$').hasMatch(text)) return text;
+    final url = Uri.tryParse(text);
+    if (url == null ||
+        !{'http', 'https'}.contains(url.scheme) ||
+        url.host != 'wq.wahlap.net') return null;
+    final match = RegExp(
+            r'^/qrcode/(?:img/(MAID[A-Z0-9]{20,160})\.png|req/(MAID[A-Z0-9]{20,160})\.html)$',
+            caseSensitive: false)
+        .firstMatch(url.path);
+    return match == null
+        ? null
+        : 'SGWC${(match[1] ?? match[2])!.toUpperCase()}';
+  }
+
   void _fill(String text) {
-    controller.text = text.trim();
+    controller.text = gameCode(text) ?? text.trim();
     onFilled?.call();
   }
 
   Future<void> _fromClipboard(BuildContext context) async {
     final data = await Clipboard.getData(Clipboard.kTextPlain);
+    if (!context.mounted) return;
     final text = data?.text ?? '';
-    if (text.trim().startsWith('SGWCMAID')) {
+    if (gameCode(text) != null) {
       _fill(text);
       AppToast.show(context.l10n.flowValidQRStringDetectedAndFilledIn,
           tone: AppToastTone.success);
@@ -85,7 +104,7 @@ class QrQuickFillButtons extends StatelessWidget {
         ],
       ),
     );
-    if (confirmed == true) _fill(text);
+    if (context.mounted && confirmed == true) _fill(text);
   }
 
   Future<void> _fromGallery(BuildContext context) async {
@@ -97,12 +116,13 @@ class QrQuickFillButtons extends StatelessWidget {
         maxWidth: 2560,
         maxHeight: 2560,
       );
-      if (pickedFile == null) return;
+      if (!context.mounted || pickedFile == null) return;
 
       // 用 mobile_scanner 离线解析图片里的二维码
       final scanner = MobileScannerController();
       try {
         final barcodes = await scanner.analyzeImage(pickedFile.path);
+        if (!context.mounted) return;
         if (barcodes == null || barcodes.barcodes.isEmpty) {
           AppToast.show(context.l10n.flowNoQRCodeFoundInTheImage,
               tone: AppToastTone.warning);
@@ -121,7 +141,7 @@ class QrQuickFillButtons extends StatelessWidget {
         scanner.dispose();
       }
     } catch (e) {
-      debugPrint('[QrQuickFill] 相册识别失败: $e');
+      if (!context.mounted) return;
       AppToast.show(context.l10n.flowRecognitionFailedP0((e).toString()),
           tone: AppToastTone.error);
     }
@@ -132,12 +152,12 @@ class QrQuickFillButtons extends StatelessWidget {
       final result = await Navigator.of(context).push<String>(
         MaterialPageRoute(builder: (_) => const QrScannerPage()),
       );
-      if (result == null || result.trim().isEmpty) return;
+      if (!context.mounted || result == null || result.trim().isEmpty) return;
       _fill(result);
       AppToast.show(context.l10n.flowQRCodeDetectedAndFilledIn,
           tone: AppToastTone.success);
     } catch (e) {
-      debugPrint('[QrQuickFill] 扫码失败: $e');
+      if (!context.mounted) return;
       AppToast.show(context.l10n.flowScanFailedP0((e).toString()),
           tone: AppToastTone.error);
     }
@@ -160,6 +180,34 @@ class QrQuickFillButtons extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (Theme.of(context).platform == TargetPlatform.iOS) {
+      final options = [
+        (
+          ios.CupertinoIcons.doc_on_clipboard,
+          context.l10n.flowReadClipboard,
+          _fromClipboard
+        ),
+        (
+          ios.CupertinoIcons.photo,
+          context.l10n.flowReadFromGallery,
+          _fromGallery
+        ),
+        (ios.CupertinoIcons.camera, context.l10n.flowScanQRCode, _fromCamera),
+      ];
+      return ios.CupertinoListSection.insetGrouped(
+        topMargin: 0,
+        margin: EdgeInsets.zero,
+        backgroundColor: Colors.transparent,
+        children: [
+          for (final (icon, label, action) in options)
+            ios.CupertinoListTile(
+                leading: Icon(icon, size: 21),
+                title: Text(label),
+                trailing: const ios.CupertinoListTileChevron(),
+                onTap: enabled ? () => action(context) : null),
+        ],
+      );
+    }
     return Wrap(
       spacing: spacing,
       runSpacing: runSpacing,

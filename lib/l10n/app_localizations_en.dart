@@ -9,6 +9,91 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
+  String qqPlayerMerge(String archive, String arcade) {
+    return 'Link arcade player “$arcade” to the existing profile “$archive”. Import only if both are yours.';
+  }
+
+  @override
+  String qqPlayerScoreCount(int count) {
+    return '$count scores';
+  }
+
+  @override
+  String get qqPlayerResend => 'Resend code';
+
+  @override
+  String get qqPlayerConnect => 'Connect my maimai';
+
+  @override
+  String get qqPlayerIntro =>
+      'Use QQ to find your scores. Open your existing Best 50 or scan your player QR code to import scores.';
+
+  @override
+  String get qqPlayerLibrary => 'Browse songs';
+
+  @override
+  String get qqPlayerBest => 'View Best50';
+
+  @override
+  String get qqPlayerSend => 'Send email code';
+
+  @override
+  String get qqPlayerCode => 'Email code';
+
+  @override
+  String get qqPlayerVerified => 'Load my scores';
+
+  @override
+  String get qqPlayerSwitch => 'Use another QQ';
+
+  @override
+  String get qqPlayerImport => 'Import player QR code';
+
+  @override
+  String get qqPlayerPreview => 'Read player name';
+
+  @override
+  String get qqPlayerConfirm => 'Import these scores';
+
+  @override
+  String get qqPlayerQrHelp =>
+      'Save your player QR code from WeChat, then choose the image from Photos.';
+
+  @override
+  String get qqPlayerBusy => 'Working…';
+
+  @override
+  String get qqPlayerOffline =>
+      'The connection service is unavailable. Try again later.';
+
+  @override
+  String get qqPlayerInvalid => 'The code is incorrect or expired.';
+
+  @override
+  String get qqPlayerLimited => 'Too many attempts. Try again later.';
+
+  @override
+  String get qqPlayerExpired => 'Your session expired. Verify your QQ again.';
+
+  @override
+  String get qqPlayerQrError =>
+      'Could not read the player QR code. Get a fresh code and try again.';
+
+  @override
+  String get qqPlayerConflict =>
+      'This QR code belongs to a different player. Your existing scores are safe.';
+
+  @override
+  String get qqPlayerEmpty => 'No playable scores were available to import.';
+
+  @override
+  String get qqPlayerTicket => 'This preview expired. Read your QR code again.';
+
+  @override
+  String get qqPlayerConsent =>
+      'Review the terms to browse songs or connect your player profile.';
+
+  @override
   String get autoUpdateSuccessTitle => 'Automatic update complete';
 
   @override

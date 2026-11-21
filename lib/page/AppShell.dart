@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' as ios;
 import '../l10n/FeatureLocalizations.dart';
 import 'dart:async';
 
@@ -106,6 +107,7 @@ class _AppShellState extends State<AppShell> {
       HomePage(
         key: _homePageKey,
         activeTask: _activeFeatureTask,
+        onLibraryTap: () => _selectIndex(1),
         onEntertainmentTap: () {
           _selectIndex(_playZoneIndex);
           _playZoneKey.currentState?.showSection(1);
@@ -192,8 +194,11 @@ class _AppShellState extends State<AppShell> {
     final systemBottomInset = MediaQuery.viewPaddingOf(context).bottom;
     // Hub 列表的尾部留白由布局参数和系统 inset 共同计算，而不是写死某个
     // 设备的导航栏高度。这样有无系统栏时，最后一个功能按钮到悬浮栏的视觉距离相同。
-    final navigationReserve =
-        barH + systemBottomInset + navigationBottomGap + contentBottomGap;
+    final appleBar = Theme.of(context).platform == TargetPlatform.iOS &&
+        NavigationPreferences.instance.barStyle == NavigationBarStyle.standard;
+    final navigationReserve = systemBottomInset +
+        contentBottomGap +
+        (appleBar ? 50.0 : barH + navigationBottomGap);
     return Scaffold(
       extendBody: true,
       resizeToAvoidBottomInset: false,
@@ -246,10 +251,28 @@ class _AppShellState extends State<AppShell> {
           // 导航栏属于页面内容层：它只占自己的圆角浮层，不再挂在
           // Scaffold.bottomNavigationBar，也不会铺满设备底部。
           Positioned(
-            left: 12,
-            right: 12,
-            bottom: systemBottomInset + navigationBottomGap,
-            child: _buildFloatingNavigation(scheme),
+            left: appleBar ? 0 : 12,
+            right: appleBar ? 0 : 12,
+            bottom: appleBar ? 0 : systemBottomInset + navigationBottomGap,
+            child: appleBar
+                ? ios.CupertinoTabBar(
+                    currentIndex: _index,
+                    onTap: _selectIndex,
+                    activeColor: scheme.primary,
+                    items: [
+                      for (var i = 0; i < _tabs.length; i++)
+                        BottomNavigationBarItem(
+                            icon: Icon(const [
+                              ios.CupertinoIcons.house,
+                              ios.CupertinoIcons.music_note_list,
+                              ios.CupertinoIcons.chart_bar,
+                              ios.CupertinoIcons.game_controller,
+                              ios.CupertinoIcons.person_crop_circle
+                            ][i]),
+                            label: context.featureText(_tabs[i].label))
+                    ],
+                  )
+                : _buildFloatingNavigation(scheme),
           ),
         ],
       ),

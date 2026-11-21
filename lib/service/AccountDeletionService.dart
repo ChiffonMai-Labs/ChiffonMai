@@ -1,3 +1,4 @@
+import 'AWMC/AwmcPlayerConnection.dart';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -69,7 +70,9 @@ class AccountDeletionService {
             '';
       }
       if (id.isEmpty && source == RefreshDataSource.awmc) {
-        id = prefs.getString(CacheKeyConstant.awmcLookupQQ)?.trim() ?? '';
+        id = prefs.getString(CacheKeyConstant.awmcLookupQQ)?.trim() ??
+            (await AwmcPlayerConnection.restore())?.qq ??
+            '';
       }
       if (id.isEmpty) continue;
 
@@ -84,7 +87,7 @@ class AccountDeletionService {
           hasCredential =
               await _hasCredential(CacheKeyConstant.luoxueAccessToken);
         case RefreshDataSource.awmc:
-          hasCredential = await _hasCredential(CacheKeyConstant.awmcToken) ||
+          hasCredential = await _hasCredential(CacheKeyConstant.awmcPlayerSession) || await _hasCredential(CacheKeyConstant.awmcToken) ||
               await _hasCredential(CacheKeyConstant.awmcNetImportToken);
       }
       if (!hasMeta && !hasCache && !hasCredential) continue;
@@ -357,6 +360,7 @@ class AccountDeletionService {
               await prefs.remove(CacheKeyConstant.luoxueUserId);
               break;
             case RefreshDataSource.awmc:
+              await AwmcPlayerConnection.disconnect();
               await SecureCredentialStore.delete(CacheKeyConstant.awmcToken);
               await SecureCredentialStore.delete(
                   CacheKeyConstant.awmcNetImportToken);
