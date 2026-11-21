@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' as ios;
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -475,6 +476,31 @@ class SegmentedTabs extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    if (theme.platform == TargetPlatform.iOS && items.length > 1) {
+      return ConstrainedBox(
+        constraints: BoxConstraints(minHeight: height),
+        child: ios.CupertinoSlidingSegmentedControl<int>(
+          groupValue: selectedIndex,
+          onValueChanged: (index) {
+            if (index != null && index != selectedIndex) onChanged(index);
+          },
+          children: {
+            for (var i = 0; i < items.length; i++)
+              i: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Text(
+                  [
+                    items[i].label,
+                    if (items[i].caption != null) items[i].caption!
+                  ].join(inlineCaption ? ' · ' : '\n'),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 13, color: scheme.onSurface),
+                ),
+              ),
+          },
+        ),
+      );
+    }
     final dark = theme.brightness == Brightness.dark;
     final selectedColor =
         dark ? scheme.secondaryContainer : AppSurfaces.card(context);

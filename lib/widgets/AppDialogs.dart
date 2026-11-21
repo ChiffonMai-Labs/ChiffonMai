@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' as ios;
 import '../l10n/LocalizationsExtension.dart';
 import '../l10n/FeatureLocalizations.dart';
 import 'package:flutter/material.dart';
@@ -754,6 +755,21 @@ Future<void> showAppNoticeDialog(
   AppDialogTone tone = AppDialogTone.info,
   String? confirmLabel,
 }) {
+  if (Theme.of(context).platform == TargetPlatform.iOS) {
+    return ios.showCupertinoDialog<void>(
+      context: context,
+      builder: (dialogContext) => ios.CupertinoAlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          ios.CupertinoDialogAction(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(confirmLabel ?? context.l10n.confirm),
+          )
+        ],
+      ),
+    );
+  }
   return showDialog<void>(
     context: context,
     builder: (dialogContext) => AppDialog(

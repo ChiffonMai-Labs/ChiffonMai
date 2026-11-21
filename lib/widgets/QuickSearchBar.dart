@@ -1,3 +1,4 @@
+import 'AppleSearchField.dart';
 import '../l10n/FeatureLocalizations.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -72,6 +73,24 @@ class _QuickSearchBarState extends State<QuickSearchBar> {
     final hintColor = scheme.onSurfaceVariant;
     final iconColor = scheme.primary;
 
+    void clear() {
+      _debounceTimer?.cancel();
+      _controller.clear();
+      setState(() {});
+      widget.onChanged('');
+    }
+
+    if (Theme.of(context).platform == TargetPlatform.iOS) {
+      return Padding(
+        padding: widget.padding,
+        child: AppleSearchField(
+            controller: _controller,
+            placeholder: context.featureText(widget.hintText ?? '搜点什么...'),
+            onOpen: widget.onTap,
+            onChanged: _onChanged,
+            onClear: clear),
+      );
+    }
     return Padding(
       padding: widget.padding,
       child: TextField(
@@ -94,12 +113,7 @@ class _QuickSearchBarState extends State<QuickSearchBar> {
               ? IconButton(
                   tooltip: context.featureText('清空'),
                   icon: Icon(Icons.close_rounded, color: hintColor, size: 18),
-                  onPressed: () {
-                    _debounceTimer?.cancel();
-                    _controller.clear();
-                    setState(() {});
-                    widget.onChanged('');
-                  },
+                  onPressed: clear,
                 )
               : null,
           // B 方案：白底、无描边、16 圆角；聚焦时才出现主题色描边。

@@ -1,3 +1,5 @@
+import 'package:flutter/cupertino.dart' as ios;
+import 'AwmcNet/PlayerConnectionPage.dart';
 import '../widgets/AccountAuthorizationDialog.dart';
 import '../widgets/AccountAuthorizationStatus.dart';
 import '../widgets/AccountBindingManager.dart';
@@ -1112,6 +1114,12 @@ class SystemHubPageState extends State<SystemHubPage>
               subtitle: '账号、同步、备份与应用偏好',
               icon: Icons.person_rounded,
               hero: Column(children: [
+                if (Theme.of(context).platform == TargetPlatform.iOS)
+                  ios.CupertinoListTile(
+                      leading: const Icon(ios.CupertinoIcons.link),
+                      title: Text(context.l10n.qqPlayerConnect),
+                      trailing: const ios.CupertinoListTileChevron(),
+                      onTap: () => PlayerConnectionPage.open(context)),
                 CommunityAppearanceBanner(
                   appearance: CommunityAvatarStore.instance.value,
                   nickname: _userNickname,

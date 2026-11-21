@@ -1,9 +1,10 @@
+import 'package:flutter/cupertino.dart' as ios;
 import 'package:flutter/material.dart';
 
 import '../utils/AppDesignTokens.dart';
 
 /// 等宽选项切换：背景滑动，文字颜色淡入淡出，状态仍由页面持有。
-class AnimatedChoiceBar<T> extends StatelessWidget {
+class AnimatedChoiceBar<T extends Object> extends StatelessWidget {
   final List<T> values;
   final T value;
   final String Function(T) label;
@@ -23,6 +24,33 @@ class AnimatedChoiceBar<T> extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    if (theme.platform == TargetPlatform.iOS && values.length > 1) {
+      return LayoutBuilder(
+          builder: (context, constraints) => SizedBox(
+                width:
+                    constraints.hasBoundedWidth ? constraints.maxWidth : null,
+                child: ios.CupertinoSlidingSegmentedControl<T>(
+                  groupValue: value,
+                  disabledChildren: onChanged == null ? values.toSet() : <T>{},
+                  onValueChanged: (selected) {
+                    if (selected != null && selected != value)
+                      onChanged?.call(selected);
+                  },
+                  children: {
+                    for (final option in values)
+                      option: Padding(
+                        padding:
+                            EdgeInsets.symmetric(vertical: compact ? 2 : 6),
+                        child: Text(label(option),
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                                fontSize: compact ? 12 : 14,
+                                color: scheme.onSurface)),
+                      ),
+                  },
+                ),
+              ));
+    }
     // 与 SegmentedTabs 同一观感：凹槽底 + 白色滑块，深色下滑块改用容器色。
     final dark = theme.brightness == Brightness.dark;
     final thumbColor =

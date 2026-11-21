@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' as ios;
 import 'package:my_first_flutter_app/l10n/FeatureLocalizations.dart';
 import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
@@ -372,6 +373,14 @@ class Best50SwitchPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (Theme.of(context).platform == TargetPlatform.iOS) {
+      return MergeSemantics(
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Text(label),
+        const SizedBox(width: 6),
+        ios.CupertinoSwitch(value: value, onChanged: onChanged),
+      ]));
+    }
     return Semantics(
       toggled: value,
       label: label,

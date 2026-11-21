@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' as ios;
 import 'package:flutter/material.dart';
 
 import '../utils/AppDesignTokens.dart';
@@ -67,12 +68,71 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    void back() {
+      FocusManager.instance.primaryFocus?.unfocus();
+      if (onBack != null) {
+        onBack!();
+      } else {
+        Navigator.of(context).maybePop();
+      }
+    }
+
+    if (theme.platform == TargetPlatform.iOS) {
+      final style = ios.CupertinoTheme.of(context).textTheme.navTitleTextStyle;
+      final label = Semantics(
+          header: true,
+          child: MarqueeText(
+            key: ValueKey(title),
+            text: title,
+            style: style.copyWith(color: scheme.onSurface),
+          ));
+      return Material(
+        color: barBackground ?? Colors.transparent,
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ios.CupertinoNavigationBar(
+            automaticallyImplyLeading: false,
+            automaticallyImplyMiddle: false,
+            transitionBetweenRoutes: false,
+            automaticBackgroundVisibility: false,
+            backgroundColor: Colors.transparent,
+            enableBackgroundFilterBlur: false,
+            brightness: theme.brightness,
+            border: null,
+            leading: showBack
+                ? ios.CupertinoNavigationBarBackButton(
+                    onPressed: back, color: scheme.primary)
+                : null,
+            middle: animateTitle
+                ? AnimatedSwitcher(
+                    duration: AppDesignTokens.motion(
+                        context, AppDesignTokens.fastMotion),
+                    child: label)
+                : label,
+            trailing: actions.isEmpty
+                ? null
+                : Padding(
+                    padding: EdgeInsetsDirectional.only(end: actionsEndInset),
+                    child: IconButtonTheme(
+                      data: IconButtonThemeData(
+                          style: IconButton.styleFrom(
+                              foregroundColor: scheme.primary,
+                              padding: EdgeInsets.zero)),
+                      child: Row(
+                          mainAxisSize: MainAxisSize.min, children: actions),
+                    ),
+                  ),
+          ),
+          if (bottom != null) bottom!,
+        ]),
+      );
+    }
     final buttonColor = buttonBackground ?? AppSurfaces.card(context);
     final circleButton = IconButton.styleFrom(
       backgroundColor: buttonColor,
       foregroundColor: scheme.onSurface,
       overlayColor: Colors.transparent,
-      disabledBackgroundColor: buttonColor.withValues(alpha: buttonColor.a * 0.5),
+      disabledBackgroundColor:
+          buttonColor.withValues(alpha: buttonColor.a * 0.5),
       fixedSize: const Size(44, 44),
       minimumSize: const Size(44, 44),
       padding: EdgeInsets.zero,
@@ -115,14 +175,7 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
                           style: circleButton,
                           tooltip: MaterialLocalizations.of(context)
                               .backButtonTooltip,
-                          onPressed: () {
-                            FocusManager.instance.primaryFocus?.unfocus();
-                            if (onBack != null) {
-                              onBack!();
-                            } else {
-                              Navigator.of(context).maybePop();
-                            }
-                          },
+                          onPressed: back,
                         ),
                         const SizedBox(width: 12),
                       ],
