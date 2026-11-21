@@ -85,19 +85,21 @@ class AwmcNetUserPlayDataManager {
       throw const AwmcNetException('QQ 号格式不对（应为 5–12 位数字）');
     }
 
-    final session = await AwmcPlayerConnection.restore();
+    final session = await _restorePlayerSession();
     if (session != null && session.qq == id) {
       try {
         final response =
             await AwmcPlayerConnection.request('records', token: session.token);
         final data = normalizeRecords(response['player']);
-        if (data == null)
+        if (data == null) {
           throw AwmcNetException(appL10n.svcAWMCNETHasNoDataForQQ(id));
+        }
         return data;
       } on PlayerConnectionError catch (error) {
-        throw AwmcNetException(error.code == 'expired_session'
-            ? appL10n.qqPlayerExpired
-            : appL10n.qqPlayerOffline);
+        if (error.code != 'expired_session') {
+          throw AwmcNetException(appL10n.qqPlayerOffline);
+        }
+        // 普通刷新仍可使用原来的按 QQ 查询；连接页负责提示重新验证。
       }
     }
 
@@ -139,6 +141,15 @@ class AwmcNetUserPlayDataManager {
     final count = (data['records'] as List).length;
     debugPrint('✓ 已从 AWMC NET 获取成绩（QQ: $id，$count 条已游玩谱面）');
     return data;
+  }
+
+  Future<({String qq, String token})?> _restorePlayerSession() async {
+    try {
+      return await AwmcPlayerConnection.restore();
+    } on Exception catch (error) {
+      debugPrint('[AWMC NET] 读取 QQ 会话失败: ${error.runtimeType}');
+      return null;
+    }
   }
 
   /// 把 HTTP 错误码翻成带人话文案的异常。
