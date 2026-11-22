@@ -132,6 +132,40 @@ class AwmcCabinetData {
     return [for (final entry in sorted) entry.item];
   }
 
+  static const _wahlapRegions = <int, String>{
+    1: '北京',
+    2: '重庆',
+    3: '上海',
+    4: '天津',
+    5: '安徽',
+    6: '福建',
+    7: '甘肃',
+    8: '广东',
+    9: '贵州',
+    10: '海南',
+    11: '河北',
+    12: '黑龙江',
+    13: '河南',
+    14: '湖北',
+    15: '湖南',
+    16: '江苏',
+    17: '江西',
+    18: '吉林',
+    19: '辽宁',
+    20: '青海',
+    21: '陕西',
+    22: '山东',
+    23: '山西',
+    24: '四川',
+    26: '云南',
+    27: '浙江',
+    28: '广西',
+    29: '内蒙古',
+    30: '宁夏',
+    31: '新疆',
+    32: '西藏',
+  };
+
   static List<AwmcPlayRegion> regions(Object? source) {
     final data = _unwrap(source);
     final rows = data is List
@@ -148,7 +182,14 @@ class AwmcCabinetData {
       if (name.isEmpty && (province.length == 2 || province.length == 6)) {
         name = _provinces[province.substring(0, 2)] ?? '';
       }
-      if (name.isEmpty) name = _string(row['regionId'] ?? province);
+      if (name.isEmpty) {
+        final rawRegionId = _string(row['regionId']);
+        if (rawRegionId.isNotEmpty) {
+          final id = int.tryParse(rawRegionId);
+          name = (id != null ? _wahlapRegions[id] : null) ?? '地区 #$rawRegionId';
+        }
+      }
+      if (name.isEmpty) name = province;
       if (name.isEmpty) continue;
       final count = int.tryParse(
           '${row['playCount'] ?? row['visitCount'] ?? row['playNum']}');
