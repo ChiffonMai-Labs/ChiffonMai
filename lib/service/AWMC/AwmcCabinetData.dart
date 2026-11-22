@@ -53,28 +53,83 @@ class AwmcCabinetData {
   static const _checkWindow = Duration(milliseconds: 60150);
   static final _recentChecks = Queue<DateTime>();
 
+  static const _collectionItemKinds = <int, ({String label, String? slugPrefix})>{
+    1: (label: '姓名框', slugPrefix: 'plate'),
+    2: (label: '称号', slugPrefix: 'title'),
+    3: (label: '头像', slugPrefix: 'icon'),
+    4: (label: '礼物', slugPrefix: null),
+    5: (label: '乐曲解锁', slugPrefix: null),
+    6: (label: 'MASTER 解锁', slugPrefix: null),
+    7: (label: 'Re:MASTER 解锁', slugPrefix: null),
+    8: (label: '活动道具', slugPrefix: null),
+    10: (label: '搭档', slugPrefix: 'partner'),
+    11: (label: '背景', slugPrefix: 'frame'),
+    12: (label: '票券', slugPrefix: null),
+    14: (label: '万花筒钥匙', slugPrefix: null),
+  };
+
   static List<AwmcOwnedItem> ownedItems(Object? source) {
     final data = _unwrap(source);
-    final rows = data is List
-        ? data
-        : data is Map
-            ? data['userItemList'] ?? data['itemList'] ?? data['items']
-            : null;
-    if (rows is! List) return const [];
-    final items = <(String, String), AwmcOwnedItem>{};
-    for (final row in rows.whereType<Map>()) {
+    final rawRows = <Map>[];
+    if (data is List) {
+      rawRows.addAll(data.whereType<Map>());
+    } else if (data is Map) {
+      final direct = data['userItemList'] ?? data['itemList'] ?? data['items'];
+      if (direct is List) {
+        rawRows.addAll(direct.whereType<Map>());
+      } else {
+        for (final value in data.values) {
+          if (value is Map && value['userItemList'] is List) {
+            rawRows.addAll((value['userItemList'] as List).whereType<Map>());
+          }
+        }
+      }
+    }
+    if (rawRows.isEmpty) return const [];
+
+    final items = <(String, String), ({AwmcOwnedItem item, int? kindNum, int? idNum})>{};
+    for (final row in rawRows) {
+      if (row['isValid'] == false) continue;
       final id = _string(row['itemId'] ?? row['gameId'] ?? row['id']);
-      final kind = _string(row['itemKind'] ?? row['type']);
       if (id.isEmpty) continue;
-      final slug = _string(row['slug']);
-      items[(kind, id)] = (
-        id: id,
-        kind: kind,
-        name: _string(row['name'] ?? row['itemName']),
-        slug: _slug.hasMatch(slug) ? slug : null,
+      final rawKind = _string(row['itemKind'] ?? row['type']);
+      final kindNum = int.tryParse(rawKind);
+      final mapped = kindNum == null ? null : _collectionItemKinds[kindNum];
+      final kindLabel = mapped?.label ?? rawKind;
+
+      final explicitSlug = _string(row['slug']);
+      String? slug = _slug.hasMatch(explicitSlug) ? explicitSlug : null;
+      if (slug == null && mapped?.slugPrefix != null) {
+        final candidate = '${mapped!.slugPrefix}-$id';
+        if (_slug.hasMatch(candidate)) slug = candidate;
+      }
+
+      items[(rawKind, id)] = (
+        item: (
+          id: id,
+          kind: kindLabel,
+          name: _string(row['name'] ?? row['itemName']),
+          slug: slug,
+        ),
+        kindNum: kindNum,
+        idNum: int.tryParse(id),
       );
     }
-    return items.values.toList();
+
+    final sorted = items.values.toList()
+      ..sort((a, b) {
+        final aHasSlug = a.item.slug != null;
+        final bHasSlug = b.item.slug != null;
+        if (aHasSlug != bHasSlug) return aHasSlug ? -1 : 1;
+        if (a.kindNum != null && b.kindNum != null && a.kindNum != b.kindNum) {
+          return a.kindNum!.compareTo(b.kindNum!);
+        }
+        if (a.idNum != null && b.idNum != null && a.idNum != b.idNum) {
+          return a.idNum!.compareTo(b.idNum!);
+        }
+        return 0;
+      });
+    return [for (final entry in sorted) entry.item];
   }
 
   static List<AwmcPlayRegion> regions(Object? source) {

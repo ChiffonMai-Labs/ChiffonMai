@@ -13,6 +13,34 @@ enum _Resource { music, rival }
 class AwmcResourcesPage extends StatefulWidget {
   const AwmcResourcesPage({super.key});
 
+  /// 解析 `/v1/rival/data` 响应（兼容线上 `userRivalData.rivalName` 与 `userData`）。
+  @visibleForTesting
+  static List<({String id, String title, String? detail})> parseRivalProfile(
+      Object? payload) {
+    if (payload is! Map) return const [];
+    final data = payload['data'] is Map ? payload['data'] as Map : payload;
+    final user =
+        data['userRivalData'] ?? data['userData'] ?? data['user'] ?? data;
+    final profile = user is List ? user.firstOrNull : user;
+    if (profile is! Map) return const [];
+    final name = profile['rivalName'] ??
+        profile['userName'] ??
+        profile['nickname'] ??
+        profile['name'];
+    if (name is! String || name.trim().isEmpty) return const [];
+    final rawId = profile['rivalId'] ?? profile['userId'] ?? data['userId'];
+    final rawIdText =
+        rawId is num || rawId is String ? rawId.toString().trim() : '';
+    final rating = profile['playerRating'] ?? profile['rating'];
+    return [
+      (
+        id: rawIdText.isEmpty ? '' : '#$rawIdText',
+        title: name.trim(),
+        detail: rating is num ? 'Rating $rating' : null,
+      )
+    ];
+  }
+
   @override
   State<AwmcResourcesPage> createState() => _AwmcResourcesPageState();
 }
@@ -83,7 +111,9 @@ class _AwmcResourcesPageState extends State<AwmcResourcesPage> {
         final payload = response.businessData;
         setState(() {
           _source = 'AWMC';
-          _rows = _mode == _Resource.music ? _music(payload) : _rival(payload);
+          _rows = _mode == _Resource.music
+              ? _music(payload)
+              : AwmcResourcesPage.parseRivalProfile(payload);
         });
       }
     } catch (_) {
@@ -98,7 +128,8 @@ class _AwmcResourcesPageState extends State<AwmcResourcesPage> {
     }
   }
 
-  List<({String id, String title, String? detail})> _music(Object? payload) {
+  static List<({String id, String title, String? detail})> _music(
+      Object? payload) {
     if (payload is! Map) return const [];
     final rows = payload['candidates'] ?? payload['items'];
     if (rows is! List) return const [];
@@ -112,21 +143,6 @@ class _AwmcResourcesPageState extends State<AwmcResourcesPage> {
                 ? row['versionName'] as String
                 : null
           ),
-    ];
-  }
-
-  List<({String id, String title, String? detail})> _rival(Object? payload) {
-    if (payload is! Map) return const [];
-    final data = payload['data'] is Map ? payload['data'] as Map : payload;
-    final user =
-        data['userData'] ?? data['userRivalData'] ?? data['user'] ?? data;
-    final profile = user is List ? user.firstOrNull : user;
-    if (profile is! Map) return const [];
-    final name = profile['userName'] ?? profile['nickname'] ?? profile['name'];
-    final rating = profile['playerRating'] ?? profile['rating'];
-    if (name is! String || name.trim().isEmpty) return const [];
-    return [
-      (id: '', title: name, detail: rating is num ? 'Rating $rating' : null)
     ];
   }
 
