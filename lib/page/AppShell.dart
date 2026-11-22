@@ -191,7 +191,8 @@ class _AppShellState extends State<AppShell> {
     // viewPadding 是窗口当前真实的系统底部 inset：系统导航栏隐藏时为 0，
     // 手势条/三键导航栏出现时则自动变成对应设备的实际高度。
     // 不使用 padding，避免 SafeArea 或键盘状态改变后把系统栏高度算错。
-    final systemBottomInset = MediaQuery.viewPaddingOf(context).bottom;
+    final viewPadding = MediaQuery.viewPaddingOf(context);
+    final systemBottomInset = viewPadding.bottom;
     // Hub 列表的尾部留白由布局参数和系统 inset 共同计算，而不是写死某个
     // 设备的导航栏高度。这样有无系统栏时，最后一个功能按钮到悬浮栏的视觉距离相同。
     final appleBar = Theme.of(context).platform == TargetPlatform.iOS &&
@@ -231,15 +232,21 @@ class _AppShellState extends State<AppShell> {
                   showDecorativeImage: _index == 0,
                   child: MainNavigationInsets(
                     bottom: navigationReserve,
-                    child: Center(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(
-                            maxWidth: AppDesignTokens.maxContentWidth),
-                        child: MainNavigationViewport(
-                          pages: _pages,
-                          index: _index,
-                          transitionEnabled:
-                              NavigationPreferences.instance.transitionEnabled,
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                        left: viewPadding.left,
+                        right: viewPadding.right,
+                      ),
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(
+                              maxWidth: AppDesignTokens.maxContentWidth),
+                          child: MainNavigationViewport(
+                            pages: _pages,
+                            index: _index,
+                            transitionEnabled:
+                                NavigationPreferences.instance.transitionEnabled,
+                          ),
                         ),
                       ),
                     ),
@@ -251,8 +258,8 @@ class _AppShellState extends State<AppShell> {
           // 导航栏属于页面内容层：它只占自己的圆角浮层，不再挂在
           // Scaffold.bottomNavigationBar，也不会铺满设备底部。
           Positioned(
-            left: appleBar ? 0 : 12,
-            right: appleBar ? 0 : 12,
+            left: (appleBar ? 0 : 12) + viewPadding.left,
+            right: (appleBar ? 0 : 12) + viewPadding.right,
             bottom: appleBar ? 0 : systemBottomInset + navigationBottomGap,
             child: appleBar
                 ? ios.CupertinoTabBar(

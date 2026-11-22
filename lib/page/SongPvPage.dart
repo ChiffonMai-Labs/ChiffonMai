@@ -66,6 +66,7 @@ class _SongPvPageState extends State<SongPvPage> {
   bool _fullscreen = false;
   bool _leaving = false;
   bool _changingFullscreen = false;
+  bool? _isTablet;
   bool _playbackControlsVisible = true;
   Timer? _hideControlsTimer;
   static const _portrait = [DeviceOrientation.portraitUp];
@@ -73,6 +74,19 @@ class _SongPvPageState extends State<SongPvPage> {
     DeviceOrientation.landscapeLeft,
     DeviceOrientation.landscapeRight,
   ];
+  static const _allOrientations = [
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+    DeviceOrientation.landscapeLeft,
+    DeviceOrientation.landscapeRight,
+  ];
+
+  List<DeviceOrientation> get _defaultOrientations =>
+      (_isTablet ?? false) ? _allOrientations : _portrait;
+
+  List<DeviceOrientation> get _activeOrientations => (_isTablet ?? false)
+      ? _allOrientations
+      : (_fullscreen ? _landscape : _portrait);
 
   PvVideoStream? _videoStream;
   Timer? _speedTimer;
@@ -94,7 +108,6 @@ class _SongPvPageState extends State<SongPvPage> {
   @override
   void initState() {
     super.initState();
-    unawaited(SystemChrome.setPreferredOrientations(_portrait));
     _videoUri = Uri.parse(
       'https://download.wmc.pub/s/${widget.songId}/pv.mp4',
     );
@@ -110,6 +123,18 @@ class _SongPvPageState extends State<SongPvPage> {
       _videoStream?.close();
       throw error;
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final isTablet = MediaQuery.sizeOf(context).shortestSide >= 600;
+    if (_isTablet != isTablet) {
+      _isTablet = isTablet;
+      if (!_leaving) {
+        unawaited(SystemChrome.setPreferredOrientations(_activeOrientations));
+      }
+    }
   }
 
   Future<void> _initializeVideo() async {
@@ -314,7 +339,7 @@ class _SongPvPageState extends State<SongPvPage> {
       unawaited(_controller.dispose());
     }
     if (!_leaving) {
-      unawaited(SystemChrome.setPreferredOrientations(_portrait));
+      unawaited(SystemChrome.setPreferredOrientations(_defaultOrientations));
       unawaited(NavigationPreferences.instance.setPvFullscreen(false));
     }
     super.dispose();
@@ -330,7 +355,7 @@ class _SongPvPageState extends State<SongPvPage> {
     });
     try {
       await Future.wait([
-        SystemChrome.setPreferredOrientations(enabled ? _landscape : _portrait),
+        SystemChrome.setPreferredOrientations(_activeOrientations),
         NavigationPreferences.instance.setPvFullscreen(enabled),
       ]);
     } finally {
@@ -351,7 +376,7 @@ class _SongPvPageState extends State<SongPvPage> {
     _leaving = true;
     try {
       await Future.wait([
-        SystemChrome.setPreferredOrientations(_portrait),
+        SystemChrome.setPreferredOrientations(_defaultOrientations),
         NavigationPreferences.instance.setPvFullscreen(false),
       ]);
     } finally {
