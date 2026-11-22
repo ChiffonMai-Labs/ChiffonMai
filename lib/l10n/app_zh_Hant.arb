@@ -4409,5 +4409,10 @@
   "awmcCheckCatalogPage": "核對本頁道具",
   "awmcCatalogExists": "上游圖鑑有紀錄",
   "awmcCatalogMissing": "上游圖鑑未找到",
-  "awmcCatalogCheckUnknown": "暫未核對"
+  "awmcCatalogCheckUnknown": "暫未核對",
+  "awmcWeaknessPrescription": "弱項處方",
+  "awmcWeaknessSubtitle": "依同定數區間（±0.3）個人平均達成率對比快取標籤，定位偏弱配置並推薦練習譜面",
+  "awmcWeaknessNoData": "暫無足夠的標籤成績樣本（單一標籤至少需 3 筆已遊玩紀錄）",
+  "awmcWeaknessStats": "已遊玩 {p0} 譜 · 均分 {p1}% · SSS {p2} 譜",
+  "awmcUnplayed": "未遊玩"
 }

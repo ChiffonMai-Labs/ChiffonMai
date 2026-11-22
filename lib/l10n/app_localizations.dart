@@ -26551,6 +26551,36 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'暂未核对'**
   String get awmcCatalogCheckUnknown;
+
+  /// No description provided for @awmcWeaknessPrescription.
+  ///
+  /// In zh, this message translates to:
+  /// **'弱项处方'**
+  String get awmcWeaknessPrescription;
+
+  /// No description provided for @awmcWeaknessSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'按同定数区间（±0.3）个人平均达成率对比缓存标签，定位偏弱配置并推荐练习谱面'**
+  String get awmcWeaknessSubtitle;
+
+  /// No description provided for @awmcWeaknessNoData.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无足够的标签成绩样本（单个标签至少需 3 条已游玩记录）'**
+  String get awmcWeaknessNoData;
+
+  /// No description provided for @awmcWeaknessStats.
+  ///
+  /// In zh, this message translates to:
+  /// **'已游玩 {p0} 谱 · 均分 {p1}% · SSS {p2} 谱'**
+  String awmcWeaknessStats(String p0, String p1, String p2);
+
+  /// No description provided for @awmcUnplayed.
+  ///
+  /// In zh, this message translates to:
+  /// **'未游玩'**
+  String get awmcUnplayed;
 }
 
 class _AppLocalizationsDelegate

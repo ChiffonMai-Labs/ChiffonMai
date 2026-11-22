@@ -15188,6 +15188,23 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get awmcCatalogCheckUnknown => '暂未核对';
+
+  @override
+  String get awmcWeaknessPrescription => '弱项处方';
+
+  @override
+  String get awmcWeaknessSubtitle => '按同定数区间（±0.3）个人平均达成率对比缓存标签，定位偏弱配置并推荐练习谱面';
+
+  @override
+  String get awmcWeaknessNoData => '暂无足够的标签成绩样本（单个标签至少需 3 条已游玩记录）';
+
+  @override
+  String awmcWeaknessStats(String p0, String p1, String p2) {
+    return '已游玩 $p0 谱 · 均分 $p1% · SSS $p2 谱';
+  }
+
+  @override
+  String get awmcUnplayed => '未游玩';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -30376,4 +30393,21 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get awmcCatalogCheckUnknown => '暫未核對';
+
+  @override
+  String get awmcWeaknessPrescription => '弱項處方';
+
+  @override
+  String get awmcWeaknessSubtitle => '依同定數區間（±0.3）個人平均達成率對比快取標籤，定位偏弱配置並推薦練習譜面';
+
+  @override
+  String get awmcWeaknessNoData => '暫無足夠的標籤成績樣本（單一標籤至少需 3 筆已遊玩紀錄）';
+
+  @override
+  String awmcWeaknessStats(String p0, String p1, String p2) {
+    return '已遊玩 $p0 譜 · 均分 $p1% · SSS $p2 譜';
+  }
+
+  @override
+  String get awmcUnplayed => '未遊玩';
 }

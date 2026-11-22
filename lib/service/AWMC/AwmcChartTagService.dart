@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../api/ApiUrls.dart';
@@ -110,5 +111,52 @@ class AwmcChartTagService {
       }
     }
     return groups;
+  }
+
+  /// 读取本地已缓存的 AWMC 谱面标签（只保留配置与评价分组，供全局推荐与弱项分析复用）。
+  static Future<Map<String, Set<String>>> loadAllCachedTagLabels() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final rawEntries = <String, String>{};
+      for (final key in prefs.getKeys()) {
+        if (!key.startsWith(cachePrefix)) continue;
+        final value = prefs.getString(key);
+        if (value != null) rawEntries[key] = value;
+      }
+      return decodeCachedTagLabels(rawEntries);
+    } catch (_) {
+      return const {};
+    }
+  }
+
+  @visibleForTesting
+  static Map<String, Set<String>> decodeCachedTagLabels(
+    Map<String, String> rawEntries, {
+    int? nowMs,
+  }) {
+    final now = nowMs ?? DateTime.now().millisecondsSinceEpoch;
+    final result = <String, Set<String>>{};
+    for (final entry in rawEntries.entries) {
+      if (!entry.key.startsWith(cachePrefix)) continue;
+      final chartKey = entry.key.substring(cachePrefix.length);
+      if (chartKey.isEmpty) continue;
+      try {
+        final cached = jsonDecode(entry.value);
+        if (cached is! Map || cached['tags'] is! Map) continue;
+        final saved = cached['savedAt'];
+        if (saved is! int || now - saved >= _cacheDuration.inMilliseconds) {
+          continue;
+        }
+        final grouped = _group(cached['tags'] as Map);
+        final labels = <String>{
+          for (final groupName in const ['配置', '评价'])
+            ...?grouped[groupName]?.map((item) => item['name'] ?? '').where((s) => s.isNotEmpty),
+        };
+        if (labels.isNotEmpty) result[chartKey] = labels;
+      } on FormatException {
+        // 损坏条目静默跳过，避免影响其余谱面。
+      }
+    }
+    return result;
   }
 }

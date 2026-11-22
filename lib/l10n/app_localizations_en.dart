@@ -16081,4 +16081,23 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get awmcCatalogCheckUnknown => 'Check pending';
+
+  @override
+  String get awmcWeaknessPrescription => 'Weakness prescription';
+
+  @override
+  String get awmcWeaknessSubtitle =>
+      'Compares cached tag scores against your ±0.3 constant average to recommend practice charts';
+
+  @override
+  String get awmcWeaknessNoData =>
+      'Not enough tagged scores yet (at least 3 played charts per tag)';
+
+  @override
+  String awmcWeaknessStats(String p0, String p1, String p2) {
+    return '$p0 played · Avg $p1% · $p2 SSS';
+  }
+
+  @override
+  String get awmcUnplayed => 'Unplayed';
 }

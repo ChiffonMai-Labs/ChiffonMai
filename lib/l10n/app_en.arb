@@ -4409,5 +4409,10 @@
   "awmcCheckCatalogPage": "Check items on this page",
   "awmcCatalogExists": "Found in upstream catalog",
   "awmcCatalogMissing": "Missing from upstream catalog",
-  "awmcCatalogCheckUnknown": "Check pending"
+  "awmcCatalogCheckUnknown": "Check pending",
+  "awmcWeaknessPrescription": "Weakness prescription",
+  "awmcWeaknessSubtitle": "Compares cached tag scores against your ±0.3 constant average to recommend practice charts",
+  "awmcWeaknessNoData": "Not enough tagged scores yet (at least 3 played charts per tag)",
+  "awmcWeaknessStats": "{p0} played · Avg {p1}% · {p2} SSS",
+  "awmcUnplayed": "Unplayed"
 }

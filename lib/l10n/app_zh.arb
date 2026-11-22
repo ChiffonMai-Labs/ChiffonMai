@@ -10525,5 +10525,23 @@
   "awmcCheckCatalogPage": "核对本页道具",
   "awmcCatalogExists": "上游图鉴有记录",
   "awmcCatalogMissing": "上游图鉴未找到",
-  "awmcCatalogCheckUnknown": "暂未核对"
+  "awmcCatalogCheckUnknown": "暂未核对",
+  "awmcWeaknessPrescription": "弱项处方",
+  "awmcWeaknessSubtitle": "按同定数区间（±0.3）个人平均达成率对比缓存标签，定位偏弱配置并推荐练习谱面",
+  "awmcWeaknessNoData": "暂无足够的标签成绩样本（单个标签至少需 3 条已游玩记录）",
+  "awmcWeaknessStats": "已游玩 {p0} 谱 · 均分 {p1}% · SSS {p2} 谱",
+  "@awmcWeaknessStats": {
+    "placeholders": {
+      "p0": {
+        "type": "String"
+      },
+      "p1": {
+        "type": "String"
+      },
+      "p2": {
+        "type": "String"
+      }
+    }
+  },
+  "awmcUnplayed": "未游玩"
 }

@@ -178,6 +178,7 @@ class _ScoreInsightsPageState extends State<ScoreInsightsPage> {
 
   Widget _overview(ScoreInsights score) {
     final l10n = context.l10n;
+    final scheme = Theme.of(context).colorScheme;
     final count = score.coverage.fold<int>(0, (sum, row) => sum + row.total);
     final played = score.coverage.fold<int>(0, (sum, row) => sum + row.played);
     return ListView(
@@ -201,6 +202,72 @@ class _ScoreInsightsPageState extends State<ScoreInsightsPage> {
         ),
         Text(l10n.awmcLocalScoreSnapshot,
             style: Theme.of(context).textTheme.bodySmall),
+        const SizedBox(height: 16),
+        const Divider(),
+        const SizedBox(height: 12),
+        Text(l10n.awmcWeaknessPrescription,
+            style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 4),
+        Text(l10n.awmcWeaknessSubtitle,
+            style: Theme.of(context).textTheme.bodySmall),
+        const SizedBox(height: 10),
+        if (score.weaknesses.isEmpty)
+          Text(l10n.awmcWeaknessNoData,
+              style: TextStyle(color: scheme.onSurfaceVariant))
+        else
+          for (final item in score.weaknesses)
+            Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: scheme.outlineVariant),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(item.tag,
+                            style: Theme.of(context).textTheme.titleSmall),
+                      ),
+                      Text(
+                        '${item.delta >= 0 ? '+' : ''}${item.delta.toStringAsFixed(2)}%',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: item.delta < 0 ? scheme.error : scheme.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    l10n.awmcWeaknessStats(
+                      '${item.playedCount}',
+                      item.avgAchievement.toStringAsFixed(2),
+                      '${item.sssCount}',
+                    ),
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  if (item.practiceCharts.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    for (final chart in item.practiceCharts)
+                      ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(chart.title),
+                        subtitle: Text(
+                          '${ChartDifficulty.labelOf(chart.levelIndex)} · ${chart.ds}'
+                          ' · ${chart.achievements == null ? l10n.awmcUnplayed : '${chart.achievements!.toStringAsFixed(4)}%'}',
+                        ),
+                        trailing: const Icon(Icons.chevron_right, size: 18),
+                        onTap: () => _showChart(chart.songId, chart.levelIndex),
+                      ),
+                  ],
+                ],
+              ),
+            ),
       ],
     );
   }

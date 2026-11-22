@@ -15502,4 +15502,21 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get awmcCatalogCheckUnknown => '照合待ち';
+
+  @override
+  String get awmcWeaknessPrescription => '苦手傾向の処方箋';
+
+  @override
+  String get awmcWeaknessSubtitle => '同定数帯（±0.3）の自己平均達成率とキャッシュ済みタグを比較し練習譜面を提案';
+
+  @override
+  String get awmcWeaknessNoData => 'タグ付きのプレイ記録が不足しています（1タグあたり3譜面以上）';
+
+  @override
+  String awmcWeaknessStats(String p0, String p1, String p2) {
+    return '$p0 譜面プレイ · 平均 $p1% · SSS $p2';
+  }
+
+  @override
+  String get awmcUnplayed => '未プレイ';
 }

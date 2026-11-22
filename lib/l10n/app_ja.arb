@@ -4409,5 +4409,10 @@
   "awmcCheckCatalogPage": "このページのアイテムを照合",
   "awmcCatalogExists": "上流カタログに登録済み",
   "awmcCatalogMissing": "上流カタログに見つかりません",
-  "awmcCatalogCheckUnknown": "照合待ち"
+  "awmcCatalogCheckUnknown": "照合待ち",
+  "awmcWeaknessPrescription": "苦手傾向の処方箋",
+  "awmcWeaknessSubtitle": "同定数帯（±0.3）の自己平均達成率とキャッシュ済みタグを比較し練習譜面を提案",
+  "awmcWeaknessNoData": "タグ付きのプレイ記録が不足しています（1タグあたり3譜面以上）",
+  "awmcWeaknessStats": "{p0} 譜面プレイ · 平均 {p1}% · SSS {p2}",
+  "awmcUnplayed": "未プレイ"
 }

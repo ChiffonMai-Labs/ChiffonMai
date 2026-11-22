@@ -1,12 +1,15 @@
 import 'package:flutter/foundation.dart';
 
 import '../../entity/DXRating/DXDataEntity.dart';
+import '../../entity/DXRating/MaiTagsModel.dart';
 import '../../entity/DivingFish/Song.dart';
 import '../../manager/DXDataManager.dart';
 import '../../manager/DivingFish/MaimaiMusicDataManager.dart';
 import '../../manager/DivingFish/UserPlayDataManager.dart';
+import '../../manager/MaiTagsManager.dart';
 import '../../utils/ChartDifficulty.dart';
 import '../../utils/SongFilterUtil.dart';
+import '../AWMC/AwmcChartTagService.dart';
 import 'GainRecommendCore.dart';
 
 typedef ChartCoverage = ({
@@ -14,6 +17,24 @@ typedef ChartCoverage = ({
   int played,
   int total,
   List<GainExploreChart> missing,
+});
+
+typedef WeaknessPracticeChart = ({
+  int songId,
+  int levelIndex,
+  String title,
+  String level,
+  double ds,
+  double? achievements,
+});
+
+typedef WeaknessTagItem = ({
+  String tag,
+  int playedCount,
+  double avgAchievement,
+  double delta,
+  int sssCount,
+  List<WeaknessPracticeChart> practiceCharts,
 });
 
 typedef B50Edge = ({
@@ -88,6 +109,8 @@ class ScoreInsights {
     required this.fullCombo,
     required this.sss,
     required this.history,
+    this.weaknesses = const [],
+    this.hasAwmcCachedTags = false,
   });
 
   final List<GainChartRecord> records;
@@ -96,6 +119,8 @@ class ScoreInsights {
   final int fullCombo;
   final int sss;
   final DXDataEntity? history;
+  final List<WeaknessTagItem> weaknesses;
+  final bool hasAwmcCachedTags;
 
   List<String> get historicalVersions {
     final versions = history?.versions.toList() ?? [];
@@ -109,7 +134,18 @@ class ScoreInsights {
     if (raw is! List) return null;
     final songs = await MaimaiMusicDataManager().getCachedSongs() ?? [];
     if (songs.isEmpty) return null;
-    final calculated = await compute(_build, (songs, raw));
+
+    Map<String, Set<String>> awmcTags = const {};
+    MaiTagsEntity? maiTags;
+    try {
+      awmcTags = await AwmcChartTagService.loadAllCachedTagLabels();
+    } catch (_) {}
+    try {
+      maiTags = await MaiTagsManager().getTags();
+    } catch (_) {}
+
+    final chartTags = _buildChartTags(songs, awmcTags, maiTags);
+    final calculated = await compute(_build, (songs, raw, chartTags));
     return ScoreInsights(
       records: calculated.records,
       coverage: calculated.coverage,
@@ -117,7 +153,60 @@ class ScoreInsights {
       fullCombo: calculated.fullCombo,
       sss: calculated.sss,
       history: await DXDataManager().readCached(),
+      weaknesses: calculated.weaknesses,
+      hasAwmcCachedTags: awmcTags.isNotEmpty,
     );
+  }
+
+  static Map<GainChartKey, Set<String>> _buildChartTags(
+    List<Song> songs,
+    Map<String, Set<String>> awmcTags,
+    MaiTagsEntity? maiTags,
+  ) {
+    final maiSongTags = <String, Set<String>>{};
+    if (maiTags != null) {
+      final tagNames = <int, String>{
+        for (final tag in maiTags.tags)
+          // 跳过“难度”分组（groupId == 2），只分析配置与评价类弱项。
+          if (tag.groupId != 2 && tag.localizedName.zhHans.trim().isNotEmpty)
+            tag.id: tag.localizedName.zhHans.trim(),
+      };
+      for (final ts in maiTags.tagSongs) {
+        final name = tagNames[ts.tagId];
+        if (name == null) continue;
+        final key = '${ts.songId}#${ts.sheetType}#${ts.sheetDifficulty}';
+        (maiSongTags[key] ??= <String>{}).add(name);
+      }
+    }
+
+    final result = <GainChartKey, Set<String>>{};
+    for (final song in songs) {
+      final id = int.tryParse(song.id);
+      if (id == null ||
+          SongFilterUtil.isExtra(song) ||
+          ChartDifficulty.isUtageSong(id, type: song.type)) {
+        continue;
+      }
+      final sheetType = song.type == 'DX' ? 'dx' : 'std';
+      for (final (level, ds) in song.ds.indexed) {
+        if (!ChartDifficulty.isStandard(level) || !ds.isFinite || ds <= 0) {
+          continue;
+        }
+        final awmcKey = AwmcChartTagService.chartKey(song.id, level);
+        final awmcLabels = awmcKey == null ? null : awmcTags[awmcKey];
+        if (awmcLabels != null && awmcLabels.isNotEmpty) {
+          result[GainChartKey(id, level)] = awmcLabels;
+          continue;
+        }
+        final diffName = ChartDifficulty.apiNameByIndex[level];
+        if (diffName == null) continue;
+        final maiLabels = maiSongTags['${song.title}#$sheetType#$diffName'];
+        if (maiLabels != null && maiLabels.isNotEmpty) {
+          result[GainChartKey(id, level)] = maiLabels;
+        }
+      }
+    }
+    return result;
   }
 
   static ({
@@ -126,8 +215,9 @@ class ScoreInsights {
     Map<String, List<ChartCoverage>> coverageByGenre,
     int fullCombo,
     int sss,
-  }) _build((List<Song>, List) input) {
-    final (songs, raw) = input;
+    List<WeaknessTagItem> weaknesses,
+  }) _build((List<Song>, List, Map<GainChartKey, Set<String>>) input) {
+    final (songs, raw, chartTags) = input;
     final index = {for (final song in songs) int.tryParse(song.id): song};
     final saved = _readComparableRecords(raw, index);
     final records = normalizeGainRecords(saved);
@@ -209,7 +299,139 @@ class ScoreInsights {
       },
       fullCombo: combos.length,
       sss: records.where((record) => record.achievements >= 100).length,
+      weaknesses: computeWeaknesses(
+        records: records,
+        songs: songs,
+        chartTags: chartTags,
+      ),
     );
+  }
+
+  /// 按同定数区间（±0.3）个人平均达成率为基线，定位偏弱标签并给出可练习谱面处方。
+  static List<WeaknessTagItem> computeWeaknesses({
+    required List<GainChartRecord> records,
+    required List<Song> songs,
+    required Map<GainChartKey, Set<String>> chartTags,
+  }) {
+    if (records.isEmpty || chartTags.isEmpty) return const [];
+    final playedByKey = {for (final r in records) r.key: r};
+    final overallMean =
+        records.fold<double>(0, (s, r) => s + r.achievements) / records.length;
+
+    final tagStats = <String, List<(GainChartRecord, double)>>{};
+    for (final record in records) {
+      final tags = chartTags[record.key];
+      if (tags == null || tags.isEmpty) continue;
+      double neighborSum = 0;
+      int neighborCount = 0;
+      for (final other in records) {
+        if ((other.ds - record.ds).abs() <= 0.3) {
+          neighborSum += other.achievements;
+          neighborCount++;
+        }
+      }
+      final expected =
+          neighborCount >= 3 ? neighborSum / neighborCount : overallMean;
+      final diff = record.achievements - expected;
+      for (final tag in tags) {
+        (tagStats[tag] ??= []).add((record, diff));
+      }
+    }
+
+    final qualified = <({String tag, int count, double avg, double delta, int sss})>[];
+    for (final entry in tagStats.entries) {
+      final items = entry.value;
+      if (items.length < 3) continue;
+      var achvSum = 0.0;
+      var diffSum = 0.0;
+      var sss = 0;
+      for (final (record, diff) in items) {
+        achvSum += record.achievements;
+        diffSum += diff;
+        if (record.achievements >= 100.0) sss++;
+      }
+      qualified.add((
+        tag: entry.key,
+        count: items.length,
+        avg: achvSum / items.length,
+        delta: diffSum / items.length,
+        sss: sss,
+      ));
+    }
+    if (qualified.isEmpty) return const [];
+
+    qualified.sort((a, b) {
+      final c = a.delta.compareTo(b.delta);
+      return c != 0 ? c : b.count.compareTo(a.count);
+    });
+    final weakOnly = qualified.where((e) => e.delta < -0.05).toList();
+    final selectedTags = (weakOnly.isNotEmpty ? weakOnly : qualified).take(5);
+
+    final baseline = computeGainBaseline(records);
+    final b50 = [...baseline.b35, ...baseline.b15];
+    final pool = b50.isNotEmpty ? b50 : records;
+    final dsList = [for (final r in pool) r.ds]..sort();
+    final comfortDs = dsList[dsList.length ~/ 2];
+
+    final practiceByTag = <String, List<WeaknessPracticeChart>>{};
+    for (final tagEntry in selectedTags) {
+      practiceByTag[tagEntry.tag] = [];
+    }
+
+    for (final song in songs) {
+      final id = int.tryParse(song.id);
+      if (id == null ||
+          SongFilterUtil.isExtra(song) ||
+          ChartDifficulty.isUtageSong(id, type: song.type)) {
+        continue;
+      }
+      for (final (level, ds) in song.ds.indexed) {
+        if (!ChartDifficulty.isStandard(level) ||
+            !ds.isFinite ||
+            ds <= 0 ||
+            level >= song.level.length ||
+            ds < comfortDs - 0.5 ||
+            ds > comfortDs + 0.3) {
+          continue;
+        }
+        final key = GainChartKey(id, level);
+        final tags = chartTags[key];
+        if (tags == null || tags.isEmpty) continue;
+        final played = playedByKey[key];
+        if (played != null && played.achievements >= 100.0) continue;
+        final candidate = (
+          songId: id,
+          levelIndex: level,
+          title: song.title,
+          level: song.level[level],
+          ds: ds,
+          achievements: played?.achievements,
+        );
+        for (final tag in tags) {
+          practiceByTag[tag]?.add(candidate);
+        }
+      }
+    }
+
+    return [
+      for (final item in selectedTags)
+        (
+          tag: item.tag,
+          playedCount: item.count,
+          avgAchievement: item.avg,
+          delta: item.delta,
+          sssCount: item.sss,
+          practiceCharts: (() {
+            final list = practiceByTag[item.tag] ?? const [];
+            list.sort((a, b) {
+              final d = (a.ds - comfortDs).abs().compareTo((b.ds - comfortDs).abs());
+              if (d != 0) return d;
+              return (a.achievements ?? -1).compareTo(b.achievements ?? -1);
+            });
+            return list.take(5).toList();
+          })(),
+        ),
+    ];
   }
 
   /// 统一用当前曲库的谱面定数和分区，以便比较来自不同查分器的成绩。
