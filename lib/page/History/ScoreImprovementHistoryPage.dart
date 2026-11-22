@@ -4,6 +4,7 @@ import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 
 import '../../service/AccountStore.dart';
 import '../../service/History/ChartHistoryStore.dart';
@@ -12,14 +13,22 @@ import '../../service/SongSearchService.dart';
 import '../../utils/AppDesignTokens.dart';
 import '../../utils/AppTheme.dart';
 import '../../utils/CurrentDataSourceNotifier.dart';
+import '../../utils/AppTaskActivity.dart';
+import '../../utils/ExportPathUtil.dart';
+import '../../utils/ImageEncodeUtil.dart';
 import '../../utils/UserProfileNotifier.dart';
 import '../../widgets/AppUi.dart';
 import '../../widgets/HistoryDateTimeDialog.dart';
+import '../../widgets/ExportStatsUi.dart';
+import '../../widgets/ExportSuccessDialog.dart';
+import '../../widgets/AppToast.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
 import '../../widgets/ScoreImprovementCard.dart';
 import '../../widgets/SongSearchEntry.dart';
 import '../SongInfoPage.dart';
 import '../../widgets/AppDialogs.dart';
+
+enum _GrowthPeriod { day, week, month, year }
 
 class ScoreImprovementHistoryPage extends StatefulWidget {
   const ScoreImprovementHistoryPage({super.key});
@@ -39,6 +48,7 @@ class _ScoreImprovementHistoryPageState
   int _searchGeneration = 0;
   List<DailyScoreImprovement> _entries = [];
   bool _loading = true;
+  bool _exporting = false;
   String? _error;
   String _accountLabel = '';
   int _startedAtMs = 0;
@@ -378,6 +388,11 @@ class _ScoreImprovementHistoryPageState
       title: context.l10n.featureScoreImprovementHistory,
       actions: [
         IconButton(
+          onPressed: _loading || _exporting ? null : _showGrowthExport,
+          tooltip: context.l10n.awmcGrowthPoster,
+          icon: const Icon(Icons.ios_share),
+        ),
+        IconButton(
             onPressed: _showHelp,
             tooltip: context.l10n.flowRecordingRules,
             icon: const Icon(Icons.info_outline))
@@ -498,6 +513,150 @@ class _ScoreImprovementHistoryPageState
         ),
       ),
     );
+  }
+
+  Future<void> _showGrowthExport() async {
+    final l10n = context.l10n;
+    final labels = [
+      l10n.awmcGrowthDay,
+      l10n.awmcGrowthWeek,
+      l10n.awmcGrowthMonth,
+      l10n.awmcGrowthYear
+    ];
+    final sourceEntries = _entries;
+    final selected = DateTime.tryParse(_selectedDay ?? '') ?? DateTime.now();
+    final day = DateUtils.dateOnly(selected);
+    final monday = DateTime(day.year, day.month, day.day - day.weekday + 1);
+    final ranges = [
+      (day, DateTime(day.year, day.month, day.day + 1)),
+      (monday, DateTime(monday.year, monday.month, monday.day + 7)),
+      (DateTime(day.year, day.month), DateTime(day.year, day.month + 1)),
+      (DateTime(day.year), DateTime(day.year + 1)),
+    ];
+    final rowsByPeriod = ranges.map((range) {
+      final start = _date(range.$1);
+      final next = _date(range.$2);
+      return sourceEntries
+          .where((e) =>
+              e.hasImprovement &&
+              e.day.compareTo(start) >= 0 &&
+              e.day.compareTo(next) < 0)
+          .toList();
+    }).toList();
+    final period = await showDialog<_GrowthPeriod>(
+      context: context,
+      builder: (dialogContext) => SimpleDialog(
+        title: Text(l10n.awmcGrowthPoster),
+        children: [
+          for (final option in _GrowthPeriod.values)
+            SimpleDialogOption(
+              onPressed: rowsByPeriod[option.index].isEmpty
+                  ? null
+                  : () => Navigator.pop(dialogContext, option),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(labels[option.index]),
+                    if (rowsByPeriod[option.index].isEmpty)
+                      Text(l10n.flowNoDataToExport,
+                          style: Theme.of(dialogContext).textTheme.bodySmall),
+                  ]),
+            ),
+        ],
+      ),
+    );
+    if (!mounted ||
+        period == null ||
+        _exporting ||
+        !identical(_entries, sourceEntries)) return;
+    final (start, next) = ranges[period.index];
+    final startKey = _date(start);
+    final rows = rowsByPeriod[period.index];
+    final uniqueCharts = rows.map((row) => row.after.key).toSet().length;
+    final end = DateTime(next.year, next.month, next.day - 1);
+    final caption = '${labels[period.index]} · $startKey – ${_date(end)}';
+    final filename = 'chiffonmai-growth-${period.name}-$startKey.png';
+    final key = GlobalKey();
+    final entry = OverlayEntry(
+        builder: (_) => Positioned(
+              left: -9999,
+              top: 0,
+              width: 720,
+              child: Material(
+                  child: RepaintBoundary(
+                      key: key,
+                      child: ExportPage(
+                        theme: ExportImageTheme.light,
+                        width: 720,
+                        padding: const EdgeInsets.all(32),
+                        child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              ExportPosterHeader(
+                                  title: l10n.awmcGrowthPoster,
+                                  caption: caption,
+                                  scale: 0.65),
+                              const SizedBox(height: 20),
+                              ExportHeroBlock(
+                                  label: l10n.awmcImprovedCharts,
+                                  value: '$uniqueCharts'),
+                              const SizedBox(height: 16),
+                              ExportStatsPanel(
+                                  child: Column(children: [
+                                for (final row in rows.take(12))
+                                  Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 6),
+                                      child: Row(children: [
+                                        Expanded(
+                                            child: Text(
+                                                '${row.after.title}  ${row.after.level}',
+                                                maxLines: 1,
+                                                overflow:
+                                                    TextOverflow.ellipsis)),
+                                        const SizedBox(width: 12),
+                                        Text(
+                                            '${row.after.achievement.toStringAsFixed(4)}%'),
+                                      ])),
+                              ])),
+                            ]),
+                      ))),
+            ));
+    final overlay = Overlay.of(context);
+    setState(() => _exporting = true);
+    overlay.insert(entry);
+    try {
+      final finish = AppTaskActivity.begin();
+      try {
+        await ImageEncodeUtil.waitForRender();
+        final boundary = key.currentContext?.findRenderObject();
+        if (boundary is! RenderRepaintBoundary)
+          throw StateError('Growth canvas not ready');
+        final image = await ImageEncodeUtil.encodeBoundary(boundary);
+        if (!mounted || !identical(_entries, sourceEntries)) return;
+        String? fallback;
+        final file = await ExportPathUtil.writeExportFile(
+            fileName: filename,
+            bytes: image.bytes,
+            subDir: '成长海报',
+            onFallback: (path) => fallback = path);
+        if (mounted) {
+          await showExportSuccessDialog(context,
+              filePath: file.path,
+              fileName: filename,
+              fallbackPath: fallback,
+              showViewImage: true);
+        }
+      } finally {
+        finish();
+      }
+    } catch (_) {
+      if (mounted)
+        AppToast.show(l10n.flowExportFailedTryAgain, tone: AppToastTone.error);
+    } finally {
+      entry.remove();
+      if (mounted) setState(() => _exporting = false);
+    }
   }
 
   static String _date(DateTime date) =>

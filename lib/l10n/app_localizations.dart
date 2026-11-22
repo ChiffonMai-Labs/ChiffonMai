@@ -26191,6 +26191,186 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'删除本机账号、成绩缓存与服务端记录'**
   String get featureDeleteAccountSubtitle;
+
+  /// No description provided for @awmcChartAnalysis.
+  ///
+  /// In zh, this message translates to:
+  /// **'AWMC 谱面分析'**
+  String get awmcChartAnalysis;
+
+  /// No description provided for @awmcChartRatings.
+  ///
+  /// In zh, this message translates to:
+  /// **'AWMC 谱面评分'**
+  String get awmcChartRatings;
+
+  /// No description provided for @awmcChartComments.
+  ///
+  /// In zh, this message translates to:
+  /// **'AWMC 社区评论'**
+  String get awmcChartComments;
+
+  /// No description provided for @awmcChartCommunityScores.
+  ///
+  /// In zh, this message translates to:
+  /// **'AWMC 社区成绩'**
+  String get awmcChartCommunityScores;
+
+  /// No description provided for @awmcChartCorrections.
+  ///
+  /// In zh, this message translates to:
+  /// **'AWMC 纠错'**
+  String get awmcChartCorrections;
+
+  /// No description provided for @awmcSampleCount.
+  ///
+  /// In zh, this message translates to:
+  /// **'样本数'**
+  String get awmcSampleCount;
+
+  /// No description provided for @awmcSnapshot.
+  ///
+  /// In zh, this message translates to:
+  /// **'快照时间'**
+  String get awmcSnapshot;
+
+  /// No description provided for @awmcPlayableNotes.
+  ///
+  /// In zh, this message translates to:
+  /// **'可打物量'**
+  String get awmcPlayableNotes;
+
+  /// No description provided for @awmcChartUnavailable.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂时无法读取 AWMC 数据'**
+  String get awmcChartUnavailable;
+
+  /// No description provided for @awmcGrowthPoster.
+  ///
+  /// In zh, this message translates to:
+  /// **'成长海报'**
+  String get awmcGrowthPoster;
+
+  /// No description provided for @awmcGrowthDay.
+  ///
+  /// In zh, this message translates to:
+  /// **'按日'**
+  String get awmcGrowthDay;
+
+  /// No description provided for @awmcGrowthWeek.
+  ///
+  /// In zh, this message translates to:
+  /// **'按周'**
+  String get awmcGrowthWeek;
+
+  /// No description provided for @awmcGrowthMonth.
+  ///
+  /// In zh, this message translates to:
+  /// **'按月'**
+  String get awmcGrowthMonth;
+
+  /// No description provided for @awmcGrowthYear.
+  ///
+  /// In zh, this message translates to:
+  /// **'按年'**
+  String get awmcGrowthYear;
+
+  /// No description provided for @awmcImprovedCharts.
+  ///
+  /// In zh, this message translates to:
+  /// **'有进步的谱面'**
+  String get awmcImprovedCharts;
+
+  /// No description provided for @awmcLocalAliases.
+  ///
+  /// In zh, this message translates to:
+  /// **'本地别名'**
+  String get awmcLocalAliases;
+
+  /// No description provided for @awmcLocalAliasHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'每行输入一个别名，仅保存在本机'**
+  String get awmcLocalAliasHint;
+
+  /// No description provided for @awmcLocalQuizzes.
+  ///
+  /// In zh, this message translates to:
+  /// **'离线挑战'**
+  String get awmcLocalQuizzes;
+
+  /// No description provided for @awmcQuizEither.
+  ///
+  /// In zh, this message translates to:
+  /// **'极限二选一'**
+  String get awmcQuizEither;
+
+  /// No description provided for @awmcQuizTwenty.
+  ///
+  /// In zh, this message translates to:
+  /// **'规则版 20 问'**
+  String get awmcQuizTwenty;
+
+  /// No description provided for @awmcQuizTitleLength.
+  ///
+  /// In zh, this message translates to:
+  /// **'曲名长度'**
+  String get awmcQuizTitleLength;
+
+  /// No description provided for @awmcQuizHarder.
+  ///
+  /// In zh, this message translates to:
+  /// **'哪首歌的最高定数更高？'**
+  String get awmcQuizHarder;
+
+  /// No description provided for @awmcQuizDeduction.
+  ///
+  /// In zh, this message translates to:
+  /// **'用问题缩小范围，再选出目标歌曲。'**
+  String get awmcQuizDeduction;
+
+  /// No description provided for @awmcQuizQuestionsUsed.
+  ///
+  /// In zh, this message translates to:
+  /// **'已用问题'**
+  String get awmcQuizQuestionsUsed;
+
+  /// No description provided for @awmcQuizAnswer.
+  ///
+  /// In zh, this message translates to:
+  /// **'答案'**
+  String get awmcQuizAnswer;
+
+  /// No description provided for @awmcUnlockCandidates.
+  ///
+  /// In zh, this message translates to:
+  /// **'资源候选'**
+  String get awmcUnlockCandidates;
+
+  /// No description provided for @awmcRivalProfile.
+  ///
+  /// In zh, this message translates to:
+  /// **'对手资料'**
+  String get awmcRivalProfile;
+
+  /// No description provided for @awmcRivalNoCombos.
+  ///
+  /// In zh, this message translates to:
+  /// **'机台成绩未提供 FC／FS 数据'**
+  String get awmcRivalNoCombos;
+
+  /// No description provided for @awmcRivalIdHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'对手机台 ID'**
+  String get awmcRivalIdHint;
+
+  /// No description provided for @awmcLocalMusicFallback.
+  ///
+  /// In zh, this message translates to:
+  /// **'本地曲库 · 旧网关回退'**
+  String get awmcLocalMusicFallback;
 }
 
 class _AppLocalizationsDelegate

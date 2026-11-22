@@ -1174,6 +1174,7 @@ extension _SongInfoLayout on _SongInfoPageState {
     required dynamic currentDiffData,
     required Color accentColor,
   }) {
+    final awmcChartKey = AwmcChartTagService.chartKey(widget.songId, _currentDiffIndex);
     final List<Widget> children;
     switch (_detailTab) {
       case 1:
@@ -1184,8 +1185,14 @@ extension _SongInfoLayout on _SongInfoPageState {
           // 谱面评分
           _buildChartRatingSection(accentColor),
           const SizedBox(height: 12),
+          if (awmcChartKey != null)
+            AwmcChartDetails(chartKey: awmcChartKey, section: AwmcChartDetailsSection.ratings),
           // 评论区
           _buildCommentsSection(),
+          if (awmcChartKey != null) ...[
+            AwmcChartDetails(chartKey: awmcChartKey, section: AwmcChartDetailsSection.comments),
+            AwmcChartDetails(chartKey: awmcChartKey, section: AwmcChartDetailsSection.community),
+          ],
         ];
         break;
       case 3:
@@ -1367,7 +1374,10 @@ extension _SongInfoLayout on _SongInfoPageState {
     final scheme = Theme.of(context).colorScheme;
     final hasRating = _hasDistributionData(currentDiffData, false);
     final hasCombo = _hasDistributionData(currentDiffData, true);
+    final awmcChartKey = AwmcChartTagService.chartKey(widget.songId, _currentDiffIndex);
     return [
+      if (awmcChartKey != null)
+        AwmcChartDetails(chartKey: awmcChartKey, section: AwmcChartDetailsSection.analysis),
       // 评级分布
       if (hasRating) ...[
         AppCard(child: _buildRatingDistribution(currentDiffData)),
@@ -1435,6 +1445,12 @@ extension _SongInfoLayout on _SongInfoPageState {
           ),
         );
     return [
+      ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+        leading: const Icon(Icons.edit_note_rounded),
+        title: Text(context.l10n.awmcLocalAliases),
+        onTap: _editLocalSongAliases,
+      ),
       // 容错速览（宴谱的达成率口径不同，不显示）
       if (tapGreatLoss > 0 && widget.songId.length != 6) ...[
         Row(
@@ -1483,6 +1499,47 @@ extension _SongInfoLayout on _SongInfoPageState {
         ),
       ),
     ];
+  }
+
+  Future<void> _editLocalSongAliases() async {
+    final manager = SongAliasManager.instance;
+    final title = _songData?['basic_info']?['title']?.toString();
+    if (title == null || title.isEmpty) return;
+    await manager.loadLocalAliases();
+    if (!mounted) return;
+    var value = manager.localAliasesFor(title).join('\n');
+    final l10n = context.l10n;
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.awmcLocalAliases),
+        content: TextFormField(
+          initialValue: value,
+          minLines: 3,
+          maxLines: 6,
+          maxLength: 600,
+          decoration: InputDecoration(helperText: l10n.awmcLocalAliasHint),
+          onChanged: (text) => value = text,
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(l10n.featureCancel)),
+          TextButton(
+              onPressed: () => Navigator.pop(dialogContext, value),
+              child: Text(l10n.flowConfirm)),
+        ],
+      ),
+    );
+    if (result == null || !mounted) return;
+    try {
+      await manager.saveLocalAliases(title, result.split('\n'));
+      if (mounted) _update(() {});
+    } catch (_) {
+      if (mounted)
+        AppToast.show(l10n.flowSaveFailedP0(l10n.awmcLocalAliases),
+            tone: AppToastTone.error);
+    }
   }
 
   /// 谱面标签(仅供参考)：常驻展开，点标签弹出说明。

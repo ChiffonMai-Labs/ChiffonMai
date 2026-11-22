@@ -33,6 +33,8 @@ import 'ChartPlaybackPicker.dart';
 import '../manager/MaidataManager.dart';
 import 'package:my_first_flutter_app/service/SongInfoService.dart';
 import 'package:my_first_flutter_app/service/AWMC/AwmcChartTagService.dart';
+import 'package:my_first_flutter_app/service/AWMC/AwmcChartDetailsService.dart';
+import 'package:my_first_flutter_app/widgets/AwmcChartDetails.dart';
 import 'package:my_first_flutter_app/service/SongMaidataPageService.dart';
 import 'package:my_first_flutter_app/utils/CoverUtil.dart';
 import 'package:my_first_flutter_app/utils/CommentTextValidator.dart';

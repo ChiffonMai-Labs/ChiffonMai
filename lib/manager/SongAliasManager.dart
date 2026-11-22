@@ -17,6 +17,7 @@ class SongAliasManager {
   static const _keyAliases = 'song_aliases';
   static const _keyLastUpdate = 'alias_last_update';
   static const _keySource = 'alias_cache_source_v1';
+  static const _keyLocalAliases = 'local_song_aliases_v1';
   static const _maxAge = Duration(days: 7);
   static const _timeout = Duration(seconds: 10);
 
@@ -25,19 +26,75 @@ class SongAliasManager {
       bool.fromEnvironment('AWMC_ALIASES', defaultValue: true);
 
   Map<String, List<String>> _aliases = const {};
+  Map<String, List<String>> _localAliases = const {};
+  Map<String, List<String>>? _combinedAliases;
+  Future<void>? _localReady;
+  Future<void> _localWrites = Future.value();
   Future<bool>? _refreshing;
 
-  Map<String, List<String>> get aliases => _aliases;
+  Map<String, List<String>> get aliases {
+    if (_localAliases.isEmpty) return _aliases;
+    return _combinedAliases ??= {
+      ..._aliases,
+      for (final entry in _localAliases.entries)
+        entry.key: {...?_aliases[entry.key], ...entry.value}.toList(),
+    };
+  }
+
+  Future<void> loadLocalAliases() => _localReady ??= () async {
+        final prefs = await SharedPreferences.getInstance();
+        final raw = prefs.getString(_keyLocalAliases);
+        if (raw == null) return;
+        try {
+          _localAliases = _decodeCache(raw);
+          _combinedAliases = null;
+        } catch (_) {
+          debugPrint('[别名] 无法读取本地别名');
+        }
+      }();
+
+  List<String> localAliasesFor(String title) =>
+      _localAliases[title] ?? const [];
+
+  Future<void> saveLocalAliases(String title, Iterable<String> values) {
+    final aliases = values
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty && s.length <= 80)
+        .toSet()
+        .take(16)
+        .toList();
+    final next = _localWrites.then((_) async {
+      await loadLocalAliases();
+      final updated = {..._localAliases};
+      if (aliases.isEmpty) {
+        updated.remove(title);
+      } else {
+        updated[title] = aliases;
+      }
+      final prefs = await SharedPreferences.getInstance();
+      if (!await prefs.setString(_keyLocalAliases, jsonEncode(updated))) {
+        throw StateError('Unable to save local aliases');
+      }
+      _localAliases = updated;
+      _combinedAliases = null;
+    });
+    _localWrites = next.then<void>((_) {}, onError: (Object _) {});
+    return next;
+  }
 
   Future<void> init({bool refreshFromNetwork = true}) async {
     final prefs = await SharedPreferences.getInstance();
+    await loadLocalAliases();
     if (_aliases.isEmpty) {
       final cached = prefs.getString(_keyAliases);
       if (cached != null) {
         final before = _aliases;
         try {
           final decoded = await compute(_decodeCache, cached);
-          if (identical(_aliases, before)) _aliases = decoded;
+          if (identical(_aliases, before)) {
+            _aliases = decoded;
+            _combinedAliases = null;
+          }
         } catch (e) {
           debugPrint('[别名] 旧缓存读取失败: ${e.runtimeType}');
         }
@@ -86,6 +143,7 @@ class SongAliasManager {
       if (fresh.isEmpty) return false;
       if (!await prefs.setString(_keyAliases, jsonEncode(fresh))) return false;
       _aliases = fresh;
+      _combinedAliases = null;
       await prefs.setString(_keySource, source);
       await prefs.setInt(_keyLastUpdate, DateTime.now().millisecondsSinceEpoch);
       return true;
@@ -172,7 +230,7 @@ class SongAliasManager {
   String? findSongNameByAlias(String input) {
     if (input.isEmpty) return null;
     final lower = input.toLowerCase();
-    for (final entry in _aliases.entries) {
+    for (final entry in aliases.entries) {
       if (entry.value.any((alias) => alias.toLowerCase() == lower)) {
         return entry.key;
       }
@@ -180,5 +238,5 @@ class SongAliasManager {
     return null;
   }
 
-  List<String>? findAliasesBySongName(String title) => _aliases[title];
+  List<String>? findAliasesBySongName(String title) => aliases[title];
 }

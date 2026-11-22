@@ -260,8 +260,7 @@ extension _SongInfoCommunity on _SongInfoPageState {
                     children: [
                       if (_chartRatingError == null)
                         Text(
-                          context.l10n
-                              .flowP0Ratings((_chartTotalVotes).toString()),
+                          'ChiffonMai · ${context.l10n.flowP0Ratings(_chartTotalVotes.toString())}',
                           style: TextStyle(
                               fontSize: 14,
                               color: Theme.of(context)
@@ -561,21 +560,7 @@ extension _SongInfoCommunity on _SongInfoPageState {
                     const SizedBox(height: 12),
                     Row(
                       children: [
-                        Expanded(
-                          child: Slider(
-                            value: _selectedRating,
-                            min: 1.0,
-                            max: 5.0,
-                            divisions: 8,
-                            activeColor: accentColor,
-                            label: _selectedRating.toStringAsFixed(1),
-                            onChanged: (value) {
-                              _update(() {
-                                _selectedRating = value;
-                              });
-                            },
-                          ),
-                        ),
+                        Expanded(child: _buildChartRatingStars(accentColor)),
                         Container(
                           width: 48,
                           alignment: Alignment.center,
@@ -699,6 +684,51 @@ extension _SongInfoCommunity on _SongInfoPageState {
               ),
           ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildChartRatingStars(Color accentColor) {
+    final inactive = Theme.of(context).colorScheme.onSurfaceVariant;
+    return Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 250),
+        child: Row(children: [
+          for (var star = 1; star <= 5; star++)
+            Expanded(
+                child: SizedBox(
+              height: 48,
+              child: Stack(alignment: Alignment.center, children: [
+                Icon(
+                  _selectedRating >= star
+                      ? Icons.star_rounded
+                      : _selectedRating >= star - 0.5
+                          ? Icons.star_half_rounded
+                          : Icons.star_border_rounded,
+                  color: _selectedRating >= star - 0.5 ? accentColor : inactive,
+                  size: 25,
+                ),
+                Positioned.fill(
+                    child: Row(children: [
+                  for (final value in [
+                    if (star != 1) star - 0.5,
+                    star.toDouble()
+                  ])
+                    Expanded(
+                        child: Semantics(
+                      label: '${value.toStringAsFixed(1)} / 5',
+                      selected: _selectedRating == value,
+                      child: TextButton(
+                        style: TextButton.styleFrom(padding: EdgeInsets.zero),
+                        onPressed: () => _update(() => _selectedRating = value),
+                        child: const SizedBox.expand(),
+                      ),
+                    )),
+                ])),
+              ]),
+            )),
+        ]),
       ),
     );
   }

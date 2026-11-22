@@ -11,6 +11,11 @@
  * 匹配字段（与乐曲查询页逐条对齐）：id 精确 / 曲名 / 艺术家 / BPM 精确 /
  * 谱师 / 流派 / 版本 / 别名，任一命中即算匹配；全部大小写不敏感。
  */
+import 'dart:math' as math;
+
+import 'package:kana_kit/kana_kit.dart';
+import 'package:pinyin/pinyin.dart';
+
 import '../entity/DivingFish/Song.dart';
 import '../entity/Portable/PortableSong.dart';
 
@@ -50,7 +55,8 @@ bool matchesDivingFishSongQuery(
   for (final alias in aliases) {
     if (alias.toLowerCase().contains(normalizedQuery)) return true;
   }
-  return false;
+  return matchesFuzzySongTitle(
+      normalizedQuery, [song.basicInfo.title, ...aliases]);
 }
 
 /// 随身听条目是否命中查询。
@@ -79,5 +85,73 @@ bool matchesPortableSongQuery(
   for (final alias in aliases) {
     if (alias.toLowerCase().contains(normalizedQuery)) return true;
   }
+  return matchesFuzzySongTitle(normalizedQuery, [song.title, ...aliases]);
+}
+
+final _kana = KanaKit();
+final _kanaPattern = RegExp(r'[\u3040-\u30ff]');
+final _hanPattern = RegExp(r'[\u3400-\u9fff]');
+final _punctuation = RegExp(r'[^a-z0-9\u3040-\u30ff\u3400-\u9fff]');
+final _digits = RegExp(r'^[0-9]+$');
+final _titleForms = <String, Set<String>>{};
+String? _cachedQuery;
+Set<String> _cachedQueryForms = const {};
+
+String _compactTitle(String value) =>
+    value.toLowerCase().replaceAll(_punctuation, '');
+
+Set<String> _forms(String title) {
+  final hasKana = _kanaPattern.hasMatch(title);
+  return {
+    _compactTitle(title),
+    if (hasKana) _compactTitle(_kana.toHiragana(title)),
+    if (hasKana) _compactTitle(_kana.toRomaji(title)),
+    if (_hanPattern.hasMatch(title))
+      _compactTitle(PinyinHelper.getPinyin(title,
+          separator: '', format: PinyinFormat.WITHOUT_TONE)),
+  }..remove('');
+}
+
+bool matchesFuzzySongTitle(String query, Iterable<String> titles) {
+  if (_cachedQuery != query) {
+    _cachedQuery = query;
+    _cachedQueryForms = _forms(query);
+  }
+  for (final needle in _cachedQueryForms) {
+    if (needle.length < 2 || _digits.hasMatch(needle)) continue;
+    for (final title in titles) {
+      if (_titleForms.length >= 12000) _titleForms.clear();
+      for (final candidate
+          in _titleForms.putIfAbsent(title, () => _forms(title))) {
+        if (candidate.contains(needle)) return true;
+        final maxEdits = needle.length >= 8
+            ? 2
+            : needle.length >= 5
+                ? 1
+                : 0;
+        if (maxEdits > 0 && _withinEdits(needle, candidate, maxEdits)) {
+          return true;
+        }
+      }
+    }
+  }
   return false;
+}
+
+bool _withinEdits(String a, String b, int limit) {
+  if ((a.length - b.length).abs() > limit) return false;
+  var previous = List.generate(b.length + 1, (i) => i);
+  var next = List<int>.filled(b.length + 1, 0);
+  for (var i = 1; i <= a.length; i++) {
+    next[0] = i;
+    for (var j = 1; j <= b.length; j++) {
+      final replace = previous[j - 1] +
+          (a.codeUnitAt(i - 1) == b.codeUnitAt(j - 1) ? 0 : 1);
+      next[j] = math.min(replace, math.min(previous[j], next[j - 1]) + 1);
+    }
+    final swap = previous;
+    previous = next;
+    next = swap;
+  }
+  return previous.last <= limit;
 }

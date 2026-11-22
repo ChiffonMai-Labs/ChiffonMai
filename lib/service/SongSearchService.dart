@@ -16,19 +16,20 @@ class SongSearchService {
       // 检查是否已经通过API获取了数据（包括本地缓存）
       if (await MaimaiMusicDataManager().hasCachedData()) {
         final songs = await MaimaiMusicDataManager().getCachedSongs();
-        return songs;
+        if (songs != null && songs.isNotEmpty) return songs;
       }
       
       // 如果API数据不存在，尝试从资产文件加载JSON数据作为 fallback
-      final jsonString = await rootBundle.loadString('assets/maimai_music_data.json');
-      final List<dynamic> jsonList = json.decode(jsonString);
-      final List<Song> songs = jsonList.map((json) => Song.fromJson(json)).toList();
-      return songs;
+      final jsonString = await rootBundle.loadString('assets/others/union-divingfish.json');
+      return await compute(_parseBundledLibrary, jsonString);
     } catch (e) {
       debugPrint('加载歌曲数据失败: $e');
       return [];
     }
   }
+
+  static List<Song> _parseBundledLibrary(String source) =>
+      (jsonDecode(source) as List).map((row) => Song.fromJson(row)).toList();
 
   // 搜索函数
   // [titleOnly] 为 true 时只按歌名匹配，其它字段（ID/艺术家/BPM/谱师/流派/版本/别名）忽略
@@ -38,17 +39,20 @@ class SongSearchService {
     }
 
     final allSongs = await loadAllSongs();
+    if (allSongs == null) return [];
     final lowerQuery = query.toLowerCase();
 
     if (titleOnly) {
-      return allSongs!
-          .where((song) => song.basicInfo.title.toLowerCase().contains(lowerQuery))
+      return allSongs
+          .where((song) => song.basicInfo.title.toLowerCase().contains(lowerQuery) ||
+              matchesFuzzySongTitle(lowerQuery, [song.basicInfo.title]))
           .toList();
     }
 
     // 匹配规则已抽到 `utils/SongQueryMatcher.dart`：随身听的搜索要求「照搬这一页的
     // 逻辑」，两份各写一份迟早漂移。这里只是把别名取出来喂给共享的纯函数。
-    return allSongs!
+    await SongAliasManager.instance.loadLocalAliases();
+    return allSongs
         .where((song) => matchesDivingFishSongQuery(
               song,
               lowerQuery,

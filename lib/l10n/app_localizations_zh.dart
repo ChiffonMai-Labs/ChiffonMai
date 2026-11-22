@@ -15000,6 +15000,96 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get featureDeleteAccountSubtitle => '删除本机账号、成绩缓存与服务端记录';
+
+  @override
+  String get awmcChartAnalysis => 'AWMC 谱面分析';
+
+  @override
+  String get awmcChartRatings => 'AWMC 谱面评分';
+
+  @override
+  String get awmcChartComments => 'AWMC 社区评论';
+
+  @override
+  String get awmcChartCommunityScores => 'AWMC 社区成绩';
+
+  @override
+  String get awmcChartCorrections => 'AWMC 纠错';
+
+  @override
+  String get awmcSampleCount => '样本数';
+
+  @override
+  String get awmcSnapshot => '快照时间';
+
+  @override
+  String get awmcPlayableNotes => '可打物量';
+
+  @override
+  String get awmcChartUnavailable => '暂时无法读取 AWMC 数据';
+
+  @override
+  String get awmcGrowthPoster => '成长海报';
+
+  @override
+  String get awmcGrowthDay => '按日';
+
+  @override
+  String get awmcGrowthWeek => '按周';
+
+  @override
+  String get awmcGrowthMonth => '按月';
+
+  @override
+  String get awmcGrowthYear => '按年';
+
+  @override
+  String get awmcImprovedCharts => '有进步的谱面';
+
+  @override
+  String get awmcLocalAliases => '本地别名';
+
+  @override
+  String get awmcLocalAliasHint => '每行输入一个别名，仅保存在本机';
+
+  @override
+  String get awmcLocalQuizzes => '离线挑战';
+
+  @override
+  String get awmcQuizEither => '极限二选一';
+
+  @override
+  String get awmcQuizTwenty => '规则版 20 问';
+
+  @override
+  String get awmcQuizTitleLength => '曲名长度';
+
+  @override
+  String get awmcQuizHarder => '哪首歌的最高定数更高？';
+
+  @override
+  String get awmcQuizDeduction => '用问题缩小范围，再选出目标歌曲。';
+
+  @override
+  String get awmcQuizQuestionsUsed => '已用问题';
+
+  @override
+  String get awmcQuizAnswer => '答案';
+
+  @override
+  String get awmcUnlockCandidates => '资源候选';
+
+  @override
+  String get awmcRivalProfile => '对手资料';
+
+  @override
+  String get awmcRivalNoCombos => '机台成绩未提供 FC／FS 数据';
+
+  @override
+  String get awmcRivalIdHint => '对手机台 ID';
+
+  @override
+  String get awmcLocalMusicFallback => '本地曲库 · 旧网关回退';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -30000,4 +30090,94 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get featureDeleteAccountSubtitle => '刪除本機帳號、成績快取與服務端紀錄';
+
+  @override
+  String get awmcChartAnalysis => 'AWMC 譜面分析';
+
+  @override
+  String get awmcChartRatings => 'AWMC 譜面評分';
+
+  @override
+  String get awmcChartComments => 'AWMC 社群留言';
+
+  @override
+  String get awmcChartCommunityScores => 'AWMC 社群成績';
+
+  @override
+  String get awmcChartCorrections => 'AWMC 勘誤';
+
+  @override
+  String get awmcSampleCount => '樣本數';
+
+  @override
+  String get awmcSnapshot => '快照時間';
+
+  @override
+  String get awmcPlayableNotes => '可打物量';
+
+  @override
+  String get awmcChartUnavailable => '暫時無法讀取 AWMC 資料';
+
+  @override
+  String get awmcGrowthPoster => '成長海報';
+
+  @override
+  String get awmcGrowthDay => '按日';
+
+  @override
+  String get awmcGrowthWeek => '按週';
+
+  @override
+  String get awmcGrowthMonth => '按月';
+
+  @override
+  String get awmcGrowthYear => '按年';
+
+  @override
+  String get awmcImprovedCharts => '有進步的譜面';
+
+  @override
+  String get awmcLocalAliases => '本機別名';
+
+  @override
+  String get awmcLocalAliasHint => '每行輸入一個別名，僅儲存在本機';
+
+  @override
+  String get awmcLocalQuizzes => '離線挑戰';
+
+  @override
+  String get awmcQuizEither => '極限二選一';
+
+  @override
+  String get awmcQuizTwenty => '規則版 20 問';
+
+  @override
+  String get awmcQuizTitleLength => '曲名長度';
+
+  @override
+  String get awmcQuizHarder => '哪首歌的最高定數更高？';
+
+  @override
+  String get awmcQuizDeduction => '用問題縮小範圍，再選出目標歌曲。';
+
+  @override
+  String get awmcQuizQuestionsUsed => '已用問題';
+
+  @override
+  String get awmcQuizAnswer => '答案';
+
+  @override
+  String get awmcUnlockCandidates => '資源候選';
+
+  @override
+  String get awmcRivalProfile => '對手資料';
+
+  @override
+  String get awmcRivalNoCombos => '機台成績未提供 FC／FS 資料';
+
+  @override
+  String get awmcRivalIdHint => '對手機台 ID';
+
+  @override
+  String get awmcLocalMusicFallback => '本機曲庫 · 舊閘道回退';
 }

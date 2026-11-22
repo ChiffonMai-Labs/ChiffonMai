@@ -54,6 +54,8 @@ class AwmcApiService {
     '/play-count': 4,
     '/v1/rival/data': 2,
     '/v1/rival/music': 4,
+    '/v1/select/music': 1,
+    '/v1/select/music-unlock-plan': 1,
     '/v1/user/charge': 2,
     '/v1/user/item-list': 2,
     '/v1/user/kaleidx-scope': 2,
@@ -331,6 +333,15 @@ class AwmcApiService {
     required String qrcode,
   }) =>
       _call('POST', '/play-count', token: token, body: {'qrcode': qrcode});
+
+  static Future<AwmcCallResult> musicUnlockCandidates() =>
+      _call('POST', '/v1/select/music-unlock-plan', token: '', body: {'category': 'music'});
+
+  static Future<AwmcCallResult> selectMusic(String query) =>
+      _call('POST', '/v1/select/music', token: '', body: {'query': query, 'limit': 50});
+
+  static Future<AwmcCallResult> rivalData(int rivalId) =>
+      _call('POST', '/v1/rival/data', token: '', body: {'rivalId': rivalId});
 
   /// 免二维码读取成绩；机台身份只放在 HTTPS 请求体中。
   static Future<AwmcCallResult> rivalMusic({

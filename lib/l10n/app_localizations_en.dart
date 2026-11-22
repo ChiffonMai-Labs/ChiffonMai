@@ -15888,4 +15888,97 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get featureDeleteAccountSubtitle =>
       'Delete the local account, score cache and server records';
+
+  @override
+  String get awmcChartAnalysis => 'AWMC chart analysis';
+
+  @override
+  String get awmcChartRatings => 'AWMC chart ratings';
+
+  @override
+  String get awmcChartComments => 'AWMC community comments';
+
+  @override
+  String get awmcChartCommunityScores => 'AWMC community scores';
+
+  @override
+  String get awmcChartCorrections => 'AWMC corrections';
+
+  @override
+  String get awmcSampleCount => 'Samples';
+
+  @override
+  String get awmcSnapshot => 'Snapshot';
+
+  @override
+  String get awmcPlayableNotes => 'Playable notes';
+
+  @override
+  String get awmcChartUnavailable => 'AWMC data is temporarily unavailable';
+
+  @override
+  String get awmcGrowthPoster => 'Progress poster';
+
+  @override
+  String get awmcGrowthDay => 'Day';
+
+  @override
+  String get awmcGrowthWeek => 'Week';
+
+  @override
+  String get awmcGrowthMonth => 'Month';
+
+  @override
+  String get awmcGrowthYear => 'Year';
+
+  @override
+  String get awmcImprovedCharts => 'Charts improved';
+
+  @override
+  String get awmcLocalAliases => 'Local aliases';
+
+  @override
+  String get awmcLocalAliasHint => 'One alias per line, stored on this device';
+
+  @override
+  String get awmcLocalQuizzes => 'Offline challenges';
+
+  @override
+  String get awmcQuizEither => 'Pick the harder chart';
+
+  @override
+  String get awmcQuizTwenty => 'Twenty Questions';
+
+  @override
+  String get awmcQuizTitleLength => 'Title length';
+
+  @override
+  String get awmcQuizHarder =>
+      'Which song has the higher maximum chart constant?';
+
+  @override
+  String get awmcQuizDeduction =>
+      'Ask questions to narrow the list, then pick the hidden song.';
+
+  @override
+  String get awmcQuizQuestionsUsed => 'Questions used';
+
+  @override
+  String get awmcQuizAnswer => 'Answer';
+
+  @override
+  String get awmcUnlockCandidates => 'Unlock candidates';
+
+  @override
+  String get awmcRivalProfile => 'Rival profile';
+
+  @override
+  String get awmcRivalNoCombos => 'Cabinet scores do not provide FC or FS data';
+
+  @override
+  String get awmcRivalIdHint => 'Rival cabinet ID';
+
+  @override
+  String get awmcLocalMusicFallback =>
+      'Local library · fallback for older gateway';
 }

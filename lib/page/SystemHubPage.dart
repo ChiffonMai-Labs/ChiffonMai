@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart' as ios;
 import 'AwmcNet/PlayerConnectionPage.dart';
+import 'Awmc/AwmcResourcesPage.dart';
 import '../widgets/AccountAuthorizationDialog.dart';
 import '../widgets/AccountAuthorizationStatus.dart';
 import '../widgets/AccountBindingManager.dart';
@@ -1114,6 +1115,18 @@ class SystemHubPageState extends State<SystemHubPage>
               subtitle: '账号、同步、备份与应用偏好',
               icon: Icons.person_rounded,
               hero: Column(children: [
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.manage_search_rounded),
+                  title: Text('AWMC · ${context.l10n.awmcUnlockCandidates}'),
+                  subtitle: Text(context.l10n.awmcRivalProfile),
+                  onTap: () {
+                    FocusManager.instance.primaryFocus?.unfocus();
+                    Navigator.of(context).push<void>(MaterialPageRoute(
+                      builder: (_) => const AwmcResourcesPage(),
+                    ));
+                  },
+                ),
                 if (Theme.of(context).platform == TargetPlatform.iOS)
                   ios.CupertinoListTile(
                       leading: const Icon(ios.CupertinoIcons.link),

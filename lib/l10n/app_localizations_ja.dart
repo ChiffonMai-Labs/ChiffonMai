@@ -15314,4 +15314,94 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get featureDeleteAccountSubtitle => '端末のアカウント・スコアキャッシュ・サーバー記録を削除';
+
+  @override
+  String get awmcChartAnalysis => 'AWMC 譜面分析';
+
+  @override
+  String get awmcChartRatings => 'AWMC 譜面評価';
+
+  @override
+  String get awmcChartComments => 'AWMC コミュニティコメント';
+
+  @override
+  String get awmcChartCommunityScores => 'AWMC コミュニティスコア';
+
+  @override
+  String get awmcChartCorrections => 'AWMC 修正情報';
+
+  @override
+  String get awmcSampleCount => 'サンプル数';
+
+  @override
+  String get awmcSnapshot => '取得日時';
+
+  @override
+  String get awmcPlayableNotes => 'プレイ可能ノーツ数';
+
+  @override
+  String get awmcChartUnavailable => 'AWMC データを取得できません';
+
+  @override
+  String get awmcGrowthPoster => '成長ポスター';
+
+  @override
+  String get awmcGrowthDay => '日';
+
+  @override
+  String get awmcGrowthWeek => '週';
+
+  @override
+  String get awmcGrowthMonth => '月';
+
+  @override
+  String get awmcGrowthYear => '年';
+
+  @override
+  String get awmcImprovedCharts => '記録が向上した譜面';
+
+  @override
+  String get awmcLocalAliases => '端末内の別名';
+
+  @override
+  String get awmcLocalAliasHint => '別名は1行に1つ入力し、端末内に保存します';
+
+  @override
+  String get awmcLocalQuizzes => 'オフラインチャレンジ';
+
+  @override
+  String get awmcQuizEither => '難しい方を選ぶ';
+
+  @override
+  String get awmcQuizTwenty => '20の質問';
+
+  @override
+  String get awmcQuizTitleLength => '曲名の長さ';
+
+  @override
+  String get awmcQuizHarder => '最大譜面定数が高いのはどちらの曲ですか？';
+
+  @override
+  String get awmcQuizDeduction => '質問で候補を絞り、隠された曲を選びます。';
+
+  @override
+  String get awmcQuizQuestionsUsed => '使用した質問';
+
+  @override
+  String get awmcQuizAnswer => '答え';
+
+  @override
+  String get awmcUnlockCandidates => '解禁候補';
+
+  @override
+  String get awmcRivalProfile => 'ライバル情報';
+
+  @override
+  String get awmcRivalNoCombos => '筐体スコアにFC・FS情報は含まれません';
+
+  @override
+  String get awmcRivalIdHint => 'ライバルの筐体ID';
+
+  @override
+  String get awmcLocalMusicFallback => '端末内の曲リスト · 旧ゲートウェイの代替';
 }

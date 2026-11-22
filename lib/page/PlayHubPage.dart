@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../l10n/LocalizationsExtension.dart';
+import 'GuessChartGame/LocalSongQuizPage.dart';
 import 'HubComponents.dart';
 import '../utils/FavoriteFeaturesNotifier.dart';
 import '../utils/FeatureRegistry.dart';
@@ -201,6 +203,13 @@ class _PlayHubPageState extends State<PlayHubPage> {
             showHeader: widget.showHeader,
             icon: Icons.sports_esports_rounded,
             children: [
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.quiz_outlined),
+                title: Text(context.l10n.awmcLocalQuizzes),
+                subtitle: Text('${context.l10n.awmcQuizEither} · ${context.l10n.awmcQuizTwenty}'),
+                onTap: () => _open(context, const LocalSongQuizPage()),
+              ),
               for (final section in sections) ...[
                 if (section.title == '单人游戏设置')
                   features['单人猜歌游戏设置']!

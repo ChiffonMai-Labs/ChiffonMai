@@ -1,6 +1,7 @@
 import 'package:my_first_flutter_app/l10n/FeatureLocalizations.dart';
 import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
+import 'AwmcRatingDistributionPage.dart';
 import '../../service/CommunityAvatarStore.dart';
 import '../../widgets/RankingPlayerBriefSheet.dart';
 import 'package:flutter/material.dart';
@@ -415,6 +416,16 @@ class _RatingRankListPageState extends State<RatingRankListPage> {
               AppHeader(
                 title: context.l10n.featureRatingLeaderboard,
                 actions: [
+                  IconButton(
+                    tooltip: 'AWMC NET · ${context.l10n.flowRatingDistribution}',
+                    icon: const Icon(Icons.bar_chart_rounded),
+                    onPressed: () {
+                      FocusManager.instance.primaryFocus?.unfocus();
+                      Navigator.of(context).push<void>(MaterialPageRoute(
+                        builder: (_) => const AwmcRatingDistributionPage(),
+                      ));
+                    },
+                  ),
                   IconButton(
                     icon: _isLoading
                         ? CircularProgressIndicator(

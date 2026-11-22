@@ -156,6 +156,7 @@ flutter:
     - assets/awmc_cover_index.json
     - assets/cover_manifest.json
     - assets/res/
+    - assets/others/union-divingfish.json
     - assets/title/
     - assets/grade/
     - assets/gamrank/
