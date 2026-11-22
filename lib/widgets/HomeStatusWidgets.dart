@@ -252,7 +252,12 @@ class _HomeAutoSyncWidgetState extends _PollingState<HomeAutoSyncWidget> {
     if (_allFailed) {
       return (headline: context.featureText('状态未知'), detail: context.featureText('暂时读取不到'), tone: 'warn', time: null);
     }
-    final enabled = tasks.values.where((task) => task.enabled).toList();
+    // 状态并行返回，摘要按平台顺序选取运行中的任务。
+    final enabled = SyncPlatform.values
+        .map((platform) => tasks[platform])
+        .whereType<AutoSyncTask>()
+        .where((task) => task.enabled)
+        .toList();
     if (enabled.isEmpty) {
       return (headline: context.featureText('未开启'), detail: context.featureText('点这里设置'), tone: 'off', time: null);
     }
