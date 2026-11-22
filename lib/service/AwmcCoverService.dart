@@ -12,7 +12,7 @@ class AwmcCoverService {
   static final instance = AwmcCoverService._();
   static const _asset = 'assets/awmc_cover_index.json';
 
-  Map<int, (String, String)> _paths = const {};
+  Map<int, List<(String, String)>> _paths = const {};
   Future<void>? _load;
 
   Future<void> ensureLoaded() => _load ??= _loadBundle();
@@ -26,28 +26,47 @@ class AwmcCoverService {
     }
   }
 
-  static Map<int, (String, String)> _decode(String source) {
+  static Map<int, List<(String, String)>> _decode(String source) {
     final data = jsonDecode(source) as Map<String, dynamic>;
-    final paths = <int, (String, String)>{};
+    final paths = <int, List<(String, String)>>{};
     for (final entry in data.entries) {
       final id = int.tryParse(entry.key);
-      final path = entry.value;
-      if (id != null &&
-          path is List &&
-          path.length == 3 &&
-          path[1] is String &&
-          path[2] is String) {
-        paths[id] = (path[1] as String, path[2] as String);
+      final raw = entry.value;
+      if (id == null || raw is! List || raw.isEmpty) continue;
+      final variants = raw.first is String ? [raw] : raw;
+      final unique = <(String, String)>{};
+      for (final path in variants) {
+        if (path is List &&
+            path.length == 3 &&
+            path[1] is String &&
+            path[2] is String) {
+          unique.add((path[1] as String, path[2] as String));
+        }
       }
+      if (unique.isNotEmpty) paths[id] = unique.toList();
     }
     return paths;
   }
 
   String? coverUrlFor(String songId, {bool original = false}) {
+    final path = _variants(songId).firstOrNull;
+    return path == null ? null : _url(path, original: original);
+  }
+
+  Iterable<String> coverUrlsFor(String songId) sync* {
+    for (final path in _variants(songId)) {
+      yield _url(path);
+      yield _url(path, original: true);
+    }
+  }
+
+  List<(String, String)> _variants(String songId) {
     final id = int.tryParse(songId.trim());
     final mapped = id == null ? null : AwmcIdMap.fromSongId(id);
-    final path = _paths[mapped?.baseSongId];
-    if (path == null) return null;
+    return _paths[mapped?.baseSongId] ?? const [];
+  }
+
+  String _url((String, String) path, {bool original = false}) {
     final (version, folder) = path;
     return Uri(
       scheme: 'https',

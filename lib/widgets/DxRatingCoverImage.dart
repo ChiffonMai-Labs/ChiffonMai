@@ -61,8 +61,7 @@ class _DxRatingCoverImageState extends State<DxRatingCoverImage> {
     await Future.wait([awmc.ensureLoaded(), legacy.ensureLoaded(allowNetwork: false)]);
     if (!mounted || widget.songId != id) return;
     setState(() => _urls = [
-          if (awmc.coverUrlFor(id) case final url?) url,
-          if (awmc.coverUrlFor(id, original: true) case final url?) url,
+          ...awmc.coverUrlsFor(id),
           if (legacy.coverUrlFor(id) case final url?) url,
         ]);
   }

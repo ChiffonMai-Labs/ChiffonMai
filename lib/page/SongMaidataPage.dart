@@ -471,8 +471,7 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
     final legacy = DxRatingCoverService.instance;
     await Future.wait([awmc.ensureLoaded(), legacy.ensureLoaded(allowNetwork: false)]);
     for (final url in [
-      awmc.coverUrlFor(songId),
-      awmc.coverUrlFor(songId, original: true),
+      ...awmc.coverUrlsFor(songId),
       legacy.coverUrlFor(songId),
     ]) {
       if (url == null) continue;

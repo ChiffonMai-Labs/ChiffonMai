@@ -44,8 +44,10 @@ async function main() {
     const baseId = dx ? id - 10000 : id;
     // 同曲先取现役条目，同为现役时优先标准谱。
     const score = (row.isOc ? 0 : 2) + (dx ? 0 : 1);
-    if ((entries.get(baseId)?.score ?? -1) >= score) continue;
-    entries.set(baseId, { score, cover: [row.shortid, row.versionFolder, row.folderName] });
+    if (!entries.has(baseId)) entries.set(baseId, new Map());
+    const variants = entries.get(baseId);
+    if ((variants.get(id)?.score ?? -1) >= score) continue;
+    variants.set(id, { score, cover: [row.shortid, row.versionFolder, row.folderName] });
   }
 
   const baseline = JSON.parse(fs.readFileSync(path.join(root, 'assets/dxrating_cover_index.json'), 'utf8'));
@@ -54,7 +56,10 @@ async function main() {
   if (matched / ids.length < 0.99) throw new Error(`旧索引覆盖率不足 99%（${matched}/${ids.length}）`);
 
   // 包内只有路径。客户端可在运行时取得修订号，过期修订可回退到 CDN 原图接口。
-  const covers = Object.fromEntries([...entries].map(([id, entry]) => [id, entry.cover]));
+  const covers = Object.fromEntries([...entries].map(([id, variants]) => [
+    id,
+    [...variants.values()].sort((a, b) => b.score - a.score).map(entry => entry.cover),
+  ]));
   fs.writeFileSync(path.join(root, 'assets/awmc_cover_index.json'), JSON.stringify(covers) + '\n');
   console.log(`AWMC 曲绘 ${entries.size} 首，覆盖旧索引 ${matched}/${ids.length}`);
 }
