@@ -511,15 +511,15 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
       );
       var completedPlatforms = 0;
       final quickReadSession = AwmcQuickReadSession();
-      // 多端同步里只要有一个线路2目标，就先复用/建立 Score Hub 登录态。
-      // 若这次确实需要登录，对话框里提前输入的二维码可能已经过期，
-      // 必须重新输入；否则本次二维码仍只用于第一个需要它的目标。
+      // AWMC 普通直传先使用预填码，后续线路 2 在各自取码前登录 Score Hub。
+      final awmcDirectFirst = input.platforms.contains(SyncPlatform.awmc) &&
+          !input.quickUpdateFor(SyncPlatform.awmc);
       final needsHubSession = input.platforms.any((platform) =>
           !input.quickUpdateFor(platform) &&
           platform != SyncPlatform.awmc &&
           input.routeOf(platform) == SyncRouteStore.routeScoreHub);
       var pendingQr = input.qrCode;
-      if (needsHubSession) {
+      if (needsHubSession && !awmcDirectFirst) {
         final hadSession = await DivingFishProbeManager().hasValidHubSession();
         if (!mounted) return;
         if (!hadSession) pendingQr = '';
