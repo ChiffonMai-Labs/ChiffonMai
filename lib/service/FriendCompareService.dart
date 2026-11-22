@@ -18,6 +18,7 @@ import '../manager/DivingFish/ProberException.dart';
 import '../entity/FriendComparisonResult.dart';
 import '../constant/CacheKeyConstant.dart';
 import 'AccountStore.dart';
+import 'GainRecommend/ScoreInsights.dart';
 
 /// 好友战绩对比服务
 /// 拉取当前用户和好友的游玩数据，进行谱面对比
@@ -50,6 +51,11 @@ class FriendCompareService {
     final myRecords = mine['records'] as List<dynamic>;
     final myRating = (mine['rating'] as num?)?.toInt() ?? 0;
     final friendRecords = friend['records'] as List<dynamic>;
+    final canCombine = mine['scores_masked'] != true &&
+        friend['scores_masked'] != true;
+    final cooperative = canCombine
+        ? CooperativeBest50.fromComparison(myRecords, friendRecords)
+        : null;
     // AWMC NET 没有昵称时是空串
     final nickname = friend['nickname']?.toString() ?? '';
     final friendNickname = nickname.isEmpty ? friendId : nickname;
@@ -135,6 +141,7 @@ class FriendCompareService {
       friendNickname: friendNickname,
       friendRating: friendRating,
       myRating: myRating,
+      cooperativeBest50: await cooperative,
     );
   }
 

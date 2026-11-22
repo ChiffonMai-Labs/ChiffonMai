@@ -7,6 +7,8 @@ import 'package:my_first_flutter_app/manager/DivingFish/ProberException.dart';
 import 'package:my_first_flutter_app/service/FriendCompareService.dart';
 import 'package:my_first_flutter_app/entity/FriendComparisonResult.dart';
 import 'package:my_first_flutter_app/utils/CoverUtil.dart';
+import '../service/GainRecommend/ScoreInsights.dart';
+import 'Best50/CooperativeBest50Page.dart';
 import 'package:my_first_flutter_app/utils/ColorUtil.dart';
 import 'package:my_first_flutter_app/utils/StringUtil.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
@@ -693,6 +695,25 @@ class _FriendComparePageState extends State<FriendComparePage> {
               ),
             ],
           ),
+          if (result.cooperativeBest50 case final CooperativeBest50 joint)
+            Align(
+              alignment: AlignmentDirectional.centerEnd,
+              child: TextButton.icon(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => CooperativeBest50Page(
+                      result: joint,
+                      mySource: _mySource.displayName,
+                      friendSource: _friendSource.displayName,
+                      friendName: result.friendNickname,
+                    ),
+                  ),
+                ),
+                icon: const Icon(Icons.group_outlined),
+                label: Text(context.l10n.awmcCoopBest50),
+              ),
+            ),
         ],
       ),
     );

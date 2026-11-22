@@ -13,17 +13,12 @@ import '../../utils/ApiClient.dart';
 /// 开发者网关令牌只保存在服务端环境中，App 通过 `/api/awmc` 代理访问，
 /// 不再把 `gw_...` 令牌放进 APK 或要求普通用户输入。
 ///
-/// 设计原则（这套接口涉及**真实账号的写操作**与**计费 Token**，必须保守）：
+/// 设计原则（仅开放只读查询与第三方查分器同步，绝不写入官方机台数据）：
 ///   1. **出口固定**：只允许请求 [baseUrl]，杜绝 host 注入把令牌发给别的域名；
-///   2. **写入永不自动重试**：upsert / delete / 购票都不是幂等的，
-///      超时后自动重试可能造成重复写入或重复扣费；
-///   3. **写入串行**：同一时刻只允许一个写请求在飞，避免并发写同一账号；
-///   4. **成功判定以 `returnCode` 为准**（health 是 0，其余业务是 1），
+///   2. **不提供机台写入接口**：不实现购票/清票/成绩写入/删分/改门/道具写入等接口；
+///   3. **成功判定以 `returnCode` 为准**（health 是 0，其余业务是 1），
 ///      `code == 0` 只是兼容字段；
-///   5. **日志与报错一律脱敏**：绝不打印 qrcode 与令牌（官方文档明确要求）。
-///
-/// 本类**不包含**官方点名的高风险接口（改门 / item.upsert / user.upsert-all），
-/// 需要时必须由使用方显式评估，不要顺手加进来。
+///   4. **日志与报错一律脱敏**：绝不打印 qrcode 与令牌（官方文档明确要求）。
 class AwmcApiService {
   AwmcApiService._();
 
@@ -31,9 +26,6 @@ class AwmcApiService {
 
   /// 服务端代理根地址（常量，不允许来自用户输入/远程配置）。
   static const String baseUrl = '${ApiUrls.BackendBaseUrl}/api/awmc';
-
-  /// 写入类请求的推荐超时（官方建议 180s：购票等写入更慢）。
-  static const Duration writeTimeout = Duration(seconds: 180);
 
   /// 读取类请求超时。
   ///
@@ -60,36 +52,12 @@ class AwmcApiService {
     '/v1/user/item-list': 2,
     '/v1/user/kaleidx-scope': 2,
     '/v1/user/game-event': 2,
-    '/v1/charge/queue': 0,
-    '/v1/charge': 10, // 仅 chargeId=2；3→15、5→25
     '/v1/update-lx': 5,
     '/v1/update-fish': 5,
-    '/v1/music/upsert': 15,
-    '/v1/music/delete': 10,
-    '/v1/ticket/clear': 5,
   };
 
-  /// 购票的实际消耗按票种变化（2 倍票 10 / 3 倍票 15 / 5 倍票 25）。
-  static const Map<int, int> chargeCost = {2: 10, 3: 15, 5: 25};
-
-  /// 是否为写操作（会改机台账号数据）。用于 UI 的确认门控与串行调度。
-  static bool isWritePath(String path) {
-    const writePaths = {
-      '/v1/music/upsert',
-      '/v1/music/delete',
-      '/v1/charge',
-      '/v1/ticket/clear',
-    };
-    return writePaths.contains(path);
-  }
-
-  /// 该路径的预计消耗（[chargeId] 仅对 `/v1/charge` 有意义）。
-  static int costOf(String path, {int? chargeId}) {
-    if (path == '/v1/charge') {
-      return chargeCost[chargeId] ?? chargeCost[2]!;
-    }
-    return costTable[path] ?? 0;
-  }
+  /// 该路径的预计消耗。
+  static int costOf(String path) => costTable[path] ?? 0;
 
   // ==================== 难度 / 状态枚举（官方文档 3.4） ====================
   /// inote → 上游 level 编号。
@@ -111,9 +79,6 @@ class AwmcApiService {
     'fsdp',
     'sync',
   ];
-
-  /// 写入调度：同一时刻只放行一个写请求（写操作不可并发、不可重试）。
-  static Future<void> _writeQueue = Future.value();
 
   // ==================== 调用结果 ====================
   /// 一次调用结果。**不含请求体与 qrcode**，可以安全地进日志/审计。
@@ -177,10 +142,9 @@ class AwmcApiService {
     String path, {
     required String token,
     Map<String, dynamic>? body,
-    int? chargeId,
     Duration? timeoutOverride,
   }) async {
-    final int cost = costOf(path, chargeId: chargeId);
+    final int cost = costOf(path);
     final uri = Uri.parse('$baseUrl$path');
     // 出口固定校验：任何拼装错误都在这里拦下，避免令牌被发到别的域名
     if (uri.host != Uri.parse(baseUrl).host) {
@@ -196,8 +160,7 @@ class AwmcApiService {
       if (body != null) 'Content-Type': 'application/json',
     };
     final payload = body == null ? null : json.encode(body);
-    final Duration timeout =
-        timeoutOverride ?? (isWritePath(path) ? writeTimeout : readTimeout);
+    final Duration timeout = timeoutOverride ?? readTimeout;
 
     final int started = DateTime.now().millisecondsSinceEpoch;
     int sinceStart() => DateTime.now().millisecondsSinceEpoch - started;
@@ -263,30 +226,6 @@ class AwmcApiService {
       return appL10n.svcTheGatewayCouldNotReachItsOrigin;
     }
     return appL10n.svcRequestFailedP0((redact(text)).toString());
-  }
-
-  /// 写操作：串行 + 不重试。
-  static Future<AwmcCallResult> _write(
-    String path, {
-    required String token,
-    required Map<String, dynamic> body,
-    int? chargeId,
-  }) {
-    final completer = Completer<AwmcCallResult>();
-    _writeQueue = _writeQueue.then((_) async {
-      final result = await _call('POST', path,
-          token: token, body: body, chargeId: chargeId);
-      if (!completer.isCompleted) completer.complete(result);
-    }).catchError((Object e) {
-      if (!completer.isCompleted) {
-        completer.complete(AwmcCallResult.failure(
-          method: 'POST',
-          path: path,
-          message: appL10n.flowCouldNotScheduleWriteP0((redact(e.toString())).toString()),
-        ));
-      }
-    });
-    return completer.future;
   }
 
   // ==================== 只读接口 ====================
@@ -382,9 +321,6 @@ class AwmcApiService {
       _call('POST', '/v1/user/game-event',
           token: token, body: {'qrcode': qrcode});
 
-  static Future<AwmcCallResult> chargeQueue({required String token}) =>
-      _call('GET', '/v1/charge/queue', token: token);
-
   // ==================== 第三方同步（读取成绩后推送，属读分类） ====================
   /// 同步到落雪 LXNS。[key] 为落雪 API Key。
   static Future<AwmcCallResult> updateLx({
@@ -403,71 +339,6 @@ class AwmcApiService {
   }) =>
       _call('POST', '/v1/update-fish',
           token: token, body: {'qrcode': qrcode, 'token': fishToken});
-
-  // ==================== 写入接口（均需确认门控） ====================
-  /// 上传 / 覆盖 1–4 条成绩。
-  ///
-  /// [musicList] 每项：`{musicId, level, achievement, dxScore, comboStatus,
-  /// syncStatus, fuzzy}`；精确模式 `fuzzy=false` 时 `dxScore` 填真实 DX 分，
-  /// 模糊模式 `fuzzy=true` 时 `dxScore` 填星级 0–5。
-  static Future<AwmcCallResult> musicUpsert({
-    required String token,
-    required String qrcode,
-    required List<Map<String, dynamic>> musicList,
-  }) {
-    if (musicList.isEmpty || musicList.length > 4) {
-      return Future.value(AwmcCallResult.failure(
-        method: 'POST',
-        path: '/v1/music/upsert',
-        message: appL10n.flowMusicListMustContain14EntriesCurrently((musicList.length).toString()),
-      ));
-    }
-    return _write('/v1/music/upsert',
-        token: token, body: {'qrcode': qrcode, 'musicList': musicList});
-  }
-
-  /// 删除 1–4 条成绩（每项只需 musicId + level）。
-  static Future<AwmcCallResult> musicDelete({
-    required String token,
-    required String qrcode,
-    required List<Map<String, dynamic>> musicList,
-  }) {
-    if (musicList.isEmpty || musicList.length > 4) {
-      return Future.value(AwmcCallResult.failure(
-        method: 'POST',
-        path: '/v1/music/delete',
-        message: appL10n.flowMusicListMustContain14EntriesCurrently((musicList.length).toString()),
-      ));
-    }
-    return _write('/v1/music/delete',
-        token: token, body: {'qrcode': qrcode, 'musicList': musicList});
-  }
-
-  /// 购买一张 Charge。仅允许 [chargeId] = 2 / 3 / 5（10 / 15 / 25 Token）。
-  static Future<AwmcCallResult> purchaseCharge({
-    required String token,
-    required String qrcode,
-    required int chargeId,
-  }) {
-    if (!chargeCost.containsKey(chargeId)) {
-      return Future.value(AwmcCallResult.failure(
-        method: 'POST',
-        path: '/v1/charge',
-        message: appL10n.flowOnlyChargeId235IsSupported,
-      ));
-    }
-    return _write('/v1/charge',
-        token: token,
-        body: {'qrcode': qrcode, 'chargeId': chargeId},
-        chargeId: chargeId);
-  }
-
-  /// 清空用户 Charge（消耗 5 Token）。
-  static Future<AwmcCallResult> ticketClear({
-    required String token,
-    required String qrcode,
-  }) =>
-      _write('/v1/ticket/clear', token: token, body: {'qrcode': qrcode});
 
   // ==================== 用量 / 配额 / 令牌管理（0 消耗） ====================
   static Future<AwmcCallResult> myUsage({

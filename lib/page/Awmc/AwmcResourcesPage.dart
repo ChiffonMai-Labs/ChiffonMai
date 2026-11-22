@@ -6,6 +6,7 @@ import '../../service/AWMC/AwmcApiService.dart';
 import '../../service/SongSearchService.dart';
 import '../../widgets/AnimatedChoiceBar.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
+import 'AwmcCabinetPage.dart';
 
 enum _Resource { music, rival }
 
@@ -134,6 +135,19 @@ class _AwmcResourcesPageState extends State<AwmcResourcesPage> {
     final l10n = context.l10n;
     return BackgroundPageScaffold(
       title: 'AWMC · ${l10n.awmcUnlockCandidates}',
+      actions: [
+        IconButton(
+          tooltip: l10n.awmcCabinetTitle,
+          icon: const Icon(Icons.point_of_sale_outlined),
+          onPressed: () {
+            FocusManager.instance.primaryFocus?.unfocus();
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AwmcCabinetPage()),
+            );
+          },
+        ),
+      ],
       child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           children: [

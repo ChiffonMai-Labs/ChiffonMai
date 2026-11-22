@@ -1,4 +1,5 @@
 import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import 'AWMC/AwmcChartMetadata.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -207,6 +208,7 @@ class SongInfoService {
           final songIndex = songs.indexWhere((s) => s.id == songId);
           if (songIndex != -1) {
             final song = songs[songIndex];
+            final awmc = await AwmcChartMetadata.forSong(song.id);
             // 计算 shortId（去掉前导零的歌曲ID）
             String shortId = song.id.replaceFirst(RegExp(r'^0+'), '');
 
@@ -214,15 +216,23 @@ class SongInfoService {
               'id': song.id,
               'title': song.title,
               'type': song.type,
-              'ds': song.ds,
+              'ds': [
+                for (final (index, constant) in song.ds.indexed)
+                  awmc[index]?.constant ?? constant,
+              ],
               'level': song.level,
               'cids': song.cids,
               'shortId': shortId,
               'is_extra': song.isExtra,
-              'charts': song.charts
-                  .map((chart) =>
-                      {'notes': chart.notes, 'charter': chart.charter})
-                  .toList(),
+              'charts': [
+                for (final (index, chart) in song.charts.indexed)
+                  {
+                    'notes': chart.notes,
+                    'charter': awmc[index]?.designer.isNotEmpty == true
+                        ? awmc[index]!.designer
+                        : chart.charter,
+                  },
+              ],
               'basic_info': {
                 'title': song.basicInfo.title,
                 'artist': song.basicInfo.artist,

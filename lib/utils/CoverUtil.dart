@@ -184,7 +184,7 @@ class CoverUtil {
       }
     }
     final awmc = AwmcCoverService.instance;
-    await awmc.ensureLoaded();
+    await awmc.ensureLoaded(allowNetwork: false);
     final legacy = DxRatingCoverService.instance;
     await legacy.ensureLoaded(allowNetwork: false);
     final coverUrl = awmc.coverUrlFor(songId) ?? legacy.coverUrlFor(songId);

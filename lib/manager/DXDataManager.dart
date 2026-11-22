@@ -79,6 +79,10 @@ class DXDataManager {
   Future<DXDataEntity?> load() =>
       _inflight ??= _load().whenComplete(() => _inflight = null);
 
+  /// 离线分析只读已经保存的历史目录，避免为了模拟发送刷新请求。
+  Future<DXDataEntity?> readCached() async =>
+      _cached ?? (await _readLocalCatalog())?.entity;
+
   Future<DXDataEntity?> _load() async {
     if (_cached != null) return _cached;
 

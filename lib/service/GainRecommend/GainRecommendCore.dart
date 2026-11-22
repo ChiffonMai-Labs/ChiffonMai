@@ -104,13 +104,13 @@ class GainChartRecord {
 
   GainChartKey get key => GainChartKey(songId, levelIndex);
 
-  GainChartRecord copyWith({double? achievements}) => GainChartRecord(
+  GainChartRecord copyWith({double? achievements, double? ds}) => GainChartRecord(
         songId: songId,
         levelIndex: levelIndex,
         title: title,
         level: level,
         type: type,
-        ds: ds,
+        ds: ds ?? this.ds,
         achievements: achievements ?? this.achievements,
         isNew: isNew,
       );

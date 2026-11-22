@@ -14,6 +14,7 @@ import 'PersonalizedScorePage.dart';
 import 'History/ScoreImprovementHistoryPage.dart';
 import 'History/RatingHistoryPage.dart';
 import 'FriendComparePage.dart';
+import 'ScoreInsightsPage.dart';
 import 'PaiziProgressPage.dart';
 import 'RankTable/RankTablePage.dart';
 import 'KaleidXScope/KaleidXScopeSelectPage.dart';
@@ -401,6 +402,9 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
               LinkPill(
                   label: context.featureText('自定义'),
                   onTap: () => _open(context, const CustomBest50Page())),
+              LinkPill(
+                  label: context.l10n.awmcScoreInsights,
+                  onTap: () => _open(context, const ScoreInsightsPage())),
             ],
           ),
         ],

@@ -6,14 +6,20 @@ const catalogUrl = 'https://download.wmc.pub/api/v1/charts';
 
 async function fetchPage(page) {
   const url = new URL(catalogUrl);
-  url.search = new URLSearchParams({ raw: '1', limit: '200', page: String(page) });
-  const response = await fetch(url, { signal: AbortSignal.timeout(20000) });
-  if (!response.ok) throw new Error(`AWMC 目录第 ${page} 页返回 HTTP ${response.status}`);
-  const data = await response.json();
-  if (!Array.isArray(data.charts) || !Number.isInteger(data.pages) || data.pages < 1 || data.pages > 30) {
-    throw new Error(`AWMC 目录第 ${page} 页格式异常`);
+  url.search = new URLSearchParams({ raw: '1', limit: '500', page: String(page) });
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const response = await fetch(url, { signal: AbortSignal.timeout(30000) });
+      if (!response.ok) throw new Error(`AWMC 目录第 ${page} 页返回 HTTP ${response.status}`);
+      const data = await response.json();
+      if (!Array.isArray(data.charts) || !Number.isInteger(data.pages) || data.pages < 1 || data.pages > 30) {
+        throw new Error(`AWMC 目录第 ${page} 页格式异常`);
+      }
+      return data;
+    } catch (error) {
+      if (attempt === 2) throw error;
+    }
   }
-  return data;
 }
 
 async function loadCatalog(source) {
@@ -25,7 +31,9 @@ async function loadCatalog(source) {
   const charts = [...first.charts];
   for (let page = 2; page <= first.pages; page++) {
     const next = await fetchPage(page);
-    if (next.generatedAt !== first.generatedAt) throw new Error('目录在分页过程中更新，请重试');
+    if (next.matched !== first.matched || next.pages !== first.pages) {
+      throw new Error('目录在分页过程中更新，请重试');
+    }
     charts.push(...next.charts);
   }
   if (charts.length !== first.matched) throw new Error('AWMC 目录缺页');
@@ -36,14 +44,29 @@ async function main() {
   const rows = await loadCatalog(process.argv[2]);
   if (!Array.isArray(rows)) throw new Error('AWMC 目录缺少 charts 列表');
   const entries = new Map();
+  const charts = new Map();
   for (const row of rows) {
-    if (!row || !/^\d{6}$/.test(row.shortid) || !row.versionFolder || !row.folderName || !row.image) continue;
+    if (!row || !/^\d{6}$/.test(row.shortid)) continue;
     const id = Number(row.shortid);
     if (id === 0 || id === 10000) continue;
     const dx = id > 10000 && id < 100000;
     const baseId = dx ? id - 10000 : id;
     // 同曲先取现役条目，同为现役时优先标准谱。
     const score = (row.isOc ? 0 : 2) + (dx ? 0 : 1);
+    if (id < 100000 && score > (charts.get(id)?.score ?? -1)) {
+      const difficulties = {};
+      for (let index = 0; index < 5; index++) {
+        const key = String(index + 2);
+        const constant = row.levels?.[key]?.num;
+        const rawDesigner = row.designers?.[key];
+        const designer = typeof rawDesigner === 'string' ? rawDesigner.trim() : '';
+        if (Number.isFinite(constant) && constant > 0) {
+          difficulties[index] = [constant, designer === '-' ? '' : designer];
+        }
+      }
+      if (Object.keys(difficulties).length > 0) charts.set(id, { score, difficulties });
+    }
+    if (!row.versionFolder || !row.folderName || !row.image) continue;
     if (!entries.has(baseId)) entries.set(baseId, new Map());
     const variants = entries.get(baseId);
     if ((variants.get(id)?.score ?? -1) >= score) continue;
@@ -61,6 +84,8 @@ async function main() {
     [...variants.values()].sort((a, b) => b.score - a.score).map(entry => entry.cover),
   ]));
   fs.writeFileSync(path.join(root, 'assets/awmc_cover_index.json'), JSON.stringify(covers) + '\n');
+  const chartMetadata = Object.fromEntries([...charts].map(([id, row]) => [id, row.difficulties]));
+  fs.writeFileSync(path.join(root, 'assets/awmc_chart_metadata.json'), JSON.stringify(chartMetadata) + '\n');
   console.log(`AWMC 曲绘 ${entries.size} 首，覆盖旧索引 ${matched}/${ids.length}`);
 }
 

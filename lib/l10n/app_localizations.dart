@@ -26401,6 +26401,156 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'AWMC NET 云端成绩'**
   String get awmcNetUtageScore;
+
+  /// No description provided for @awmcScoreInsights.
+  ///
+  /// In zh, this message translates to:
+  /// **'成绩分析'**
+  String get awmcScoreInsights;
+
+  /// No description provided for @awmcScoreOverview.
+  ///
+  /// In zh, this message translates to:
+  /// **'成绩全景'**
+  String get awmcScoreOverview;
+
+  /// No description provided for @awmcChartCoverage.
+  ///
+  /// In zh, this message translates to:
+  /// **'等级覆盖'**
+  String get awmcChartCoverage;
+
+  /// No description provided for @awmcB50Audit.
+  ///
+  /// In zh, this message translates to:
+  /// **'B50 边缘巡检'**
+  String get awmcB50Audit;
+
+  /// No description provided for @awmcB50InList.
+  ///
+  /// In zh, this message translates to:
+  /// **'已入榜'**
+  String get awmcB50InList;
+
+  /// No description provided for @awmcCurrentConstants.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前定数'**
+  String get awmcCurrentConstants;
+
+  /// No description provided for @awmcAuditConstants.
+  ///
+  /// In zh, this message translates to:
+  /// **'定数版本'**
+  String get awmcAuditConstants;
+
+  /// No description provided for @awmcCurrentChartPools.
+  ///
+  /// In zh, this message translates to:
+  /// **'B35／B15 分区沿用当前曲库'**
+  String get awmcCurrentChartPools;
+
+  /// No description provided for @awmcHistoricalFallback.
+  ///
+  /// In zh, this message translates to:
+  /// **'{p0} 张谱缺少历史定数，已使用当前值'**
+  String awmcHistoricalFallback(String p0);
+
+  /// No description provided for @awmcInsightsNoCache.
+  ///
+  /// In zh, this message translates to:
+  /// **'请先刷新曲库和成绩'**
+  String get awmcInsightsNoCache;
+
+  /// No description provided for @awmcLocalScoreSnapshot.
+  ///
+  /// In zh, this message translates to:
+  /// **'统计按本地缓存的正式谱面和成绩计算'**
+  String get awmcLocalScoreSnapshot;
+
+  /// No description provided for @awmcNoRecordCharts.
+  ///
+  /// In zh, this message translates to:
+  /// **'未记录谱面'**
+  String get awmcNoRecordCharts;
+
+  /// No description provided for @awmcRaToEnter.
+  ///
+  /// In zh, this message translates to:
+  /// **'距入榜差 {p0} Rating'**
+  String awmcRaToEnter(String p0);
+
+  /// No description provided for @awmcCoopBest50.
+  ///
+  /// In zh, this message translates to:
+  /// **'合作 B50'**
+  String get awmcCoopBest50;
+
+  /// No description provided for @awmcSharedContribution.
+  ///
+  /// In zh, this message translates to:
+  /// **'双方同分'**
+  String get awmcSharedContribution;
+
+  /// No description provided for @awmcPracticeTarget.
+  ///
+  /// In zh, this message translates to:
+  /// **'练习目标'**
+  String get awmcPracticeTarget;
+
+  /// No description provided for @awmcPracticeRange.
+  ///
+  /// In zh, this message translates to:
+  /// **'目标需高于 {p0}%，最高 {p1}%'**
+  String awmcPracticeRange(String p0, String p1);
+
+  /// No description provided for @awmcCabinetTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'AWMC 机台查询'**
+  String get awmcCabinetTitle;
+
+  /// No description provided for @awmcCabinetPreview.
+  ///
+  /// In zh, this message translates to:
+  /// **'账号预览'**
+  String get awmcCabinetPreview;
+
+  /// No description provided for @awmcOwnedItems.
+  ///
+  /// In zh, this message translates to:
+  /// **'已拥有道具'**
+  String get awmcOwnedItems;
+
+  /// No description provided for @awmcPlayRegions.
+  ///
+  /// In zh, this message translates to:
+  /// **'游玩地区'**
+  String get awmcPlayRegions;
+
+  /// No description provided for @awmcCheckCatalogPage.
+  ///
+  /// In zh, this message translates to:
+  /// **'核对本页道具'**
+  String get awmcCheckCatalogPage;
+
+  /// No description provided for @awmcCatalogExists.
+  ///
+  /// In zh, this message translates to:
+  /// **'上游图鉴有记录'**
+  String get awmcCatalogExists;
+
+  /// No description provided for @awmcCatalogMissing.
+  ///
+  /// In zh, this message translates to:
+  /// **'上游图鉴未找到'**
+  String get awmcCatalogMissing;
+
+  /// No description provided for @awmcCatalogCheckUnknown.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂未核对'**
+  String get awmcCatalogCheckUnknown;
 }
 
 class _AppLocalizationsDelegate

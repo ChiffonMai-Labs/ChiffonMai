@@ -15421,4 +15421,85 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get awmcNetUtageScore => 'AWMC NET のクラウドスコア';
+
+  @override
+  String get awmcScoreInsights => '成績分析';
+
+  @override
+  String get awmcScoreOverview => '成績概要';
+
+  @override
+  String get awmcChartCoverage => 'レベル達成率';
+
+  @override
+  String get awmcB50Audit => 'B50 ボーダー確認';
+
+  @override
+  String get awmcB50InList => 'B50 に採用';
+
+  @override
+  String get awmcCurrentConstants => '現在の譜面定数';
+
+  @override
+  String get awmcAuditConstants => '譜面定数のバージョン';
+
+  @override
+  String get awmcCurrentChartPools => 'B35/B15 は現在の曲区分を使用';
+
+  @override
+  String awmcHistoricalFallback(String p0) {
+    return '履歴がない $p0 譜面に現在の定数を使用';
+  }
+
+  @override
+  String get awmcInsightsNoCache => '先に曲一覧と成績を更新してください';
+
+  @override
+  String get awmcLocalScoreSnapshot => '端末に保存された公式譜面と成績で集計';
+
+  @override
+  String get awmcNoRecordCharts => '成績未記録の譜面';
+
+  @override
+  String awmcRaToEnter(String p0) {
+    return '採用まであと $p0 Rating';
+  }
+
+  @override
+  String get awmcCoopBest50 => '協力 B50';
+
+  @override
+  String get awmcSharedContribution => '両者同点';
+
+  @override
+  String get awmcPracticeTarget => '練習目標';
+
+  @override
+  String awmcPracticeRange(String p0, String p1) {
+    return '目標は $p0% より上、$p1% 以下';
+  }
+
+  @override
+  String get awmcCabinetTitle => 'AWMC 筐体データ照会';
+
+  @override
+  String get awmcCabinetPreview => 'プロフィール';
+
+  @override
+  String get awmcOwnedItems => '所持アイテム';
+
+  @override
+  String get awmcPlayRegions => 'プレイ地域';
+
+  @override
+  String get awmcCheckCatalogPage => 'このページのアイテムを照合';
+
+  @override
+  String get awmcCatalogExists => '上流カタログに登録済み';
+
+  @override
+  String get awmcCatalogMissing => '上流カタログに見つかりません';
+
+  @override
+  String get awmcCatalogCheckUnknown => '照合待ち';
 }

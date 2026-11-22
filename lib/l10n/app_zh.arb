@@ -10476,5 +10476,54 @@
         "type": "String"
       }
     }
-  }
+  },
+  "awmcScoreInsights": "成绩分析",
+  "awmcScoreOverview": "成绩全景",
+  "awmcChartCoverage": "等级覆盖",
+  "awmcB50Audit": "B50 边缘巡检",
+  "awmcB50InList": "已入榜",
+  "awmcCurrentConstants": "当前定数",
+  "awmcAuditConstants": "定数版本",
+  "awmcCurrentChartPools": "B35／B15 分区沿用当前曲库",
+  "awmcHistoricalFallback": "{p0} 张谱缺少历史定数，已使用当前值",
+  "@awmcHistoricalFallback": {
+    "placeholders": {
+      "p0": {
+        "type": "String"
+      }
+    }
+  },
+  "awmcInsightsNoCache": "请先刷新曲库和成绩",
+  "awmcLocalScoreSnapshot": "统计按本地缓存的正式谱面和成绩计算",
+  "awmcNoRecordCharts": "未记录谱面",
+  "awmcRaToEnter": "距入榜差 {p0} Rating",
+  "@awmcRaToEnter": {
+    "placeholders": {
+      "p0": {
+        "type": "String"
+      }
+    }
+  },
+  "awmcCoopBest50": "合作 B50",
+  "awmcSharedContribution": "双方同分",
+  "awmcPracticeTarget": "练习目标",
+  "awmcPracticeRange": "目标需高于 {p0}%，最高 {p1}%",
+  "@awmcPracticeRange": {
+    "placeholders": {
+      "p0": {
+        "type": "String"
+      },
+      "p1": {
+        "type": "String"
+      }
+    }
+  },
+  "awmcCabinetTitle": "AWMC 机台查询",
+  "awmcCabinetPreview": "账号预览",
+  "awmcOwnedItems": "已拥有道具",
+  "awmcPlayRegions": "游玩地区",
+  "awmcCheckCatalogPage": "核对本页道具",
+  "awmcCatalogExists": "上游图鉴有记录",
+  "awmcCatalogMissing": "上游图鉴未找到",
+  "awmcCatalogCheckUnknown": "暂未核对"
 }

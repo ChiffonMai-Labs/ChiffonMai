@@ -15107,6 +15107,87 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get awmcNetUtageScore => 'AWMC NET 云端成绩';
+
+  @override
+  String get awmcScoreInsights => '成绩分析';
+
+  @override
+  String get awmcScoreOverview => '成绩全景';
+
+  @override
+  String get awmcChartCoverage => '等级覆盖';
+
+  @override
+  String get awmcB50Audit => 'B50 边缘巡检';
+
+  @override
+  String get awmcB50InList => '已入榜';
+
+  @override
+  String get awmcCurrentConstants => '当前定数';
+
+  @override
+  String get awmcAuditConstants => '定数版本';
+
+  @override
+  String get awmcCurrentChartPools => 'B35／B15 分区沿用当前曲库';
+
+  @override
+  String awmcHistoricalFallback(String p0) {
+    return '$p0 张谱缺少历史定数，已使用当前值';
+  }
+
+  @override
+  String get awmcInsightsNoCache => '请先刷新曲库和成绩';
+
+  @override
+  String get awmcLocalScoreSnapshot => '统计按本地缓存的正式谱面和成绩计算';
+
+  @override
+  String get awmcNoRecordCharts => '未记录谱面';
+
+  @override
+  String awmcRaToEnter(String p0) {
+    return '距入榜差 $p0 Rating';
+  }
+
+  @override
+  String get awmcCoopBest50 => '合作 B50';
+
+  @override
+  String get awmcSharedContribution => '双方同分';
+
+  @override
+  String get awmcPracticeTarget => '练习目标';
+
+  @override
+  String awmcPracticeRange(String p0, String p1) {
+    return '目标需高于 $p0%，最高 $p1%';
+  }
+
+  @override
+  String get awmcCabinetTitle => 'AWMC 机台查询';
+
+  @override
+  String get awmcCabinetPreview => '账号预览';
+
+  @override
+  String get awmcOwnedItems => '已拥有道具';
+
+  @override
+  String get awmcPlayRegions => '游玩地区';
+
+  @override
+  String get awmcCheckCatalogPage => '核对本页道具';
+
+  @override
+  String get awmcCatalogExists => '上游图鉴有记录';
+
+  @override
+  String get awmcCatalogMissing => '上游图鉴未找到';
+
+  @override
+  String get awmcCatalogCheckUnknown => '暂未核对';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -30214,4 +30295,85 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get awmcNetUtageScore => 'AWMC NET 雲端成績';
+
+  @override
+  String get awmcScoreInsights => '成績分析';
+
+  @override
+  String get awmcScoreOverview => '成績全覽';
+
+  @override
+  String get awmcChartCoverage => '等級覆蓋';
+
+  @override
+  String get awmcB50Audit => 'B50 邊緣巡檢';
+
+  @override
+  String get awmcB50InList => '已入榜';
+
+  @override
+  String get awmcCurrentConstants => '目前定數';
+
+  @override
+  String get awmcAuditConstants => '定數版本';
+
+  @override
+  String get awmcCurrentChartPools => 'B35／B15 分組沿用目前曲庫';
+
+  @override
+  String awmcHistoricalFallback(String p0) {
+    return '$p0 張譜缺少歷史定數，已使用目前值';
+  }
+
+  @override
+  String get awmcInsightsNoCache => '請先更新曲庫和成績';
+
+  @override
+  String get awmcLocalScoreSnapshot => '統計依本機快取的正式譜面與成績計算';
+
+  @override
+  String get awmcNoRecordCharts => '未記錄譜面';
+
+  @override
+  String awmcRaToEnter(String p0) {
+    return '距入榜差 $p0 Rating';
+  }
+
+  @override
+  String get awmcCoopBest50 => '合作 B50';
+
+  @override
+  String get awmcSharedContribution => '雙方同分';
+
+  @override
+  String get awmcPracticeTarget => '練習目標';
+
+  @override
+  String awmcPracticeRange(String p0, String p1) {
+    return '目標需高於 $p0%，最高 $p1%';
+  }
+
+  @override
+  String get awmcCabinetTitle => 'AWMC 機台查詢';
+
+  @override
+  String get awmcCabinetPreview => '帳號預覽';
+
+  @override
+  String get awmcOwnedItems => '已持有道具';
+
+  @override
+  String get awmcPlayRegions => '遊玩地區';
+
+  @override
+  String get awmcCheckCatalogPage => '核對本頁道具';
+
+  @override
+  String get awmcCatalogExists => '上游圖鑑有紀錄';
+
+  @override
+  String get awmcCatalogMissing => '上游圖鑑未找到';
+
+  @override
+  String get awmcCatalogCheckUnknown => '暫未核對';
 }

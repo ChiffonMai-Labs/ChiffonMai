@@ -528,7 +528,7 @@ class AutoSyncService {
         if (entry == null) {
           throw AutoSyncException(errorMessage('task_not_found'));
         }
-        return _request('POST', entry, action: 'keepalive');
+        return _request('POST', entry, action: 'keepalive', body: const {});
       });
 
   void _observeCompleted(AutoSyncRegistration entry, AutoSyncTask task) {

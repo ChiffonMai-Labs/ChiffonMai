@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import '../service/GainRecommend/GainFeedbackStore.dart';
 import '../service/GainRecommend/GainRecommendCore.dart';
 import '../service/GainRecommend/GainRecommendService.dart';
+import '../service/NextPlayQueueStore.dart';
+import '../manager/DivingFish/MaimaiMusicDataManager.dart';
 import '../utils/AppTheme.dart';
 import '../utils/ChartDifficulty.dart';
 import '../utils/CoverUtil.dart';
@@ -198,6 +200,92 @@ class _GainRecommendPageState extends State<GainRecommendPage> {
     );
   }
 
+  Future<void> _practiceTarget(
+      GainCandidate candidate, GainBaseline baseline) async {
+    final l10n = context.l10n;
+    final record = candidate.record ??
+        GainChartRecord(
+          songId: candidate.songId,
+          levelIndex: candidate.levelIndex,
+          title: candidate.title,
+          level: candidate.level,
+          type: candidate.type,
+          ds: candidate.ds,
+          achievements: 0,
+          isNew: candidate.isNew,
+        );
+    double? target = candidate.target;
+    final result = await showDialog<double>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, update) {
+          final value = target;
+          final valid = value != null && value > record.achievements
+              ? quantizeGainTarget(value)
+              : null;
+          return AlertDialog(
+            title: Text(l10n.awmcPracticeTarget),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(candidate.title),
+                  const SizedBox(height: 8),
+                  Text(l10n.awmcPracticeRange(
+                      record.achievements.toStringAsFixed(4), '$gainAchvCap')),
+                  TextFormField(
+                    initialValue: candidate.target.toStringAsFixed(4),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(suffixText: '%'),
+                    onChanged: (text) => update(() {
+                      target = double.tryParse(text.trim().replaceAll(',', '.'));
+                    }),
+                  ),
+                  const SizedBox(height: 8),
+                  if (valid != null)
+                    Text('${l10n.flowNetGain} · +${gainIndependentNetGain(baseline, record, valid)}'),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: Text(l10n.featureCancel)),
+              FilledButton(
+                  onPressed: valid == null
+                      ? null
+                      : () => Navigator.pop(dialogContext, valid),
+                  child: Text(l10n.flowAddToPlayNext)),
+            ],
+          );
+        },
+      ),
+    );
+    if (!mounted || result == null) return;
+    try {
+      final song =
+          await MaimaiMusicDataManager().getCachedSongById('${candidate.songId}');
+      if (!mounted) return;
+      await NextPlayQueueStore.instance.add(
+        songId: '${candidate.songId}',
+        title: candidate.title,
+        artist: song?.basicInfo.artist ?? '',
+        type: candidate.type,
+        difficultyIndices: [candidate.levelIndex],
+        note: '${l10n.awmcPracticeTarget} ${result.toStringAsFixed(4)}%',
+        count: 1,
+      );
+      if (mounted) AppToast.show(l10n.flowAddedToPlayNext);
+    } catch (_) {
+      if (mounted) {
+        AppToast.show(l10n.flowSaveFailedP0(candidate.title),
+            tone: AppToastTone.error);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return BackgroundPageScaffold(
@@ -271,6 +359,8 @@ class _GainRecommendPageState extends State<GainRecommendPage> {
                         ),
                       ),
                       onFeedback: (action) => _onFeedback(c, action),
+                      onPractice: () =>
+                          _practiceTarget(c, snapshot.result.baseline),
                     ),
                   ),
                 if (page.partialCount != null)
@@ -473,11 +563,13 @@ class _CandidateCard extends StatelessWidget {
   final GainCandidate candidate;
   final VoidCallback onTap;
   final ValueChanged<String> onFeedback;
+  final VoidCallback onPractice;
 
   const _CandidateCard({
     required this.candidate,
     required this.onTap,
     required this.onFeedback,
+    required this.onPractice,
   });
 
   @override
@@ -566,8 +658,11 @@ class _CandidateCard extends StatelessWidget {
                   padding: EdgeInsets.zero,
                   icon: Icon(Icons.more_vert_rounded,
                       size: 20, color: scheme.onSurfaceVariant),
-                  onSelected: onFeedback,
+                  onSelected: (action) => action == 'practice'
+                      ? onPractice()
+                      : onFeedback(action),
                   itemBuilder: (_) =>  [
+                    PopupMenuItem(value: 'practice', child: Text(context.l10n.awmcPracticeTarget)),
                     PopupMenuItem(value: 'skip', child: Text(context.l10n.flowSkipThisTime)),
                     PopupMenuItem(value: 'stuck', child: Text(context.l10n.flowTemporarilyStuck14Days)),
                     PopupMenuItem(value: 'dislike', child: Text(context.l10n.flowDislikeThisChart)),

@@ -1,3 +1,5 @@
+import '../service/GainRecommend/ScoreInsights.dart';
+
 /// 单张谱面的好友对比项
 class ChartComparisonItem {
   final int songId;
@@ -70,6 +72,7 @@ class ComparisonResult {
   final String friendNickname; // 好友昵称
   final int friendRating; // 好友 Rating
   final int myRating; // 我的 Rating
+  final CooperativeBest50? cooperativeBest50;
 
   ComparisonResult({
     this.myAccountId = '',
@@ -83,5 +86,6 @@ class ComparisonResult {
     required this.friendNickname,
     required this.friendRating,
     required this.myRating,
+    this.cooperativeBest50,
   });
 }

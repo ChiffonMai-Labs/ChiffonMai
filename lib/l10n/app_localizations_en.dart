@@ -15999,4 +15999,86 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get awmcNetUtageScore => 'AWMC NET cloud score';
+
+  @override
+  String get awmcScoreInsights => 'Score analysis';
+
+  @override
+  String get awmcScoreOverview => 'Overview';
+
+  @override
+  String get awmcChartCoverage => 'Coverage';
+
+  @override
+  String get awmcB50Audit => 'B50 cutoff review';
+
+  @override
+  String get awmcB50InList => 'In B50';
+
+  @override
+  String get awmcCurrentConstants => 'Current constants';
+
+  @override
+  String get awmcAuditConstants => 'Constant version';
+
+  @override
+  String get awmcCurrentChartPools => 'B35/B15 use the current song pools';
+
+  @override
+  String awmcHistoricalFallback(String p0) {
+    return 'Used current constants for $p0 charts with missing history';
+  }
+
+  @override
+  String get awmcInsightsNoCache => 'Refresh the song catalog and scores first';
+
+  @override
+  String get awmcLocalScoreSnapshot =>
+      'Calculated from the cached official charts and your scores';
+
+  @override
+  String get awmcNoRecordCharts => 'Charts without scores';
+
+  @override
+  String awmcRaToEnter(String p0) {
+    return '$p0 Rating short of the cutoff';
+  }
+
+  @override
+  String get awmcCoopBest50 => 'Co-op B50';
+
+  @override
+  String get awmcSharedContribution => 'Both players tied';
+
+  @override
+  String get awmcPracticeTarget => 'Practice target';
+
+  @override
+  String awmcPracticeRange(String p0, String p1) {
+    return 'Choose a target above $p0% and up to $p1%';
+  }
+
+  @override
+  String get awmcCabinetTitle => 'AWMC cabinet lookup';
+
+  @override
+  String get awmcCabinetPreview => 'Profile';
+
+  @override
+  String get awmcOwnedItems => 'Owned items';
+
+  @override
+  String get awmcPlayRegions => 'Play regions';
+
+  @override
+  String get awmcCheckCatalogPage => 'Check items on this page';
+
+  @override
+  String get awmcCatalogExists => 'Found in upstream catalog';
+
+  @override
+  String get awmcCatalogMissing => 'Missing from upstream catalog';
+
+  @override
+  String get awmcCatalogCheckUnknown => 'Check pending';
 }
