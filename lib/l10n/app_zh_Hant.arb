@@ -4379,5 +4379,10 @@
   "awmcRivalProfile": "對手資料",
   "awmcRivalNoCombos": "機台成績未提供 FC／FS 資料",
   "awmcRivalIdHint": "對手機台 ID",
-  "awmcLocalMusicFallback": "本機曲庫 · 舊閘道回退"
+  "awmcLocalMusicFallback": "本機曲庫 · 舊閘道回退",
+  "awmcNetSongHistory": "AWMC NET 雲端歷史",
+  "awmcNetViewSongHistory": "查看雲端歷史",
+  "awmcNetSongHistoryHidden": "該檔案未公開或不存在。",
+  "awmcNetSongRetryIn": "請求過於頻繁，{p0} 秒後可重試。",
+  "awmcNetUtageScore": "AWMC NET 雲端成績"
 }

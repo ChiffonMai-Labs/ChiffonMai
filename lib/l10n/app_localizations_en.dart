@@ -15981,4 +15981,22 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get awmcLocalMusicFallback =>
       'Local library · fallback for older gateway';
+
+  @override
+  String get awmcNetSongHistory => 'AWMC NET cloud history';
+
+  @override
+  String get awmcNetViewSongHistory => 'View cloud history';
+
+  @override
+  String get awmcNetSongHistoryHidden =>
+      'This profile is private or does not exist.';
+
+  @override
+  String awmcNetSongRetryIn(String p0) {
+    return 'Too many requests. Retry in ${p0}s.';
+  }
+
+  @override
+  String get awmcNetUtageScore => 'AWMC NET cloud score';
 }

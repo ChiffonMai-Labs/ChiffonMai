@@ -4379,5 +4379,10 @@
   "awmcRivalProfile": "ライバル情報",
   "awmcRivalNoCombos": "筐体スコアにFC・FS情報は含まれません",
   "awmcRivalIdHint": "ライバルの筐体ID",
-  "awmcLocalMusicFallback": "端末内の曲リスト · 旧ゲートウェイの代替"
+  "awmcLocalMusicFallback": "端末内の曲リスト · 旧ゲートウェイの代替",
+  "awmcNetSongHistory": "AWMC NET のクラウド履歴",
+  "awmcNetViewSongHistory": "クラウド履歴を見る",
+  "awmcNetSongHistoryHidden": "このプロフィールは非公開か、存在しません。",
+  "awmcNetSongRetryIn": "リクエストが多すぎます。{p0} 秒後に再試行できます。",
+  "awmcNetUtageScore": "AWMC NET のクラウドスコア"
 }

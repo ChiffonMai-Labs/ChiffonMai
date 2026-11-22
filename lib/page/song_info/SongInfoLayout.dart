@@ -663,6 +663,8 @@ extension _SongInfoLayout on _SongInfoPageState {
     final plays = _currentPlayCount == null
         ? ''
         : context.l10n.flowPlayedP0Times((_currentPlayCount!).toString());
+    final cloudRecord = userRecord != null &&
+        _awmcUtageRecords.values.any((record) => identical(record, userRecord));
     // AnimatedSize 不能用 Duration.zero：子项尺寸一变，它会在自己的布局过程里
     // 同步把动画跑完并再次标脏（框架断言「mutated in its own performLayout」）。
     // 不需要过渡时用 1 微秒代替，下一帧直接到位，观感与「无动画」相同。
@@ -692,6 +694,7 @@ extension _SongInfoLayout on _SongInfoPageState {
               ),
             ],
           ),
+          if (cloudRecord) Text(context.l10n.awmcNetUtageScore, style: muted),
           const SizedBox(height: 1),
           AnimatedSize(
             duration: sizeMotion,
@@ -699,54 +702,68 @@ extension _SongInfoLayout on _SongInfoPageState {
             alignment: Alignment.topCenter,
             // 有成绩 ↔ 有成绩之间 Key 不变，数字才能从旧值滚到新值。
             child: FadeSwitcher(
-              value: userRecord != null,
+              value: (userRecord != null, _awmcUtageLoading, _awmcUtageFailed),
               alignment: AlignmentDirectional.topStart,
               sizeFollowsCurrent: true,
-              child: userRecord != null
-                  ? _buildBestScoreBody(userRecord)
-                  : Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // 难度名长短不一，放不下时整行缩小，避免末字单独换行。
-                              FittedBox(
-                                fit: BoxFit.scaleDown,
-                                alignment: Alignment.centerLeft,
-                                child: Text(
-                                  context.l10n.flowNoScoreForP0Yet(
-                                      (_getDiffLabel(_currentDiffIndex))
-                                          .toString()),
-                                  maxLines: 1,
-                                  style: const TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w700),
-                                ),
+              child: switch (userRecord) {
+                final record? => _buildBestScoreBody(record),
+                null when _awmcUtageLoading =>
+                  Text(context.l10n.flowLoading2, style: muted),
+                null when _awmcUtageFailed => Row(
+                    children: [
+                      Expanded(
+                        child: Text(context.l10n.awmcChartUnavailable,
+                            style: muted),
+                      ),
+                      TextButton(
+                        onPressed: () => _refreshAwmcUtageScore(retry: true),
+                        child: Text(context.l10n.flowRetry),
+                      ),
+                    ],
+                  ),
+                null => Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // 难度名长短不一，放不下时整行缩小，避免末字单独换行。
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                context.l10n.flowNoScoreForP0Yet(
+                                    (_getDiffLabel(_currentDiffIndex))
+                                        .toString()),
+                                maxLines: 1,
+                                style: const TextStyle(
+                                    fontSize: 15, fontWeight: FontWeight.w700),
                               ),
-                              const SizedBox(height: 2),
-                              Text(context.l10n.flowPlayAndSyncToSeeYourScore,
-                                  style: muted),
-                            ],
-                          ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(context.l10n.flowPlayAndSyncToSeeYourScore,
+                                style: muted),
+                          ],
                         ),
-                        const SizedBox(width: 12),
-                        FilledButton(
-                          onPressed: _isLoading ? null : _addToNextPlayQueue,
-                          style: FilledButton.styleFrom(
-                            backgroundColor: AppSurfaces.inset(context),
-                            foregroundColor: scheme.onSurface,
-                            minimumSize: const Size(0, 40),
-                            padding: const EdgeInsets.symmetric(horizontal: 14),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14)),
-                            textStyle: AppTheme.font(
-                                fontSize: 13, fontWeight: FontWeight.w600),
-                          ),
-                          child: Text(context.l10n.flowAddToPlayNext),
+                      ),
+                      const SizedBox(width: 12),
+                      FilledButton(
+                        onPressed: _isLoading ? null : _addToNextPlayQueue,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppSurfaces.inset(context),
+                          foregroundColor: scheme.onSurface,
+                          minimumSize: const Size(0, 40),
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14)),
+                          textStyle: AppTheme.font(
+                              fontSize: 13, fontWeight: FontWeight.w600),
                         ),
-                      ],
-                    ),
+                        child: Text(context.l10n.flowAddToPlayNext),
+                      ),
+                    ],
+                  ),
+              },
             ),
           ),
           AnimatedSize(
@@ -812,22 +829,23 @@ extension _SongInfoLayout on _SongInfoPageState {
             ),
             const SizedBox(width: 10),
             // Column 的基线取第一个子项：倒序排列，让参与对齐的是数值而不是上方的标签。
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              verticalDirection: VerticalDirection.up,
-              children: [
-                RollingNumber(
-                  value: userRecord['ra'] as num,
-                  style: AppTheme.number(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                      color: scheme.onSurface),
-                ),
-                Text('Rating',
-                    style: TextStyle(
-                        fontSize: 11, color: scheme.onSurfaceVariant)),
-              ],
-            ),
+            if (userRecord['ra'] case final num rating)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                verticalDirection: VerticalDirection.up,
+                children: [
+                  RollingNumber(
+                    value: rating,
+                    style: AppTheme.number(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: scheme.onSurface),
+                  ),
+                  Text('Rating',
+                      style: TextStyle(
+                          fontSize: 11, color: scheme.onSurfaceVariant)),
+                ],
+              ),
           ],
         ),
         const SizedBox(height: 10),

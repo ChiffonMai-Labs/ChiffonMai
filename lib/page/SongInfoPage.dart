@@ -63,6 +63,10 @@ import 'package:my_first_flutter_app/entity/DXRating/DXDataEntity.dart';
 import 'package:my_first_flutter_app/manager/DXDataManager.dart';
 import 'package:my_first_flutter_app/page/CalculatorPage.dart';
 import 'package:my_first_flutter_app/service/AWMC/AwmcPlayCountStore.dart';
+import '../service/AWMC/AwmcNetSongService.dart';
+import '../service/AccountStore.dart';
+import '../utils/AwmcIdMap.dart';
+import '../utils/CurrentDataSourceNotifier.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import 'package:my_first_flutter_app/utils/AppDesignTokens.dart';
 import 'package:my_first_flutter_app/widgets/AppUi.dart';
@@ -74,6 +78,7 @@ import 'package:my_first_flutter_app/widgets/BackgroundPageScaffold.dart';
 import 'package:my_first_flutter_app/widgets/AppHeader.dart';
 import 'package:my_first_flutter_app/widgets/NextPlayAddDialog.dart';
 import 'package:my_first_flutter_app/widgets/ChartHistorySection.dart';
+import '../widgets/AwmcCloudSongHistory.dart';
 import 'package:my_first_flutter_app/widgets/CommunityAvatar.dart';
 import '../widgets/MarqueeText.dart';
 import '../widgets/AppDialogs.dart';
@@ -352,6 +357,11 @@ class _SongInfoPageState extends State<_SongInfoView> {
 
   /// 详情区当前标签：0 谱面 / 1 数据 / 2 社区 / 3 工具（2026-11 新布局）。
   int _detailTab = 0;
+  ({String qq, int songId})? _awmcUtageLookup;
+  int _awmcUtageGeneration = 0;
+  bool _awmcUtageLoading = false;
+  bool _awmcUtageFailed = false;
+  Map<int, Map<String, dynamic>> _awmcUtageRecords = const {};
 
   @override
   void initState() {
@@ -359,6 +369,8 @@ class _SongInfoPageState extends State<_SongInfoView> {
     _currentDiffIndex = widget.initialLevelIndex;
     _songScrollController.addListener(_updateSongTitleVisibility);
     _commentInputController.addListener(_onCommentInputChanged);
+    CurrentDataSourceNotifier.instance.addListener(_refreshAwmcUtageScore);
+    AccountStore.revision.addListener(_refreshAwmcUtageScore);
     _startSongLoaders();
   }
 
@@ -370,6 +382,8 @@ class _SongInfoPageState extends State<_SongInfoView> {
 
   @override
   void dispose() {
+    CurrentDataSourceNotifier.instance.removeListener(_refreshAwmcUtageScore);
+    AccountStore.revision.removeListener(_refreshAwmcUtageScore);
     if (!_difficultyRememberedOnPop) _rememberCurrentDifficulty(widget.songId);
     _songScrollController
       ..removeListener(_updateSongTitleVisibility)

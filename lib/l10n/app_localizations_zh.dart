@@ -15090,6 +15090,23 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get awmcLocalMusicFallback => '本地曲库 · 旧网关回退';
+
+  @override
+  String get awmcNetSongHistory => 'AWMC NET 云端历史';
+
+  @override
+  String get awmcNetViewSongHistory => '查看云端历史';
+
+  @override
+  String get awmcNetSongHistoryHidden => '该档案未公开或不存在。';
+
+  @override
+  String awmcNetSongRetryIn(String p0) {
+    return '请求过于频繁，$p0 秒后可重试。';
+  }
+
+  @override
+  String get awmcNetUtageScore => 'AWMC NET 云端成绩';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -30180,4 +30197,21 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get awmcLocalMusicFallback => '本機曲庫 · 舊閘道回退';
+
+  @override
+  String get awmcNetSongHistory => 'AWMC NET 雲端歷史';
+
+  @override
+  String get awmcNetViewSongHistory => '查看雲端歷史';
+
+  @override
+  String get awmcNetSongHistoryHidden => '該檔案未公開或不存在。';
+
+  @override
+  String awmcNetSongRetryIn(String p0) {
+    return '請求過於頻繁，$p0 秒後可重試。';
+  }
+
+  @override
+  String get awmcNetUtageScore => 'AWMC NET 雲端成績';
 }

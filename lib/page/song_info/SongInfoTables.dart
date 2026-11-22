@@ -19,7 +19,7 @@ extension _SongInfoTables on _SongInfoPageState {
     // `SizedBox.shrink()`，外面再垫一个 SizedBox 就会在页面上留一块空白。
     // 「与上方成绩卡的空隙」由 section 自己的 `chartPadding.top` 提供
     // （只有真正画出曲线时才存在）。见那里的参数说明。
-    return ChartHistorySection(
+    final local = ChartHistorySection(
       songId: songId,
       levelIndex: _currentDiffIndex,
       maxDxScore: _calculateMaxDxScore(songId, _currentDiffIndex),
@@ -34,6 +34,14 @@ extension _SongInfoTables on _SongInfoPageState {
       // 有曲线 → 完整卡片内边距。
       // 卡片之间的间距由 build 里的 SizedBox 提供，这里只管卡片内部。
       chartPadding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+    );
+    if (AwmcIdMap.fromSongId(songId) == null) return local;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        local,
+        AwmcCloudSongHistory(songId: songId, levelIndex: _currentDiffIndex),
+      ],
     );
   }
 

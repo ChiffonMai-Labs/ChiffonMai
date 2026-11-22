@@ -4379,5 +4379,10 @@
   "awmcRivalProfile": "Rival profile",
   "awmcRivalNoCombos": "Cabinet scores do not provide FC or FS data",
   "awmcRivalIdHint": "Rival cabinet ID",
-  "awmcLocalMusicFallback": "Local library · fallback for older gateway"
+  "awmcLocalMusicFallback": "Local library · fallback for older gateway",
+  "awmcNetSongHistory": "AWMC NET cloud history",
+  "awmcNetViewSongHistory": "View cloud history",
+  "awmcNetSongHistoryHidden": "This profile is private or does not exist.",
+  "awmcNetSongRetryIn": "Too many requests. Retry in {p0}s.",
+  "awmcNetUtageScore": "AWMC NET cloud score"
 }

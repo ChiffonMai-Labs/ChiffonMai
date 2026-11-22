@@ -26371,6 +26371,36 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'本地曲库 · 旧网关回退'**
   String get awmcLocalMusicFallback;
+
+  /// No description provided for @awmcNetSongHistory.
+  ///
+  /// In zh, this message translates to:
+  /// **'AWMC NET 云端历史'**
+  String get awmcNetSongHistory;
+
+  /// No description provided for @awmcNetViewSongHistory.
+  ///
+  /// In zh, this message translates to:
+  /// **'查看云端历史'**
+  String get awmcNetViewSongHistory;
+
+  /// No description provided for @awmcNetSongHistoryHidden.
+  ///
+  /// In zh, this message translates to:
+  /// **'该档案未公开或不存在。'**
+  String get awmcNetSongHistoryHidden;
+
+  /// No description provided for @awmcNetSongRetryIn.
+  ///
+  /// In zh, this message translates to:
+  /// **'请求过于频繁，{p0} 秒后可重试。'**
+  String awmcNetSongRetryIn(String p0);
+
+  /// No description provided for @awmcNetUtageScore.
+  ///
+  /// In zh, this message translates to:
+  /// **'AWMC NET 云端成绩'**
+  String get awmcNetUtageScore;
 }
 
 class _AppLocalizationsDelegate

@@ -159,6 +159,7 @@ extension _SongInfoLoaders on _SongInfoPageState {
 
   /// 歌曲已换：清掉只属于旧歌的结果，再按新歌重新加载。
   void _onSongChanged(String previousSongId) {
+    _clearAwmcUtageScore();
     _rememberCurrentDifficulty(previousSongId);
     _songGeneration++;
     BiliSearchService().cancel();
@@ -277,6 +278,7 @@ extension _SongInfoLoaders on _SongInfoPageState {
   }
 
   Future<void> _loadSecondaryData() async {
+    _refreshAwmcUtageScore();
     unawaited(_loadChartMetadata());
     unawaited(_loadDxData());
     unawaited(_loadAwmcPlayCounts());
@@ -1316,19 +1318,96 @@ extension _SongInfoLoaders on _SongInfoPageState {
 
   // 获取用户最佳成绩
   Map<String, dynamic>? _getUserBestRecord() {
+    final local = _getLocalUserBestRecord(_currentDiffIndex);
+    if (local != null) return local;
+    if (CurrentDataSourceNotifier.instance.value != RefreshDataSource.awmc) {
+      return null;
+    }
+    final known = _awmcUtageRecords[_currentDiffIndex];
+    if (known != null) return known;
+    final levels = _songData?['level'];
+    if (levels is List && levels.length == 1 && _currentDiffIndex == 0) {
+      return _awmcUtageRecords[ChartDifficulty.awmcUtage] ??
+          _awmcUtageRecords[ChartDifficulty.utage];
+    }
+    return null;
+  }
+
+  Map<String, dynamic>? _getLocalUserBestRecord(int levelIndex) {
     if (_userData == null || _songData == null) return null;
 
     final records = _userData!['records'];
-    if (records == null) return null;
+    if (records is! List) return null;
 
-    // 找到对应歌曲的记录
-    final songRecord = records
-        .where((record) =>
-            record['song_id'].toString() == widget.songId &&
-            record['level_index'].toString() == _currentDiffIndex.toString())
-        .toList();
+    final songId = int.tryParse(widget.songId);
+    for (final record in records.whereType<Map<String, dynamic>>()) {
+      if (int.tryParse(record['song_id'].toString()) == songId &&
+          int.tryParse(record['level_index'].toString()) == levelIndex) {
+        return record;
+      }
+    }
+    return null;
+  }
 
-    return songRecord.isNotEmpty ? songRecord.first : null;
+  void _clearAwmcUtageScore() {
+    _awmcUtageGeneration++;
+    _awmcUtageLookup = null;
+    _awmcUtageLoading = false;
+    _awmcUtageFailed = false;
+    _awmcUtageRecords = const {};
+  }
+
+  void _refreshAwmcUtageScore({bool retry = false}) {
+    unawaited(_loadAwmcUtageScore(retry: retry));
+  }
+
+  Future<void> _loadAwmcUtageScore({required bool retry}) async {
+    final songId = int.tryParse(widget.songId);
+    if (_isLoading ||
+        _songData == null ||
+        songId == null ||
+        AwmcIdMap.fromSongId(songId)?.kind != AwmcChartKind.utage ||
+        CurrentDataSourceNotifier.instance.value != RefreshDataSource.awmc ||
+        List.generate(_availableDifficultyCount, _getLocalUserBestRecord)
+            .every((record) => record != null)) {
+      if (_awmcUtageLookup != null) _update(_clearAwmcUtageScore);
+      return;
+    }
+    final revision = AccountStore.revision.value;
+    final songGeneration = _songGeneration;
+    final accounts = await AccountStore.loadAll();
+    if (!mounted ||
+        revision != AccountStore.revision.value ||
+        songGeneration != _songGeneration ||
+        CurrentDataSourceNotifier.instance.value != RefreshDataSource.awmc) {
+      return;
+    }
+    final qq = accounts[RefreshDataSource.awmc.key]?.id.trim() ?? '';
+    if (!AwmcNetSongService.isQq(qq)) {
+      if (_awmcUtageLookup != null) _update(_clearAwmcUtageScore);
+      return;
+    }
+    final lookup = (qq: qq, songId: songId);
+    if (_awmcUtageLookup == lookup && (!retry || _awmcUtageLoading)) return;
+    _update(() {
+      _clearAwmcUtageScore();
+      _awmcUtageLookup = lookup;
+      _awmcUtageLoading = true;
+    });
+    final request = _awmcUtageGeneration;
+    try {
+      final records = await AwmcNetSongService.utageRecords(qq, songId);
+      if (!mounted || request != _awmcUtageGeneration) return;
+      _update(() => _awmcUtageRecords = records);
+    } on Exception {
+      if (mounted && request == _awmcUtageGeneration) {
+        _update(() => _awmcUtageFailed = true);
+      }
+    } finally {
+      if (mounted && request == _awmcUtageGeneration) {
+        _update(() => _awmcUtageLoading = false);
+      }
+    }
   }
 
   // 获取标签分组

@@ -10464,5 +10464,17 @@
   "awmcRivalProfile": "对手资料",
   "awmcRivalNoCombos": "机台成绩未提供 FC／FS 数据",
   "awmcRivalIdHint": "对手机台 ID",
-  "awmcLocalMusicFallback": "本地曲库 · 旧网关回退"
+  "awmcLocalMusicFallback": "本地曲库 · 旧网关回退",
+  "awmcNetSongHistory": "AWMC NET 云端历史",
+  "awmcNetViewSongHistory": "查看云端历史",
+  "awmcNetSongHistoryHidden": "该档案未公开或不存在。",
+  "awmcNetSongRetryIn": "请求过于频繁，{p0} 秒后可重试。",
+  "awmcNetUtageScore": "AWMC NET 云端成绩",
+  "@awmcNetSongRetryIn": {
+    "placeholders": {
+      "p0": {
+        "type": "String"
+      }
+    }
+  }
 }

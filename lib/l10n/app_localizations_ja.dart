@@ -15404,4 +15404,21 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get awmcLocalMusicFallback => '端末内の曲リスト · 旧ゲートウェイの代替';
+
+  @override
+  String get awmcNetSongHistory => 'AWMC NET のクラウド履歴';
+
+  @override
+  String get awmcNetViewSongHistory => 'クラウド履歴を見る';
+
+  @override
+  String get awmcNetSongHistoryHidden => 'このプロフィールは非公開か、存在しません。';
+
+  @override
+  String awmcNetSongRetryIn(String p0) {
+    return 'リクエストが多すぎます。$p0 秒後に再試行できます。';
+  }
+
+  @override
+  String get awmcNetUtageScore => 'AWMC NET のクラウドスコア';
 }
