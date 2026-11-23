@@ -26,16 +26,23 @@ class AutoSyncDisplay {
     return '${two(date.month)}-${two(date.day)} ${two(date.hour)}:${two(date.minute)}';
   }
 
-  /// 耗时文案。单轮上限只有 10 分钟，精确到秒即可。
+  /// 耗时文案（不足一小时精确到秒，一小时及以上显示小时与分钟）。
   static String duration(Duration? value) {
     if (value == null || value.isNegative) return '—';
     final seconds = value.inSeconds;
     if (seconds < 60) return appL10n.flowP0Seconds2((seconds).toString());
-    final minutes = seconds ~/ 60;
+    final totalMinutes = seconds ~/ 60;
+    if (totalMinutes >= 60) {
+      final hours = totalMinutes ~/ 60;
+      final minutes = totalMinutes % 60;
+      return minutes == 0
+          ? appL10n.flowP0Hours((hours).toString())
+          : appL10n.flowP0HoursP1Min((hours).toString(), (minutes).toString());
+    }
     final rest = seconds % 60;
     return rest == 0
-        ? appL10n.flowP0Minutes((minutes).toString())
-        : appL10n.flowP0MinP1Sec((minutes).toString(), (rest).toString());
+        ? appL10n.flowP0Minutes((totalMinutes).toString())
+        : appL10n.flowP0MinP1Sec((totalMinutes).toString(), (rest).toString());
   }
 
   /// 从某个时刻到现在的已用时长（客户端时钟略快时显示「刚刚」而不是负数）。
@@ -65,15 +72,29 @@ class AutoSyncDisplay {
         _ => appL10n.flowWaitingForUpstreamProcessing,
       };
 
-  /// 等待状态的一行说明：原因 + 预计重试时间。
-  static String? waitLine(AutoSyncTiming? timing) {
+  /// 等待状态的一行说明：原因 + 预计重试时间（已到期或同一分钟内显示「即将重试」）。
+  static String? waitLine(AutoSyncTiming? timing, {DateTime? now}) {
     final reason = timing?.waitReason;
     if (reason == null) return null;
+    final reasonText = waitReason(reason);
     final retry = timing?.retryAt;
-    return retry == null
-        ? waitReason(reason)
-        : appL10n.flowP0RetryAroundP1(
-            (waitReason(reason)).toString(), (clock(retry)).toString());
+    if (retry == null) {
+      return appL10n.flowP0RetryingSoon(reasonText);
+    }
+    final current = (now ?? DateTime.now()).toUtc();
+    if (!retry.isAfter(current)) {
+      return appL10n.flowP0RetryingSoon(reasonText);
+    }
+    final retryBeijing = retry.toUtc().add(_beijingOffset);
+    final currentBeijing = current.add(_beijingOffset);
+    final sameDay = retryBeijing.year == currentBeijing.year &&
+        retryBeijing.month == currentBeijing.month &&
+        retryBeijing.day == currentBeijing.day;
+    if (sameDay && clock(retry) == clock(current)) {
+      return appL10n.flowP0RetryingSoon(reasonText);
+    }
+    final retryText = sameDay ? clock(retry) : dateTime(retry);
+    return appL10n.flowP0RetryAroundP1(reasonText, retryText);
   }
 
   /// 失败原因短标签，用于 Hub 摘要这种一行宽度有限的场景。
@@ -104,18 +125,18 @@ class AutoSyncDisplay {
     return progress.detailLabel(platformLabel);
   }
 
-  /// 执行中的补充信息：已用时长 / 上限、机台数据采集时间。
+  /// 执行中的补充信息：采集后才开始计时的已用时长 / 上限、机台数据采集时间。
   static String? runningMeta(AutoSyncTask task, {DateTime? now}) {
     final timing = task.timing;
     final parts = <String>[];
     if (task.status == 'running') {
-      if (timing?.startedAt != null) {
+      if (timing?.collectedAt != null) {
         final limit = roundTimeoutMinutes(timing, null);
         parts.add(appL10n.flowElapsedP0P1(
-            (elapsedSince(timing!.startedAt, now: now)).toString(),
+            (elapsedSince(timing!.collectedAt, now: now)).toString(),
             (limit == null ? '' : appL10n.flowLimitP0Min((limit).toString()))
                 .toString()));
-      } else {
+      } else if (!task.waiting && timing?.startedAt == null) {
         parts.add(appL10n.flowWaitingForProcessingToStart);
       }
     }
@@ -159,14 +180,15 @@ class AutoSyncDisplay {
     return parts.isEmpty ? null : parts.join(' · ');
   }
 
-  /// 上次结果的执行时间与耗时。
+  /// 上次结果的执行时间与耗时（仅从采集完成后计算处理耗时，不包含排队等待）。
   static String resultTimeLine(AutoSyncRunResult result) {
-    final start = result.startedAt;
+    final collected = result.collectedAt;
     final finish = result.finishedAt;
-    if (start == null && finish == null) return '—';
-    final begin = dateTime(start ?? finish);
-    final spent = start != null && finish != null
-        ? duration(finish.difference(start))
+    final start = result.startedAt;
+    if (collected == null && finish == null && start == null) return '—';
+    final begin = dateTime(collected ?? finish ?? start);
+    final spent = collected != null && finish != null
+        ? duration(finish.difference(collected))
         : null;
     return spent == null
         ? begin

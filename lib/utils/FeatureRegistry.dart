@@ -182,7 +182,7 @@ class FeatureRegistry {
           title: '账号与授权',
           subtitle: '管理账号与数据源登录状态',
           icon: Icons.manage_accounts_outlined,
-          titles: ['绑定与授权管理', '切换账号', '账号注册引导', '成绩导入凭据', '删除账号']),
+          titles: ['绑定与授权管理', '切换账号', '账号注册引导', '删除账号']),
       FeatureSection(
           title: '单平台同步',
           subtitle: '分别同步成绩到各查分器',
@@ -437,10 +437,6 @@ class FeatureRegistry {
           icon: Icons.headphones, title: '随身听', subtitle: '后台播放舞萌曲库，带通知栏播放器'),
       '自定义谱面播放': const ButtonItem(
           icon: Icons.play_arrow, title: '自定义谱面播放', subtitle: '播放本地自定义谱面'),
-      '成绩导入凭据': const ButtonItem(
-          icon: Icons.key_outlined,
-          title: '成绩导入凭据',
-          subtitle: '管理水鱼、落雪与 AWMC NET 的成绩导入 Token'),
       '账号注册引导': const ButtonItem(
           icon: Icons.person_add_alt_1_outlined,
           title: '账号注册引导',

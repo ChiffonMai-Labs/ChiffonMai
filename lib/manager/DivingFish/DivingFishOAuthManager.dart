@@ -16,15 +16,21 @@ class DivingFishOAuthManager {
   /// 绑定与授权管理的状态标签与水鱼授权对话框共用这一份。
   final ValueNotifier<bool?> authorizationState = ValueNotifier(null);
 
+  /// 最近一次查询到的写入授权状态（`prober.records.write`）：
+  /// true=支持免导入 Token 写入，false=旧授权仅含读取或未授权，null=未查询或查询失败。
+  final ValueNotifier<bool?> writeAuthorizationState = ValueNotifier(null);
+
   /// 按当前水鱼账号重新查询授权状态；未登录或没有绑定 QQ 时置空。
   Future<void> refreshAuthorization() async {
     if (!LoginStateNotifier.instance.value) {
       authorizationState.value = null;
+      writeAuthorizationState.value = null;
       return;
     }
     final qq = (await DivingFishProbeManager().fetchBindQQ())?.trim() ?? '';
     if (qq.isEmpty) {
       authorizationState.value = null;
+      writeAuthorizationState.value = null;
       return;
     }
     await checkAuthorization(qq);
@@ -73,6 +79,19 @@ class DivingFishOAuthManager {
   /// 查询该 QQ 是否已授权本应用（后端换票探测）。
   /// 返回 true=已授权，false=未授权，null=查询失败/未知。
   Future<bool?> checkAuthorization(String qq) async {
+    final status = await _queryAuthorizationStatus(qq);
+    return status?.authorized;
+  }
+
+  /// 查询该 QQ 是否已授予水鱼写入权限（`prober.records.write`）。
+  /// 返回 true=已授权写入，false=尚未授权写入或未授权，null=查询失败/未知。
+  Future<bool?> checkWriteAuthorization(String qq) async {
+    final status = await _queryAuthorizationStatus(qq);
+    return status?.writeAuthorized;
+  }
+
+  Future<({bool? authorized, bool? writeAuthorized})?> _queryAuthorizationStatus(
+      String qq) async {
     try {
       final response = await ApiClient.get(
         Uri.parse('${ApiUrls.ProberBaseUrl}/authorization-status?qq=$qq'),
@@ -80,9 +99,15 @@ class DivingFishOAuthManager {
       if (response.statusCode == 200) {
         final data = json.decode(response.body) as Map<String, dynamic>;
         final authorized = data['authorized'] as bool?;
+        final writeAuthorized = data['writeAuthorized'] as bool?;
         // 查询失败不覆盖已知状态，避免临时断网把「已授权」刷成未知。
         if (authorized != null) authorizationState.value = authorized;
-        return authorized;
+        if (writeAuthorized != null) {
+          writeAuthorizationState.value = writeAuthorized;
+        } else if (authorized == false) {
+          writeAuthorizationState.value = false;
+        }
+        return (authorized: authorized, writeAuthorized: writeAuthorized);
       }
       debugPrint('查询授权状态失败，状态码: ${response.statusCode}');
       return null;

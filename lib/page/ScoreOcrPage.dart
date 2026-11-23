@@ -440,8 +440,8 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
   /// 的 `Song.id` 解析出 int 再交给 service 转换；解析不出来就说明这条
   /// 定位不到具体曲目，直接拒绝而不是硬传。
   ///
-  /// 认证由 service 内部决定：OAuth Bearer 优先，个人 API 密钥回退。本页面
-  /// 只在「两条都拿不到」时提示去成绩导入凭据填写。
+  /// 认证由 service 内部决定：OAuth Bearer 优先，个人 API 密钥仅作历史回退。
+  /// 两条都拿不到时提示去绑定与授权管理完成落雪 OAuth 授权。
   Future<void> _syncToLuoXue(MaimaiHubOcrItem item) async {
     if (_uploadingLuoXueIndex != null) return;
 

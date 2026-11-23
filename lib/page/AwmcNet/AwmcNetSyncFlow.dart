@@ -1,31 +1,35 @@
-import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import '../../constant/CacheKeyConstant.dart';
-import '../../service/AwmcNetScoreUploadService.dart';
-import '../../service/AWMC/AwmcQuickSyncService.dart';
-import '../../service/PostSyncRefreshService.dart';
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 
+import '../../constant/CacheKeyConstant.dart';
+import '../../service/AWMC/AwmcApiService.dart';
+import '../../service/AWMC/AwmcGatewaySettings.dart';
+import '../../service/AWMC/AwmcQrSyncService.dart';
+import '../../service/AWMC/AwmcQuickSyncService.dart';
+import '../../service/AWMC/AwmcStore.dart';
+import '../../service/AwmcNetScoreUploadService.dart';
+import '../../service/PostSyncRefreshService.dart';
 import '../../service/SyncStatsService.dart';
-import '../../utils/SyncRouteNotifier.dart';
 import '../../utils/SecureCredentialStore.dart';
-import 'SyncToAwmcNetPage.dart'
-    show showAwmcNetSyncInputDialog, AwmcNetSyncInput;
+import '../../utils/SyncRouteNotifier.dart';
 import '../../widgets/RefreshDataDialog.dart'
     show RefreshDataSource, SharedRefreshData;
+import 'SyncToAwmcNetPage.dart'
+    show showAwmcNetSyncInputDialog, AwmcNetSyncInput;
 
 /// 一次「同步成绩到 AWMC NET」的结果。
 class AwmcNetSyncOutcome {
   final bool quickUpdate;
 
-  /// 用户在输入阶段取消（**没有发出任何请求**，因此不计入统计）。
+  /// 用户在输入阶段取消（没有发出任何请求，不计入统计）。
   final bool cancelled;
 
-  /// 导入接口是否成功（HTTP 200）。
+  /// 同步接口是否成功。
   final bool ok;
 
-  /// 接口原始结果（取消时为 null）。
+  /// 接口统计结果（取消时为 null）。
   final AwmcNetQrImportResult? result;
   final String? refreshError;
 
@@ -41,35 +45,16 @@ class AwmcNetSyncOutcome {
       AwmcNetSyncOutcome(cancelled: true);
 }
 
-/// 「同步成绩到 AWMC NET」的完整流程：**输入在对话框、等待进度在按钮上**。
-///
-/// 与另外两个同步入口（[AwmcSyncFlow] / 线路2 的 `executeDivingFishSync`）保持同一
-/// 交互：输入对话框收起之后才开始跑，所以按钮可以安心切成「转圈 + 进度文案」，
-/// 用户也不会被一个模态框锁住 30 多秒。
-///
-/// 调用方只需要：
-/// ```dart
-/// final outcome = await AwmcNetSyncFlow.run(
-///   context,
-///   onBusy: (label) => setState(() { _busy = true; _text = label; }),
-///   onIdle: () => setState(() { _busy = false; _text = ''; }),
-/// );
-/// 调用方应把成功结果作为短提示，把失败结果放进错误弹窗。
-/// ```
+/// 「同步成绩到 AWMC NET」的完整流程：输入在对话框、等待进度在按钮上。
 class AwmcNetSyncFlow {
   AwmcNetSyncFlow._();
 
-  /// 执行一次导入（自己弹输入对话框，自己上报统计）。
-  ///
-  /// [onBusy] / [onIdle] 用于让调用方在**真正的请求期间**切换按钮进度
-  /// （输入框阶段不切换：按钮上转着圈却还弹着对话框会让人以为可以走）。
   static Future<AwmcNetSyncOutcome> run(
     BuildContext context, {
     void Function(String label)? onBusy,
     void Function(double progress, String text)? onProgress,
     VoidCallback? onIdle,
   }) async {
-    // 1. 输入：二维码 + 成绩导入 Token（对话框只收集，不发请求）
     final input = await showAwmcNetSyncInputDialog(context);
     if (input == null) return AwmcNetSyncOutcome.userCancelled;
 
@@ -77,9 +62,10 @@ class AwmcNetSyncFlow {
         onBusy: onBusy, onProgress: onProgress, onIdle: onIdle);
   }
 
-  /// 使用已经收集好的输入执行导入，供「同步成绩到多端」复用同一张二维码。
+  /// 使用已经收集好的输入执行同步；支持传入 [prefetchedQrSync] 供「同步成绩到多端」单码复用。
   static Future<AwmcNetSyncOutcome> runWithInput(
     AwmcNetSyncInput input, {
+    AwmcQrSyncResponse? prefetchedQrSync,
     SharedRefreshData? sharedRefresh,
     void Function(String label)? onBusy,
     void Function(double progress, String text)? onProgress,
@@ -116,17 +102,13 @@ class AwmcNetSyncFlow {
         onIdle?.call();
       }
     }
-    // 2. 近 100 次统计：二维码直传自成一个槽位（`direct:awmc`），
-    //    不能混进线路2/线路1 —— 它一次要 30 多秒，会把网关那条的平均拉高。
-    //    校验没过 / 用户取消的分支在上面就 return 了，所以不会被算成失败样本。
+
     final attempt = SyncAttemptTracker(
       line: SyncLine.direct,
       platform: SyncPlatform.awmc,
     );
     attempt.start();
 
-    // 3. 进度：接口没有进度事件，只能自己数秒。
-    //    实测一次约 36 秒，光转圈会被当成卡死，所以「已等待 N 秒」必须一直动。
     var waited = 0;
     onBusy?.call(_busyLabel(0));
     final ticker = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -135,14 +117,68 @@ class AwmcNetSyncFlow {
     });
 
     try {
-      final result = await AwmcNetScoreUploadService.instance.importByQr(
-        importToken: input.importToken,
-        sgwcmaid: input.qr,
-      );
+      final AwmcNetQrImportResult result;
+      final qq = input.qq.trim();
+      final useBotSync =
+          prefetchedQrSync != null || AwmcQrSyncService.qqPattern.hasMatch(qq);
 
-      // Token 被服务端判为无效：清掉本机那份，否则用户下次点还是同一个错
-      if (result.tokenInvalid) {
-        await SecureCredentialStore.delete(CacheKeyConstant.awmcNetImportToken);
+      if (useBotSync) {
+        AwmcQrSyncResponse? qrRes = prefetchedQrSync;
+        if (qrRes == null) {
+          final probeTimeout = await AwmcGatewaySettings.loadProbeTimeout();
+          final health =
+              await AwmcApiService.health(token: '', timeout: probeTimeout);
+          await AwmcAuditLog.record(health, note: '同步前的网关探活');
+          if (!health.ok) {
+            final msg = health.displayMessage.replaceAll(RegExp(r'\s+'), ' ').trim();
+            final short = msg.length <= 40 ? msg : '${msg.substring(0, 40)}…';
+            result = AwmcNetQrImportResult.failure(
+              appL10n.flowAWMCGatewayUnavailableP0SyncCancelledNo(short),
+            );
+            if (attempt.finish(ok: false)) {
+              SyncRouteNotifier.instance.refreshStatsSoon();
+            }
+            return AwmcNetSyncOutcome(ok: false, result: result);
+          }
+          qrRes = await AwmcQrSyncService.syncByQr(
+            qrCode: input.qr,
+            awmcQq: qq,
+          );
+        }
+
+        if (!qrRes.ok) {
+          result = AwmcNetQrImportResult.failure(
+            qrRes.errorMessage ?? appL10n.flowImportFailed,
+            elapsedMs: qrRes.elapsedMs,
+          );
+        } else {
+          final awmcRes = qrRes.awmc;
+          if (awmcRes == null || !awmcRes.ok) {
+            result = AwmcNetQrImportResult.failure(
+              awmcRes?.message ?? qrRes.errorMessage ?? appL10n.flowImportFailed,
+              elapsedMs: qrRes.elapsedMs,
+            );
+          } else {
+            result = AwmcNetQrImportResult(
+              ok: true,
+              totalRecords: awmcRes.totalRecords,
+              imported: awmcRes.imported,
+              updated: awmcRes.updated,
+              skipped: awmcRes.skipped,
+              errors: awmcRes.errors,
+              elapsedMs: qrRes.elapsedMs,
+            );
+          }
+        }
+      } else {
+        result = await AwmcNetScoreUploadService.instance.importByQr(
+          importToken: input.importToken,
+          sgwcmaid: input.qr,
+        );
+        if (result.tokenInvalid) {
+          await SecureCredentialStore.delete(
+              CacheKeyConstant.awmcNetImportToken);
+        }
       }
 
       if (attempt.finish(ok: result.ok)) {
@@ -169,32 +205,27 @@ class AwmcNetSyncFlow {
     }
   }
 
-  /// 按钮上的进度文案（[HubActionTile.loadingText] / 首页收藏区同一行）。
   static String _busyLabel(int seconds) =>
       appL10n.flowImportingScoresWaitingP0Seconds((seconds).toString());
 
-  /// 生成结果文案。成功可以作为短提示，失败应在错误弹窗中完整显示。
-  ///
-  /// 计数用 `新增/更新/跳过`：实测一次 `新增 9 / 更新 1106 / 跳过 593`，
-  /// 「更新」才是大多数，只报「新增」会让用户以为成绩没导进去。
   static String toastFor(AwmcNetSyncOutcome outcome) {
     final r = outcome.result;
     if (r == null) return appL10n.flowImportFailed;
     if (!r.ok) return r.errorMessage ?? appL10n.flowImportFailed;
-    if (outcome.quickUpdate)
+    if (outcome.quickUpdate) {
       return r.totalRecords == 0
           ? appL10n.flowScoresAreUpToDateNoUpload
           : appL10n.flowQuickSyncCompleteSubmittedP0ChangedScores(
               (r.totalRecords).toString());
+    }
 
     final seconds = (r.elapsedMs / 1000).toStringAsFixed(1);
     final buffer = StringBuffer(appL10n.flowImportCompleteAddedP0UpdatedP1(
         (r.imported).toString(), (r.updated).toString()));
-    if (r.skipped > 0)
+    if (r.skipped > 0) {
       buffer.write(appL10n.flowSkippedP0((r.skipped).toString()));
+    }
     buffer.write(appL10n.flowP0Seconds((seconds).toString()));
-    // `errors` 非空不代表失败（实测 20 条「找不到歌曲」时 HTTP 仍是 200），
-    // 但必须说一句，否则用户会以为少掉的成绩是 App 弄丢了。
     if (r.errors.isNotEmpty) {
       buffer.write(
           appL10n.flowP0ChartsAreNotYetInAWMC((r.errors.length).toString()));

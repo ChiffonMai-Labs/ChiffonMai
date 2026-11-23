@@ -10,10 +10,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../constant/CacheKeyConstant.dart';
 import '../constant/LoadingTipsConstant.dart';
 import '../manager/DivingFishProbeManager.dart';
+import '../manager/LuoXue/LuoXueOAuthManager.dart';
 import '../service/SyncStatsService.dart';
 import '../service/PostSyncRefreshService.dart';
 import '../utils/AppTheme.dart';
-import '../utils/ExternalLaunchUtil.dart';
 import '../utils/SyncRouteNotifier.dart';
 import '../utils/SecureCredentialStore.dart';
 import 'QrQuickFillButtons.dart';
@@ -286,7 +286,7 @@ class LuoXueSyncInput {
   final String qrCode;
   final bool quickUpdate;
 
-  /// 落雪个人 API 密钥；统一从本地缓存读取（在「成绩导入凭据」里维护）。
+  /// 落雪个人 API 密钥（历史回退）；优先使用官方 OAuth，未保存密钥时为 null。
   final String? lxnsImportToken;
   final RefreshDataRequest? refreshRequest;
 
@@ -300,10 +300,10 @@ class LuoXueSyncInput {
 
 /// 只收集输入的「同步成绩到落雪」对话框。
 ///
-/// 返回 null 表示用户取消。落雪 API 密钥统一在「成绩导入凭据」里维护，
-/// 这个对话框不再要求填写，执行时会直接从本地缓存读取。
+/// 返回 null 表示用户取消。默认优先走落雪 OAuth 免密钥同步；
+/// 本地残留的个人 API 密钥仅作为未授权时的历史回退。
 Future<LuoXueSyncInput?> showLuoXueSyncInputDialog(BuildContext context,
-    {bool allowQuickUpdate = false}) async {
+    {bool allowQuickUpdate = false, bool allowOAuth = true}) async {
   final brightness = Theme.of(context).brightness;
   final qrController = TextEditingController();
   var quickUpdate = false;
@@ -312,10 +312,12 @@ Future<LuoXueSyncInput?> showLuoXueSyncInputDialog(BuildContext context,
   var submitting = false;
   ModalRoute<LuoXueSyncInput>? dialogRoute;
 
-  // 打开时就检查密钥是否已保存：缺失时直接展示获取引导（与 AWMC NET 对话框一致）。
+  // 打开时检查 OAuth 授权与个人密钥：线路 1 支持 OAuth 免密钥，已授权时不要求填写个人 API 密钥。
+  final hasOAuth = allowOAuth && await LuoXueOAuthManager().isLoggedIn();
   final savedToken =
       await SecureCredentialStore.read(CacheKeyConstant.probeLxnsImportToken);
   final hasSavedToken = savedToken != null && savedToken.isNotEmpty;
+  final showKeyGuide = !hasSavedToken && !hasOAuth;
 
   if (!context.mounted) return null;
 
@@ -361,11 +363,11 @@ Future<LuoXueSyncInput?> showLuoXueSyncInputDialog(BuildContext context,
                     ),
                   ),
                 ),
-                // 密钥缺失时的获取引导：和「同步成绩到 AWMC NET」对话框同一套写法。
-                if (!hasSavedToken)
+                // 未完成落雪 OAuth 且无本地历史密钥时的授权引导。
+                if (showKeyGuide)
                   SyncDialogSection(
-                    icon: Icons.key_outlined,
-                    title: context.l10n.featureAccountManagement,
+                    icon: Icons.verified_user_outlined,
+                    title: context.l10n.accountBindingManage,
                     child: _buildLuoXueKeyGuide(context, brightness),
                   ),
                 if (error != null) ...[
@@ -415,13 +417,14 @@ Future<LuoXueSyncInput?> showLuoXueSyncInputDialog(BuildContext context,
                       }
                       setState(() => submitting = true);
                       try {
-                        // 密钥统一在「成绩导入凭据」里维护，这里只读本地缓存，
-                        // 不再让用户在同步对话框里输入。
+                        // 默认优先使用落雪 OAuth；若未授权，则允许兼容本地历史残留的个人 API 密钥。
                         final token = await SecureCredentialStore.read(
                             CacheKeyConstant.probeLxnsImportToken);
+                        final oauthOk = allowOAuth &&
+                            await LuoXueOAuthManager().isLoggedIn();
                         if (!dialogContext.mounted ||
                             dialogRoute?.isCurrent != true) return;
-                        if (token == null || token.isEmpty) {
+                        if (!oauthOk && (token == null || token.isEmpty)) {
                           setState(() => error = context
                               .l10n.flowNoLXNSPersonalAPIKeySetConfigure);
                           return;
@@ -462,65 +465,20 @@ Future<LuoXueSyncInput?> showLuoXueSyncInputDialog(BuildContext context,
   return result;
 }
 
-/// 落雪个人 API 密钥的获取页面（密钥在页面最底部生成）。
-const String _luoXueProfileUrl =
-    'https://maimai.lxns.net/user/profile?tab=thirdparty';
-
-/// 落雪个人 API 密钥的获取引导。
-///
-/// 与「同步成绩到 AWMC NET」对话框里的 Token 引导同一套结构：
-/// 说明 + 编号步骤 + 可点击链接。密钥统一在「成绩导入凭据 → 落雪 API 密钥」保存，
-/// 所以第三步直接写清粘贴路径，避免用户拿到密钥后还要再找入口。
+/// 落雪 OAuth 授权引导卡片：提示用户前往「我的 → 账号与授权 → 绑定与授权管理」完成授权。
 Widget _buildLuoXueKeyGuide(BuildContext context, Brightness brightness) {
   final hintStyle =
       TextStyle(fontSize: 12, color: AppColors.greyHint(brightness));
   final warn = AppColors.warningOrange(brightness);
   return SyncNoticeCard(
-    icon: Icons.vpn_key,
+    icon: Icons.verified_user_outlined,
     color: warn,
-    title: context.l10n.flowSetLXNSPersonalAPIKey,
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(context.l10n.flowExportingToLXNSRequiresYourPersonalAPI,
-            style: hintStyle),
-        const SizedBox(height: 4),
-        Text(context.l10n.flow1OpenTheLXNSProfileLinkBelow, style: hintStyle),
-        Text(context.l10n.flow2ScrollToTheBottomAndCopy, style: hintStyle),
-        Text(context.l10n.flow3ReturnToAccountManagementLXNSAPI,
-            style: hintStyle),
-        const SizedBox(height: 6),
-        GestureDetector(
-          onTap: _openLuoXueProfilePage,
-          child: Text(
-            _luoXueProfileUrl,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: Theme.of(context).colorScheme.primary,
-              decoration: TextDecoration.underline,
-            ),
-          ),
-        ),
-        const SizedBox(height: 6),
-        Text(context.l10n.flowReopenThisDialogAfterSavingToSync,
-            style: hintStyle),
-      ],
+    title: context.l10n.flowLuoXueRoute1AuthDialogTitle,
+    child: Text(
+      context.l10n.flowLuoXueRoute1AuthDialogBody,
+      style: hintStyle,
     ),
   );
-}
-
-/// 打开落雪个人主页（密钥在页面最底部），打不开浏览器时给出手动地址。
-Future<void> _openLuoXueProfilePage() async {
-  final uri = Uri.parse(_luoXueProfileUrl);
-  try {
-    if (await ExternalLaunchUtil.open(uri)) return;
-  } catch (e) {
-    debugPrint('打开落雪个人主页失败: $e');
-  }
-  AppToast.show(
-      appL10n.flowCouldNotOpenABrowserVisitP0((_luoXueProfileUrl).toString()),
-      tone: AppToastTone.warning);
 }
 
 /// 执行「同步成绩到落雪」：抓取机台成绩 → 导出到落雪。

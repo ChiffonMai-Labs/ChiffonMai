@@ -2,21 +2,22 @@ import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import '../../utils/AppTaskActivity.dart';
 import 'dart:convert';
 
+import 'package:http/http.dart' as http;
+
 import '../../api/ApiUrls.dart';
 import '../../constant/CacheKeyConstant.dart';
 import '../../entity/DivingFish/Song.dart';
-import '../../entity/DivingFish/RecordItem.dart';
 import '../../utils/ChartDifficulty.dart';
-import '../../utils/StringUtil.dart';
 import '../../manager/DivingFish/MaimaiMusicDataManager.dart';
+import '../../manager/LuoXue/LuoXueOAuthManager.dart';
 import '../../utils/ApiClient.dart';
 import '../../utils/CurrentDataSourceNotifier.dart';
 import '../../utils/SecureCredentialStore.dart';
 import '../AccountStore.dart';
 import '../SyncStatsService.dart';
-import '../SongInfoService.dart';
 import 'AwmcApiService.dart';
 import 'AwmcGatewaySettings.dart';
+import 'AwmcQrSyncService.dart';
 import 'AwmcQuickIdentityStore.dart';
 import 'AwmcStore.dart';
 import 'AwmcQuickSyncCore.dart';
@@ -24,8 +25,14 @@ import 'AwmcQuickSyncCore.dart';
 class AwmcQuickAccount {
   final RefreshDataSource source;
   final String id;
-  final String credential;
-  const AwmcQuickAccount(this.source, this.id, this.credential);
+  final String? credential;
+  final bool useOAuth;
+  const AwmcQuickAccount(
+    this.source,
+    this.id,
+    this.credential, {
+    this.useOAuth = false,
+  });
   String get key => '${source.key}:$id';
 }
 
@@ -45,15 +52,10 @@ class AwmcQuickReadSession {
       _snapshots.putIfAbsent(userId, load);
 }
 
-/// 水鱼/落雪线路1与 AWMC NET 的快速同步，FC/FS 始终按同一目标账号合并。
+/// 水鱼（OAuth）/ 落雪（OAuth 优先）/ AWMC NET（Bot）的快速同步，FC/FS 始终按同一目标账号合并。
 class AwmcQuickSyncService {
   AwmcQuickSyncService._();
   static bool _running = false;
-  static const _credentialKeys = {
-    SyncPlatform.divingFish: CacheKeyConstant.probeDivingFishImportToken,
-    SyncPlatform.luoXue: CacheKeyConstant.probeLxnsImportToken,
-    SyncPlatform.awmc: CacheKeyConstant.awmcNetImportToken,
-  };
 
   static RefreshDataSource sourceOf(SyncPlatform platform) =>
       switch (platform) {
@@ -62,22 +64,92 @@ class AwmcQuickSyncService {
         SyncPlatform.awmc => RefreshDataSource.awmc,
       };
 
-  static Future<AwmcQuickAccount> accountFor(SyncPlatform platform,
-      {bool requireData = true}) async {
+  static Future<AwmcQuickAccount> accountFor(
+    SyncPlatform platform, {
+    bool requireData = true,
+    bool forAutoSync = false,
+  }) async {
     final source = sourceOf(platform);
     final account = (await AccountStore.loadAll())[source.key];
-    final credential =
-        await SecureCredentialStore.read(_credentialKeys[platform]!);
-    if (credential == null || credential.trim().isEmpty) {
-      throw StateError(appL10n.svcSetUpTheSyncCredentialsForP0((appLocalizeLabel(platform.label)).toString()));
+    final storedId = account?.id.trim() ?? '';
+
+    if (platform == SyncPlatform.divingFish) {
+      if (requireData) {
+        if (account == null || account.id.isEmpty) {
+          throw StateError(appL10n.svcSetUpYourP0AccountFirst(
+              (appLocalizeLabel(platform.label)).toString()));
+        }
+        if (!account.hasData) {
+          throw StateError(appL10n.svcRefreshYourP0AccountDataBeforeUsing(
+              (appLocalizeLabel(platform.label)).toString()));
+        }
+      }
+      final qq = AwmcQrSyncService.normalizeDivingFishQq(storedId) ??
+          await AwmcQrSyncService.resolveDivingFishQq();
+      if (qq == null || qq.isEmpty) {
+        throw StateError(appL10n.svcSetUpYourP0AccountFirst(
+            (appLocalizeLabel(platform.label)).toString()));
+      }
+      return AwmcQuickAccount(
+        source,
+        storedId.isNotEmpty ? storedId : qq,
+        null,
+        useOAuth: true,
+      );
     }
+
+    if (platform == SyncPlatform.awmc) {
+      if (requireData) {
+        if (account == null || account.id.isEmpty) {
+          throw StateError(appL10n.svcSetUpYourP0AccountFirst(
+              (appLocalizeLabel(platform.label)).toString()));
+        }
+        if (!account.hasData) {
+          throw StateError(appL10n.svcRefreshYourP0AccountDataBeforeUsing(
+              (appLocalizeLabel(platform.label)).toString()));
+        }
+      }
+      final qq = AwmcQrSyncService.qqPattern.hasMatch(storedId)
+          ? storedId
+          : await AwmcQrSyncService.resolveAwmcNetQq();
+      if (qq == null || !AwmcQrSyncService.qqPattern.hasMatch(qq)) {
+        throw StateError(appL10n.svcSetUpYourP0AccountFirst(
+            (appLocalizeLabel(platform.label)).toString()));
+      }
+      return AwmcQuickAccount(
+        source,
+        qq,
+        null,
+        useOAuth: true,
+      );
+    }
+
+    // 落雪：自动同步由服务端执行，必须使用个人 API 密钥；手动快速同步优先使用官方 OAuth。
     if (account == null || account.id.isEmpty) {
-      throw StateError(appL10n.svcSetUpYourP0AccountFirst((appLocalizeLabel(platform.label)).toString()));
+      throw StateError(appL10n.svcSetUpYourP0AccountFirst(
+          (appLocalizeLabel(platform.label)).toString()));
     }
     if (requireData && !account.hasData) {
-      throw StateError(appL10n.svcRefreshYourP0AccountDataBeforeUsing((appLocalizeLabel(platform.label)).toString()));
+      throw StateError(appL10n.svcRefreshYourP0AccountDataBeforeUsing(
+          (appLocalizeLabel(platform.label)).toString()));
     }
-    return AwmcQuickAccount(source, account.id, credential.trim());
+    final personalKey = (await SecureCredentialStore.read(
+            CacheKeyConstant.probeLxnsImportToken))
+        ?.trim();
+    if (forAutoSync) {
+      if (personalKey == null || personalKey.isEmpty) {
+        throw StateError(appL10n.svcSetUpTheSyncCredentialsForP0(
+            (appLocalizeLabel(platform.label)).toString()));
+      }
+      return AwmcQuickAccount(source, account.id, personalKey);
+    }
+    if (await LuoXueOAuthManager().isLoggedIn()) {
+      return AwmcQuickAccount(source, account.id, personalKey, useOAuth: true);
+    }
+    if (personalKey != null && personalKey.isNotEmpty) {
+      return AwmcQuickAccount(source, account.id, personalKey);
+    }
+    throw StateError(appL10n.svcYourLXNSAccountIsNotAuthorizedComplete);
   }
 
   /// 普通二维码读取前捕获目标账号，后续回包不得绑定到新切换的账号上。
@@ -100,21 +172,29 @@ class AwmcQuickSyncService {
     if (id == null || id <= 0 || id > 0xFFFFFFFF) return;
     try {
       final current = await captureIdentityAccount(account.source);
-      if (current == null ||
-          current.key != account.key ||
-          current.credential != account.credential) return;
+      if (current == null || current.key != account.key) return;
       await AwmcQuickIdentityStore.write(id);
     } catch (_) {
       // 安全存储不可用时不伪装成已缓存，表单下次仍显示红色的未缓存状态。
     }
   }
 
-  /// 该数据源能否使用快速同步：可以时返回 null，否则返回具体原因
-  /// （缺个人 Token、缺账号或账号未刷新）。与共用的机台身份分开判断，
-  /// 避免身份已绑定却被提示成「用户凭据未缓存」。
+  /// 该数据源能否使用快速同步：可以时返回 null，否则返回具体原因（缺账号、缺 OAuth 写入授权或账号未刷新）。
   static Future<String?> accountIssue(SyncPlatform platform) async {
     try {
-      await accountFor(platform);
+      final account = await accountFor(platform);
+      if (platform == SyncPlatform.divingFish) {
+        final qq = AwmcQrSyncService.normalizeDivingFishQq(account.id) ??
+            await AwmcQrSyncService.resolveDivingFishQq();
+        if (qq == null) {
+          return appL10n.svcSetUpYourP0AccountFirst(
+              (appLocalizeLabel(platform.label)).toString());
+        }
+        final writeAuth = await AwmcQrSyncService.checkFishWriteAuthorized(qq);
+        if (writeAuth == false) {
+          return appL10n.flowDivingFishWriteConsentRequiredMessage;
+        }
+      }
       return null;
     } on StateError catch (e) {
       return e.message;
@@ -186,6 +266,7 @@ class AwmcQuickSyncService {
     required SyncPlatform platform,
     void Function(double progress, String text)? onProgress,
     AwmcQuickReadSession? readSession,
+    AwmcQuickServerResponse? prefetchedServerQuickSync,
   }) =>
       AppTaskActivity.run(() async {
         if (_running) throw StateError(appL10n.svcQuickSyncIsInProgressPleaseWait);
@@ -203,6 +284,57 @@ class AwmcQuickSyncService {
           // 集中在真实执行入口记一次，单端和多端共用；缺凭据等前置拒绝不计样本。
           attempt = SyncAttemptTracker(line: SyncLine.quick, platform: platform)
             ..start();
+
+          if (platform == SyncPlatform.divingFish ||
+              platform == SyncPlatform.awmc) {
+            final fishQq = platform == SyncPlatform.divingFish
+                ? (AwmcQrSyncService.normalizeDivingFishQq(account.id) ??
+                    await AwmcQrSyncService.resolveDivingFishQq())
+                : null;
+            final awmcQq = platform == SyncPlatform.awmc ? account.id : null;
+            onProgress?.call(.15, appL10n.flowQuicklyReadingCabinetScores);
+            final serverRes = prefetchedServerQuickSync ??
+                await AwmcQrSyncService.quickSyncViaServer(
+                  userId: userId,
+                  fishQq: fishQq,
+                  awmcQq: awmcQq,
+                );
+            final targetRes = platform == SyncPlatform.divingFish
+                ? serverRes.fish
+                : serverRes.awmc;
+            if (targetRes == null) {
+              if (serverRes.fishConsentRequired) {
+                throw StateError(
+                    appL10n.flowDivingFishWriteConsentRequiredMessage);
+              }
+              throw StateError(serverRes.errorMessage ??
+                  appL10n.svcQuickReadFailedP0(
+                      serverRes.code ?? 'HTTP ${serverRes.httpStatus}'));
+            }
+            if (!targetRes.ok) {
+              if (targetRes.code == 'FISH_CONSENT_REQUIRED') {
+                throw StateError(
+                    appL10n.flowDivingFishWriteConsentRequiredMessage);
+              }
+              throw StateError(targetRes.message ??
+                  appL10n.svcUploadToP0FailedHTTPP1Remaining(
+                    appLocalizeLabel(platform.label),
+                    '${targetRes.httpStatus ?? 502}',
+                  ));
+            }
+            syncOk = true;
+            onProgress?.call(
+                1,
+                '${targetRes.submitted == 0 ? appL10n.flowScoresAreUpToDateNoUpload : appL10n.flowQuickSyncCompleteUpdatedP0Scores((targetRes.submitted).toString())}'
+                '${targetRes.unchanged > 0 ? appL10n.flowSkippedP0UnchangedScores((targetRes.unchanged).toString()) : ''}'
+                '${targetRes.skipped > 0 ? appL10n.flowP0ChartsUnmatchedOrUnsupported((targetRes.skipped).toString()) : ''}');
+            return AwmcQuickSyncResult(
+              targetRes.submitted,
+              targetRes.skipped,
+              unchanged: targetRes.unchanged,
+            );
+          }
+
           onProgress?.call(
               .02,
               appL10n.flowReadingComboAndSyncMarkersFromP0(
@@ -217,10 +349,25 @@ class AwmcQuickSyncService {
                   appLocalizeLabel(platform.label)));
           final supportedCharts = await _targetCharts(platform);
           onProgress?.call(.05, appL10n.flowReadingCabinetScoresForThisRound);
-          final incoming = readSession == null
-              ? await _readScores(userId, onProgress)
-              : await readSession._read(
-                  userId, () => _readScores(userId, onProgress));
+          final List<AwmcQuickScore> incoming;
+          if (prefetchedServerQuickSync != null &&
+              prefetchedServerQuickSync.lxScores.isNotEmpty) {
+            incoming = prefetchedServerQuickSync.lxScores
+                .map((s) => AwmcQuickScore(
+                      s.songId,
+                      s.levelIndex,
+                      s.achievement,
+                      s.dxScore,
+                      fc: s.fc,
+                      fs: s.fs,
+                    ))
+                .toList(growable: false);
+          } else {
+            incoming = readSession == null
+                ? await _readScores(userId, onProgress)
+                : await readSession._read(
+                    userId, () => _readScores(userId, onProgress));
+          }
           final records = AwmcQuickScore.backfill(incoming, targetRecords);
           final targetByKey = AwmcQuickScore.indexTargets(targetRecords);
           final byId = {for (final song in songs) int.tryParse(song.id): song};
@@ -240,36 +387,16 @@ class AwmcQuickSyncService {
               unchanged++;
               continue;
             }
-            if (platform == SyncPlatform.awmc) {
-              final index = score.levelIndex;
-              final ds = index < song.ds.length ? song.ds[index] : 0.0;
-              payload.add(RecordItem(
-                achievements: score.percent,
-                ds: ds,
-                dxScore: score.dxScore,
-                fc: score.fc ?? '',
-                fs: score.fs ?? '',
-                level: index < song.level.length ? song.level[index] : '',
-                levelIndex: index,
-                levelLabel: ChartDifficulty.legacyLabels[index],
-                ra: SongInfoService().calculateSingleRating(ds, score.percent),
-                rate: StringUtil.rateCodeFromAchievement(score.percent),
-                songId: score.songId,
-                title: song.title,
-                type: score.type,
-              ).toJson());
-            } else {
-              payload.add({
-                'song_id': score.songId,
-                'title': song.title,
-                'type': score.type,
-                'level_index': score.levelIndex,
-                'achievements': score.percent,
-                'dxScore': score.dxScore,
-                if (score.fc != null) 'fc': score.fc,
-                if (score.fs != null) 'fs': score.fs,
-              });
-            }
+            payload.add({
+              'song_id': score.songId,
+              'title': song.title,
+              'type': score.type,
+              'level_index': score.levelIndex,
+              'achievements': score.percent,
+              'dxScore': score.dxScore,
+              if (score.fc != null) 'fc': score.fc,
+              if (score.fs != null) 'fs': score.fs,
+            });
           }
           if (payload.isEmpty && unchanged == 0)
             throw StateError(appL10n.svcNoValidScoresMatchedTheLocalSong);
@@ -282,8 +409,7 @@ class AwmcQuickSyncService {
                     appLocalizeLabel(platform.label),
                     (start).toString(),
                     (payload.length).toString()));
-            await _upload(
-                platform, account.credential, payload.sublist(start, end));
+            await _upload(account, payload.sublist(start, end));
             submitted += end - start;
           }
           syncOk = true;
@@ -399,21 +525,35 @@ class AwmcQuickSyncService {
     return charts;
   }
 
-  /// 从目标服务读取最新标记；读取失败直接停止，不用其它源或旧缓存猜测。
+  static Future<Map<String, String>> _lxAuthHeaders(AwmcQuickAccount account,
+      {bool forceRefresh = false}) async {
+    if (account.useOAuth) {
+      final token = forceRefresh
+          ? (await LuoXueOAuthManager().refreshToken())?.accessToken
+          : await LuoXueOAuthManager().getAccessToken();
+      if (token != null && token.isNotEmpty) {
+        return {'Authorization': 'Bearer $token'};
+      }
+    }
+    final fallbackKey = account.credential?.trim();
+    if (fallbackKey != null && fallbackKey.isNotEmpty) {
+      return {'X-User-Token': fallbackKey};
+    }
+    throw StateError(appL10n.svcLXNSAuthorizationExpiredOrTheKeyIs);
+  }
+
+  /// 从落雪读取最新标记；读取失败直接停止，不用其它源或旧缓存猜测。
   static Future<List<dynamic>> _targetRecords(
       SyncPlatform platform, AwmcQuickAccount account) async {
-    final uri = switch (platform) {
-      SyncPlatform.divingFish => Uri.parse(ApiUrls.UserPlayDataApi)
-          .replace(queryParameters: {'qq': account.id}),
-      SyncPlatform.luoXue => Uri.parse(ApiUrls.LuoXuePlayerScoresApi),
-      SyncPlatform.awmc => Uri.parse(ApiUrls.AwmcNetRecordsProxyApi)
-          .replace(queryParameters: {'qq': account.id}),
-    };
-    final response = await ApiClient.get(uri,
-        headers: platform == SyncPlatform.luoXue
-            ? {'X-User-Token': account.credential}
-            : null,
-        timeout: const Duration(seconds: 45));
+    final uri = Uri.parse(ApiUrls.LuoXuePlayerScoresApi);
+    var headers = await _lxAuthHeaders(account);
+    var response = await ApiClient.get(uri,
+        headers: headers, timeout: const Duration(seconds: 45));
+    if (account.useOAuth && response.statusCode == 401) {
+      headers = await _lxAuthHeaders(account, forceRefresh: true);
+      response = await ApiClient.get(uri,
+          headers: headers, timeout: const Duration(seconds: 45));
+    }
     if (response.statusCode != 200) {
       throw StateError(appL10n.svcCouldNotReadExistingP0ScoresSo((appLocalizeLabel(platform.label)).toString()));
     }
@@ -429,16 +569,13 @@ class AwmcQuickSyncService {
     // 兼容上传接口会把省略的标记视为空，不能把缺字段的异常响应当作“从未达成”。
     for (final record in data) {
       if (record is! Map ||
-          int.tryParse(
-                  '${record[platform == SyncPlatform.luoXue ? 'id' : 'song_id']}') ==
-              null ||
+          int.tryParse('${record['id']}') == null ||
           int.tryParse('${record['level_index']}') == null ||
           !record.containsKey('fc') ||
           !record.containsKey('fs')) {
         throw StateError(appL10n.svcP0ScoresAreMissingChartOrCombo((appLocalizeLabel(platform.label)).toString()));
       }
     }
-    if (platform != SyncPlatform.luoXue) return data;
     return data.whereType<Map>().map((record) {
       final id = int.tryParse('${record['id']}');
       final dx = '${record['type']}'.toLowerCase() == 'dx';
@@ -454,36 +591,35 @@ class AwmcQuickSyncService {
     }).toList();
   }
 
-  static Future<void> _upload(SyncPlatform platform, String credential,
-      List<Map<String, dynamic>> records) async {
-    final isLx = platform == SyncPlatform.luoXue;
-    final url = switch (platform) {
-      SyncPlatform.divingFish => ApiUrls.DivingFishUpdateRecordsApi,
-      SyncPlatform.luoXue => ApiUrls.LuoXuePlayerScoresApi,
-      SyncPlatform.awmc => ApiUrls.AwmcNetUpdateRecordsApi,
-    };
-    final body = isLx
-        ? {
-            'scores': records
-                .map((r) => {
-                      'id': (r['song_id'] as int) % 10000,
-                      'type': r['type'] == 'DX' ? 'dx' : 'standard',
-                      'level_index': r['level_index'],
-                      'achievements': r['achievements'],
-                      'dx_score': r['dxScore'],
-                      if (r['fc'] != null) 'fc': r['fc'],
-                      if (r['fs'] != null) 'fs': r['fs'],
-                    })
-                .toList()
-          }
-        : records;
-    final response = await ApiClient.post(Uri.parse(url),
-        headers: {
-          'Content-Type': 'application/json',
-          isLx ? 'X-User-Token' : 'Import-Token': credential
-        },
-        body: jsonEncode(body),
-        timeout: const Duration(seconds: 60));
+  static Future<void> _upload(
+      AwmcQuickAccount account, List<Map<String, dynamic>> records) async {
+    final uri = Uri.parse(ApiUrls.LuoXuePlayerScoresApi);
+    final body = jsonEncode({
+      'scores': records
+          .map((r) => {
+                'id': (r['song_id'] as int) % 10000,
+                'type': r['type'] == 'DX' ? 'dx' : 'standard',
+                'level_index': r['level_index'],
+                'achievements': r['achievements'],
+                'dx_score': r['dxScore'],
+                if (r['fc'] != null) 'fc': r['fc'],
+                if (r['fs'] != null) 'fs': r['fs'],
+              })
+          .toList()
+    });
+    Future<http.Response> send(Map<String, String> authHeaders) => ApiClient.post(
+          uri,
+          headers: {
+            'Content-Type': 'application/json',
+            ...authHeaders,
+          },
+          body: body,
+          timeout: const Duration(seconds: 60),
+        );
+    var response = await send(await _lxAuthHeaders(account));
+    if (account.useOAuth && response.statusCode == 401) {
+      response = await send(await _lxAuthHeaders(account, forceRefresh: true));
+    }
     dynamic data;
     try {
       data = jsonDecode(utf8.decode(response.bodyBytes));
@@ -491,13 +627,10 @@ class AwmcQuickSyncService {
     if (response.statusCode < 200 ||
         response.statusCode >= 300 ||
         data is! Map ||
-        data['success'] == false ||
-        data['status'] == 'error' ||
-        (data['errors'] is List && (data['errors'] as List).isNotEmpty) ||
-        (isLx && data['success'] != true)) {
+        data['success'] != true) {
       // 不回显第三方原始响应，避免请求凭据或机台身份被错误信息带出。
       throw StateError(
-          appL10n.svcUploadToP0FailedHTTPP1Remaining((appLocalizeLabel(platform.label)).toString(), response.statusCode.toString()));
+          appL10n.svcUploadToP0FailedHTTPP1Remaining((appLocalizeLabel(SyncPlatform.luoXue.label)).toString(), response.statusCode.toString()));
     }
   }
 }

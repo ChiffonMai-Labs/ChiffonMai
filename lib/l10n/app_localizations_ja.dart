@@ -2384,7 +2384,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get flowCredentialsAreEncryptedAndHostedWhileEnabled =>
-      '有効時は認証情報を暗号化して保管し、無効にすると削除します。';
+      '有効時は自動同期に必要な認証情報を必要に応じて暗号化保管し、無効にすると削除します。';
 
   @override
   String get flowAboutSync => '同期について';
@@ -2404,7 +2404,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get flowLinkYourCabinetIdentityUsingAQR =>
-      'QR コードで筐体 ID を連携すると、3つのソースで認証情報を共有できます。通常の QR 同期でも自動連携します。各ソースの個人キーとアカウントは別途必要です。\n\n毎日中国時間08:00～24:00にクイック同期します。同一ユーザーの3ソースは筐体成績を1回だけ取得し、各サービスの成績と比較して変更分を送信します。\n\n処理段階・取得ページ数・アップロード件数・送信済み件数・経過時間を表示します。上流待ちでは理由と再試行予定時刻を表示し、前回結果には所要時間・筐体データ取得時刻・次回再試行時刻を表示します。\n\n上流へのリクエスト割当と制限を共有し、メンテナンス・割当不足・通信エラーでは理由を表示して一時停止します。連続再試行はしません。\n\n実行中に無効にすると後続バッチを停止します。送信済みの成績は保持し、結果が不明な送信は確認してから再試行します。';
+      'QR コードで筐体 ID を連携すると、3つのソースで認証情報を共有できます。通常の QR 同期でも自動連携します。水魚は読み書き権限付きの OAuth 認可、AWMC NET は QQ 紐付け（ともにインポート Token 不要）が必要で、落雪の自動同期のみ本ページでの個人 API キー設定が必要です。\n\n毎日中国時間08:00～24:00にクイック同期します。同一ユーザーの3ソースは筐体成績を1回だけ取得し、各サービスの成績と比較して変更分を送信します。\n\n処理段階・取得ページ数・アップロード件数・送信済み件数・経過時間を表示します。上流待ちでは理由と再試行予定時刻を表示し、前回結果には所要時間・筐体データ取得時刻・次回再試行時刻を表示します。\n\n上流へのリクエスト割当と制限を共有し、メンテナンス・割当不足・通信エラーでは理由を表示して一時停止します。連続再試行はしません。\n\n実行中に無効にすると後続バッチを停止します。送信済みの成績は保持し、結果が不明な送信は確認してから再試行します。';
 
   @override
   String get flowSaving => '保存中…';
@@ -2852,7 +2852,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get flowSignInSavedForOCRAndRoute =>
-      'OCR と経路2の同期に使うログイン状態を保存しました。\n再ログインのためのスキャンは不要です。';
+      'OCR に使うログイン状態を保存しました。\n再ログインのためのスキャンは不要です。';
 
   @override
   String get flowAuthenticatesWithMaimaiScoreHubOnlyNo =>
@@ -3626,7 +3626,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get flowNoLXNSPersonalAPIKeySetIt =>
-      '落雪の個人 API キーがありません。先に「成績取り込み認証情報」で設定してください';
+      'LXNS アカウントが未認可です。先に「連携・認可管理」で LXNS OAuth 認可を完了してください';
 
   @override
   String get flowPhotographTheCabinetResultScreen => '筐体のリザルトを撮影';
@@ -4633,7 +4633,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get flowPersonalAPIKeyResetItThenPaste =>
-      '個人 API キー：「API キーをリセット」で発行し、アプリの「マイページ → 成績取り込み認証情報 → 落雪 API キー」に貼り付けてください。';
+      '個人 API キー：落雪の自動同期を使う場合のみ必要です。「API キーをリセット」で発行し、「自動同期」ページに貼り付けて保存してください。手動同期は上の OAuth 認可だけで利用できます。';
 
   @override
   String get flowYouCanAlsoVisitChiffonChuFromThe =>
@@ -4659,7 +4659,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get flowImportTokenRegenerateItThenPasteIt =>
-      'Import-Token：再発行して、アプリの「マイページ → 成績取り込み認証情報 → AWMC 成績取り込み Token」に貼り付けてください。';
+      '同期について：AWMC NET の成績同期はインポート Token 不要で利用できます。アプリの「マイページ → アカウントと連携 → 連携・認可管理」で QQ 番号を紐付けるだけで利用できます。';
 
   @override
   String get flowRotatingATokenReplacesTheOldOne =>
@@ -4718,7 +4718,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get flowNoLXNSPersonalAPIKeySetConfigure =>
-      '落雪の個人 API キーが未設定です。先に「成績取り込み認証情報」で設定してください';
+      'LXNS アカウントの認可が未完了です。先に「連携・認可管理」で LXNS OAuth 認可を完了してください';
 
   @override
   String get flowQuickSyncSupportsRoute1Only => 'クイック同期は経路1のみ対応です';
@@ -5448,6 +5448,16 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
+  String flowP0Hours(String p0) {
+    return '$p0 時間';
+  }
+
+  @override
+  String flowP0HoursP1Min(String p0, String p1) {
+    return '$p0 時間 $p1 分';
+  }
+
+  @override
   String get flowJustNow => 'たった今';
 
   @override
@@ -5465,6 +5475,11 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String flowP0RetryAroundP1(String p0, String p1) {
     return '$p0、$p1頃に再試行';
+  }
+
+  @override
+  String flowP0RetryingSoon(String p0) {
+    return '$p0、まもなく再試行';
   }
 
   @override
@@ -13752,7 +13767,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get svcTheAWMCNETImportTokenIsInvalid =>
-      'AWMC NETのImport-Tokenが無効です。「成績取り込み認証情報」で有効なトークンを保存し直してください。有効な定期タスクは自動で更新されます。';
+      'AWMC NET のインポート Token が無効です。「自動同期」ページで AWMC NET の自動同期を一度オフにしてから再度オンにし、Token 不要モードへ切り替えてください';
 
   @override
   String get svcCouldNotReadCabinetScoresTryAgain =>
@@ -13792,7 +13807,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get svcThisMorningSProcessingWindowHasEnded =>
-      '今回の午前の処理時間帯が終了しました。次の回で再開します。';
+      '本日の処理ウィンドウが終了しました。次回に継続します';
 
   @override
   String get svcTheUploadResultIsUncertainTheNext =>
@@ -13804,7 +13819,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String svcSetUpTheSyncCredentialsForP0(String p0) {
-    return '先に「成績取り込み認証情報」で$p0の成績取り込み Token を設定してください';
+    return '先に「自動同期」ページで$p0の個人 API キーを入力してください';
   }
 
   @override
@@ -15519,4 +15534,86 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get awmcUnplayed => '未プレイ';
+
+  @override
+  String get flowDivingFishReadAuthorizedNeedWriteReauth =>
+      '読み取り権限のみ認可済みです。下の「再認可」を1回完了すると、Import-Token なしでルート1同期が使えます。';
+
+  @override
+  String get flowDivingFishWriteConsentRequiredMessage =>
+      '水魚アカウントに書き込み権限がまだ付与されていません。ブラウザで再認可を完了してから再試行してください。';
+
+  @override
+  String get flowDivingFishWriteAuthDialogTitle => '水魚の書き込み認可が必要です';
+
+  @override
+  String get flowDivingFishWriteAuthDialogBody =>
+      '水魚ルート1は公式 OAuth による Import-Token 不要の同期に対応しました。ブラウザで書き込み権限の認可を完了してから再試行してください。';
+
+  @override
+  String get flowDivingFishWriteAuthDialogBodyWithFallback =>
+      '水魚ルート1は公式 OAuth による Import-Token 不要の同期に対応しました。書き込み認可を完了するか、保存済みの Import-Token を使用してください。';
+
+  @override
+  String get flowUseImportTokenFallback => 'Import-Token を使用';
+
+  @override
+  String get flowLuoXueRoute1AuthDialogTitle => 'LXNS アカウント認可が必要です';
+
+  @override
+  String get flowLuoXueRoute1AuthDialogBody =>
+      'LXNS ルート1は個人 API キー不要の公式 OAuth 同期に対応しています。「マイページ → アカウントと連携 → 連携・認可管理」から LXNS 認可を完了してください。';
+
+  @override
+  String get flowNoDivingFishQqBoundHint =>
+      '水魚アカウントに紐付けられた QQ 番号が見つかりません。先に水魚アカウントへログインして QQ を設定してください。';
+
+  @override
+  String flowAWMCNETQQBoundP0(String p0) {
+    return '紐付け済み QQ：$p0';
+  }
+
+  @override
+  String get flowEnterAWMCNETQQNoTokenTitle => 'AWMC NET 紐付け QQ を入力（Token 不要）';
+
+  @override
+  String get flowAWMCNETQQNoTokenHint =>
+      'net.wmc.pub に紐付け済みの QQ 番号を入力してください。インポート Token は不要です。';
+
+  @override
+  String get flowQQSaved => 'QQ 番号を保存しました';
+
+  @override
+  String get flowDivingFishOAuthWriteChip => 'OAuth 読み書き';
+
+  @override
+  String get flowLXNSOAuthChip => 'LXNS OAuth';
+
+  @override
+  String get flowMultiFishOAuthWriteMissingHint =>
+      '先に水魚アカウントで書き込み権限を含む OAuth 認可を完了してください。';
+
+  @override
+  String get flowMultiLxnsOAuthMissingHint =>
+      '「認証へ進む」から LXNS OAuth 認可を完了してください。';
+
+  @override
+  String get flowOneCabinetQRForAllSelectedRoute1 =>
+      '選択したすべてのルート1同期先で 1 つの筐体 QR コードを共有します。';
+
+  @override
+  String get flowGoAuthorizeDivingFishWrite => '認証へ進む';
+
+  @override
+  String get flowRecheckAuthorizationStatus => '認証状態を再確認';
+
+  @override
+  String get flowChangePersonalApiKey => '個人 API キーを変更';
+
+  @override
+  String get flowClearPersonalApiKey => '個人 API キーを削除';
+
+  @override
+  String get flowClearPersonalApiKeyConfirm =>
+      '保存されている落雪の個人 API キーを削除すると、落雪の自動同期が有効な場合は同時にオフになります。続行しますか？';
 }

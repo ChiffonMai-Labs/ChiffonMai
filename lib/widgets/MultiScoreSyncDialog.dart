@@ -1,40 +1,46 @@
-import 'AnimatedReveal.dart';
-import 'package:my_first_flutter_app/l10n/FeatureLocalizations.dart';
-import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
-import 'AnimatedChoiceBar.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:my_first_flutter_app/l10n/FeatureLocalizations.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../api/ApiUrls.dart';
 import '../constant/CacheKeyConstant.dart';
-import '../service/AccountStore.dart';
-import '../service/SyncStatsService.dart';
-import '../service/SyncRouteStore.dart';
-import '../utils/SyncRouteNotifier.dart';
-import '../utils/ExternalLaunchUtil.dart';
-import '../utils/SecureCredentialStore.dart';
-import 'ErrorMessageDialog.dart';
-import 'QuickSyncOption.dart';
-import 'PostSyncRefreshOptions.dart';
-import 'RefreshDataDialog.dart' show RefreshDataRequest, RefreshDataSource;
+import '../manager/DivingFish/DivingFishOAuthManager.dart';
+import '../manager/LuoXue/LuoXueOAuthManager.dart';
+import '../service/AWMC/AwmcQrSyncService.dart';
 import '../service/AWMC/AwmcQuickSyncService.dart';
-import '../widgets/AppDialogs.dart';
-import 'AppUi.dart' hide AnimatedReveal;
-import 'AccountBindingManager.dart' show StatusChip;
-import 'SyncDialogUi.dart';
+import '../service/AccountAuthorizationStore.dart';
+import '../service/SyncRouteStore.dart';
+import '../service/SyncStatsService.dart';
 import '../utils/AppDesignTokens.dart';
 import '../utils/AppTheme.dart';
+import '../utils/ExternalLaunchUtil.dart';
+import '../utils/SecureCredentialStore.dart';
+import '../widgets/AppDialogs.dart';
+import 'AccountAuthorizationDialog.dart';
+import 'AccountBindingManager.dart' show StatusChip;
+import 'AnimatedReveal.dart';
+import 'AppToast.dart';
+import 'AppUi.dart' hide AnimatedReveal;
+import 'ErrorMessageDialog.dart';
+import 'PostSyncRefreshOptions.dart';
+import 'QuickSyncOption.dart';
+import 'RefreshDataDialog.dart' show RefreshDataRequest, RefreshDataSource;
+import 'SyncDialogUi.dart';
 
-/// 已确认具备凭据的同步目标，由执行器按 AWMC NET → 水鱼 → 落雪依次执行。
+/// 已确认具备凭据的同步目标，由执行器依次执行。
 class MultiScoreSyncInput {
   final String qrCode;
   final bool quickUpdate;
   final Set<SyncPlatform> platforms;
-  final Map<SyncPlatform, int> routes;
   final Map<SyncPlatform, RefreshDataRequest> refreshRequests;
+  final String awmcQq;
+  final String fishQq;
+  final bool fishOAuthWrite;
+  final bool lxOAuth;
 
   /// 所有目标共用的强制刷新选择。null 表示读取保存的默认配置。
   final Set<String>? forceSourceIds;
@@ -45,21 +51,19 @@ class MultiScoreSyncInput {
     required Set<SyncPlatform> platforms,
     Map<SyncPlatform, int> routes = const {},
     Map<SyncPlatform, RefreshDataRequest> refreshRequests = const {},
+    this.awmcQq = '',
+    this.fishQq = '',
+    this.fishOAuthWrite = false,
+    this.lxOAuth = false,
     Set<String>? forceSourceIds,
   })  : platforms = Set.unmodifiable(platforms),
         refreshRequests = Map.unmodifiable(refreshRequests),
         forceSourceIds =
-            forceSourceIds == null ? null : Set.unmodifiable(forceSourceIds),
-        routes = Map.unmodifiable(routes);
+            forceSourceIds == null ? null : Set.unmodifiable(forceSourceIds);
 
-  /// 旧调用未传线路时沿用原来的线路2行为。
-  int routeOf(SyncPlatform platform) =>
-      routes[platform] ?? SyncRouteStore.routeScoreHub;
+  int routeOf(SyncPlatform platform) => SyncRouteStore.routeAwmc;
 
-  bool quickUpdateFor(SyncPlatform platform) =>
-      quickUpdate &&
-      (platform == SyncPlatform.awmc ||
-          routeOf(platform) == SyncRouteStore.routeAwmc);
+  bool quickUpdateFor(SyncPlatform platform) => quickUpdate;
 }
 
 Future<MultiScoreSyncInput?> showMultiScoreSyncInputDialog(
@@ -70,7 +74,7 @@ Future<MultiScoreSyncInput?> showMultiScoreSyncInputDialog(
       builder: (_) => const MultiScoreSyncDialog(),
     );
 
-/// 输入和保存凭据在对话框内完成，网络同步由调用方在弹窗关闭后串行执行。
+/// 选择多端同步目标并确认 OAuth 授权 / QQ 身份，网络同步由调用方在弹窗关闭后执行。
 class MultiScoreSyncDialog extends StatefulWidget {
   const MultiScoreSyncDialog({super.key});
 
@@ -79,61 +83,30 @@ class MultiScoreSyncDialog extends StatefulWidget {
 }
 
 class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
-  static const _keys = {
-    SyncPlatform.divingFish: CacheKeyConstant.probeDivingFishImportToken,
-    SyncPlatform.luoXue: CacheKeyConstant.probeLxnsImportToken,
-    SyncPlatform.awmc: CacheKeyConstant.awmcNetImportToken,
-  };
-  static final _qqPattern = RegExp(r'^\d{5,12}$');
+  static final _qqPattern = AwmcQrSyncService.qqPattern;
   final _qqController = TextEditingController();
-  final _tokenControllers = {
-    for (final platform in SyncPlatform.values)
-      platform: TextEditingController(),
-  };
-  final _tokens = <SyncPlatform, String>{};
   final _selected = <SyncPlatform>{};
   final _expanded = <SyncPlatform>{};
   final _errors = <SyncPlatform, String>{};
-  final _routes = <SyncPlatform, int>{
-    SyncPlatform.divingFish: SyncRouteStore.routeScoreHub,
-    SyncPlatform.luoXue: SyncRouteStore.routeScoreHub,
-  };
   String _qq = '';
+  String _dfQq = '';
+  bool _dfOAuthWrite = false;
+  bool _lxOAuth = false;
+  bool _hasLxFallbackKey = false;
+  bool _openingAuth = false;
   String? _selectionError;
   String? _loadError;
   bool _loading = true;
   bool _submitting = false;
   final _refreshKey = GlobalKey<PostSyncRefreshOptionsState>();
   bool _quickUpdate = false;
-  int _quickRevision = 0;
-  final _routesBeforeQuick = <SyncPlatform, int>{};
-  Set<SyncPlatform> get _quickPlatforms => _selected
-      .where((platform) =>
-          platform == SyncPlatform.awmc ||
-          _routes[platform] == SyncRouteStore.routeAwmc)
-      .toSet();
   SyncPlatform? _saving;
 
   void _setQuickUpdate(bool enabled) {
-    if (_quickUpdate == enabled &&
-        (!enabled ||
-            _routes.values
-                .every((route) => route == SyncRouteStore.routeAwmc))) {
-      return;
-    }
+    if (_quickUpdate == enabled) return;
     setState(() {
-      if (enabled) {
-        _routesBeforeQuick
-          ..clear()
-          ..addAll(_routes);
-        _routes.updateAll((_, __) => SyncRouteStore.routeAwmc);
-      } else if (_routesBeforeQuick.isNotEmpty) {
-        _routes
-          ..clear()
-          ..addAll(_routesBeforeQuick);
-        _routesBeforeQuick.clear();
-      }
       _quickUpdate = enabled;
+      _selected.removeWhere((p) => !_ready(p));
     });
   }
 
@@ -146,45 +119,42 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
   @override
   void dispose() {
     _qqController.dispose();
-    for (final controller in _tokenControllers.values) {
-      controller.dispose();
-    }
     super.dispose();
   }
 
-  bool _ready(SyncPlatform platform) =>
-      (_tokens[platform]?.isNotEmpty ?? false) &&
-      (platform != SyncPlatform.awmc || _qqPattern.hasMatch(_qq));
+  bool _hasFishOAuthWrite() =>
+      _qqPattern.hasMatch(_dfQq) && _dfOAuthWrite;
+
+  bool _ready(SyncPlatform platform) => switch (platform) {
+        SyncPlatform.awmc => _qqPattern.hasMatch(_qq),
+        SyncPlatform.divingFish => _hasFishOAuthWrite(),
+        SyncPlatform.luoXue => _lxOAuth || _hasLxFallbackKey,
+      };
 
   Future<void> _loadCredentials() async {
     try {
-      final tokens = <SyncPlatform, String>{};
-      for (final platform in SyncPlatform.values) {
-        tokens[platform] =
-            (await SecureCredentialStore.read(_keys[platform]!) ?? '').trim();
+      final lxKey = (await SecureCredentialStore.read(
+                  CacheKeyConstant.probeLxnsImportToken) ??
+              '')
+          .trim();
+      final awmcQq = await AwmcQrSyncService.resolveAwmcNetQq() ?? '';
+      final dfQq = await AwmcQrSyncService.resolveDivingFishQq() ?? '';
+      final lxOAuth = await LuoXueOAuthManager().isLoggedIn();
+      var dfOAuthWrite = false;
+      if (_qqPattern.hasMatch(dfQq)) {
+        dfOAuthWrite =
+            await AwmcQrSyncService.checkFishWriteAuthorized(dfQq) == true;
       }
-      final accounts = await AccountStore.loadAll();
-      final prefs = await SharedPreferences.getInstance();
-      final routes = {
-        SyncPlatform.divingFish: await SyncRouteStore.load(isDivingFish: true),
-        SyncPlatform.luoXue: await SyncRouteStore.load(isDivingFish: false),
-      };
-      final marker = prefs.getString(CacheKeyConstant.awmcUserId) ?? '';
-      // 只读取 AWMC 自己的 QQ，不能用活动槽 cachedQQ（可能属于水鱼或落雪）。
-      final qqCandidates = [
-        accounts['awmc']?.id ?? '',
-        marker.startsWith('awmc:') ? marker.substring(5) : '',
-        prefs.getString(CacheKeyConstant.awmcNetSyncQQ) ?? '',
-      ];
       if (!mounted) return;
       setState(() {
-        _tokens.addAll(tokens);
-        _routes.addAll(routes);
-        _qq = qqCandidates.map((value) => value.trim()).firstWhere(
-              _qqPattern.hasMatch,
-              orElse: () => '',
-            );
-        _selected.addAll(SyncPlatform.values.where(_ready));
+        _hasLxFallbackKey = lxKey.isNotEmpty;
+        _qq = awmcQq;
+        _dfQq = dfQq;
+        _dfOAuthWrite = dfOAuthWrite;
+        _lxOAuth = lxOAuth;
+        _selected
+          ..clear()
+          ..addAll(SyncPlatform.values.where(_ready));
         _loading = false;
         _loadError = null;
       });
@@ -197,49 +167,89 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
     }
   }
 
-  Future<void> _saveCredential(SyncPlatform platform) async {
+  Future<void> _refreshOAuthState(SyncPlatform platform) async {
+    setState(() => _openingAuth = true);
+    try {
+      if (platform == SyncPlatform.divingFish) {
+        final dfQq = await AwmcQrSyncService.resolveDivingFishQq() ?? '';
+        final writeOk = _qqPattern.hasMatch(dfQq) &&
+            await AwmcQrSyncService.checkFishWriteAuthorized(dfQq) == true;
+        if (!mounted) return;
+        setState(() {
+          _dfQq = dfQq;
+          _dfOAuthWrite = writeOk;
+          if (_ready(SyncPlatform.divingFish)) {
+            _selected.add(SyncPlatform.divingFish);
+            _expanded.remove(SyncPlatform.divingFish);
+          }
+        });
+      } else if (platform == SyncPlatform.luoXue) {
+        final lxOk = await LuoXueOAuthManager().isLoggedIn();
+        if (!mounted) return;
+        setState(() {
+          _lxOAuth = lxOk;
+          if (_ready(SyncPlatform.luoXue)) {
+            _selected.add(SyncPlatform.luoXue);
+            _expanded.remove(SyncPlatform.luoXue);
+          }
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _openingAuth = false);
+    }
+  }
+
+  Future<void> _openFishOAuth() async {
+    if (_openingAuth || !_qqPattern.hasMatch(_dfQq)) return;
+    setState(() => _openingAuth = true);
+    try {
+      final opened = await DivingFishOAuthManager().openBindingLink(_dfQq);
+      if (!mounted) return;
+      AppToast.show(
+        opened
+            ? context.l10n.flowAuthorizationOpenedCompleteItInYourBrowser
+            : context.l10n.flowCouldNotStartAuthorizationTryAgain,
+        tone: opened ? AppToastTone.success : AppToastTone.error,
+      );
+    } finally {
+      if (mounted) setState(() => _openingAuth = false);
+    }
+  }
+
+  Future<void> _openLuoXueOAuth() async {
+    if (_openingAuth) return;
+    await showAccountAuthorizationDialog(context, luoxue: true);
+    if (mounted) await _refreshOAuthState(SyncPlatform.luoXue);
+  }
+
+  Future<void> _saveAwmcQq() async {
     if (_saving != null) return;
-    final needsToken = _tokens[platform]?.isNotEmpty != true;
-    final token = needsToken
-        ? _tokenControllers[platform]!.text.trim()
-        : _tokens[platform]!;
-    final needsQQ = platform == SyncPlatform.awmc && !_qqPattern.hasMatch(_qq);
-    final qq = needsQQ ? _qqController.text.trim() : _qq;
-    if (token.isEmpty || (needsQQ && !_qqPattern.hasMatch(qq))) {
-      setState(() => _errors[platform] = token.isEmpty
-          ? context.l10n.flowEnterP0((platform == SyncPlatform.luoXue
-                  ? context.l10n.flowPersonalAPIKey
-                  : 'ImportToken')
-              .toString())
-          : context.l10n.flowEnterA512DigitQQID);
+    final qq = _qqController.text.trim();
+    if (!_qqPattern.hasMatch(qq)) {
+      setState(() =>
+          _errors[SyncPlatform.awmc] = context.l10n.flowEnterA512DigitQQID);
       return;
     }
     setState(() {
-      _saving = platform;
-      _errors.remove(platform);
+      _saving = SyncPlatform.awmc;
+      _errors.remove(SyncPlatform.awmc);
     });
     try {
-      if (needsToken)
-        await SecureCredentialStore.write(_keys[platform]!, token);
-      if (needsQQ) {
-        final prefs = await SharedPreferences.getInstance();
-        if (!await prefs.setString(CacheKeyConstant.awmcNetSyncQQ, qq)) {
-          throw StateError(context.l10n.flowCouldNotSaveQQID);
-        }
+      await AccountAuthorizationStore.saveAwmcQQ(qq);
+      final prefs = await SharedPreferences.getInstance();
+      if (!await prefs.setString(CacheKeyConstant.awmcNetSyncQQ, qq)) {
+        throw StateError('save_qq_failed');
       }
       if (!mounted) return;
       FocusManager.instance.primaryFocus?.unfocus();
       setState(() {
-        _tokens[platform] = token;
-        if (needsQQ) _qq = qq;
-        _selected.add(platform);
-        _expanded.remove(platform);
+        _qq = qq;
+        if (_ready(SyncPlatform.awmc)) _selected.add(SyncPlatform.awmc);
+        _expanded.remove(SyncPlatform.awmc);
         _selectionError = null;
-        _tokenControllers[platform]!.clear();
-        if (needsQQ) _qqController.clear();
+        _qqController.clear();
       });
     } catch (_) {
-      // 存储插件的异常可能包含传入参数，不向 UI 回显任何密钥。
       if (mounted) {
         await showErrorMessageDialog(context,
             message: context.l10n.flowCouldNotSaveCredentialsTryAgain);
@@ -287,12 +297,13 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
     Navigator.pop(
         context,
         MultiScoreSyncInput(
-          // 普通同步的二维码改为执行时逐个目标询问：一张二维码只能处理
-          // 一个请求，不能在这里提前收集后复用给多个目标。
           qrCode: '',
           quickUpdate: _quickUpdate,
           platforms: targets,
-          routes: _routes,
+          awmcQq: _qq,
+          fishQq: _dfQq,
+          fishOAuthWrite: _hasFishOAuthWrite(),
+          lxOAuth: _lxOAuth,
           forceSourceIds: requests.values.firstOrNull?.forceSourceIds,
           refreshRequests: {
             for (final platform in targets)
@@ -303,59 +314,6 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
         ));
   }
 
-  Widget _buildRouteSelector(SyncPlatform platform) {
-    final scheme = Theme.of(context).colorScheme;
-    final route = _quickUpdate ? SyncRouteStore.routeAwmc : _routes[platform]!;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          AnimatedChoiceBar<int>(
-            values: const [
-              SyncRouteStore.routeAwmc,
-              SyncRouteStore.routeScoreHub
-            ],
-            value: route,
-            label: (value) => value == SyncRouteStore.routeAwmc
-                ? context.l10n.flowRoute1
-                : context.l10n.flowRoute2,
-            onChanged: !_quickUpdate && _saving == null
-                ? (next) {
-                    setState(() {
-                      _routes[platform] = next;
-                      _quickRevision++;
-                    });
-                    unawaited(
-                        SyncRouteNotifier.instance.setRoute(platform, next));
-                  }
-                : null,
-          ),
-          const SizedBox(height: 6),
-          FadeContent(
-              child: Text(
-            key: ValueKey(route),
-            context.l10n.flowCurrentP0P1(
-                (route == SyncRouteStore.routeAwmc
-                        ? context.l10n.flowRoute1
-                        : context.l10n.flowRoute2)
-                    .toString(),
-                (SyncRouteStore.routeName(route)).toString()),
-            style: TextStyle(fontSize: 12, color: scheme.primary),
-          )),
-          AnimatedReveal(
-              visible: _quickUpdate,
-              child: Padding(
-                padding: const EdgeInsets.only(top: 5),
-                child: Text(context.l10n.flowQuickSyncAlwaysUsesRoute1,
-                    style: TextStyle(
-                        fontSize: 12, color: scheme.onSurfaceVariant)),
-              )),
-        ],
-      ),
-    );
-  }
-
   Widget _status(String label, bool exists) => StatusChip(
         done: exists,
         text:
@@ -364,12 +322,23 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
 
   Widget _buildSource(SyncPlatform platform) {
     final scheme = Theme.of(context).colorScheme;
-    final hasToken = _tokens[platform]?.isNotEmpty ?? false;
     final ready = _ready(platform);
-    final tokenLabel = platform == SyncPlatform.luoXue
-        ? context.l10n.flowPersonalAPIKey
-        : 'ImportToken';
     final saving = _saving == platform;
+
+    final chips = <Widget>[
+      switch (platform) {
+        SyncPlatform.awmc =>
+          _status(context.l10n.flowQQID, _qqPattern.hasMatch(_qq)),
+        SyncPlatform.divingFish => _status(
+            context.l10n.flowDivingFishOAuthWriteChip, _hasFishOAuthWrite()),
+        SyncPlatform.luoXue => _lxOAuth
+            ? _status(context.l10n.flowLXNSOAuthChip, true)
+            : _hasLxFallbackKey
+                ? _status(context.l10n.flowPersonalAPIKey, true)
+                : _status(context.l10n.flowLXNSOAuthChip, false),
+      },
+    ];
+
     return Container(
       margin: const EdgeInsets.only(top: 10),
       decoration: BoxDecoration(
@@ -387,11 +356,7 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
                   const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
           subtitle: Padding(
             padding: const EdgeInsets.only(top: 6),
-            child: Wrap(spacing: 6, runSpacing: 6, children: [
-              _status(tokenLabel, hasToken),
-              if (platform == SyncPlatform.awmc)
-                _status(context.l10n.flowQQID, _qqPattern.hasMatch(_qq)),
-            ]),
+            child: Wrap(spacing: 6, runSpacing: 6, children: chips),
           ),
           onChanged: ready && _saving == null
               ? (value) {
@@ -404,7 +369,6 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
                 }
               : null,
         ),
-        if (platform != SyncPlatform.awmc) _buildRouteSelector(platform),
         AppDialogAnimatedHeight(
           child: ready
               ? const SizedBox(width: double.infinity)
@@ -444,21 +408,51 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
                         if (_expanded.contains(platform)) ...[
                           Text(
                               switch (platform) {
-                                SyncPlatform.divingFish => context.l10n
-                                    .flowGetYourImportTokenFromTheDivingFish,
+                                SyncPlatform.divingFish => _qqPattern
+                                        .hasMatch(_dfQq)
+                                    ? context.l10n
+                                        .flowMultiFishOAuthWriteMissingHint
+                                    : context.l10n.flowNoDivingFishQqBoundHint,
                                 SyncPlatform.luoXue =>
-                                  context.l10n.flowSignInToLXNSAndGetYour,
+                                    context.l10n.flowMultiLxnsOAuthMissingHint,
                                 SyncPlatform.awmc =>
-                                  context.l10n.flowEnterTheQQLinkedToAWMCNET,
+                                    context.l10n.flowAWMCNETQQNoTokenHint,
                               },
                               style: TextStyle(
                                   fontSize: 12,
                                   color: scheme.onSurfaceVariant)),
-                          TextButton(
-                              onPressed: () => _openSource(platform),
-                              child: Text(context.l10n.flowOpenWebsite)),
+                          const SizedBox(height: 6),
+                          Wrap(spacing: 8, runSpacing: 8, children: [
+                            if (platform == SyncPlatform.divingFish) ...[
+                              if (_qqPattern.hasMatch(_dfQq))
+                                FilledButton.tonal(
+                                  onPressed:
+                                      _openingAuth ? null : _openFishOAuth,
+                                  child: Text(
+                                      context.l10n.flowOpenAuthorizationLink),
+                                ),
+                              OutlinedButton(
+                                onPressed: _openingAuth
+                                    ? null
+                                    : () => _refreshOAuthState(
+                                        SyncPlatform.divingFish),
+                                child:
+                                    Text(context.l10n.accountBindingRecheck),
+                              ),
+                            ],
+                            if (platform == SyncPlatform.luoXue)
+                              FilledButton.tonal(
+                                onPressed:
+                                    _openingAuth ? null : _openLuoXueOAuth,
+                                child: Text(context.l10n.accountAuthorizeLXNS),
+                              ),
+                            TextButton(
+                                onPressed: () => _openSource(platform),
+                                child: Text(context.l10n.flowOpenWebsite)),
+                          ]),
                           if (platform == SyncPlatform.awmc &&
                               !_qqPattern.hasMatch(_qq)) ...[
+                            const SizedBox(height: 8),
                             TextField(
                               key: const ValueKey('multi-sync-qq'),
                               controller: _qqController,
@@ -471,32 +465,19 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
                                 labelText: context.l10n.flowAWMCNETQQID,
                               ).insetLabel(context),
                             ),
-                            const SizedBox(height: 12),
-                          ],
-                          if (!hasToken)
-                            TextField(
-                              key: ValueKey('multi-sync-token-${platform.key}'),
-                              controller: _tokenControllers[platform],
-                              enabled: _saving == null,
-                              obscureText: true,
-                              autocorrect: false,
-                              enableSuggestions: false,
-                              decoration: InputDecoration(
-                                labelText: tokenLabel,
-                              ).insetLabel(context),
+                            if (_errors[platform] != null) ...[
+                              const SizedBox(height: 6),
+                              Text(_errors[platform]!,
+                                  style: TextStyle(color: scheme.error)),
+                            ],
+                            const SizedBox(height: 8),
+                            FilledButton.tonal(
+                              onPressed: _saving == null ? _saveAwmcQq : null,
+                              child: Text(saving
+                                  ? context.l10n.flowSaving
+                                  : context.l10n.flowSaveAndSelect),
                             ),
-                          if (_errors[platform] != null)
-                            Text(_errors[platform]!,
-                                style: TextStyle(color: scheme.error)),
-                          const SizedBox(height: 8),
-                          FilledButton.tonal(
-                            onPressed: _saving == null
-                                ? () => _saveCredential(platform)
-                                : null,
-                            child: Text(saving
-                                ? context.l10n.flowSaving
-                                : context.l10n.flowSaveAndSelect),
-                          ),
+                          ],
                         ],
                       ]),
                 ),
@@ -524,19 +505,17 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        if (_quickPlatforms.isNotEmpty)
-                          QuickSyncOption(
-                            key: ValueKey(_quickRevision),
-                            platforms: _quickPlatforms,
-                            onChanged: _setQuickUpdate,
-                          ),
+                        QuickSyncOption(
+                          platforms: _selected,
+                          onChanged: _setQuickUpdate,
+                        ),
                         AnimatedReveal(
                           visible: !_quickUpdate,
                           child: SyncNoticeCard(
                             icon: Icons.qr_code_2_rounded,
                             color: Theme.of(context).colorScheme.primary,
                             child: Text(context
-                                .l10n.flowNormalSyncRequiresANewCabinetQR),
+                                .l10n.flowOneCabinetQRForAllSelectedRoute1),
                           ),
                         ),
                       ],

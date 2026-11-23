@@ -181,14 +181,17 @@ class _AutoSyncStatusFooterState extends State<AutoSyncStatusFooter>
                 'running' => scheme.primary,
                 _ => scheme.onSurfaceVariant,
               };
-    final time = _time(
-        task?.status == 'running' && task?.timing?.retryAt != null
-            ? task!.timing!.retryAt
-            : task?.lastResult?.finishedAt ??
-                task?.lastResult?.startedAt ??
-                task?.lastRunAt);
+    final retryAt = task?.timing?.retryAt;
+    final hasFutureRetry = task?.waiting == true &&
+        retryAt != null &&
+        retryAt.isAfter(DateTime.now());
+    final time = _time(hasFutureRetry
+        ? retryAt
+        : task?.lastResult?.finishedAt ??
+            task?.lastResult?.startedAt ??
+            task?.lastRunAt);
     final detail = _detail(task, platform, failed: failed);
-    final timeLabel = task?.status == 'running' && task?.timing?.retryAt != null
+    final timeLabel = hasFutureRetry
         ? context.l10n.flowExpectedRetry
         : context.l10n.flowLastRun;
     final textStyle = TextStyle(fontSize: 11.5, color: scheme.onSurfaceVariant);
@@ -270,7 +273,10 @@ class _AutoSyncStatusFooterState extends State<AutoSyncStatusFooter>
       parts.add(context.l10n
           .flowPreviousRoundP02((_resultBrief(task.lastResult!)).toString()));
     }
-    if (task.status != 'running' && task.nextRunAt != null) {
+    if (task.status != 'running' &&
+        task.queue?.upcoming != false &&
+        task.nextRunAt != null &&
+        task.nextRunAt!.isAfter(DateTime.now())) {
       final retry = task.lastResult?.status == 'failed';
       parts.add(
           '${retry ? context.l10n.flowNextAutomaticRetry : context.l10n.flowNextRun}：${AutoSyncDisplay.dateTime(task.nextRunAt)}');

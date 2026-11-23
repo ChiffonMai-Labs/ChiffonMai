@@ -54,12 +54,6 @@ class FavoriteFeaturesNotifier {
     // 「主题与交互偏好」改名为「系统设置」，老收藏要跟着迁移，否则星标会消失。
     '主题与背景': '系统设置',
     '主题与交互偏好': '系统设置',
-    // 「账号管理」只保留各平台成绩导入 Token，改名为「成绩导入凭据」；
-    // 旧版曾用当前语言的译文作收藏键，一并迁移。
-    '账号管理': '成绩导入凭据',
-    '賬號管理': '成绩导入凭据',
-    'Account management': '成绩导入凭据',
-    'アカウント管理': '成绩导入凭据',
     // 「刷新数据」按实际作用改名：拉取成绩、重算 Best50 并更新曲库数据。
     '刷新数据': '拉取成绩并更新数据',
     // 「（高级）」对话框已并入普通入口。
@@ -85,8 +79,15 @@ class FavoriteFeaturesNotifier {
     final migrated = <String>{};
     var changed = false;
     for (final title in titles) {
-      // 已弃用的控制台不再保留收藏，其他 AWMC 同步功能仍然保留。
-      if (title == 'AWMC 网关') {
+      // 已弃用的控制台与全局导入凭据入口不再保留收藏，其它同步功能仍然保留。
+      if (const {
+        'AWMC 网关',
+        '成绩导入凭据',
+        '账号管理',
+        '賬號管理',
+        'Account management',
+        'アカウント管理',
+      }.contains(title)) {
         changed = true;
         continue;
       }

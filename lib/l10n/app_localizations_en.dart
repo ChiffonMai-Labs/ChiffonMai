@@ -2535,7 +2535,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get flowCredentialsAreEncryptedAndHostedWhileEnabled =>
-      'Credentials are encrypted and hosted while enabled, then deleted when disabled.';
+      'Required auto-sync credentials are encrypted and hosted while enabled, then deleted when disabled.';
 
   @override
   String get flowAboutSync => 'About sync';
@@ -2555,7 +2555,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get flowLinkYourCabinetIdentityUsingAQR =>
-      'Link your cabinet identity using a QR code to share credentials across all three sources. A normal QR sync also links it automatically. Each source still needs its own personal key and account.\n\nQuick sync is scheduled between 08:00 and 24:00 China time. The three sources share one cabinet score fetch, then compare and upload changes separately.\n\nProgress shows the current stage, pages read, uploaded and submitted scores, and elapsed time. Upstream waits show a reason and estimated retry time. Last results include duration, cabinet data collection time and the next retry.\n\nAuto sync shares an upstream request budget and rate limit. It pauses with a reason during maintenance, quota shortages or network errors instead of continuously retrying.\n\nDisabling during a run stops later batches; submitted scores remain. Uncertain uploads are checked before retrying to avoid duplicates.';
+      'Link your cabinet identity using a QR code to share credentials across all three sources. A normal QR sync also links it automatically. Diving-Fish requires OAuth with read/write permission and AWMC NET only requires a linked QQ (no import token needed); only LXNS auto-sync requires a personal API key on this page.\n\nQuick sync is scheduled between 08:00 and 24:00 China time. The three sources share one cabinet score fetch, then compare and upload changes separately.\n\nProgress shows the current stage, pages read, uploaded and submitted scores, and elapsed time. Upstream waits show a reason and estimated retry time. Last results include duration, cabinet data collection time and the next retry.\n\nAuto sync shares an upstream request budget and rate limit. It pauses with a reason during maintenance, quota shortages or network errors instead of continuously retrying.\n\nDisabling during a run stops later batches; submitted scores remain. Uncertain uploads are checked before retrying to avoid duplicates.';
 
   @override
   String get flowSaving => 'Saving…';
@@ -3013,7 +3013,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get flowSignInSavedForOCRAndRoute =>
-      'Sign-in saved for OCR and Route 2 sync.\nYou do not need to scan again to sign in.';
+      'Sign-in saved for OCR.\nYou do not need to scan again to sign in.';
 
   @override
   String get flowAuthenticatesWithMaimaiScoreHubOnlyNo =>
@@ -3810,7 +3810,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get flowNoLXNSPersonalAPIKeySetIt =>
-      'No LXNS personal API key. Set it in Score import credentials first.';
+      'LXNS account is not authorized yet. Complete LXNS OAuth in Binding & Authorization Management first.';
 
   @override
   String get flowPhotographTheCabinetResultScreen =>
@@ -4847,7 +4847,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get flowPersonalAPIKeyResetItThenPaste =>
-      'Personal API key: reset it, then paste it into Me → Score import credentials → LXNS API key.';
+      'Personal API key: only needed for LXNS auto-sync—reset it and paste it on the Auto Sync page; manual sync uses OAuth above.';
 
   @override
   String get flowYouCanAlsoVisitChiffonChuFromThe =>
@@ -4873,7 +4873,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get flowImportTokenRegenerateItThenPasteIt =>
-      'Import-Token: regenerate it, then paste it in Me → Score import credentials → AWMC score import Token.';
+      'Sync note: AWMC NET sync now works without an Import-Token—just link your QQ ID in Me → Accounts & Auth → Binding & Authorization Management.';
 
   @override
   String get flowRotatingATokenReplacesTheOldOne =>
@@ -4934,7 +4934,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get flowNoLXNSPersonalAPIKeySetConfigure =>
-      'No LXNS personal API key set. Configure it in Score import credentials first.';
+      'LXNS account is not authorized yet. Authorize LXNS OAuth in Binding & Authorization Management first.';
 
   @override
   String get flowQuickSyncSupportsRoute1Only =>
@@ -5677,6 +5677,16 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String flowP0Hours(String p0) {
+    return '$p0 hr';
+  }
+
+  @override
+  String flowP0HoursP1Min(String p0, String p1) {
+    return '$p0 hr $p1 min';
+  }
+
+  @override
   String get flowJustNow => 'Just now';
 
   @override
@@ -5695,6 +5705,11 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String flowP0RetryAroundP1(String p0, String p1) {
     return '$p0, retry around $p1';
+  }
+
+  @override
+  String flowP0RetryingSoon(String p0) {
+    return '$p0, retrying soon';
   }
 
   @override
@@ -14246,7 +14261,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get svcTheAWMCNETImportTokenIsInvalid =>
-      'The AWMC NET Import-Token is invalid. Save a valid token in Score import credentials; enabled scheduled tasks will update automatically.';
+      'The AWMC NET Import-Token is invalid. Toggle AWMC NET auto-sync off and back on on the Auto Sync page to switch to token-less mode.';
 
   @override
   String get svcCouldNotReadCabinetScoresTryAgain =>
@@ -14286,7 +14301,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get svcThisMorningSProcessingWindowHasEnded =>
-      'This morning\'s processing window has ended. It will continue in the next round.';
+      'Today\'s processing window has ended and will continue in the next round';
 
   @override
   String get svcTheUploadResultIsUncertainTheNext =>
@@ -14298,7 +14313,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String svcSetUpTheSyncCredentialsForP0(String p0) {
-    return 'Set the $p0 score import token in Score import credentials first';
+    return 'Enter your personal API key for $p0 on the Auto Sync page first';
   }
 
   @override
@@ -16100,4 +16115,88 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get awmcUnplayed => 'Unplayed';
+
+  @override
+  String get flowDivingFishReadAuthorizedNeedWriteReauth =>
+      'Read access is authorized. Tap “Authorize again” once to enable token-less Route 1 sync.';
+
+  @override
+  String get flowDivingFishWriteConsentRequiredMessage =>
+      'Diving-Fish write permission has not been granted yet. Tap “Authorize again” and confirm in your browser.';
+
+  @override
+  String get flowDivingFishWriteAuthDialogTitle =>
+      'Diving-Fish write access required';
+
+  @override
+  String get flowDivingFishWriteAuthDialogBody =>
+      'Diving-Fish Route 1 now uses OAuth without an Import-Token. Complete write authorization in your browser and try again.';
+
+  @override
+  String get flowDivingFishWriteAuthDialogBodyWithFallback =>
+      'Diving-Fish Route 1 now uses OAuth without an Import-Token. Complete write authorization, or continue using your saved Import-Token.';
+
+  @override
+  String get flowUseImportTokenFallback => 'Use Import-Token';
+
+  @override
+  String get flowLuoXueRoute1AuthDialogTitle => 'LXNS authorization required';
+
+  @override
+  String get flowLuoXueRoute1AuthDialogBody =>
+      'LXNS Route 1 supports official OAuth without a personal API key. Go to Me → Accounts & Auth → Binding & Authorization Management to authorize your LXNS account.';
+
+  @override
+  String get flowNoDivingFishQqBoundHint =>
+      'No QQ ID linked to Diving-Fish was found. Sign in to Diving-Fish and bind a QQ ID first.';
+
+  @override
+  String flowAWMCNETQQBoundP0(String p0) {
+    return 'Linked QQ: $p0';
+  }
+
+  @override
+  String get flowEnterAWMCNETQQNoTokenTitle =>
+      'Enter AWMC NET QQ ID (No Import-Token)';
+
+  @override
+  String get flowAWMCNETQQNoTokenHint =>
+      'Enter the QQ ID linked to your profile on net.wmc.pub. No import token is needed.';
+
+  @override
+  String get flowQQSaved => 'QQ ID saved';
+
+  @override
+  String get flowDivingFishOAuthWriteChip => 'OAuth R/W';
+
+  @override
+  String get flowLXNSOAuthChip => 'LXNS OAuth';
+
+  @override
+  String get flowMultiFishOAuthWriteMissingHint =>
+      'Authorize Diving-Fish with write permission first.';
+
+  @override
+  String get flowMultiLxnsOAuthMissingHint =>
+      'Tap Authorize now to complete LXNS OAuth authorization.';
+
+  @override
+  String get flowOneCabinetQRForAllSelectedRoute1 =>
+      'One cabinet QR code will be shared across all selected Route 1 sources.';
+
+  @override
+  String get flowGoAuthorizeDivingFishWrite => 'Authorize now';
+
+  @override
+  String get flowRecheckAuthorizationStatus => 'Recheck authorization';
+
+  @override
+  String get flowChangePersonalApiKey => 'Change personal API key';
+
+  @override
+  String get flowClearPersonalApiKey => 'Clear personal API key';
+
+  @override
+  String get flowClearPersonalApiKeyConfirm =>
+      'Clearing the saved LXNS personal API key will also disable LXNS auto-sync if it is currently enabled. Continue?';
 }

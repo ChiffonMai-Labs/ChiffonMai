@@ -42,7 +42,6 @@ import '../utils/SyncRouteNotifier.dart';
 import '../utils/HomeRefreshNotifier.dart';
 import '../utils/RefreshErrorPresenter.dart';
 import '../utils/UpdateNotifier.dart';
-import '../widgets/SyncRouteFooter.dart';
 import '../widgets/SyncStatsFooter.dart';
 import '../widgets/AutoSyncStatusFooter.dart';
 import '../widgets/SyncFlowMixin.dart';
@@ -78,12 +77,10 @@ import '../widgets/AppToast.dart';
 import '../utils/MaimaiHubLoginNotifier.dart';
 
 class SystemHubPage extends StatefulWidget {
-  final VoidCallback onAccountManageTap;
   final ValueNotifier<FeatureTask?> activeTask;
 
   const SystemHubPage({
     super.key,
-    required this.onAccountManageTap,
     required this.activeTask,
   });
 
@@ -749,15 +746,6 @@ class SystemHubPageState extends State<SystemHubPage>
                 onToggleFavorite: () => _toggleFavorite('账号注册引导'),
                 onTap: () => showAccountRegistrationGuide(context),
               ),
-              '成绩导入凭据': HubActionTile(
-                title: '成绩导入凭据',
-                subtitle: '管理水鱼、落雪与 AWMC NET 的成绩导入 Token',
-                icon: Icons.key_outlined,
-                isFavorited: _isFavorited('成绩导入凭据'),
-                onToggleFavorite: () => _toggleFavorite('成绩导入凭据'),
-                onTap: widget.onAccountManageTap,
-                footer: const ImportCredentialStatusFooter(),
-              ),
               '切换账号': HubActionTile(
                 title: '切换账号',
                 subtitle: '切换数据源与玩家信息，使用本地缓存',
@@ -808,10 +796,9 @@ class SystemHubPageState extends State<SystemHubPage>
                 progressValue: divingFishProgress,
                 disabledReason: _busyReason,
                 disabled: anyBusy && !syncingDivingFish,
-                // 线路切换 + 统计：与首页「收藏的功能」区共用同一份状态
-                footer: SyncRouteFooter(
-                  platform: SyncPlatform.divingFish,
-                  enabled: !anyBusy,
+                footerLift: SyncStatsFooter.footerLift,
+                footer: const SyncStatsFooter(
+                  slot: (SyncLine.awmc, SyncPlatform.divingFish),
                 ),
               ),
               '同步成绩到落雪': HubActionTile(
@@ -827,9 +814,9 @@ class SystemHubPageState extends State<SystemHubPage>
                 progressValue: luoXueProgress,
                 disabledReason: _busyReason,
                 disabled: anyBusy && !syncingLuoXue,
-                footer: SyncRouteFooter(
-                  platform: SyncPlatform.luoXue,
-                  enabled: !anyBusy,
+                footerLift: SyncStatsFooter.footerLift,
+                footer: const SyncStatsFooter(
+                  slot: (SyncLine.awmc, SyncPlatform.luoXue),
                 ),
               ),
               '同步成绩到 AWMC NET': HubActionTile(

@@ -4424,7 +4424,7 @@ abstract class AppLocalizations {
   /// No description provided for @flowCredentialsAreEncryptedAndHostedWhileEnabled.
   ///
   /// In zh, this message translates to:
-  /// **'开启后加密托管同步凭据，关闭即删除。'**
+  /// **'开启后按需加密托管自动同步所需凭据，关闭即删除。'**
   String get flowCredentialsAreEncryptedAndHostedWhileEnabled;
 
   /// No description provided for @flowAboutSync.
@@ -4454,7 +4454,7 @@ abstract class AppLocalizations {
   /// No description provided for @flowLinkYourCabinetIdentityUsingAQR.
   ///
   /// In zh, this message translates to:
-  /// **'输入二维码绑定机台身份后，同步凭据可供三个数据源共用；也可以通过一次普通二维码同步自动完成绑定。各数据源仍需配置各自的个人 key 和账号。\n\n每天在北京时间 08:00–24:00 分时安排快速同步：同一用户的三个数据源共用一份机台成绩读取结果，再分别读取目标成绩并上传变化。\n\n执行中会显示当前阶段、已读取页数、上传与已提交条数、已用时长；遇到上游等待会显示原因和预计重试时间。上轮结果会给出耗时、机台数据采集时间和下次重试时间。\n\n自动同步使用统一的上游请求预算和限流；遇到维护、配额不足或网络错误会暂停并显示原因，不会连续重试。\n\n正在执行时关闭，会停止后续批次，已经提交的成绩会保留；上传结果不确定时会先核对，不盲目重复提交。'**
+  /// **'输入二维码绑定机台身份后，同步凭据可供三个数据源共用；也可以通过一次普通二维码同步自动完成绑定。水鱼需完成包含读写权限的 OAuth 授权、AWMC NET 需绑定 QQ（两者均免导入 Token），仅落雪自动同步需在本页填写个人 API 密钥。\n\n每天在北京时间 08:00–24:00 分时安排快速同步：同一用户的三个数据源共用一份机台成绩读取结果，再分别读取目标成绩并上传变化。\n\n执行中会显示当前阶段、已读取页数、上传与已提交条数、已用时长；遇到上游等待会显示原因和预计重试时间。上轮结果会给出耗时、机台数据采集时间和下次重试时间。\n\n自动同步使用统一的上游请求预算和限流；遇到维护、配额不足或网络错误会暂停并显示原因，不会连续重试。\n\n正在执行时关闭，会停止后续批次，已经提交的成绩会保留；上传结果不确定时会先核对，不盲目重复提交。'**
   String get flowLinkYourCabinetIdentityUsingAQR;
 
   /// No description provided for @flowSaving.
@@ -5186,7 +5186,7 @@ abstract class AppLocalizations {
   /// No description provided for @flowSignInSavedForOCRAndRoute.
   ///
   /// In zh, this message translates to:
-  /// **'登录状态已保存。可复用于 OCR 与线路2 同步，\n不需要再重复扫码登录。'**
+  /// **'登录状态已保存，可直接用于 OCR 识别，\n不需要再重复扫码登录。'**
   String get flowSignInSavedForOCRAndRoute;
 
   /// No description provided for @flowAuthenticatesWithMaimaiScoreHubOnlyNo.
@@ -6489,7 +6489,7 @@ abstract class AppLocalizations {
   /// No description provided for @flowNoLXNSPersonalAPIKeySetIt.
   ///
   /// In zh, this message translates to:
-  /// **'还没有落雪个人 API 密钥，请先到「成绩导入凭据」填写'**
+  /// **'尚未授权落雪账号，请先到「绑定与授权管理」完成落雪 OAuth 授权'**
   String get flowNoLXNSPersonalAPIKeySetIt;
 
   /// No description provided for @flowPhotographTheCabinetResultScreen.
@@ -8175,7 +8175,7 @@ abstract class AppLocalizations {
   /// No description provided for @flowPersonalAPIKeyResetItThenPaste.
   ///
   /// In zh, this message translates to:
-  /// **'个人 API 密钥：点“重置 API 密钥”，然后到 App 的“我的 → 成绩导入凭据”，下滑找到“落雪 API 密钥”并填入。'**
+  /// **'个人 API 密钥：仅开启落雪自动同步时需要，点“重置 API 密钥”后到“自动同步”页面粘贴保存；手动同步完成上方 OAuth 授权即可。'**
   String get flowPersonalAPIKeyResetItThenPaste;
 
   /// No description provided for @flowYouCanAlsoVisitChiffonChuFromThe.
@@ -8217,7 +8217,7 @@ abstract class AppLocalizations {
   /// No description provided for @flowImportTokenRegenerateItThenPasteIt.
   ///
   /// In zh, this message translates to:
-  /// **'Import-Token：点“重新生成”轮换，然后到 App 的“我的 → 账号与授权 → 成绩导入凭据”，在对话框里下滑到“AWMC 成绩导入 Token”并填入。'**
+  /// **'同步说明：AWMC NET 已支持免导入 Token 同步成绩，只需在 App 的“我的 → 账号与授权 → 绑定与授权管理”绑定 QQ 即可，无需手动填写 Import-Token。'**
   String get flowImportTokenRegenerateItThenPasteIt;
 
   /// No description provided for @flowRotatingATokenReplacesTheOldOne.
@@ -8313,7 +8313,7 @@ abstract class AppLocalizations {
   /// No description provided for @flowNoLXNSPersonalAPIKeySetConfigure.
   ///
   /// In zh, this message translates to:
-  /// **'尚未设置落雪个人 API 密钥，请先在「成绩导入凭据」中设置'**
+  /// **'尚未完成落雪账号授权，请先前往「绑定与授权管理」完成落雪 OAuth 授权'**
   String get flowNoLXNSPersonalAPIKeySetConfigure;
 
   /// No description provided for @flowQuickSyncSupportsRoute1Only.
@@ -9505,6 +9505,18 @@ abstract class AppLocalizations {
   /// **'{p0} 分 {p1} 秒'**
   String flowP0MinP1Sec(String p0, String p1);
 
+  /// No description provided for @flowP0Hours.
+  ///
+  /// In zh, this message translates to:
+  /// **'{p0} 小时'**
+  String flowP0Hours(String p0);
+
+  /// No description provided for @flowP0HoursP1Min.
+  ///
+  /// In zh, this message translates to:
+  /// **'{p0} 小时 {p1} 分'**
+  String flowP0HoursP1Min(String p0, String p1);
+
   /// No description provided for @flowJustNow.
   ///
   /// In zh, this message translates to:
@@ -9540,6 +9552,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'{p0}，预计 {p1} 重试'**
   String flowP0RetryAroundP1(String p0, String p1);
+
+  /// No description provided for @flowP0RetryingSoon.
+  ///
+  /// In zh, this message translates to:
+  /// **'{p0}，即将重试'**
+  String flowP0RetryingSoon(String p0);
 
   /// No description provided for @flowProcessingTimedOut.
   ///
@@ -23619,7 +23637,7 @@ abstract class AppLocalizations {
   /// No description provided for @svcTheAWMCNETImportTokenIsInvalid.
   ///
   /// In zh, this message translates to:
-  /// **'AWMC NET 的 Import-Token 无效，请在成绩导入凭据重新保存有效 Token，已开启的定时任务会自动更新'**
+  /// **'AWMC NET 的导入 Token 已失效，请在「自动同步」页面关闭后重新开启 AWMC NET 自动同步，以切换至免 Token 模式'**
   String get svcTheAWMCNETImportTokenIsInvalid;
 
   /// No description provided for @svcCouldNotReadCabinetScoresTryAgain.
@@ -23679,7 +23697,7 @@ abstract class AppLocalizations {
   /// No description provided for @svcThisMorningSProcessingWindowHasEnded.
   ///
   /// In zh, this message translates to:
-  /// **'本次上午处理窗口已结束，将在下一轮继续'**
+  /// **'当天处理窗口已结束，将在下一轮继续'**
   String get svcThisMorningSProcessingWindowHasEnded;
 
   /// No description provided for @svcTheUploadResultIsUncertainTheNext.
@@ -23697,7 +23715,7 @@ abstract class AppLocalizations {
   /// No description provided for @svcSetUpTheSyncCredentialsForP0.
   ///
   /// In zh, this message translates to:
-  /// **'请先在「成绩导入凭据」设置{p0}的成绩导入 Token'**
+  /// **'请先在「自动同步」页面填写{p0}的个人 API 密钥'**
   String svcSetUpTheSyncCredentialsForP0(String p0);
 
   /// No description provided for @svcSetUpYourP0AccountFirst.
@@ -26581,6 +26599,144 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'未游玩'**
   String get awmcUnplayed;
+
+  /// No description provided for @flowDivingFishReadAuthorizedNeedWriteReauth.
+  ///
+  /// In zh, this message translates to:
+  /// **'已授权读取成绩；点击下方「重新授权」一次，即可开启线路 1 免导入 Token 同步。'**
+  String get flowDivingFishReadAuthorizedNeedWriteReauth;
+
+  /// No description provided for @flowDivingFishWriteConsentRequiredMessage.
+  ///
+  /// In zh, this message translates to:
+  /// **'水鱼账号尚未授予写入权限，请点击「重新授权」并在浏览器确认后再试。'**
+  String get flowDivingFishWriteConsentRequiredMessage;
+
+  /// No description provided for @flowDivingFishWriteAuthDialogTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'需要水鱼写入授权'**
+  String get flowDivingFishWriteAuthDialogTitle;
+
+  /// No description provided for @flowDivingFishWriteAuthDialogBody.
+  ///
+  /// In zh, this message translates to:
+  /// **'水鱼线路 1 已支持通过官方 OAuth 免导入 Token 同步成绩。请点击「前往授权」在浏览器完成一次包含写入权限的授权后再试。'**
+  String get flowDivingFishWriteAuthDialogBody;
+
+  /// No description provided for @flowDivingFishWriteAuthDialogBodyWithFallback.
+  ///
+  /// In zh, this message translates to:
+  /// **'水鱼线路 1 已支持通过官方 OAuth 免导入 Token 同步成绩，请完成一次写入授权；若暂时不便授权，也可继续使用本地缓存的导入 Token。'**
+  String get flowDivingFishWriteAuthDialogBodyWithFallback;
+
+  /// No description provided for @flowUseImportTokenFallback.
+  ///
+  /// In zh, this message translates to:
+  /// **'改用导入 Token'**
+  String get flowUseImportTokenFallback;
+
+  /// No description provided for @flowLuoXueRoute1AuthDialogTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'需要落雪账号授权'**
+  String get flowLuoXueRoute1AuthDialogTitle;
+
+  /// No description provided for @flowLuoXueRoute1AuthDialogBody.
+  ///
+  /// In zh, this message translates to:
+  /// **'落雪线路 1 已支持通过官方 OAuth 免个人 API 密钥同步成绩，请前往「我的 → 账号与授权 → 绑定与授权管理」完成落雪账号授权。'**
+  String get flowLuoXueRoute1AuthDialogBody;
+
+  /// No description provided for @flowNoDivingFishQqBoundHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'未找到水鱼账号关联的 QQ 号，请先在「绑定与授权管理」登录水鱼账号并绑定 QQ。'**
+  String get flowNoDivingFishQqBoundHint;
+
+  /// No description provided for @flowAWMCNETQQBoundP0.
+  ///
+  /// In zh, this message translates to:
+  /// **'已关联 QQ：{p0}'**
+  String flowAWMCNETQQBoundP0(String p0);
+
+  /// No description provided for @flowEnterAWMCNETQQNoTokenTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'填写 AWMC NET 关联 QQ（免导入 Token）'**
+  String get flowEnterAWMCNETQQNoTokenTitle;
+
+  /// No description provided for @flowAWMCNETQQNoTokenHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'请输入已在 net.wmc.pub 关联过档案的 QQ 号，无需再填写成绩导入 Token。'**
+  String get flowAWMCNETQQNoTokenHint;
+
+  /// No description provided for @flowQQSaved.
+  ///
+  /// In zh, this message translates to:
+  /// **'QQ 号已保存'**
+  String get flowQQSaved;
+
+  /// No description provided for @flowDivingFishOAuthWriteChip.
+  ///
+  /// In zh, this message translates to:
+  /// **'OAuth 读写'**
+  String get flowDivingFishOAuthWriteChip;
+
+  /// No description provided for @flowLXNSOAuthChip.
+  ///
+  /// In zh, this message translates to:
+  /// **'落雪 OAuth'**
+  String get flowLXNSOAuthChip;
+
+  /// No description provided for @flowMultiFishOAuthWriteMissingHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'请先在水鱼账号中完成包含写入权限的 OAuth 授权。'**
+  String get flowMultiFishOAuthWriteMissingHint;
+
+  /// No description provided for @flowMultiLxnsOAuthMissingHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'请点击「前往授权」完成落雪 OAuth 授权。'**
+  String get flowMultiLxnsOAuthMissingHint;
+
+  /// No description provided for @flowOneCabinetQRForAllSelectedRoute1.
+  ///
+  /// In zh, this message translates to:
+  /// **'所有已选线路 1 来源共用同一张机台二维码，一次读取即可完成同步。'**
+  String get flowOneCabinetQRForAllSelectedRoute1;
+
+  /// No description provided for @flowGoAuthorizeDivingFishWrite.
+  ///
+  /// In zh, this message translates to:
+  /// **'前往授权'**
+  String get flowGoAuthorizeDivingFishWrite;
+
+  /// No description provided for @flowRecheckAuthorizationStatus.
+  ///
+  /// In zh, this message translates to:
+  /// **'重新检查授权'**
+  String get flowRecheckAuthorizationStatus;
+
+  /// No description provided for @flowChangePersonalApiKey.
+  ///
+  /// In zh, this message translates to:
+  /// **'更换个人 API 密钥'**
+  String get flowChangePersonalApiKey;
+
+  /// No description provided for @flowClearPersonalApiKey.
+  ///
+  /// In zh, this message translates to:
+  /// **'清除个人 API 密钥'**
+  String get flowClearPersonalApiKey;
+
+  /// No description provided for @flowClearPersonalApiKeyConfirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'清除本机保存的落雪个人 API 密钥后，若已开启落雪自动同步，将同时关闭该任务。确定要清除吗？'**
+  String get flowClearPersonalApiKeyConfirm;
 }
 
 class _AppLocalizationsDelegate

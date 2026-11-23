@@ -2340,7 +2340,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get flowCredentialsAreEncryptedAndHostedWhileEnabled =>
-      '开启后加密托管同步凭据，关闭即删除。';
+      '开启后按需加密托管自动同步所需凭据，关闭即删除。';
 
   @override
   String get flowAboutSync => '同步说明';
@@ -2360,7 +2360,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get flowLinkYourCabinetIdentityUsingAQR =>
-      '输入二维码绑定机台身份后，同步凭据可供三个数据源共用；也可以通过一次普通二维码同步自动完成绑定。各数据源仍需配置各自的个人 key 和账号。\n\n每天在北京时间 08:00–24:00 分时安排快速同步：同一用户的三个数据源共用一份机台成绩读取结果，再分别读取目标成绩并上传变化。\n\n执行中会显示当前阶段、已读取页数、上传与已提交条数、已用时长；遇到上游等待会显示原因和预计重试时间。上轮结果会给出耗时、机台数据采集时间和下次重试时间。\n\n自动同步使用统一的上游请求预算和限流；遇到维护、配额不足或网络错误会暂停并显示原因，不会连续重试。\n\n正在执行时关闭，会停止后续批次，已经提交的成绩会保留；上传结果不确定时会先核对，不盲目重复提交。';
+      '输入二维码绑定机台身份后，同步凭据可供三个数据源共用；也可以通过一次普通二维码同步自动完成绑定。水鱼需完成包含读写权限的 OAuth 授权、AWMC NET 需绑定 QQ（两者均免导入 Token），仅落雪自动同步需在本页填写个人 API 密钥。\n\n每天在北京时间 08:00–24:00 分时安排快速同步：同一用户的三个数据源共用一份机台成绩读取结果，再分别读取目标成绩并上传变化。\n\n执行中会显示当前阶段、已读取页数、上传与已提交条数、已用时长；遇到上游等待会显示原因和预计重试时间。上轮结果会给出耗时、机台数据采集时间和下次重试时间。\n\n自动同步使用统一的上游请求预算和限流；遇到维护、配额不足或网络错误会暂停并显示原因，不会连续重试。\n\n正在执行时关闭，会停止后续批次，已经提交的成绩会保留；上传结果不确定时会先核对，不盲目重复提交。';
 
   @override
   String get flowSaving => '正在保存…';
@@ -2800,7 +2800,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get flowSignInSavedForOCRAndRoute =>
-      '登录状态已保存。可复用于 OCR 与线路2 同步，\n不需要再重复扫码登录。';
+      '登录状态已保存，可直接用于 OCR 识别，\n不需要再重复扫码登录。';
 
   @override
   String get flowAuthenticatesWithMaimaiScoreHubOnlyNo =>
@@ -3560,7 +3560,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get flowCannotParseSongIDForLXNSSync => '无法解析曲目 ID，不能同步到落雪';
 
   @override
-  String get flowNoLXNSPersonalAPIKeySetIt => '还没有落雪个人 API 密钥，请先到「成绩导入凭据」填写';
+  String get flowNoLXNSPersonalAPIKeySetIt =>
+      '尚未授权落雪账号，请先到「绑定与授权管理」完成落雪 OAuth 授权';
 
   @override
   String get flowPhotographTheCabinetResultScreen => '对着机台结算页面拍一张';
@@ -4556,7 +4557,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get flowPersonalAPIKeyResetItThenPaste =>
-      '个人 API 密钥：点“重置 API 密钥”，然后到 App 的“我的 → 成绩导入凭据”，下滑找到“落雪 API 密钥”并填入。';
+      '个人 API 密钥：仅开启落雪自动同步时需要，点“重置 API 密钥”后到“自动同步”页面粘贴保存；手动同步完成上方 OAuth 授权即可。';
 
   @override
   String get flowYouCanAlsoVisitChiffonChuFromThe =>
@@ -4580,7 +4581,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get flowImportTokenRegenerateItThenPasteIt =>
-      'Import-Token：点“重新生成”轮换，然后到 App 的“我的 → 账号与授权 → 成绩导入凭据”，在对话框里下滑到“AWMC 成绩导入 Token”并填入。';
+      '同步说明：AWMC NET 已支持免导入 Token 同步成绩，只需在 App 的“我的 → 账号与授权 → 绑定与授权管理”绑定 QQ 即可，无需手动填写 Import-Token。';
 
   @override
   String get flowRotatingATokenReplacesTheOldOne =>
@@ -4638,7 +4639,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get flowNoLXNSPersonalAPIKeySetConfigure =>
-      '尚未设置落雪个人 API 密钥，请先在「成绩导入凭据」中设置';
+      '尚未完成落雪账号授权，请先前往「绑定与授权管理」完成落雪 OAuth 授权';
 
   @override
   String get flowQuickSyncSupportsRoute1Only => '快速同步仅支持线路1';
@@ -5360,6 +5361,16 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String flowP0Hours(String p0) {
+    return '$p0 小时';
+  }
+
+  @override
+  String flowP0HoursP1Min(String p0, String p1) {
+    return '$p0 小时 $p1 分';
+  }
+
+  @override
   String get flowJustNow => '刚刚';
 
   @override
@@ -5377,6 +5388,11 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String flowP0RetryAroundP1(String p0, String p1) {
     return '$p0，预计 $p1 重试';
+  }
+
+  @override
+  String flowP0RetryingSoon(String p0) {
+    return '$p0，即将重试';
   }
 
   @override
@@ -13502,7 +13518,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get svcTheAWMCNETImportTokenIsInvalid =>
-      'AWMC NET 的 Import-Token 无效，请在成绩导入凭据重新保存有效 Token，已开启的定时任务会自动更新';
+      'AWMC NET 的导入 Token 已失效，请在「自动同步」页面关闭后重新开启 AWMC NET 自动同步，以切换至免 Token 模式';
 
   @override
   String get svcCouldNotReadCabinetScoresTryAgain => '机台成绩读取失败，请稍后重试';
@@ -13536,7 +13552,7 @@ class AppLocalizationsZh extends AppLocalizations {
       '上游服务暂不可用，任务已暂停，恢复后继续';
 
   @override
-  String get svcThisMorningSProcessingWindowHasEnded => '本次上午处理窗口已结束，将在下一轮继续';
+  String get svcThisMorningSProcessingWindowHasEnded => '当天处理窗口已结束，将在下一轮继续';
 
   @override
   String get svcTheUploadResultIsUncertainTheNext => '上传结果暂不确定，下一轮会先核对后处理';
@@ -13546,7 +13562,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String svcSetUpTheSyncCredentialsForP0(String p0) {
-    return '请先在「成绩导入凭据」设置$p0的成绩导入 Token';
+    return '请先在「自动同步」页面填写$p0的个人 API 密钥';
   }
 
   @override
@@ -15205,6 +15221,87 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get awmcUnplayed => '未游玩';
+
+  @override
+  String get flowDivingFishReadAuthorizedNeedWriteReauth =>
+      '已授权读取成绩；点击下方「重新授权」一次，即可开启线路 1 免导入 Token 同步。';
+
+  @override
+  String get flowDivingFishWriteConsentRequiredMessage =>
+      '水鱼账号尚未授予写入权限，请点击「重新授权」并在浏览器确认后再试。';
+
+  @override
+  String get flowDivingFishWriteAuthDialogTitle => '需要水鱼写入授权';
+
+  @override
+  String get flowDivingFishWriteAuthDialogBody =>
+      '水鱼线路 1 已支持通过官方 OAuth 免导入 Token 同步成绩。请点击「前往授权」在浏览器完成一次包含写入权限的授权后再试。';
+
+  @override
+  String get flowDivingFishWriteAuthDialogBodyWithFallback =>
+      '水鱼线路 1 已支持通过官方 OAuth 免导入 Token 同步成绩，请完成一次写入授权；若暂时不便授权，也可继续使用本地缓存的导入 Token。';
+
+  @override
+  String get flowUseImportTokenFallback => '改用导入 Token';
+
+  @override
+  String get flowLuoXueRoute1AuthDialogTitle => '需要落雪账号授权';
+
+  @override
+  String get flowLuoXueRoute1AuthDialogBody =>
+      '落雪线路 1 已支持通过官方 OAuth 免个人 API 密钥同步成绩，请前往「我的 → 账号与授权 → 绑定与授权管理」完成落雪账号授权。';
+
+  @override
+  String get flowNoDivingFishQqBoundHint =>
+      '未找到水鱼账号关联的 QQ 号，请先在「绑定与授权管理」登录水鱼账号并绑定 QQ。';
+
+  @override
+  String flowAWMCNETQQBoundP0(String p0) {
+    return '已关联 QQ：$p0';
+  }
+
+  @override
+  String get flowEnterAWMCNETQQNoTokenTitle => '填写 AWMC NET 关联 QQ（免导入 Token）';
+
+  @override
+  String get flowAWMCNETQQNoTokenHint =>
+      '请输入已在 net.wmc.pub 关联过档案的 QQ 号，无需再填写成绩导入 Token。';
+
+  @override
+  String get flowQQSaved => 'QQ 号已保存';
+
+  @override
+  String get flowDivingFishOAuthWriteChip => 'OAuth 读写';
+
+  @override
+  String get flowLXNSOAuthChip => '落雪 OAuth';
+
+  @override
+  String get flowMultiFishOAuthWriteMissingHint =>
+      '请先在水鱼账号中完成包含写入权限的 OAuth 授权。';
+
+  @override
+  String get flowMultiLxnsOAuthMissingHint => '请点击「前往授权」完成落雪 OAuth 授权。';
+
+  @override
+  String get flowOneCabinetQRForAllSelectedRoute1 =>
+      '所有已选线路 1 来源共用同一张机台二维码，一次读取即可完成同步。';
+
+  @override
+  String get flowGoAuthorizeDivingFishWrite => '前往授权';
+
+  @override
+  String get flowRecheckAuthorizationStatus => '重新检查授权';
+
+  @override
+  String get flowChangePersonalApiKey => '更换个人 API 密钥';
+
+  @override
+  String get flowClearPersonalApiKey => '清除个人 API 密钥';
+
+  @override
+  String get flowClearPersonalApiKeyConfirm =>
+      '清除本机保存的落雪个人 API 密钥后，若已开启落雪自动同步，将同时关闭该任务。确定要清除吗？';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -17543,7 +17640,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get flowCredentialsAreEncryptedAndHostedWhileEnabled =>
-      '開啓後加密託管同步憑據，關閉即刪除。';
+      '開啟後按需加密託管自動同步所需憑據，關閉即刪除。';
 
   @override
   String get flowAboutSync => '同步說明';
@@ -17563,7 +17660,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get flowLinkYourCabinetIdentityUsingAQR =>
-      '輸入二維碼綁定機臺身份後，同步憑據可供三個數據源共用；也可以通過一次普通二維碼同步自動完成綁定。各數據源仍需配置各自的個人 key 和賬號。\n\n每天在北京時間 08:00–24:00 分時安排快速同步：同一用戶的三個數據源共用一份機臺成績讀取結果，再分別讀取目標成績並上傳變化。\n\n執行中會顯示當前階段、已讀取頁數、上傳與已提交條數、已用時長；遇到上游等待會顯示原因和預計重試時間。上輪結果會給出耗時、機臺數據採集時間和下次重試時間。\n\n自動同步使用統一的上游請求預算和限流；遇到維護、配額不足或網絡錯誤會暫停並顯示原因，不會連續重試。\n\n正在執行時關閉，會停止後續批次，已經提交的成績會保留；上傳結果不確定時會先覈對，不盲目重複提交。';
+      '輸入二維碼綁定機臺身份後，同步憑據可供三個數據源共用；也可以通過一次普通二維碼同步自動完成綁定。水魚需完成包含讀寫權限的 OAuth 授權、AWMC NET 需綁定 QQ（兩者均免導入 Token），僅落雪自動同步需在本頁填寫個人 API 密鑰。\n\n每天在北京時間 08:00–24:00 分時安排快速同步：同一用戶的三個數據源共用一份機臺成績讀取結果，再分別讀取目標成績並上傳變化。\n\n執行中會顯示當前階段、已讀取頁數、上傳與已提交條數、已用時長；遇到上游等待會顯示原因和預計重試時間。上輪結果會給出耗時、機臺數據採集時間和下次重試時間。\n\n自動同步使用統一的上游請求預算和限流；遇到維護、配額不足或網絡錯誤會暫停並顯示原因，不會連續重試。\n\n正在執行時關閉，會停止後續批次，已經提交的成績會保留；上傳結果不確定時會先覈對，不盲目重複提交。';
 
   @override
   String get flowSaving => '正在保存…';
@@ -18003,7 +18100,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get flowSignInSavedForOCRAndRoute =>
-      '登錄狀態已保存。可複用於 OCR 與線路2 同步，\n不需要再重複掃碼登錄。';
+      '登錄狀態已保存，可直接用於 OCR 識別，\n不需要再重複掃碼登錄。';
 
   @override
   String get flowAuthenticatesWithMaimaiScoreHubOnlyNo =>
@@ -18763,7 +18860,8 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get flowCannotParseSongIDForLXNSSync => '無法解析曲目 ID，不能同步到落雪';
 
   @override
-  String get flowNoLXNSPersonalAPIKeySetIt => '還沒有落雪個人 API 密鑰，請先到「成績導入憑據」填寫';
+  String get flowNoLXNSPersonalAPIKeySetIt =>
+      '尚未授權落雪帳號，請先到「綁定與授權管理」完成落雪 OAuth 授權';
 
   @override
   String get flowPhotographTheCabinetResultScreen => '對着機臺結算頁面拍一張';
@@ -19759,7 +19857,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get flowPersonalAPIKeyResetItThenPaste =>
-      '個人 API 密鑰：點“重置 API 密鑰”，然後到 App 的“我的 → 成績導入憑據”，下滑找到“落雪 API 密鑰”並填入。';
+      '個人 API 密鑰：僅開啟落雪自動同步時需要，點“重置 API 密鑰”後到“自動同步”頁面黏貼保存；手動同步完成上方 OAuth 授權即可。';
 
   @override
   String get flowYouCanAlsoVisitChiffonChuFromThe =>
@@ -19783,7 +19881,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get flowImportTokenRegenerateItThenPasteIt =>
-      'Import-Token：點“重新生成”輪換，然後到 App 的“我的 → 賬號與授權 → 成績導入憑據”，在對話框裏下滑到“AWMC 成績導入 Token”並填入。';
+      '同步說明：AWMC NET 已支持免導入 Token 同步成績，只需在 App 的“我的 → 賬號與授權 → 綁定與授權管理”綁定 QQ 即可，無需手動填寫 Import-Token。';
 
   @override
   String get flowRotatingATokenReplacesTheOldOne =>
@@ -19841,7 +19939,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get flowNoLXNSPersonalAPIKeySetConfigure =>
-      '尚未設置落雪個人 API 密鑰，請先在「成績導入憑據」中設置';
+      '尚未完成落雪帳號授權，請先前往「綁定與授權管理」完成落雪 OAuth 授權';
 
   @override
   String get flowQuickSyncSupportsRoute1Only => '快速同步僅支持線路1';
@@ -20563,6 +20661,16 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   }
 
   @override
+  String flowP0Hours(String p0) {
+    return '$p0 小時';
+  }
+
+  @override
+  String flowP0HoursP1Min(String p0, String p1) {
+    return '$p0 小時 $p1 分';
+  }
+
+  @override
   String get flowJustNow => '剛剛';
 
   @override
@@ -20580,6 +20688,11 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   @override
   String flowP0RetryAroundP1(String p0, String p1) {
     return '$p0，預計 $p1 重試';
+  }
+
+  @override
+  String flowP0RetryingSoon(String p0) {
+    return '$p0，即將重試';
   }
 
   @override
@@ -28706,7 +28819,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get svcTheAWMCNETImportTokenIsInvalid =>
-      'AWMC NET 的 Import-Token 無效，請在成績導入憑據重新儲存有效 Token，已開啟的定時任務會自動更新';
+      'AWMC NET 的導入 Token 已失效，請在「自動同步」頁面關閉後重新開啟 AWMC NET 自動同步，以切換至免 Token 模式';
 
   @override
   String get svcCouldNotReadCabinetScoresTryAgain => '機台成績讀取失敗，請稍後重試';
@@ -28740,7 +28853,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
       '上游服務暫不可用，任務已暫停，恢復後繼續';
 
   @override
-  String get svcThisMorningSProcessingWindowHasEnded => '本次上午處理時段已結束，將在下一輪繼續';
+  String get svcThisMorningSProcessingWindowHasEnded => '當天處理視窗已結束，將在下一輪繼續';
 
   @override
   String get svcTheUploadResultIsUncertainTheNext => '上傳結果暫不確定，下一輪會先核對後處理';
@@ -28750,7 +28863,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String svcSetUpTheSyncCredentialsForP0(String p0) {
-    return '請先在「成績導入憑據」設定$p0的成績導入 Token';
+    return '請先在「自動同步」頁面填寫$p0的個人 API 密鑰';
   }
 
   @override
@@ -30410,4 +30523,85 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get awmcUnplayed => '未遊玩';
+
+  @override
+  String get flowDivingFishReadAuthorizedNeedWriteReauth =>
+      '已授權讀取成績；點擊下方「重新授權」一次，即可開啟線路 1 免導入 Token 同步。';
+
+  @override
+  String get flowDivingFishWriteConsentRequiredMessage =>
+      '水魚帳號尚未授予寫入權限，請點擊「重新授權」並在瀏覽器確認後再試。';
+
+  @override
+  String get flowDivingFishWriteAuthDialogTitle => '需要水魚寫入授權';
+
+  @override
+  String get flowDivingFishWriteAuthDialogBody =>
+      '水魚線路 1 已支持通過官方 OAuth 免導入 Token 同步成績。請點擊「前往授權」在瀏覽器完成一次包含寫入權限的授權後再試。';
+
+  @override
+  String get flowDivingFishWriteAuthDialogBodyWithFallback =>
+      '水魚線路 1 已支持通過官方 OAuth 免導入 Token 同步成績，請完成一次寫入授權；若暫時不便授權，也可繼續使用本機快取的導入 Token。';
+
+  @override
+  String get flowUseImportTokenFallback => '改用導入 Token';
+
+  @override
+  String get flowLuoXueRoute1AuthDialogTitle => '需要落雪帳號授權';
+
+  @override
+  String get flowLuoXueRoute1AuthDialogBody =>
+      '落雪線路 1 已支持通過官方 OAuth 免個人 API 密鑰同步成績，請前往「我的 → 賬號與授權 → 綁定與授權管理」完成落雪帳號授權。';
+
+  @override
+  String get flowNoDivingFishQqBoundHint =>
+      '未找到水魚帳號關聯的 QQ 號，請先在「綁定與授權管理」登錄水魚帳號並綁定 QQ。';
+
+  @override
+  String flowAWMCNETQQBoundP0(String p0) {
+    return '已關聯 QQ：$p0';
+  }
+
+  @override
+  String get flowEnterAWMCNETQQNoTokenTitle => '填寫 AWMC NET 關聯 QQ（免導入 Token）';
+
+  @override
+  String get flowAWMCNETQQNoTokenHint =>
+      '請輸入已在 net.wmc.pub 關聯過檔案的 QQ 號，無需再填寫成績導入 Token。';
+
+  @override
+  String get flowQQSaved => 'QQ 號已保存';
+
+  @override
+  String get flowDivingFishOAuthWriteChip => 'OAuth 讀寫';
+
+  @override
+  String get flowLXNSOAuthChip => '落雪 OAuth';
+
+  @override
+  String get flowMultiFishOAuthWriteMissingHint =>
+      '請先在水魚帳號中完成包含寫入權限的 OAuth 授權。';
+
+  @override
+  String get flowMultiLxnsOAuthMissingHint => '請點擊「前往授權」完成落雪 OAuth 授權。';
+
+  @override
+  String get flowOneCabinetQRForAllSelectedRoute1 =>
+      '所有已選線路 1 來源共用同一張機台二維碼，一次讀取即可完成同步。';
+
+  @override
+  String get flowGoAuthorizeDivingFishWrite => '前往授權';
+
+  @override
+  String get flowRecheckAuthorizationStatus => '重新檢查授權';
+
+  @override
+  String get flowChangePersonalApiKey => '更換個人 API 金鑰';
+
+  @override
+  String get flowClearPersonalApiKey => '清除個人 API 金鑰';
+
+  @override
+  String get flowClearPersonalApiKeyConfirm =>
+      '清除本機儲存的落雪個人 API 金鑰後，若已開啟落雪自動同步，將同時關閉該任務。確定要清除嗎？';
 }

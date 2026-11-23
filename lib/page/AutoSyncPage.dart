@@ -10,13 +10,16 @@ import 'package:flutter/material.dart';
 import '../service/AutoSyncService.dart';
 import '../service/AccountStore.dart';
 import '../constant/CacheKeyConstant.dart';
+import '../manager/DivingFish/DivingFishOAuthManager.dart';
 import '../utils/SecureCredentialStore.dart';
 import '../utils/ExternalLaunchUtil.dart';
+import '../service/AWMC/AwmcQrSyncService.dart';
 import '../service/AWMC/AwmcQuickSyncService.dart';
 import '../service/AWMC/AwmcQuickIdentityStore.dart';
 import '../service/SyncStatsService.dart';
 import '../utils/AppTheme.dart';
 import '../utils/AutoSyncDisplay.dart';
+import '../widgets/AppDialogs.dart';
 import '../widgets/BackgroundPageScaffold.dart';
 import '../widgets/ErrorMessageDialog.dart';
 import '../widgets/FishIcon.dart';
@@ -42,14 +45,21 @@ class _SourceState {
   final String? error;
   final String? accountId;
   final bool missingKey;
-  const _SourceState(
-      {this.task,
-      this.registration,
-      this.ready = false,
-      this.reason = '',
-      this.error,
-      this.accountId,
-      this.missingKey = false});
+  final bool hasPersonalKey;
+  final bool fishWriteMissing;
+  final String? fishQq;
+  const _SourceState({
+    this.task,
+    this.registration,
+    this.ready = false,
+    this.reason = '',
+    this.error,
+    this.accountId,
+    this.missingKey = false,
+    this.hasPersonalKey = false,
+    this.fishWriteMissing = false,
+    this.fishQq,
+  });
   bool get enabled => task?.enabled ?? registration?.lastKnownEnabled ?? false;
 }
 
@@ -72,6 +82,12 @@ class _AutoSyncPageState extends State<AutoSyncPage>
   /// 还没绑定机台身份。三个数据源共用一份，所以表单放在数据源列表上面。
   bool _identityMissing = false;
 
+  /// 页面级缓存水鱼 OAuth 写入权限结果，避免 3 秒定时轮询重复探测；手动刷新与回到前台时清空重检。
+  final Map<String, bool?> _fishWriteCache = {};
+  bool _openingFishAuth = false;
+  bool _editingLxKey = false;
+  bool _clearingLxKey = false;
+
   @override
   void initState() {
     super.initState();
@@ -91,6 +107,7 @@ class _AutoSyncPageState extends State<AutoSyncPage>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _pollTimer?.cancel();
     if (state == AppLifecycleState.resumed) {
+      _fishWriteCache.clear();
       unawaited(_loadQueue());
       if (!_loading && _saving == null && !_refreshing) _load(silent: true);
       _startPolling();
@@ -107,28 +124,92 @@ class _AutoSyncPageState extends State<AutoSyncPage>
     });
   }
 
+  Future<bool?> _checkFishWrite(String qq) async {
+    if (_fishWriteCache.containsKey(qq)) return _fishWriteCache[qq];
+    final result = await AwmcQrSyncService.checkFishWriteAuthorized(qq);
+    _fishWriteCache[qq] = result;
+    return result;
+  }
+
   Future<_SourceState> _loadSource(SyncPlatform platform) async {
     AutoSyncRegistration? registration;
     final source = AwmcQuickSyncService.sourceOf(platform);
     AccountMeta? account;
+    String? accountId;
+    String? fishQq;
     var missingKey = false;
+    var hasPersonalKey = false;
+    var fishWriteMissing = false;
     var ready = false;
     var reason = '';
     try {
       account = (await AccountStore.loadAll())[source.key];
-      final key = await SecureCredentialStore.read(_personalKeyOf(platform));
-      missingKey = key == null || key.trim().isEmpty;
-      if (missingKey) {
-        reason = appL10n.flowEnterYourPersonalKeyAboveToEnable;
-      } else if (account == null || account.id.isEmpty) {
-        reason = appL10n
-            .flowNoP0AccountYetSignInThrough(appLocalizeLabel(platform.label));
+      accountId = account?.id;
+      if (platform == SyncPlatform.luoXue) {
+        final key =
+            await SecureCredentialStore.read(CacheKeyConstant.probeLxnsImportToken);
+        hasPersonalKey = key != null && key.trim().isNotEmpty;
+        missingKey = !hasPersonalKey;
+        if (missingKey) {
+          reason = appL10n.flowEnterYourPersonalKeyAboveToEnable;
+        } else if (account == null || account.id.isEmpty) {
+          reason = appL10n
+              .flowNoP0AccountYetSignInThrough(appLocalizeLabel(platform.label));
+        } else {
+          await AwmcQuickSyncService.accountFor(
+            platform,
+            requireData: false,
+            forAutoSync: true,
+          );
+          ready = await AwmcQuickIdentityStore.read() != null;
+          reason = ready
+              ? appL10n.flowSyncCredentialsReady
+              : appL10n.flowLinkTheCabinetIdentityAboveToEnable;
+        }
+      } else if (platform == SyncPlatform.divingFish) {
+        fishQq = AwmcQrSyncService.normalizeDivingFishQq(account?.id) ??
+            await AwmcQrSyncService.resolveDivingFishQq();
+        accountId ??= fishQq;
+        if (fishQq == null) {
+          reason = appL10n
+              .flowNoP0AccountYetSignInThrough(appLocalizeLabel(platform.label));
+        } else {
+          final writeAuth = await _checkFishWrite(fishQq);
+          if (writeAuth == false) {
+            fishWriteMissing = true;
+            reason = appL10n.flowDivingFishWriteConsentRequiredMessage;
+          } else {
+            await AwmcQuickSyncService.accountFor(
+              platform,
+              requireData: false,
+              forAutoSync: true,
+            );
+            ready = await AwmcQuickIdentityStore.read() != null;
+            reason = ready
+                ? appL10n.flowSyncCredentialsReady
+                : appL10n.flowLinkTheCabinetIdentityAboveToEnable;
+          }
+        }
       } else {
-        await AwmcQuickSyncService.accountFor(platform, requireData: false);
-        ready = await AwmcQuickIdentityStore.read() != null;
-        reason = ready
-            ? appL10n.flowSyncCredentialsReady
-            : appL10n.flowLinkTheCabinetIdentityAboveToEnable;
+        final awmcQq = (account?.id != null &&
+                AwmcQrSyncService.qqPattern.hasMatch(account!.id.trim()))
+            ? account.id.trim()
+            : await AwmcQrSyncService.resolveAwmcNetQq();
+        accountId ??= awmcQq;
+        if (awmcQq == null || !AwmcQrSyncService.qqPattern.hasMatch(awmcQq)) {
+          reason = appL10n
+              .flowNoP0AccountYetSignInThrough(appLocalizeLabel(platform.label));
+        } else {
+          await AwmcQuickSyncService.accountFor(
+            platform,
+            requireData: false,
+            forAutoSync: true,
+          );
+          ready = await AwmcQuickIdentityStore.read() != null;
+          reason = ready
+              ? appL10n.flowSyncCredentialsReady
+              : appL10n.flowLinkTheCabinetIdentityAboveToEnable;
+        }
       }
     } on StateError catch (error) {
       reason = '${error.message}';
@@ -146,15 +227,21 @@ class _AutoSyncPageState extends State<AutoSyncPage>
           registration: registration,
           ready: ready,
           reason: reason,
-          accountId: account?.id,
-          missingKey: missingKey);
+          accountId: accountId,
+          missingKey: missingKey,
+          hasPersonalKey: hasPersonalKey,
+          fishWriteMissing: fishWriteMissing,
+          fishQq: fishQq);
     } catch (error) {
       return _SourceState(
           registration: registration,
           ready: ready,
           reason: reason,
-          accountId: account?.id,
+          accountId: accountId,
           missingKey: missingKey,
+          hasPersonalKey: hasPersonalKey,
+          fishWriteMissing: fishWriteMissing,
+          fishQq: fishQq,
           error: error is AutoSyncException
               ? error.message
               : appL10n.flowCouldNotReadAutoSyncStatusTry);
@@ -165,7 +252,10 @@ class _AutoSyncPageState extends State<AutoSyncPage>
     unawaited(_loadQueue());
     final request = ++_request;
     _refreshing = true;
-    if (!silent) setState(() => _loading = true);
+    if (!silent) {
+      _fishWriteCache.clear();
+      setState(() => _loading = true);
+    }
     final states = await Future.wait(SyncPlatform.values.map(_loadSource));
     bool identityMissing = _identityMissing;
     try {
@@ -245,8 +335,11 @@ class _AutoSyncPageState extends State<AutoSyncPage>
     setState(() => _saving = platform);
     try {
       if (enabled) {
-        final account =
-            await AwmcQuickSyncService.accountFor(platform, requireData: false);
+        final account = await AwmcQuickSyncService.accountFor(
+          platform,
+          requireData: false,
+          forAutoSync: true,
+        );
         final userId = await AwmcQuickIdentityStore.read();
         if (userId == null) {
           throw AutoSyncException(appL10n.flowLinkCabinetIdentityAboveFirst);
@@ -585,14 +678,92 @@ class _AutoSyncPageState extends State<AutoSyncPage>
           )),
         ]),
         const SizedBox(height: 12),
-        if (!_loading && state.missingKey) ...[
-          _insetPanel(_PersonalKeyForm(
-            key: ValueKey('${platform.key}:${state.accountId}'),
-            platform: platform,
-            accountId: state.accountId ?? '',
-            onSaved: () => _load(silent: true),
+        if (!_loading &&
+            platform == SyncPlatform.divingFish &&
+            state.fishWriteMissing &&
+            state.fishQq != null) ...[
+          _insetPanel(
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(
+                context.l10n.flowDivingFishWriteConsentRequiredMessage,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                children: [
+                  FilledButton.tonalIcon(
+                    onPressed: _openingFishAuth
+                        ? null
+                        : () => _openFishOAuth(state.fishQq!),
+                    icon: const Icon(Icons.open_in_new, size: 16),
+                    label: Text(context.l10n.flowGoAuthorizeDivingFishWrite),
+                  ),
+                  TextButton(
+                    onPressed: _loading || _saving != null
+                        ? null
+                        : () {
+                            _fishWriteCache.remove(state.fishQq);
+                            _load();
+                          },
+                    child: Text(context.l10n.flowRecheckAuthorizationStatus),
+                  ),
+                ],
+              ),
+            ]),
+          ),
+          const SizedBox(height: 12),
+        ],
+        if (!_loading &&
+            platform == SyncPlatform.luoXue &&
+            (state.missingKey || _editingLxKey)) ...[
+          _insetPanel(Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _PersonalKeyForm(
+                key: ValueKey('${platform.key}:${state.accountId}'),
+                platform: platform,
+                accountId: state.accountId ?? '',
+                onSaved: () async {
+                  if (mounted) setState(() => _editingLxKey = false);
+                  await _load(silent: true);
+                },
+              ),
+              if (_editingLxKey) ...[
+                const SizedBox(height: 4),
+                TextButton(
+                  onPressed: () => setState(() => _editingLxKey = false),
+                  child: Text(context.l10n.featureCancel),
+                ),
+              ],
+            ],
           )),
           const SizedBox(height: 14),
+        ] else if (!_loading &&
+            platform == SyncPlatform.luoXue &&
+            state.hasPersonalKey) ...[
+          Row(
+            children: [
+              TextButton.icon(
+                onPressed: _saving != null || _clearingLxKey
+                    ? null
+                    : () => setState(() => _editingLxKey = true),
+                icon: const Icon(Icons.key_outlined, size: 16),
+                label: Text(context.l10n.flowChangePersonalApiKey),
+              ),
+              TextButton(
+                onPressed: _saving != null || _clearingLxKey
+                    ? null
+                    : _clearLxPersonalKey,
+                child: Text(context.l10n.flowClearPersonalApiKey),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
         ],
         _insetPanel(
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -624,8 +795,11 @@ class _AutoSyncPageState extends State<AutoSyncPage>
                   task.queue != null && !task.queue!.upcoming
                       ? context.l10n.flowRoundStartedP0(
                           (_beijingTime(task.queue!.scheduledAt)).toString())
-                      : context.l10n.flowNextRunP0(
-                          (_beijingTime(task.nextRunAt)).toString()),
+                      : task.nextRunAt != null &&
+                              !task.nextRunAt!.isAfter(DateTime.now())
+                          ? context.l10n.flowWaitingToBeScheduled
+                          : context.l10n.flowNextRunP0(
+                              (_beijingTime(task.nextRunAt)).toString()),
                   style: theme.textTheme.bodySmall
                       ?.copyWith(color: scheme.onSurfaceVariant)),
             ],
@@ -665,7 +839,16 @@ class _AutoSyncPageState extends State<AutoSyncPage>
         if (task?.lastResult != null ||
             state.enabled && state.error == null) ...[
           const SizedBox(height: 8),
-          _previousResult(task?.lastResult, nextRunAt: task?.nextRunAt),
+          _previousResult(
+            task?.lastResult,
+            nextRunAt: task != null &&
+                    task.status != 'running' &&
+                    task.queue?.upcoming != false &&
+                    task.nextRunAt != null &&
+                    task.nextRunAt!.isAfter(DateTime.now())
+                ? task.nextRunAt
+                : null,
+          ),
         ],
         if (_service.refreshError(platform) case final String error) ...[
           const SizedBox(height: 8),
@@ -1023,6 +1206,63 @@ class _AutoSyncPageState extends State<AutoSyncPage>
     return null;
   }
 
+  Future<void> _openFishOAuth(String qq) async {
+    if (_openingFishAuth) return;
+    setState(() => _openingFishAuth = true);
+    try {
+      final opened = await DivingFishOAuthManager().openBindingLink(qq);
+      if (!mounted) return;
+      AppToast.show(
+        opened
+            ? context.l10n.flowAuthorizationOpenedCompleteItInYourBrowser
+            : context.l10n.flowCouldNotStartAuthorizationTryAgain,
+        tone: opened ? AppToastTone.success : AppToastTone.error,
+      );
+    } finally {
+      if (mounted) setState(() => _openingFishAuth = false);
+    }
+  }
+
+  Future<void> _clearLxPersonalKey() async {
+    if (_clearingLxKey || _saving != null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AppAlertDialog(
+        title: Text(ctx.l10n.flowClearPersonalApiKey),
+        content: Text(ctx.l10n.flowClearPersonalApiKeyConfirm),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(ctx.l10n.featureCancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(ctx.l10n.confirm),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _clearingLxKey = true);
+    try {
+      final msg = await AutoSyncService.instance
+          .clearPersonalCredential(SyncPlatform.luoXue);
+      if (!mounted) return;
+      AppToast.show(msg, tone: AppToastTone.success);
+      await _load();
+    } catch (error) {
+      if (!mounted) return;
+      AppToast.show(
+        error is AutoSyncException
+            ? error.message
+            : context.l10n.flowCouldNotDisableAutoSyncYourKey,
+        tone: AppToastTone.error,
+      );
+    } finally {
+      if (mounted) setState(() => _clearingLxKey = false);
+    }
+  }
+
   String _beijingTime(DateTime? value) {
     if (value == null) return context.l10n.flowWaitingToBeScheduled;
     final date = value.toUtc().add(const Duration(hours: 8));
@@ -1030,12 +1270,6 @@ class _AutoSyncPageState extends State<AutoSyncPage>
     return '${date.year}-${two(date.month)}-${two(date.day)} ${two(date.hour)}:${two(date.minute)}';
   }
 }
-
-String _personalKeyOf(SyncPlatform platform) => switch (platform) {
-      SyncPlatform.divingFish => CacheKeyConstant.probeDivingFishImportToken,
-      SyncPlatform.luoXue => CacheKeyConstant.probeLxnsImportToken,
-      SyncPlatform.awmc => CacheKeyConstant.awmcNetImportToken,
-    };
 
 /// 绑定机台身份：只用二维码换 userId，二维码本身不保存。
 class _IdentityBindCard extends StatefulWidget {

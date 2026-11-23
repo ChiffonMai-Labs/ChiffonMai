@@ -13,6 +13,8 @@ class ApiUrls {
   static const String AutoSyncTaskUrl = '$BackendBaseUrl/api/auto-sync/task';
   static const String AutoSyncOverviewUrl =
       '$BackendBaseUrl/api/auto-sync/overview';
+  static const String AwmcQrSyncUrl = '$BackendBaseUrl/api/awmc/qr-sync';
+  static const String AwmcQuickSyncUrl = '$BackendBaseUrl/api/awmc/quick-sync';
   static const String LoadingTipsUrl = '$BackendBaseUrl/api/loading-tips';
   static const String FriendLinksUrl = '$BackendBaseUrl/api/friend-links';
   static const String AnnouncementsUrl = '$BackendBaseUrl/api/announcements';

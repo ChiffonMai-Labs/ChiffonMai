@@ -601,8 +601,11 @@ class AutoSyncService {
       return null;
     }
     try {
-      final account =
-          await AwmcQuickSyncService.accountFor(platform, requireData: false);
+      final account = await AwmcQuickSyncService.accountFor(
+        platform,
+        requireData: false,
+        forAutoSync: true,
+      );
       final userId = await AwmcQuickIdentityStore.readForTaskRecovery();
       if (userId == null) return null;
       final task = await _recoverTask(
@@ -664,15 +667,17 @@ class AutoSyncService {
     required SyncPlatform platform,
     required String source,
     required String accountId,
-    required String credential,
+    String? credential,
     required int userId,
   }) async {
+    final trimmedCredential = credential?.trim();
     final response = await ApiClient.post(
       Uri.parse('${ApiUrls.AutoSyncTaskUrl}/recover'),
       body: jsonEncode({
         'platform': platform.key,
         'accountId': accountId,
-        'credential': credential,
+        if (trimmedCredential != null && trimmedCredential.isNotEmpty)
+          'credential': trimmedCredential,
         'userId': userId,
       }),
       headers: const {'Content-Type': 'application/json'},
@@ -748,7 +753,7 @@ class AutoSyncService {
           {required SyncPlatform platform,
           required String source,
           required String accountId,
-          required String credential,
+          String? credential,
           required int userId}) =>
       _mutate(platform, () async {
         var entry = await registration(platform);
@@ -765,11 +770,13 @@ class AutoSyncService {
           // 先可靠保存，再请求服务器，网络超时后仍能查询或关闭已创建的任务。
           await _store(platform, entry);
         }
+        final trimmedCredential = credential?.trim();
         try {
           return await _request('PUT', entry, body: {
             'platform': platform.key,
             'accountId': accountId,
-            'credential': credential,
+            if (trimmedCredential != null && trimmedCredential.isNotEmpty)
+              'credential': trimmedCredential,
             'userId': userId
           });
         } on AutoSyncException catch (error) {
@@ -778,7 +785,7 @@ class AutoSyncService {
               platform: platform,
               source: source,
               accountId: accountId,
-              credential: credential,
+              credential: trimmedCredential,
               userId: userId);
         }
       });
@@ -821,6 +828,8 @@ class AutoSyncService {
         'upload_failed' => appL10n.svcScoreUploadFailedSomeBatchesMayHave,
         'upload_credential_invalid' =>
           appL10n.svcTheAWMCNETImportTokenIsInvalid,
+        'fish_write_consent_required' =>
+          appL10n.flowDivingFishWriteConsentRequiredMessage,
         'gateway_failed' => appL10n.svcCouldNotReadCabinetScoresTryAgain,
         'unexpected_pagination' => appL10n.svcTheUpstreamReturnedPagedScoresReadingStopped,
         'no_scores' || 'no_matching_scores' => appL10n.svcNoValidScoresSupportedByTheTarget,

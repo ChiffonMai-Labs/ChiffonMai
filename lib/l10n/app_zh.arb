@@ -1104,7 +1104,7 @@
   "flowSourcesEnabled": "个数据源已开启",
   "flowScheduledQueueWindow": "分时排队窗口",
   "flowChinaTimeUTC8OnceDailyQuick": "北京时间（UTC+8） · 每天一次 · 仅快速同步",
-  "flowCredentialsAreEncryptedAndHostedWhileEnabled": "开启后加密托管同步凭据，关闭即删除。",
+  "flowCredentialsAreEncryptedAndHostedWhileEnabled": "开启后按需加密托管自动同步所需凭据，关闭即删除。",
   "flowAboutSync": "同步说明",
   "flowUsersAreProcessedInDailyBatchesNew": "每天分批排队处理；批次进行中或等待开始时新加入用户会排在当前批次末尾，批次结束后与其他用户一起进入下一轮随机排序；上游限流或队列较长时会顺延到后续窗口。",
   "flowEachUserBatchHasAProcessingLimit": "单个用户批次有整体处理时限：上游慢响应、配额不足或大量上传超过时限时，会自动结束本轮并在上轮结果中说明原因，次日窗口继续（排队等待不计入）。",
@@ -1116,7 +1116,7 @@
       }
     }
   },
-  "flowLinkYourCabinetIdentityUsingAQR": "输入二维码绑定机台身份后，同步凭据可供三个数据源共用；也可以通过一次普通二维码同步自动完成绑定。各数据源仍需配置各自的个人 key 和账号。\n\n每天在北京时间 08:00–24:00 分时安排快速同步：同一用户的三个数据源共用一份机台成绩读取结果，再分别读取目标成绩并上传变化。\n\n执行中会显示当前阶段、已读取页数、上传与已提交条数、已用时长；遇到上游等待会显示原因和预计重试时间。上轮结果会给出耗时、机台数据采集时间和下次重试时间。\n\n自动同步使用统一的上游请求预算和限流；遇到维护、配额不足或网络错误会暂停并显示原因，不会连续重试。\n\n正在执行时关闭，会停止后续批次，已经提交的成绩会保留；上传结果不确定时会先核对，不盲目重复提交。",
+  "flowLinkYourCabinetIdentityUsingAQR": "输入二维码绑定机台身份后，同步凭据可供三个数据源共用；也可以通过一次普通二维码同步自动完成绑定。水鱼需完成包含读写权限的 OAuth 授权、AWMC NET 需绑定 QQ（两者均免导入 Token），仅落雪自动同步需在本页填写个人 API 密钥。\n\n每天在北京时间 08:00–24:00 分时安排快速同步：同一用户的三个数据源共用一份机台成绩读取结果，再分别读取目标成绩并上传变化。\n\n执行中会显示当前阶段、已读取页数、上传与已提交条数、已用时长；遇到上游等待会显示原因和预计重试时间。上轮结果会给出耗时、机台数据采集时间和下次重试时间。\n\n自动同步使用统一的上游请求预算和限流；遇到维护、配额不足或网络错误会暂停并显示原因，不会连续重试。\n\n正在执行时关闭，会停止后续批次，已经提交的成绩会保留；上传结果不确定时会先核对，不盲目重复提交。",
   "flowSaving": "正在保存…",
   "flowP0AutoSync": "{p0}自动同步",
   "@flowP0AutoSync": {
@@ -1453,7 +1453,7 @@
   "flowTipGenerateTwoDifferentLoginQRCodes": "提示：扫码前先在公众号/机台生成两张不同的登入二维码。",
   "flowSignInFirst": "去登录",
   "flowSignedInToMaimaiScoreHub": "maimai Score Hub 登录成功",
-  "flowSignInSavedForOCRAndRoute": "登录状态已保存。可复用于 OCR 与线路2 同步，\n不需要再重复扫码登录。",
+  "flowSignInSavedForOCRAndRoute": "登录状态已保存，可直接用于 OCR 识别，\n不需要再重复扫码登录。",
   "flowAuthenticatesWithMaimaiScoreHubOnlyNo": "只进行 maimai Score Hub 认证，不会抓取或同步成绩。",
   "flowInvalidQRCodeUseALoginQR": "无效的二维码，请使用舞萌|中二公众号生成的登入二维码",
   "flowSetLXNSPersonalAPIKey": "设置落雪个人 API 密钥",
@@ -1972,7 +1972,7 @@
     }
   },
   "flowCannotParseSongIDForLXNSSync": "无法解析曲目 ID，不能同步到落雪",
-  "flowNoLXNSPersonalAPIKeySetIt": "还没有落雪个人 API 密钥，请先到「成绩导入凭据」填写",
+  "flowNoLXNSPersonalAPIKeySetIt": "尚未授权落雪账号，请先到「绑定与授权管理」完成落雪 OAuth 授权",
   "flowPhotographTheCabinetResultScreen": "对着机台结算页面拍一张",
   "flowChooseAPhotographedResultScreen": "选取已经拍好的结算画面",
   "flowNoScoreRecognizedCropCloserToThe": "没有识别出成绩，可裁剪得更贴近结算区域后重试",
@@ -2739,14 +2739,14 @@
   "flowFollowThePageInstructionsToRegisterAn": "随页面引导填写信息，即可注册落雪咖啡屋账号。",
   "flowAfterSigningInOpenAccountDetailsIn": "登录后在侧边栏点“账号详情”，再点页面上方的“第三方应用”：",
   "flowOAuthInMeRefreshDataChooseLXNS": "OAuth 授权：在 App 的“我的 → 绑定与授权管理”中选择落雪账号授权，并按引导完成。授权后，这里的 OAuth 应用列表会出现 ChiffonMai。",
-  "flowPersonalAPIKeyResetItThenPaste": "个人 API 密钥：点“重置 API 密钥”，然后到 App 的“我的 → 成绩导入凭据”，下滑找到“落雪 API 密钥”并填入。",
+  "flowPersonalAPIKeyResetItThenPaste": "个人 API 密钥：仅开启落雪自动同步时需要，点“重置 API 密钥”后到“自动同步”页面粘贴保存；手动同步完成上方 OAuth 授权即可。",
   "flowYouCanAlsoVisitChiffonChuFromThe": "也欢迎支持一下中二查歌，在“首页游玩 → 出勤”的轮播图里可以跳转过去。",
   "flowMessage": "私聊 ",
   "flowPrivatelyOrFollowTheseStepsInA": "，或在有机器人的群中，依次完成以下步骤：",
   "flowSendTheSGWCMAIDStringOrMaimaiQR": "按提示发送 SGWCMAID 字符串或舞萌二维码，等机器人回复上传完成就好了。",
   "flowAndConfigureTheseSettings": "，按下面的说明设置：",
   "flowEnableMakeMyScoresPublicOrScores": "“公开我的成绩”：必须开启，否则无法获取成绩。",
-  "flowImportTokenRegenerateItThenPasteIt": "Import-Token：点“重新生成”轮换，然后到 App 的“我的 → 账号与授权 → 成绩导入凭据”，在对话框里下滑到“AWMC 成绩导入 Token”并填入。",
+  "flowImportTokenRegenerateItThenPasteIt": "同步说明：AWMC NET 已支持免导入 Token 同步成绩，只需在 App 的“我的 → 账号与授权 → 绑定与授权管理”绑定 QQ 即可，无需手动填写 Import-Token。",
   "flowRotatingATokenReplacesTheOldOne": "注意：已有 Token 时，轮换会覆盖之前的 Token。轮换后请在 App 内手动更新，否则无法同步成绩。",
   "flowJoin": "加入 ",
   "flowCouldNotOpenQQAWMCGroup1": "无法打开 QQ，已复制 AWMC 交流 1 群的群号，请在 QQ 中搜索加入",
@@ -2769,7 +2769,7 @@
       }
     }
   },
-  "flowNoLXNSPersonalAPIKeySetConfigure": "尚未设置落雪个人 API 密钥，请先在「成绩导入凭据」中设置",
+  "flowNoLXNSPersonalAPIKeySetConfigure": "尚未完成落雪账号授权，请先前往「绑定与授权管理」完成落雪 OAuth 授权",
   "flowQuickSyncSupportsRoute1Only": "快速同步仅支持线路1",
   "flowMaimaiScoreHubSessionExpiredSignIn": "maimai Score Hub 登录状态已失效，请重新登录后再使用线路2",
   "flowSyncCompleteRefreshingLocalData": "同步完成，正在刷新本地数据...",
@@ -3431,6 +3431,25 @@
       }
     }
   },
+  "flowP0Hours": "{p0} 小时",
+  "@flowP0Hours": {
+    "placeholders": {
+      "p0": {
+        "type": "String"
+      }
+    }
+  },
+  "flowP0HoursP1Min": "{p0} 小时 {p1} 分",
+  "@flowP0HoursP1Min": {
+    "placeholders": {
+      "p0": {
+        "type": "String"
+      },
+      "p1": {
+        "type": "String"
+      }
+    }
+  },
   "flowJustNow": "刚刚",
   "flowWaitingForUpstreamQuota": "等待上游配额恢复",
   "flowWaitingForUpstreamService": "等待上游服务恢复",
@@ -3443,6 +3462,14 @@
         "type": "String"
       },
       "p1": {
+        "type": "String"
+      }
+    }
+  },
+  "flowP0RetryingSoon": "{p0}，即将重试",
+  "@flowP0RetryingSoon": {
+    "placeholders": {
+      "p0": {
         "type": "String"
       }
     }
@@ -9409,7 +9436,7 @@
   "svcTooManyRequestsTryAgainLater": "操作过于频繁，请稍后重试",
   "svcCouldNotReadTheSongLibraryOf": "目标数据源曲库读取失败，本次未继续同步",
   "svcScoreUploadFailedSomeBatchesMayHave": "成绩上传失败，部分批次可能已提交；本次不自动重试",
-  "svcTheAWMCNETImportTokenIsInvalid": "AWMC NET 的 Import-Token 无效，请在成绩导入凭据重新保存有效 Token，已开启的定时任务会自动更新",
+  "svcTheAWMCNETImportTokenIsInvalid": "AWMC NET 的导入 Token 已失效，请在「自动同步」页面关闭后重新开启 AWMC NET 自动同步，以切换至免 Token 模式",
   "svcCouldNotReadCabinetScoresTryAgain": "机台成绩读取失败，请稍后重试",
   "svcTheUpstreamReturnedPagedScoresReadingStopped": "上游返回了分页成绩，本轮已停止读取，避免连续请求",
   "svcNoValidScoresSupportedByTheTarget": "未读取到目标数据源支持的有效成绩",
@@ -9419,10 +9446,10 @@
   "svcAutoSyncCapacityIsFullTurnIt": "当前自动同步容量已满，请稍后再开启",
   "svcTheUpstreamQuotaCannotBeConfirmedOr": "上游配额暂不可确认或已用尽，任务会在恢复后继续",
   "svcTheUpstreamServiceIsUnavailableTheTask": "上游服务暂不可用，任务已暂停，恢复后继续",
-  "svcThisMorningSProcessingWindowHasEnded": "本次上午处理窗口已结束，将在下一轮继续",
+  "svcThisMorningSProcessingWindowHasEnded": "当天处理窗口已结束，将在下一轮继续",
   "svcTheUploadResultIsUncertainTheNext": "上传结果暂不确定，下一轮会先核对后处理",
   "svcTheAutoSyncServiceIsUnavailableTry": "自动同步服务暂不可用，请稍后重试",
-  "svcSetUpTheSyncCredentialsForP0": "请先在「成绩导入凭据」设置{p0}的成绩导入 Token",
+  "svcSetUpTheSyncCredentialsForP0": "请先在「自动同步」页面填写{p0}的个人 API 密钥",
   "@svcSetUpTheSyncCredentialsForP0": {
     "placeholders": {
       "p0": {
@@ -10543,5 +10570,35 @@
       }
     }
   },
-  "awmcUnplayed": "未游玩"
+  "awmcUnplayed": "未游玩",
+  "flowDivingFishReadAuthorizedNeedWriteReauth": "已授权读取成绩；点击下方「重新授权」一次，即可开启线路 1 免导入 Token 同步。",
+  "flowDivingFishWriteConsentRequiredMessage": "水鱼账号尚未授予写入权限，请点击「重新授权」并在浏览器确认后再试。",
+  "flowDivingFishWriteAuthDialogTitle": "需要水鱼写入授权",
+  "flowDivingFishWriteAuthDialogBody": "水鱼线路 1 已支持通过官方 OAuth 免导入 Token 同步成绩。请点击「前往授权」在浏览器完成一次包含写入权限的授权后再试。",
+  "flowDivingFishWriteAuthDialogBodyWithFallback": "水鱼线路 1 已支持通过官方 OAuth 免导入 Token 同步成绩，请完成一次写入授权；若暂时不便授权，也可继续使用本地缓存的导入 Token。",
+  "flowUseImportTokenFallback": "改用导入 Token",
+  "flowLuoXueRoute1AuthDialogTitle": "需要落雪账号授权",
+  "flowLuoXueRoute1AuthDialogBody": "落雪线路 1 已支持通过官方 OAuth 免个人 API 密钥同步成绩，请前往「我的 → 账号与授权 → 绑定与授权管理」完成落雪账号授权。",
+  "flowNoDivingFishQqBoundHint": "未找到水鱼账号关联的 QQ 号，请先在「绑定与授权管理」登录水鱼账号并绑定 QQ。",
+  "flowAWMCNETQQBoundP0": "已关联 QQ：{p0}",
+  "@flowAWMCNETQQBoundP0": {
+    "placeholders": {
+      "p0": {
+        "type": "String"
+      }
+    }
+  },
+  "flowEnterAWMCNETQQNoTokenTitle": "填写 AWMC NET 关联 QQ（免导入 Token）",
+  "flowAWMCNETQQNoTokenHint": "请输入已在 net.wmc.pub 关联过档案的 QQ 号，无需再填写成绩导入 Token。",
+  "flowQQSaved": "QQ 号已保存",
+  "flowDivingFishOAuthWriteChip": "OAuth 读写",
+  "flowLXNSOAuthChip": "落雪 OAuth",
+  "flowMultiFishOAuthWriteMissingHint": "请先在水鱼账号中完成包含写入权限的 OAuth 授权。",
+  "flowMultiLxnsOAuthMissingHint": "请点击「前往授权」完成落雪 OAuth 授权。",
+  "flowOneCabinetQRForAllSelectedRoute1": "所有已选线路 1 来源共用同一张机台二维码，一次读取即可完成同步。",
+  "flowGoAuthorizeDivingFishWrite": "前往授权",
+  "flowRecheckAuthorizationStatus": "重新检查授权",
+  "flowChangePersonalApiKey": "更换个人 API 密钥",
+  "flowClearPersonalApiKey": "清除个人 API 密钥",
+  "flowClearPersonalApiKeyConfirm": "清除本机保存的落雪个人 API 密钥后，若已开启落雪自动同步，将同时关闭该任务。确定要清除吗？"
 }

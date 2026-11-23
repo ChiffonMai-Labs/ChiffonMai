@@ -18,7 +18,6 @@ class PostSyncRefreshOperation {
   final RefreshDataSource source;
   final RefreshDataRequest request;
   final String accountId;
-  final String? _credential;
   final String? _authorization;
   final int _revision;
   final String? _captureError;
@@ -29,16 +28,9 @@ class PostSyncRefreshOperation {
       this.source,
       this.request,
       this.accountId,
-      this._credential,
       this._authorization,
       this._revision,
       this._captureError);
-
-  static String _key(RefreshDataSource source) => switch (source) {
-        RefreshDataSource.shuiyu => CacheKeyConstant.probeDivingFishImportToken,
-        RefreshDataSource.luoxue => CacheKeyConstant.probeLxnsImportToken,
-        RefreshDataSource.awmc => CacheKeyConstant.awmcNetImportToken,
-      };
 
   static Future<PostSyncRefreshOperation> capture(RefreshDataSource source,
       {RefreshDataRequest? request}) async {
@@ -57,7 +49,6 @@ class PostSyncRefreshOperation {
                   showNickname: false,
                   forceFullRefresh: false),
           '',
-          null,
           null,
           AccountSwitchService.revision,
           appL10n.svcCouldNotReadTheRefreshSettingsRefresh);
@@ -82,7 +73,6 @@ class PostSyncRefreshOperation {
                 : prefs.getString(CacheKeyConstant.awmcNetSyncQQ) ?? '',
             RefreshDataSource.luoxue => '',
           };
-    final credential = await SecureCredentialStore.read(_key(source));
     final authorization = await _readAuthorization(source);
     final savedAuthorization = source == RefreshDataSource.luoxue &&
         await LuoXueOAuthManager().isLoggedIn();
@@ -108,7 +98,7 @@ class PostSyncRefreshOperation {
             ? appL10n.svcTheRefreshAccountDiffersFromTheSync
             : null;
     return PostSyncRefreshOperation._(
-        source, selected, id, credential, authorization, revision, error);
+        source, selected, id, authorization, revision, error);
   }
 
   /// 返回刷新错误，null 表示成功；重复调用复用同一 Future，避免重复请求。
@@ -124,10 +114,8 @@ class PostSyncRefreshOperation {
     if (_captureError != null) return _captureError;
     try {
       final current = (await AccountStore.loadAll())[source.key]?.id ?? '';
-      final credential = await SecureCredentialStore.read(_key(source));
       final authorization = await _readAuthorization(source);
       if ((current.isNotEmpty && current != accountId) ||
-          credential != _credential ||
           authorization != _authorization) {
         throw StateError(
             appL10n.svcTheAccountOrSyncCredentialsChangedAutomatic);

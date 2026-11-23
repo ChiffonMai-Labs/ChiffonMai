@@ -141,10 +141,17 @@ class _DivingFishAuthorizationDialogState
         children: [
           ..._profileRows(l10n, profile, brightness),
           const Divider(height: 24),
-          ValueListenableBuilder<bool?>(
-            valueListenable: DivingFishOAuthManager().authorizationState,
-            builder: (context, authorized, _) =>
-                _statusSection(l10n, brightness, authorized),
+          ListenableBuilder(
+            listenable: Listenable.merge([
+              DivingFishOAuthManager().authorizationState,
+              DivingFishOAuthManager().writeAuthorizationState,
+            ]),
+            builder: (context, _) => _statusSection(
+              l10n,
+              brightness,
+              DivingFishOAuthManager().authorizationState.value,
+              DivingFishOAuthManager().writeAuthorizationState.value,
+            ),
           ),
         ],
       );
@@ -190,8 +197,8 @@ class _DivingFishAuthorizationDialogState
     ];
   }
 
-  Widget _statusSection(
-      AppLocalizations l10n, Brightness brightness, bool? authorized) {
+  Widget _statusSection(AppLocalizations l10n, Brightness brightness,
+      bool? authorized, bool? writeAuthorized) {
     final known = _qq.isNotEmpty && !_checking;
     final color = !known || authorized == null
         ? AppColors.greyHint(brightness)
@@ -226,9 +233,24 @@ class _DivingFishAuthorizationDialogState
         ],
       );
     } else {
-      status = Text(
-          authorized == true ? l10n.flowAuthorized : l10n.featureStatusUnknown,
-          style: TextStyle(color: color, fontSize: 13));
+      status = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+              authorized == true
+                  ? l10n.flowAuthorized
+                  : l10n.featureStatusUnknown,
+              style: TextStyle(color: color, fontSize: 13)),
+          if (authorized == true && writeAuthorized == false) ...[
+            const SizedBox(height: 6),
+            Text(
+              l10n.flowDivingFishReadAuthorizedNeedWriteReauth,
+              style: TextStyle(
+                  fontSize: 12, color: AppColors.warningOrange(brightness)),
+            ),
+          ],
+        ],
+      );
     }
 
     return Column(

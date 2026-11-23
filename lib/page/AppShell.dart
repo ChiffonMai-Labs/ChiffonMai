@@ -122,8 +122,6 @@ class _AppShellState extends State<AppShell> {
       SystemHubPage(
         key: _systemPageKey,
         activeTask: _activeFeatureTask,
-        onAccountManageTap: () =>
-            _homePageKey.currentState?.showAccountManageDialog(),
       ),
     ];
     // 仅在首帧渲染完成后触发一次回调，避免每次 build 都重新调度

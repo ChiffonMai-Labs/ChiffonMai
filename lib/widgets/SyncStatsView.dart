@@ -119,7 +119,9 @@ class SyncStatsView {
 
   /// 详情弹窗：所有槽位的耗时与成功率（按线路分组）。
   static Future<void> showDetail(BuildContext context) async {
-    const slots = SyncStatsService.allSlots;
+    final slots = SyncStatsService.allSlots
+        .where((slot) => slot.$1 != SyncLine.scoreHub)
+        .toList();
     final lines = slots.map((slot) => slot.$1).toSet();
     final stats = await SyncStatsService.loadMany(slots);
     if (!context.mounted) return;
