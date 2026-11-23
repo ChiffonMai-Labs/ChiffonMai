@@ -61,6 +61,9 @@ class MainActivity : AudioServiceActivity() {
 
         /** 桌面小组件点击时带的功能名，见 [HomeWidgetStore]。 */
         const val EXTRA_WIDGET_ACTION = "home_widget_action"
+
+        /** 点击谱面视频导出通知时携带的跳转标记。 */
+        const val EXTRA_OPEN_VIDEO_EXPORT = "open_video_export"
     }
 
     private val CHANNEL = "com.example.app/media_store"
@@ -113,6 +116,12 @@ class MainActivity : AudioServiceActivity() {
 
     /** 随身听通知栏通道的引用：通知栏按钮被点时要用它 invokeMethod 回 Dart。 */
     private var portableNotificationChannel: MethodChannel? = null
+
+    /** 谱面视频后台导出通知与前台保活通道。 */
+    private val VIDEO_EXPORT_NOTIFICATION_CHANNEL = "com.example.app/video_export_notification"
+    private var videoExportNotificationChannel: MethodChannel? = null
+    private var pendingOpenVideoExport = false
+    private var dartVideoExportReady = false
 
     /** 进入播放页前的窗口 displayModeId，退出时原样还回去。 */
     private var savedDisplayModeId: Int? = null
@@ -313,6 +322,54 @@ class MainActivity : AudioServiceActivity() {
                 portableNotificationChannel?.invokeMethod("onMediaAction", action)
             }
         }
+
+        val videoExportChannel = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            VIDEO_EXPORT_NOTIFICATION_CHANNEL
+        )
+        videoExportNotificationChannel = videoExportChannel
+        videoExportChannel.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "updateProgress" -> {
+                    VideoExportNotificationService.updateProgress(
+                        context = applicationContext,
+                        title = call.argument<String>("title") ?: "",
+                        detailText = call.argument<String>("detailText") ?: "",
+                        subText = call.argument<String>("subText"),
+                        progressPermille = call.argument<Int>("progressPermille") ?: 0,
+                        indeterminate = call.argument<Boolean>("indeterminate") ?: false,
+                        cancelling = call.argument<Boolean>("cancelling") ?: false
+                    )
+                    result.success(null)
+                }
+                "finish" -> {
+                    VideoExportNotificationService.finish(
+                        context = applicationContext,
+                        status = call.argument<String>("status") ?: "",
+                        title = call.argument<String>("title") ?: "",
+                        message = call.argument<String>("message")
+                    )
+                    result.success(null)
+                }
+                "clear" -> {
+                    VideoExportNotificationService.clear(applicationContext)
+                    result.success(null)
+                }
+                "takePendingOpenVideoExport" -> {
+                    dartVideoExportReady = true
+                    val open = pendingOpenVideoExport
+                    pendingOpenVideoExport = false
+                    result.success(open)
+                }
+                else -> result.notImplemented()
+            }
+        }
+        VideoExportNotificationBridge.onCancelRequested = {
+            runOnUiThread {
+                videoExportNotificationChannel?.invokeMethod("onCancelRequested", null)
+            }
+        }
+        handleVideoExportIntent(intent)
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
             if (call.method == "viewImage") {
@@ -606,6 +663,19 @@ class MainActivity : AudioServiceActivity() {
         // 热启动：App 已在后台，用户又点开一个文件
         handleImportIntent(intent)
         handleWidgetIntent(intent)
+        handleVideoExportIntent(intent)
+    }
+
+    /** 取出视频导出通知点击。用完清掉 extra，避免 Activity 重建时重复跳转。 */
+    private fun handleVideoExportIntent(intent: Intent?) {
+        val open = intent?.getBooleanExtra(EXTRA_OPEN_VIDEO_EXPORT, false) ?: false
+        if (!open) return
+        intent?.removeExtra(EXTRA_OPEN_VIDEO_EXPORT)
+        if (dartVideoExportReady) {
+            videoExportNotificationChannel?.invokeMethod("onOpenVideoExport", null)
+        } else {
+            pendingOpenVideoExport = true
+        }
     }
 
     /** 取出小组件点击。用完要清掉 extra，否则 Activity 重建时会重放。 */

@@ -58,6 +58,7 @@ class SimaiPlayerController extends ChangeNotifier {
   bool _isPlaying = false;
   double _playbackRate = 1.0;
   double _musicVolume = 0.8;
+  double _hitSoundVolume = 0.72;
   int _musicOffsetMs = 0;
   int _hitSoundOffsetMs = 0;
   bool _hitSoundEnabled = false;
@@ -106,6 +107,7 @@ class SimaiPlayerController extends ChangeNotifier {
   bool get isPlaying => _isPlaying;
   double get playbackRate => _playbackRate;
   double get musicVolume => _musicVolume;
+  double get hitSoundVolume => _hitSoundVolume;
   int get musicOffsetMs => _musicOffsetMs;
   int get hitSoundOffsetMs => _hitSoundOffsetMs;
   bool get hitSoundEnabled => _hitSoundEnabled;
@@ -176,6 +178,15 @@ class SimaiPlayerController extends ChangeNotifier {
     final clamped = safeValue.clamp(0.0, 1.0).toDouble();
     if (_musicVolume == clamped) return;
     _musicVolume = clamped;
+    _applyToGame();
+    notifyListeners();
+  }
+
+  set hitSoundVolume(double value) {
+    final safeValue = value.isFinite ? value : 0.72;
+    final clamped = safeValue.clamp(0.0, 1.0).toDouble();
+    if (_hitSoundVolume == clamped) return;
+    _hitSoundVolume = clamped;
     _applyToGame();
     notifyListeners();
   }
@@ -492,6 +503,7 @@ class SimaiPlayerController extends ChangeNotifier {
     game.setBackgroundImageProvider(backgroundImageProvider);
     game.setPlaybackRate(_playbackRate);
     game.setMusicVolume(_musicVolume);
+    game.setHitSoundVolume(_hitSoundVolume);
     game.setBackgroundMode(_backgroundMode);
     game.setMirrorMode(_mirrorMode);
     game.rotateSlideStar = _rotateSlideStar;
@@ -562,6 +574,7 @@ class SimaiPlayer extends StatefulWidget {
   final VoidCallback? onReady;
   final ValueChanged<Object>? onError;
   final TextStyle? displayFont;
+  final SimaiTextStyleResolver? textStyleResolver;
 
   const SimaiPlayer({
     super.key,
@@ -569,6 +582,7 @@ class SimaiPlayer extends StatefulWidget {
     this.onReady,
     this.onError,
     this.displayFont,
+    this.textStyleResolver,
   });
 
   @override
@@ -602,6 +616,7 @@ class _SimaiPlayerState extends State<SimaiPlayer> {
       touchApproachTime: controller.touchApproachTime,
       playbackRate: controller.playbackRate,
       musicVolume: controller.musicVolume,
+      hitSoundVolume: controller.hitSoundVolume,
       hitSoundOffset: controller.hitSoundOffsetMs / 1000.0,
       hitSoundEnabled: controller.hitSoundEnabled,
       backgroundMode: controller.backgroundMode,
@@ -622,6 +637,7 @@ class _SimaiPlayerState extends State<SimaiPlayer> {
       audioFilePath: controller.audioFilePath,
       backgroundImageProvider: controller.backgroundImageProvider,
       displayFont: widget.displayFont,
+      textStyleResolver: widget.textStyleResolver,
     );
     controller._attachGame(_game);
     unawaited(
@@ -1009,6 +1025,12 @@ class _SimaiSourceOverlayState extends State<_SimaiSourceOverlay> {
   }
 }
 
+typedef SimaiSwitchBuilder = Widget Function(
+  BuildContext context,
+  bool value,
+  ValueChanged<bool>? onChanged,
+);
+
 class SimaiPlayerPage extends StatefulWidget {
   final SimaiPlayerController controller;
   final SimaiGameplayController? gameplayController;
@@ -1020,6 +1042,9 @@ class SimaiPlayerPage extends StatefulWidget {
   final ValueChanged<SimaiVideoExportResult>? onVideoExported;
   final Widget? beforeTimeline;
   final TextStyle? displayFont;
+  final SimaiTextStyleResolver? textStyleResolver;
+  final Future<void> Function()? prepareFonts;
+  final SimaiSwitchBuilder? switchBuilder;
 
   const SimaiPlayerPage({
     super.key,
@@ -1033,6 +1058,9 @@ class SimaiPlayerPage extends StatefulWidget {
     this.onVideoExported,
     this.beforeTimeline,
     this.displayFont,
+    this.textStyleResolver,
+    this.prepareFonts,
+    this.switchBuilder,
   });
 
   @override
@@ -1119,6 +1147,7 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
         noteSpeed: widget.controller.speed,
         musicOffsetMs: widget.controller.musicOffsetMs,
         musicVolume: widget.controller.musicVolume,
+        hitSoundVolume: widget.controller.hitSoundVolume,
         mirrorMode: widget.controller.mirrorMode,
         backgroundMode: widget.controller.backgroundMode,
         centerDisplayMode:
@@ -1185,7 +1214,12 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
             controller: widget.controller,
             metadata: metadata,
             initialOptions: widget.videoExportOptions,
-            task: SimaiVideoExporter.instance.activeTask,
+            task:
+                SimaiVideoExporter.instance.activeTask ??
+                SimaiVideoExporter.instance.lastCompletedTask,
+            displayFont: widget.displayFont,
+            textStyleResolver: widget.textStyleResolver,
+            prepareFonts: widget.prepareFonts,
             onVideoExported: (result) {
               onVideoExported?.call(result);
               if (!mounted) return;
@@ -1293,6 +1327,10 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
     return Theme(
       data: ThemeData.dark(useMaterial3: true).copyWith(
         colorScheme: colorScheme,
+        switchTheme: hostTheme.switchTheme,
+        splashFactory: hostTheme.splashFactory,
+        splashColor: hostTheme.splashColor,
+        highlightColor: hostTheme.highlightColor,
         textTheme: hostTheme.textTheme.apply(
           bodyColor: colorScheme.onSurface,
           displayColor: colorScheme.onSurface,
@@ -1554,6 +1592,18 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
                         ),
                         _buildSliderSetting(
                           context,
+                          label: '正解音音量',
+                          icon: Icons.graphic_eq,
+                          value: controller.hitSoundVolume,
+                          min: 0.0,
+                          max: 1.0,
+                          divisions: 100,
+                          onChanged: (v) => controller.hitSoundVolume = v,
+                          valueSuffix:
+                              '${(controller.hitSoundVolume * 100).round()}%',
+                        ),
+                        _buildSliderSetting(
+                          context,
                           label: '音乐偏移',
                           icon: Icons.audiotrack,
                           value: controller.musicOffsetMs.toDouble(),
@@ -1655,7 +1705,10 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
     return ListTile(
       leading: Icon(icon, color: colorScheme.onSurfaceVariant),
       title: Text(label, style: theme.textTheme.bodyLarge),
-      trailing: Switch(value: value, onChanged: onChanged),
+      trailing:
+          widget.switchBuilder?.call(context, value, onChanged) ??
+          Switch(value: value, onChanged: onChanged),
+      onTap: () => onChanged(!value),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
     );
@@ -1746,6 +1799,7 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
       key: _playerKey,
       controller: widget.controller,
       displayFont: widget.displayFont,
+      textStyleResolver: widget.textStyleResolver,
       onReady: _onPlayerReady,
       onError: (error) {
         if (!mounted) return;

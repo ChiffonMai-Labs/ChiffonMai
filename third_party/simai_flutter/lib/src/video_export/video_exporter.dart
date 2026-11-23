@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import '../ui/simai_game.dart';
 import '../ui/simai_player.dart';
 import 'video_export_models.dart';
 import 'video_export_platform.dart';
@@ -18,6 +19,8 @@ class SimaiVideoExporter with WidgetsBindingObserver {
   final StreamController<SimaiVideoExportTask?> _activeTaskController =
       StreamController<SimaiVideoExportTask?>.broadcast(sync: true);
   SimaiVideoExportTask? _activeTask;
+  SimaiVideoExportTask? _lastCompletedTask;
+  int _openExportPageCount = 0;
 
   SimaiVideoExporter._() : _platform = SimaiNativeVideoExportPlatform.instance;
 
@@ -29,6 +32,24 @@ class SimaiVideoExporter with WidgetsBindingObserver {
   /// [SimaiVideoExportTask.progress] for subsequent updates. Closing an export
   /// page does not clear or cancel this task.
   SimaiVideoExportTask? get activeTask => _activeTask;
+
+  /// Most recent completed task whose result has not yet been consumed or dismissed.
+  SimaiVideoExportTask? get lastCompletedTask => _lastCompletedTask;
+
+  /// Whether at least one [SimaiVideoExportPage] is currently mounted.
+  bool get isExportPageOpen => _openExportPageCount > 0;
+
+  void registerExportPageOpened() => _openExportPageCount++;
+
+  void registerExportPageClosed() {
+    if (_openExportPageCount > 0) _openExportPageCount--;
+  }
+
+  void clearLastCompletedTask([SimaiVideoExportTask? task]) {
+    if (task == null || identical(_lastCompletedTask, task)) {
+      _lastCompletedTask = null;
+    }
+  }
 
   /// Emits whenever [activeTask] starts or returns to null.
   Stream<SimaiVideoExportTask?> get activeTaskChanges =>
@@ -52,7 +73,11 @@ class SimaiVideoExporter with WidgetsBindingObserver {
   /// is deleted automatically and must not be reused.
   Future<String?> saveToGallery(SimaiVideoExportResult result) async {
     try {
-      return await _platform.saveToGallery(result.path);
+      final identifier = await _platform.saveToGallery(result.path);
+      if (_lastCompletedTask?.completedResult?.path == result.path) {
+        _lastCompletedTask = null;
+      }
+      return identifier;
     } on PlatformException catch (error) {
       throw SimaiVideoExportException(
         error.code,
@@ -70,6 +95,9 @@ class SimaiVideoExporter with WidgetsBindingObserver {
   Future<void> share(SimaiVideoExportResult result, {String? text}) async {
     try {
       await _platform.shareVideo(path: result.path, text: text);
+      if (_lastCompletedTask?.completedResult?.path == result.path) {
+        _lastCompletedTask = null;
+      }
     } on PlatformException catch (error) {
       throw SimaiVideoExportException(
         error.code,
@@ -108,6 +136,9 @@ class SimaiVideoExporter with WidgetsBindingObserver {
     required SimaiPlayerController controller,
     required SimaiVideoMetadata metadata,
     SimaiVideoExportOptions options = const SimaiVideoExportOptions(),
+    TextStyle? displayFont,
+    SimaiTextStyleResolver? textStyleResolver,
+    Future<void> Function()? prepareFonts,
   }) {
     _ensureLifecycleObserver();
     if (_activeTask != null) {
@@ -116,6 +147,7 @@ class SimaiVideoExporter with WidgetsBindingObserver {
         'Another video export is already running.',
       );
     }
+    _lastCompletedTask = null;
     final snapshotController = createSimaiVideoExportControllerSnapshot(
       controller,
     );
@@ -152,6 +184,9 @@ class SimaiVideoExporter with WidgetsBindingObserver {
         metadata: metadata,
         options: options,
         task: task,
+        displayFont: displayFont,
+        textStyleResolver: textStyleResolver,
+        prepareFonts: prepareFonts,
         isCancelled: () => cancelled,
         onSessionCreated: (id) => nativeSessionId = id,
       ),
@@ -164,6 +199,9 @@ class SimaiVideoExporter with WidgetsBindingObserver {
     required SimaiVideoMetadata metadata,
     required SimaiVideoExportOptions options,
     required SimaiVideoExportTask task,
+    required TextStyle? displayFont,
+    required SimaiTextStyleResolver? textStyleResolver,
+    required Future<void> Function()? prepareFonts,
     required bool Function() isCancelled,
     required ValueChanged<int> onSessionCreated,
   }) async {
@@ -205,6 +243,9 @@ class SimaiVideoExporter with WidgetsBindingObserver {
         controller: snapshotController,
         metadata: metadata,
         quality: options.quality,
+        displayFont: displayFont,
+        textStyleResolver: textStyleResolver,
+        prepareFonts: prepareFonts,
       );
       session = await _platform.start(
         width: options.quality.width,
@@ -361,6 +402,7 @@ class SimaiVideoExporter with WidgetsBindingObserver {
           fileSizeBytes: nativeResult.fileSizeBytes,
         ),
       );
+      _lastCompletedTask = task;
     } on SimaiVideoExportCancelledException catch (error, stackTrace) {
       final current = task.currentProgress;
       task.updateProgressForExport(
@@ -449,9 +491,7 @@ class SimaiVideoExporter with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.hidden &&
-        state != AppLifecycleState.paused &&
-        state != AppLifecycleState.detached) {
+    if (state != AppLifecycleState.detached) {
       return;
     }
     final task = _activeTask;
@@ -486,6 +526,7 @@ SimaiPlayerController createSimaiVideoExportControllerSnapshot(
     ..speed = source.speed
     ..playbackRate = source.playbackRate
     ..musicVolume = source.musicVolume
+    ..hitSoundVolume = source.hitSoundVolume
     ..musicOffsetMs = source.musicOffsetMs
     ..hitSoundOffsetMs = source.hitSoundOffsetMs
     ..hitSoundEnabled = source.hitSoundEnabled

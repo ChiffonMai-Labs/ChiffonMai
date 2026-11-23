@@ -227,7 +227,9 @@ class SoLoudAudioPlayer {
   }
 
   static Future<void> _initializeEngine(SoLoud soloud) async {
-    var sampleRate = 44100;
+    var sampleRate = !kIsWeb && defaultTargetPlatform == TargetPlatform.android
+        ? 48000
+        : 44100;
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
       // SoLoud 的 CoreAudio 后端要求宿主先激活音频会话。
       final deviceSampleRate = await const MethodChannel(
@@ -238,15 +240,32 @@ class SoLoudAudioPlayer {
       }
       debugPrint('SFX: iOS audio session active, sampleRate=$sampleRate');
     }
+    const int preferredBufferSize = 512;
     try {
-      await soloud.init(sampleRate: sampleRate);
-    } on SoLoudBackendNotInitedException {
-      if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) rethrow;
-      // iOS 设备启动失败时重试保守配置，不使用无声时钟掩盖错误。
-      debugPrint(
-        'SFX: retrying iOS audio initialization with lowLatency=false',
+      await soloud.init(
+        sampleRate: sampleRate,
+        bufferSize: preferredBufferSize,
       );
-      await soloud.init(sampleRate: sampleRate, lowLatency: false);
+    } on SoLoudException {
+      debugPrint(
+        'SFX: retrying audio initialization with default bufferSize '
+        '(sampleRate=$sampleRate)',
+      );
+      try {
+        await soloud.init(sampleRate: sampleRate);
+      } on SoLoudBackendNotInitedException {
+        if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) rethrow;
+        // iOS 设备启动失败时重试保守配置，不使用无声时钟掩盖错误。
+        debugPrint(
+          'SFX: retrying iOS audio initialization with lowLatency=false',
+        );
+        await soloud.init(sampleRate: sampleRate, lowLatency: false);
+      }
+    }
+    try {
+      soloud.setMaxActiveVoiceCount(32);
+    } catch (e) {
+      debugPrint('SFX: setMaxActiveVoiceCount failed: $e');
     }
   }
 

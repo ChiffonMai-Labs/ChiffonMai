@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
 import '../ui/center_display_mode.dart';
+import '../ui/simai_game.dart';
 import '../ui/simai_player.dart';
 import 'video_export_models.dart';
 import 'video_exporter.dart';
@@ -24,6 +25,9 @@ class SimaiVideoExportPage extends StatefulWidget {
   final SimaiVideoExportOptions initialOptions;
   final SimaiVideoExportTask? task;
   final ValueChanged<SimaiVideoExportResult>? onVideoExported;
+  final TextStyle? displayFont;
+  final SimaiTextStyleResolver? textStyleResolver;
+  final Future<void> Function()? prepareFonts;
 
   const SimaiVideoExportPage({
     super.key,
@@ -32,6 +36,9 @@ class SimaiVideoExportPage extends StatefulWidget {
     this.initialOptions = const SimaiVideoExportOptions(),
     this.task,
     this.onVideoExported,
+    this.displayFont,
+    this.textStyleResolver,
+    this.prepareFonts,
   });
 
   @override
@@ -115,7 +122,11 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
   @override
   void initState() {
     super.initState();
-    final activeTask = widget.task ?? SimaiVideoExporter.instance.activeTask;
+    SimaiVideoExporter.instance.registerExportPageOpened();
+    final activeTask =
+        widget.task ??
+        SimaiVideoExporter.instance.activeTask ??
+        SimaiVideoExporter.instance.lastCompletedTask;
     _quality = activeTask?.options.quality ?? widget.initialOptions.quality;
     if (activeTask == null) {
       final configuration = createSimaiVideoExportControllerSnapshot(
@@ -150,6 +161,7 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
   @override
   void dispose() {
     _disposed = true;
+    SimaiVideoExporter.instance.registerExportPageClosed();
     _tabController
       ..removeListener(_handleTabChanged)
       ..dispose();
@@ -222,6 +234,9 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
         metadata: widget.metadata,
         quality: SimaiVideoQuality.hd720,
         outputSize: _previewRenderSize,
+        displayFont: widget.displayFont,
+        textStyleResolver: widget.textStyleResolver,
+        prepareFonts: widget.prepareFonts,
       );
       _previewController = previewController;
       _previewRenderer = renderer;
@@ -517,6 +532,7 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
   }
 
   void _closeProgressView() {
+    SimaiVideoExporter.instance.clearLastCompletedTask(_task);
     Navigator.of(context).pop(_taskResult);
   }
 
@@ -526,6 +542,7 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
     setState(() => _savingToGallery = true);
     try {
       await SimaiVideoExporter.instance.saveToGallery(result);
+      SimaiVideoExporter.instance.clearLastCompletedTask(_task);
       if (!mounted) return;
       setState(() {
         _savedToGallery = true;
@@ -554,6 +571,7 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
         result,
         text: task?.metadata.title,
       );
+      SimaiVideoExporter.instance.clearLastCompletedTask(_task);
       if (!mounted) return;
       setState(() {
         _shareSheetOpened = true;
@@ -581,6 +599,9 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
         controller: _settingsController,
         metadata: widget.metadata,
         options: _selectedOptions,
+        displayFont: widget.displayFont,
+        textStyleResolver: widget.textStyleResolver,
+        prepareFonts: widget.prepareFonts,
       );
       _attachTask(task, notifyOnCompletion: true);
     } on SimaiVideoExportException catch (error) {
@@ -610,7 +631,10 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
         theme.appBarTheme.foregroundColor ??
         theme.colorScheme.onSurface;
     return Scaffold(
+      backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
+        backgroundColor: theme.colorScheme.surface,
+        surfaceTintColor: Colors.transparent,
         centerTitle: false,
         titleSpacing: 0,
         title: Column(
@@ -834,7 +858,7 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
         if (task.isRunning)
           const _ProgressNotice(
             icon: Icons.open_in_new,
-            text: '可以安全退出此页面，导出会继续运行。再次点击任意谱面的导出按钮即可回到这里。',
+            text: '可以切到后台或退出此页面，导出会通过通知栏持续进行。再次点击导出或通知栏即可回到这里。',
           ),
         if (result != null)
           _ProgressNotice(

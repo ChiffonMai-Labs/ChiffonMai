@@ -143,9 +143,13 @@ class _SimaiGameplaySetupPageState extends State<SimaiGameplaySetupPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final summary = widget.controller.chartSummary;
     return Scaffold(
+      backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
+        backgroundColor: theme.colorScheme.surface,
+        surfaceTintColor: Colors.transparent,
         title: Text(widget.controller.title ?? '谱面游玩设置'),
         leading: widget.onBack == null
             ? null
@@ -574,8 +578,15 @@ class _SimaiGameplayPageState extends State<SimaiGameplayPage>
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     if (_loadError != null) {
       return Scaffold(
+        backgroundColor: theme.colorScheme.surface,
+        appBar: AppBar(
+          backgroundColor: theme.colorScheme.surface,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+        ),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
@@ -604,6 +615,7 @@ class _SimaiGameplayPageState extends State<SimaiGameplayPage>
         if (!didPop) unawaited(_requestExit());
       },
       child: Scaffold(
+        backgroundColor: Colors.black,
         body: SafeArea(
           child: Stack(
             children: [
@@ -690,9 +702,22 @@ class SimaiGameplayResultPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isLight = theme.brightness == Brightness.light;
+    final achievementColor = isLight
+        ? const Color(0xFFD97706)
+        : const Color(0xFFFFD54F);
+    final touchGroupColor = isLight
+        ? const Color(0xFF00897B)
+        : const Color(0xFF80CBC4);
     return Scaffold(
-      appBar: AppBar(title: Text(title ?? '游玩结算')),
+      backgroundColor: colorScheme.surface,
+      appBar: AppBar(
+        backgroundColor: colorScheme.surface,
+        surfaceTintColor: Colors.transparent,
+        title: Text(title ?? '游玩结算'),
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -724,7 +749,7 @@ class SimaiGameplayResultPage extends StatelessWidget {
                   Text(
                     '${result.achievement.toStringAsFixed(4)}%',
                     style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                      color: const Color(0xFFFFD54F),
+                      color: achievementColor,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -744,7 +769,7 @@ class SimaiGameplayResultPage extends StatelessWidget {
                       (grade) => _ResultRow(
                         label: _gradeLabel(grade),
                         value: result.countForGrade(grade).toString(),
-                        color: _gradeColor(grade),
+                        color: _gradeColor(grade, theme.brightness),
                       ),
                     )
                     .toList(),
@@ -775,7 +800,7 @@ class SimaiGameplayResultPage extends StatelessWidget {
                     _ResultRow(
                       label: 'TOUCH GROUP',
                       value: result.touchGroupAssistCount.toString(),
-                      color: const Color(0xFF80CBC4),
+                      color: touchGroupColor,
                     ),
                   _ResultRow(
                     label: '判定表示',
@@ -833,13 +858,21 @@ class SimaiGameplayResultPage extends StatelessWidget {
     SimaiJudgeGrade.miss => 'MISS',
   };
 
-  static Color _gradeColor(SimaiJudgeGrade grade) => switch (grade) {
-    SimaiJudgeGrade.criticalPerfect => const Color(0xFFFFD54F),
-    SimaiJudgeGrade.perfect => const Color(0xFFFFC107),
-    SimaiJudgeGrade.great => const Color(0xFFEC6BAA),
-    SimaiJudgeGrade.good => const Color(0xFF66BB6A),
-    SimaiJudgeGrade.miss => const Color(0xFFBDBDBD),
-  };
+  static Color _gradeColor(SimaiJudgeGrade grade, Brightness brightness) {
+    final isLight = brightness == Brightness.light;
+    return switch (grade) {
+      SimaiJudgeGrade.criticalPerfect =>
+        isLight ? const Color(0xFFD97706) : const Color(0xFFFFD54F),
+      SimaiJudgeGrade.perfect =>
+        isLight ? const Color(0xFFCA8A04) : const Color(0xFFFFC107),
+      SimaiJudgeGrade.great =>
+        isLight ? const Color(0xFFD81B60) : const Color(0xFFEC6BAA),
+      SimaiJudgeGrade.good =>
+        isLight ? const Color(0xFF2E7D32) : const Color(0xFF66BB6A),
+      SimaiJudgeGrade.miss =>
+        isLight ? const Color(0xFF616161) : const Color(0xFFBDBDBD),
+    };
+  }
 }
 
 class _NoteSpeedPreview extends StatefulWidget {

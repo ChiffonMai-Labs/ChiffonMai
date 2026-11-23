@@ -14,6 +14,9 @@ class SimaiVideoFrameRenderer {
   final SimaiVideoMetadata metadata;
   final SimaiVideoQuality quality;
   final Size? outputSize;
+  final TextStyle? displayFont;
+  final SimaiTextStyleResolver? textStyleResolver;
+  final Future<void> Function()? prepareFonts;
 
   late final SimaiVideoLayout layout = outputSize == null
       ? SimaiVideoLayout.forQuality(quality)
@@ -29,6 +32,9 @@ class SimaiVideoFrameRenderer {
     required this.metadata,
     required this.quality,
     this.outputSize,
+    this.displayFont,
+    this.textStyleResolver,
+    this.prepareFonts,
   });
 
   double get visualDuration => _game.totalVisualDuration;
@@ -44,6 +50,15 @@ class SimaiVideoFrameRenderer {
     _game.showCornerInfo = value;
   }
 
+  TextStyle _resolveTextStyle(TextStyle style) {
+    if (textStyleResolver != null) return textStyleResolver!(style);
+    if (displayFont == null) return style;
+    return style.copyWith(
+      fontFamily: displayFont!.fontFamily,
+      fontFamilyFallback: displayFont!.fontFamilyFallback,
+    );
+  }
+
   Future<void> prepare({bool Function()? isCancelled}) async {
     if (_prepared) return;
     if (_disposed) throw StateError('Renderer is already disposed.');
@@ -54,6 +69,10 @@ class SimaiVideoFrameRenderer {
     }
 
     checkCancelled();
+    if (prepareFonts != null) {
+      await prepareFonts!();
+      checkCancelled();
+    }
     _coverImage = await _resolveImage(
       metadata.coverImageProvider,
       layout.coverRect.size,
@@ -65,6 +84,8 @@ class SimaiVideoFrameRenderer {
       chart: controller.chart,
       headlessExport: true,
       headlessExportCancelled: isCancelled,
+      displayFont: displayFont,
+      textStyleResolver: textStyleResolver,
       isPlaying: false,
       ringApproachTime: controller.approachTime,
       touchApproachTime: controller.touchApproachTime,
@@ -217,7 +238,7 @@ class SimaiVideoFrameRenderer {
     return recorder.endRecording();
   }
 
-  static void _paintSingleLine(
+  void _paintSingleLine(
     Canvas canvas,
     String text,
     Offset offset,
@@ -239,7 +260,7 @@ class SimaiVideoFrameRenderer {
     painter.dispose();
   }
 
-  static void _paintCenteredSingleLine(
+  void _paintCenteredSingleLine(
     Canvas canvas,
     String text,
     Rect rect, {
@@ -264,7 +285,7 @@ class SimaiVideoFrameRenderer {
     painter.dispose();
   }
 
-  static TextPainter _createFittedTextPainter(
+  TextPainter _createFittedTextPainter(
     String text,
     double maxWidth, {
     required double maxFontSize,
@@ -276,16 +297,16 @@ class SimaiVideoFrameRenderer {
     double fontSize = maxFontSize;
     late TextPainter painter;
     while (true) {
-      painter = TextPainter(
-        text: TextSpan(
-          text: text,
-          style: TextStyle(
-            color: color,
-            fontSize: fontSize,
-            fontWeight: fontWeight,
-            height: 1,
-          ),
+      final style = _resolveTextStyle(
+        TextStyle(
+          color: color,
+          fontSize: fontSize,
+          fontWeight: fontWeight,
+          height: 1.15,
         ),
+      );
+      painter = TextPainter(
+        text: TextSpan(text: text, style: style),
         maxLines: 1,
         ellipsis: '…',
         textAlign: textAlign,

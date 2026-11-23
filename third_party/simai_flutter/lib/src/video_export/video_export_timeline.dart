@@ -3,8 +3,8 @@ import 'dart:math';
 import '../structures/mai_chart.dart';
 import '../structures/note_type.dart';
 
-const double simaiHitSoundBaseOffsetSeconds = -0.17;
-const double simaiHitSoundDurationSeconds = 17869 / 48000;
+const double simaiHitSoundBaseOffsetSeconds = 0.0;
+const double simaiHitSoundDurationSeconds = 4800 / 48000;
 
 class SimaiVideoTimeline {
   final double chartStart;

@@ -4,18 +4,21 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:simai_flutter/simai_flutter.dart';
 import 'package:my_first_flutter_app/service/ChartPlaySettingsStore.dart';
 import 'package:my_first_flutter_app/service/LoadingTipsStore.dart';
 import 'package:my_first_flutter_app/service/SongPlayService.dart';
 import 'package:my_first_flutter_app/service/SongMediaCache.dart';
+import 'package:my_first_flutter_app/service/VideoExportBackgroundService.dart';
 import 'package:my_first_flutter_app/api/ApiUrls.dart';
 import 'package:my_first_flutter_app/utils/CoverUtil.dart';
 import 'package:my_first_flutter_app/utils/RefreshRateUtil.dart';
 import 'package:my_first_flutter_app/widgets/SmoothLinearProgressIndicator.dart';
 import 'package:my_first_flutter_app/widgets/MarqueeText.dart';
 import '../utils/AppTheme.dart';
+import '../widgets/AppSwitch.dart';
 import '../widgets/AppToast.dart';
 import '../widgets/ChartPlayMetronome.dart';
 
@@ -79,6 +82,9 @@ class _ChartPlayPageState extends State<ChartPlayPage>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    VideoExportBackgroundService.instance.ensureInitialized();
+    VideoExportBackgroundService.instance.openExportRequestNonce
+        .addListener(_handleOpenExportRequest);
     // 谱面播放对帧率敏感：Flutter 引擎不会主动向系统要高刷，
     // 不投这一票就会一直在「几秒 120 → 掉 60」之间反复。
     RefreshRateUtil.requestMax();
@@ -375,12 +381,68 @@ class _ChartPlayPageState extends State<ChartPlayPage>
     }
   }
 
+  void _handleOpenExportRequest() {
+    if (!mounted || _isLeaving) return;
+    final controller = _controller;
+    final metadata = _videoMetadata;
+    if (controller == null || metadata == null) return;
+    if (SimaiVideoExporter.instance.isExportPageOpen) return;
+    final task = SimaiVideoExporter.instance.activeTask ??
+        SimaiVideoExporter.instance.lastCompletedTask;
+    if (task == null) return;
+    unawaited(controller.pause());
+    unawaited(
+      Navigator.of(context).push<SimaiVideoExportResult>(
+        MaterialPageRoute(
+          builder: (_) => SimaiVideoExportPage(
+            controller: controller,
+            metadata: metadata,
+            initialOptions: _videoExportOptions,
+            task: task,
+            displayFont: AppTheme.font(fontWeight: FontWeight.w700),
+            textStyleResolver: _resolveChartTextStyle,
+            prepareFonts: _prepareChartFonts,
+            onVideoExported: _onVideoExported,
+          ),
+        ),
+      ),
+    );
+  }
+
+  TextStyle _resolveChartTextStyle(TextStyle style) {
+    final font = AppTheme.font(fontWeight: style.fontWeight ?? FontWeight.w400);
+    return style.copyWith(
+      fontFamily: font.fontFamily,
+      fontFamilyFallback: font.fontFamilyFallback,
+    );
+  }
+
+  Future<void> _prepareChartFonts() async {
+    try {
+      for (final weight in const [
+        FontWeight.w400,
+        FontWeight.w500,
+        FontWeight.w700,
+        FontWeight.w800,
+      ]) {
+        AppTheme.font(fontWeight: weight);
+      }
+      await GoogleFonts.pendingFonts().timeout(
+        const Duration(seconds: 6),
+        onTimeout: () => const <void>[],
+      );
+    } catch (e) {
+      debugPrint('[ChartPlay] 准备导出字体失败（继续使用已加载字体）: $e');
+    }
+  }
+
   void _onVideoExported(SimaiVideoExportResult result) {
     final sizeMb = (result.fileSizeBytes / (1024 * 1024)).toStringAsFixed(1);
     debugPrint(
       'Video exported: ${result.width}x${result.height} '
       '(${result.duration.inSeconds}s, $sizeMb MB) -> ${result.path}',
     );
+    if (!mounted) return;
     AppToast.show(
         context.l10n.flowVideoGeneratedTapSaveToPhotosOn(
             (result.width).toString(),
@@ -574,6 +636,8 @@ E
     _loadingDiagnosticTimer?.cancel();
     _loadingTipTimer?.cancel();
     debugPrint('[ChartPlay] dispose');
+    VideoExportBackgroundService.instance.openExportRequestNonce
+        .removeListener(_handleOpenExportRequest);
     WidgetsBinding.instance.removeObserver(this);
     // 离开播放页就把刷新率交还系统，避免整个 App 一直顶着高刷耗电
     RefreshRateUtil.restore();
@@ -634,6 +698,12 @@ E
                 onBack: _leavePlayerPage,
                 disposeController: false,
                 displayFont: AppTheme.font(fontWeight: FontWeight.w700),
+                textStyleResolver: _resolveChartTextStyle,
+                prepareFonts: _prepareChartFonts,
+                switchBuilder: (_, value, onChanged) => AppSwitch(
+                  value: value,
+                  onChanged: onChanged,
+                ),
                 beforeTimeline: ChartPlayMetronome(
                   key: _metronomeKey,
                   controller: _controller!,

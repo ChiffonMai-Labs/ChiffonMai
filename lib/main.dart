@@ -35,6 +35,7 @@ import 'widgets/AppToast.dart';
 import 'package:my_first_flutter_app/widgets/Best50Ui.dart';
 import 'package:my_first_flutter_app/service/BackgroundExportService.dart';
 import 'package:my_first_flutter_app/service/CrashReportService.dart';
+import 'package:my_first_flutter_app/service/VideoExportBackgroundService.dart';
 import 'service/BackgroundAppUpdateService.dart';
 
 Future<void> main() async {
@@ -143,6 +144,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       _checkUpdateForBadge();
       unawaited(CrashReportService.checkPreviousCrash());
       BackgroundAppUpdateService.instance.initialize();
+      VideoExportBackgroundService.instance.ensureInitialized();
     });
   }
 

@@ -23,6 +23,8 @@ import 'gameplay/gameplay_hud_component.dart';
 import 'note_geometry.dart';
 import 'note_motion.dart';
 
+typedef SimaiTextStyleResolver = TextStyle Function(TextStyle style);
+
 @visibleForTesting
 double hitSoundVoiceGain(int voiceCount, {double baseGain = 0.72}) {
   if (voiceCount <= 0) return 0.0;
@@ -38,15 +40,16 @@ class SimaiGame extends FlameGame {
   final bool Function()? headlessExportCancelled;
   final SimaiGameplaySession? gameplaySession;
   final TextStyle? displayFont;
+  final SimaiTextStyleResolver? textStyleResolver;
   bool isPlaying;
   double chartTime = 0.0;
   double ringApproachTime;
   double touchApproachTime;
   double playbackRate;
   double musicVolume;
-  double hitSoundOffset;
+  double _hitSoundOffset;
   double hitSoundVolume;
-  bool hitSoundEnabled;
+  bool _hitSoundEnabled;
   SimaiBackgroundMode backgroundMode;
   SimaiMirrorMode mirrorMode;
   bool rotateSlideStar;
@@ -70,7 +73,7 @@ class SimaiGame extends FlameGame {
   String? audioFilePath;
   ImageProvider? backgroundImageProvider;
   late final Stopwatch _monotonicClock;
-  late final SoLoudAudioPlayer _audioPlayer;
+  late final SoLoudAudioPlayer? _audioPlayer;
   double offset;
   StreamSubscription<SoLoudAudioClockSnapshot>? _clockSubscription;
   bool _audioClockAdvancing = false;
@@ -145,16 +148,17 @@ class SimaiGame extends FlameGame {
   late final double _contentDuration = computeChartContentEndTime(chart);
   late final double _visualDuration = _computeVisualDuration();
 
-  static const double _hitSoundBaseOffsetSeconds = -0.17;
+  static const double _hitSoundBaseOffsetSeconds = 0.0;
+  static const double _sfxLookaheadSeconds = 0.080;
+  static const double _sfxMaxLateSeconds = 0.045;
+  static const int _sfxOverlapWindowMs = 80;
   List<int> _sfxEventTimesMs = const [];
   int _sfxEventIndex = 0;
   int _lastSfxCheckTimeMs = 0;
-  final SoLoud _soloud = SoLoud.instance;
+  SoLoud get _soloud => SoLoud.instance;
   AudioSource? _sfxSource;
-  StreamSubscription<StreamSoundEvent>? _sfxEventsSubscription;
   final Queue<SoundHandle> _sfxVoices = Queue<SoundHandle>();
-  Future<void> _sfxMixOperation = Future<void>.value();
-  static const int _maxSfxVoices = 6;
+  static const int _maxSfxVoices = 24;
 
   late final NoteAssetManager noteAssets;
   double noteScale = 1.0;
@@ -167,15 +171,16 @@ class SimaiGame extends FlameGame {
     this.headlessExportCancelled,
     this.gameplaySession,
     this.displayFont,
+    this.textStyleResolver,
     this.isPlaying = false,
     this.ringApproachTime = NoteMotion.defaultApproachTime,
     this.touchApproachTime =
         NoteMotion.defaultApproachTime * NoteMotion.touchApproachMultiplier,
     this.playbackRate = 1.0,
     this.musicVolume = 0.8,
-    this.hitSoundOffset = 0.0,
+    double hitSoundOffset = 0.0,
     this.hitSoundVolume = 0.72,
-    this.hitSoundEnabled = true,
+    bool hitSoundEnabled = true,
     this.backgroundMode = SimaiBackgroundMode.judgeLine,
     this.mirrorMode = SimaiMirrorMode.none,
     this.rotateSlideStar = true,
@@ -213,9 +218,11 @@ class SimaiGame extends FlameGame {
          gameplayContactRadiusRatio.isFinite && gameplayContactRadiusRatio >= 0,
          'gameplayContactRadiusRatio must be finite and non-negative.',
        ),
-       chartTime = initialChartTime {
+       chartTime = initialChartTime,
+       _hitSoundOffset = hitSoundOffset.isFinite ? hitSoundOffset : 0.0,
+       _hitSoundEnabled = hitSoundEnabled {
     _monotonicClock = Stopwatch()..start();
-    _audioPlayer = SoLoudAudioPlayer(clock: _monotonicClock);
+    _audioPlayer = headlessExport ? null : SoLoudAudioPlayer(clock: _monotonicClock);
     _chartAnchorClockUs = _monotonicClock.elapsedMicroseconds;
     _chartAnchorTime = chartTime;
     // This package can host more than one player at a time. Keep Flame's image
@@ -229,15 +236,36 @@ class SimaiGame extends FlameGame {
 
   bool get _hasAudio => audioAsset != null || audioFilePath != null;
 
-  TextStyle withDisplayFont(TextStyle style) => displayFont == null
-      ? style
-      : style.copyWith(
-          fontFamily: displayFont!.fontFamily,
-          fontFamilyFallback: displayFont!.fontFamilyFallback,
-        );
+  bool get hitSoundEnabled => _hitSoundEnabled;
+  set hitSoundEnabled(bool value) {
+    if (_hitSoundEnabled == value) return;
+    _hitSoundEnabled = value;
+    if (!value) {
+      _stopSfxVoices();
+    }
+    _resyncSfxPosition();
+  }
+
+  double get hitSoundOffset => _hitSoundOffset;
+  set hitSoundOffset(double value) {
+    final safe = value.isFinite ? value : 0.0;
+    if (_hitSoundOffset == safe) return;
+    _hitSoundOffset = safe;
+    _stopSfxVoices();
+    _resyncSfxPosition();
+  }
+
+  TextStyle withDisplayFont(TextStyle style) {
+    if (textStyleResolver != null) return textStyleResolver!(style);
+    if (displayFont == null) return style;
+    return style.copyWith(
+      fontFamily: displayFont!.fontFamily,
+      fontFamilyFallback: displayFont!.fontFamilyFallback,
+    );
+  }
 
   double get _effectiveHitSoundOffsetSeconds =>
-      _hitSoundBaseOffsetSeconds + hitSoundOffset;
+      _hitSoundBaseOffsetSeconds + _hitSoundOffset;
 
   late final JudgeBackgroundComponent _backgroundComponent;
   late final NotesLayerComponent _notesComponent;
@@ -296,41 +324,44 @@ class SimaiGame extends FlameGame {
     _notesComponent.setSnapshotEnabled(!isPlaying && !headlessExport);
 
     if (!headlessExport) {
-      _clockSubscription = _audioPlayer.snapshots.listen((snapshot) {
-        _debugAudioUpdates++;
-        _audioPositionUpdateCount++;
-        if (_isSeeking) return;
-        final int ms = snapshot.position.inMilliseconds;
+      final audioPlayer = _audioPlayer;
+      if (audioPlayer != null) {
+        _clockSubscription = audioPlayer.snapshots.listen((snapshot) {
+          _debugAudioUpdates++;
+          _audioPositionUpdateCount++;
+          if (_isSeeking) return;
+          final int ms = snapshot.position.inMilliseconds;
 
-        final int? lastMs = _debugLastAudioPosMs;
-        if (lastMs != null && (ms - lastMs).abs() > 500) {
-          _debugAudioPosJumps++;
-        }
-        _debugLastAudioPosMs = ms;
-        _audioClockSnapshot = snapshot;
-        _audioClockAdvancing = snapshot.isAdvancing;
-        if (snapshot.state == SoLoudAudioState.completed && isPlaying) {
-          if (gameplaySession != null) {
-            _gameplayAudioCompleted = true;
-            _audioClockAdvancing = false;
-            _audioClockSnapshot = null;
-            _anchorChartClock();
-          } else {
-            setPlaying(false);
-            onPlaybackCompleted?.call();
+          final int? lastMs = _debugLastAudioPosMs;
+          if (lastMs != null && (ms - lastMs).abs() > 500) {
+            _debugAudioPosJumps++;
           }
-        } else if (snapshot.state == SoLoudAudioState.error && isPlaying) {
-          if (gameplaySession != null) {
-            _gameplayAudioCompleted = true;
-            _audioClockAdvancing = false;
-            _audioClockSnapshot = null;
-            _anchorChartClock();
-          } else {
-            setPlaying(false);
-            onPlaybackCompleted?.call();
+          _debugLastAudioPosMs = ms;
+          _audioClockSnapshot = snapshot;
+          _audioClockAdvancing = snapshot.isAdvancing;
+          if (snapshot.state == SoLoudAudioState.completed && isPlaying) {
+            if (gameplaySession != null) {
+              _gameplayAudioCompleted = true;
+              _audioClockAdvancing = false;
+              _audioClockSnapshot = null;
+              _anchorChartClock();
+            } else {
+              setPlaying(false);
+              onPlaybackCompleted?.call();
+            }
+          } else if (snapshot.state == SoLoudAudioState.error && isPlaying) {
+            if (gameplaySession != null) {
+              _gameplayAudioCompleted = true;
+              _audioClockAdvancing = false;
+              _audioClockSnapshot = null;
+              _anchorChartClock();
+            } else {
+              setPlaying(false);
+              onPlaybackCompleted?.call();
+            }
           }
-        }
-      });
+        });
+      }
 
       try {
         await ensureSoLoudInitialized(_soloud);
@@ -344,9 +375,6 @@ class SimaiGame extends FlameGame {
           } else {
             _sfxSource = await _soloud.loadAsset(assetPath);
           }
-          _sfxEventsSubscription = _sfxSource!.soundEvents.listen(
-            _handleSfxEvent,
-          );
           debugPrint('SFX: SoLoud loaded $assetPath');
         } catch (e) {
           debugPrint('SFX: SoLoud failed to load $assetPath: $e');
@@ -356,18 +384,18 @@ class SimaiGame extends FlameGame {
       }
       _rebuildSfxEventTimes();
 
-      if (_hasAudio) {
+      if (_hasAudio && audioPlayer != null) {
         try {
           if (audioFilePath != null) {
-            await _audioPlayer.loadFile(audioFilePath!);
+            await audioPlayer.loadFile(audioFilePath!);
           } else {
-            await _audioPlayer.loadAsset(audioAsset!);
+            await audioPlayer.loadAsset(audioAsset!);
           }
-          await _audioPlayer.setVolume(musicVolume);
-          await _audioPlayer.setRate(playbackRate);
+          await audioPlayer.setVolume(musicVolume);
+          await audioPlayer.setRate(playbackRate);
           // Ensure state consistency if source set after isPlaying
           if (isPlaying) {
-            unawaited(_audioPlayer.play());
+            unawaited(audioPlayer.play());
           }
         } catch (e) {
           debugPrint("Error loading audio source: $e");
@@ -549,9 +577,10 @@ class SimaiGame extends FlameGame {
     _cadenceMotionStepsMs.clear();
     _sfxEventTimesMs = const [];
     _clockSubscription?.cancel();
-    _sfxEventsSubscription?.cancel();
-    _sfxEventsSubscription = null;
-    unawaited(_audioPlayer.dispose());
+    final audioPlayer = _audioPlayer;
+    if (audioPlayer != null) {
+      unawaited(audioPlayer.dispose());
+    }
     final src = _sfxSource;
     _sfxSource = null;
     _stopSfxVoices();
@@ -571,19 +600,22 @@ class SimaiGame extends FlameGame {
       }
       resumeEngine();
       _resetCadenceWindow();
-      final ms = ((chartTime - _effectiveHitSoundOffsetSeconds) * 1000).round();
-      _lastSfxCheckTimeMs = ms;
-      _sfxEventIndex = _lowerBound(_sfxEventTimesMs, ms);
-      if (_hasAudio) {
-        _audioPlayer.play().catchError((e) {
+      _stopSfxVoices();
+      _resyncSfxPosition();
+      final audioPlayer = _audioPlayer;
+      if (_hasAudio && audioPlayer != null) {
+        audioPlayer.play().catchError((e) {
           debugPrint("Audio resume failed: $e");
         });
       }
       // SoLoud state events start the clock only when playback is ready.
     } else {
       clearGameplayPointers();
-      if (_hasAudio) {
-        _audioPlayer.pause();
+      _stopSfxVoices();
+      _resyncSfxPosition();
+      final audioPlayer = _audioPlayer;
+      if (_hasAudio && audioPlayer != null) {
+        audioPlayer.pause();
       }
       if (_notesReady) {
         _notesComponent.setSnapshotEnabled(!headlessExport);
@@ -597,8 +629,12 @@ class SimaiGame extends FlameGame {
     final clamped = safe.clamp(0.1, 1.0).toDouble();
     if (playbackRate == clamped) return;
     playbackRate = clamped;
+    _stopSfxVoices();
+    _resyncSfxPosition();
+    final audioPlayer = _audioPlayer;
+    if (audioPlayer == null) return;
     try {
-      await _audioPlayer.setRate(clamped);
+      await audioPlayer.setRate(clamped);
     } catch (e) {
       debugPrint("Audio setPlaybackRate failed: $e");
     }
@@ -609,11 +645,20 @@ class SimaiGame extends FlameGame {
     final clamped = safe.clamp(0.0, 1.0).toDouble();
     if (musicVolume == clamped) return;
     musicVolume = clamped;
+    final audioPlayer = _audioPlayer;
+    if (audioPlayer == null) return;
     try {
-      await _audioPlayer.setVolume(clamped);
+      await audioPlayer.setVolume(clamped);
     } catch (e) {
       debugPrint("Audio setVolume failed: $e");
     }
+  }
+
+  void setHitSoundVolume(double volume) {
+    final safe = volume.isFinite ? volume : 0.72;
+    final clamped = safe.clamp(0.0, 1.0).toDouble();
+    if (hitSoundVolume == clamped) return;
+    hitSoundVolume = clamped;
   }
 
   void setBackgroundMode(SimaiBackgroundMode mode) {
@@ -634,43 +679,47 @@ class SimaiGame extends FlameGame {
   void setAudioAsset(String? asset) {
     if (audioAsset == asset) return;
     audioAsset = asset;
+    final audioPlayer = _audioPlayer;
+    if (audioPlayer == null) return;
     if (asset != null) {
-      _audioPlayer
+      audioPlayer
           .loadAsset(asset)
           .then((_) {
-            _audioPlayer.setVolume(musicVolume);
-            _audioPlayer.setRate(playbackRate);
+            audioPlayer.setVolume(musicVolume);
+            audioPlayer.setRate(playbackRate);
             if (isPlaying) {
-              _audioPlayer.play();
+              audioPlayer.play();
             }
           })
           .catchError((e) {
             debugPrint("Error setting audio source: $e");
           });
     } else {
-      _audioPlayer.stop();
+      audioPlayer.stop();
     }
   }
 
   void setAudioFilePath(String? path) {
     if (audioFilePath == path) return;
     audioFilePath = path;
+    final audioPlayer = _audioPlayer;
+    if (audioPlayer == null) return;
     if (path != null) {
       audioAsset = null;
-      _audioPlayer
+      audioPlayer
           .loadFile(path)
           .then((_) {
-            _audioPlayer.setVolume(musicVolume);
-            _audioPlayer.setRate(playbackRate);
+            audioPlayer.setVolume(musicVolume);
+            audioPlayer.setRate(playbackRate);
             if (isPlaying) {
-              _audioPlayer.play();
+              audioPlayer.play();
             }
           })
           .catchError((e) {
             debugPrint("Error setting audio file: $e");
           });
     } else if (audioAsset == null) {
-      _audioPlayer.stop();
+      audioPlayer.stop();
     }
   }
 
@@ -689,31 +738,31 @@ class SimaiGame extends FlameGame {
     invalidateNotes(resetWindow: true);
     _debugSeekCalls++;
     _debugLastSeekReason = 'seek(syncAudio=$syncAudio)';
-    final ms = ((chartTime - _effectiveHitSoundOffsetSeconds) * 1000).round();
-    _lastSfxCheckTimeMs = ms;
-    _sfxEventIndex = _upperBound(_sfxEventTimesMs, ms);
+    _stopSfxVoices();
+    _resyncSfxPosition();
 
-    if (syncAudio && _hasAudio) {
+    final audioPlayer = _audioPlayer;
+    if (syncAudio && _hasAudio && audioPlayer != null) {
       final int targetAudioMs = (audioPos * 1000).toInt();
       final bool wasPlaying = isPlaying;
       try {
         // Always pause before seeking. During timeline dragging, the logical
         // playback flag may already be false while the backend is still
         // processing the previous pause/resume command.
-        await _audioPlayer.pause();
-        await _audioPlayer.seek(Duration(milliseconds: targetAudioMs));
+        await audioPlayer.pause();
+        await audioPlayer.seek(Duration(milliseconds: targetAudioMs));
 
         if (generation != _seekGeneration) return;
 
         // Use the position selected by SoLoud as the new clock.
-        final settled = _audioPlayer.latestSnapshot;
+        final settled = audioPlayer.latestSnapshot;
         if (settled != null) {
           _audioClockSnapshot = settled;
           settledChartTime =
               settled.position.inMicroseconds / 1000000.0 + offset;
         }
         if (wasPlaying) {
-          unawaited(_audioPlayer.play());
+          unawaited(audioPlayer.play());
         }
       } catch (e) {
         debugPrint("Seek failed: $e");
@@ -727,6 +776,8 @@ class SimaiGame extends FlameGame {
       chartTime = settledChartTime;
       _pendingSeekReset = true;
       invalidateNotes(resetWindow: true);
+      _stopSfxVoices();
+      _resyncSfxPosition();
       _isSeeking = false;
     }
   }
@@ -825,7 +876,9 @@ class SimaiGame extends FlameGame {
             chartTime = snapshot.position.inMicroseconds / 1000000.0 + offset;
           }
         } else {
-          final position = snapshot.positionAt(_audioPlayer.monotonicNow);
+          final position = snapshot.positionAt(
+            _audioPlayer?.monotonicNow ?? _monotonicClock.elapsed,
+          );
           final nextChartTime = position.inMicroseconds / 1000000.0 + offset;
           final double absError = (nextChartTime - chartTime).abs();
           chartTime = nextChartTime;
@@ -1136,8 +1189,8 @@ class SimaiGame extends FlameGame {
   double? get latestAudioPositionSeconds {
     final snapshot = _audioClockSnapshot;
     if (snapshot == null) return null;
-    return snapshot.positionAt(_audioPlayer.monotonicNow).inMicroseconds /
-        1000000.0;
+    final now = _audioPlayer?.monotonicNow ?? _monotonicClock.elapsed;
+    return snapshot.positionAt(now).inMicroseconds / 1000000.0;
   }
 
   void _recordCadenceMetrics() {
@@ -1193,17 +1246,56 @@ class SimaiGame extends FlameGame {
   }
 
   void _updateSfx() {
-    final ms = ((chartTime - _effectiveHitSoundOffsetSeconds) * 1000).round();
-    if (ms < _lastSfxCheckTimeMs) {
-      _sfxEventIndex = _upperBound(_sfxEventTimesMs, ms);
+    if (!hitSoundEnabled || playbackRate <= 0) return;
+    final src = _sfxSource;
+    if (src == null || !_soloud.isInitialized) return;
+
+    final rate = playbackRate;
+    final effectiveOffset = _effectiveHitSoundOffsetSeconds;
+    final horizonChartSec =
+        chartTime + (_sfxLookaheadSeconds - effectiveOffset) * rate;
+    final horizonMs = (horizonChartSec * 1000).round();
+    if (horizonMs < _lastSfxCheckTimeMs - 150) {
+      _stopSfxVoices();
+      _resyncSfxPosition();
+    }
+    _lastSfxCheckTimeMs = horizonMs;
+
+    if (_sfxEventIndex >= _sfxEventTimesMs.length ||
+        _sfxEventTimesMs[_sfxEventIndex] > horizonMs) {
+      return;
     }
 
-    while (_sfxEventIndex < _sfxEventTimesMs.length &&
-        _sfxEventTimesMs[_sfxEventIndex] <= ms) {
-      if (hitSoundEnabled) _playDaSound();
-      _sfxEventIndex++;
+    Duration? engineNow;
+    try {
+      engineNow = _soloud.getEngineTime();
+    } catch (_) {
+      engineNow = null;
     }
-    _lastSfxCheckTimeMs = ms;
+
+    final windowChartMs = (_sfxOverlapWindowMs * rate).round().clamp(1, 5000);
+    while (_sfxEventIndex < _sfxEventTimesMs.length &&
+        _sfxEventTimesMs[_sfxEventIndex] <= horizonMs) {
+      final eventMs = _sfxEventTimesMs[_sfxEventIndex];
+      _sfxEventIndex++;
+      _debugSfxPlayCalls++;
+
+      final deltaRealSec =
+          (eventMs / 1000.0 - chartTime) / rate + effectiveOffset;
+      if (deltaRealSec < -_sfxMaxLateSeconds) {
+        continue;
+      }
+
+      final startIdx = _lowerBound(_sfxEventTimesMs, eventMs - windowChartMs);
+      final endIdx = _upperBound(_sfxEventTimesMs, eventMs);
+      final overlap = max(1, endIdx - startIdx);
+      final gain = hitSoundVoiceGain(overlap, baseGain: hitSoundVolume);
+
+      final scheduledAt = engineNow != null && deltaRealSec > 0.002
+          ? engineNow + Duration(microseconds: (deltaRealSec * 1000000).round())
+          : null;
+      _playSfxVoice(src, gain: gain, scheduledAt: scheduledAt);
+    }
   }
 
   void _playDaSound() {
@@ -1213,66 +1305,79 @@ class SimaiGame extends FlameGame {
       _debugSfxPlayDrops++;
       return;
     }
-    _sfxMixOperation = _sfxMixOperation
-        .then((_) => _playMixedSfx(src))
-        .catchError((Object e, StackTrace stackTrace) {
-          debugPrint('SFX: SoLoud play failed: $e');
-          _debugSfxPlayDrops++;
-        });
+    _pruneSfxVoices();
+    final gain = hitSoundVoiceGain(
+      _sfxVoices.length + 1,
+      baseGain: hitSoundVolume,
+    );
+    _playSfxVoice(src, gain: gain);
   }
 
-  Future<void> _playMixedSfx(AudioSource src) async {
+  void _playSfxVoice(
+    AudioSource src, {
+    required double gain,
+    Duration? scheduledAt,
+  }) {
+    if (gain <= 0.0) return;
     if (!identical(src, _sfxSource) || !_soloud.isInitialized) return;
     _pruneSfxVoices();
 
-    if (_sfxVoices.length >= _maxSfxVoices) {
+    while (_sfxVoices.length >= _maxSfxVoices) {
       final oldest = _sfxVoices.removeFirst();
       if (_soloud.getIsValidVoiceHandle(oldest)) {
-        await _soloud.stop(oldest);
+        unawaited(_soloud.stop(oldest));
       }
     }
 
-    final voiceCount = _sfxVoices.length + 1;
-    final gain = hitSoundVoiceGain(voiceCount, baseGain: hitSoundVolume);
-    final handle = _soloud.play(src, volume: gain, paused: true);
+    SoundHandle handle;
+    try {
+      if (scheduledAt != null) {
+        handle = _soloud.playScheduled(src, scheduledAt, volume: gain);
+      } else {
+        handle = _soloud.play(src, volume: gain);
+      }
+    } catch (e) {
+      if (scheduledAt != null) {
+        try {
+          handle = _soloud.play(src, volume: gain);
+        } catch (fallbackError) {
+          debugPrint('SFX: SoLoud play failed: $fallbackError');
+          _debugSfxPlayDrops++;
+          return;
+        }
+      } else {
+        debugPrint('SFX: SoLoud play failed: $e');
+        _debugSfxPlayDrops++;
+        return;
+      }
+    }
+
     if (handle.isError || !identical(src, _sfxSource)) {
       if (!handle.isError && _soloud.getIsValidVoiceHandle(handle)) {
-        await _soloud.stop(handle);
+        unawaited(_soloud.stop(handle));
       }
+      _debugSfxPlayDrops++;
       return;
     }
 
     _sfxVoices.addLast(handle);
-    _rebalanceSfxVoices();
-    _soloud.setPause(handle, false);
     _debugSfxPoolPlays++;
-  }
-
-  void _handleSfxEvent(StreamSoundEvent event) {
-    if (event.event != SoundEventType.handleIsNoMoreValid) return;
-    _sfxVoices.remove(event.handle);
-    _rebalanceSfxVoices(fade: true);
   }
 
   void _pruneSfxVoices() {
     _sfxVoices.removeWhere((handle) => !_soloud.getIsValidVoiceHandle(handle));
   }
 
-  void _rebalanceSfxVoices({bool fade = false}) {
-    if (_sfxVoices.isEmpty || !_soloud.isInitialized) return;
-    final gain = hitSoundVoiceGain(_sfxVoices.length, baseGain: hitSoundVolume);
-    for (final handle in _sfxVoices) {
-      if (!_soloud.getIsValidVoiceHandle(handle)) continue;
-      if (fade) {
-        _soloud.fadeVolume(handle, gain, const Duration(milliseconds: 40));
-      } else {
-        _soloud.setVolume(handle, gain);
-      }
-    }
+  void _resyncSfxPosition() {
+    final targetChartSec =
+        chartTime - _effectiveHitSoundOffsetSeconds * playbackRate;
+    final ms = (targetChartSec * 1000).round();
+    _lastSfxCheckTimeMs = ms;
+    _sfxEventIndex = _lowerBound(_sfxEventTimesMs, ms);
   }
 
   void _stopSfxVoices() {
-    if (!_soloud.isInitialized) {
+    if (_sfxVoices.isEmpty || headlessExport || !_soloud.isInitialized) {
       _sfxVoices.clear();
       return;
     }
@@ -1299,9 +1404,7 @@ class SimaiGame extends FlameGame {
     }
     final list = set.toList()..sort();
     _sfxEventTimesMs = list;
-    _sfxEventIndex = 0;
-    _lastSfxCheckTimeMs = ((chartTime - _effectiveHitSoundOffsetSeconds) * 1000)
-        .round();
+    _resyncSfxPosition();
   }
 
   static int _lowerBound(List<int> a, int x) {

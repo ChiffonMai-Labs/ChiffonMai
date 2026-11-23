@@ -35,6 +35,7 @@
     -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <!--
       ⚠️ 保持 false（= 不参与 Android 的「预测性返回」），不要改回 true。
 
@@ -197,6 +198,12 @@
             android:name=".PortableNotificationService"
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
+
+        <!-- 谱面视频后台导出前台服务，见 VideoExportNotificationService.kt -->
+        <service
+            android:name=".VideoExportNotificationService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
 
         <!-- 桌面小组件，见 HomeWidgets.kt -->
         <receiver

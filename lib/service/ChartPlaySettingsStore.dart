@@ -56,6 +56,7 @@ class ChartPlaySettings {
   final bool hitSoundEnabled;
   final bool metronomeSoundEnabled;
   final double musicVolume;
+  final double hitSoundVolume;
   final int musicOffsetMs;
   final int hitSoundOffsetMs;
 
@@ -78,6 +79,7 @@ class ChartPlaySettings {
     this.hitSoundEnabled = false,
     this.metronomeSoundEnabled = false,
     this.musicVolume = 0.8,
+    this.hitSoundVolume = 0.72,
     this.musicOffsetMs = 0,
     this.hitSoundOffsetMs = 0,
   });
@@ -106,6 +108,7 @@ class ChartPlaySettings {
       hitSoundEnabled: c.hitSoundEnabled,
       metronomeSoundEnabled: metronomeSoundEnabled,
       musicVolume: c.musicVolume,
+      hitSoundVolume: c.hitSoundVolume,
       musicOffsetMs: c.musicOffsetMs,
       hitSoundOffsetMs: c.hitSoundOffsetMs,
     );
@@ -130,6 +133,7 @@ class ChartPlaySettings {
     c.showDetailedPerformanceInfo = showDetailedPerformanceInfo;
     c.hitSoundEnabled = hitSoundEnabled;
     c.musicVolume = musicVolume;
+    c.hitSoundVolume = hitSoundVolume;
     c.musicOffsetMs = musicOffsetMs;
     c.hitSoundOffsetMs = hitSoundOffsetMs;
   }
@@ -152,6 +156,7 @@ class ChartPlaySettings {
         'hitSoundEnabled': hitSoundEnabled,
         'metronomeSoundEnabled': metronomeSoundEnabled,
         'musicVolume': musicVolume,
+        'hitSoundVolume': hitSoundVolume,
         'musicOffsetMs': musicOffsetMs,
         'hitSoundOffsetMs': hitSoundOffsetMs,
       };
@@ -191,6 +196,8 @@ class ChartPlaySettings {
           _bool(json['metronomeSoundEnabled'], fallback.metronomeSoundEnabled),
       musicVolume:
           _clampDouble(json['musicVolume'], 0.0, 1.0, fallback.musicVolume),
+      hitSoundVolume: _clampDouble(
+          json['hitSoundVolume'], 0.0, 1.0, fallback.hitSoundVolume),
       musicOffsetMs:
           _clampInt(json['musicOffsetMs'], -2000, 2000, fallback.musicOffsetMs),
       hitSoundOffsetMs: _clampInt(

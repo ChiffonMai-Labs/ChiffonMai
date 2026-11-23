@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 
@@ -56,22 +58,46 @@ class ChartStatusTextComponent extends PositionComponent
     with HasGameReference<SimaiGame> {
   ChartStatusTextComponent({super.position});
 
-  static const TextStyle _baseStyle = TextStyle(
-    color: BpmIndicatorColorTransition.idleColor,
-    fontSize: 13,
-    height: 0.9,
-    fontWeight: FontWeight.bold,
-  );
-
   final BpmIndicatorColorTransition _bpmColor = BpmIndicatorColorTransition();
   TextPainter? _painter;
   double? _displayedBpm;
   double _refreshElapsed = 0.25;
 
+  double get _exportScale {
+    final minEdge = math.min(game.size.x, game.size.y);
+    if (minEdge <= 0) return 1.0;
+    return (minEdge / 984.0).clamp(0.25, 2.0);
+  }
+
+  Offset get _cornerPadding {
+    if (game.headlessExport) {
+      final scale = _exportScale;
+      return Offset(24.0 * scale, 20.0 * scale);
+    }
+    return const Offset(10.0, 8.0);
+  }
+
+  TextStyle _resolvedBaseStyle() {
+    final isExport = game.headlessExport;
+    final scale = _exportScale;
+    return game.withDisplayFont(
+      TextStyle(
+        color: BpmIndicatorColorTransition.idleColor,
+        fontSize: isExport ? 26.0 * scale : 13.0,
+        height: isExport ? 1.18 : 1.15,
+        fontWeight: FontWeight.bold,
+      ),
+    );
+  }
+
   @override
   void onGameResize(Vector2 size) {
     super.onGameResize(size);
-    position = Vector2(8, 0);
+    final padding = _cornerPadding;
+    position = Vector2(padding.dx, padding.dy);
+    if (_displayedBpm != null) {
+      _rebuildPainter();
+    }
   }
 
   @override
@@ -121,28 +147,63 @@ class ChartStatusTextComponent extends PositionComponent
       motionStepP95Ms: game.motionStepP95Ms,
       frozenFrameRatio: game.frozenFrameRatio,
     );
-    final statusText = StringBuffer('  M$measure  $progress  [1/$denom]');
-    if (performanceText != null) {
-      statusText
-        ..write('\n')
-        ..write(performanceText);
+    final baseStyle = _resolvedBaseStyle();
+    final bpmText = 'BPM ${bpm.toStringAsFixed(1)}';
+    final detailText = 'M$measure  $progress  [1/$denom]';
+    final padding = _cornerPadding;
+    final maxLeftWidth = game.size.x > 0
+        ? math.max(80.0, (game.size.x - padding.dx * 2) * 0.56)
+        : double.infinity;
+
+    TextPainter buildPainter({required bool splitDetailLine}) {
+      final secondPart = StringBuffer()
+        ..write(splitDetailLine ? '\n' : '  ')
+        ..write(detailText);
+      if (performanceText != null) {
+        secondPart
+          ..write('\n')
+          ..write(performanceText);
+      }
+      return TextPainter(
+        textDirection: TextDirection.ltr,
+        text: TextSpan(
+          style: baseStyle,
+          children: [
+            TextSpan(
+              text: bpmText,
+              style: baseStyle.copyWith(color: _bpmColor.color),
+            ),
+            TextSpan(text: secondPart.toString()),
+          ],
+        ),
+      )..layout(maxWidth: maxLeftWidth);
     }
 
-    final baseStyle = game.withDisplayFont(_baseStyle);
-    _painter = TextPainter(
-      textDirection: TextDirection.ltr,
-      text: TextSpan(
-        style: baseStyle,
-        children: [
-          TextSpan(
-            text: 'BPM ${bpm.toStringAsFixed(1)}',
-            style: baseStyle.copyWith(color: _bpmColor.color),
-          ),
-          TextSpan(text: statusText.toString()),
-        ],
-      ),
-    )..layout();
+    var painter = buildPainter(splitDetailLine: false);
+    if (maxLeftWidth.isFinite) {
+      final singleLineProbe = TextPainter(
+        textDirection: TextDirection.ltr,
+        maxLines: 1,
+        text: TextSpan(style: baseStyle, text: '$bpmText  $detailText'),
+      )..layout(maxWidth: maxLeftWidth);
+      final overflowsSingleLine = singleLineProbe.didExceedMaxLines;
+      singleLineProbe.dispose();
+      if (overflowsSingleLine) {
+        painter.dispose();
+        painter = buildPainter(splitDetailLine: true);
+      }
+    }
+
+    _painter?.dispose();
+    _painter = painter;
     size = Vector2(_painter!.width, _painter!.height);
+  }
+
+  @override
+  void onRemove() {
+    _painter?.dispose();
+    _painter = null;
+    super.onRemove();
   }
 
   double _beatsAt(double time) =>

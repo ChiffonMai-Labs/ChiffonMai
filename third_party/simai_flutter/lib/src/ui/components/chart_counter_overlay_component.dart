@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 
@@ -110,22 +112,45 @@ class ChartCounterOverlayComponent extends PositionComponent
   final ChartCounterIndex index;
   final double Function(double chartTime) achievementAt;
 
-  static const TextStyle _primaryStyle = TextStyle(
-    color: Colors.white,
-    fontSize: 14,
-    height: 1,
-    fontWeight: FontWeight.bold,
-    fontFeatures: [FontFeature.tabularFigures()],
-    shadows: [Shadow(color: Colors.black87, blurRadius: 3)],
-  );
-  static const TextStyle _breakStyle = TextStyle(
-    color: Color(0xFFFFD54F),
-    fontSize: 14,
-    height: 1,
-    fontWeight: FontWeight.bold,
-    fontFeatures: [FontFeature.tabularFigures()],
-    shadows: [Shadow(color: Colors.black87, blurRadius: 3)],
-  );
+  double get _exportScale {
+    final minEdge = math.min(size.x, size.y);
+    if (minEdge <= 0) return 1.0;
+    return (minEdge / 984.0).clamp(0.25, 2.0);
+  }
+
+  Offset get _cornerPadding {
+    if (game.headlessExport) {
+      final scale = _exportScale;
+      return Offset(24.0 * scale, 20.0 * scale);
+    }
+    return const Offset(8.0, 8.0);
+  }
+
+  TextStyle get _primaryStyle {
+    final isExport = game.headlessExport;
+    final scale = _exportScale;
+    return TextStyle(
+      color: Colors.white,
+      fontSize: isExport ? 28.0 * scale : 14.0,
+      height: 1.15,
+      fontWeight: FontWeight.bold,
+      fontFeatures: const [FontFeature.tabularFigures()],
+      shadows: [Shadow(color: Colors.black87, blurRadius: isExport ? 5.0 * scale : 3.0)],
+    );
+  }
+
+  TextStyle get _breakStyle {
+    final isExport = game.headlessExport;
+    final scale = _exportScale;
+    return TextStyle(
+      color: const Color(0xFFFFD54F),
+      fontSize: isExport ? 28.0 * scale : 14.0,
+      height: 1.15,
+      fontWeight: FontWeight.bold,
+      fontFeatures: const [FontFeature.tabularFigures()],
+      shadows: [Shadow(color: Colors.black87, blurRadius: isExport ? 5.0 * scale : 3.0)],
+    );
+  }
 
   TextPainter? _comboPainter;
   TextPainter? _achievementPainter;
@@ -141,6 +166,11 @@ class ChartCounterOverlayComponent extends PositionComponent
   void onGameResize(Vector2 size) {
     super.onGameResize(size);
     this.size = size;
+    _lastCombo = -1;
+    _lastAchievementText = null;
+    _lastBreak = -1;
+    _lastProtectedBreak = -1;
+    _lastCentisecond = -1;
   }
 
   @override
@@ -152,6 +182,7 @@ class ChartCounterOverlayComponent extends PositionComponent
 
     if (snapshot.combo != _lastCombo) {
       _lastCombo = snapshot.combo;
+      _comboPainter?.dispose();
       _comboPainter = _textPainter(
         'COMBO ${snapshot.combo} / ${snapshot.totalCombo}',
         _primaryStyle,
@@ -162,6 +193,7 @@ class ChartCounterOverlayComponent extends PositionComponent
       final achievementText = achievementAt(game.chartTime).toStringAsFixed(4);
       if (achievementText != _lastAchievementText) {
         _lastAchievementText = achievementText;
+        _achievementPainter?.dispose();
         _achievementPainter = _textPainter(
           'ACHV $achievementText%',
           _primaryStyle,
@@ -172,6 +204,7 @@ class ChartCounterOverlayComponent extends PositionComponent
         snapshot.protectedBreakCount != _lastProtectedBreak) {
       _lastBreak = snapshot.breakCount;
       _lastProtectedBreak = snapshot.protectedBreakCount;
+      _breakPainter?.dispose();
       _breakPainter = _textPainter(
         'BREAK ${snapshot.breakCount} '
         '(+${snapshot.protectedBreakCount} EX) / ${snapshot.totalBreakCount}',
@@ -180,6 +213,7 @@ class ChartCounterOverlayComponent extends PositionComponent
     }
     if (centisecond != _lastCentisecond) {
       _lastCentisecond = centisecond;
+      _timePainter?.dispose();
       _timePainter = _textPainter(_formatTime(centisecond), _primaryStyle);
     }
   }
@@ -187,14 +221,14 @@ class ChartCounterOverlayComponent extends PositionComponent
   @override
   void render(Canvas canvas) {
     if (!game.showCornerInfo) return;
-    const padding = 8.0;
+    final padding = _cornerPadding;
     final topRight = game.centerDisplayMode == SimaiCenterDisplayMode.combo
         ? (game.showAchievementRate ? _achievementPainter : null)
         : _comboPainter;
     if (topRight != null) {
       topRight.paint(
         canvas,
-        Offset(size.x - topRight.width - padding, padding),
+        Offset(size.x - topRight.width - padding.dx, padding.dy),
       );
     }
 
@@ -202,7 +236,7 @@ class ChartCounterOverlayComponent extends PositionComponent
     if (breakText != null) {
       breakText.paint(
         canvas,
-        Offset(padding, size.y - breakText.height - padding),
+        Offset(padding.dx, size.y - breakText.height - padding.dy),
       );
     }
 
@@ -210,9 +244,25 @@ class ChartCounterOverlayComponent extends PositionComponent
     if (time != null) {
       time.paint(
         canvas,
-        Offset(size.x - time.width - padding, size.y - time.height - padding),
+        Offset(
+          size.x - time.width - padding.dx,
+          size.y - time.height - padding.dy,
+        ),
       );
     }
+  }
+
+  @override
+  void onRemove() {
+    _comboPainter?.dispose();
+    _achievementPainter?.dispose();
+    _breakPainter?.dispose();
+    _timePainter?.dispose();
+    _comboPainter = null;
+    _achievementPainter = null;
+    _breakPainter = null;
+    _timePainter = null;
+    super.onRemove();
   }
 
   TextPainter _textPainter(String text, TextStyle style) {
