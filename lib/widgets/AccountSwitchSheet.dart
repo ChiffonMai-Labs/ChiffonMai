@@ -66,7 +66,7 @@ class _AccountSwitchSheetRoute extends ModalBottomSheetRoute<void> {
   bool get enableDrag => !_busy;
 
   @override
-  bool get showDragHandle => !_busy;
+  bool get showDragHandle => false;
 
   @override
   RoutePopDisposition get popDisposition =>
@@ -278,45 +278,70 @@ class _AccountSwitchSheetState extends State<_AccountSwitchSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (!widget.dialog)
+            if (!widget.dialog) ...[
+              // 拖拽手柄始终占满 48dp，避免切换期间路由移除原生手柄引发面板高度塌陷。
+              SizedBox(
+                height: kMinInteractiveDimension,
+                child: Center(
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 160),
+                    opacity: _busy ? 0.0 : 1.0,
+                    child: Container(
+                      width: 32,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: scheme.onSurfaceVariant.withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
               Text(context.l10n.flowSwitchAccount,
                   style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                       color: scheme.onSurface)),
+            ],
             const SizedBox(height: 4),
-            // 切换中：在标题下方显示状态，避免点完没有任何反馈
-            if (_switchingTo case final source?)
-              Row(children: [
-                SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: scheme.primary,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Semantics(
-                    liveRegion: true,
-                    child: Text(
-                      widget.dialog
-                          ? context.l10n.flowSwitchingToP0(
-                              appLocalizeLabel(source.displayName))
-                          : context.l10n.accountSwitchSheetBusy,
-                      style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: scheme.primary),
-                    ),
-                  ),
-                ),
-              ])
-            else
-              Text(context.l10n.flowTapAnAccountToSwitchSourceAnd,
-                  style:
-                      TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+            // 切换中：固定最小高度避免状态文案 1~2 行切换引起高度跳动
+            ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 34),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: _switchingTo != null
+                    ? Row(children: [
+                        SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: scheme.primary,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Semantics(
+                            liveRegion: true,
+                            child: Text(
+                              widget.dialog
+                                  ? context.l10n.flowSwitchingToP0(
+                                      appLocalizeLabel(
+                                          _switchingTo!.displayName))
+                                  : context.l10n.accountSwitchSheetBusy,
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: scheme.primary),
+                            ),
+                          ),
+                        ),
+                      ])
+                    : Text(context.l10n.flowTapAnAccountToSwitchSourceAnd,
+                        style: TextStyle(
+                            fontSize: 12, color: scheme.onSurfaceVariant)),
+              ),
+            ),
             const SizedBox(height: 12),
             // 逐个源渲染（水鱼 / 落雪 / AWMC NET）。
             // 原来是写死两行，加第三个源时必须记得再加一行；改成枚举就不会漏。
