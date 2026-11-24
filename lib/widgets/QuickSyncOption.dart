@@ -8,7 +8,9 @@ import 'package:flutter/foundation.dart';
 import '../service/AWMC/AwmcQuickIdentityStore.dart';
 import '../service/AWMC/AwmcQuickSyncService.dart';
 import '../service/SyncStatsService.dart';
+import '../utils/AppDesignTokens.dart';
 import '../utils/AppTheme.dart';
+import 'AccountBindingManager.dart' show StatusChip;
 import 'NoRipple.dart';
 import 'QrQuickFillButtons.dart';
 import '../widgets/AppDialogs.dart';
@@ -40,18 +42,24 @@ class _QuickSyncOptionState extends State<QuickSyncOption> {
 
   /// 各数据源自身的阻塞原因（缺个人 Token / 账号等），与机台身份分开显示。
   List<String> _issues = const [];
+  Set<SyncPlatform> _lastPlatforms = const {};
   int _request = 0;
   @override
   void initState() {
     super.initState();
+    _lastPlatforms = Set<SyncPlatform>.of(widget.platforms);
     _check();
   }
 
   @override
   void didUpdateWidget(covariant QuickSyncOption oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!setEquals(oldWidget.platforms, widget.platforms) ||
-        oldWidget.credentialRevision != widget.credentialRevision) _check();
+    // 拷贝一份已检查平台快照，避免调用方原地修改 Set 时 setEquals 误判未变化。
+    if (!setEquals(_lastPlatforms, widget.platforms) ||
+        oldWidget.credentialRevision != widget.credentialRevision) {
+      _lastPlatforms = Set<SyncPlatform>.of(widget.platforms);
+      _check();
+    }
   }
 
   Future<void> _check() async {
@@ -77,85 +85,132 @@ class _QuickSyncOptionState extends State<QuickSyncOption> {
     widget.onChanged(_enabled);
   }
 
+  void _toggle(bool value) {
+    FocusManager.instance.primaryFocus?.unfocus();
+    setState(() => _enabled = value);
+    widget.onChanged(value);
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final brightness = theme.brightness;
+    final interactive = !_loading && !_deleting && _ready;
+    final subtitleText = _loading
+        ? context.l10n.flowCheckingCachedUserCredentials
+        : widget.platforms.isEmpty
+            ? context.l10n.flowChooseASyncSourceFirst
+            : !_identity
+                ? context.l10n.flowEnterAQRToLinkCabinetIdentity
+                : _issues.isNotEmpty
+                    ? _issues.first
+                    : context.l10n.flowCabinetIdentityLinkedNoQRNeededThis;
+
     return NoRipple(
-        child: SwitchTheme(
-      data: theme.switchTheme.copyWith(
-          overlayColor: const WidgetStatePropertyAll(Colors.transparent)),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          AppSwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text(context.l10n.flowQuickSync),
-            subtitle: Text(_loading
-                ? context.l10n.flowCheckingCachedUserCredentials
-                : widget.platforms.isEmpty
-                    ? context.l10n.flowChooseASyncSourceFirst
-                    : !_identity
-                        ? context.l10n.flowEnterAQRToLinkCabinetIdentity
-                        : _issues.isNotEmpty
-                            ? _issues.first
-                            : context.l10n
-                                .flowCabinetIdentityLinkedNoQRNeededThis),
-            value: _enabled && !_loading,
-            onChanged: _loading || _deleting || !_ready
-                ? null
-                : (value) {
-                    FocusManager.instance.primaryFocus?.unfocus();
-                    setState(() => _enabled = value);
-                    widget.onChanged(value);
-                  },
-          ),
-          if (!_loading)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: Row(children: [
-                Icon(
-                    _identity
-                        ? Icons.check_circle_outline
-                        : Icons.error_outline,
-                    size: 16,
-                    color: _identity
-                        ? AppColors.successGreen(brightness)
-                        : AppColors.errorRed(brightness)),
-                const SizedBox(width: 6),
-                Expanded(
-                    child: Text(
-                        _identity
-                            ? context.l10n.flowUserCredentialsCached
-                            : context.l10n.flowUserCredentialsNotCached,
-                        style: TextStyle(
-                            fontSize: 12,
-                            color: _identity
-                                ? AppColors.successGreen(brightness)
-                                : AppColors.errorRed(brightness)))),
-              ]),
+          Material(
+            color: AppSurfaces.card(context),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+              side: BorderSide(
+                color: _enabled && interactive
+                    ? scheme.primary.withValues(alpha: 0.55)
+                    : scheme.outlineVariant,
+              ),
             ),
-          // 机台身份已绑定但数据源自身未就绪：如实说明缺什么，不再要求重新扫码。
-          if (!_loading && _identity)
-            for (final issue in _issues)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Row(children: [
-                  Icon(Icons.info_outline,
-                      size: 16, color: AppColors.warningOrange(brightness)),
-                  const SizedBox(width: 6),
-                  Expanded(
-                      child: Text(issue,
-                          style: TextStyle(
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: interactive ? () => _toggle(!_enabled) : null,
+              splashFactory: NoSplash.splashFactory,
+              highlightColor: Colors.transparent,
+              hoverColor: Colors.transparent,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              Text(
+                                context.l10n.flowQuickSync,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: scheme.onSurface,
+                                ),
+                              ),
+                              if (!_loading)
+                                StatusChip(
+                                  done: _identity,
+                                  text: _identity
+                                      ? context.l10n.flowUserCredentialsCached
+                                      : context
+                                          .l10n.flowUserCredentialsNotCached,
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            subtitleText,
+                            style: TextStyle(
                               fontSize: 12,
-                              color: AppColors.warningOrange(brightness)))),
-                ]),
+                              height: 1.35,
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    AppSwitch(
+                      value: _enabled && !_loading,
+                      onChanged: interactive ? _toggle : null,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          // 机台身份已绑定但多个数据源均缺自身凭据时，补充展示其余阻塞原因。
+          if (!_loading && _identity && _issues.length > 1)
+            for (final issue in _issues.skip(1))
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      size: 15,
+                      color: AppColors.warningOrange(brightness),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        issue,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.warningOrange(brightness),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
           if (!_loading && !_identity && widget.platforms.isNotEmpty)
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: OutlinedButton.icon(
                 onPressed: _binding ? null : _bindIdentity,
                 icon: const Icon(Icons.qr_code_2, size: 18),
                 label: Text(_binding
@@ -164,44 +219,75 @@ class _QuickSyncOptionState extends State<QuickSyncOption> {
               ),
             ),
           AnimatedReveal(
-              visible: _enabled,
+            visible: _enabled,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 8),
               child: Text(
-                  context.l10n.flowUpdatesAchievementAndDXScoresComboAnd,
-                  style: Theme.of(context).textTheme.bodySmall)),
-          if (!_loading && _identity)
-            TextButton(
-              onPressed: _deleting
-                  ? null
-                  : () async {
-                      setState(() {
-                        _deleting = true;
-                        _enabled = false;
-                      });
-                      widget.onChanged(false);
-                      try {
-                        await AwmcQuickSyncService.forgetIdentity();
-                      } catch (_) {
-                        if (context.mounted)
-                          AppToast.show(
-                              context
-                                  .l10n.flowCouldNotDeleteCredentialsTryAgain,
-                              tone: AppToastTone.error);
-                      } finally {
-                        if (mounted) {
-                          await _check();
-                          if (mounted) setState(() => _deleting = false);
-                        }
-                      }
-                    },
-              child: Text(context.l10n.flowDeleteUserCredentials),
+                context.l10n.flowUpdatesAchievementAndDXScoresComboAnd,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
             ),
+          ),
           if (!_loading && _identity)
-            Text(context.l10n.flowAllThreeSourcesShareTheseCredentialsDeleting,
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      context
+                          .l10n.flowAllThreeSourcesShareTheseCredentialsDeleting,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontSize: 11.5,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: _deleting
+                        ? null
+                        : () async {
+                            setState(() {
+                              _deleting = true;
+                              _enabled = false;
+                            });
+                            widget.onChanged(false);
+                            try {
+                              await AwmcQuickSyncService.forgetIdentity();
+                            } catch (_) {
+                              if (context.mounted) {
+                                AppToast.show(
+                                    context.l10n
+                                        .flowCouldNotDeleteCredentialsTryAgain,
+                                    tone: AppToastTone.error);
+                              }
+                            } finally {
+                              if (mounted) {
+                                await _check();
+                                if (mounted) setState(() => _deleting = false);
+                              }
+                            }
+                          },
+                    style: TextButton.styleFrom(
+                      foregroundColor: scheme.error,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      minimumSize: const Size(0, 34),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: Text(
+                      context.l10n.flowDeleteUserCredentials,
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
-    ));
+    );
   }
 
   Future<void> _bindIdentity() async {

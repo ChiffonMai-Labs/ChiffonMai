@@ -16,7 +16,6 @@ import '../service/AccountAuthorizationStore.dart';
 import '../service/SyncRouteStore.dart';
 import '../service/SyncStatsService.dart';
 import '../utils/AppDesignTokens.dart';
-import '../utils/AppTheme.dart';
 import '../utils/ExternalLaunchUtil.dart';
 import '../utils/SecureCredentialStore.dart';
 import '../widgets/AppDialogs.dart';
@@ -101,6 +100,7 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
   final _refreshKey = GlobalKey<PostSyncRefreshOptionsState>();
   bool _quickUpdate = false;
   SyncPlatform? _saving;
+  int _credentialRevision = 0;
 
   void _setQuickUpdate(bool enabled) {
     if (_quickUpdate == enabled) return;
@@ -155,6 +155,7 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
         _selected
           ..clear()
           ..addAll(SyncPlatform.values.where(_ready));
+        _credentialRevision++;
         _loading = false;
         _loadError = null;
       });
@@ -178,6 +179,7 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
         setState(() {
           _dfQq = dfQq;
           _dfOAuthWrite = writeOk;
+          _credentialRevision++;
           if (_ready(SyncPlatform.divingFish)) {
             _selected.add(SyncPlatform.divingFish);
             _expanded.remove(SyncPlatform.divingFish);
@@ -188,6 +190,7 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
         if (!mounted) return;
         setState(() {
           _lxOAuth = lxOk;
+          _credentialRevision++;
           if (_ready(SyncPlatform.luoXue)) {
             _selected.add(SyncPlatform.luoXue);
             _expanded.remove(SyncPlatform.luoXue);
@@ -244,6 +247,7 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
       FocusManager.instance.primaryFocus?.unfocus();
       setState(() {
         _qq = qq;
+        _credentialRevision++;
         if (_ready(SyncPlatform.awmc)) _selected.add(SyncPlatform.awmc);
         _expanded.remove(SyncPlatform.awmc);
         _selectionError = null;
@@ -314,288 +318,471 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
         ));
   }
 
-  Widget _status(String label, bool exists) => StatusChip(
-        done: exists,
-        text:
-            '$label · ${exists ? context.l10n.flowAvailable : context.l10n.flowMissing}',
+  Widget _status(String label, bool done, String stateText) => StatusChip(
+        done: done,
+        text: '$label · $stateText',
       );
+
+  void _togglePlatform(SyncPlatform platform) {
+    if (!_ready(platform) || _saving != null) return;
+    setState(() {
+      if (!_selected.remove(platform)) {
+        _selected.add(platform);
+      }
+      _selectionError = null;
+    });
+  }
 
   Widget _buildSource(SyncPlatform platform) {
     final scheme = Theme.of(context).colorScheme;
     final ready = _ready(platform);
+    final selected = _selected.contains(platform);
+    final expanded = _expanded.contains(platform);
     final saving = _saving == platform;
+    final isFirst = platform == SyncPlatform.values.first;
 
-    final chips = <Widget>[
-      switch (platform) {
-        SyncPlatform.awmc =>
-          _status(context.l10n.flowQQID, _qqPattern.hasMatch(_qq)),
-        SyncPlatform.divingFish => _status(
-            context.l10n.flowDivingFishOAuthWriteChip, _hasFishOAuthWrite()),
-        SyncPlatform.luoXue => _lxOAuth
-            ? _status(context.l10n.flowLXNSOAuthChip, true)
-            : _hasLxFallbackKey
-                ? _status(context.l10n.flowPersonalAPIKey, true)
-                : _status(context.l10n.flowLXNSOAuthChip, false),
-      },
-    ];
-
-    return Container(
-      margin: const EdgeInsets.only(top: 10),
-      decoration: BoxDecoration(
-        border: Border.all(color: scheme.outlineVariant),
-        borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        CheckboxListTile(
-          value: _selected.contains(platform),
-          controlAffinity: ListTileControlAffinity.leading,
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          title: Text(context.featureText(platform.label),
-              style:
-                  const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-          subtitle: Padding(
-            padding: const EdgeInsets.only(top: 6),
-            child: Wrap(spacing: 6, runSpacing: 6, children: chips),
-          ),
-          onChanged: ready && _saving == null
-              ? (value) {
-                  setState(() {
-                    value == true
-                        ? _selected.add(platform)
-                        : _selected.remove(platform);
-                    _selectionError = null;
-                  });
-                }
-              : null,
-        ),
-        AppDialogAnimatedHeight(
-          child: ready
-              ? const SizedBox(width: double.infinity)
-              : Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                            context
-                                .l10n.flowFillInCredentialsToSelectThisSource,
-                            style: TextStyle(
-                                fontSize: 12, color: scheme.onSurfaceVariant)),
-                        TextButton.icon(
-                          onPressed: _saving == null
-                              ? () {
-                                  if (_expanded.contains(platform)) {
-                                    FocusManager.instance.primaryFocus
-                                        ?.unfocus();
-                                  }
-                                  setState(() {
-                                    if (!_expanded.remove(platform)) {
-                                      _expanded.add(platform);
-                                    }
-                                  });
-                                }
-                              : null,
-                          icon: Icon(
-                              _expanded.contains(platform)
-                                  ? Icons.expand_less
-                                  : Icons.edit_outlined,
-                              size: 18),
-                          label: Text(_expanded.contains(platform)
-                              ? context.l10n.flowCollapse
-                              : context.l10n.flowFillInMissingCredentials),
-                        ),
-                        if (_expanded.contains(platform)) ...[
-                          Text(
-                              switch (platform) {
-                                SyncPlatform.divingFish => _qqPattern
-                                        .hasMatch(_dfQq)
-                                    ? context.l10n
-                                        .flowMultiFishOAuthWriteMissingHint
-                                    : context.l10n.flowNoDivingFishQqBoundHint,
-                                SyncPlatform.luoXue =>
-                                    context.l10n.flowMultiLxnsOAuthMissingHint,
-                                SyncPlatform.awmc =>
-                                    context.l10n.flowAWMCNETQQNoTokenHint,
-                              },
-                              style: TextStyle(
-                                  fontSize: 12,
-                                  color: scheme.onSurfaceVariant)),
-                          const SizedBox(height: 6),
-                          Wrap(spacing: 8, runSpacing: 8, children: [
-                            if (platform == SyncPlatform.divingFish) ...[
-                              if (_qqPattern.hasMatch(_dfQq))
-                                FilledButton.tonal(
-                                  onPressed:
-                                      _openingAuth ? null : _openFishOAuth,
-                                  child: Text(
-                                      context.l10n.flowOpenAuthorizationLink),
-                                ),
-                              OutlinedButton(
-                                onPressed: _openingAuth
-                                    ? null
-                                    : () => _refreshOAuthState(
-                                        SyncPlatform.divingFish),
-                                child:
-                                    Text(context.l10n.accountBindingRecheck),
-                              ),
-                            ],
-                            if (platform == SyncPlatform.luoXue)
-                              FilledButton.tonal(
-                                onPressed:
-                                    _openingAuth ? null : _openLuoXueOAuth,
-                                child: Text(context.l10n.accountAuthorizeLXNS),
-                              ),
-                            TextButton(
-                                onPressed: () => _openSource(platform),
-                                child: Text(context.l10n.flowOpenWebsite)),
-                          ]),
-                          if (platform == SyncPlatform.awmc &&
-                              !_qqPattern.hasMatch(_qq)) ...[
-                            const SizedBox(height: 8),
-                            TextField(
-                              key: const ValueKey('multi-sync-qq'),
-                              controller: _qqController,
-                              enabled: _saving == null,
-                              keyboardType: TextInputType.number,
-                              inputFormatters: [
-                                FilteringTextInputFormatter.digitsOnly
-                              ],
-                              decoration: InputDecoration(
-                                labelText: context.l10n.flowAWMCNETQQID,
-                              ).insetLabel(context),
-                            ),
-                            if (_errors[platform] != null) ...[
-                              const SizedBox(height: 6),
-                              Text(_errors[platform]!,
-                                  style: TextStyle(color: scheme.error)),
-                            ],
-                            const SizedBox(height: 8),
-                            FilledButton.tonal(
-                              onPressed: _saving == null ? _saveAwmcQq : null,
-                              child: Text(saving
-                                  ? context.l10n.flowSaving
-                                  : context.l10n.flowSaveAndSelect),
-                            ),
-                          ],
-                        ],
-                      ]),
+    final statusChip = switch (platform) {
+      SyncPlatform.awmc => () {
+          final linked = _qqPattern.hasMatch(_qq);
+          return _status(
+            context.l10n.flowQQID,
+            linked,
+            linked
+                ? context.l10n.accountBindingLinked
+                : context.l10n.accountBindingUnlinked,
+          );
+        }(),
+      SyncPlatform.divingFish => () {
+          final authorized = _hasFishOAuthWrite();
+          return _status(
+            context.l10n.flowDivingFishOAuthWriteChip,
+            authorized,
+            authorized
+                ? context.l10n.accountBindingAuthorized
+                : context.l10n.accountBindingUnauthorized,
+          );
+        }(),
+      SyncPlatform.luoXue => _lxOAuth
+          ? _status(
+              context.l10n.flowLXNSOAuthChip,
+              true,
+              context.l10n.accountBindingAuthorized,
+            )
+          : _hasLxFallbackKey
+              ? _status(
+                  context.l10n.flowPersonalAPIKey,
+                  true,
+                  context.l10n.flowSet,
+                )
+              : _status(
+                  context.l10n.flowLXNSOAuthChip,
+                  false,
+                  context.l10n.accountBindingUnauthorized,
                 ),
-        ),
-      ]),
-    );
-  }
+    };
 
-  @override
-  Widget build(BuildContext context) => AppAlertDialog(
-        title: Text(context.l10n.featureSyncToMultiplePlatforms),
-        subtitle: context.l10n.featureSendTheSameScoresToMultipleTrackers,
-        content: SizedBox(
-          width: double.maxFinite,
-          child: SingleChildScrollView(
-            child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  SyncDialogSection(
-                    first: true,
-                    icon: Icons.bolt_rounded,
-                    title: context.l10n.syncDialogMode,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      mainAxisSize: MainAxisSize.min,
+    return Padding(
+      padding: EdgeInsets.only(top: isFirst ? 0 : 8),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: AppSurfaces.card(context),
+          borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+          border: Border.all(
+            color: selected
+                ? scheme.primary.withValues(alpha: 0.45)
+                : scheme.outlineVariant.withValues(alpha: 0.75),
+          ),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Material(
+                type: MaterialType.transparency,
+                child: InkWell(
+                  splashFactory: NoSplash.splashFactory,
+                  highlightColor: Colors.transparent,
+                  hoverColor: Colors.transparent,
+                  onTap: ready && _saving == null
+                      ? () => _togglePlatform(platform)
+                      : null,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(6, 10, 12, 10),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        QuickSyncOption(
-                          platforms: _selected,
-                          onChanged: _setQuickUpdate,
+                        Checkbox(
+                          value: selected,
+                          materialTapTargetSize:
+                              MaterialTapTargetSize.shrinkWrap,
+                          visualDensity: VisualDensity.compact,
+                          onChanged: ready && _saving == null
+                              ? (_) => _togglePlatform(platform)
+                              : null,
                         ),
-                        AnimatedReveal(
-                          visible: !_quickUpdate,
-                          child: SyncNoticeCard(
-                            icon: Icons.qr_code_2_rounded,
-                            color: Theme.of(context).colorScheme.primary,
-                            child: Text(context
-                                .l10n.flowOneCabinetQRForAllSelectedRoute1),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: SizedBox(
+                            width: double.infinity,
+                            child: Wrap(
+                              spacing: 8,
+                              runSpacing: 6,
+                              alignment: WrapAlignment.spaceBetween,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              children: [
+                                Text(
+                                  context.featureText(platform.label),
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                    color: ready
+                                        ? scheme.onSurface
+                                        : scheme.onSurfaceVariant,
+                                  ),
+                                ),
+                                statusChip,
+                              ],
+                            ),
                           ),
                         ),
                       ],
                     ),
                   ),
-                  SyncDialogSection(
-                    icon: Icons.devices_other_outlined,
-                    title: context.l10n.flowSyncSources,
-                    caption: context
-                        .l10n.flowSourcesWithSavedCredentialsAreSelectedBy,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (_loading)
-                          const Padding(
-                              padding: EdgeInsets.all(16),
-                              child: Center(child: CircularProgressIndicator()))
-                        else if (_loadError != null) ...[
-                          Text(_loadError!,
+                ),
+              ),
+              AnimatedReveal(
+                visible: !ready,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: AppSurfaces.inset(context).withValues(alpha: 0.55),
+                    border: Border(
+                      top: BorderSide(
+                        color: scheme.outlineVariant.withValues(alpha: 0.55),
+                      ),
+                    ),
+                  ),
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              context
+                                  .l10n.flowFillInCredentialsToSelectThisSource,
                               style: TextStyle(
-                                  color: Theme.of(context).colorScheme.error)),
-                          TextButton(
-                              onPressed: () {
-                                setState(() => _loading = true);
-                                _loadCredentials();
-                              },
-                              child: Text(context.l10n.flowReloadCredentials)),
-                        ] else
-                          ...SyncPlatform.values.map(_buildSource),
-                        if (_selectionError != null) ...[
-                          const SizedBox(height: 8),
-                          Text(_selectionError!,
-                              style: TextStyle(
-                                  color: Theme.of(context).colorScheme.error)),
+                                fontSize: 12,
+                                color: scheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          TextButton.icon(
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 4),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              visualDensity: VisualDensity.compact,
+                            ),
+                            onPressed: _saving == null
+                                ? () {
+                                    if (expanded) {
+                                      FocusManager.instance.primaryFocus
+                                          ?.unfocus();
+                                    }
+                                    setState(() {
+                                      if (!_expanded.remove(platform)) {
+                                        _expanded.add(platform);
+                                      }
+                                    });
+                                  }
+                                : null,
+                            icon: AnimatedRotation(
+                              turns: expanded ? 0.5 : 0,
+                              duration: const Duration(milliseconds: 220),
+                              curve: Curves.easeOutCubic,
+                              child: const Icon(
+                                Icons.keyboard_arrow_down_rounded,
+                                size: 18,
+                              ),
+                            ),
+                            label: Text(expanded
+                                ? context.l10n.flowCollapse
+                                : context.l10n.flowFillInMissingCredentials),
+                          ),
                         ],
-                      ],
-                    ),
-                  ),
-                  SyncDialogSection(
-                    icon: Icons.refresh_rounded,
-                    title: context.l10n.flowRefreshDataAfterSync,
-                    caption: context.l10n
-                        .flowRefreshAutomaticallyAfterUploadRefreshErrorsAre,
-                    child: PostSyncRefreshOptions.multi(
-                      key: _refreshKey,
-                      syncSources:
-                          _selected.map(AwmcQuickSyncService.sourceOf).toSet(),
-                      awmcSyncQQ: _qq,
-                    ),
-                  ),
-                  AnimatedReveal(
-                      visible: !_quickUpdate &&
-                          _selected.contains(SyncPlatform.awmc),
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 12),
-                        child: SyncNoticeCard(
-                          icon: Icons.info_outline,
-                          color: AppColors.warningOrange(
-                              Theme.of(context).brightness),
-                          child: Text(context.l10n
-                              .flowAWMCNETOverwritesMatchingRecordsWithCabinet),
+                      ),
+                      AnimatedReveal(
+                        visible: expanded,
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Text(
+                                switch (platform) {
+                                  SyncPlatform.divingFish =>
+                                    _qqPattern.hasMatch(_dfQq)
+                                        ? context.l10n
+                                            .flowMultiFishOAuthWriteMissingHint
+                                        : context
+                                            .l10n.flowNoDivingFishQqBoundHint,
+                                  SyncPlatform.luoXue =>
+                                    context.l10n.flowMultiLxnsOAuthMissingHint,
+                                  SyncPlatform.awmc =>
+                                    context.l10n.flowAWMCNETQQNoTokenHint,
+                                },
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  height: 1.4,
+                                  color: scheme.onSurfaceVariant,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  if (platform == SyncPlatform.divingFish) ...[
+                                    if (_qqPattern.hasMatch(_dfQq))
+                                      FilledButton.tonal(
+                                        onPressed: _openingAuth
+                                            ? null
+                                            : _openFishOAuth,
+                                        child: Text(context
+                                            .l10n.flowOpenAuthorizationLink),
+                                      ),
+                                    OutlinedButton(
+                                      onPressed: _openingAuth
+                                          ? null
+                                          : () => _refreshOAuthState(
+                                              SyncPlatform.divingFish),
+                                      child: Text(
+                                          context.l10n.accountBindingRecheck),
+                                    ),
+                                  ],
+                                  if (platform == SyncPlatform.luoXue)
+                                    FilledButton.tonal(
+                                      onPressed: _openingAuth
+                                          ? null
+                                          : _openLuoXueOAuth,
+                                      child: Text(
+                                          context.l10n.accountAuthorizeLXNS),
+                                    ),
+                                  TextButton(
+                                    onPressed: () => _openSource(platform),
+                                    child: Text(context.l10n.flowOpenWebsite),
+                                  ),
+                                ],
+                              ),
+                              if (platform == SyncPlatform.awmc &&
+                                  !_qqPattern.hasMatch(_qq)) ...[
+                                const SizedBox(height: 10),
+                                TextField(
+                                  key: const ValueKey('multi-sync-qq'),
+                                  controller: _qqController,
+                                  enabled: _saving == null,
+                                  keyboardType: TextInputType.number,
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.digitsOnly
+                                  ],
+                                  decoration: InputDecoration(
+                                    labelText: context.l10n.flowAWMCNETQQID,
+                                    filled: true,
+                                    fillColor: AppSurfaces.card(context),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 10),
+                                  ).insetLabel(context),
+                                ),
+                                AnimatedReveal(
+                                  visible: _errors[platform] != null,
+                                  child: Padding(
+                                    padding: const EdgeInsets.only(top: 6),
+                                    child: Text(
+                                      _errors[platform] ?? '',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: scheme.error,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: FilledButton.tonal(
+                                    onPressed:
+                                        _saving == null ? _saveAwmcQq : null,
+                                    child: Text(saving
+                                        ? context.l10n.flowSaving
+                                        : context.l10n.flowSaveAndSelect),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
                         ),
-                      )),
-                ]),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
-        actions: [
-          TextButton(
-              onPressed: _saving == null ? () => Navigator.pop(context) : null,
-              child: Text(context.l10n.featureCancel)),
-          SyncStartButton(
-              label:
-                  context.l10n.flowStartSyncP0((_selected.length).toString()),
-              onPressed: _loading ||
-                      _loadError != null ||
-                      _saving != null ||
-                      _submitting
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final hasSelection = !_loading && _selected.isNotEmpty;
+    return AppAlertDialog(
+      animateHeight: true,
+      title: Text(context.l10n.featureSyncToMultiplePlatforms),
+      subtitle: context.l10n.featureSendTheSameScoresToMultipleTrackers,
+      content: SizedBox(
+        width: double.maxFinite,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SyncDialogSection(
+                first: true,
+                icon: Icons.bolt_rounded,
+                title: context.l10n.syncDialogMode,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    QuickSyncOption(
+                      platforms: _loading
+                          ? const {}
+                          : Set<SyncPlatform>.unmodifiable(_selected),
+                      credentialRevision: _credentialRevision,
+                      onChanged: _setQuickUpdate,
+                    ),
+                    AnimatedReveal(
+                      visible: !_quickUpdate,
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 10),
+                        child: SyncNoticeCard(
+                          icon: Icons.qr_code_2_rounded,
+                          color: scheme.primary,
+                          child: Text(context
+                              .l10n.flowOneCabinetQRForAllSelectedRoute1),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              SyncDialogSection(
+                icon: Icons.devices_other_outlined,
+                title: context.l10n.flowSyncSources,
+                trailing: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: hasSelection
+                        ? scheme.primaryContainer
+                        : scheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    _loading
+                        ? '--'
+                        : '${_selected.length}/${SyncPlatform.values.length}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: hasSelection
+                          ? scheme.onPrimaryContainer
+                          : scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+                caption:
+                    context.l10n.flowSourcesWithSavedCredentialsAreSelectedBy,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_loading)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                        child: Center(child: CircularProgressIndicator()),
+                      )
+                    else if (_loadError != null) ...[
+                      Text(
+                        _loadError!,
+                        style: TextStyle(color: scheme.error),
+                      ),
+                      const SizedBox(height: 6),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton.icon(
+                          onPressed: () {
+                            setState(() => _loading = true);
+                            _loadCredentials();
+                          },
+                          icon: const Icon(Icons.refresh_rounded, size: 18),
+                          label: Text(context.l10n.flowReloadCredentials),
+                        ),
+                      ),
+                    ] else
+                      ...SyncPlatform.values.map(_buildSource),
+                    AnimatedReveal(
+                      visible: _selectionError != null,
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          _selectionError ?? '',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: scheme.error,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              SyncDialogSection(
+                icon: Icons.refresh_rounded,
+                title: context.l10n.flowRefreshDataAfterSync,
+                caption: context
+                    .l10n.flowRefreshAutomaticallyAfterUploadRefreshErrorsAre,
+                child: PostSyncRefreshOptions.multi(
+                  key: _refreshKey,
+                  syncSources:
+                      _selected.map(AwmcQuickSyncService.sourceOf).toSet(),
+                  awmcSyncQQ: _qq,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _saving == null ? () => Navigator.pop(context) : null,
+          child: Text(context.l10n.featureCancel),
+        ),
+        SyncStartButton(
+          label: context.l10n.flowStartSyncP0((_selected.length).toString()),
+          onPressed:
+              _loading || _loadError != null || _saving != null || _submitting
                   ? null
-                  : _submit),
-        ],
-      );
+                  : _submit,
+        ),
+      ],
+    );
+  }
 }

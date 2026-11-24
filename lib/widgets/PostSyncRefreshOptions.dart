@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../constant/CacheKeyConstant.dart';
 import '../utils/AppDesignTokens.dart';
+import '../utils/AppTheme.dart';
 import '../utils/SecureCredentialStore.dart';
 import 'AdvancedRefreshDataDialog.dart';
 import 'AppUi.dart' show AnimatedReveal;
@@ -109,21 +110,55 @@ class PostSyncRefreshOptionsState extends State<PostSyncRefreshOptions> {
         ],
         Semantics(
           expanded: _expanded,
-          child: TextButton.icon(
-            onPressed: () => setState(() => _expanded = !_expanded),
-            icon: AnimatedRotation(
-              turns: _expanded ? 0.5 : 0,
-              duration:
-                  AppDesignTokens.motion(context, AppDesignTokens.mediumMotion),
-              child: const Icon(Icons.expand_more_rounded),
+          child: Material(
+            color: AppSurfaces.card(context),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+              side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
             ),
-            label: Text(context.l10n.flowAdvancedDataRefresh),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: () => setState(() => _expanded = !_expanded),
+              splashFactory: NoSplash.splashFactory,
+              highlightColor: Colors.transparent,
+              hoverColor: Colors.transparent,
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        context.l10n.flowAdvancedDataRefresh,
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w600,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                      ),
+                    ),
+                    AnimatedRotation(
+                      turns: _expanded ? 0.5 : 0,
+                      duration: AppDesignTokens.motion(
+                          context, AppDesignTokens.mediumMotion),
+                      child: Icon(
+                        Icons.expand_more_rounded,
+                        size: 20,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         ),
         // 保留面板状态，收起时提交仍会读取已选配置。
         AnimatedReveal(
           visible: _expanded,
-          child: FutureBuilder<_RefreshCredentials>(
+          child: Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: FutureBuilder<_RefreshCredentials>(
             future: _credentials,
             builder: (context, snapshot) {
               if (snapshot.hasError) {
@@ -153,9 +188,10 @@ class PostSyncRefreshOptionsState extends State<PostSyncRefreshOptions> {
                 syncSources: widget.syncSources,
                 hasDivingFishLogin: c.hasDivingFishLogin,
                 bindQQ: c.bindQQ,
-                awmcQQ: c.awmcQQ.isNotEmpty ? c.awmcQQ : widget.awmcSyncQQ,
-              );
-            },
+                  awmcQQ: c.awmcQQ.isNotEmpty ? c.awmcQQ : widget.awmcSyncQQ,
+                );
+              },
+            ),
           ),
         ),
       ],

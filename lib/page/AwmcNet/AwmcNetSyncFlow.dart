@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 
 import '../../constant/CacheKeyConstant.dart';
 import '../../service/AWMC/AwmcApiService.dart';
@@ -14,6 +15,8 @@ import '../../service/PostSyncRefreshService.dart';
 import '../../service/SyncStatsService.dart';
 import '../../utils/SecureCredentialStore.dart';
 import '../../utils/SyncRouteNotifier.dart';
+import '../../widgets/AccountAuthorizationDialog.dart';
+import '../../widgets/AppDialogs.dart';
 import '../../widgets/RefreshDataDialog.dart'
     show RefreshDataSource, SharedRefreshData;
 import 'SyncToAwmcNetPage.dart'
@@ -55,7 +58,38 @@ class AwmcNetSyncFlow {
     void Function(double progress, String text)? onProgress,
     VoidCallback? onIdle,
   }) async {
-    final input = await showAwmcNetSyncInputDialog(context);
+    var qq = await AwmcQrSyncService.resolveAwmcNetQq();
+    if (qq == null || !AwmcQrSyncService.qqPattern.hasMatch(qq)) {
+      if (!context.mounted) return AwmcNetSyncOutcome.userCancelled;
+      final goBind = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AppAlertDialog(
+          title: Text(ctx.l10n.accountLinkAWMC),
+          content: Text(ctx.l10n.flowAWMCNETQQNoTokenHint),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: Text(ctx.l10n.featureCancel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: Text(ctx.l10n.accountLinkAWMC),
+            ),
+          ],
+        ),
+      );
+      if (goBind != true || !context.mounted) {
+        return AwmcNetSyncOutcome.userCancelled;
+      }
+      await showAccountAuthorizationDialog(context, luoxue: false);
+      if (!context.mounted) return AwmcNetSyncOutcome.userCancelled;
+      qq = await AwmcQrSyncService.resolveAwmcNetQq();
+      if (qq == null || !AwmcQrSyncService.qqPattern.hasMatch(qq)) {
+        return AwmcNetSyncOutcome.userCancelled;
+      }
+    }
+
+    final input = await showAwmcNetSyncInputDialog(context, boundQq: qq);
     if (input == null) return AwmcNetSyncOutcome.userCancelled;
 
     return runWithInput(input,

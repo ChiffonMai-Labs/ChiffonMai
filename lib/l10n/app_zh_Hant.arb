@@ -4434,7 +4434,7 @@
   "flowAWMCNETQQNoTokenHint": "請輸入已在 net.wmc.pub 關聯過檔案的 QQ 號，無需再填寫成績導入 Token。",
   "flowQQSaved": "QQ 號已保存",
   "flowDivingFishOAuthWriteChip": "OAuth 讀寫",
-  "flowLXNSOAuthChip": "落雪 OAuth",
+  "flowLXNSOAuthChip": "OAuth 讀寫",
   "flowMultiFishOAuthWriteMissingHint": "請先在水魚帳號中完成包含寫入權限的 OAuth 授權。",
   "flowMultiLxnsOAuthMissingHint": "請點擊「前往授權」完成落雪 OAuth 授權。",
   "flowOneCabinetQRForAllSelectedRoute1": "所有已選線路 1 來源共用同一張機台二維碼，一次讀取即可完成同步。",

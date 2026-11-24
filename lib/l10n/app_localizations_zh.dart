@@ -15280,7 +15280,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get flowDivingFishOAuthWriteChip => 'OAuth 读写';
 
   @override
-  String get flowLXNSOAuthChip => '落雪 OAuth';
+  String get flowLXNSOAuthChip => 'OAuth 读写';
 
   @override
   String get flowMultiFishOAuthWriteMissingHint =>
@@ -30691,7 +30691,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get flowDivingFishOAuthWriteChip => 'OAuth 讀寫';
 
   @override
-  String get flowLXNSOAuthChip => '落雪 OAuth';
+  String get flowLXNSOAuthChip => 'OAuth 讀寫';
 
   @override
   String get flowMultiFishOAuthWriteMissingHint =>

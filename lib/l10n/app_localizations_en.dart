@@ -16177,7 +16177,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get flowDivingFishOAuthWriteChip => 'OAuth R/W';
 
   @override
-  String get flowLXNSOAuthChip => 'LXNS OAuth';
+  String get flowLXNSOAuthChip => 'OAuth R/W';
 
   @override
   String get flowMultiFishOAuthWriteMissingHint =>

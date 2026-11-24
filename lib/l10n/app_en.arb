@@ -4434,7 +4434,7 @@
   "flowAWMCNETQQNoTokenHint": "Enter the QQ ID linked to your profile on net.wmc.pub. No import token is needed.",
   "flowQQSaved": "QQ ID saved",
   "flowDivingFishOAuthWriteChip": "OAuth R/W",
-  "flowLXNSOAuthChip": "LXNS OAuth",
+  "flowLXNSOAuthChip": "OAuth R/W",
   "flowMultiFishOAuthWriteMissingHint": "Authorize Diving-Fish with write permission first.",
   "flowMultiLxnsOAuthMissingHint": "Tap Authorize now to complete LXNS OAuth authorization.",
   "flowOneCabinetQRForAllSelectedRoute1": "One cabinet QR code will be shared across all selected Route 1 sources.",

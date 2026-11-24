@@ -15593,7 +15593,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get flowDivingFishOAuthWriteChip => 'OAuth 読み書き';
 
   @override
-  String get flowLXNSOAuthChip => 'LXNS OAuth';
+  String get flowLXNSOAuthChip => 'OAuth 読み書き';
 
   @override
   String get flowMultiFishOAuthWriteMissingHint =>

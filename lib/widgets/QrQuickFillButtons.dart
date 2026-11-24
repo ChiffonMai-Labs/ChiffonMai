@@ -6,6 +6,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import 'AppHeader.dart';
+import '../utils/AppDesignTokens.dart';
+import '../utils/AppTheme.dart';
 import '../widgets/AppDialogs.dart';
 import '../widgets/AppToast.dart';
 
@@ -40,6 +42,9 @@ class QrQuickFillButtons extends StatelessWidget {
   final double spacing;
   final double runSpacing;
 
+  /// 对话框内使用紧凑单行等宽排布，避免折行参差不齐。
+  final bool compact;
+
   const QrQuickFillButtons({
     super.key,
     required this.controller,
@@ -47,6 +52,7 @@ class QrQuickFillButtons extends StatelessWidget {
     this.enabled = true,
     this.spacing = 8,
     this.runSpacing = 8,
+    this.compact = false,
   });
 
   /// 只提取官方链接路径中的凭据，不向剪贴板里的地址发请求。
@@ -178,6 +184,40 @@ class QrQuickFillButtons extends StatelessWidget {
     );
   }
 
+  Widget _compactButton(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required VoidCallback? onPressed,
+  }) {
+    final scheme = Theme.of(context).colorScheme;
+    return OutlinedButton(
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        backgroundColor: AppSurfaces.card(context),
+        foregroundColor: scheme.onSurface,
+        side: BorderSide(color: scheme.outlineVariant),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        minimumSize: const Size(0, 38),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 15, color: scheme.primary),
+            const SizedBox(width: 4),
+            Text(label, style: const TextStyle(fontSize: 12.5)),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (Theme.of(context).platform == TargetPlatform.iOS) {
@@ -205,6 +245,38 @@ class QrQuickFillButtons extends StatelessWidget {
                 title: Text(label),
                 trailing: const ios.CupertinoListTileChevron(),
                 onTap: enabled ? () => action(context) : null),
+        ],
+      );
+    }
+    if (compact) {
+      return Row(
+        children: [
+          Expanded(
+            child: _compactButton(
+              context,
+              icon: Icons.paste,
+              label: context.l10n.flowReadClipboard,
+              onPressed: enabled ? () => _fromClipboard(context) : null,
+            ),
+          ),
+          SizedBox(width: spacing),
+          Expanded(
+            child: _compactButton(
+              context,
+              icon: Icons.photo_library,
+              label: context.l10n.flowReadFromGallery,
+              onPressed: enabled ? () => _fromGallery(context) : null,
+            ),
+          ),
+          SizedBox(width: spacing),
+          Expanded(
+            child: _compactButton(
+              context,
+              icon: Icons.qr_code_scanner,
+              label: context.l10n.flowScanQRCode,
+              onPressed: enabled ? () => _fromCamera(context) : null,
+            ),
+          ),
         ],
       );
     }

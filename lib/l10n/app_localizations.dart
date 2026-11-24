@@ -26699,7 +26699,7 @@ abstract class AppLocalizations {
   /// No description provided for @flowLXNSOAuthChip.
   ///
   /// In zh, this message translates to:
-  /// **'落雪 OAuth'**
+  /// **'OAuth 读写'**
   String get flowLXNSOAuthChip;
 
   /// No description provided for @flowMultiFishOAuthWriteMissingHint.

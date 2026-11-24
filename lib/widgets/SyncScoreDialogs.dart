@@ -1,4 +1,3 @@
-import 'AnimatedReveal.dart';
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import '../utils/AppTaskActivity.dart';
@@ -18,7 +17,6 @@ import '../utils/SyncRouteNotifier.dart';
 import '../utils/SecureCredentialStore.dart';
 import 'QrQuickFillButtons.dart';
 import 'SyncDialogUi.dart';
-import 'QuickSyncOption.dart';
 
 import 'PostSyncRefreshOptions.dart';
 import 'SmoothLinearProgressIndicator.dart';
@@ -130,146 +128,48 @@ Future<void> _disposeAfterDialogCloses(
   }
 }
 
-/// 注意：二维码的「读取剪贴板 / 相册识别 / 扫码」三个按钮需要 setState 刷新
-/// 输入框，这里用一个局部 StatefulBuilder 承载，输入项本身是自包含的。
+/// 统一单源同步输入表单（水鱼）。
 Future<DivingFishSyncInput?> showDivingFishSyncInputDialog(BuildContext context,
     {bool allowQuickUpdate = false}) async {
   final prefs = await SharedPreferences.getInstance();
-  var participateRankings =
+  final participateRankings =
       prefs.getBool(CacheKeyConstant.participateRankings) ?? false;
-  var showNickname = prefs.getBool(CacheKeyConstant.showNickname) ?? false;
-  final qrController = TextEditingController();
-  var quickUpdate = false;
-  final refreshKey = GlobalKey<PostSyncRefreshOptionsState>();
-  var submitting = false;
-  ModalRoute<DivingFishSyncInput>? dialogRoute;
+  final showNickname = prefs.getBool(CacheKeyConstant.showNickname) ?? false;
 
   if (!context.mounted) return null;
 
-  final result = await showDialog<DivingFishSyncInput>(
+  return showDialog<DivingFishSyncInput>(
     context: context,
     barrierDismissible: false,
-    builder: (dialogContext) {
-      dialogRoute ??= ModalRoute.of(dialogContext);
-      return StatefulBuilder(
-        builder: (context, setState) => AppAlertDialog(
-          title: Text(context.l10n.featureSyncToDivingFish),
-          subtitle: context.l10n.featureScanACodeToFetchAndSync,
-          content: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (allowQuickUpdate)
-                  SyncDialogSection(
-                    first: true,
-                    icon: Icons.bolt_rounded,
-                    title: context.l10n.syncDialogMode,
-                    child: QuickSyncOption(
-                      platforms: const {SyncPlatform.divingFish},
-                      onChanged: (enabled) => setState(() {
-                        quickUpdate = enabled;
-                      }),
-                    ),
-                  ),
-                AnimatedReveal(
-                  visible: !quickUpdate,
-                  child: SyncDialogSection(
-                    first: !allowQuickUpdate,
-                    icon: Icons.qr_code_2_rounded,
-                    title: context.l10n.syncDialogQrCode,
-                    caption: context.l10n.flowRequestAndOpenALoginQRCode,
-                    child: SyncQrInput(
-                      controller: qrController,
-                      hintText:
-                          context.l10n.flowMaimaiDXCHUNITHMLoginQRSGWCMAID,
-                    ),
-                  ),
-                ),
-                SyncDialogSection(
-                  icon: Icons.refresh_rounded,
-                  title: context.l10n.flowRefreshDataAfterSync,
-                  caption: context
-                      .l10n.flowRefreshAutomaticallyAfterUploadRefreshErrorsAre,
-                  child: PostSyncRefreshOptions(
-                    key: refreshKey,
-                    source: RefreshDataSource.shuiyu,
-                    showHeader: false,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                final route = dialogRoute;
-                if (route != null && route.isCurrent) route.navigator!.pop();
-              },
-              child: Text(context.l10n.featureCancel),
-            ),
-            SyncStartButton(
-              label: context.l10n.flowStartSync,
-              onPressed: submitting
-                  ? null
-                  : () async {
-                      if (submitting || dialogRoute?.isCurrent != true) return;
-                      final qrCode = qrController.text.trim();
-                      if (!quickUpdate && qrCode.isEmpty) {
-                        AppToast.show(
-                            context
-                                .l10n.flowPasteTheMaimaiCHUNITHMLoginQRString,
-                            tone: AppToastTone.warning);
-                        return;
-                      }
-                      if (!quickUpdate && !qrCode.startsWith('SGWCMAID')) {
-                        AppToast.show(context.l10n.flowInvalidQRCodeUseALoginQR,
-                            tone: AppToastTone.warning);
-                        return;
-                      }
-                      setState(() => submitting = true);
-                      try {
-                        final prefs2 = await SharedPreferences.getInstance();
-                        await prefs2.setBool(
-                            CacheKeyConstant.participateRankings,
-                            participateRankings);
-                        await prefs2.setBool(
-                            CacheKeyConstant.showNickname, showNickname);
-                        final refreshRequest =
-                            await refreshKey.currentState?.collectRequest();
-                        if (!dialogContext.mounted ||
-                            dialogRoute?.isCurrent != true) return;
-                        dialogRoute!.navigator!.pop(DivingFishSyncInput(
-                          qrCode: qrCode,
-                          quickUpdate: quickUpdate,
-                          participateRankings: participateRankings,
-                          showNickname: showNickname,
-                          refreshRequest: refreshRequest,
-                        ));
-                      } catch (_) {
-                        if (dialogContext.mounted &&
-                            dialogRoute?.isCurrent == true) {
-                          AppToast.show(
-                              dialogContext.l10n
-                                  .flowCouldNotReadSavedCredentialsTryAgain,
-                              tone: AppToastTone.error);
-                        }
-                      } finally {
-                        if (dialogContext.mounted &&
-                            dialogRoute?.isActive == true) {
-                          setState(() => submitting = false);
-                        }
-                      }
-                    },
-            ),
-          ],
-        ),
-      );
-    },
+    builder: (dialogCtx) => SingleSourceSyncDialog<DivingFishSyncInput>(
+      title: dialogCtx.l10n.featureSyncToDivingFish,
+      subtitle: dialogCtx.l10n.featureScanACodeToFetchAndSync,
+      platform: SyncPlatform.divingFish,
+      refreshSource: RefreshDataSource.shuiyu,
+      allowQuickUpdate: allowQuickUpdate,
+      qrCaption: dialogCtx.l10n.flowRequestAndOpenALoginQRCode,
+      qrHintText: dialogCtx.l10n.flowMaimaiDXCHUNITHMLoginQRSGWCMAID,
+      onSubmit: ({
+        required context,
+        required qrCode,
+        required quickUpdate,
+        required refreshRequest,
+        required showError,
+      }) async {
+        final prefs2 = await SharedPreferences.getInstance();
+        await prefs2.setBool(
+            CacheKeyConstant.participateRankings, participateRankings);
+        await prefs2.setBool(CacheKeyConstant.showNickname, showNickname);
+        return DivingFishSyncInput(
+          qrCode: qrCode,
+          quickUpdate: quickUpdate,
+          participateRankings: participateRankings,
+          showNickname: showNickname,
+          refreshRequest: refreshRequest,
+        );
+      },
+    ),
   );
-
-  await _disposeAfterDialogCloses(dialogRoute, [qrController]);
-  return result;
 }
 
 /// 把 [SyncProgress] 的阶段映射为 0-1 的进度值。
@@ -304,179 +204,42 @@ class LuoXueSyncInput {
 /// 本地残留的个人 API 密钥仅作为未授权时的历史回退。
 Future<LuoXueSyncInput?> showLuoXueSyncInputDialog(BuildContext context,
     {bool allowQuickUpdate = false, bool allowOAuth = true}) async {
-  final brightness = Theme.of(context).brightness;
-  final qrController = TextEditingController();
-  var quickUpdate = false;
-  final refreshKey = GlobalKey<PostSyncRefreshOptionsState>();
-  String? error;
-  var submitting = false;
-  ModalRoute<LuoXueSyncInput>? dialogRoute;
-
-  // 打开时检查 OAuth 授权与个人密钥：线路 1 支持 OAuth 免密钥，已授权时不要求填写个人 API 密钥。
-  final hasOAuth = allowOAuth && await LuoXueOAuthManager().isLoggedIn();
-  final savedToken =
-      await SecureCredentialStore.read(CacheKeyConstant.probeLxnsImportToken);
-  final hasSavedToken = savedToken != null && savedToken.isNotEmpty;
-  final showKeyGuide = !hasSavedToken && !hasOAuth;
-
   if (!context.mounted) return null;
 
-  final result = await showDialog<LuoXueSyncInput>(
+  return showDialog<LuoXueSyncInput>(
     context: context,
     barrierDismissible: false,
-    builder: (dialogContext) {
-      dialogRoute ??= ModalRoute.of(dialogContext);
-      return StatefulBuilder(
-        builder: (context, setState) => AppAlertDialog(
-          title: Text(context.l10n.featureSyncToLXNS),
-          subtitle: context.l10n.featureSyncLocalScoresToLXNS,
-          content: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (allowQuickUpdate)
-                  SyncDialogSection(
-                    first: true,
-                    icon: Icons.bolt_rounded,
-                    title: context.l10n.syncDialogMode,
-                    child: QuickSyncOption(
-                      platforms: const {SyncPlatform.luoXue},
-                      onChanged: (enabled) => setState(() {
-                        quickUpdate = enabled;
-                      }),
-                    ),
-                  ),
-                AnimatedReveal(
-                  visible: !quickUpdate,
-                  child: SyncDialogSection(
-                    first: !allowQuickUpdate,
-                    icon: Icons.qr_code_2_rounded,
-                    title: context.l10n.syncDialogQrCode,
-                    caption: context.l10n.flowRequestAndOpenALoginQRCode,
-                    // 与水鱼同步对话框保持一致：剪贴板 / 相册 / 扫码三件套
-                    child: SyncQrInput(
-                      controller: qrController,
-                      hintText:
-                          context.l10n.flowMaimaiDXCHUNITHMLoginQRSGWCMAID,
-                      onFilled: () => setState(() => error = null),
-                    ),
-                  ),
-                ),
-                // 未完成落雪 OAuth 且无本地历史密钥时的授权引导。
-                if (showKeyGuide)
-                  SyncDialogSection(
-                    icon: Icons.verified_user_outlined,
-                    title: context.l10n.accountBindingManage,
-                    child: _buildLuoXueKeyGuide(context, brightness),
-                  ),
-                if (error != null) ...[
-                  const SizedBox(height: 10),
-                  Text(error!,
-                      style: TextStyle(
-                          fontSize: 12, color: AppColors.errorRed(brightness))),
-                ],
-                SyncDialogSection(
-                  icon: Icons.refresh_rounded,
-                  title: context.l10n.flowRefreshDataAfterSync,
-                  caption: context
-                      .l10n.flowRefreshAutomaticallyAfterUploadRefreshErrorsAre,
-                  child: PostSyncRefreshOptions(
-                    key: refreshKey,
-                    source: RefreshDataSource.luoxue,
-                    showHeader: false,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                final route = dialogRoute;
-                if (route != null && route.isCurrent) route.navigator!.pop();
-              },
-              child: Text(context.l10n.featureCancel),
-            ),
-            SyncStartButton(
-              label: context.l10n.flowStartSync,
-              onPressed: submitting
-                  ? null
-                  : () async {
-                      if (submitting || dialogRoute?.isCurrent != true) return;
-                      final qrCode = qrController.text.trim();
-                      if (!quickUpdate && qrCode.isEmpty) {
-                        setState(() => error = context
-                            .l10n.flowPasteTheMaimaiCHUNITHMLoginQRString);
-                        return;
-                      }
-                      if (!quickUpdate && !qrCode.startsWith('SGWCMAID')) {
-                        setState(() =>
-                            error = context.l10n.flowInvalidQRCodeUseALoginQR);
-                        return;
-                      }
-                      setState(() => submitting = true);
-                      try {
-                        // 默认优先使用落雪 OAuth；若未授权，则允许兼容本地历史残留的个人 API 密钥。
-                        final token = await SecureCredentialStore.read(
-                            CacheKeyConstant.probeLxnsImportToken);
-                        final oauthOk = allowOAuth &&
-                            await LuoXueOAuthManager().isLoggedIn();
-                        if (!dialogContext.mounted ||
-                            dialogRoute?.isCurrent != true) return;
-                        if (!oauthOk && (token == null || token.isEmpty)) {
-                          setState(() => error = context
-                              .l10n.flowNoLXNSPersonalAPIKeySetConfigure);
-                          return;
-                        }
-                        final refreshRequest =
-                            await refreshKey.currentState?.collectRequest();
-                        if (!dialogContext.mounted ||
-                            dialogRoute?.isCurrent != true) return;
-                        dialogRoute!.navigator!.pop(LuoXueSyncInput(
-                          qrCode: qrCode,
-                          quickUpdate: quickUpdate,
-                          lxnsImportToken: token,
-                          refreshRequest: refreshRequest,
-                        ));
-                      } catch (_) {
-                        if (dialogContext.mounted &&
-                            dialogRoute?.isCurrent == true) {
-                          AppToast.show(
-                              dialogContext.l10n
-                                  .flowCouldNotReadSavedCredentialsTryAgain,
-                              tone: AppToastTone.error);
-                        }
-                      } finally {
-                        if (dialogContext.mounted &&
-                            dialogRoute?.isActive == true) {
-                          setState(() => submitting = false);
-                        }
-                      }
-                    },
-            ),
-          ],
-        ),
-      );
-    },
-  );
-
-  await _disposeAfterDialogCloses(dialogRoute, [qrController]);
-  return result;
-}
-
-/// 落雪 OAuth 授权引导卡片：提示用户前往「我的 → 账号与授权 → 绑定与授权管理」完成授权。
-Widget _buildLuoXueKeyGuide(BuildContext context, Brightness brightness) {
-  final hintStyle =
-      TextStyle(fontSize: 12, color: AppColors.greyHint(brightness));
-  final warn = AppColors.warningOrange(brightness);
-  return SyncNoticeCard(
-    icon: Icons.verified_user_outlined,
-    color: warn,
-    title: context.l10n.flowLuoXueRoute1AuthDialogTitle,
-    child: Text(
-      context.l10n.flowLuoXueRoute1AuthDialogBody,
-      style: hintStyle,
+    builder: (dialogCtx) => SingleSourceSyncDialog<LuoXueSyncInput>(
+      title: dialogCtx.l10n.featureSyncToLXNS,
+      subtitle: dialogCtx.l10n.featureSyncLocalScoresToLXNS,
+      platform: SyncPlatform.luoXue,
+      refreshSource: RefreshDataSource.luoxue,
+      allowQuickUpdate: allowQuickUpdate,
+      qrCaption: dialogCtx.l10n.flowRequestAndOpenALoginQRCode,
+      qrHintText: dialogCtx.l10n.flowMaimaiDXCHUNITHMLoginQRSGWCMAID,
+      onSubmit: ({
+        required context,
+        required qrCode,
+        required quickUpdate,
+        required refreshRequest,
+        required showError,
+      }) async {
+        // 默认优先使用落雪 OAuth；若未授权，则允许兼容本地历史残留的个人 API 密钥。
+        final token = await SecureCredentialStore.read(
+            CacheKeyConstant.probeLxnsImportToken);
+        final oauthOk = allowOAuth && await LuoXueOAuthManager().isLoggedIn();
+        if (!context.mounted) return null;
+        if (!oauthOk && (token == null || token.isEmpty)) {
+          showError(context.l10n.flowNoLXNSPersonalAPIKeySetConfigure);
+          return null;
+        }
+        return LuoXueSyncInput(
+          qrCode: qrCode,
+          quickUpdate: quickUpdate,
+          lxnsImportToken: token,
+          refreshRequest: refreshRequest,
+        );
+      },
     ),
   );
 }
@@ -1178,8 +941,8 @@ class SyncScoreDialogs {
     return result;
   }
 
-  /// 显示水鱼登录对话框
-  static Future<void> showDivingFishLoginDialog(
+  /// 显示水鱼登录对话框；返回值表示是否登录成功。
+  static Future<bool> showDivingFishLoginDialog(
       BuildContext context, SyncCallbacks callbacks) async {
     final brightness = Theme.of(context).brightness;
     final TextEditingController userController = TextEditingController();
@@ -1378,6 +1141,7 @@ class SyncScoreDialogs {
     // 弹窗关闭后释放 controllers，避免泄漏（等退场动画结束再放，见助手注释）
     await _disposeAfterDialogCloses(
         dialogRoute, [userController, passController]);
+    return loginSuccess;
   }
 
   // ===== 内部辅助 =====

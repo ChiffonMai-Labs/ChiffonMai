@@ -4434,7 +4434,7 @@
   "flowAWMCNETQQNoTokenHint": "net.wmc.pub に紐付け済みの QQ 番号を入力してください。インポート Token は不要です。",
   "flowQQSaved": "QQ 番号を保存しました",
   "flowDivingFishOAuthWriteChip": "OAuth 読み書き",
-  "flowLXNSOAuthChip": "LXNS OAuth",
+  "flowLXNSOAuthChip": "OAuth 読み書き",
   "flowMultiFishOAuthWriteMissingHint": "先に水魚アカウントで書き込み権限を含む OAuth 認可を完了してください。",
   "flowMultiLxnsOAuthMissingHint": "「認証へ進む」から LXNS OAuth 認可を完了してください。",
   "flowOneCabinetQRForAllSelectedRoute1": "選択したすべてのルート1同期先で 1 つの筐体 QR コードを共有します。",

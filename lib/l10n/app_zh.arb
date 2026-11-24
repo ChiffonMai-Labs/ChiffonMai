@@ -10594,7 +10594,7 @@
   "flowAWMCNETQQNoTokenHint": "请输入已在 net.wmc.pub 关联过档案的 QQ 号，无需再填写成绩导入 Token。",
   "flowQQSaved": "QQ 号已保存",
   "flowDivingFishOAuthWriteChip": "OAuth 读写",
-  "flowLXNSOAuthChip": "落雪 OAuth",
+  "flowLXNSOAuthChip": "OAuth 读写",
   "flowMultiFishOAuthWriteMissingHint": "请先在水鱼账号中完成包含写入权限的 OAuth 授权。",
   "flowMultiLxnsOAuthMissingHint": "请点击「前往授权」完成落雪 OAuth 授权。",
   "flowOneCabinetQRForAllSelectedRoute1": "所有已选线路 1 来源共用同一张机台二维码，一次读取即可完成同步。",
