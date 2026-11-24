@@ -34,9 +34,8 @@ class ThunderBest50Export {
     String? warning,
     String? sortLabel,
   }) async {
-    final user = showUserInfo
-        ? await ExportUserInfoWidget.loadUserInfo()
-        : <String, dynamic>{};
+    final user = await ExportUserInfoWidget.loadUserInfo();
+    final frameUrl = user['frameUrl'] as String? ?? '';
     final prefs = await SharedPreferences.getInstance();
     final source = RefreshDataSource.displayNameOfKey(
         prefs.getString(CacheKeyConstant.lastDataSource));
@@ -49,11 +48,25 @@ class ThunderBest50Export {
         builder: (context) => SizedBox(
               width: vertical ? cardWidth : verticalWidth,
               child: ExportHeroSurface(
+                backgroundImageUrl: frameUrl.isEmpty ? null : frameUrl,
                 radius: 16,
                 padding: const EdgeInsets.all(18),
                 child: DefaultTextStyle(
                   style: AppTheme.font(
-                      color: Colors.white, fontSize: 15, height: 1.45),
+                    color: Colors.white,
+                    fontSize: 15,
+                    height: 1.45,
+                  ).copyWith(
+                    shadows: frameUrl.isEmpty
+                        ? null
+                        : [
+                            Shadow(
+                              color: Colors.black.withValues(alpha: 0.48),
+                              blurRadius: 8,
+                              offset: const Offset(0, 1.5),
+                            ),
+                          ],
+                  ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,

@@ -16,6 +16,7 @@ import 'package:my_first_flutter_app/utils/ImageEncodeUtil.dart';
 import 'package:my_first_flutter_app/widgets/ExportStatsUi.dart';
 import '../../utils/MusicDataIndex.dart';
 import '../../utils/ExportDiagnostics.dart';
+import '../../utils/ExportUserInfoWidget.dart';
 
 class B50ConvertToImg {
   // 全局Key，用于获取widget的渲染对象
@@ -94,7 +95,13 @@ class B50ConvertToImg {
           );
 
           // 预加载图片资源
-          await log.step('预加载导出图片', () => background.precache(context));
+          await log.step(
+              '预加载导出图片',
+              () => Future.wait([
+                    background.precache(context),
+                    ExportUserInfoWidget.precacheFrame(context),
+                  ]));
+          if (!context.mounted) return null;
           debugPrint('Images preloaded');
 
           // 将OverlayEntry添加到widget树中

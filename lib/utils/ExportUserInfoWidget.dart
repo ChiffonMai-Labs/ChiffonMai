@@ -1,8 +1,10 @@
-import 'package:flutter/foundation.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:my_first_flutter_app/constant/CacheKeyConstant.dart';
+import '../service/CommunityAvatarStore.dart';
+import '../widgets/LxnsAssetImage.dart';
 import 'CurrentDataSourceNotifier.dart';
-import 'CollectionAssetUrls.dart';
 
 /// 导出图片共用的个人信息（头部 `ExportPosterHeader` 和雷霆长图在用）。
 class ExportUserInfoWidget {
@@ -10,9 +12,29 @@ class ExportUserInfoWidget {
   static Future<Map<String, dynamic>> loadUserInfo() =>
       _loadUserInfo(DateTime.now());
 
+  /// 预加载用户已选背景图到内存缓存，确保离屏截图首帧即命中，失败时静默回退纯色。
+  static Future<void> precacheFrame(BuildContext context) async {
+    try {
+      await CommunityAvatarStore.instance.activate();
+      final frameId = CommunityAvatarStore.instance.value.frameId;
+      if (frameId == null || !context.mounted) return;
+      final url = lxnsFrameUrl(frameId);
+      final provider = CachedNetworkImageProvider(
+        collectionAssetProxyUrl(url),
+        cacheKey: collectionAssetCacheKey(url),
+        cacheManager: lxnsAssetCacheManager,
+      );
+      await precacheImage(provider, context)
+          .timeout(const Duration(seconds: 4));
+    } catch (e) {
+      debugPrint('预加载导出头部背景失败（将回退纯色）: $e');
+    }
+  }
+
   /// 从 SharedPreferences 加载用户信息
   static Future<Map<String, dynamic>> _loadUserInfo(DateTime exportTime) async {
     try {
+      await CommunityAvatarStore.instance.activate();
       final prefs = await SharedPreferences.getInstance();
       final avatarId = prefs.getInt('selectedAvatarId') ?? 1;
       final avatarUrl = lxnsIconUrl(avatarId);
@@ -22,6 +44,8 @@ class ExportUserInfoWidget {
       final totalRating =
           prefs.getInt('best50TotalRA') ?? (best35Rating + best15Rating);
       final plateId = prefs.getInt(CacheKeyConstant.selectedPlateIdCache);
+      final frameId = CommunityAvatarStore.instance.value.frameId;
+      final frameUrl = frameId == null ? '' : lxnsFrameUrl(frameId);
 
       // 读取数据源
       final dataSource = RefreshDataSource.displayNameOfKey(
@@ -41,6 +65,8 @@ class ExportUserInfoWidget {
         'dataSource': dataSource,
         'exportTime': exportTimeStr,
         'plateId': plateId,
+        'frameId': frameId,
+        'frameUrl': frameUrl,
       };
     } catch (e) {
       debugPrint('加载用户信息失败: $e');
@@ -53,6 +79,8 @@ class ExportUserInfoWidget {
         'dataSource': '',
         'exportTime': '',
         'plateId': null,
+        'frameId': null,
+        'frameUrl': '',
       };
     }
   }

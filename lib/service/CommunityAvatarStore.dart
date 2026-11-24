@@ -165,6 +165,12 @@ class CommunityAvatarStore extends ValueNotifier<AvatarSyncState> {
     } else {
       await prefs.setInt(CacheKeyConstant.selectedPlateIdCache, plate);
     }
+    final frame = entry['frame'] is Map ? entry['frame']['id'] as int? : null;
+    if (frame == null) {
+      await prefs.remove(CacheKeyConstant.selectedFrameIdCache);
+    } else {
+      await prefs.setInt(CacheKeyConstant.selectedFrameIdCache, frame);
+    }
   }
 
   Future<void> activate() {

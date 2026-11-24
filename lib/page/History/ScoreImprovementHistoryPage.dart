@@ -15,6 +15,7 @@ import '../../utils/AppTheme.dart';
 import '../../utils/CurrentDataSourceNotifier.dart';
 import '../../utils/AppTaskActivity.dart';
 import '../../utils/ExportPathUtil.dart';
+import '../../utils/ExportUserInfoWidget.dart';
 import '../../utils/ImageEncodeUtil.dart';
 import '../../utils/UserProfileNotifier.dart';
 import '../../widgets/AppUi.dart';
@@ -645,6 +646,8 @@ class _ScoreImprovementHistoryPageState
                             ]),
                       ))),
             ));
+    await ExportUserInfoWidget.precacheFrame(context);
+    if (!mounted || _exporting || !identical(_entries, sourceEntries)) return;
     final overlay = Overlay.of(context);
     setState(() => _exporting = true);
     overlay.insert(entry);

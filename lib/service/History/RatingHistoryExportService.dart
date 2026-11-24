@@ -11,6 +11,7 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../../l10n/LocalizationsExtension.dart';
 import '../../utils/AppTheme.dart';
+import '../../utils/ExportUserInfoWidget.dart';
 import '../../utils/ImageEncodeUtil.dart';
 import '../../widgets/ExportStatsUi.dart';
 import '../../widgets/HistoryLineChart.dart';
@@ -55,6 +56,8 @@ class RatingHistoryExportService {
           ),
         ),
       );
+      await ExportUserInfoWidget.precacheFrame(context);
+      if (!context.mounted) return null;
       Overlay.of(context).insert(overlayEntry);
       overlayInserted = true;
       await ImageEncodeUtil.waitForRender(settle: const Duration(milliseconds: 600));

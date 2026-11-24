@@ -13,6 +13,7 @@ import 'package:my_first_flutter_app/utils/StringUtil.dart';
 import 'package:my_first_flutter_app/utils/ImageEncodeUtil.dart';
 import 'package:my_first_flutter_app/widgets/B50GameCardWidget.dart';
 import 'package:my_first_flutter_app/widgets/ExportStatsUi.dart';
+import '../../utils/ExportUserInfoWidget.dart';
 import '../../utils/MusicDataIndex.dart';
 
 class DiffBest50ConvertToImg {
@@ -78,7 +79,11 @@ class DiffBest50ConvertToImg {
       );
 
       // 预加载图片资源
-      await background.precache(context);
+      await Future.wait([
+        background.precache(context),
+        ExportUserInfoWidget.precacheFrame(context),
+      ]);
+      if (!context.mounted) return null;
       debugPrint('Images preloaded');
 
       // 将OverlayEntry添加到widget树中

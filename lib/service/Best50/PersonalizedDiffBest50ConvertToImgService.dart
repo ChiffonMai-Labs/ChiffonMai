@@ -13,6 +13,7 @@ import 'package:my_first_flutter_app/utils/StringUtil.dart';
 import 'package:my_first_flutter_app/utils/ImageEncodeUtil.dart';
 import 'package:my_first_flutter_app/widgets/B50GameCardWidget.dart';
 import 'package:my_first_flutter_app/widgets/ExportStatsUi.dart';
+import '../../utils/ExportUserInfoWidget.dart';
 import '../../utils/MusicDataIndex.dart';
 
 class PersonalizedDiffBest50ConvertToImg {
@@ -65,7 +66,11 @@ class PersonalizedDiffBest50ConvertToImg {
         ),
       );
 
-      await background.precache(context);
+      await Future.wait([
+        background.precache(context),
+        ExportUserInfoWidget.precacheFrame(context),
+      ]);
+      if (!context.mounted) return null;
       debugPrint('Images preloaded');
 
       Overlay.of(context).insert(overlayEntry);

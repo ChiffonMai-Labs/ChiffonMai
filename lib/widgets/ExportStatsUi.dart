@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'package:flutter/material.dart';
@@ -65,10 +66,11 @@ class ExportPage extends StatelessWidget {
   }
 }
 
-/// 导出图头部的渐变底：两个淡淡的大圆，右上和左下各一个。
+/// 导出图头部的渐变底：优先展示用户背景图暗淡填充；未选或加载失败时回退双色渐变与淡圆圈。
 class ExportHeroSurface extends StatelessWidget {
   final Widget child;
   final List<Color>? colors;
+  final String? backgroundImageUrl;
   final double radius;
   final EdgeInsetsGeometry padding;
 
@@ -76,6 +78,7 @@ class ExportHeroSurface extends StatelessWidget {
     super.key,
     required this.child,
     this.colors,
+    this.backgroundImageUrl,
     this.radius = 36,
     this.padding = const EdgeInsets.all(40),
   });
@@ -83,6 +86,7 @@ class ExportHeroSurface extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = ExportPalette.of(context);
+    final bgUrl = backgroundImageUrl?.trim();
     Widget ring(double size) => Container(
           width: size,
           height: size,
@@ -105,6 +109,72 @@ class ExportHeroSurface extends StatelessWidget {
           children: [
             Positioned(right: -120, top: -160, child: ring(520)),
             Positioned(left: -90, bottom: -180, child: ring(360)),
+            if (bgUrl != null && bgUrl.isNotEmpty)
+              Positioned.fill(
+                child: CachedNetworkImage(
+                  imageUrl: collectionAssetProxyUrl(bgUrl),
+                  cacheKey: collectionAssetCacheKey(bgUrl),
+                  cacheManager: lxnsAssetCacheManager,
+                  fadeInDuration: Duration.zero,
+                  fadeOutDuration: Duration.zero,
+                  placeholder: (_, __) => const SizedBox.shrink(),
+                  errorWidget: (_, __, ___) => const SizedBox.shrink(),
+                  imageBuilder: (context, imageProvider) {
+                    final darkTheme = !c.isLight;
+                    final scrimBase = Color.lerp(Colors.black, c.heroDeep, 0.22)!;
+                    return Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Image(
+                          image: imageProvider,
+                          fit: BoxFit.cover,
+                          alignment: Alignment.center,
+                        ),
+                        // 左右文字区略深，中间略透出背景画面，兼顾辨识度与可读性。
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.centerLeft,
+                              end: Alignment.centerRight,
+                              colors: [
+                                scrimBase.withValues(
+                                    alpha: darkTheme ? 0.72 : 0.64),
+                                scrimBase.withValues(
+                                    alpha: darkTheme ? 0.50 : 0.42),
+                                scrimBase.withValues(
+                                    alpha: darkTheme ? 0.68 : 0.60),
+                              ],
+                              stops: const [0.0, 0.50, 1.0],
+                            ),
+                          ),
+                        ),
+                        // 纵向柔和压暗底部，让底行信息更沉稳。
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.black.withValues(alpha: 0.08),
+                                Colors.black.withValues(alpha: 0.30),
+                              ],
+                            ),
+                          ),
+                        ),
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(radius),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.14),
+                              width: 1.5,
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
             Padding(padding: padding, child: child),
           ],
         ),
@@ -139,16 +209,26 @@ class ExportPosterHeader extends StatelessWidget {
       future: ExportUserInfoWidget.loadUserInfo(),
       builder: (context, snapshot) {
         final data = snapshot.data ?? const <String, dynamic>{};
+        final frameUrl = data['frameUrl'] as String? ?? '';
+        final hasBackground = frameUrl.isNotEmpty;
         return ExportHeroSurface(
+          backgroundImageUrl: hasBackground ? frameUrl : null,
           radius: 36 * scale,
           padding: EdgeInsets.all(36 * scale),
           child: IntrinsicHeight(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (showUser) Expanded(flex: 3, child: _player(data)),
+                if (showUser)
+                  Expanded(
+                    flex: 3,
+                    child: _player(data, hasBackground: hasBackground),
+                  ),
                 if (showUser) SizedBox(width: 32 * scale),
-                Expanded(flex: 2, child: _titleBlock(data)),
+                Expanded(
+                  flex: 2,
+                  child: _titleBlock(data, hasBackground: hasBackground),
+                ),
               ],
             ),
           ),
@@ -157,7 +237,17 @@ class ExportPosterHeader extends StatelessWidget {
     );
   }
 
-  Widget _player(Map<String, dynamic> data) {
+  List<Shadow>? _textShadows(bool hasBackground) => hasBackground
+      ? [
+          Shadow(
+            color: Colors.black.withValues(alpha: 0.48),
+            blurRadius: 10 * scale,
+            offset: Offset(0, 2 * scale),
+          ),
+        ]
+      : null;
+
+  Widget _player(Map<String, dynamic> data, {required bool hasBackground}) {
     final avatarUrl = data['avatarUrl'] as String? ?? '';
     final nickname = data['nickname'] as String? ?? '';
     final totalRating = data['totalRating'] as int? ?? 0;
@@ -165,6 +255,7 @@ class ExportPosterHeader extends StatelessWidget {
     final best15 = data['best15Rating'] as int? ?? 0;
     final plateId = selectedPlateId ?? data['plateId'] as int?;
     final avatarSize = 176 * scale;
+    final shadows = _textShadows(hasBackground);
     final avatarFallback = Icon(Icons.person_rounded,
         size: 96 * scale, color: ExportPalette.light.muted);
     return Row(
@@ -204,6 +295,7 @@ class ExportPosterHeader extends StatelessWidget {
                     height: 1.15,
                     fontWeight: FontWeight.w800,
                     color: Colors.white,
+                    shadows: shadows,
                   ),
                 ),
               ),
@@ -224,6 +316,7 @@ class ExportPosterHeader extends StatelessWidget {
                           fontWeight: FontWeight.w600,
                           color: Colors.white.withValues(alpha: 0.85),
                           fontFeatures: const [FontFeature.tabularFigures()],
+                          shadows: shadows,
                         ),
                       ),
                     ),
@@ -253,15 +346,17 @@ class ExportPosterHeader extends StatelessWidget {
     );
   }
 
-  Widget _titleBlock(Map<String, dynamic> data) {
+  Widget _titleBlock(Map<String, dynamic> data, {required bool hasBackground}) {
     final source = data['dataSource'] as String? ?? '';
     final time = data['exportTime'] as String? ?? '';
+    final shadows = _textShadows(hasBackground);
     final metaStyle = TextStyle(
       fontSize: 22 * scale,
       height: 1.45,
       fontWeight: FontWeight.w500,
       color: Colors.white.withValues(alpha: 0.78),
       fontFeatures: const [FontFeature.tabularFigures()],
+      shadows: shadows,
     );
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -278,6 +373,7 @@ class ExportPosterHeader extends StatelessWidget {
               height: 1.1,
               fontWeight: FontWeight.w900,
               color: Colors.white,
+              shadows: shadows,
             ),
           ),
         ),
@@ -288,6 +384,7 @@ class ExportPosterHeader extends StatelessWidget {
               fontSize: 26 * scale,
               fontWeight: FontWeight.w600,
               color: Colors.white.withValues(alpha: 0.85),
+              shadows: shadows,
             ),
           ),
         SizedBox(height: 14 * scale),

@@ -14,6 +14,7 @@ import 'package:my_first_flutter_app/utils/ColorUtil.dart';
 import 'package:my_first_flutter_app/utils/ImageEncodeUtil.dart';
 import 'package:my_first_flutter_app/entity/LuoXue/Collection.dart';
 import 'package:my_first_flutter_app/entity/DivingFish/Song.dart';
+import '../utils/ExportUserInfoWidget.dart';
 import '../widgets/ExportStatsUi.dart';
 
 class PaiziProgressConvertToImg {
@@ -86,7 +87,11 @@ class PaiziProgressConvertToImg {
         ),
       );
 
-      await _preloadImages();
+      await Future.wait([
+        _preloadImages(),
+        ExportUserInfoWidget.precacheFrame(context),
+      ]);
+      if (!context.mounted) return null;
       debugPrint('Images preloaded');
 
       onProgress?.call(context.l10n.flowPreloadingImages, 0.2);
