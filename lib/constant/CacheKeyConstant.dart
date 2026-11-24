@@ -321,4 +321,7 @@ class CacheKeyConstant {
   /// 导出图片选的主题（浅色 / 深色 / 纯黑）。
   static const String exportImageTheme = 'export_image_theme';
   static const String best50ExportBackground = 'best50_export_background';
+
+  /// 界面模式（standard = 常规模式，simple = 简洁模式）。
+  static const String appDisplayMode = 'app_display_mode';
 }

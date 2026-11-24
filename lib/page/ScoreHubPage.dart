@@ -5,6 +5,7 @@ import '../l10n/FeatureLocalizations.dart';
 import 'package:flutter/material.dart';
 import 'HubComponents.dart';
 import '../utils/AppDesignTokens.dart';
+import '../utils/AppModePreferences.dart';
 import '../widgets/AppUi.dart';
 import '../utils/FavoriteFeaturesNotifier.dart';
 import '../utils/FeatureRegistry.dart';
@@ -698,31 +699,77 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
           };
 
           final sections = FeatureRegistry.sections['成绩']!;
-          return HubPageScaffold(
-            title: '成绩',
-            subtitle: '查成绩、看提升、比排名与追踪进度',
-            icon: Icons.analytics_rounded,
-            hero: _buildOverview(context),
-            children: [
-              if (Theme.of(context).platform == TargetPlatform.iOS)
-                ios.CupertinoListTile(
-                    leading: const Icon(ios.CupertinoIcons.link),
-                    title: Text(context.l10n.qqPlayerConnect),
-                    trailing: const ios.CupertinoListTileChevron(),
-                    onTap: () => PlayerConnectionPage.open(context)),
-              for (final section in sections) ...[
-                HubSection(
-                  title: section.title,
-                  subtitle: section.subtitle,
-                  icon: section.icon,
-                  badgeCount: section.titles.length,
+          return ListenableBuilder(
+            listenable: AppModePreferences.instance,
+            builder: (context, _) {
+              final isSimple = AppModePreferences.instance.isSimple;
+              if (!isSimple) {
+                return HubPageScaffold(
+                  title: '成绩',
+                  subtitle: '查成绩、看提升、比排名与追踪进度',
+                  icon: Icons.analytics_rounded,
+                  hero: _buildOverview(context),
                   children: [
-                    for (final title in section.titles) features[title]!
+                    if (Theme.of(context).platform == TargetPlatform.iOS)
+                      ios.CupertinoListTile(
+                          leading: const Icon(ios.CupertinoIcons.link),
+                          title: Text(context.l10n.qqPlayerConnect),
+                          trailing: const ios.CupertinoListTileChevron(),
+                          onTap: () => PlayerConnectionPage.open(context)),
+                    for (final section in sections) ...[
+                      HubSection(
+                        title: section.title,
+                        subtitle: section.subtitle,
+                        icon: section.icon,
+                        badgeCount: section.titles.length,
+                        children: [
+                          for (final title in section.titles) features[title]!
+                        ],
+                      ),
+                      if (section != sections.last) const SizedBox(height: 24),
+                    ],
                   ],
-                ),
-                if (section != sections.last) const SizedBox(height: 24),
-              ],
-            ],
+                );
+              }
+              final coreWidgets = <Widget>[];
+              final moreFeatures = <String, Widget>{};
+              for (final section in sections) {
+                for (final title in section.titles) {
+                  if (FeatureRegistry.isSimpleCore('成绩', title)) {
+                    coreWidgets.add(features[title]!);
+                  } else {
+                    moreFeatures[title] = features[title]!;
+                  }
+                }
+              }
+              return HubPageScaffold(
+                title: '成绩',
+                subtitle: '查成绩、看提升、比排名与追踪进度',
+                icon: Icons.analytics_rounded,
+                hero: _buildSearchEntry(context),
+                children: [
+                  if (Theme.of(context).platform == TargetPlatform.iOS)
+                    ios.CupertinoListTile(
+                        leading: const Icon(ios.CupertinoIcons.link),
+                        title: Text(context.l10n.qqPlayerConnect),
+                        trailing: const ios.CupertinoListTileChevron(),
+                        onTap: () => PlayerConnectionPage.open(context)),
+                  if (coreWidgets.isNotEmpty) ...[
+                    HubSection(
+                      title: context.l10n.simpleModeCoreFeatures,
+                      icon: Icons.star_outline_rounded,
+                      children: coreWidgets,
+                    ),
+                    if (moreFeatures.isNotEmpty) const SizedBox(height: 16),
+                  ],
+                  SimpleMoreFeaturesSection(
+                    sections: sections,
+                    features: moreFeatures,
+                    count: moreFeatures.length,
+                  ),
+                ],
+              );
+            },
           );
         },
       );

@@ -26749,6 +26749,78 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'清除本机保存的落雪个人 API 密钥后，若已开启落雪自动同步，将同时关闭该任务。确定要清除吗？'**
   String get flowClearPersonalApiKeyConfirm;
+
+  /// No description provided for @displayModeTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'界面模式'**
+  String get displayModeTitle;
+
+  /// No description provided for @displayModeStandard.
+  ///
+  /// In zh, this message translates to:
+  /// **'常规模式'**
+  String get displayModeStandard;
+
+  /// No description provided for @displayModeSimple.
+  ///
+  /// In zh, this message translates to:
+  /// **'简洁模式'**
+  String get displayModeSimple;
+
+  /// No description provided for @displayModeStandardHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'显示全部 5 个标签页、概览图表、背景装饰与完整功能列表'**
+  String get displayModeStandardHint;
+
+  /// No description provided for @displayModeSimpleHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'精简为 3 个核心标签页，收敛视觉装饰并折叠低频功能；所有功能仍可通过搜索或展开访问'**
+  String get displayModeSimpleHint;
+
+  /// No description provided for @simpleModeActiveHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前为简洁模式'**
+  String get simpleModeActiveHint;
+
+  /// No description provided for @switchToStandardMode.
+  ///
+  /// In zh, this message translates to:
+  /// **'切回常规模式'**
+  String get switchToStandardMode;
+
+  /// No description provided for @simpleModeBackgroundHiddenHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'简洁模式下已自动隐藏背景图与装饰图，切回常规模式后恢复原有设置'**
+  String get simpleModeBackgroundHiddenHint;
+
+  /// No description provided for @simpleModeCoreFeatures.
+  ///
+  /// In zh, this message translates to:
+  /// **'核心功能'**
+  String get simpleModeCoreFeatures;
+
+  /// No description provided for @simpleModeMoreFeatures.
+  ///
+  /// In zh, this message translates to:
+  /// **'更多功能（{count}）'**
+  String simpleModeMoreFeatures(int count);
+
+  /// No description provided for @simpleModeMorePages.
+  ///
+  /// In zh, this message translates to:
+  /// **'更多页面'**
+  String get simpleModeMorePages;
+
+  /// No description provided for @simpleModeDefaultShortcutsHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'已展示默认常用入口，点击功能右侧星标即可自定义'**
+  String get simpleModeDefaultShortcutsHint;
 }
 
 class _AppLocalizationsDelegate

@@ -4442,5 +4442,17 @@
   "flowRecheckAuthorizationStatus": "Recheck authorization",
   "flowChangePersonalApiKey": "Change personal API key",
   "flowClearPersonalApiKey": "Clear personal API key",
-  "flowClearPersonalApiKeyConfirm": "Clearing the saved LXNS personal API key will also disable LXNS auto-sync if it is currently enabled. Continue?"
+  "flowClearPersonalApiKeyConfirm": "Clearing the saved LXNS personal API key will also disable LXNS auto-sync if it is currently enabled. Continue?",
+  "displayModeTitle": "Display Mode",
+  "displayModeStandard": "Standard",
+  "displayModeSimple": "Simple",
+  "displayModeStandardHint": "Shows all 5 tabs, overview charts, background artwork, and full feature lists",
+  "displayModeSimpleHint": "Streamlines to 3 core tabs, reduces visual clutter, and collapses secondary features; everything remains searchable",
+  "simpleModeActiveHint": "Simple mode active",
+  "switchToStandardMode": "Switch to Standard",
+  "simpleModeBackgroundHiddenHint": "Background and decorative images are hidden in Simple mode and restored when switching back",
+  "simpleModeCoreFeatures": "Core Features",
+  "simpleModeMoreFeatures": "More Features ({count})",
+  "simpleModeMorePages": "More Pages",
+  "simpleModeDefaultShortcutsHint": "Showing default shortcuts. Star any feature to customize."
 }

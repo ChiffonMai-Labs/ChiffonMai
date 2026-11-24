@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../utils/AppDesignTokens.dart';
+import '../utils/AppModePreferences.dart';
 import '../utils/AppTheme.dart';
 import '../utils/ChartDifficulty.dart';
 import '../utils/ColorUtil.dart';
@@ -2059,6 +2060,7 @@ class _EntranceAnimationState extends State<EntranceAnimation>
     if (_started) return;
     _started = true;
     if (!widget.enabled ||
+        AppModePreferences.instance.isSimple ||
         MediaQuery.maybeDisableAnimationsOf(context) == true) {
       _controller.value = 1;
     } else {

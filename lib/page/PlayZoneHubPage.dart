@@ -16,7 +16,14 @@ import 'PlayHubPage.dart';
 /// 和主导航共用 [MainNavigationViewport]。两边各自保留滚动位置，
 /// 上次停留的是哪一边会记住，下次打开 App 直接回到那里。
 class PlayZoneHubPage extends StatefulWidget {
-  const PlayZoneHubPage({super.key});
+  final bool showHeader;
+  final int? initialSection;
+
+  const PlayZoneHubPage({
+    super.key,
+    this.showHeader = true,
+    this.initialSection,
+  });
 
   @override
   State<PlayZoneHubPage> createState() => PlayZoneHubPageState();
@@ -26,7 +33,7 @@ class PlayZoneHubPageState extends State<PlayZoneHubPage> {
   static const String _prefKey = 'play_zone_hub_section';
   static const String _title = '游玩';
 
-  int _section = 0;
+  late int _section = (widget.initialSection ?? 0).clamp(0, 1).toInt();
 
   /// 恢复上次分区时不播转场，否则首次打开这个标签页会看到一次多余的切换。
   bool _userSwitched = false;
@@ -38,6 +45,7 @@ class PlayZoneHubPageState extends State<PlayZoneHubPage> {
   }
 
   Future<void> _restore() async {
+    if (widget.initialSection != null) return;
     try {
       final prefs = await SharedPreferences.getInstance();
       final saved = prefs.getInt(_prefKey);
@@ -73,12 +81,19 @@ class PlayZoneHubPageState extends State<PlayZoneHubPage> {
           SafeArea(
             bottom: false,
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              padding: EdgeInsets.fromLTRB(
+                16,
+                widget.showHeader ? 16 : 8,
+                16,
+                8,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const HubPageTitle(title: _title),
-                  const SizedBox(height: 12),
+                  if (widget.showHeader) ...[
+                    const HubPageTitle(title: _title),
+                    const SizedBox(height: 12),
+                  ],
                   SegmentedTabs(
                     height: 44,
                     items: [

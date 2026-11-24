@@ -64,7 +64,12 @@ class _LiquidGlassNavigationBarState extends State<LiquidGlassNavigationBar>
   @override
   void didUpdateWidget(covariant LiquidGlassNavigationBar oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.selectedIndex != widget.selectedIndex) {
+    if (oldWidget.destinations.length != widget.destinations.length) {
+      // 界面模式切换导致标签数量变化时，重置胶囊位置，避免索引越界。
+      _from = widget.selectedIndex.toDouble();
+      _to = _from;
+      _controller.value = 1;
+    } else if (oldWidget.selectedIndex != widget.selectedIndex) {
       // 连续点击时从当前可见的位置继续移动，不跳回上一次的起点。
       _from = _position;
       _to = widget.selectedIndex.toDouble();

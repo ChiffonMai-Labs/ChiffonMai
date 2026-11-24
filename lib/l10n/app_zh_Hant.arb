@@ -4442,5 +4442,17 @@
   "flowRecheckAuthorizationStatus": "重新檢查授權",
   "flowChangePersonalApiKey": "更換個人 API 金鑰",
   "flowClearPersonalApiKey": "清除個人 API 金鑰",
-  "flowClearPersonalApiKeyConfirm": "清除本機儲存的落雪個人 API 金鑰後，若已開啟落雪自動同步，將同時關閉該任務。確定要清除嗎？"
+  "flowClearPersonalApiKeyConfirm": "清除本機儲存的落雪個人 API 金鑰後，若已開啟落雪自動同步，將同時關閉該任務。確定要清除嗎？",
+  "displayModeTitle": "介面模式",
+  "displayModeStandard": "常規模式",
+  "displayModeSimple": "簡潔模式",
+  "displayModeStandardHint": "顯示全部 5 個分頁、概覽圖表、背景裝飾與完整功能列表",
+  "displayModeSimpleHint": "精簡為 3 個核心分頁，收斂視覺裝飾並折疊低頻功能；所有功能仍可透過搜尋或展開存取",
+  "simpleModeActiveHint": "目前為簡潔模式",
+  "switchToStandardMode": "切回常規模式",
+  "simpleModeBackgroundHiddenHint": "簡潔模式下已自動隱藏背景圖與裝飾圖，切回常規模式後恢復原有設定",
+  "simpleModeCoreFeatures": "核心功能",
+  "simpleModeMoreFeatures": "更多功能（{count}）",
+  "simpleModeMorePages": "更多頁面",
+  "simpleModeDefaultShortcutsHint": "已顯示預設常用入口，點擊功能右側星標即可自訂"
 }

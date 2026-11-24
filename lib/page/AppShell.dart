@@ -5,7 +5,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../entity/FeatureModels.dart';
 import '../utils/AppDesignTokens.dart';
+import '../utils/AppModePreferences.dart';
 import '../utils/NavigationPreferences.dart';
+import '../widgets/BackgroundPageScaffold.dart';
 import '../widgets/LiquidGlassNavigationBar.dart';
 import '../widgets/ExpandingPillNavigationBar.dart';
 import '../widgets/MainNavigationViewport.dart';
@@ -59,6 +61,13 @@ class _AppShellState extends State<AppShell> {
   // ===== 5 个主分类标签（2026-11：出勤 + 休闲 合并为「游玩」） =====
   // 下标顺序即页面顺序：首页 0 / 曲库 1 / 成绩 2 / 游玩 3 / 我的 4。
   static const int _playZoneIndex = 3;
+  static const List<int> _standardTabIndices = [0, 1, 2, 3, 4];
+  static const List<int> _simpleTabIndices = [0, 2, 4];
+
+  List<int> get _visibleTabIndices => AppModePreferences.instance.isSimple
+      ? _simpleTabIndices
+      : _standardTabIndices;
+
   static const List<_NavTab> _tabs = [
     _NavTab(
       label: '首页',
@@ -102,15 +111,36 @@ class _AppShellState extends State<AppShell> {
   void initState() {
     super.initState();
     NavigationPreferences.instance.addListener(_onNavigationPreferencesChanged);
+    AppModePreferences.instance.addListener(_onAppModeChanged);
     unawaited(NavigationPreferences.instance.load());
+    unawaited(AppModePreferences.instance.load());
     _pages = [
       HomePage(
         key: _homePageKey,
         activeTask: _activeFeatureTask,
-        onLibraryTap: () => _selectIndex(1),
+        onLibraryTap: () {
+          if (AppModePreferences.instance.isSimple) {
+            _openSubHub(
+              title: context.featureText('曲库'),
+              child: const LibraryHubPage(showHeader: false),
+            );
+          } else {
+            _selectIndex(1);
+          }
+        },
         onEntertainmentTap: () {
-          _selectIndex(_playZoneIndex);
-          _playZoneKey.currentState?.showSection(1);
+          if (AppModePreferences.instance.isSimple) {
+            _openSubHub(
+              title: context.featureText('游玩'),
+              child: const PlayZoneHubPage(
+                showHeader: false,
+                initialSection: 1,
+              ),
+            );
+          } else {
+            _selectIndex(_playZoneIndex);
+            _playZoneKey.currentState?.showSection(1);
+          }
         },
         onSystemFeatureTap: (item) async {
           await _systemPageKey.currentState?.openFeature(item);
@@ -138,11 +168,39 @@ class _AppShellState extends State<AppShell> {
     _activeFeatureTask.dispose();
     NavigationPreferences.instance
         .removeListener(_onNavigationPreferencesChanged);
+    AppModePreferences.instance.removeListener(_onAppModeChanged);
     super.dispose();
   }
 
   void _onNavigationPreferencesChanged() {
     if (mounted) setState(() {});
+  }
+
+  void _onAppModeChanged() {
+    if (!mounted) return;
+    // 从简洁模式隐藏掉的标签页切入时，回落到首页并清理未触发的切页防抖。
+    if (!_visibleTabIndices.contains(_index)) {
+      _navSelectionDebounce?.cancel();
+      _pendingIndex = null;
+      _index = 0;
+    }
+    setState(() {});
+  }
+
+  void _openSubHub({required String title, required Widget child}) {
+    FocusManager.instance.primaryFocus?.unfocus();
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (routeContext) => BackgroundPageScaffold(
+          title: title,
+          child: MediaQuery.removePadding(
+            context: routeContext,
+            removeTop: true,
+            child: child,
+          ),
+        ),
+      ),
+    );
   }
 
   void _selectIndex(int index) {
@@ -162,7 +220,7 @@ class _AppShellState extends State<AppShell> {
       if (!mounted || _pendingIndex == null) return;
       final target = _pendingIndex!;
       _pendingIndex = null;
-      if (target == _index) return;
+      if (target == _index || !_visibleTabIndices.contains(target)) return;
       setState(() => _index = target);
     });
   }
@@ -178,7 +236,12 @@ class _AppShellState extends State<AppShell> {
   void _onHorizontalDragEnd(DragEndDetails details) {
     if (NavigationPreferences.instance.swipeEnabled &&
         _horizontalDragDistance.abs() >= 48) {
-      _selectIndex(_index + (_horizontalDragDistance < 0 ? 1 : -1));
+      final visible = _visibleTabIndices;
+      final pos = visible.indexOf(_index);
+      final currentPos = pos < 0 ? 0 : pos;
+      final nextPos = (currentPos + (_horizontalDragDistance < 0 ? 1 : -1))
+          .clamp(0, visible.length - 1);
+      _selectIndex(visible[nextPos]);
     }
     _horizontalDragDistance = 0;
   }
@@ -186,6 +249,11 @@ class _AppShellState extends State<AppShell> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final isSimple = AppModePreferences.instance.isSimple;
+    final visibleIndices = _visibleTabIndices;
+    final rawNavIndex = visibleIndices.indexOf(_index);
+    final navIndex =
+        (rawNavIndex < 0 ? 0 : rawNavIndex).clamp(0, visibleIndices.length - 1);
     // viewPadding 是窗口当前真实的系统底部 inset：系统导航栏隐藏时为 0，
     // 手势条/三键导航栏出现时则自动变成对应设备的实际高度。
     // 不使用 padding，避免 SafeArea 或键盘状态改变后把系统栏高度算错。
@@ -242,8 +310,9 @@ class _AppShellState extends State<AppShell> {
                           child: MainNavigationViewport(
                             pages: _pages,
                             index: _index,
-                            transitionEnabled:
-                                NavigationPreferences.instance.transitionEnabled,
+                            transitionEnabled: NavigationPreferences
+                                    .instance.transitionEnabled &&
+                                !isSimple,
                           ),
                         ),
                       ),
@@ -261,11 +330,11 @@ class _AppShellState extends State<AppShell> {
             bottom: appleBar ? 0 : systemBottomInset + navigationBottomGap,
             child: appleBar
                 ? ios.CupertinoTabBar(
-                    currentIndex: _index,
-                    onTap: _selectIndex,
+                    currentIndex: navIndex,
+                    onTap: (i) => _selectIndex(visibleIndices[i]),
                     activeColor: scheme.primary,
                     items: [
-                      for (var i = 0; i < _tabs.length; i++)
+                      for (final tabIndex in visibleIndices)
                         BottomNavigationBarItem(
                             icon: Icon(const [
                               ios.CupertinoIcons.house,
@@ -273,32 +342,36 @@ class _AppShellState extends State<AppShell> {
                               ios.CupertinoIcons.chart_bar,
                               ios.CupertinoIcons.game_controller,
                               ios.CupertinoIcons.person_crop_circle
-                            ][i]),
-                            label: context.featureText(_tabs[i].label))
+                            ][tabIndex]),
+                            label: context.featureText(_tabs[tabIndex].label))
                     ],
                   )
-                : _buildFloatingNavigation(scheme),
+                : _buildFloatingNavigation(scheme, visibleIndices, navIndex),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildFloatingNavigation(ColorScheme scheme) {
+  Widget _buildFloatingNavigation(
+    ColorScheme scheme,
+    List<int> visibleIndices,
+    int navIndex,
+  ) {
     final navigation = NavigationPreferences.instance;
     final destinations = [
-      for (final tab in _tabs)
+      for (final tabIndex in visibleIndices)
         LiquidGlassDestination(
-          label: context.featureText(tab.label),
-          icon: tab.icon,
-          selectedIcon: tab.activeIcon,
+          label: context.featureText(_tabs[tabIndex].label),
+          icon: _tabs[tabIndex].icon,
+          selectedIcon: _tabs[tabIndex].activeIcon,
         ),
     ];
     if (navigation.barStyle == NavigationBarStyle.expandingPill) {
       return ExpandingPillNavigationBar(
         height: barH,
-        selectedIndex: _index,
-        onSelected: _selectIndex,
+        selectedIndex: navIndex,
+        onSelected: (i) => _selectIndex(visibleIndices[i]),
         animationEnabled: navigation.transitionEnabled,
         destinations: destinations,
       );
@@ -306,8 +379,8 @@ class _AppShellState extends State<AppShell> {
     if (NavigationPreferences.instance.liquidGlassEnabled) {
       return LiquidGlassNavigationBar(
         height: barH,
-        selectedIndex: _index,
-        onSelected: _selectIndex,
+        selectedIndex: navIndex,
+        onSelected: (i) => _selectIndex(visibleIndices[i]),
         animationEnabled: NavigationPreferences.instance.transitionEnabled,
         destinations: destinations,
       );
@@ -332,14 +405,14 @@ class _AppShellState extends State<AppShell> {
         height: barH,
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final double tabW = constraints.maxWidth / _tabs.length;
+            final double tabW = constraints.maxWidth / visibleIndices.length;
             return Stack(
               children: [
                 // 滑动的药丸 indicator（核心改动：AnimatedPositioned）
                 AnimatedPositioned(
                   duration: const Duration(milliseconds: 360),
                   curve: Curves.easeOutCubic,
-                  left: _index * tabW + (tabW - pillW) / 2,
+                  left: navIndex * tabW + (tabW - pillW) / 2,
                   top: iconTop,
                   width: pillW,
                   height: pillH,
@@ -353,11 +426,11 @@ class _AppShellState extends State<AppShell> {
                 // Tab row：icon + label，点击切换 _index
                 Row(
                   children: [
-                    for (int i = 0; i < _tabs.length; i++)
+                    for (int i = 0; i < visibleIndices.length; i++)
                       Expanded(
                         child: GestureDetector(
                           behavior: HitTestBehavior.opaque,
-                          onTap: () => _selectIndex(i),
+                          onTap: () => _selectIndex(visibleIndices[i]),
                           child: Padding(
                             // 图标槽与药丸同高同顶，保证图标在药丸内垂直居中
                             padding: const EdgeInsets.only(top: iconTop),
@@ -378,12 +451,13 @@ class _AppShellState extends State<AppShell> {
                                         child: child,
                                       ),
                                       child: Icon(
-                                        i == _index
-                                            ? _tabs[i].activeIcon
-                                            : _tabs[i].icon,
-                                        key: ValueKey(i == _index),
+                                        i == navIndex
+                                            ? _tabs[visibleIndices[i]]
+                                                .activeIcon
+                                            : _tabs[visibleIndices[i]].icon,
+                                        key: ValueKey(i == navIndex),
                                         size: 22,
-                                        color: i == _index
+                                        color: i == navIndex
                                             ? scheme.onSecondaryContainer
                                             : scheme.onSurfaceVariant,
                                       ),
@@ -396,17 +470,18 @@ class _AppShellState extends State<AppShell> {
                                   child: FittedBox(
                                     fit: BoxFit.scaleDown,
                                     child: Text(
-                                    context.featureText(_tabs[i].label),
+                                    context.featureText(
+                                        _tabs[visibleIndices[i]].label),
                                     maxLines: 1,
                                     softWrap: false,
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
                                       fontSize: 11,
-                                      fontWeight: i == _index
+                                      fontWeight: i == navIndex
                                           ? FontWeight.w700
                                           : FontWeight.w500,
                                       letterSpacing: 0,
-                                      color: i == _index
+                                      color: i == navIndex
                                           ? scheme.onSurface
                                           : scheme.onSurfaceVariant,
                                     ),

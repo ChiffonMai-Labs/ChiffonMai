@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../utils/AppModePreferences.dart';
 import '../utils/ConfettiPreferences.dart';
 
 /// 全局纸屑特效播放器。
@@ -29,7 +30,10 @@ class ConfettiEffect {
 
   static void _insert(BuildContext context, ConfettiPreferences preferences,
       {required bool force}) {
-    if (!force && !preferences.enabled) return;
+    if (!force &&
+        (!preferences.enabled || AppModePreferences.instance.isSimple)) {
+      return;
+    }
 
     final overlay = Overlay.of(context, rootOverlay: true);
     late final OverlayEntry entry;

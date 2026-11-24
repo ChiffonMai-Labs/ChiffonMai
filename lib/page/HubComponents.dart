@@ -1,12 +1,18 @@
+import 'dart:math' as math;
+
 import 'package:flutter/cupertino.dart' as ios;
 import '../l10n/FeatureLocalizations.dart';
+import '../l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import '../widgets/AnimatedReveal.dart';
+import '../widgets/AppUi.dart' show CollapsibleCard;
 import '../widgets/FavoriteStarButton.dart';
 import '../widgets/MainNavigationInsets.dart';
 import '../widgets/SmoothLinearProgressIndicator.dart';
 import '../utils/AppDesignTokens.dart';
+import '../utils/AppModePreferences.dart';
 import '../utils/AppTheme.dart';
+import '../utils/FeatureRegistry.dart';
 import '../utils/NavigationPreferences.dart';
 import '../widgets/MarqueeText.dart';
 
@@ -76,6 +82,9 @@ class HubSection extends StatelessWidget {
   final Widget? trailing;
   final EdgeInsetsGeometry contentPadding;
 
+  /// 是否强制使用紧凑样式（隐藏副标题与数量徽章）；为 null 时跟随界面模式。
+  final bool? compact;
+
   const HubSection({
     super.key,
     required this.title,
@@ -85,113 +94,122 @@ class HubSection extends StatelessWidget {
     this.badgeCount,
     this.trailing,
     this.contentPadding = EdgeInsets.zero,
+    this.compact,
   });
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // ===== Section 标题栏（B 方案：去掉图标徽章，标题 + 数量 + 说明） =====
-        Padding(
-          padding: const EdgeInsets.fromLTRB(6, 2, 4, 10),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.baseline,
-                      textBaseline: TextBaseline.alphabetic,
+    return ListenableBuilder(
+      listenable: AppModePreferences.instance,
+      builder: (context, _) {
+        final isCompact = compact ?? AppModePreferences.instance.isSimple;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ===== Section 标题栏（B 方案：去掉图标徽章，标题 + 数量 + 说明） =====
+            Padding(
+              padding: EdgeInsets.fromLTRB(6, 2, 4, isCompact ? 6 : 10),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Flexible(
-                          child: Semantics(
-                            header: true,
-                            child: Text(
-                              context.featureText(title),
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleMedium
-                                  ?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 15,
-                                    letterSpacing: 0.2,
-                                  ),
-                              overflow: TextOverflow.visible,
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.baseline,
+                          textBaseline: TextBaseline.alphabetic,
+                          children: [
+                            Flexible(
+                              child: Semantics(
+                                header: true,
+                                child: Text(
+                                  context.featureText(title),
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 15,
+                                        letterSpacing: 0.2,
+                                      ),
+                                  overflow: TextOverflow.visible,
+                                ),
+                              ),
                             ),
-                          ),
+                            if (badgeCount != null && !isCompact) ...[
+                              const SizedBox(width: 6),
+                              Text(
+                                '$badgeCount',
+                                style: AppTheme.number(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: scheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
-                        if (badgeCount != null) ...[
-                          const SizedBox(width: 6),
+                        if (subtitle != null && !isCompact) ...[
+                          const SizedBox(height: 2),
                           Text(
-                            '$badgeCount',
-                            style: AppTheme.number(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: scheme.onSurfaceVariant,
-                            ),
+                            context.featureText(subtitle!),
+                            softWrap: true,
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(color: scheme.onSurfaceVariant),
                           ),
                         ],
                       ],
                     ),
-                    if (subtitle != null) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        context.featureText(subtitle!),
-                        softWrap: true,
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodySmall
-                            ?.copyWith(color: scheme.onSurfaceVariant),
-                      ),
-                    ],
+                  ),
+                  if (trailing != null) ...[
+                    const SizedBox(width: 8),
+                    trailing!,
                   ],
+                ],
+              ),
+            ),
+            // ===== 内容卡片 =====
+            // 白卡片、无描边（B 方案）。用 Material 承载底色，子项的水波纹裁在圆角内。
+            if (Theme.of(context).platform == TargetPlatform.iOS &&
+                children.isNotEmpty)
+              Padding(
+                padding: contentPadding,
+                child: ios.CupertinoListSection.insetGrouped(
+                  margin: EdgeInsets.zero,
+                  topMargin: 0,
+                  backgroundColor: Colors.transparent,
+                  decoration: BoxDecoration(
+                    color: AppSurfaces.card(context),
+                    borderRadius:
+                        BorderRadius.circular(AppDesignTokens.radiusCard),
+                  ),
+                  dividerMargin: isCompact ? 58 : 66,
+                  additionalDividerMargin: 0,
+                  separatorColor: scheme.outlineVariant,
+                  children: children,
+                ),
+              )
+            else
+              Material(
+                color: AppSurfaces.card(context),
+                clipBehavior: Clip.antiAlias,
+                shape: RoundedRectangleBorder(
+                  borderRadius:
+                      BorderRadius.circular(AppDesignTokens.radiusCard),
+                ),
+                child: Padding(
+                  padding: contentPadding,
+                  child: Column(children: children),
                 ),
               ),
-              if (trailing != null) ...[
-                const SizedBox(width: 8),
-                trailing!,
-              ],
-            ],
-          ),
-        ),
-        // ===== 内容卡片 =====
-        // 白卡片、无描边（B 方案）。用 Material 承载底色，子项的水波纹裁在圆角内。
-        if (Theme.of(context).platform == TargetPlatform.iOS &&
-            children.isNotEmpty)
-          Padding(
-            padding: contentPadding,
-            child: ios.CupertinoListSection.insetGrouped(
-              margin: EdgeInsets.zero,
-              topMargin: 0,
-              backgroundColor: Colors.transparent,
-              decoration: BoxDecoration(
-                color: AppSurfaces.card(context),
-                borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
-              ),
-              dividerMargin: 66,
-              additionalDividerMargin: 0,
-              separatorColor: scheme.outlineVariant,
-              children: children,
-            ),
-          )
-        else
-          Material(
-            color: AppSurfaces.card(context),
-            clipBehavior: Clip.antiAlias,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
-            ),
-            child: Padding(
-              padding: contentPadding,
-              child: Column(children: children),
-            ),
-          ),
-      ],
+          ],
+        );
+      },
     );
   }
 }
@@ -321,223 +339,248 @@ class HubActionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final apple = Theme.of(context).platform == TargetPlatform.iOS;
-    final bool _isInactive = loading || disabled;
-    // 二次确认态：用 error 色覆盖默认 primary tint，让按钮视觉上"危险"且醒目
-    final Color activeTint =
-        awaitingConfirm ? scheme.error : (iconColor ?? scheme.primary);
-    // 是否进入「带进度条」模式：loading 状态下若给了 progressTotal，
-    // 用 SmoothLinearProgressIndicator + 计数替代默认 spinner/loadingText。
-    final bool _hasProgress =
-        loading && (progressTotal ?? 0) > 0 && progressCurrent != null;
-    final hasProgressBar = loading && (_hasProgress || showProgress);
-    final trailing = trailingOverride ??
-        (loading
-            ? hasProgressBar
-                ? const SizedBox(width: 20, height: 20) // 进度条替代 spinner
-                : apple
-                    ? const ios.CupertinoActivityIndicator()
-                    : SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.2,
-                          color: scheme.primary,
-                        ),
+    return ListenableBuilder(
+      listenable: AppModePreferences.instance,
+      builder: (context, _) {
+        final isSimple = AppModePreferences.instance.isSimple;
+        final isDense = dense || isSimple;
+        final scheme = Theme.of(context).colorScheme;
+        final apple = Theme.of(context).platform == TargetPlatform.iOS;
+        final bool _isInactive = loading || disabled;
+        // 二次确认态：用 error 色覆盖默认 primary tint，让按钮视觉上"危险"且醒目
+        final Color activeTint =
+            awaitingConfirm ? scheme.error : (iconColor ?? scheme.primary);
+        // 是否进入「带进度条」模式：loading 状态下若给了 progressTotal，
+        // 用 SmoothLinearProgressIndicator + 计数替代默认 spinner/loadingText。
+        final bool _hasProgress =
+            loading && (progressTotal ?? 0) > 0 && progressCurrent != null;
+        final hasProgressBar = loading && (_hasProgress || showProgress);
+        final showSubtitle = !isSimple || loading || hasProgressBar;
+        final effectiveFooterLift = showSubtitle ? footerLift : 0.0;
+        final double iconBoxSize = isSimple ? 34 : 40;
+        final double iconSize = isSimple ? 18 : 20;
+        final trailing = trailingOverride ??
+            (loading
+                ? hasProgressBar
+                    ? const SizedBox(width: 20, height: 20) // 进度条替代 spinner
+                    : apple
+                        ? const ios.CupertinoActivityIndicator()
+                        : SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.2,
+                              color: scheme.primary,
+                            ),
+                          )
+                : _showStar
+                    // B 方案：有星标时不再叠一个箭头，整行本身就是可点的
+                    ? FavoriteStarButton(
+                        isFavorited: isFavorited!,
+                        onTap: onToggleFavorite!,
                       )
-            : _showStar
-                // B 方案：有星标时不再叠一个箭头，整行本身就是可点的
-                ? FavoriteStarButton(
-                    isFavorited: isFavorited!,
-                    onTap: onToggleFavorite!,
+                    : apple
+                        ? const ios.CupertinoListTileChevron()
+                        : Icon(
+                            Icons.chevron_right,
+                            color:
+                                scheme.onSurfaceVariant.withValues(alpha: 0.55),
+                            size: 20,
+                          ));
+        final trailingAnimationDuration = MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 260);
+        final tileLeading = leading != null
+            ? (isSimple
+                ? SizedBox(
+                    width: iconBoxSize,
+                    height: iconBoxSize,
+                    child: FittedBox(child: leading!),
                   )
-                : apple
-                    ? const ios.CupertinoListTileChevron()
-                    : Icon(
-                        Icons.chevron_right,
-                        color: scheme.onSurfaceVariant.withValues(alpha: 0.55),
-                        size: 20,
-                      ));
-    final trailingAnimationDuration = MediaQuery.disableAnimationsOf(context)
-        ? Duration.zero
-        : const Duration(milliseconds: 260);
-    final tileLeading = leading ??
-        Builder(builder: (context) {
-          // 没指定颜色时按标题取功能色，与首页「常用」的图标块同色。
-          final tint =
-              AppColors.featureTint(title, Theme.of(context).brightness);
-          final useTint = iconColor == null && !awaitingConfirm;
-          final fg = useTint ? tint.foreground : activeTint;
-          final bg =
-              useTint ? tint.background : activeTint.withValues(alpha: 0.12);
-          return Opacity(
-            opacity: _isInactive ? 0.5 : 1,
-            child: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: bg,
-                borderRadius:
-                    BorderRadius.circular(AppDesignTokens.radiusSmall),
-              ),
-              alignment: Alignment.center,
-              child: Icon(icon, color: fg, size: 20),
-            ),
-          );
-        });
-    final tileTitle = Text(
-      context.featureText(displayTitle ?? title),
-      softWrap: true,
-      overflow: TextOverflow.visible,
-      style: TextStyle(
-        fontWeight: FontWeight.w600,
-        fontSize: titleFontSize ?? (apple ? 16 : titleFontSizeFor(title)),
-        color: _isInactive
-            ? scheme.onSurface.withValues(alpha: 0.6)
-            : (awaitingConfirm ? scheme.error : titleColor),
-      ),
-    );
-    final tileSubtitle = hasProgressBar
-        ? Padding(
-            padding: const EdgeInsets.only(top: 2),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (_hasProgress)
-                  Text(
-                    '(${progressCurrent!} / $progressTotal)',
-                    style: TextStyle(
+                : leading!)
+            : Builder(builder: (context) {
+                // 没指定颜色时按标题取功能色，与首页「常用」的图标块同色。
+                final tint =
+                    AppColors.featureTint(title, Theme.of(context).brightness);
+                final useTint = iconColor == null && !awaitingConfirm;
+                final fg = useTint ? tint.foreground : activeTint;
+                final bg =
+                    useTint ? tint.background : activeTint.withValues(alpha: 0.12);
+                return Opacity(
+                  opacity: _isInactive ? 0.5 : 1,
+                  child: Container(
+                    width: iconBoxSize,
+                    height: iconBoxSize,
+                    decoration: BoxDecoration(
+                      color: bg,
+                      borderRadius:
+                          BorderRadius.circular(AppDesignTokens.radiusSmall),
+                    ),
+                    alignment: Alignment.center,
+                    child: Icon(icon, color: fg, size: iconSize),
+                  ),
+                );
+              });
+        final tileTitle = Text(
+          context.featureText(displayTitle ?? title),
+          softWrap: true,
+          overflow: TextOverflow.visible,
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: titleFontSize ?? (apple ? 16 : titleFontSizeFor(title)),
+            color: _isInactive
+                ? scheme.onSurface.withValues(alpha: 0.6)
+                : (awaitingConfirm ? scheme.error : titleColor),
+          ),
+        );
+        final Widget? tileSubtitle = !showSubtitle
+            ? null
+            : hasProgressBar
+                ? Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (_hasProgress)
+                          Text(
+                            '(${progressCurrent!} / $progressTotal)',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: scheme.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        if (!_hasProgress)
+                          _MarqueeSubtitle(
+                            text: context.featureText(loadingText ?? subtitle),
+                            color: scheme.primary,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                          ),
+                        const SizedBox(height: 4),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(2),
+                          child: SmoothLinearProgressIndicator(
+                            value: _hasProgress
+                                ? (progressCurrent! / progressTotal!)
+                                    .clamp(0.0, 1.0)
+                                : progressValue?.clamp(0.0, 1.0),
+                            minHeight: 4,
+                            backgroundColor:
+                                scheme.primary.withValues(alpha: 0.12),
+                            color: scheme.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: _MarqueeSubtitle(
+                      text: context.featureText(
+                          loading ? (loadingText ?? subtitle) : subtitle),
+                      color: loading ? scheme.primary : scheme.onSurfaceVariant,
+                      fontWeight: loading ? FontWeight.w600 : FontWeight.normal,
                       fontSize: 12,
-                      color: scheme.primary,
-                      fontWeight: FontWeight.w600,
+                    ),
+                  );
+        final tileTrailing = AnimatedSwitcher(
+          duration: trailingAnimationDuration,
+          switchInCurve: Curves.easeOutCubic,
+          switchOutCurve: Curves.easeInCubic,
+          transitionBuilder: (child, animation) =>
+              FadeTransition(opacity: animation, child: child),
+          layoutBuilder: (currentChild, previousChildren) => Stack(
+            alignment: Alignment.centerRight,
+            fit: StackFit.passthrough,
+            children: [
+              ...previousChildren,
+              if (currentChild != null) currentChild,
+            ],
+          ),
+          child: KeyedSubtree(
+            key: ValueKey(sorting),
+            child: trailing,
+          ),
+        );
+        final activate = _isInactive || sorting ? null : onTap;
+        final tile = apple
+            ? ios.CupertinoListTile(
+                leadingSize: iconBoxSize,
+                leadingToTitle: isSimple ? 10 : 12,
+                padding: EdgeInsets.symmetric(
+                    horizontal: 14, vertical: isDense ? 4 : 8),
+                backgroundColorActivated: Colors.transparent,
+                leading: tileLeading,
+                title: tileTitle,
+                subtitle: tileSubtitle,
+                trailing: tileTrailing,
+                onTap: activate,
+              )
+            : ListTile(
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: isDense ? 0 : 8,
+                ),
+                minVerticalPadding: isDense ? 4 : 8,
+                visualDensity:
+                    isDense ? VisualDensity.compact : VisualDensity.standard,
+                horizontalTitleGap: isSimple ? 12 : null,
+                leading: tileLeading,
+                title: tileTitle,
+                subtitle: tileSubtitle,
+                trailing: tileTrailing,
+                onTap: activate,
+              );
+
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            tile,
+            // 利用 ListTile 底部已有的留白上提提示，同时收掉原来的尾部间距。
+            Transform.translate(
+              offset: showSubtitle ? const Offset(0, -10) : Offset.zero,
+              // 红字原因是否显示由「系统设置」里的开关决定（默认关闭），
+              // 这里就地订阅偏好，调用方不用逐个透传。
+              child: ListenableBuilder(
+                listenable: NavigationPreferences.instance,
+                builder: (context, _) => AnimatedReveal(
+                  visible: disabled &&
+                      !loading &&
+                      disabledReason != null &&
+                      NavigationPreferences.instance.busyHintEnabled,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: Text(context.featureText(disabledReason ?? ''),
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 11, color: scheme.error)),
                     ),
                   ),
-                if (!_hasProgress)
-                  _MarqueeSubtitle(
-                    text: context.featureText(loadingText ?? subtitle),
-                    color: scheme.primary,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 12,
-                  ),
-                const SizedBox(height: 4),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(2),
-                  child: SmoothLinearProgressIndicator(
-                    value: _hasProgress
-                        ? (progressCurrent! / progressTotal!).clamp(0.0, 1.0)
-                        : progressValue?.clamp(0.0, 1.0),
-                    minHeight: 4,
-                    backgroundColor: scheme.primary.withValues(alpha: 0.12),
-                    color: scheme.primary,
-                  ),
-                ),
-              ],
-            ),
-          )
-        : Padding(
-            padding: const EdgeInsets.only(top: 2),
-            child: _MarqueeSubtitle(
-              text: context
-                  .featureText(loading ? (loadingText ?? subtitle) : subtitle),
-              color: loading ? scheme.primary : scheme.onSurfaceVariant,
-              fontWeight: loading ? FontWeight.w600 : FontWeight.normal,
-              fontSize: 12,
-            ),
-          );
-    final tileTrailing = AnimatedSwitcher(
-      duration: trailingAnimationDuration,
-      switchInCurve: Curves.easeOutCubic,
-      switchOutCurve: Curves.easeInCubic,
-      transitionBuilder: (child, animation) =>
-          FadeTransition(opacity: animation, child: child),
-      layoutBuilder: (currentChild, previousChildren) => Stack(
-        alignment: Alignment.centerRight,
-        fit: StackFit.passthrough,
-        children: [
-          ...previousChildren,
-          if (currentChild != null) currentChild,
-        ],
-      ),
-      child: KeyedSubtree(
-        key: ValueKey(sorting),
-        child: trailing,
-      ),
-    );
-    final activate = _isInactive || sorting ? null : onTap;
-    final tile = apple
-        ? ios.CupertinoListTile(
-            leadingSize: 40,
-            leadingToTitle: 12,
-            padding:
-                EdgeInsets.symmetric(horizontal: 14, vertical: dense ? 4 : 8),
-            backgroundColorActivated: Colors.transparent,
-            leading: tileLeading,
-            title: tileTitle,
-            subtitle: tileSubtitle,
-            trailing: tileTrailing,
-            onTap: activate,
-          )
-        : ListTile(
-            contentPadding: EdgeInsets.symmetric(
-              horizontal: 14,
-              vertical: dense ? 0 : 8,
-            ),
-            minVerticalPadding: dense ? 4 : 8,
-            visualDensity:
-                dense ? VisualDensity.compact : VisualDensity.standard,
-            leading: tileLeading,
-            title: tileTitle,
-            subtitle: tileSubtitle,
-            trailing: tileTrailing,
-            onTap: activate,
-          );
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        tile,
-        // 利用 ListTile 底部已有的留白上提提示，同时收掉原来的尾部间距。
-        Transform.translate(
-          offset: const Offset(0, -10),
-          // 红字原因是否显示由「系统设置」里的开关决定（默认关闭），
-          // 这里就地订阅偏好，调用方不用逐个透传。
-          child: ListenableBuilder(
-            listenable: NavigationPreferences.instance,
-            builder: (context, _) => AnimatedReveal(
-              visible: disabled &&
-                  !loading &&
-                  disabledReason != null &&
-                  NavigationPreferences.instance.busyHintEnabled,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: Text(context.featureText(disabledReason ?? ''),
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 11, color: scheme.error)),
                 ),
               ),
             ),
-          ),
-        ),
-        // 排序时也保留同步/自动同步的状态摘要，但禁用点击避免误触。
-        if (footer != null)
-          Padding(
-            // 上提多少，底部内边距就减多少：footer 下方留白与整体高度都不变
-            padding: EdgeInsets.fromLTRB(14, 0, 14, 10 - footerLift),
-            child: IgnorePointer(
-              ignoring: sorting,
-              child: footerLift == 0
-                  ? footer!
-                  : Transform.translate(
-                      offset: Offset(0, -footerLift),
-                      child: footer!,
-                    ),
-            ),
-          ),
-      ],
+            // 排序时也保留同步/自动同步的状态摘要，但禁用点击避免误触。
+            if (footer != null)
+              Padding(
+                // 上提多少，底部内边距就减多少：footer 下方留白与整体高度都不变
+                padding:
+                    EdgeInsets.fromLTRB(14, 0, 14, 10 - effectiveFooterLift),
+                child: IgnorePointer(
+                  ignoring: sorting,
+                  child: effectiveFooterLift == 0
+                      ? footer!
+                      : Transform.translate(
+                          offset: Offset(0, -effectiveFooterLift),
+                          child: footer!,
+                        ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }
@@ -682,7 +725,10 @@ class HubPageScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final bottomInset = math.max(
+      MainNavigationInsets.bottomOf(context),
+      MediaQuery.paddingOf(context).bottom,
+    );
     return Scaffold(
       resizeToAvoidBottomInset: false,
       backgroundColor: Colors.transparent,
@@ -698,7 +744,7 @@ class HubPageScaffold extends StatelessWidget {
                         : AppDesignTokens.sectionGap - 8,
               )
               .add(
-                EdgeInsets.only(bottom: MainNavigationInsets.bottomOf(context)),
+                EdgeInsets.only(bottom: bottomInset),
               ),
           children: [
             if (showHeader) ...[
@@ -711,6 +757,69 @@ class HubPageScaffold extends StatelessWidget {
             ...children,
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// 简洁模式下将低频功能收进可展开卡片，保留原始分组、星标和任务状态。
+class SimpleMoreFeaturesSection extends StatelessWidget {
+  final List<FeatureSection> sections;
+  final Map<String, Widget> features;
+  final int count;
+
+  const SimpleMoreFeaturesSection({
+    super.key,
+    required this.sections,
+    required this.features,
+    required this.count,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (count == 0) return const SizedBox.shrink();
+    final scheme = Theme.of(context).colorScheme;
+    final groups = <(FeatureSection, List<Widget>)>[
+      for (final section in sections)
+        if (section.titles.any(features.containsKey))
+          (
+            section,
+            [
+              for (final title in section.titles)
+                if (features[title] case final tile?) tile,
+            ],
+          ),
+    ];
+    if (groups.isEmpty) return const SizedBox.shrink();
+
+    return CollapsibleCard(
+      title: context.l10n.simpleModeMoreFeatures(count),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < groups.length; i++) ...[
+            if (i > 0)
+              Divider(
+                height: 12,
+                thickness: 0.6,
+                indent: 6,
+                endIndent: 6,
+                color: AppSurfaces.hairline(context),
+              ),
+            Padding(
+              padding: EdgeInsets.fromLTRB(6, i == 0 ? 4 : 6, 6, 4),
+              child: Text(
+                context.featureText(groups[i].$1.title),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+            ...groups[i].$2,
+          ],
+        ],
       ),
     );
   }

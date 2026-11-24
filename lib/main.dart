@@ -1,5 +1,6 @@
 import 'utils/CurrentDataSourceNotifier.dart';
 import 'utils/AppLanguagePreferences.dart';
+import 'utils/AppModePreferences.dart';
 import 'utils/RatingSegmentPreferences.dart';
 import 'utils/SongDetailPreferences.dart';
 import 'l10n/app_localizations.dart';
@@ -60,6 +61,7 @@ Future<void> _initStartupServices() async {
       NavigationPreferences.instance.load(),
       SongDetailPreferences.instance.load(),
       RatingSegmentPreferences.instance.load(),
+      AppModePreferences.instance.load(),
     ]);
   } catch (e) {
     debugPrint('[Startup] 后台初始化失败（不影响首页交互）: $e');

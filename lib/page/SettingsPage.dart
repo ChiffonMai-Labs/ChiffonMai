@@ -10,6 +10,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../service/AWMC/AwmcGatewaySettings.dart';
+import '../utils/AppModePreferences.dart';
 import '../utils/AppTheme.dart';
 import '../utils/ConfettiPreferences.dart';
 import '../utils/ExportSettings.dart';
@@ -62,6 +63,7 @@ class _SettingsPageState extends State<SettingsPage> {
   void initState() {
     super.initState();
     AppLanguagePreferences.instance.load();
+    AppModePreferences.instance.load();
     SearchInteractionPreferences.instance.load();
     RatingSegmentPreferences.instance.load();
     NavigationPreferences.instance.load();
@@ -395,6 +397,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 ThemeManager().chiffonOpacityNotifier,
                 ThemeManager().pureBlackNotifier,
                 ThemeManager().notifier,
+                AppModePreferences.instance,
               ]),
               builder: (context, _) => ListView(
                 controller: _scrollController,
@@ -462,6 +465,12 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
         );
     return _tabColumn([
+      GuessSettingSection(
+        card: true,
+        title: context.l10n.displayModeTitle,
+        icon: Icons.dashboard_customize_outlined,
+        children: const [AppModeControl()],
+      ),
       _buildPreviewCard(),
       GuessSettingSection(
         card: true,
@@ -480,6 +489,9 @@ class _SettingsPageState extends State<SettingsPage> {
         title: context.l10n.backgroundImage,
         icon: Icons.wallpaper_rounded,
         children: [
+          if (AppModePreferences.instance.isSimple)
+            Text(context.l10n.simpleModeBackgroundHiddenHint,
+                style: _hintStyle()),
           if (disabled)
             Text(context.l10n.pureBlackBackgroundDisabled, style: _hintStyle()),
           backgroundControl(_buildBackgroundControls(enabled: !disabled)),

@@ -15308,6 +15308,46 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get flowClearPersonalApiKeyConfirm =>
       '清除本机保存的落雪个人 API 密钥后，若已开启落雪自动同步，将同时关闭该任务。确定要清除吗？';
+
+  @override
+  String get displayModeTitle => '界面模式';
+
+  @override
+  String get displayModeStandard => '常规模式';
+
+  @override
+  String get displayModeSimple => '简洁模式';
+
+  @override
+  String get displayModeStandardHint => '显示全部 5 个标签页、概览图表、背景装饰与完整功能列表';
+
+  @override
+  String get displayModeSimpleHint =>
+      '精简为 3 个核心标签页，收敛视觉装饰并折叠低频功能；所有功能仍可通过搜索或展开访问';
+
+  @override
+  String get simpleModeActiveHint => '当前为简洁模式';
+
+  @override
+  String get switchToStandardMode => '切回常规模式';
+
+  @override
+  String get simpleModeBackgroundHiddenHint =>
+      '简洁模式下已自动隐藏背景图与装饰图，切回常规模式后恢复原有设置';
+
+  @override
+  String get simpleModeCoreFeatures => '核心功能';
+
+  @override
+  String simpleModeMoreFeatures(int count) {
+    return '更多功能（$count）';
+  }
+
+  @override
+  String get simpleModeMorePages => '更多页面';
+
+  @override
+  String get simpleModeDefaultShortcutsHint => '已展示默认常用入口，点击功能右侧星标即可自定义';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -30616,4 +30656,44 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   @override
   String get flowClearPersonalApiKeyConfirm =>
       '清除本機儲存的落雪個人 API 金鑰後，若已開啟落雪自動同步，將同時關閉該任務。確定要清除嗎？';
+
+  @override
+  String get displayModeTitle => '介面模式';
+
+  @override
+  String get displayModeStandard => '常規模式';
+
+  @override
+  String get displayModeSimple => '簡潔模式';
+
+  @override
+  String get displayModeStandardHint => '顯示全部 5 個分頁、概覽圖表、背景裝飾與完整功能列表';
+
+  @override
+  String get displayModeSimpleHint =>
+      '精簡為 3 個核心分頁，收斂視覺裝飾並折疊低頻功能；所有功能仍可透過搜尋或展開存取';
+
+  @override
+  String get simpleModeActiveHint => '目前為簡潔模式';
+
+  @override
+  String get switchToStandardMode => '切回常規模式';
+
+  @override
+  String get simpleModeBackgroundHiddenHint =>
+      '簡潔模式下已自動隱藏背景圖與裝飾圖，切回常規模式後恢復原有設定';
+
+  @override
+  String get simpleModeCoreFeatures => '核心功能';
+
+  @override
+  String simpleModeMoreFeatures(int count) {
+    return '更多功能（$count）';
+  }
+
+  @override
+  String get simpleModeMorePages => '更多頁面';
+
+  @override
+  String get simpleModeDefaultShortcutsHint => '已顯示預設常用入口，點擊功能右側星標即可自訂';
 }

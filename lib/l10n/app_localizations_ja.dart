@@ -15622,4 +15622,45 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get flowClearPersonalApiKeyConfirm =>
       '保存されている落雪の個人 API キーを削除すると、落雪の自動同期が有効な場合は同時にオフになります。続行しますか？';
+
+  @override
+  String get displayModeTitle => '表示モード';
+
+  @override
+  String get displayModeStandard => '標準モード';
+
+  @override
+  String get displayModeSimple => 'シンプルモード';
+
+  @override
+  String get displayModeStandardHint => '5つのタブ、概要グラフ、背景装飾、全機能リストを表示します';
+
+  @override
+  String get displayModeSimpleHint =>
+      '3つの主要タブに整理し、装飾を抑えて低頻度機能を折りたたみます（検索や展開で全機能を利用可能）';
+
+  @override
+  String get simpleModeActiveHint => 'シンプルモード中';
+
+  @override
+  String get switchToStandardMode => '標準モードへ';
+
+  @override
+  String get simpleModeBackgroundHiddenHint =>
+      'シンプルモードでは背景画像と装飾画像を非表示にし、標準モードに戻すと復元されます';
+
+  @override
+  String get simpleModeCoreFeatures => '主要機能';
+
+  @override
+  String simpleModeMoreFeatures(int count) {
+    return 'その他の機能（$count）';
+  }
+
+  @override
+  String get simpleModeMorePages => 'その他のページ';
+
+  @override
+  String get simpleModeDefaultShortcutsHint =>
+      'デフォルトのショートカットを表示中です。星マークでカスタマイズできます';
 }

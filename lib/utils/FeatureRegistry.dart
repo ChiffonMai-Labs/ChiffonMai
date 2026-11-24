@@ -43,6 +43,62 @@ class FeatureRegistry {
   static const cabinetAppearanceTitle = '同步机台装扮';
   static const cabinetAppearanceSubtitle = '扫码读取机台当前选中的装扮';
 
+  /// 简洁模式首页在用户没有任何收藏时展示的默认常用入口。
+  static const List<String> simpleHomeDefaultTitles = [
+    'Best50',
+    '乐曲查询',
+    '成绩查询',
+    '拉取成绩并更新数据',
+    '收藏夹',
+    '同步成绩到水鱼',
+  ];
+
+  /// 简洁模式下各 Hub 页首屏直接展示的核心功能，其余条目折叠进「更多功能」。
+  static const Map<String, Set<String>> simpleCoreFeatures = {
+    '曲库': {
+      '乐曲查询',
+      '更新日历',
+      '曲绘识别',
+      '收藏品查询',
+    },
+    '成绩': {
+      'Best50',
+      '成绩查询',
+      '个性化成绩查询',
+      '成绩提升历史',
+      '牌子进度',
+      '段位表',
+      '单曲 Rating 计算',
+    },
+    '出勤': {
+      '每日推荐',
+      '吃分推荐',
+      '收藏夹',
+      '下次想玩',
+    },
+    '休闲': {
+      '随身听',
+      '自定义谱面播放',
+      '无提示猜歌',
+      '根据歌曲片段猜歌',
+    },
+    '我的': {
+      '绑定与授权管理',
+      '切换账号',
+      '拉取成绩并更新数据',
+      '同步成绩到水鱼',
+      '同步成绩到落雪',
+      '同步成绩到 AWMC NET',
+      '数据备份',
+      '系统设置',
+      '检查更新',
+    },
+  };
+
+  /// 判断指定功能在简洁模式下是否属于该分类的首屏核心功能。
+  static bool isSimpleCore(String category, String title) =>
+      simpleCoreFeatures[category]?.contains(title) ?? false;
+
   static const Map<String, List<FeatureSection>> sections = {
     '曲库': [
       FeatureSection(

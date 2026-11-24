@@ -2,6 +2,7 @@ import '../l10n/LocalizationsExtension.dart';
 import '../l10n/FeatureLocalizations.dart';
 import 'package:flutter/material.dart';
 import 'HubComponents.dart';
+import '../utils/AppModePreferences.dart';
 import '../utils/FavoriteFeaturesNotifier.dart';
 import '../utils/FeatureRegistry.dart';
 import '../utils/ExternalLaunchUtil.dart';
@@ -162,26 +163,67 @@ class _AttendanceHubPageState extends State<AttendanceHubPage> {
 
           // 分类键固定，只有展示文案随语言切换。
           final sections = FeatureRegistry.sections['出勤']!;
-          return HubPageScaffold(
-            title: widget.title,
-            subtitle: widget.subtitle,
-            showHeader: widget.showHeader,
-            hero: const FriendLinkCarousel(),
-            icon: Icons.explore_rounded,
-            children: [
-              for (final section in sections) ...[
-                HubSection(
-                  title: section.title,
-                  subtitle: section.subtitle,
-                  icon: section.icon,
-                  badgeCount: section.titles.length,
+          return ListenableBuilder(
+            listenable: AppModePreferences.instance,
+            builder: (context, _) {
+              final isSimple = AppModePreferences.instance.isSimple;
+              if (!isSimple) {
+                return HubPageScaffold(
+                  title: widget.title,
+                  subtitle: widget.subtitle,
+                  showHeader: widget.showHeader,
+                  hero: const FriendLinkCarousel(),
+                  icon: Icons.explore_rounded,
                   children: [
-                    for (final title in section.titles) features[title]!
+                    for (final section in sections) ...[
+                      HubSection(
+                        title: section.title,
+                        subtitle: section.subtitle,
+                        icon: section.icon,
+                        badgeCount: section.titles.length,
+                        children: [
+                          for (final title in section.titles) features[title]!
+                        ],
+                      ),
+                      if (section != sections.last) const SizedBox(height: 24),
+                    ],
                   ],
-                ),
-                if (section != sections.last) const SizedBox(height: 24),
-              ],
-            ],
+                );
+              }
+              final coreWidgets = <Widget>[];
+              final moreFeatures = <String, Widget>{};
+              for (final section in sections) {
+                for (final title in section.titles) {
+                  if (FeatureRegistry.isSimpleCore('出勤', title)) {
+                    coreWidgets.add(features[title]!);
+                  } else {
+                    moreFeatures[title] = features[title]!;
+                  }
+                }
+              }
+              return HubPageScaffold(
+                title: widget.title,
+                subtitle: widget.subtitle,
+                showHeader: widget.showHeader,
+                hero: null,
+                icon: Icons.explore_rounded,
+                children: [
+                  if (coreWidgets.isNotEmpty) ...[
+                    HubSection(
+                      title: context.l10n.simpleModeCoreFeatures,
+                      icon: Icons.star_outline_rounded,
+                      children: coreWidgets,
+                    ),
+                    if (moreFeatures.isNotEmpty) const SizedBox(height: 16),
+                  ],
+                  SimpleMoreFeaturesSection(
+                    sections: sections,
+                    features: moreFeatures,
+                    count: moreFeatures.length,
+                  ),
+                ],
+              );
+            },
           );
         },
       );

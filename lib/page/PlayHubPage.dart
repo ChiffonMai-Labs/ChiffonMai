@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import '../l10n/LocalizationsExtension.dart';
 import 'GuessChartGame/LocalSongQuizPage.dart';
 import 'HubComponents.dart';
+import '../utils/AppModePreferences.dart';
 import '../utils/FavoriteFeaturesNotifier.dart';
 import '../utils/FeatureRegistry.dart';
 import '../service/GuessChartGame/GuessAudioService.dart';
@@ -204,28 +206,78 @@ class _PlayHubPageState extends State<PlayHubPage> {
 
           // 分类键固定，只有展示文案随语言切换。
           final sections = FeatureRegistry.sections['休闲']!;
-          return HubPageScaffold(
-            title: widget.title,
-            subtitle: widget.subtitle,
-            showHeader: widget.showHeader,
-            icon: Icons.sports_esports_rounded,
-            children: [
-              for (final section in sections) ...[
-                if (section.title == '单人游戏设置')
-                  features['单人猜歌游戏设置']!
-                else
-                  HubSection(
-                    title: section.title,
-                    subtitle: section.subtitle,
-                    icon: section.icon,
-                    badgeCount: section.titles.length,
-                    children: [
-                      for (final title in section.titles) features[title]!
+          return ListenableBuilder(
+            listenable: AppModePreferences.instance,
+            builder: (context, _) {
+              final isSimple = AppModePreferences.instance.isSimple;
+              if (!isSimple) {
+                return HubPageScaffold(
+                  title: widget.title,
+                  subtitle: widget.subtitle,
+                  showHeader: widget.showHeader,
+                  icon: Icons.sports_esports_rounded,
+                  children: [
+                    for (final section in sections) ...[
+                      if (section.title == '单人游戏设置')
+                        features['单人猜歌游戏设置']!
+                      else
+                        HubSection(
+                          title: section.title,
+                          subtitle: section.subtitle,
+                          icon: section.icon,
+                          badgeCount: section.titles.length,
+                          children: [
+                            for (final title in section.titles) features[title]!
+                          ],
+                        ),
+                      if (section != sections.last) const SizedBox(height: 24),
                     ],
+                  ],
+                );
+              }
+              final coreWidgets = <Widget>[];
+              final moreFeatures = <String, Widget>{};
+              for (final section in sections) {
+                for (final title in section.titles) {
+                  if (FeatureRegistry.isSimpleCore('休闲', title)) {
+                    coreWidgets.add(features[title]!);
+                  } else if (title == '单人猜歌游戏设置') {
+                    // 简洁模式下折叠区已有外层卡片与分组标题，只放置行组件避免卡片套卡片。
+                    moreFeatures[title] = HubActionTile(
+                      title: '单人猜歌游戏设置',
+                      subtitle: '共用规则与各模式的专属设置',
+                      icon: Icons.settings_outlined,
+                      isFavorited: _isFavorited('单人猜歌游戏设置'),
+                      onToggleFavorite: () => _toggleFavorite('单人猜歌游戏设置'),
+                      onTap: () => _open(context, const GuessGameSettingsPage()),
+                    );
+                  } else {
+                    moreFeatures[title] = features[title]!;
+                  }
+                }
+              }
+              return HubPageScaffold(
+                title: widget.title,
+                subtitle: widget.subtitle,
+                showHeader: widget.showHeader,
+                icon: Icons.sports_esports_rounded,
+                children: [
+                  if (coreWidgets.isNotEmpty) ...[
+                    HubSection(
+                      title: context.l10n.simpleModeCoreFeatures,
+                      icon: Icons.star_outline_rounded,
+                      children: coreWidgets,
+                    ),
+                    if (moreFeatures.isNotEmpty) const SizedBox(height: 16),
+                  ],
+                  SimpleMoreFeaturesSection(
+                    sections: sections,
+                    features: moreFeatures,
+                    count: moreFeatures.length,
                   ),
-                if (section != sections.last) const SizedBox(height: 24),
-              ],
-            ],
+                ],
+              );
+            },
           );
         },
       );

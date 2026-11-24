@@ -21,6 +21,7 @@ import '../utils/SearchInteractionPreferences.dart';
 import '../utils/RatingSegmentPreferences.dart';
 import '../utils/SongDetailPreferences.dart';
 import '../utils/AppLanguagePreferences.dart';
+import '../utils/AppModePreferences.dart';
 import '../utils/ConfettiPreferences.dart';
 import 'AccountSwitchService.dart';
 import 'AWMC/AwmcChartTagService.dart';
@@ -184,6 +185,7 @@ class DataBackupService {
           await SongDetailPreferences.instance.flush();
           await RatingSegmentPreferences.instance.flush();
           await AppLanguagePreferences.instance.flush();
+          await AppModePreferences.instance.flush();
           await prefs.reload();
           final keys = prefs.getKeys();
           final data = <String, dynamic>{};
@@ -368,6 +370,7 @@ class DataBackupService {
           await SongDetailPreferences.instance.flush();
           await RatingSegmentPreferences.instance.flush();
           await AppLanguagePreferences.instance.flush();
+          await AppModePreferences.instance.flush();
           // 与导出同理：先让 legacy 快照与磁盘一致，否则回滚会丢掉
           // 「本会话里用 async 通道新写的猜歌设置」。
           await prefs.reload();
@@ -556,6 +559,7 @@ class DataBackupService {
     await SongDetailPreferences.instance.reload();
     await RatingSegmentPreferences.instance.reload();
     await AppLanguagePreferences.instance.reload();
+    await AppModePreferences.instance.reload();
     await ConfettiPreferences.instance.reload();
     await RankCompletionStore.instance.reload();
     await NextPlayQueueStore.instance.reload();

@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:my_first_flutter_app/utils/AppModePreferences.dart';
 import 'package:my_first_flutter_app/utils/ThemeManager.dart';
 
 /// 主题感知的背景组件：根据用户设置显示背景图和装饰图。
@@ -91,8 +92,13 @@ class _BgImage extends StatelessWidget {
       listenable: Listenable.merge([
         ThemeManager().lightOverlayNotifier,
         ThemeManager().chiffonOpacityNotifier,
+        AppModePreferences.instance,
       ]),
       builder: (context, _) {
+        // 简洁模式下不加载背景图，直接铺页面主题底色，切回常规模式后恢复原有壁纸。
+        if (AppModePreferences.instance.isSimple) {
+          return ColoredBox(color: Theme.of(context).colorScheme.surface);
+        }
         final opacity = ThemeManager().lightOverlayOpacity;
         final overlayAlpha = (opacity * 255).round().clamp(0, 255);
         // 覆层取页面底色而不是纯白：纯白会把背景刷成白色，白卡片就看不出层次了。
@@ -159,11 +165,16 @@ class _ChiffonImage extends StatelessWidget {
     }
 
     return ListenableBuilder(
-      listenable: ThemeManager().chiffonOpacityNotifier,
+      listenable: Listenable.merge([
+        ThemeManager().chiffonOpacityNotifier,
+        AppModePreferences.instance,
+      ]),
       builder: (context, _) {
         final opacity = ThemeManager().chiffonOpacity;
-        // 隐藏时直接不占位：既省掉一张全屏图的布局/解码，也不会留下任何覆层
-        if (opacity <= 0) return const SizedBox.shrink();
+        // 简洁模式或透明度为 0 时直接不占位：既省掉解码，也不破坏常规模式已保存的设置。
+        if (AppModePreferences.instance.isSimple || opacity <= 0) {
+          return const SizedBox.shrink();
+        }
         return Center(
           child: Transform.translate(
             offset: const Offset(0, -30),

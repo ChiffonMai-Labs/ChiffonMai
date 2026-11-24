@@ -2,6 +2,7 @@ import '../l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import 'HubComponents.dart';
 import 'CustomTagsPage.dart';
+import '../utils/AppModePreferences.dart';
 import '../utils/FavoriteFeaturesNotifier.dart';
 import '../utils/FeatureRegistry.dart';
 import '../service/CoverRecognitionService.dart';
@@ -16,7 +17,9 @@ import 'ScoreOcrPage.dart';
 import '../widgets/AppToast.dart';
 
 class LibraryHubPage extends StatefulWidget {
-  const LibraryHubPage({super.key});
+  final bool showHeader;
+
+  const LibraryHubPage({super.key, this.showHeader = true});
   @override
   State<LibraryHubPage> createState() => _LibraryHubPageState();
 }
@@ -187,24 +190,65 @@ class _LibraryHubPageState extends State<LibraryHubPage> {
           };
 
           final sections = FeatureRegistry.sections['曲库']!;
-          return HubPageScaffold(
-            title: '曲库',
-            subtitle: '搜索乐曲、浏览资料与图像识别',
-            icon: Icons.library_music_rounded,
-            children: [
-              for (final section in sections) ...[
-                HubSection(
-                  title: section.title,
-                  subtitle: section.subtitle,
-                  icon: section.icon,
-                  badgeCount: section.titles.length,
+          return ListenableBuilder(
+            listenable: AppModePreferences.instance,
+            builder: (context, _) {
+              final isSimple = AppModePreferences.instance.isSimple;
+              if (!isSimple) {
+                return HubPageScaffold(
+                  title: '曲库',
+                  subtitle: '搜索乐曲、浏览资料与图像识别',
+                  icon: Icons.library_music_rounded,
+                  showHeader: widget.showHeader,
                   children: [
-                    for (final title in section.titles) features[title]!
+                    for (final section in sections) ...[
+                      HubSection(
+                        title: section.title,
+                        subtitle: section.subtitle,
+                        icon: section.icon,
+                        badgeCount: section.titles.length,
+                        children: [
+                          for (final title in section.titles) features[title]!
+                        ],
+                      ),
+                      if (section != sections.last) const SizedBox(height: 24),
+                    ],
                   ],
-                ),
-                if (section != sections.last) const SizedBox(height: 24),
-              ],
-            ],
+                );
+              }
+              final coreWidgets = <Widget>[];
+              final moreFeatures = <String, Widget>{};
+              for (final section in sections) {
+                for (final title in section.titles) {
+                  if (FeatureRegistry.isSimpleCore('曲库', title)) {
+                    coreWidgets.add(features[title]!);
+                  } else {
+                    moreFeatures[title] = features[title]!;
+                  }
+                }
+              }
+              return HubPageScaffold(
+                title: '曲库',
+                subtitle: '搜索乐曲、浏览资料与图像识别',
+                icon: Icons.library_music_rounded,
+                showHeader: widget.showHeader,
+                children: [
+                  if (coreWidgets.isNotEmpty) ...[
+                    HubSection(
+                      title: context.l10n.simpleModeCoreFeatures,
+                      icon: Icons.star_outline_rounded,
+                      children: coreWidgets,
+                    ),
+                    if (moreFeatures.isNotEmpty) const SizedBox(height: 16),
+                  ],
+                  SimpleMoreFeaturesSection(
+                    sections: sections,
+                    features: moreFeatures,
+                    count: moreFeatures.length,
+                  ),
+                ],
+              );
+            },
           );
         },
       );

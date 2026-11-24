@@ -3,6 +3,7 @@ import 'package:my_first_flutter_app/widgets/AppSwitch.dart';
 import 'package:flutter/material.dart';
 
 import '../utils/AppDesignTokens.dart';
+import '../utils/AppModePreferences.dart';
 import '../utils/NavigationPreferences.dart';
 import '../utils/ThemeManager.dart';
 import '../utils/ConfettiPreferences.dart';
@@ -26,6 +27,7 @@ class _ThemePreferenceControlsState extends State<ThemePreferenceControls> {
   @override
   void initState() {
     super.initState();
+    AppModePreferences.instance.load();
     NavigationPreferences.instance.load();
     ConfettiPreferences.instance.load();
   }
@@ -43,6 +45,9 @@ class _ThemePreferenceControlsState extends State<ThemePreferenceControls> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        heading(context.l10n.displayModeTitle),
+        const AppModeControl(),
+        const Divider(height: 24),
         const BackgroundOverlayControl(),
         const Divider(height: 24),
         const ThemeModeControl(),
@@ -53,6 +58,49 @@ class _ThemePreferenceControlsState extends State<ThemePreferenceControls> {
         heading(context.l10n.confetti),
         const ConfettiControls(),
       ],
+    );
+  }
+}
+
+/// 界面模式（常规模式 / 简洁模式）切换控件。
+class AppModeControl extends StatelessWidget {
+  const AppModeControl({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final preferences = AppModePreferences.instance;
+    final scheme = Theme.of(context).colorScheme;
+    return ListenableBuilder(
+      listenable: preferences,
+      builder: (context, _) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AnimatedChoiceBar<AppDisplayMode>(
+            values: AppDisplayMode.values,
+            value: preferences.mode,
+            label: (mode) => mode == AppDisplayMode.standard
+                ? context.l10n.displayModeStandard
+                : context.l10n.displayModeSimple,
+            onChanged: preferences.loaded
+                ? (mode) {
+                    FocusManager.instance.primaryFocus?.unfocus();
+                    preferences.setMode(mode);
+                  }
+                : null,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            preferences.isSimple
+                ? context.l10n.displayModeSimpleHint
+                : context.l10n.displayModeStandardHint,
+            style: TextStyle(
+              fontSize: 12,
+              height: 1.45,
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

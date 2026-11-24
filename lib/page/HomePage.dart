@@ -34,7 +34,10 @@ import '../widgets/AccountRegistrationGuideDialog.dart';
 import '../widgets/SmoothLinearProgressIndicator.dart';
 import '../utils/AppTheme.dart';
 import '../utils/AppDesignTokens.dart';
+import '../utils/AppModePreferences.dart';
 import '../widgets/AppUi.dart';
+import '../widgets/BackgroundPageScaffold.dart';
+import 'PlayZoneHubPage.dart';
 import '../utils/AppConstants.dart';
 import '../utils/SecureCredentialStore.dart';
 import '../utils/ExternalLaunchUtil.dart';
@@ -318,6 +321,8 @@ class HomePageState extends State<HomePage> {
     SyncRouteNotifier.instance.addListener(_onSyncRouteChanged);
     widget.activeTask.addListener(_onSyncRouteChanged);
     NavigationPreferences.instance.addListener(_onSyncRouteChanged);
+    AppModePreferences.instance.addListener(_onSyncRouteChanged);
+    unawaited(AppModePreferences.instance.load());
     SyncRouteNotifier.instance.ensureLoaded();
     CommunityAvatarStore.instance.addListener(_pushDesktopProfile);
     unawaited(CommunityAvatarStore.instance.activate());
@@ -482,6 +487,7 @@ class HomePageState extends State<HomePage> {
     SyncRouteNotifier.instance.removeListener(_onSyncRouteChanged);
     widget.activeTask.removeListener(_onSyncRouteChanged);
     NavigationPreferences.instance.removeListener(_onSyncRouteChanged);
+    AppModePreferences.instance.removeListener(_onSyncRouteChanged);
     _loginStateNotifier.dispose();
     super.dispose();
   }
@@ -598,6 +604,7 @@ class HomePageState extends State<HomePage> {
 
   Widget _buildScaffold(BuildContext context, Set<String> favoriteTitles) {
     final brightness = Theme.of(context).brightness;
+    final isSimple = AppModePreferences.instance.isSimple;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -634,13 +641,15 @@ class HomePageState extends State<HomePage> {
                           const SizedBox(height: 12),
                           _buildRefreshProgress(context),
                         ],
-                        const SizedBox(height: 20),
-                        EntranceAnimation(
-                          duration: const Duration(milliseconds: 500),
-                          baseDelay: const Duration(milliseconds: 120),
-                          offset: const Offset(0, 12),
-                          child: _buildStatusWidgets(),
-                        ),
+                        if (!isSimple) ...[
+                          const SizedBox(height: 20),
+                          EntranceAnimation(
+                            duration: const Duration(milliseconds: 500),
+                            baseDelay: const Duration(milliseconds: 120),
+                            offset: const Offset(0, 12),
+                            child: _buildStatusWidgets(),
+                          ),
+                        ],
                       ],
                     ),
             ),
@@ -670,6 +679,10 @@ class HomePageState extends State<HomePage> {
               const SizedBox(height: 20),
               // 顶层监听保证收藏区跨页面实时刷新。
               _buildFavoriteFeaturesSection(context, favoriteTitles),
+              if (isSimple) ...[
+                const SizedBox(height: 20),
+                _buildSimpleMorePagesSection(context),
+              ],
               if (_isBackgroundInitializing || _isInitializationCompleted) ...[
                 const SizedBox(height: 16),
                 _buildInitializationStatus(context),
@@ -1145,6 +1158,7 @@ class HomePageState extends State<HomePage> {
     final scheme = Theme.of(context).colorScheme;
     final connectFirst =
         Theme.of(context).platform == TargetPlatform.iOS && !_hasPlayerScores;
+    final isSimple = AppModePreferences.instance.isSimple;
     final total = _best50TotalRA;
     final tier = AppColors.ratingTier(total);
     final fraction = total > 0 ? _best35TotalRA / total : 0.7;
@@ -1196,8 +1210,10 @@ class HomePageState extends State<HomePage> {
                             Positioned.fill(
                               child: TweenAnimationBuilder<double>(
                                 tween: Tween(begin: 0, end: total.toDouble()),
-                                duration: AppDesignTokens.motion(context,
-                                    const Duration(milliseconds: 1100)),
+                                duration: isSimple
+                                    ? Duration.zero
+                                    : AppDesignTokens.motion(context,
+                                        const Duration(milliseconds: 1100)),
                                 curve: Curves.easeOutCubic,
                                 builder: (context, value, _) => FittedBox(
                                   fit: BoxFit.scaleDown,
@@ -3047,16 +3063,25 @@ class HomePageState extends State<HomePage> {
       for (final item in _searchableCategories.expand((c) => c.items))
         item.title: item,
     };
+    final isSimple = AppModePreferences.instance.isSimple;
     final items = [
       for (final title in titles)
         if (available.containsKey(title)) available[title]!,
     ];
+    // 简洁模式下若用户尚未收藏任何功能，展示默认高频入口（只读展示，不写盘）。
+    final usingDefaultShortcuts = items.isEmpty && isSimple;
+    final displayItems = usingDefaultShortcuts
+        ? [
+            for (final title in FeatureRegistry.simpleHomeDefaultTitles)
+              if (available.containsKey(title)) available[title]!,
+          ]
+        : items;
 
     final scheme = Theme.of(context).colorScheme;
     final task = _activeTask;
     final busyReason = task != null &&
             NavigationPreferences.instance.busyHintEnabled &&
-            items.any((item) =>
+            displayItems.any((item) =>
                 item.title != task.title &&
                 FeatureRegistry.taskRestrictedFeatures.contains(item.title))
         ? context.l10n.hubBusyTask(context.featureText(task.title))
@@ -3077,12 +3102,20 @@ class HomePageState extends State<HomePage> {
                           TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
                 ),
               ),
-              _buildFavoriteSortButton(context),
+              if (!usingDefaultShortcuts) _buildFavoriteSortButton(context),
             ],
           ),
         ),
+        if (usingDefaultShortcuts)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 2, 4, 8),
+            child: Text(
+              context.l10n.simpleModeDefaultShortcutsHint,
+              style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+            ),
+          ),
         AnimatedReveal(
-          visible: _sortingFavorites,
+          visible: _sortingFavorites && !usingDefaultShortcuts,
           child: Padding(
             padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
             child: Text(context.featureText('拖动图标调整顺序；点叉号或拖到删除区域可移除收藏'),
@@ -3090,7 +3123,8 @@ class HomePageState extends State<HomePage> {
           ),
         ),
         AnimatedReveal(
-          visible: !_sortingFavorites && busyReason != null,
+          visible: (!_sortingFavorites || usingDefaultShortcuts) &&
+              busyReason != null,
           child: Padding(
             padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
             child: Semantics(
@@ -3101,7 +3135,7 @@ class HomePageState extends State<HomePage> {
             ),
           ),
         ),
-        if (items.isEmpty)
+        if (displayItems.isEmpty)
           AppCard(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
             child: Text(
@@ -3117,9 +3151,9 @@ class HomePageState extends State<HomePage> {
             builder: (context, update, _) => ListenableBuilder(
               listenable: AccountAuthorizationStatus.changes,
               builder: (context, _) => FavoriteEditGrid(
-                editing: _sortingFavorites,
+                editing: _sortingFavorites && !usingDefaultShortcuts,
                 items: [
-                  for (final item in items)
+                  for (final item in displayItems)
                     () {
                       final isUpdate = UpdateNotifier.isUpdateEntry(item.title);
                       final effective =
@@ -3163,6 +3197,103 @@ class HomePageState extends State<HomePage> {
             ),
           ),
       ],
+    );
+  }
+
+  /// 简洁模式下在首页底部提供「曲库」与「游玩」直达卡片。
+  Widget _buildSimpleMorePagesSection(BuildContext context) {
+    final brightness = Theme.of(context).brightness;
+    final scheme = Theme.of(context).colorScheme;
+    Widget pageCard({
+      required String titleKey,
+      required IconData icon,
+      required VoidCallback? onTap,
+    }) {
+      final tint = AppColors.featureTint(titleKey, brightness);
+      return Expanded(
+        child: AppCard(
+          radius: AppDesignTokens.radiusMedium,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          onTap: onTap,
+          child: Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: tint.background,
+                  borderRadius:
+                      BorderRadius.circular(AppDesignTokens.radiusSmall),
+                ),
+                alignment: Alignment.center,
+                child: Icon(icon, size: 18, color: tint.foreground),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: MarqueeText(
+                  text: context.featureText(titleKey),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              Icon(
+                Icons.chevron_right_rounded,
+                size: 18,
+                color: scheme.onSurfaceVariant.withValues(alpha: 0.6),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(4, 0, 4, 10),
+          child: Semantics(
+            header: true,
+            child: Text(
+              context.l10n.simpleModeMorePages,
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+            ),
+          ),
+        ),
+        Row(
+          children: [
+            pageCard(
+              titleKey: '曲库',
+              icon: Icons.library_music_rounded,
+              onTap: widget.onLibraryTap,
+            ),
+            const SizedBox(width: AppDesignTokens.cardGap),
+            pageCard(
+              titleKey: '游玩',
+              icon: Icons.sports_esports_rounded,
+              onTap: _openPlayZonePage,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  void _openPlayZonePage() {
+    FocusManager.instance.primaryFocus?.unfocus();
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (routeContext) => BackgroundPageScaffold(
+          title: routeContext.featureText('游玩'),
+          child: MediaQuery.removePadding(
+            context: routeContext,
+            removeTop: true,
+            child: const PlayZoneHubPage(showHeader: false),
+          ),
+        ),
+      ),
     );
   }
 

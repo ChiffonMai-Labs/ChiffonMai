@@ -65,6 +65,7 @@ import '../utils/UserProfileNotifier.dart';
 import '../utils/ExternalLaunchUtil.dart';
 import '../utils/ExportPathUtil.dart';
 import '../service/CommunityAvatarStore.dart';
+import '../widgets/CommunityAvatar.dart';
 import '../widgets/ErrorMessageDialog.dart';
 import '../widgets/CacheManagementDialog.dart';
 import '../service/CacheManagementService.dart';
@@ -72,9 +73,11 @@ import '../widgets/AccountRegistrationGuideDialog.dart';
 import '../widgets/ConfettiEffect.dart';
 import '../entity/FeatureModels.dart';
 import '../utils/AppDesignTokens.dart';
+import '../utils/AppModePreferences.dart';
 import '../utils/AppTaskActivity.dart';
 import '../widgets/AppDialogs.dart';
 import '../widgets/AppToast.dart';
+import '../widgets/AppUi.dart';
 import '../utils/MaimaiHubLoginNotifier.dart';
 
 class SystemHubPage extends StatefulWidget {
@@ -731,14 +734,162 @@ class SystemHubPageState extends State<SystemHubPage>
   String get _busyReason => context.l10n
       .hubBusyTask(context.featureText(_activeTask?.title ?? '拉取成绩并更新数据'));
 
+  Widget _buildSimpleHero(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final appearance = CommunityAvatarStore.instance.value;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (Theme.of(context).platform == TargetPlatform.iOS) ...[
+          ios.CupertinoListTile(
+            leading: const Icon(ios.CupertinoIcons.link),
+            title: Text(context.l10n.qqPlayerConnect),
+            trailing: const ios.CupertinoListTileChevron(),
+            onTap: () => PlayerConnectionPage.open(context),
+          ),
+          const SizedBox(height: 8),
+        ],
+        AppCard(
+          radius: AppDesignTokens.radiusMedium,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            children: [
+              CommunityAvatar(
+                avatarId: appearance.avatarId,
+                size: 36,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _userNickname.isEmpty
+                          ? kUnsetNicknameLabel
+                          : _userNickname,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    ValueListenableBuilder<RefreshDataSource>(
+                      valueListenable: CurrentDataSourceNotifier.instance,
+                      builder: (context, source, _) => Text(
+                        context.featureText(source.shortDisplayName),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Material(
+                color: AppSurfaces.track(context),
+                shape: const StadiumBorder(),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: anyBusy
+                      ? null
+                      : () => showAccountSwitchDialog(
+                            context,
+                            onNeedRefresh: (source) =>
+                                _refreshData(initialSource: source),
+                          ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.swap_horiz_rounded,
+                          size: 15,
+                          color: anyBusy
+                              ? scheme.onSurfaceVariant.withValues(alpha: 0.4)
+                              : scheme.onSurface,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          context.l10n.flowSwitchAccount,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: anyBusy
+                                ? scheme.onSurfaceVariant.withValues(alpha: 0.4)
+                                : scheme.onSurface,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        AppCard(
+          radius: AppDesignTokens.radiusMedium,
+          padding: const EdgeInsets.fromLTRB(14, 4, 6, 4),
+          child: Row(
+            children: [
+              Icon(
+                Icons.layers_clear_outlined,
+                size: 16,
+                color: scheme.primary,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  context.l10n.simpleModeActiveHint,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              TextButton(
+                onPressed: () {
+                  FocusManager.instance.primaryFocus?.unfocus();
+                  AppModePreferences.instance.setMode(AppDisplayMode.standard);
+                },
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  minimumSize: const Size(0, 36),
+                ),
+                child: Text(
+                  context.l10n.switchToStandardMode,
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
-  Widget build(BuildContext context) =>
-      ValueListenableBuilder<FavoritesPayload>(
-        valueListenable: FavoriteFeaturesNotifier.instance,
-        builder: (context, payload, _) => ValueListenableBuilder<bool>(
-          valueListenable: LoginStateNotifier.instance,
-          builder: (context, loggedIn, __) {
-            final features = <String, Widget>{
+  Widget build(BuildContext context) => ListenableBuilder(
+        listenable: Listenable.merge([
+          FavoriteFeaturesNotifier.instance,
+          LoginStateNotifier.instance,
+          AppModePreferences.instance,
+        ]),
+        builder: (context, _) {
+          final features = <String, Widget>{
               '账号注册引导': HubActionTile(
                 title: '账号注册引导',
                 subtitle: '水鱼注册、落雪注册与 AWMC NET 档案创建引导',
@@ -1114,65 +1265,99 @@ class SystemHubPageState extends State<SystemHubPage>
               ),
             };
             final sections = FeatureRegistry.sections['我的']!;
+            if (!AppModePreferences.instance.isSimple) {
+              return HubPageScaffold(
+                title: '我的',
+                subtitle: '账号、同步、备份与应用偏好',
+                icon: Icons.person_rounded,
+                hero: Column(children: [
+                  if (Theme.of(context).platform == TargetPlatform.iOS)
+                    ios.CupertinoListTile(
+                        leading: const Icon(ios.CupertinoIcons.link),
+                        title: Text(context.l10n.qqPlayerConnect),
+                        trailing: const ios.CupertinoListTileChevron(),
+                        onTap: () => PlayerConnectionPage.open(context)),
+                  CommunityAppearanceBanner(
+                    appearance: CommunityAvatarStore.instance.value,
+                    nickname: _userNickname,
+                    onPickTap: _showCollectionPicker,
+                    onRetry: () =>
+                        unawaited(CommunityAvatarStore.instance.retry()),
+                    onTravelAppearanceTap: () {
+                      FocusManager.instance.primaryFocus?.unfocus();
+                      Navigator.push<void>(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const CommunityTravelAppearancePage(),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppSurfaces.card(context),
+                      borderRadius:
+                          BorderRadius.circular(AppDesignTokens.radiusCard),
+                    ),
+                    child: const MyPlayerExperience(),
+                  ),
+                ]),
+                children: [
+                  for (final section in sections) ...[
+                    HubSection(
+                      title: section.title,
+                      subtitle: section.subtitle,
+                      icon: section.icon,
+                      badgeCount: section.titles.length,
+                      contentPadding: section.title == '单平台同步' ||
+                              section.title == '批量与定时同步'
+                          ? const EdgeInsets.only(bottom: 8)
+                          : EdgeInsets.zero,
+                      children: [
+                        for (final title in section.titles) features[title]!
+                      ],
+                    ),
+                    if (section != sections.last) const SizedBox(height: 24),
+                  ],
+                ],
+              );
+            }
+
+            final coreWidgets = <Widget>[];
+            final moreFeatures = <String, Widget>{};
+            for (final section in sections) {
+              for (final title in section.titles) {
+                if (FeatureRegistry.isSimpleCore('我的', title)) {
+                  coreWidgets.add(features[title]!);
+                } else {
+                  moreFeatures[title] = features[title]!;
+                }
+              }
+            }
             return HubPageScaffold(
               title: '我的',
               subtitle: '账号、同步、备份与应用偏好',
               icon: Icons.person_rounded,
-              hero: Column(children: [
-                if (Theme.of(context).platform == TargetPlatform.iOS)
-                  ios.CupertinoListTile(
-                      leading: const Icon(ios.CupertinoIcons.link),
-                      title: Text(context.l10n.qqPlayerConnect),
-                      trailing: const ios.CupertinoListTileChevron(),
-                      onTap: () => PlayerConnectionPage.open(context)),
-                CommunityAppearanceBanner(
-                  appearance: CommunityAvatarStore.instance.value,
-                  nickname: _userNickname,
-                  onPickTap: _showCollectionPicker,
-                  onRetry: () =>
-                      unawaited(CommunityAvatarStore.instance.retry()),
-                  onTravelAppearanceTap: () {
-                    FocusManager.instance.primaryFocus?.unfocus();
-                    Navigator.push<void>(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const CommunityTravelAppearancePage(),
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: AppSurfaces.card(context),
-                    borderRadius:
-                        BorderRadius.circular(AppDesignTokens.radiusCard),
-                  ),
-                  child: const MyPlayerExperience(),
-                ),
-              ]),
+              hero: _buildSimpleHero(context),
               children: [
-                for (final section in sections) ...[
+                if (coreWidgets.isNotEmpty) ...[
                   HubSection(
-                    title: section.title,
-                    subtitle: section.subtitle,
-                    icon: section.icon,
-                    badgeCount: section.titles.length,
-                    contentPadding:
-                        section.title == '单平台同步' || section.title == '批量与定时同步'
-                            ? const EdgeInsets.only(bottom: 8)
-                            : EdgeInsets.zero,
-                    children: [
-                      for (final title in section.titles) features[title]!
-                    ],
+                    title: context.l10n.simpleModeCoreFeatures,
+                    icon: Icons.star_outline_rounded,
+                    children: coreWidgets,
                   ),
-                  if (section != sections.last) const SizedBox(height: 24),
+                  if (moreFeatures.isNotEmpty) const SizedBox(height: 16),
                 ],
+                SimpleMoreFeaturesSection(
+                  sections: sections,
+                  features: moreFeatures,
+                  count: moreFeatures.length,
+                ),
               ],
             );
           },
-        ),
       );
 }

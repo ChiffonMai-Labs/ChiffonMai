@@ -16206,4 +16206,46 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get flowClearPersonalApiKeyConfirm =>
       'Clearing the saved LXNS personal API key will also disable LXNS auto-sync if it is currently enabled. Continue?';
+
+  @override
+  String get displayModeTitle => 'Display Mode';
+
+  @override
+  String get displayModeStandard => 'Standard';
+
+  @override
+  String get displayModeSimple => 'Simple';
+
+  @override
+  String get displayModeStandardHint =>
+      'Shows all 5 tabs, overview charts, background artwork, and full feature lists';
+
+  @override
+  String get displayModeSimpleHint =>
+      'Streamlines to 3 core tabs, reduces visual clutter, and collapses secondary features; everything remains searchable';
+
+  @override
+  String get simpleModeActiveHint => 'Simple mode active';
+
+  @override
+  String get switchToStandardMode => 'Switch to Standard';
+
+  @override
+  String get simpleModeBackgroundHiddenHint =>
+      'Background and decorative images are hidden in Simple mode and restored when switching back';
+
+  @override
+  String get simpleModeCoreFeatures => 'Core Features';
+
+  @override
+  String simpleModeMoreFeatures(int count) {
+    return 'More Features ($count)';
+  }
+
+  @override
+  String get simpleModeMorePages => 'More Pages';
+
+  @override
+  String get simpleModeDefaultShortcutsHint =>
+      'Showing default shortcuts. Star any feature to customize.';
 }
