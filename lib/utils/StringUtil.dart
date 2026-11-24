@@ -141,7 +141,8 @@ class StringUtil {
   ///     `Splash` 与 `Splash PLUS` 都属 `DX 2021`；但**显示上仍然区分**，
   ///     PLUS 用 `Splash+`（定数历史表里两个版本会是两列，不能合并成同名）；
   ///   * `PRiSM PLUS` 是例外：国服把它单独立为 `舞萌DX 2026`，所以它有自己的年号；
-  ///   * `CiRCLE` 起国服还没上线，没有年号，直接用世代名（`CiRCLE` / `CiRCLE+` /
+  ///   * `CiRCLE` 对应国服 `舞萌DX 2027`（`DX 2027`）；
+  ///   * `CiRCLE PLUS` 起国服还没上线，没有年号，直接用世代名（`CiRCLE+` /
   ///     `MAGiCAL`）。
   static const Map<String, String> _dxSimple = {
     '': 'DX 2020',
@@ -156,8 +157,8 @@ class StringUtil {
     'BUDDiES PLUS': 'BUDDiES+',
     'PRiSM': 'DX 2025',
     'PRiSM PLUS': 'DX 2026',
+    'CiRCLE': 'DX 2027',
     // 国服尚未上线（水鱼数据里还没有）：没有年号，直接用世代名
-    'CiRCLE': 'CiRCLE',
     'CiRCLE PLUS': 'CiRCLE+',
     'MAGiCAL': 'MAGiCAL',
   };
@@ -179,7 +180,7 @@ class StringUtil {
     'BUDDiES PLUS': 'BUDDiES+ 宴',
     'PRiSM': 'DX 2025 鏡',
     'PRiSM PLUS': 'DX 2026 彩',
-    'CiRCLE': 'CiRCLE 丸',
+    'CiRCLE': 'DX 2027 丸',
     'CiRCLE PLUS': 'CiRCLE+ 廻',
     'MAGiCAL': 'MAGiCAL',
   };

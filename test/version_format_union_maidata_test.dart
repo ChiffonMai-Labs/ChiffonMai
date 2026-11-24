@@ -55,7 +55,7 @@ void main() {
       'BUDDiES+ 宴'],
     ['maimai でらっくす PRiSM', 83, 'PRiSM', 'PRiSM 鏡', 'DX 2025 鏡'],
     ['maimai でらっくす PRiSM PLUS', 99, 'PRiSM+', 'PRiSM+ 彩', 'DX 2026 彩'],
-    ['maimai でらっくす CiRCLE', 89, 'CiRCLE', 'CiRCLE 丸', 'CiRCLE 丸'],
+    ['maimai でらっくす CiRCLE', 89, 'CiRCLE', 'CiRCLE 丸', 'DX 2027 丸'],
     ['maimai でらっくす CiRCLE PLUS', 89, 'CiRCLE+', 'CiRCLE+ 廻', 'CiRCLE+ 廻'],
   ];
 
@@ -121,7 +121,7 @@ void main() {
         expect(StringUtil.formatVersion2WithFlag(raw, true),
             isNot(contains('DX 20')),
             reason: '$raw 的 extra 详名不该带年号');
-        // 反过来：有国服年号的 DX 基础世代（不含 PLUS 细分与国服未上线的 CiRCLE）
+        // 反过来：有国服年号的 DX 世代（不含 PLUS 细分与国服未上线的 CiRCLE PLUS）
         // 在非 extra 路径必须带年号
         const withYear = {
           'maimai でらっくす',
@@ -131,6 +131,7 @@ void main() {
           'maimai でらっくす BUDDiES',
           'maimai でらっくす PRiSM',
           'maimai でらっくす PRiSM PLUS',
+          'maimai でらっくす CiRCLE',
         };
         if (withYear.contains(raw)) {
           expect(StringUtil.formatVersionWithFlag(raw, false),
@@ -195,7 +196,7 @@ void main() {
     test('union 独有的 PLUS 细分与 CiRCLE 都有显示', () {
       expect(StringUtil.formatVersion2('maimai でらっくす Splash PLUS'),
           'Splash+ 煌');
-      expect(StringUtil.formatVersion2('maimai でらっくす CiRCLE'), 'CiRCLE 丸');
+      expect(StringUtil.formatVersion2('maimai でらっくす CiRCLE'), 'DX 2027 丸');
       expect(StringUtil.formatVersion2('maimai でらっくす CiRCLE PLUS'),
           'CiRCLE+ 廻');
       // union 写 'maimai MiLK PLUS'（带前缀），水鱼写 'MiLK PLUS'，两种都要收

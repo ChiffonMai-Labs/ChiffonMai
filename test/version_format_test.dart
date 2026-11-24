@@ -134,8 +134,13 @@ void main() {
         'PRiSM+',
         'PRiSM+ 彩',
       ],
+      'maimai でらっくす CiRCLE': [
+        'DX 2027',
+        'DX 2027 丸',
+        'CiRCLE',
+        'CiRCLE 丸',
+      ],
       // 国服未上线：没有年号，直接用世代名 + 一文字
-      'maimai でらっくす CiRCLE': ['CiRCLE', 'CiRCLE 丸', 'CiRCLE', 'CiRCLE 丸'],
       'maimai でらっくす CiRCLE PLUS': [
         'CiRCLE+',
         'CiRCLE+ 廻',
@@ -204,10 +209,10 @@ void main() {
     });
 
     test('#3 CiRCLE 四个函数一致、MAGiCAL 已收录', () {
-      expect(StringUtil.formatVersion2('maimai でらっくす CiRCLE'), 'CiRCLE 丸');
-      expect(StringUtil.formatVersion('maimai でらっくす CiRCLE'), 'CiRCLE');
+      expect(StringUtil.formatVersion2('maimai でらっくす CiRCLE'), 'DX 2027 丸');
+      expect(StringUtil.formatVersion('maimai でらっくす CiRCLE'), 'DX 2027');
       expect(StringUtil.formatVersion2WithFlag('maimai でらっくす CiRCLE', false),
-          'CiRCLE 丸');
+          'DX 2027 丸');
       expect(StringUtil.formatVersion('maimai でらっくす MAGiCAL'), 'MAGiCAL');
       expect(StringUtil.formatVersion2('maimai でらっくす MAGiCAL'), 'MAGiCAL');
       expect(StringUtil.formatVersion2WithFlag('maimai でらっくす MAGiCAL', false),
