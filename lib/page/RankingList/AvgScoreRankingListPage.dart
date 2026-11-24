@@ -58,6 +58,7 @@ class _AvgScoreRankingListPageState extends State<AvgScoreRankingListPage> {
   void initState() {
     super.initState();
     CommunityAvatarStore.profileChanges.addListener(_onAppearanceChanged);
+    RankingAnonymousFilter.notifier.addListener(_onFilterChanged);
     _currentMetric = widget.initialMetric;
     _loadData();
   }
@@ -66,14 +67,20 @@ class _AvgScoreRankingListPageState extends State<AvgScoreRankingListPage> {
     if (mounted) _loadRankings(refresh: true);
   }
 
+  void _onFilterChanged() {
+    if (mounted) _loadRankings();
+  }
+
   @override
   void dispose() {
     CommunityAvatarStore.profileChanges.removeListener(_onAppearanceChanged);
+    RankingAnonymousFilter.notifier.removeListener(_onFilterChanged);
     _scrollController.dispose();
     super.dispose();
   }
 
   Future<void> _loadData() async {
+    await RankingAnonymousFilter.load();
     await _loadCurrentUserInfo();
     await _loadRankings();
   }
@@ -170,7 +177,10 @@ class _AvgScoreRankingListPageState extends State<AvgScoreRankingListPage> {
     });
 
     try {
-      final items = await AvgRankingListService.getAverages(refresh: refresh);
+      final items = await AvgRankingListService.getAverages(
+        refresh: refresh,
+        excludeAnonymous: RankingAnonymousFilter.enabled,
+      );
 
       if (!mounted || generation != _requestGeneration) return;
       _allItems = items;
@@ -376,6 +386,7 @@ class _AvgScoreRankingListPageState extends State<AvgScoreRankingListPage> {
               ),
               // 免责声明
               const RankingNotice(),
+              const RankingAnonymousFilterBar(showAllWhenEnabled: false),
 
               // 排行榜列表
               Expanded(

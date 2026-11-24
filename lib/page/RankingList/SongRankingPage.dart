@@ -110,6 +110,7 @@ class _SongRankingPageState extends State<SongRankingPage> {
   void initState() {
     super.initState();
     CommunityAvatarStore.profileChanges.addListener(_onAppearanceChanged);
+    RankingAnonymousFilter.notifier.addListener(_onFilterChanged);
     _loadSongData();
     // 延迟显示免责声明对话框（等待 context 初始化完成）
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -121,9 +122,14 @@ class _SongRankingPageState extends State<SongRankingPage> {
     if (mounted) _loadRankingData();
   }
 
+  void _onFilterChanged() {
+    if (mounted) _loadRankingData();
+  }
+
   @override
   void dispose() {
     CommunityAvatarStore.profileChanges.removeListener(_onAppearanceChanged);
+    RankingAnonymousFilter.notifier.removeListener(_onFilterChanged);
     _scrollController.dispose();
     super.dispose();
   }
@@ -237,6 +243,7 @@ class _SongRankingPageState extends State<SongRankingPage> {
   }
 
   Future<void> _loadSongData() async {
+    await RankingAnonymousFilter.load();
     try {
       final result = await SongInfoService().loadData(widget.songId);
       _songData = result['songData'];
@@ -615,6 +622,7 @@ class _SongRankingPageState extends State<SongRankingPage> {
       _errorMessage = null;
     });
     final type = _rankingType;
+    final excludeAnonymous = RankingAnonymousFilter.enabled;
 
     try {
       List<RankingEntry> rankingList = await _service.getSongRanking(
@@ -622,6 +630,7 @@ class _SongRankingPageState extends State<SongRankingPage> {
         _difficultyIndex,
         type,
         limit: 100,
+        excludeAnonymous: excludeAnonymous,
       );
 
       String currentPlayerId = await _service.getCurrentPlayerId();
@@ -634,6 +643,7 @@ class _SongRankingPageState extends State<SongRankingPage> {
         _difficultyIndex,
         type,
         currentPlayerId,
+        excludeAnonymous: excludeAnonymous,
       );
       if (!mounted || generation != _requestGeneration) return;
       // 榜内用户沿用当前列表快照，避免两次请求之间更新或并列口径差异。
@@ -992,6 +1002,7 @@ class _SongRankingPageState extends State<SongRankingPage> {
             ),
           ),
         ),
+        const RankingAnonymousFilterBar(showAllWhenEnabled: false),
         Expanded(
             child: _isLoading && _rankingList.isEmpty
                 ? Center(child: CircularProgressIndicator())

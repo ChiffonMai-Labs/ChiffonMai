@@ -12,6 +12,7 @@ import '../utils/SecureCredentialStore.dart';
 import '../utils/UserProfileNotifier.dart';
 import 'AccountStore.dart';
 import 'AccountSwitchService.dart';
+import 'CommentBlockStore.dart';
 import 'CommunityProfileAuthorization.dart';
 import 'RankingList/SongRankingService.dart';
 import 'SongInfoService.dart';
@@ -123,11 +124,16 @@ class AccountDeletionService {
       final name = '${account.source.displayName} ${account.label}';
       onProgress?.call(name);
 
-      await _deleteComments(account, report);
-      await _deleteRatings(account, report);
-      await _deleteRankings(account, report);
+      final unifiedOk = await _deleteServerAccount(account, report);
+      if (!unifiedOk) {
+        await _deleteComments(account, report);
+        await _deleteRatings(account, report);
+        await _deleteRankings(account, report);
+      }
       await _clearLocal(account.source, report);
     }
+
+    await CommentBlockStore.clearLocal();
 
     // 兜底清掉可能残留的凭据与账号快照。
     try {
@@ -150,6 +156,37 @@ class AccountDeletionService {
   }
 
   // ───────────────────────── 服务端清理 ─────────────────────────
+
+  static Future<bool> _deleteServerAccount(
+      DeletionAccount account, AccountDeletionReport report) async {
+    try {
+      final headers =
+          await CommunityProfileAuthorization.ownerHeaders(account.playerId);
+      final response = await ApiClient.delete(
+        Uri.parse(ApiUrls.AccountDeleteUrl),
+        headers: headers,
+        body: json.encode({
+          'playerId': account.playerId,
+          'dataSource': account.source.key,
+          'originalId': account.id,
+        }),
+      );
+      if (response.statusCode != 200) return false;
+      final body = json.decode(response.body);
+      if (body is! Map || body['success'] != true) return false;
+      final deleted = body['deleted'] is Map ? body['deleted'] as Map : null;
+      report.comments += (deleted?['comments'] as num?)?.toInt() ?? 0;
+      report.ratings += (deleted?['ratings'] as num?)?.toInt() ?? 0;
+      final songRankings = (deleted?['songRankings'] as num?)?.toInt() ?? 0;
+      final profile = (deleted?['profile'] as num?)?.toInt() ?? 0;
+      if (profile > 0) report.rankings++;
+      if (songRankings > 0) report.rankings++;
+      return true;
+    } catch (error) {
+      debugPrint('[DeleteAccount] 统一删除服务端账号失败，回退逐项删除: $error');
+      return false;
+    }
+  }
 
   static Future<void> _deleteComments(
       DeletionAccount account, AccountDeletionReport report) async {

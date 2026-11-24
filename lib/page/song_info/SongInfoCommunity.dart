@@ -956,11 +956,15 @@ extension _SongInfoCommunity on _SongInfoPageState {
     });
 
     try {
-      final comments = await SongInfoService.getCommentsForSong(widget.songId,
-          levelIndex: _currentDiffIndex,
-          forceRefresh: true,
-          serverRefresh: serverRefresh);
-      final blocked = await CommentBlockStore.load();
+      final results = await Future.wait([
+        SongInfoService.getCommentsForSong(widget.songId,
+            levelIndex: _currentDiffIndex,
+            forceRefresh: true,
+            serverRefresh: serverRefresh),
+        CommentBlockStore.syncWithServer(),
+      ]);
+      final comments = results[0] as List<CommentItem>;
+      final blocked = results[1] as List<BlockedCommentUser>;
       final blockedKeys =
           blocked.map((e) => '${e.dataSource}:${e.originalId}').toSet();
       final visible = blockedKeys.isEmpty
@@ -1205,6 +1209,26 @@ extension _SongInfoCommunity on _SongInfoPageState {
       ),
     );
     if (reason == null || !mounted) return;
+
+    final reporterPlayerId =
+        (_commentDataSource != null && _commentOriginalId != null)
+            ? '$_commentDataSource:$_commentOriginalId'
+            : null;
+    final reportResult = await SongInfoService.reportComment(
+      commentId: comment.id,
+      reason: reason,
+      reporterPlayerId: reporterPlayerId,
+    );
+    if (!mounted) return;
+    if (reportResult['success'] == true) {
+      AppToast.show(
+        reportResult['alreadyReported'] == true
+            ? l10n.commentReportAlreadySubmitted
+            : l10n.commentReportSubmitted,
+        tone: AppToastTone.success,
+      );
+      return;
+    }
 
     final songTitle = _songData?['title']?.toString() ?? widget.songId;
     final isUtage =

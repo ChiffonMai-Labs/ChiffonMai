@@ -1,8 +1,11 @@
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import '../constant/CacheKeyConstant.dart';
 import '../utils/AppDesignTokens.dart';
 import '../utils/AppTheme.dart';
+import 'AppSwitch.dart';
 import 'AppUi.dart';
 
 /// 排行榜共用的部件：名次、玩家行、固定在底部的「我的排名」、说明条。
@@ -231,6 +234,120 @@ class RankingEntrance {
       duration: const Duration(milliseconds: 300),
       offset: const Offset(0, 8),
       child: child,
+    );
+  }
+}
+
+/// 排行榜「屏蔽匿名用户」偏好，所有玩家榜单共用并持久化在本机。
+class RankingAnonymousFilter {
+  RankingAnonymousFilter._();
+
+  static final ValueNotifier<bool> notifier = ValueNotifier<bool>(false);
+  static bool _loaded = false;
+
+  static bool get enabled => notifier.value;
+
+  static Future<bool> load() async {
+    if (_loaded) return notifier.value;
+    final prefs = await SharedPreferences.getInstance();
+    final value =
+        prefs.getBool(CacheKeyConstant.rankingHideAnonymous) ?? false;
+    _loaded = true;
+    if (notifier.value != value) {
+      notifier.value = value;
+    }
+    return value;
+  }
+
+  static Future<void> set(bool value) async {
+    _loaded = true;
+    if (notifier.value != value) {
+      notifier.value = value;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(CacheKeyConstant.rankingHideAnonymous, value);
+  }
+}
+
+/// 排行榜顶部的「屏蔽匿名用户」开关条。
+class RankingAnonymousFilterBar extends StatelessWidget {
+  final bool showAllWhenEnabled;
+  final bool enabled;
+
+  const RankingAnonymousFilterBar({
+    super.key,
+    required this.showAllWhenEnabled,
+    this.enabled = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final l10n = context.l10n;
+    return ValueListenableBuilder<bool>(
+      valueListenable: RankingAnonymousFilter.notifier,
+      builder: (context, active, _) {
+        final subtitle = active
+            ? (showAllWhenEnabled
+                ? l10n.rankingHideAnonymousTotalHint
+                : l10n.rankingHideAnonymousTop100Hint)
+            : null;
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(
+              AppDesignTokens.gutter, 0, AppDesignTokens.gutter, 8),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(12, 6, 8, 6),
+            decoration: BoxDecoration(
+              color: AppSurfaces.card(context),
+              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.visibility_off_outlined,
+                  size: 16,
+                  color: active ? scheme.primary : scheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        l10n.rankingHideAnonymous,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: scheme.onSurface,
+                        ),
+                      ),
+                      if (subtitle != null)
+                        Text(
+                          subtitle,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                AppSwitch(
+                  value: active,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  onChanged: enabled ? RankingAnonymousFilter.set : null,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

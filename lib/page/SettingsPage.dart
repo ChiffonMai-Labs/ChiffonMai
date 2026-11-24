@@ -68,6 +68,7 @@ class _SettingsPageState extends State<SettingsPage> {
     RatingSegmentPreferences.instance.load();
     NavigationPreferences.instance.load();
     ConfettiPreferences.instance.load();
+    CommentBlockStore.syncWithServer();
     AwmcGatewaySettings.loadProbeTimeoutSeconds().then((seconds) {
       if (mounted) setState(() => _awmcProbeTimeoutSeconds = seconds);
     });
@@ -586,7 +587,7 @@ class _SettingsPageState extends State<SettingsPage> {
       );
 
   Future<void> _showBlockedUsers() async {
-    final users = await CommentBlockStore.load();
+    final users = await CommentBlockStore.syncWithServer();
     if (!mounted) return;
     await showDialog<void>(
       context: context,

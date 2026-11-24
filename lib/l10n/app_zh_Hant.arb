@@ -4455,5 +4455,10 @@
   "simpleModeMoreFeatures": "更多功能（{count}）",
   "simpleModeMorePages": "更多頁面",
   "simpleModeDefaultShortcutsHint": "已顯示預設常用入口，點擊功能右側星標即可自訂",
-  "flowBest50EmptySlot": "暫無成績"
+  "flowBest50EmptySlot": "暫無成績",
+  "commentReportSubmitted": "舉報已提交，感謝回饋",
+  "commentReportAlreadySubmitted": "你已舉報過該評論",
+  "rankingHideAnonymous": "屏蔽匿名用戶",
+  "rankingHideAnonymousTotalHint": "已開啟：展示全部非匿名玩家",
+  "rankingHideAnonymousTop100Hint": "已開啟：展示前 100 名非匿名玩家"
 }

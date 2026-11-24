@@ -105,22 +105,26 @@ class FittedRatingRankingListService {
   static Future<List<FittedRankItem>> Function()? debugRankingsLoader;
 
   // 按模式拼接缓存 key
-  static String _cacheKey(String mode) =>
-      '${CacheKeyConstant.fittedRankingsCachePrefix}$mode';
-  static String _timestampKey(String mode) =>
-      '${CacheKeyConstant.fittedRankingsCacheTimestampPrefix}$mode';
+  static String _cacheKey(String mode, {bool excludeAnonymous = false}) =>
+      '${CacheKeyConstant.fittedRankingsCachePrefix}$mode${excludeAnonymous ? '_nonanon' : ''}';
+  static String _timestampKey(String mode, {bool excludeAnonymous = false}) =>
+      '${CacheKeyConstant.fittedRankingsCacheTimestampPrefix}$mode${excludeAnonymous ? '_nonanon' : ''}';
 
   // 获取指定模式的排行榜数据（原始、未排序）
   static Future<List<FittedRankItem>> getRankings({
     required FittedMode mode,
     bool refresh = false,
     String? userId,
+    bool excludeAnonymous = false,
   }) async {
     final generation = _cacheGeneration;
     final stub = debugRankingsLoader;
     if (stub != null) return stub();
     if (!refresh) {
-      final cachedData = await _getCachedRankings(mode);
+      final cachedData = await _getCachedRankings(
+        mode,
+        excludeAnonymous: excludeAnonymous,
+      );
       if (cachedData != null) {
         return cachedData;
       }
@@ -131,6 +135,7 @@ class FittedRatingRankingListService {
         queryParameters: {
           'mode': mode.name,
           if (userId != null && userId.isNotEmpty) 'userId': userId,
+          if (excludeAnonymous) 'excludeAnonymous': 'true',
         },
       );
       final response = await ApiClient.get(
@@ -146,8 +151,12 @@ class FittedRatingRankingListService {
               .map((e) => FittedRankItem.fromJson(e as Map<String, dynamic>))
               .toList();
           if (generation == _cacheGeneration) {
-            await _cacheRankings(mode, items,
-                nextUpdateAt: (result['nextUpdateAt'] as num?)?.toInt());
+            await _cacheRankings(
+              mode,
+              items,
+              excludeAnonymous: excludeAnonymous,
+              nextUpdateAt: (result['nextUpdateAt'] as num?)?.toInt(),
+            );
           }
           return items;
         }
@@ -157,17 +166,27 @@ class FittedRatingRankingListService {
     } catch (e) {
       debugPrint('获取拟合总Rating排行榜失败: $e');
     }
-    return await _getCachedRankings(mode, allowExpired: true) ?? [];
+    return await _getCachedRankings(
+          mode,
+          allowExpired: true,
+          excludeAnonymous: excludeAnonymous,
+        ) ??
+        [];
   }
 
   // 获取当前用户在完整榜单中的条目（可能不在前100，由服务端返回）
   static Future<FittedRankItem?> getCurrentUserRank({
     required FittedMode mode,
     required String userId,
+    bool excludeAnonymous = false,
   }) async {
     try {
       final url = Uri.parse(ApiUrls.SongRankingsFittedUrl).replace(
-        queryParameters: {'mode': mode.name, 'userId': userId},
+        queryParameters: {
+          'mode': mode.name,
+          'userId': userId,
+          if (excludeAnonymous) 'excludeAnonymous': 'true',
+        },
       );
       final response = await ApiClient.get(
         url,
@@ -212,10 +231,14 @@ class FittedRatingRankingListService {
   }
 
   // 从缓存读取排行榜数据
-  static Future<List<FittedRankItem>?> _getCachedRankings(FittedMode mode,
-      {bool allowExpired = false}) async {
+  static Future<List<FittedRankItem>?> _getCachedRankings(
+    FittedMode mode, {
+    bool allowExpired = false,
+    bool excludeAnonymous = false,
+  }) async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_cacheKey(mode.name));
+    final raw =
+        prefs.getString(_cacheKey(mode.name, excludeAnonymous: excludeAnonymous));
     if (raw == null) return null;
     try {
       final decoded = json.decode(raw);
@@ -236,8 +259,11 @@ class FittedRatingRankingListService {
 
   // 保存排行榜数据到缓存
   static Future<void> _cacheRankings(
-      FittedMode mode, List<FittedRankItem> items,
-      {int? nextUpdateAt}) async {
+    FittedMode mode,
+    List<FittedRankItem> items, {
+    bool excludeAnonymous = false,
+    int? nextUpdateAt,
+  }) async {
     final generation = _cacheGeneration;
     final prefs = await SharedPreferences.getInstance();
     if (generation != _cacheGeneration) return;
@@ -249,9 +275,12 @@ class FittedRatingRankingListService {
         'nextUpdateAt': nextUpdateAt ??
             DateTime.now().millisecondsSinceEpoch + _cacheExpirySeconds * 1000,
       });
-      await prefs.setString(_cacheKey(mode.name), jsonString);
+      await prefs.setString(
+        _cacheKey(mode.name, excludeAnonymous: excludeAnonymous),
+        jsonString,
+      );
       await prefs.setInt(
-        _timestampKey(mode.name),
+        _timestampKey(mode.name, excludeAnonymous: excludeAnonymous),
         DateTime.now().millisecondsSinceEpoch ~/ 1000,
       );
     } catch (e) {
@@ -267,6 +296,8 @@ class FittedRatingRankingListService {
     for (final mode in FittedMode.values) {
       await prefs.remove(_cacheKey(mode.name));
       await prefs.remove(_timestampKey(mode.name));
+      await prefs.remove(_cacheKey(mode.name, excludeAnonymous: true));
+      await prefs.remove(_timestampKey(mode.name, excludeAnonymous: true));
     }
   }
 }

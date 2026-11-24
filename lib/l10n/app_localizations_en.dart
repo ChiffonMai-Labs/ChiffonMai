@@ -16251,4 +16251,23 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get flowBest50EmptySlot => 'Empty slot';
+
+  @override
+  String get commentReportSubmitted =>
+      'Report submitted. Thanks for your feedback.';
+
+  @override
+  String get commentReportAlreadySubmitted =>
+      'You have already reported this comment';
+
+  @override
+  String get rankingHideAnonymous => 'Hide anonymous users';
+
+  @override
+  String get rankingHideAnonymousTotalHint =>
+      'Showing all non-anonymous players';
+
+  @override
+  String get rankingHideAnonymousTop100Hint =>
+      'Showing top 100 non-anonymous players';
 }

@@ -86,13 +86,17 @@ class SongRankingService {
     int difficultyIndex,
     RankingType type, {
     int limit = 100,
+    bool excludeAnonymous = false,
   }) async {
     try {
       final typeStr =
           type == RankingType.achievementRate ? 'achievement_rate' : 'dx_score';
       final url = Uri.parse(
               '${ApiUrls.SongRankingsBaseUrl}/$songId/$difficultyIndex/$typeStr')
-          .replace(queryParameters: {'limit': limit.toString()});
+          .replace(queryParameters: {
+        'limit': limit.toString(),
+        if (excludeAnonymous) 'excludeAnonymous': 'true',
+      });
 
       final response = await ApiClient.get(url);
       if (response.statusCode == 200) {
@@ -115,14 +119,18 @@ class SongRankingService {
     String songId,
     int difficultyIndex,
     RankingType type,
-    String playerId,
-  ) async {
+    String playerId, {
+    bool excludeAnonymous = false,
+  }) async {
     try {
       final typeStr =
           type == RankingType.achievementRate ? 'achievement_rate' : 'dx_score';
-      final url = Uri.parse(
+      final base = Uri.parse(
         '${ApiUrls.SongRankingsBaseUrl}/$songId/$difficultyIndex/$typeStr/user/$playerId',
       );
+      final url = excludeAnonymous
+          ? base.replace(queryParameters: {'excludeAnonymous': 'true'})
+          : base;
 
       final response = await ApiClient.get(url);
       if (response.statusCode == 200) {

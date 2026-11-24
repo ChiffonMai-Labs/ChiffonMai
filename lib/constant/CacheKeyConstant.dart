@@ -172,6 +172,7 @@ class CacheKeyConstant {
   static const String participateRankings = 'participate_rankings';
   static const String showNickname = 'show_nickname';
   static const String showBriefProfile = 'show_brief_profile';
+  static const String rankingHideAnonymous = 'ranking_hide_anonymous';
   static const String forceFullRefresh = 'force_full_refresh';
 
   // 高级刷新模式下用户上次勾选的强制刷新缓存源 ID 列表（来自 CacheSourceRegistry）

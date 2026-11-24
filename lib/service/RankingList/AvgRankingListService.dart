@@ -97,20 +97,35 @@ class AvgRankingListService {
   @visibleForTesting
   static Future<List<AvgRankItem>> Function()? debugRankingsLoader;
 
+  static String _cacheKey(bool excludeAnonymous) => excludeAnonymous
+      ? '${CacheKeyConstant.avgRankingsCache}_nonanon'
+      : CacheKeyConstant.avgRankingsCache;
+
+  static String _timestampKey(bool excludeAnonymous) => excludeAnonymous
+      ? '${CacheKeyConstant.avgRankingsCacheTimestamp}_nonanon'
+      : CacheKeyConstant.avgRankingsCacheTimestamp;
+
   // 获取所有玩家的平均值数据（原始、未排序），可读缓存
-  static Future<List<AvgRankItem>> getAverages({bool refresh = false}) async {
+  static Future<List<AvgRankItem>> getAverages({
+    bool refresh = false,
+    bool excludeAnonymous = false,
+  }) async {
     final generation = _cacheGeneration;
     final stub = debugRankingsLoader;
     if (stub != null) return stub();
     if (!refresh) {
-      final cachedData = await _getCachedRankings();
+      final cachedData =
+          await _getCachedRankings(excludeAnonymous: excludeAnonymous);
       if (cachedData != null) {
         return cachedData;
       }
     }
 
     try {
-      final url = Uri.parse('${ApiUrls.SongRankingsAveragesUrl}');
+      final base = Uri.parse(ApiUrls.SongRankingsAveragesUrl);
+      final url = excludeAnonymous
+          ? base.replace(queryParameters: {'excludeAnonymous': 'true'})
+          : base;
       final response = await ApiClient.get(
         url,
         headers: {'Content-Type': 'application/json'},
@@ -124,8 +139,11 @@ class AvgRankingListService {
               .map((e) => AvgRankItem.fromJson(e as Map<String, dynamic>))
               .toList();
           if (generation == _cacheGeneration) {
-            await _cacheRankings(items,
-                nextUpdateAt: (result['nextUpdateAt'] as num?)?.toInt());
+            await _cacheRankings(
+              items,
+              excludeAnonymous: excludeAnonymous,
+              nextUpdateAt: (result['nextUpdateAt'] as num?)?.toInt(),
+            );
           }
           return items;
         }
@@ -134,7 +152,11 @@ class AvgRankingListService {
     } catch (e) {
       debugPrint('获取平均值排行榜失败: $e');
     }
-    return await _getCachedRankings(allowExpired: true) ?? [];
+    return await _getCachedRankings(
+          allowExpired: true,
+          excludeAnonymous: excludeAnonymous,
+        ) ??
+        [];
   }
 
   // 按指标排序并分配排名（并列名次，1,1,3,3,5 风格）
@@ -167,10 +189,12 @@ class AvgRankingListService {
   }
 
   // 从缓存读取平均值排行数据
-  static Future<List<AvgRankItem>?> _getCachedRankings(
-      {bool allowExpired = false}) async {
+  static Future<List<AvgRankItem>?> _getCachedRankings({
+    bool allowExpired = false,
+    bool excludeAnonymous = false,
+  }) async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(CacheKeyConstant.avgRankingsCache);
+    final raw = prefs.getString(_cacheKey(excludeAnonymous));
     if (raw == null) return null;
     try {
       final decoded = json.decode(raw);
@@ -190,8 +214,11 @@ class AvgRankingListService {
   }
 
   // 保存平均值排行数据到缓存
-  static Future<void> _cacheRankings(List<AvgRankItem> items,
-      {int? nextUpdateAt}) async {
+  static Future<void> _cacheRankings(
+    List<AvgRankItem> items, {
+    bool excludeAnonymous = false,
+    int? nextUpdateAt,
+  }) async {
     final generation = _cacheGeneration;
     final prefs = await SharedPreferences.getInstance();
     if (generation != _cacheGeneration) return;
@@ -203,9 +230,9 @@ class AvgRankingListService {
         'nextUpdateAt': nextUpdateAt ??
             DateTime.now().millisecondsSinceEpoch + _cacheExpirySeconds * 1000,
       });
-      await prefs.setString(CacheKeyConstant.avgRankingsCache, jsonString);
+      await prefs.setString(_cacheKey(excludeAnonymous), jsonString);
       await prefs.setInt(
-        CacheKeyConstant.avgRankingsCacheTimestamp,
+        _timestampKey(excludeAnonymous),
         DateTime.now().millisecondsSinceEpoch ~/ 1000,
       );
     } catch (e) {
@@ -218,7 +245,9 @@ class AvgRankingListService {
     // 清理前发出的响应不能重新写回旧头像与资料。
     _cacheGeneration++;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(CacheKeyConstant.avgRankingsCache);
-    await prefs.remove(CacheKeyConstant.avgRankingsCacheTimestamp);
+    await prefs.remove(_cacheKey(false));
+    await prefs.remove(_timestampKey(false));
+    await prefs.remove(_cacheKey(true));
+    await prefs.remove(_timestampKey(true));
   }
 }

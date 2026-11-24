@@ -58,6 +58,7 @@ class _FittedRatingRankingListPageState
   void initState() {
     super.initState();
     CommunityAvatarStore.profileChanges.addListener(_onAppearanceChanged);
+    RankingAnonymousFilter.notifier.addListener(_onFilterChanged);
     _currentMode = widget.initialMode;
     _loadData();
   }
@@ -66,14 +67,20 @@ class _FittedRatingRankingListPageState
     if (mounted) _loadRankings(refresh: true);
   }
 
+  void _onFilterChanged() {
+    if (mounted) _loadRankings();
+  }
+
   @override
   void dispose() {
     CommunityAvatarStore.profileChanges.removeListener(_onAppearanceChanged);
+    RankingAnonymousFilter.notifier.removeListener(_onFilterChanged);
     _scrollController.dispose();
     super.dispose();
   }
 
   Future<void> _loadData() async {
+    await RankingAnonymousFilter.load();
     await _loadCurrentUserInfo();
     await _loadRankings();
   }
@@ -154,6 +161,7 @@ class _FittedRatingRankingListPageState
     if (!mounted) return;
     final generation = ++_requestGeneration;
     final mode = _currentMode;
+    final excludeAnonymous = RankingAnonymousFilter.enabled;
     setState(() {
       _isLoading = true;
       _errorMessage = '';
@@ -163,6 +171,7 @@ class _FittedRatingRankingListPageState
       final items = await FittedRatingRankingListService.getRankings(
         mode: mode,
         refresh: refresh,
+        excludeAnonymous: excludeAnonymous,
       );
 
       if (!mounted || generation != _requestGeneration) return;
@@ -181,6 +190,7 @@ class _FittedRatingRankingListPageState
         userItem ??= await FittedRatingRankingListService.getCurrentUserRank(
           mode: mode,
           userId: _currentUserId!,
+          excludeAnonymous: excludeAnonymous,
         );
       }
 
@@ -403,6 +413,7 @@ class _FittedRatingRankingListPageState
 
               // 免责声明
               const RankingNotice(),
+              const RankingAnonymousFilterBar(showAllWhenEnabled: false),
 
               // 排行榜列表
               Expanded(

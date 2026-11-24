@@ -42,31 +42,37 @@ class RatingRankListService {
     return <RankItem>[];
   }
 
+  static String _totalCacheKey(bool excludeAnonymous) =>
+      '${CacheKeyConstant.totalRankingsCache}_$_cacheVersion${excludeAnonymous ? '_nonanon' : ''}';
+
+  static String _totalTimestampKey(bool excludeAnonymous) =>
+      '${CacheKeyConstant.totalRankingsCacheTimestamp}_$_cacheVersion${excludeAnonymous ? '_nonanon' : ''}';
+
   // 获取总排行榜
-  static Future<List<RankItem>> getTotalRankings({int? limit}) async {
+  static Future<List<RankItem>> getTotalRankings({
+    int? limit,
+    bool excludeAnonymous = false,
+  }) async {
+    final cacheKey = _totalCacheKey(excludeAnonymous);
+    final timestampKey = _totalTimestampKey(excludeAnonymous);
     // 先检查缓存
-    final cachedData = await _getCachedRankings(
-      '${CacheKeyConstant.totalRankingsCache}_$_cacheVersion',
-      '${CacheKeyConstant.totalRankingsCacheTimestamp}_$_cacheVersion',
-    );
+    final cachedData = await _getCachedRankings(cacheKey, timestampKey);
     if (cachedData != null) {
       return cachedData;
     }
 
     try {
-      String url = '${ApiUrls.RankingsBaseUrl}/total';
-      if (limit != null) {
-        url += '?limit=$limit';
-      }
+      final params = <String, String>{
+        if (limit != null) 'limit': '$limit',
+        if (excludeAnonymous) 'excludeAnonymous': 'true',
+      };
+      final base = Uri.parse('${ApiUrls.RankingsBaseUrl}/total');
+      final uri = params.isEmpty ? base : base.replace(queryParameters: params);
       final generation = _cacheGeneration;
-      final items = await _fetch(url);
+      final items = await _fetch(uri.toString());
       if (items.isNotEmpty && generation == _cacheGeneration) {
         // 保存到缓存
-        await _cacheRankings(
-          items,
-          '${CacheKeyConstant.totalRankingsCache}_$_cacheVersion',
-          '${CacheKeyConstant.totalRankingsCacheTimestamp}_$_cacheVersion',
-        );
+        await _cacheRankings(items, cacheKey, timestampKey);
       }
       return items;
     } catch (e) {
@@ -85,9 +91,11 @@ class RatingRankListService {
   static Future<List<RankItem>> getSourceRankings(
     RefreshDataSource source, {
     int? limit,
+    bool excludeAnonymous = false,
   }) async {
-    final cacheKey = _cacheKeyOf(source);
-    final cacheTimestampKey = _cacheTimestampKeyOf(source);
+    final cacheKey = _cacheKeyOf(source, excludeAnonymous: excludeAnonymous);
+    final cacheTimestampKey =
+        _cacheTimestampKeyOf(source, excludeAnonymous: excludeAnonymous);
 
     // 先检查缓存
     final cachedData = await _getCachedRankings(cacheKey, cacheTimestampKey);
@@ -96,12 +104,14 @@ class RatingRankListService {
     }
 
     try {
-      String url = '${ApiUrls.RankingsBaseUrl}/${source.key}';
-      if (limit != null) {
-        url += '?limit=$limit';
-      }
+      final params = <String, String>{
+        if (limit != null) 'limit': '$limit',
+        if (excludeAnonymous) 'excludeAnonymous': 'true',
+      };
+      final base = Uri.parse('${ApiUrls.RankingsBaseUrl}/${source.key}');
+      final uri = params.isEmpty ? base : base.replace(queryParameters: params);
       final generation = _cacheGeneration;
-      final items = await _fetch(url);
+      final items = await _fetch(uri.toString());
       if (items.isNotEmpty && generation == _cacheGeneration) {
         // 保存到缓存
         await _cacheRankings(items, cacheKey, cacheTimestampKey);
@@ -114,25 +124,33 @@ class RatingRankListService {
   }
 
   /// 数据源 → 排行榜缓存的键。三个源各一份，不能共用（否则切 Tab 会读到别的榜）。
-  static String _cacheKeyOf(RefreshDataSource source) {
+  static String _cacheKeyOf(
+    RefreshDataSource source, {
+    bool excludeAnonymous = false,
+  }) {
+    final suffix = excludeAnonymous ? '_nonanon' : '';
     switch (source) {
       case RefreshDataSource.shuiyu:
-        return '${CacheKeyConstant.shuiyuRankingsCache}_$_cacheVersion';
+        return '${CacheKeyConstant.shuiyuRankingsCache}_$_cacheVersion$suffix';
       case RefreshDataSource.luoxue:
-        return '${CacheKeyConstant.luoxueRankingsCache}_$_cacheVersion';
+        return '${CacheKeyConstant.luoxueRankingsCache}_$_cacheVersion$suffix';
       case RefreshDataSource.awmc:
-        return '${CacheKeyConstant.awmcRankingsCache}_$_cacheVersion';
+        return '${CacheKeyConstant.awmcRankingsCache}_$_cacheVersion$suffix';
     }
   }
 
-  static String _cacheTimestampKeyOf(RefreshDataSource source) {
+  static String _cacheTimestampKeyOf(
+    RefreshDataSource source, {
+    bool excludeAnonymous = false,
+  }) {
+    final suffix = excludeAnonymous ? '_nonanon' : '';
     switch (source) {
       case RefreshDataSource.shuiyu:
-        return '${CacheKeyConstant.shuiyuRankingsCacheTimestamp}_$_cacheVersion';
+        return '${CacheKeyConstant.shuiyuRankingsCacheTimestamp}_$_cacheVersion$suffix';
       case RefreshDataSource.luoxue:
-        return '${CacheKeyConstant.luoxueRankingsCacheTimestamp}_$_cacheVersion';
+        return '${CacheKeyConstant.luoxueRankingsCacheTimestamp}_$_cacheVersion$suffix';
       case RefreshDataSource.awmc:
-        return '${CacheKeyConstant.awmcRankingsCacheTimestamp}_$_cacheVersion';
+        return '${CacheKeyConstant.awmcRankingsCacheTimestamp}_$_cacheVersion$suffix';
     }
   }
 
@@ -140,23 +158,18 @@ class RatingRankListService {
   static Future<int?> getUserRank(
     String userId, {
     RefreshDataSource? source,
+    bool excludeAnonymous = false,
   }) async {
     try {
-      if (source != null) {
-        // 分源榜的名次不能复用总榜接口（总榜会把其它数据源的玩家也算进去）。
-        // 只在用户不在前 100 名时调用这里，拉取该源的完整榜单并按同一规则计算名次。
-        final allItems = await _fetch(
-          '${ApiUrls.RankingsBaseUrl}/${source.key}?limit=100000',
-        );
-        final ranked = calculateRankedPositions(allItems);
-        for (final item in ranked) {
-          if (item.userId == userId) return item.rank;
-        }
-        return null;
-      }
+      final params = <String, String>{
+        if (source != null) 'source': source.key,
+        if (excludeAnonymous) 'excludeAnonymous': 'true',
+      };
+      final base = Uri.parse(
+          '${ApiUrls.RankingsBaseUrl}/user/${Uri.encodeComponent(userId)}');
+      final uri = params.isEmpty ? base : base.replace(queryParameters: params);
       final response = await ApiClient.get(
-        Uri.parse(
-            '${ApiUrls.RankingsBaseUrl}/user/${Uri.encodeComponent(userId)}'),
+        uri,
         headers: {'Content-Type': 'application/json'},
       );
 
@@ -275,12 +288,15 @@ class RatingRankListService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(CacheKeyConstant.totalRankingsCache);
     await prefs.remove(CacheKeyConstant.totalRankingsCacheTimestamp);
-    await prefs.remove('${CacheKeyConstant.totalRankingsCache}_$_cacheVersion');
-    await prefs.remove(
-        '${CacheKeyConstant.totalRankingsCacheTimestamp}_$_cacheVersion');
+    await prefs.remove(_totalCacheKey(false));
+    await prefs.remove(_totalTimestampKey(false));
+    await prefs.remove(_totalCacheKey(true));
+    await prefs.remove(_totalTimestampKey(true));
     for (final source in RefreshDataSource.values) {
       await prefs.remove(_cacheKeyOf(source));
       await prefs.remove(_cacheTimestampKeyOf(source));
+      await prefs.remove(_cacheKeyOf(source, excludeAnonymous: true));
+      await prefs.remove(_cacheTimestampKeyOf(source, excludeAnonymous: true));
     }
   }
 }

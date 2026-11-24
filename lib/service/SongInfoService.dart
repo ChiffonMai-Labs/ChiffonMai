@@ -1092,6 +1092,46 @@ class SongInfoService {
     }
   }
 
+  // 举报评论
+  static Future<Map<String, dynamic>> reportComment({
+    required int commentId,
+    required String reason,
+    String? reporterPlayerId,
+  }) async {
+    try {
+      final response = await ApiClient.post(
+        Uri.parse(ApiUrls.commentReportUrl(commentId)),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'reason': reason,
+          if (reporterPlayerId != null && reporterPlayerId.isNotEmpty)
+            'reporterPlayerId': reporterPlayerId,
+        }),
+      );
+      if (response.statusCode == 200) {
+        final result = json.decode(response.body);
+        if (result is Map && result['success'] == true) {
+          return {
+            'success': true,
+            'alreadyReported': result['alreadyReported'] == true,
+          };
+        }
+        return {
+          'success': false,
+          'message': result is Map ? result['error'] : null,
+        };
+      }
+      final errorResult = json.decode(response.body);
+      return {
+        'success': false,
+        'message': errorResult is Map ? errorResult['error'] : null,
+      };
+    } catch (e) {
+      debugPrint('SongInfoService: 举报评论异常: $e');
+      return {'success': false};
+    }
+  }
+
   // ============== 评论缓存相关私有方法 ==============
 
   // 从缓存获取评论数据

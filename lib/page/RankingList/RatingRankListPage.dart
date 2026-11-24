@@ -73,6 +73,7 @@ class _RatingRankListPageState extends State<RatingRankListPage> {
   void initState() {
     super.initState();
     CommunityAvatarStore.profileChanges.addListener(_onAppearanceChanged);
+    RankingAnonymousFilter.notifier.addListener(_onFilterChanged);
     _loadData();
   }
 
@@ -80,14 +81,20 @@ class _RatingRankListPageState extends State<RatingRankListPage> {
     if (mounted) _loadRankings();
   }
 
+  void _onFilterChanged() {
+    if (mounted) _loadRankings();
+  }
+
   @override
   void dispose() {
     CommunityAvatarStore.profileChanges.removeListener(_onAppearanceChanged);
+    RankingAnonymousFilter.notifier.removeListener(_onFilterChanged);
     _scrollController.dispose();
     super.dispose();
   }
 
   Future<void> _loadData() async {
+    await RankingAnonymousFilter.load();
     await _loadCurrentUserInfo();
     await _loadRankings();
   }
@@ -204,6 +211,7 @@ class _RatingRankListPageState extends State<RatingRankListPage> {
     List<RankItem> items, {
     required String? userId,
     required RefreshDataSource? source,
+    required bool excludeAnonymous,
   }) async {
     if (userId == null || userId.isEmpty) return null;
 
@@ -224,6 +232,7 @@ class _RatingRankListPageState extends State<RatingRankListPage> {
     final rank = await RatingRankListService.getUserRank(
       userId,
       source: source,
+      excludeAnonymous: excludeAnonymous,
     );
     if (rank == null) return null;
     detail.rank = rank;
@@ -236,6 +245,7 @@ class _RatingRankListPageState extends State<RatingRankListPage> {
     final tab = _selectedTab;
     final source = _selectedSource;
     final userId = _selectedUserId;
+    final excludeAnonymous = RankingAnonymousFilter.enabled;
     setState(() {
       _isLoading = true;
       _errorMessage = '';
@@ -244,12 +254,18 @@ class _RatingRankListPageState extends State<RatingRankListPage> {
     try {
       List<RankItem> items;
       if (source == null) {
-        // 第 0 个 Tab 是跨源总榜
-        items = await RatingRankListService.getTotalRankings(limit: 500);
+        // 第 0 个 Tab 是跨源总榜：开启屏蔽匿名用户时展示全部非匿名玩家。
+        items = await RatingRankListService.getTotalRankings(
+          limit: excludeAnonymous ? null : 500,
+          excludeAnonymous: excludeAnonymous,
+        );
       } else {
-        // 其余 Tab 按 _tabSources 取对应数据源的榜（水鱼 / 落雪 / AWMC NET）
-        items =
-            await RatingRankListService.getSourceRankings(source, limit: 500);
+        // 其余 Tab 按 _tabSources 取对应数据源的榜：开启屏蔽匿名用户时取前 100 名非匿名玩家。
+        items = await RatingRankListService.getSourceRankings(
+          source,
+          limit: excludeAnonymous ? 100 : 500,
+          excludeAnonymous: excludeAnonymous,
+        );
       }
 
       if (!mounted || generation != _requestGeneration) return;
@@ -260,11 +276,14 @@ class _RatingRankListPageState extends State<RatingRankListPage> {
         items,
         userId: userId,
         source: source,
+        excludeAnonymous: excludeAnonymous,
       );
       if (!mounted || generation != _requestGeneration) return;
 
       setState(() {
-        _rankList = items.take(500).toList();
+        _rankList = (source == null && excludeAnonymous)
+            ? items
+            : items.take(excludeAnonymous ? 100 : 500).toList();
         _currentUserRankItem = currentUserRankItem;
         _resultTab = tab;
         _resultUserId = userId;
@@ -468,6 +487,7 @@ class _RatingRankListPageState extends State<RatingRankListPage> {
               ),
               // 免责声明
               const RankingNotice(),
+              RankingAnonymousFilterBar(showAllWhenEnabled: _selectedTab == 0),
 
               // 排行榜列表
               Expanded(

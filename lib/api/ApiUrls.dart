@@ -282,6 +282,13 @@ class ApiUrls {
   static const String CommentsCreateUrl = '$CommentsBaseUrl/create';
   static const String CommentsClearCacheUrl = '$CommentsBaseUrl/clear-cache';
   static const String CommentsRecentUrl = '$CommentsBaseUrl/recent';
+  static String commentReportUrl(int commentId) =>
+      '$CommentsBaseUrl/$commentId/report';
+
+  // 社区屏蔽与账号注销 API 地址（自家后端）
+  static const String CommunityBlocksUrl =
+      '$BackendBaseUrl/api/community/blocks';
+  static const String AccountDeleteUrl = '$BackendBaseUrl/api/account';
 
   // B站播放量 Redis 缓存 API（自家后端）
   static const String BiliRedisBaseUrl =

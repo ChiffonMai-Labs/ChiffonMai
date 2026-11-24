@@ -15351,6 +15351,21 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get flowBest50EmptySlot => '暂无成绩';
+
+  @override
+  String get commentReportSubmitted => '举报已提交，感谢反馈';
+
+  @override
+  String get commentReportAlreadySubmitted => '你已举报过该评论';
+
+  @override
+  String get rankingHideAnonymous => '屏蔽匿名用户';
+
+  @override
+  String get rankingHideAnonymousTotalHint => '已开启：展示全部非匿名玩家';
+
+  @override
+  String get rankingHideAnonymousTop100Hint => '已开启：展示前 100 名非匿名玩家';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -30702,4 +30717,19 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get flowBest50EmptySlot => '暫無成績';
+
+  @override
+  String get commentReportSubmitted => '舉報已提交，感謝回饋';
+
+  @override
+  String get commentReportAlreadySubmitted => '你已舉報過該評論';
+
+  @override
+  String get rankingHideAnonymous => '屏蔽匿名用戶';
+
+  @override
+  String get rankingHideAnonymousTotalHint => '已開啟：展示全部非匿名玩家';
+
+  @override
+  String get rankingHideAnonymousTop100Hint => '已開啟：展示前 100 名非匿名玩家';
 }

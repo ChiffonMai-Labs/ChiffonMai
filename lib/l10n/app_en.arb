@@ -4455,5 +4455,10 @@
   "simpleModeMoreFeatures": "More Features ({count})",
   "simpleModeMorePages": "More Pages",
   "simpleModeDefaultShortcutsHint": "Showing default shortcuts. Star any feature to customize.",
-  "flowBest50EmptySlot": "Empty slot"
+  "flowBest50EmptySlot": "Empty slot",
+  "commentReportSubmitted": "Report submitted. Thanks for your feedback.",
+  "commentReportAlreadySubmitted": "You have already reported this comment",
+  "rankingHideAnonymous": "Hide anonymous users",
+  "rankingHideAnonymousTotalHint": "Showing all non-anonymous players",
+  "rankingHideAnonymousTop100Hint": "Showing top 100 non-anonymous players"
 }

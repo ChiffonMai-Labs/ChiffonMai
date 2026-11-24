@@ -10622,5 +10622,10 @@
   },
   "simpleModeMorePages": "更多页面",
   "simpleModeDefaultShortcutsHint": "已展示默认常用入口，点击功能右侧星标即可自定义",
-  "flowBest50EmptySlot": "暂无成绩"
+  "flowBest50EmptySlot": "暂无成绩",
+  "commentReportSubmitted": "举报已提交，感谢反馈",
+  "commentReportAlreadySubmitted": "你已举报过该评论",
+  "rankingHideAnonymous": "屏蔽匿名用户",
+  "rankingHideAnonymousTotalHint": "已开启：展示全部非匿名玩家",
+  "rankingHideAnonymousTop100Hint": "已开启：展示前 100 名非匿名玩家"
 }

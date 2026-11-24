@@ -26827,6 +26827,36 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'暂无成绩'**
   String get flowBest50EmptySlot;
+
+  /// No description provided for @commentReportSubmitted.
+  ///
+  /// In zh, this message translates to:
+  /// **'举报已提交，感谢反馈'**
+  String get commentReportSubmitted;
+
+  /// No description provided for @commentReportAlreadySubmitted.
+  ///
+  /// In zh, this message translates to:
+  /// **'你已举报过该评论'**
+  String get commentReportAlreadySubmitted;
+
+  /// No description provided for @rankingHideAnonymous.
+  ///
+  /// In zh, this message translates to:
+  /// **'屏蔽匿名用户'**
+  String get rankingHideAnonymous;
+
+  /// No description provided for @rankingHideAnonymousTotalHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'已开启：展示全部非匿名玩家'**
+  String get rankingHideAnonymousTotalHint;
+
+  /// No description provided for @rankingHideAnonymousTop100Hint.
+  ///
+  /// In zh, this message translates to:
+  /// **'已开启：展示前 100 名非匿名玩家'**
+  String get rankingHideAnonymousTop100Hint;
 }
 
 class _AppLocalizationsDelegate

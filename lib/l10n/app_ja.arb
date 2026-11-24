@@ -4455,5 +4455,10 @@
   "simpleModeMoreFeatures": "その他の機能（{count}）",
   "simpleModeMorePages": "その他のページ",
   "simpleModeDefaultShortcutsHint": "デフォルトのショートカットを表示中です。星マークでカスタマイズできます",
-  "flowBest50EmptySlot": "記録なし"
+  "flowBest50EmptySlot": "記録なし",
+  "commentReportSubmitted": "通報を送信しました。ご協力ありがとうございます",
+  "commentReportAlreadySubmitted": "このコメントはすでに通報済みです",
+  "rankingHideAnonymous": "匿名ユーザーを非表示",
+  "rankingHideAnonymousTotalHint": "匿名以外の全プレイヤーを表示中",
+  "rankingHideAnonymousTop100Hint": "匿名以外の上位100名を表示中"
 }

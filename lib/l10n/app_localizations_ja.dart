@@ -15666,4 +15666,19 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get flowBest50EmptySlot => '記録なし';
+
+  @override
+  String get commentReportSubmitted => '通報を送信しました。ご協力ありがとうございます';
+
+  @override
+  String get commentReportAlreadySubmitted => 'このコメントはすでに通報済みです';
+
+  @override
+  String get rankingHideAnonymous => '匿名ユーザーを非表示';
+
+  @override
+  String get rankingHideAnonymousTotalHint => '匿名以外の全プレイヤーを表示中';
+
+  @override
+  String get rankingHideAnonymousTop100Hint => '匿名以外の上位100名を表示中';
 }
