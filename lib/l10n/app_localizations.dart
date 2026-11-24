@@ -26821,6 +26821,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'已展示默认常用入口，点击功能右侧星标即可自定义'**
   String get simpleModeDefaultShortcutsHint;
+
+  /// No description provided for @flowBest50EmptySlot.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无成绩'**
+  String get flowBest50EmptySlot;
 }
 
 class _AppLocalizationsDelegate

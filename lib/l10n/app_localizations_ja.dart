@@ -15663,4 +15663,7 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get simpleModeDefaultShortcutsHint =>
       'デフォルトのショートカットを表示中です。星マークでカスタマイズできます';
+
+  @override
+  String get flowBest50EmptySlot => '記録なし';
 }

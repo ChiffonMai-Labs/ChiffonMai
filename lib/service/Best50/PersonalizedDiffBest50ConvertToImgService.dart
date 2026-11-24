@@ -50,8 +50,9 @@ class PersonalizedDiffBest50ConvertToImg {
             background: background,
             theme: theme),
       );
+      final thunderCount = diffSongs.length < 50 ? 50 : diffSongs.length;
       final exportWidth = thunderMode
-          ? ThunderBest50Export.widthFor(diffSongs.length, thunderVertical)
+          ? ThunderBest50Export.widthFor(thunderCount, thunderVertical)
           : 1700.0;
 
       overlayEntry = OverlayEntry(
@@ -247,6 +248,7 @@ class PersonalizedDiffBest50ConvertToImg {
         diffSongs.isNotEmpty ? scoreRateSum / diffSongs.length : 0.0;
 
     if (thunderMode) {
+      final totalSlots = diffSongs.length < 50 ? 50 : diffSongs.length;
       final maxIdLength =
           diffSongs.any((song) => '${song['song_id']}'.length == 6) ? 6 : 5;
       return ThunderBest50Export.build(
@@ -254,7 +256,7 @@ class PersonalizedDiffBest50ConvertToImg {
         theme: theme,
         title: title,
         vertical: thunderVertical,
-        count: diffSongs.length,
+        count: totalSlots,
         statistics: context.l10n.flowFittedRatingP0VsThisTagS(
             (diffRatingSum).toString(),
             (best50Diff > 0 ? '+' : '').toString(),
@@ -262,8 +264,10 @@ class PersonalizedDiffBest50ConvertToImg {
             (diffRatingAverage.toStringAsFixed(1)).toString(),
             (averageAchievement.toStringAsFixed(4)).toString(),
             ((averageScoreRate * 100).toStringAsFixed(2)).toString()),
-        cardBuilder: (index) => _buildDataGameCard(
-            context, diffSongs[index], maimaiMusicData, maxIdLength),
+        cardBuilder: (index) => index < diffSongs.length
+            ? _buildDataGameCard(
+                context, diffSongs[index], maimaiMusicData, maxIdLength)
+            : B50ExportPlaceholderCard(slotLabel: '#${index + 1}'),
       );
     }
     const double containerWidth = 1700.0;
@@ -422,6 +426,7 @@ class PersonalizedDiffBest50ConvertToImg {
         break;
       }
     }
+    final itemCount = songs.length < 50 ? 50 : songs.length;
     return Container(
       width: crossAxisCount == 50 ? 17000 : 1700,
       child: GridView.builder(
@@ -434,10 +439,13 @@ class PersonalizedDiffBest50ConvertToImg {
           mainAxisSpacing: 8.0,
           childAspectRatio: childAspectRatio,
         ),
-        itemCount: songs.length,
+        itemCount: itemCount,
         itemBuilder: (context, index) {
-          return _buildDataGameCard(
-              context, songs[index], maimaiMusicData, maxIdLength);
+          if (index < songs.length) {
+            return _buildDataGameCard(
+                context, songs[index], maimaiMusicData, maxIdLength);
+          }
+          return B50ExportPlaceholderCard(slotLabel: '#${index + 1}');
         },
       ),
     );

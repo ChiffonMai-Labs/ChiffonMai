@@ -65,9 +65,10 @@ class PersonalizedB50ConvertToImg {
             theme: theme),
       );
 
+      final thunderCount =
+          personalizedSongs.length < 50 ? 50 : personalizedSongs.length;
       final exportWidth = thunderMode
-          ? ThunderBest50Export.widthFor(
-              personalizedSongs.length, thunderVertical)
+          ? ThunderBest50Export.widthFor(thunderCount, thunderVertical)
           : 1700.0;
       // 创建一个屏幕外的OverlayEntry，避免影响主UI
       // 使用Positioned将Widget定位到屏幕外，确保它被渲染但不可见
@@ -269,6 +270,8 @@ class PersonalizedB50ConvertToImg {
       Best50ExportBackground background = Best50ExportBackground.none,
       ExportImageTheme theme = ExportImageTheme.light}) async {
     if (thunderMode) {
+      final totalSlots =
+          personalizedSongs.length < 50 ? 50 : personalizedSongs.length;
       final sum = personalizedSongs.fold<int>(
           0, (sum, song) => sum + ((song['ra'] as num?)?.toInt() ?? 0));
       final averageScoreRate = averageDxScoreRate ??
@@ -282,19 +285,21 @@ class PersonalizedB50ConvertToImg {
         theme: theme,
         title: title,
         vertical: thunderVertical,
-        count: personalizedSongs.length,
+        count: totalSlots,
         statistics: context.l10n.flowP0ChartsTotalRatingP1AverageDX(
             (personalizedSongs.length).toString(),
             (sum).toString(),
             ((averageScoreRate * 100).toStringAsFixed(2)).toString()),
         warning: warningText,
         sortLabel: sortLabel,
-        cardBuilder: (index) => _buildGameCard(
-            context: context,
-            songData: personalizedSongs[index],
-            maimaiMusicData: maimaiMusicData,
-            index: index,
-            maxIdLength: maxIdLength),
+        cardBuilder: (index) => index < personalizedSongs.length
+            ? _buildGameCard(
+                context: context,
+                songData: personalizedSongs[index],
+                maimaiMusicData: maimaiMusicData,
+                index: index,
+                maxIdLength: maxIdLength)
+            : B50ExportPlaceholderCard(slotLabel: '#${index + 1}'),
       );
     }
     double containerWidth = thunderMode && !thunderVertical ? 17000 : 1700;
@@ -459,6 +464,7 @@ class PersonalizedB50ConvertToImg {
         break;
       }
     }
+    final itemCount = songs.length < 50 ? 50 : songs.length;
     return Container(
       width: crossAxisCount == 50 ? 17000 : 1700,
       child: GridView.builder(
@@ -470,15 +476,18 @@ class PersonalizedB50ConvertToImg {
           mainAxisSpacing: 8.0,
           crossAxisSpacing: 8.0,
         ),
-        itemCount: songs.length,
+        itemCount: itemCount,
         itemBuilder: (context, index) {
-          return _buildGameCard(
-            context: context,
-            songData: songs[index],
-            maimaiMusicData: maimaiMusicData,
-            index: index,
-            maxIdLength: maxIdLength,
-          );
+          if (index < songs.length) {
+            return _buildGameCard(
+              context: context,
+              songData: songs[index],
+              maimaiMusicData: maimaiMusicData,
+              index: index,
+              maxIdLength: maxIdLength,
+            );
+          }
+          return B50ExportPlaceholderCard(slotLabel: '#${index + 1}');
         },
       ),
     );

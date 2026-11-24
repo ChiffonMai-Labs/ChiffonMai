@@ -4454,5 +4454,6 @@
   "simpleModeCoreFeatures": "主要機能",
   "simpleModeMoreFeatures": "その他の機能（{count}）",
   "simpleModeMorePages": "その他のページ",
-  "simpleModeDefaultShortcutsHint": "デフォルトのショートカットを表示中です。星マークでカスタマイズできます"
+  "simpleModeDefaultShortcutsHint": "デフォルトのショートカットを表示中です。星マークでカスタマイズできます",
+  "flowBest50EmptySlot": "記録なし"
 }

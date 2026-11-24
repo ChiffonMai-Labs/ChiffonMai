@@ -4454,5 +4454,6 @@
   "simpleModeCoreFeatures": "Core Features",
   "simpleModeMoreFeatures": "More Features ({count})",
   "simpleModeMorePages": "More Pages",
-  "simpleModeDefaultShortcutsHint": "Showing default shortcuts. Star any feature to customize."
+  "simpleModeDefaultShortcutsHint": "Showing default shortcuts. Star any feature to customize.",
+  "flowBest50EmptySlot": "Empty slot"
 }

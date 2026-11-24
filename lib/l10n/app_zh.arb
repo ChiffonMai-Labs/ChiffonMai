@@ -10621,5 +10621,6 @@
     }
   },
   "simpleModeMorePages": "更多页面",
-  "simpleModeDefaultShortcutsHint": "已展示默认常用入口，点击功能右侧星标即可自定义"
+  "simpleModeDefaultShortcutsHint": "已展示默认常用入口，点击功能右侧星标即可自定义",
+  "flowBest50EmptySlot": "暂无成绩"
 }

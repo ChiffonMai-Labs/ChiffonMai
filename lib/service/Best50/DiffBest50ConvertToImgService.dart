@@ -60,8 +60,9 @@ class DiffBest50ConvertToImg {
             background: background,
             theme: theme),
       );
+      final thunderCount = diffSongs.length < 50 ? 50 : diffSongs.length;
       final exportWidth = thunderMode
-          ? ThunderBest50Export.widthFor(diffSongs.length, thunderVertical)
+          ? ThunderBest50Export.widthFor(thunderCount, thunderVertical)
           : 1700.0;
 
       // 创建一个屏幕外的OverlayEntry，避免影响主UI
@@ -287,6 +288,7 @@ class DiffBest50ConvertToImg {
         diffSongs.isNotEmpty ? scoreRateSum / diffSongs.length : 0.0;
 
     if (thunderMode) {
+      final totalSlots = diffSongs.length < 50 ? 50 : diffSongs.length;
       final maxIdLength =
           diffSongs.any((song) => '${song['song_id']}'.length == 6) ? 6 : 5;
       return ThunderBest50Export.build(
@@ -294,14 +296,16 @@ class DiffBest50ConvertToImg {
         theme: theme,
         title: context.l10n.featureFittedBest50,
         vertical: thunderVertical,
-        count: diffSongs.length,
+        count: totalSlots,
         statistics: context.l10n.flowFittedRatingP0AverageRatingP1Average(
             (diffRatingSum).toString(),
             (diffRatingAverage.toStringAsFixed(1)).toString(),
             (diffBest50AchievementAverage.toStringAsFixed(4)).toString(),
             ((diffBest50ScoreRateAverage * 100).toStringAsFixed(2)).toString()),
-        cardBuilder: (index) => _buildDataGameCard(
-            context, diffSongs[index], maimaiMusicData, maxIdLength),
+        cardBuilder: (index) => index < diffSongs.length
+            ? _buildDataGameCard(
+                context, diffSongs[index], maimaiMusicData, maxIdLength)
+            : B50ExportPlaceholderCard(slotLabel: '#${index + 1}'),
       );
     }
     // 创建一个容器，设置固定宽度以确保布局一致
@@ -495,6 +499,7 @@ class DiffBest50ConvertToImg {
         break;
       }
     }
+    final itemCount = songs.length < 50 ? 50 : songs.length;
     return Container(
       width: crossAxisCount == 50 ? 17000 : 1700,
       child: GridView.builder(
@@ -507,10 +512,13 @@ class DiffBest50ConvertToImg {
           mainAxisSpacing: 8.0,
           childAspectRatio: childAspectRatio,
         ),
-        itemCount: songs.length,
+        itemCount: itemCount,
         itemBuilder: (context, index) {
-          return _buildDataGameCard(
-              context, songs[index], maimaiMusicData, maxIdLength);
+          if (index < songs.length) {
+            return _buildDataGameCard(
+                context, songs[index], maimaiMusicData, maxIdLength);
+          }
+          return B50ExportPlaceholderCard(slotLabel: '#${index + 1}');
         },
       ),
     );

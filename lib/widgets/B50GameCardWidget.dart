@@ -1040,3 +1040,249 @@ class _ExportStarGlyphPainter extends CustomPainter {
   bool shouldRepaint(_ExportStarGlyphPainter oldDelegate) =>
       color != oldDelegate.color || strokeWidth != oldDelegate.strokeWidth;
 }
+
+/// Best50 导出画布中未填满槽位使用的占位卡片，结构与尺寸对齐 [B50GameCardWidget] 导出态。
+class B50ExportPlaceholderCard extends StatelessWidget {
+  final String slotLabel;
+  final double scale;
+
+  const B50ExportPlaceholderCard({
+    super.key,
+    required this.slotLabel,
+    this.scale = 1.0,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = ExportPalette.of(context);
+    final double radius =
+        AppDesignTokens.radiusSmall * (scale < 1 ? 1.0 : scale);
+    final double innerRadius = radius * 0.75;
+    final double contentInset = 9.0 * scale;
+    final double coverSize = 86.0 * scale;
+    final Color cardSurface =
+        c.panel.withValues(alpha: c.isLight ? 0.80 : 0.72);
+    final Color ghost = c.muted.withValues(alpha: 0.42);
+    final TextStyle secondary = TextStyle(
+      fontSize: 13 * scale,
+      height: 1.15,
+      color: c.muted.withValues(alpha: 0.72),
+      fontWeight: FontWeight.w600,
+      fontFeatures: const [FontFeature.tabularFigures()],
+    );
+
+    return MediaQuery.withNoTextScaling(
+      child: CustomPaint(
+        foregroundPainter: _DashedRRectPainter(
+          radius: radius,
+          color: c.muted.withValues(alpha: 0.36),
+          strokeWidth: 1.5 * scale,
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(radius),
+          child: ColoredBox(
+            color: cardSurface,
+            child: Column(
+              children: [
+                Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(
+                        contentInset, contentInset, contentInset, 0),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: coverSize,
+                          height: coverSize,
+                          decoration: BoxDecoration(
+                            color: c.inset,
+                            borderRadius: BorderRadius.circular(innerRadius),
+                            border: Border.all(
+                              color: c.track,
+                              width: 2 * scale,
+                            ),
+                          ),
+                          child: Center(
+                            child: Icon(
+                              Icons.music_note_rounded,
+                              size: 34 * scale,
+                              color: ghost,
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 12 * scale),
+                        Expanded(
+                          child: SizedBox(
+                            height: coverSize,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Container(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: 8 * scale,
+                                    vertical: 3 * scale,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: c.inset,
+                                    borderRadius:
+                                        BorderRadius.circular(6 * scale),
+                                    border: Border.all(color: c.track),
+                                  ),
+                                  child: Text(
+                                    slotLabel,
+                                    maxLines: 1,
+                                    style: TextStyle(
+                                      fontFamily: 'Best50ExportOutfit',
+                                      fontSize: 13 * scale,
+                                      height: 1.1,
+                                      fontWeight: FontWeight.w700,
+                                      color: c.muted,
+                                      fontFeatures: const [
+                                        FontFeature.tabularFigures()
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                SizedBox(height: 6 * scale),
+                                SizedBox(
+                                  width: double.infinity,
+                                  height: 46 * scale,
+                                  child: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    alignment: Alignment.centerLeft,
+                                    child: Text(
+                                      '---.----%',
+                                      style: TextStyle(
+                                        fontFamily: 'Best50ExportOutfit',
+                                        fontSize: 34 * scale,
+                                        height: 1.08,
+                                        fontWeight: FontWeight.w700,
+                                        color: c.muted.withValues(alpha: 0.36),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: contentInset),
+                  child: SizedBox(
+                    height: 18 * scale,
+                    child: Row(
+                      children: [
+                        Text('#-----', style: secondary),
+                        const Spacer(),
+                        Text('RA --', style: secondary),
+                        SizedBox(width: 8 * scale),
+                        Text('DX --/--', style: secondary),
+                      ],
+                    ),
+                  ),
+                ),
+                SizedBox(height: 6 * scale),
+                Container(
+                  height: (38 + 9) * scale,
+                  padding:
+                      EdgeInsets.symmetric(horizontal: (8 + 9) * scale),
+                  decoration: BoxDecoration(
+                    color: c.inset,
+                    border: Border(
+                      top: BorderSide(color: c.track, width: 1 * scale),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                            horizontal: 7 * scale, vertical: 2 * scale),
+                        decoration: BoxDecoration(
+                          color: c.panel,
+                          borderRadius: BorderRadius.circular(5 * scale),
+                          border: Border.all(color: c.track),
+                        ),
+                        child: Text(
+                          '--.-',
+                          style: secondary.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: c.muted,
+                          ),
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        context.l10n.flowBest50EmptySlot,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 14 * scale,
+                          fontWeight: FontWeight.w700,
+                          color: c.muted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DashedRRectPainter extends CustomPainter {
+  final double radius;
+  final Color color;
+  final double strokeWidth;
+
+  const _DashedRRectPainter({
+    required this.radius,
+    required this.color,
+    this.strokeWidth = 1.5,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final inset = strokeWidth / 2;
+    final rect = Rect.fromLTWH(
+      inset,
+      inset,
+      (size.width - strokeWidth).clamp(0.0, double.infinity),
+      (size.height - strokeWidth).clamp(0.0, double.infinity),
+    );
+    final rrect = RRect.fromRectAndRadius(
+      rect,
+      Radius.circular((radius - inset).clamp(0.0, double.infinity)),
+    );
+    final path = Path()..addRRect(rrect);
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+    const dash = 7.0;
+    const gap = 5.0;
+    for (final metric in path.computeMetrics()) {
+      var dist = 0.0;
+      while (dist < metric.length) {
+        final next = (dist + dash).clamp(0.0, metric.length);
+        canvas.drawPath(metric.extractPath(dist, next), paint);
+        dist += dash + gap;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DashedRRectPainter oldDelegate) =>
+      radius != oldDelegate.radius ||
+      color != oldDelegate.color ||
+      strokeWidth != oldDelegate.strokeWidth;
+}

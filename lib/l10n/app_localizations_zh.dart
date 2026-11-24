@@ -15348,6 +15348,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get simpleModeDefaultShortcutsHint => '已展示默认常用入口，点击功能右侧星标即可自定义';
+
+  @override
+  String get flowBest50EmptySlot => '暂无成绩';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -30696,4 +30699,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get simpleModeDefaultShortcutsHint => '已顯示預設常用入口，點擊功能右側星標即可自訂';
+
+  @override
+  String get flowBest50EmptySlot => '暫無成績';
 }

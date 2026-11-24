@@ -75,9 +75,13 @@ class B50ConvertToImg {
                     background: background,
                     theme: theme)),
           );
+          final int totalExportSlots = thunderMode
+              ? (sdSongs.length < 35 ? 35 : sdSongs.length) +
+                  (dxSongs.length < 15 ? 15 : dxSongs.length)
+              : 0;
           final exportWidth = thunderMode
               ? ThunderBest50Export.widthFor(
-                  sdSongs.length + dxSongs.length, thunderVertical)
+                  totalExportSlots, thunderVertical)
               : 1700.0;
 
           // 创建一个屏幕外的OverlayEntry，避免影响主UI
@@ -383,13 +387,15 @@ class B50ConvertToImg {
     final posterTitle = title ??
         (isTheoreticalMode ? context.l10n.flowTheoreticalBest50 : 'Best50');
     if (thunderMode) {
-      final songs = [...sdSongs, ...dxSongs];
+      final sdSlots = sdSongs.length < 35 ? 35 : sdSongs.length;
+      final dxSlots = dxSongs.length < 15 ? 15 : dxSongs.length;
+      final totalSlots = sdSlots + dxSlots;
       return ThunderBest50Export.build(
         background: background,
         theme: theme,
         title: posterTitle,
         vertical: thunderVertical,
-        count: songs.length,
+        count: totalSlots,
         showUserInfo: !isTheoreticalMode,
         statistics: context.l10n.flowRatingP0Best35P1Best15P2Average(
             (rating).toString(),
@@ -397,8 +403,21 @@ class B50ConvertToImg {
             (best15Sum).toString(),
             (best50AchievementAverage.toStringAsFixed(4)).toString(),
             ((best50ScoreRateAverage * 100).toStringAsFixed(2)).toString()),
-        cardBuilder: (index) => _buildDataGameCard(
-            context, songs[index], b50Data, maimaiMusicData, maxIdLength),
+        cardBuilder: (index) {
+          if (index < sdSlots) {
+            if (index < sdSongs.length) {
+              return _buildDataGameCard(context, sdSongs[index], b50Data,
+                  maimaiMusicData, maxIdLength);
+            }
+            return B50ExportPlaceholderCard(slotLabel: 'B35 · #${index + 1}');
+          }
+          final dxIndex = index - sdSlots;
+          if (dxIndex < dxSongs.length) {
+            return _buildDataGameCard(context, dxSongs[dxIndex], b50Data,
+                maimaiMusicData, maxIdLength);
+          }
+          return B50ExportPlaceholderCard(slotLabel: 'B15 · #${dxIndex + 1}');
+        },
       );
     }
 
@@ -452,13 +471,16 @@ class B50ConvertToImg {
 
                 // Best35 卡片网格 (5列)
                 _buildDataCardGrid(
-                    context,
-                    sdSongs,
-                    thunderMode ? 1.25 : 1.9,
-                    thunderMode ? (thunderVertical ? 1 : 50) : 5,
-                    b50Data,
-                    maimaiMusicData,
-                    maxIdLength),
+                  context,
+                  sdSongs,
+                  thunderMode ? 1.25 : 1.9,
+                  thunderMode ? (thunderVertical ? 1 : 50) : 5,
+                  b50Data,
+                  maimaiMusicData,
+                  maxIdLength,
+                  minSlots: 35,
+                  slotPrefix: 'B35',
+                ),
                 SizedBox(height: 24.0),
 
                 // Best15 标题区域
@@ -472,13 +494,16 @@ class B50ConvertToImg {
 
                 // Best15 卡片网格 (5列)
                 _buildDataCardGrid(
-                    context,
-                    dxSongs,
-                    thunderMode ? 1.25 : 1.9,
-                    thunderMode ? (thunderVertical ? 1 : 50) : 5,
-                    b50Data,
-                    maimaiMusicData,
-                    maxIdLength),
+                  context,
+                  dxSongs,
+                  thunderMode ? 1.25 : 1.9,
+                  thunderMode ? (thunderVertical ? 1 : 50) : 5,
+                  b50Data,
+                  maimaiMusicData,
+                  maxIdLength,
+                  minSlots: 15,
+                  slotPrefix: 'B15',
+                ),
                 SizedBox(height: 20.0),
               ],
             ),
@@ -1051,7 +1076,11 @@ class B50ConvertToImg {
       int crossAxisCount,
       Map<String, dynamic>? b50Data,
       List<dynamic>? maimaiMusicData,
-      int maxIdLength) {
+      int maxIdLength,
+      {int minSlots = 0,
+      String slotPrefix = ''}) {
+    final itemCount = songs.length < minSlots ? minSlots : songs.length;
+    final prefix = slotPrefix.isEmpty ? '#' : '$slotPrefix · #';
     return Container(
       width: crossAxisCount == 50 ? 17000 : 1700,
       child: GridView.builder(
@@ -1064,10 +1093,13 @@ class B50ConvertToImg {
           mainAxisSpacing: 8.0,
           childAspectRatio: childAspectRatio,
         ),
-        itemCount: songs.length,
+        itemCount: itemCount,
         itemBuilder: (context, index) {
-          return _buildDataGameCard(
-              context, songs[index], b50Data, maimaiMusicData, maxIdLength);
+          if (index < songs.length) {
+            return _buildDataGameCard(
+                context, songs[index], b50Data, maimaiMusicData, maxIdLength);
+          }
+          return B50ExportPlaceholderCard(slotLabel: '$prefix${index + 1}');
         },
       ),
     );

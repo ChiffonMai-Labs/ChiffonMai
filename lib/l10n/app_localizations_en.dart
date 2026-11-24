@@ -16248,4 +16248,7 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get simpleModeDefaultShortcutsHint =>
       'Showing default shortcuts. Star any feature to customize.';
+
+  @override
+  String get flowBest50EmptySlot => 'Empty slot';
 }
