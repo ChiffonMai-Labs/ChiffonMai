@@ -16309,4 +16309,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get best50TieSelectAction => 'Select';
+
+  @override
+  String get flowSearchLoadingQuotes => 'Search loading quotes';
+
+  @override
+  String get flowNoMatchingLoadingQuotes => 'No matching loading quotes';
 }

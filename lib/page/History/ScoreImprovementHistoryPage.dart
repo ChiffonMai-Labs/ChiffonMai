@@ -58,6 +58,7 @@ class _ScoreImprovementHistoryPageState
   DateTimeRange? _dateRange;
   String? _historyKey;
   int _limit = 60;
+  final ListEntrance _entrance = ListEntrance();
 
   @override
   void initState() {
@@ -480,12 +481,10 @@ class _ScoreImprovementHistoryPageState
                                   return Padding(
                                     padding: const EdgeInsets.only(
                                         bottom: AppDesignTokens.cardGap),
-                                    child: EntranceAnimation(
-                                      index: index % 8,
-                                      offset: const Offset(0, 8),
-                                      duration:
-                                          const Duration(milliseconds: 300),
-                                      child: ScoreImprovementCard(
+                                    child: _entrance.wrap(
+                                      (range, _selectedDay, query),
+                                      index,
+                                      ScoreImprovementCard(
                                           entry: entry,
                                           showDate: range != null,
                                           onOpen: () {
@@ -504,6 +503,7 @@ class _ScoreImprovementHistoryPageState
                                                                   .levelIndex,
                                                         )));
                                           }),
+                                      maxAnimatedIndex: 8,
                                     ),
                                   );
                                 },

@@ -4470,5 +4470,7 @@
   "best50TieSelectionFull": "Already selected {count}. Deselect another chart first.",
   "best50TieExportSectionTitle": "Tied Tail Chart Selection",
   "best50TieExportSegmentSummary": "{segment} · {label} ({selected}/{total})",
-  "best50TieSelectAction": "Select"
+  "best50TieSelectAction": "Select",
+  "flowSearchLoadingQuotes": "Search loading quotes",
+  "flowNoMatchingLoadingQuotes": "No matching loading quotes"
 }

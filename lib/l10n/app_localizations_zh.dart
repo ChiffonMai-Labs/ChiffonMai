@@ -15405,6 +15405,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get best50TieSelectAction => '选择';
+
+  @override
+  String get flowSearchLoadingQuotes => '搜索加载语录';
+
+  @override
+  String get flowNoMatchingLoadingQuotes => '未找到匹配的加载语录';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -30810,4 +30816,10 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get best50TieSelectAction => '選擇';
+
+  @override
+  String get flowSearchLoadingQuotes => '搜尋載入語錄';
+
+  @override
+  String get flowNoMatchingLoadingQuotes => '未找到符合的載入語錄';
 }

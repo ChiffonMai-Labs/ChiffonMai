@@ -26918,6 +26918,18 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'选择'**
   String get best50TieSelectAction;
+
+  /// No description provided for @flowSearchLoadingQuotes.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索加载语录'**
+  String get flowSearchLoadingQuotes;
+
+  /// No description provided for @flowNoMatchingLoadingQuotes.
+  ///
+  /// In zh, this message translates to:
+  /// **'未找到匹配的加载语录'**
+  String get flowNoMatchingLoadingQuotes;
 }
 
 class _AppLocalizationsDelegate

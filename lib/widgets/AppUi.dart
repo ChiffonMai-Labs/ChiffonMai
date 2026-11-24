@@ -2096,6 +2096,46 @@ class _EntranceAnimationState extends State<EntranceAnimation>
   }
 }
 
+/// 懒构建列表的首屏入场动画控制器。
+///
+/// `ListView.builder` / `SliverList.builder` 会在滚动时不断新建或重建条目；
+/// 本控制器只在批次标识 [token] 变化后的短时间窗口内对首屏条目播放一次入场动画，
+/// 向下滚动或滚回顶部时直接渲染，不再出现「边滑边载入」的延迟感。
+class ListEntrance {
+  static const _window = Duration(milliseconds: 1000);
+  static const _defaultMaxAnimatedIndex = 14;
+
+  Object? _token;
+  DateTime _shownAt = DateTime.now();
+
+  Widget wrap(
+    Object? token,
+    int index,
+    Widget child, {
+    Key? key,
+    bool enabled = true,
+    int maxAnimatedIndex = _defaultMaxAnimatedIndex,
+    Duration duration = const Duration(milliseconds: 300),
+    Offset offset = const Offset(0, 8),
+  }) {
+    if (token != _token) {
+      _token = token;
+      _shownAt = DateTime.now();
+    }
+    final shouldAnimate = enabled &&
+        index < maxAnimatedIndex &&
+        DateTime.now().difference(_shownAt) < _window;
+    return EntranceAnimation(
+      key: key,
+      index: index,
+      enabled: shouldAnimate,
+      duration: duration,
+      offset: offset,
+      child: child,
+    );
+  }
+}
+
 /// 数字滚动：值变化时从旧值滚到新值，首次显示不滚动。
 class RollingNumber extends StatelessWidget {
   final num value;

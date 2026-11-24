@@ -11,6 +11,7 @@ import '../widgets/AnimatedChoiceBar.dart';
 import '../widgets/EmptyState.dart';
 import '../widgets/AppDialogs.dart';
 import '../widgets/AppToast.dart';
+import '../widgets/QuickSearchBar.dart';
 
 class LoadingTipsPage extends StatefulWidget {
   const LoadingTipsPage({super.key});
@@ -20,8 +21,10 @@ class LoadingTipsPage extends StatefulWidget {
 
 class _LoadingTipsPageState extends State<LoadingTipsPage> {
   final _store = LoadingTipsStore.instance;
+  final ListEntrance _entrance = ListEntrance();
   bool _busy = true;
   int _tab = 0;
+  String _query = '';
 
   @override
   void initState() {
@@ -44,6 +47,7 @@ class _LoadingTipsPageState extends State<LoadingTipsPage> {
   void _changed() => mounted ? setState(() {}) : null;
 
   Future<void> _addTip({required bool cloud}) async {
+    FocusManager.instance.primaryFocus?.unfocus();
     final text = await showDialog<String>(
       context: context,
       builder: (_) => _LoadingTipInputDialog(
@@ -81,6 +85,10 @@ class _LoadingTipsPageState extends State<LoadingTipsPage> {
     final tips = _store.catalogue;
     final localTips = _store.localTips;
     final current = _tab == 0 ? localTips : tips;
+    final q = _query.trim().toLowerCase();
+    final filtered = q.isEmpty
+        ? current
+        : current.where((tip) => tip.text.toLowerCase().contains(q)).toList();
     final total = _store.totalCount;
     return BackgroundPageScaffold(
       title: context.l10n.featureLoadingQuotes,
@@ -155,9 +163,22 @@ class _LoadingTipsPageState extends State<LoadingTipsPage> {
                     SegmentedTabItem(context.l10n.flowCloudQuotesP0((tips.length).toString())),
                   ],
                   selectedIndex: _tab,
-                  onChanged: (index) => setState(() => _tab = index),
+                  onChanged: (index) {
+                    if (index == _tab) return;
+                    FocusManager.instance.primaryFocus?.unfocus();
+                    setState(() => _tab = index);
+                  },
                 ),
                 const SizedBox(height: AppDesignTokens.cardGap),
+                QuickSearchBar(
+                  query: _query,
+                  hintText: context.l10n.flowSearchLoadingQuotes,
+                  padding: const EdgeInsets.only(bottom: AppDesignTokens.cardGap),
+                  onChanged: (value) {
+                    if (value == _query) return;
+                    setState(() => _query = value);
+                  },
+                ),
               ],
             ),
           ),
@@ -165,18 +186,31 @@ class _LoadingTipsPageState extends State<LoadingTipsPage> {
             child: _busy && tips.isEmpty && localTips.isEmpty
                 ? const Center(child: CircularProgressIndicator())
                 : FadeContent(
-                    child: current.isEmpty
-                        ? EmptyState(key: ValueKey('empty-$_tab'))
+                    child: filtered.isEmpty
+                        ? (q.isNotEmpty
+                            ? EmptyState(
+                                key: ValueKey('empty-search-$_tab'),
+                                icon: Icons.search_off_rounded,
+                                message:
+                                    context.l10n.flowNoMatchingLoadingQuotes,
+                              )
+                            : EmptyState(key: ValueKey('empty-$_tab')))
                         : ListView.builder(
                             key: ValueKey(_tab),
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: AppDesignTokens.gutter),
-                            itemCount: current.length,
-                            itemBuilder: (context, index) => EntranceAnimation(
-                              index: index,
-                              offset: const Offset(0, 8),
-                              duration: const Duration(milliseconds: 300),
-                              child: _tipTile(current[index]),
+                            keyboardDismissBehavior:
+                                ScrollViewKeyboardDismissBehavior.onDrag,
+                            padding: EdgeInsets.fromLTRB(
+                              AppDesignTokens.gutter,
+                              0,
+                              AppDesignTokens.gutter,
+                              MediaQuery.viewInsetsOf(context).bottom,
+                            ),
+                            itemCount: filtered.length,
+                            itemBuilder: (context, index) => _entrance.wrap(
+                              _tab,
+                              index,
+                              _tipTile(filtered[index]),
+                              enabled: q.isEmpty,
                             ),
                           ),
                   ),

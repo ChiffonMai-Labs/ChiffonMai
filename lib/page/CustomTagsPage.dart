@@ -26,6 +26,7 @@ class CustomTagsPage extends StatefulWidget {
 
 class _CustomTagsPageState extends State<CustomTagsPage> {
   final _store = CustomTagStore.instance;
+  final ListEntrance _entrance = ListEntrance();
 
   @override
   void initState() {
@@ -118,9 +119,12 @@ class _CustomTagsPageState extends State<CustomTagsPage> {
                 ),
               );
               // 只给首屏的列表项加入场动画。
-              return i <= 8
-                  ? EntranceAnimation(index: i, child: row)
-                  : row;
+              return _entrance.wrap(
+                const Object(),
+                i,
+                row,
+                maxAnimatedIndex: 9,
+              );
             },
           );
         },

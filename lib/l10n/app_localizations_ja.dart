@@ -15720,4 +15720,10 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get best50TieSelectAction => '選択';
+
+  @override
+  String get flowSearchLoadingQuotes => '読み込み中の名言を検索';
+
+  @override
+  String get flowNoMatchingLoadingQuotes => '一致する読み込み中の名言が見つかりません';
 }

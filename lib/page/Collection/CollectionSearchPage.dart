@@ -64,6 +64,7 @@ class _CollectionSearchPageState extends State<CollectionSearchPage> {
 
   /// 只给首屏的列表项加入场动画，滚动时不反复播放。
   static const int _entranceItems = 10;
+  final ListEntrance _entrance = ListEntrance();
 
   static const LinearGradient _rainbow = LinearGradient(
     colors: [
@@ -496,14 +497,12 @@ class _CollectionSearchPageState extends State<CollectionSearchPage> {
     );
   }
 
-  Widget _withEntrance(int index, Widget child) => index >= _entranceItems
-      ? child
-      : EntranceAnimation(
-          index: index,
-          offset: const Offset(0, 8),
-          duration: const Duration(milliseconds: 300),
-          child: child,
-        );
+  Widget _withEntrance(int index, Widget child) => _entrance.wrap(
+        _searchResults,
+        index,
+        child,
+        maxAnimatedIndex: _entranceItems,
+      );
 
   /// 收藏品卡片里都有的文字：名称、ID、底色、描述和条件提示。
   Widget _buildInfo(Collection collection, {bool showName = true}) {

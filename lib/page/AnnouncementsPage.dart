@@ -23,6 +23,7 @@ class AnnouncementsPage extends StatefulWidget {
 class _AnnouncementsPageState extends State<AnnouncementsPage> {
   final _service = AnnouncementService();
   final _items = <AnnouncementSummary>[];
+  final ListEntrance _entrance = ListEntrance();
   int? _nextOffset;
   bool _loading = false;
   bool _error = false;
@@ -116,11 +117,10 @@ class _AnnouncementsPageState extends State<AnnouncementsPage> {
                 final date = item.publishedAt;
                 final theme = Theme.of(context);
                 final colors = theme.colorScheme;
-                return EntranceAnimation(
-                  key: ValueKey(item.id),
-                  index: index,
-                  enabled: index < 8,
-                  child: PressScale(
+                return _entrance.wrap(
+                  _items.isEmpty ? null : _items.first.id,
+                  index,
+                  PressScale(
                     child: ListTile(
                       contentPadding: const EdgeInsets.symmetric(
                           vertical: 8, horizontal: 4),
@@ -145,6 +145,8 @@ class _AnnouncementsPageState extends State<AnnouncementsPage> {
                       onTap: () => _open(item),
                     ),
                   ),
+                  key: ValueKey(item.id),
+                  maxAnimatedIndex: 8,
                 );
               },
             ),

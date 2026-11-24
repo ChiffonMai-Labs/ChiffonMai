@@ -49,6 +49,7 @@ class _UnionUpdateComparePageState extends State<UnionUpdateComparePage> {
   bool _loading = true;
   UnionUpdateCompare? _compare;
   _Section _section = _Section.upcoming;
+  final ListEntrance _entrance = ListEntrance();
 
   @override
   void initState() {
@@ -162,13 +163,11 @@ class _UnionUpdateComparePageState extends State<UnionUpdateComparePage> {
         else
           SliverList.builder(
             itemCount: songs.length,
-            itemBuilder: (context, index) => EntranceAnimation(
-              // 换分段时重播
+            itemBuilder: (context, index) => _entrance.wrap(
+              _section,
+              index,
+              _buildSongRow(brightness, songs[index], index + 1),
               key: ValueKey('${_section.name}-${songs[index].id}'),
-              index: index,
-              offset: const Offset(0, 8),
-              duration: const Duration(milliseconds: 300),
-              child: _buildSongRow(brightness, songs[index], index + 1),
             ),
           ),
         const SliverToBoxAdapter(child: SizedBox(height: 24)),

@@ -33,6 +33,7 @@ class _RecentCommentsPageState extends State<RecentCommentsPage> {
   int _currentPage = 1;
   static const int _pageSize = 10;
   final ScrollController _scrollController = ScrollController();
+  final ListEntrance _entrance = ListEntrance();
   String? _errorMessage;
 
   @override
@@ -230,14 +231,12 @@ class _RecentCommentsPageState extends State<RecentCommentsPage> {
                 child: _buildCommentCard(_comments[index], brightness),
               );
               // 只给首屏做入场，滚回来时不重播
-              return index < 8
-                  ? EntranceAnimation(
-                      index: index,
-                      duration: const Duration(milliseconds: 300),
-                      offset: const Offset(0, 8),
-                      child: card,
-                    )
-                  : card;
+              return _entrance.wrap(
+                _comments,
+                index,
+                card,
+                maxAnimatedIndex: 8,
+              );
             },
           ),
         ),

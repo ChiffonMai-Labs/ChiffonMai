@@ -31,6 +31,7 @@ class _DsRangeRecommendPageState extends State<DsRangeRecommendPage> {
   int _currentPage = 1;
   static const int _pageSize = 10;
   final ScrollController _scrollController = ScrollController();
+  final ListEntrance _entrance = ListEntrance();
 
   @override
   void initState() {
@@ -287,16 +288,13 @@ class _DsRangeRecommendPageState extends State<DsRangeRecommendPage> {
           child: _buildResultCard(results[index], brightness, screenWidth),
         );
         // 只给首屏做入场，滚回来时不重播
-        return index < 8
-            ? EntranceAnimation(
-                // 换页时重新进场
-                key: ValueKey('$_currentPage-$index'),
-                index: index,
-                duration: const Duration(milliseconds: 300),
-                offset: const Offset(0, 8),
-                child: card,
-              )
-            : card;
+        return _entrance.wrap(
+          (_results, _currentPage),
+          index,
+          card,
+          key: ValueKey('$_currentPage-$index'),
+          maxAnimatedIndex: 8,
+        );
       },
     );
   }

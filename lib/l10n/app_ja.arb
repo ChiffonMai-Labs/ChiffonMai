@@ -4470,5 +4470,7 @@
   "best50TieSelectionFull": "{count} 曲選択済みです。他の譜面の選択を解除してください",
   "best50TieExportSectionTitle": "末尾同点譜面の構成",
   "best50TieExportSegmentSummary": "{segment} · {label}（{selected}/{total}）",
-  "best50TieSelectAction": "選択"
+  "best50TieSelectAction": "選択",
+  "flowSearchLoadingQuotes": "読み込み中の名言を検索",
+  "flowNoMatchingLoadingQuotes": "一致する読み込み中の名言が見つかりません"
 }

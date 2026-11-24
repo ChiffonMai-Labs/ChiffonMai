@@ -4470,5 +4470,7 @@
   "best50TieSelectionFull": "已選滿 {count} 首，請先取消其他譜面",
   "best50TieExportSectionTitle": "末尾同分譜面組成",
   "best50TieExportSegmentSummary": "{segment} · {label}（{selected}/{total}）",
-  "best50TieSelectAction": "選擇"
+  "best50TieSelectAction": "選擇",
+  "flowSearchLoadingQuotes": "搜尋載入語錄",
+  "flowNoMatchingLoadingQuotes": "未找到符合的載入語錄"
 }
