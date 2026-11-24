@@ -67,6 +67,7 @@ class FriendLinksService {
       url: 'https://github.com/PojavAnge/MaiScan-Rev',
       iconType: 'github',
       iconColor: '#EF6C00',
+      imageUrl: '${ApiUrls.BackendBaseUrl}/api/friend-links/images/maiscan-rev-v1.webp',
     ),
   ];
 
