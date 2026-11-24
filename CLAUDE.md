@@ -97,8 +97,9 @@ final file = await ExportPathUtil.writeExportFile(
 `lib/service/FavoriteTransferService.dart`
 
 - JSON，自描述带版本：`format = "chiffonmai.favorites"`，`formatVersion = 1`
-- 后缀由 `lib/utils/ExportSettings.dart` 决定，**默认 `.cmf`，用户可在设置页自定义**（key: `export_favorite_extension`）
-- **导入按内容校验，不按后缀校验**——所以用户无论把后缀改成什么都能导回来。文件选择器用 `FileType.any`，不要用 `FileType.custom` 限定后缀。
+- `lib/utils/ExportSettings.dart` 固定导出后缀为 `.cmf`。
+- App 内手动导入使用 `FileType.any`，按内容校验，兼容历史自定义后缀。
+- Android 系统「打开方式」只关联 URI 路径以 `.cmf` 结尾的文件。清单中的路径条件必须同时声明 `scheme` 和 `host` 才会生效，禁止添加通用分享过滤器。文件管理器隐藏 URI 后缀时，使用 App 内手动导入。
 - 导入支持「合并」（同名收藏夹合并、`uniqueKey` 去重）与「覆盖」两种模式
 - 旧版 `.txt` 导出不含 `songId`，**无法还原**，检测到纯文本要给出明确提示而不是静默失败
 
@@ -182,7 +183,9 @@ android:launchMode="singleTask"   <!-- 全局单实例，后续启动走 onNewIn
 | `com.example.app/home_widget` | 桌面小组件（`update` 推数据，`takePendingAction` / `onAction` 传点击），见 `HomeWidgets.kt` 与 `lib/service/HomeWidgetService.dart` |
 | `com.example.app/app_update` | App 内更新（发布信息、后台下载状态与安装），见 `AppUpdateInstaller.kt`、`AppUpdateDownloads.kt` 和 `BackgroundAppUpdateService.dart`；只允许更新私有目录中的同包名、同签名、指定版本 APK |
 
-所有平台的更新版本、构建号、更新日志和下载页以 `app_version.json` 的 `version` / `buildNumber` / `updateLog` / `downloadUrl` 为准；配置获取失败就报告检查失败，不用 GitHub 发布内容或 APK 清单覆盖。GitHub 只在用户选择 App 内下载后，根据配置的 `githubReleaseTag`（未配置时取 `v<version>`）提供对应 APK 附件和下载分流；安装时必须匹配配置中的构建号，不得自动套用 GitHub 包的版本号。版本先按语义比较，同版本才比较构建号；恢复后台任务时也会取消低于当前版本的过期任务。
+Android 的更新版本、构建号、更新日志和下载页以 `app_version.json` 的 `version` / `buildNumber` / `updateLog` / `downloadUrl` 为准；配置获取失败就报告检查失败，不用 GitHub 发布内容或 APK 清单覆盖。GitHub 只在用户选择 App 内下载后，根据配置的 `githubReleaseTag`（未配置时取 `v<version>`）提供对应 APK 附件和下载分流；安装时必须匹配配置中的构建号，不得自动套用 GitHub 包的版本号。版本先按语义比较，同版本才比较构建号；恢复后台任务时也会取消低于当前版本的过期任务。
+
+iOS 的更新由 TestFlight 管理。App 不在启动时检查更新或提示新版本，手动入口打开 `AppLinks.testFlightUrl`。
 
 可选 `githubProxyPrefixes` 为 HTTPS 加速节点根地址数组：未配置时使用 `https://gh-proxy.com/`，空数组禁用加速，下载失败后回退 GitHub 直连。APK 附件必须带 GitHub 提供的 SHA-256 `digest`；缺少校验值或版本、签名不匹配时保留网页下载入口，不绕过校验。
 
@@ -553,6 +556,8 @@ Rating、达成率、歌名、说明文字这类重要内容不要用省略号�
 ### 22.11 动效
 
 入场用 `EntranceAnimation`（列表项按 `index` 错开，换 Key 重播），按压用 `PressScale`，参数照设计稿：Best50 卡片 14px + 缩放 0.96 / 420ms，成绩列表 8px / 300ms，搜索结果横向 10px / 320ms，首页 12px / 500ms，歌曲详情面板 10px / 350ms。两者都尊重系统「减少动态效果」。
+
+在写组件、页面切换逻辑等变更页面视图的代码时，要视情况尽量多地应用过渡动画、入退场动画、展开收起动画等（如 `AnimatedSize`、`AnimatedSwitcher`、`CollapsibleCard`、`FadeSwitcher`），增加用户交互的舒适性；对话框内容变化时尺寸要平滑伸缩，不要一下子变长或变短。时长同样走 `AppDesignTokens.motion(context, …)`。
 
 ### 22.12 KALEIDXSCOPE 门详情页
 

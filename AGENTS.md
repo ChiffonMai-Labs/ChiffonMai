@@ -9,6 +9,8 @@
 - 默认中文沟通，温和、礼貌、直接，先汇报结果；注释遵守 § 13。
 - 优先复用已有组件和工具，避免无关重构、额外依赖和过度工程；完成需求后及时停止。
 - Git 仅追踪 Flutter 客户端相关内容；服务端源码及配置、数据、测试、部署资料一律保留在本地并忽略，详见 § 21。
+- Codex 默认以 `github/main` 为 Git 差异基准。比较分支已提交的改动时使用 `git diff github/main...HEAD`，需要核对最新远端状态时先执行 `git fetch github main`。用户明确指定基准或版本区间时，按指定范围比较。
+- 用户说「推代码」且未指定远端时，将目标分支推送到 GitHub（`github`）和 Gitee（`origin`），并核对两个远端的提交。版本发布和 CI 只在 GitHub 创建 Release、运行 GitHub Actions。Gitee 的代码推送只同步分支，不附带发布标签。
 - 普通页面布局先看 § 7、§ 11、§ 14、§ 17；输入框与切换控件再看 § 18、§ 19。
 - 几百上千条数据的列表要保证交互丝滑，见 § 22.14。
 - 长文本复用 `MarqueeText`（§ 8），进度指示复用 `SmoothLinearProgressIndicator`（§ 15）；不要重复实现已有机制。
@@ -97,8 +99,9 @@ final file = await ExportPathUtil.writeExportFile(
 `lib/service/FavoriteTransferService.dart`
 
 - JSON，自描述带版本：`format = "chiffonmai.favorites"`，`formatVersion = 1`
-- 后缀由 `lib/utils/ExportSettings.dart` 决定，**默认 `.cmf`，用户可在设置页自定义**（key: `export_favorite_extension`）
-- **导入按内容校验，不按后缀校验**——所以用户无论把后缀改成什么都能导回来。文件选择器用 `FileType.any`，不要用 `FileType.custom` 限定后缀。
+- `lib/utils/ExportSettings.dart` 固定导出后缀为 `.cmf`。
+- App 内手动导入使用 `FileType.any`，按内容校验，兼容历史自定义后缀。
+- Android 系统「打开方式」只关联 URI 路径以 `.cmf` 结尾的文件。清单中的路径条件必须同时声明 `scheme` 和 `host` 才会生效，禁止添加通用分享过滤器。文件管理器隐藏 URI 后缀时，使用 App 内手动导入。
 - 导入支持「合并」（同名收藏夹合并、`uniqueKey` 去重）与「覆盖」两种模式
 - 旧版 `.txt` 导出不含 `songId`，**无法还原**，检测到纯文本要给出明确提示而不是静默失败
 
@@ -182,7 +185,9 @@ android:launchMode="singleTask"   <!-- 全局单实例，后续启动走 onNewIn
 | `com.example.app/home_widget` | 桌面小组件（`update` 推数据，`takePendingAction` / `onAction` 传点击），见 `HomeWidgets.kt` 与 `lib/service/HomeWidgetService.dart` |
 | `com.example.app/app_update` | App 内更新（发布信息、后台下载状态与安装），见 `AppUpdateInstaller.kt`、`AppUpdateDownloads.kt` 和 `BackgroundAppUpdateService.dart`；只允许更新私有目录中的同包名、同签名、指定版本 APK |
 
-所有平台的更新版本、构建号、更新日志和下载页以 `app_version.json` 的 `version` / `buildNumber` / `updateLog` / `downloadUrl` 为准；配置获取失败就报告检查失败，不用 GitHub 发布内容或 APK 清单覆盖。GitHub 只在用户选择 App 内下载后，根据配置的 `githubReleaseTag`（未配置时取 `v<version>`）提供对应 APK 附件和下载分流；安装时必须匹配配置中的构建号，不得自动套用 GitHub 包的版本号。版本先按语义比较，同版本才比较构建号；恢复后台任务时也会取消低于当前版本的过期任务。
+Android 的更新版本、构建号、更新日志和下载页以 `app_version.json` 的 `version` / `buildNumber` / `updateLog` / `downloadUrl` 为准；配置获取失败就报告检查失败，不用 GitHub 发布内容或 APK 清单覆盖。GitHub 只在用户选择 App 内下载后，根据配置的 `githubReleaseTag`（未配置时取 `v<version>`）提供对应 APK 附件和下载分流；安装时必须匹配配置中的构建号，不得自动套用 GitHub 包的版本号。版本先按语义比较，同版本才比较构建号；恢复后台任务时也会取消低于当前版本的过期任务。
+
+iOS 的更新由 TestFlight 管理。App 不在启动时检查更新或提示新版本，手动入口打开 `AppLinks.testFlightUrl`。
 
 可选 `githubProxyPrefixes` 为 HTTPS 加速节点根地址数组：未配置时使用 `https://gh-proxy.com/`，空数组禁用加速，下载失败后回退 GitHub 直连。APK 附件必须带 GitHub 提供的 SHA-256 `digest`；缺少校验值或版本、签名不匹配时保留网页下载入口，不绕过校验。
 
@@ -424,7 +429,7 @@ AppHeader(
 
 ## 20. 谱面难度定义
 
-- 未指定难度的歌曲详情入口使用 `SongDetailPreferences`（首次默认 MASTER，只允许 BASIC～MASTER）；设置入口在系统设置「交互」，使用 `SongDetailDifficultySettings` 的四档索引色选项。`SongInfoPage` 明确传入 `initialLevelIndex`（包括 BASIC=0）时必须保留该难度，不受偏好影响。宴谱保留首个可用谱面，其他缺失难度按实际谱面数量限制；备份导入导出要同步 flush / reload 此偏好。
+- 歌曲详情打开难度依次采用明确传入的 `initialLevelIndex`（包括 BASIC=0）、该歌曲的有效难度记忆、`SongDetailPreferences` 的默认难度（首次为 MASTER，可选 BASIC～MASTER）。记忆默认关闭，ST 与 DX 按各自歌曲 ID 保存，关闭时保留已有记录。宴谱在没有指定难度和有效记忆时使用首个谱面，其他缺失难度按实际谱面数量限制。备份导入导出同步 flush / reload 此偏好。设置入口在系统设置「交互」。
 
 - 难度索引、显示名称、名称解析及编号转换统一使用 `lib/utils/ChartDifficulty.dart`，不再复制 BASIC～Re:MASTER / UTAGE 列表和映射。
 - 页面显示用 `ChartDifficulty.labelOf`；已知宴谱要传 `isUtage: true`。普通成绩索引是 0–4，筛选项的 UTAGE=5 不代表宴谱成绩的 `level_index`，不能改写原始成绩索引。
@@ -447,6 +452,8 @@ AppHeader(
 
 新页面和改版页面都按这一节来；设计稿没有涉及的页面也用同一套视觉。设计稿的白卡片优先于 §17 的平面布局。
 
+一切新增的前端部分都要与项目已有的设计风格保持大体一致。除非用户明确要求采用不同风格，否则沿用现有的布局、组件、配色和交互方式，避免出现突兀或过于个性化的设计。
+
 ### 22.1 令牌：只从 `AppDesignTokens` / `AppSurfaces` 取值
 
 | 圆角 | 用途 |
@@ -460,6 +467,7 @@ AppHeader(
 - 默认 seed 色是 `0xFF006A6A`。`_canvasStyle`（`AppTheme.dart`）统一了三套主题的按钮、输入框、对话框、底部面板圆角，老页面靠它拿到同一套观感。
 - 背景覆层取页面底色而不是纯白（`ThemeAwareBackground`），否则白卡片没有层次。
 - 页边距 `gutter` 16，卡片间距 `cardGap` 12。动效时长一律用 `AppDesignTokens.motion(context, …)`。
+- 编写组件切换、页面切换等会改变视图的代码时，按场景尽量为内容切换、入退场和展开收起添加过渡动画，让交互更连贯舒适，并尊重系统的减少动态效果设置。
 
 ### 22.2 字体
 
@@ -502,7 +510,7 @@ AppHeader(
 ### 22.6 收藏（星标）
 
 - 首页「常用」就是收藏列表：所有收藏都显示成图标（`FavoriteEditGrid`），任务进行中图标换成进度圈；线路和统计留在各自的 Hub 入口。正常态和编辑态共用一棵树，点「编辑」时图标不重新入场，只有叉号、提示和删除区域过渡；编辑态直接拖动换位置，点叉号或拖到下方删除区域移除。
-- 成绩 Hub 顶部是设计稿的概览卡片，下面的「全部功能」保留每个功能的星标。**以后改 Hub 页不能把带星标的入口去掉。**
+- 成绩 Hub 顶部是设计稿的概览卡片，下方功能分组保留每个功能的星标。**以后改 Hub 页不能把带星标的入口去掉。**
 - 首页概览下面是自动同步和服务器状态两个小组件（`lib/widgets/HomeStatusWidgets.dart`，只在可见且前台时轮询，服务器状态每 3 分钟刷新）。搜索框常驻在小组件下方，右上角不再有搜索键；输入时概览和小组件收起，让搜索框升到结果上方。收起只换那一格的内容，搜索框在列表里的位置不变（§22.13）。
 - 首页搜索框的范围（功能 / 歌曲 / 功能+歌曲，默认功能）在系统设置里选，存在 `SearchInteractionPreferences`；原位和展开两种交互都生效。
 - 曲库 Hub 只是功能列表；搜索和筛选在 `SongSearchPage` 里，进入功能后才出现。
