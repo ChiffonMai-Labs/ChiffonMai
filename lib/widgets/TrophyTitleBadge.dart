@@ -9,14 +9,12 @@ class TrophyTitleBadge extends StatelessWidget {
   final String? color;
   final int? trophyId;
 
-  /// 以底图原始宽度为基准，仅微调无需滚动的文字位置。
-  final double staticTextOffsetY;
-  const TrophyTitleBadge(
-      {super.key,
-      required this.name,
-      this.color,
-      this.trophyId,
-      this.staticTextOffsetY = 0});
+  const TrophyTitleBadge({
+    super.key,
+    required this.name,
+    this.color,
+    this.trophyId,
+  });
 
   static const _types = ['Normal', 'Bronze', 'Silver', 'Gold', 'Rainbow'];
   static Future<Map<int, String>>? _legacyColors;
@@ -80,22 +78,6 @@ class TrophyTitleBadge extends StatelessWidget {
                   ])
                     Shadow(color: Colors.black, offset: offset * (0.8 * scale)),
                 ]);
-                var textTop = 1 * scale;
-                if (staticTextOffsetY != 0) {
-                  // 与 MarqueeText 使用相同样式和字体缩放，避免误判滚动状态。
-                  final painter = TextPainter(
-                    text: TextSpan(
-                        text: name,
-                        style: DefaultTextStyle.of(context).style.merge(style)),
-                    textDirection: Directionality.of(context),
-                    textScaler: MediaQuery.textScalerOf(context),
-                    maxLines: 1,
-                  )..layout();
-                  if (painter.width <= width - 24 * scale) {
-                    textTop += staticTextOffsetY * scale;
-                  }
-                  painter.dispose();
-                }
                 // 底图的主色条是 y=7..27；不将上下透明留白、阴影及彩虹装饰算入文字中心。
                 // 滚动视口固定留在两端圆角以内，文字和描边均不能越界。
                 return SizedBox(
@@ -108,9 +90,9 @@ class TrophyTitleBadge extends StatelessWidget {
                       Positioned(
                           left: 12 * scale,
                           right: 12 * scale,
-                          // 默认相对主色条中心略上移 2px，补偿中文字形的视觉重心。
+                          // top: 2 * scale 搭配 height: 28 * scale，使静态与滚动文字容器中心对齐底图正面几何中心（y = 16）。
                           // 裁剪框必须在 Center 外，避免静态文字把它收缩到单行高度。
-                          top: textTop,
+                          top: 2 * scale,
                           height: 28 * scale,
                           child: ClipRect(
                               child: Center(

@@ -660,7 +660,6 @@ class _CollectionSearchPageState extends State<CollectionSearchPage> {
               name: collection.name,
               color: collection.color,
               trophyId: collection.id,
-              staticTextOffsetY: 1,
             ),
             const SizedBox(height: 4),
             _buildInfo(collection, showName: false),

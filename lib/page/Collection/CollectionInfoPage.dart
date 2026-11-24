@@ -793,8 +793,7 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
                 TrophyTitleBadge(
                     name: collection.name,
                     color: collection.color,
-                    trophyId: collection.id,
-                    staticTextOffsetY: 1),
+                    trophyId: collection.id),
                 const SizedBox(height: 14),
               ],
               Text(
