@@ -36,16 +36,25 @@ Future<Map<String, dynamic>?> fetchDivingFishProfile() async {
 }
 
 /// 水鱼授权：账号资料 + 授权状态 + 打开授权链接 / 重新授权。
-Future<void> showDivingFishAuthorizationDialog(BuildContext context) {
+/// 返回本次对话框开启期间是否从无/未授权状态变为已授权状态。
+Future<bool> showDivingFishAuthorizationDialog(BuildContext context) async {
   FocusManager.instance.primaryFocus?.unfocus();
-  return showDialog<void>(
+  var sawNotAuthorized =
+      DivingFishOAuthManager().authorizationState.value != true;
+  await showDialog<void>(
     context: context,
-    builder: (_) => const _DivingFishAuthorizationDialog(),
+    builder: (_) => _DivingFishAuthorizationDialog(
+      onObservedNotAuthorized: () => sawNotAuthorized = true,
+    ),
   );
+  return sawNotAuthorized &&
+      DivingFishOAuthManager().authorizationState.value == true;
 }
 
 class _DivingFishAuthorizationDialog extends StatefulWidget {
-  const _DivingFishAuthorizationDialog();
+  final VoidCallback? onObservedNotAuthorized;
+
+  const _DivingFishAuthorizationDialog({this.onObservedNotAuthorized});
 
   @override
   State<_DivingFishAuthorizationDialog> createState() =>
@@ -91,7 +100,10 @@ class _DivingFishAuthorizationDialogState
     if (qq.isEmpty) return;
     setState(() => _checking = true);
     // 结果写进共享通知器，绑定与授权管理的状态标签同步更新。
-    await DivingFishOAuthManager().checkAuthorization(qq);
+    final authorized = await DivingFishOAuthManager().checkAuthorization(qq);
+    if (authorized != true) {
+      widget.onObservedNotAuthorized?.call();
+    }
     if (mounted) setState(() => _checking = false);
   }
 

@@ -34,6 +34,8 @@ import 'Awmc/AwmcPlayCountSyncFlow.dart';
 import 'SupportDeveloperPage.dart';
 import 'FriendLinksPage.dart';
 import 'LoadingTipsPage.dart';
+import '../manager/DivingFish/DivingFishOAuthManager.dart';
+import '../manager/DivingFishProbeManager.dart';
 import '../manager/LZYCheckUpdateManager.dart';
 import '../manager/DivingFish/ProberException.dart';
 import '../manager/LuoXue/CollectionsManager.dart';
@@ -52,6 +54,7 @@ import '../service/LogExportService.dart';
 import '../widgets/ExportSuccessDialog.dart';
 import '../widgets/RefreshDataDialog.dart'
     show
+        RefreshDataRequest,
         showRefreshDataDialog,
         executeRefreshData,
         refreshBest50DataWithProgress,
@@ -123,8 +126,7 @@ class SystemHubPageState extends State<SystemHubPage>
         break;
     }
     if (item.title == '落雪账号授权' || item.title == '绑定 AWMC NET 账号') {
-      await showAccountAuthorizationDialog(context,
-          luoxue: item.title == '落雪账号授权');
+      await _authorizePlatform(luoxue: item.title == '落雪账号授权');
       return;
     }
     if (item.title == '绑定机台身份') {
@@ -476,6 +478,12 @@ class SystemHubPageState extends State<SystemHubPage>
     final request =
         await showRefreshDataDialog(context, initialSource: initialSource);
     if (request == null || !mounted || anyBusy) return;
+    await _executeRefreshRequest(request);
+  }
+
+  /// 执行一次成绩拉取与缓存更新，并同步按钮和活动任务状态。
+  Future<void> _executeRefreshRequest(RefreshDataRequest request) async {
+    if (!mounted || anyBusy) return;
 
     setState(() {
       _refreshing = true;
@@ -510,6 +518,25 @@ class SystemHubPageState extends State<SystemHubPage>
         _publishActiveTask();
       }
     }
+  }
+
+  /// 从无或未成功状态变为成功后自动拉取成绩（不强制刷新，不参与排行榜）。
+  Future<void> _autoRefreshAfterAuthSuccess(
+    RefreshDataSource source, {
+    String qq = '',
+  }) async {
+    if (!mounted || anyBusy) return;
+    final request = RefreshDataRequest(
+      dataSource: source,
+      qq: qq,
+      authCode: '',
+      participateRankings: false,
+      showNickname: false,
+      showBriefProfile: false,
+      forceFullRefresh: false,
+      useSavedAuthorization: source == RefreshDataSource.luoxue,
+    );
+    await _executeRefreshRequest(request);
   }
 
   Future<void> _showCacheManagementDialog() async {
@@ -633,8 +660,32 @@ class SystemHubPageState extends State<SystemHubPage>
   // 按钮上的进度文案从 syncingDivingFish / luoXueText 等 getter 读。
   // 线路1 = AWMC 网关、线路2 = maimai Score Hub（详见 SyncRouteStore）。
 
-  void _loginDivingFish() {
-    SyncScoreDialogs.showDivingFishLoginDialog(context, syncCallbacks);
+  Future<bool> _loginDivingFish() {
+    return SyncScoreDialogs.showDivingFishLoginDialog(context, syncCallbacks);
+  }
+
+  /// 读取当前已登录水鱼账号绑定的 QQ 号；本地未缓存时回退查询账号资料。
+  Future<String> _resolveDivingFishBindQQ() async {
+    final prefs = await SharedPreferences.getInstance();
+    final cached =
+        prefs.getString(CacheKeyConstant.probeDivingFishBindQQ)?.trim() ?? '';
+    if (cached.isNotEmpty) return cached;
+    return (await DivingFishProbeManager().fetchBindQQ())?.trim() ?? '';
+  }
+
+  /// 授权落雪或绑定 AWMC NET；若从无或未成功状态变为成功，关闭弹窗后立即自动拉取成绩。
+  Future<void> _authorizePlatform({required bool luoxue}) async {
+    final outcome =
+        await showAccountAuthorizationDialog(context, luoxue: luoxue);
+    if (!outcome.becameSuccessful || !mounted || anyBusy) return;
+    if (luoxue) {
+      await _autoRefreshAfterAuthSuccess(RefreshDataSource.luoxue);
+    } else if (outcome.awmcQQ.isNotEmpty) {
+      await _autoRefreshAfterAuthSuccess(
+        RefreshDataSource.awmc,
+        qq: outcome.awmcQQ,
+      );
+    }
   }
 
   Future<void> _loginMaimaiHub() async {
@@ -659,7 +710,20 @@ class SystemHubPageState extends State<SystemHubPage>
         if (LoginStateNotifier.instance.value) {
           await _logoutDivingFish();
         } else {
-          _loginDivingFish();
+          final loggedIn = await _loginDivingFish();
+          if (loggedIn && mounted && !anyBusy) {
+            final bindQQ = await _resolveDivingFishBindQQ();
+            if (bindQQ.isNotEmpty) {
+              final authorized =
+                  await DivingFishOAuthManager().checkAuthorization(bindQQ);
+              if (authorized == true && mounted && !anyBusy) {
+                await _autoRefreshAfterAuthSuccess(
+                  RefreshDataSource.shuiyu,
+                  qq: bindQQ,
+                );
+              }
+            }
+          }
         }
       case AccountBindingTarget.divingFishAuth:
         if (!LoginStateNotifier.instance.value) {
@@ -667,11 +731,24 @@ class SystemHubPageState extends State<SystemHubPage>
               tone: AppToastTone.warning);
           return;
         }
-        await showDivingFishAuthorizationDialog(context);
+        final becameAuthorized =
+            await showDivingFishAuthorizationDialog(context);
+        if (becameAuthorized &&
+            mounted &&
+            !anyBusy &&
+            LoginStateNotifier.instance.value) {
+          final bindQQ = await _resolveDivingFishBindQQ();
+          if (bindQQ.isNotEmpty && mounted && !anyBusy) {
+            await _autoRefreshAfterAuthSuccess(
+              RefreshDataSource.shuiyu,
+              qq: bindQQ,
+            );
+          }
+        }
       case AccountBindingTarget.lxns:
-        await showAccountAuthorizationDialog(context, luoxue: true);
+        await _authorizePlatform(luoxue: true);
       case AccountBindingTarget.awmc:
-        await showAccountAuthorizationDialog(context, luoxue: false);
+        await _authorizePlatform(luoxue: false);
       case AccountBindingTarget.cabinet:
         await showBindCabinetIdentityDialog(context);
     }

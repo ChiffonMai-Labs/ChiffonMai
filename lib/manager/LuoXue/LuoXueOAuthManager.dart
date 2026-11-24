@@ -45,7 +45,7 @@ class LuoXueOAuthManager {
       'response_type': 'code',
       'client_id': _clientId,
       'redirect_uri': Uri.encodeComponent(_redirectUri),
-      'scope': _scope,
+      'scope': Uri.encodeComponent(_scope),
     };
     final queryString =
         params.entries.map((e) => '${e.key}=${e.value}').join('&');

@@ -12,18 +12,58 @@ import 'AppToast.dart';
 import 'AppUi.dart';
 import 'RefreshDataDialog.dart' show launchUrlFallback;
 
+/// 账号授权/绑定对话框的操作结果。
+class AccountAuthorizationResult {
+  /// 本次是否在对话框内新保存了有效的授权或绑定信息。
+  final bool saved;
+
+  /// 打开前处于无或未成功状态，且本次新保存变为成功状态时为 true。
+  final bool becameSuccessful;
+
+  /// AWMC NET 绑定的 QQ 号（落雪场景为空）。
+  final String awmcQQ;
+
+  const AccountAuthorizationResult({
+    required this.saved,
+    required this.becameSuccessful,
+    required this.awmcQQ,
+  });
+}
+
 /// 账号配置只保存授权或查询账号，刷新由独立入口执行。
-Future<void> showAccountAuthorizationDialog(BuildContext context,
-        {required bool luoxue}) =>
-    AppTaskActivity.run(() async {
+Future<AccountAuthorizationResult> showAccountAuthorizationDialog(
+  BuildContext context, {
+  required bool luoxue,
+}) =>
+    AppTaskActivity.run<AccountAuthorizationResult>(() async {
       final qq = luoxue ? '' : await AccountAuthorizationStore.awmcQQ();
       final authorized = luoxue && await LuoXueOAuthManager().isLoggedIn();
-      if (!context.mounted) return;
-      await showDialog<void>(
-          context: context,
-          barrierDismissible: false,
-          builder: (_) => _AccountAuthorizationDialog(
-              luoxue: luoxue, initialQQ: qq, authorized: authorized));
+      if (!context.mounted) {
+        return const AccountAuthorizationResult(
+          saved: false,
+          becameSuccessful: false,
+          awmcQQ: '',
+        );
+      }
+      final hadBefore =
+          luoxue ? authorized : RegExp(r'^\d{5,12}$').hasMatch(qq);
+      final result = await showDialog<String?>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => _AccountAuthorizationDialog(
+          luoxue: luoxue,
+          initialQQ: qq,
+          authorized: authorized,
+        ),
+      );
+      final saved = result != null && result.isNotEmpty;
+      final becameSuccessful = saved && !hadBefore;
+      final savedAwmcQQ = !luoxue && saved ? result : qq;
+      return AccountAuthorizationResult(
+        saved: saved,
+        becameSuccessful: becameSuccessful,
+        awmcQQ: savedAwmcQQ,
+      );
     });
 
 class _AccountAuthorizationDialog extends StatefulWidget {
@@ -63,10 +103,11 @@ class _AccountAuthorizationDialogState
     final value =
         (widget.luoxue ? authCodeController : awmcQqController).text.trim();
     if (widget.luoxue && value.isEmpty) {
-      if (_hasSavedLuoXueToken)
-        Navigator.of(context).pop();
-      else
+      if (_hasSavedLuoXueToken) {
+        Navigator.of(context).pop<String?>('');
+      } else {
         AppToast.show(context.l10n.flowEnterYourLXNSAuthorizationCodeFirst);
+      }
       return;
     }
     if (!widget.luoxue && !RegExp(r'^\d{5,12}$').hasMatch(value)) {
@@ -85,7 +126,7 @@ class _AccountAuthorizationDialogState
       if (!mounted) return;
       AppToast.show(context.l10n.accountConfigurationSaved,
           tone: AppToastTone.success);
-      Navigator.of(context).pop();
+      Navigator.of(context).pop<String?>(widget.luoxue ? 'ok' : value);
     } catch (_) {
       if (mounted)
         AppToast.show(context.l10n.accountAuthorizationFailed,
