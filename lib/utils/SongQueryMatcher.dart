@@ -88,41 +88,133 @@ bool matchesPortableSongQuery(
   return matchesFuzzySongTitle(normalizedQuery, [song.title, ...aliases]);
 }
 
+class _TitleForms {
+  const _TitleForms(this.textForms, this.pinyinTokens);
+
+  final Set<String> textForms;
+  final List<String> pinyinTokens;
+}
+
 final _kana = KanaKit();
 final _kanaPattern = RegExp(r'[\u3040-\u30ff]');
 final _hanPattern = RegExp(r'[\u3400-\u9fff]');
 final _punctuation = RegExp(r'[^a-z0-9\u3040-\u30ff\u3400-\u9fff]');
+final _kanaUnsafeChars = RegExp(r'[\u3099\u309a\u30f7-\u30fa]');
+final _sokuonWithLongDash = RegExp(r'ッ[・ヶヵー]*ー[・ヶヵー]*');
+final _latinQueryPattern = RegExp(r'^[a-z0-9]*[a-z][a-z0-9]*$');
+final _whitespace = RegExp(r'\s+');
 final _digits = RegExp(r'^[0-9]+$');
-final _titleForms = <String, Set<String>>{};
+final _titleForms = <String, _TitleForms>{};
 String? _cachedQuery;
-Set<String> _cachedQueryForms = const {};
+Set<String> _cachedQueryTextForms = const {};
+String? _cachedLatinPinyinNeedle;
 
 String _compactTitle(String value) =>
     value.toLowerCase().replaceAll(_punctuation, '');
 
-Set<String> _forms(String title) {
-  final hasKana = _kanaPattern.hasMatch(title);
+/// 规避 kana_kit 2.1.1 在 `_katakanaToHiragana` 中的两个缺陷：
+/// 1) 促音 `ッ` 后接长音符 `ー`（如 `ウッーウッーウマウマ(ﾟ∀ﾟ)`）时，
+///    `toRomaji('っ')` 返回空串，取 `.chars.last` 会抛出 `Bad state: No element`；
+/// 2) 内部混用 `chars` 与 UTF-16 下标，须先剔除组合字符与非标准片假名。
+String _sanitizeForKana(String compact) => compact
+    .replaceAll(_kanaUnsafeChars, '')
+    .replaceAllMapped(
+      _sokuonWithLongDash,
+      (match) => match.group(0)!.replaceAll('ー', ''),
+    );
+
+String _safeConvert(String Function() convert) {
+  try {
+    return convert();
+  } catch (_) {
+    return '';
+  }
+}
+
+Set<String> _buildTextFormsFromCompact(String compact) {
+  if (compact.isEmpty) return const <String>{};
+  final kanaSafe =
+      _kanaPattern.hasMatch(compact) ? _sanitizeForKana(compact) : '';
   return {
-    _compactTitle(title),
-    if (hasKana) _compactTitle(_kana.toHiragana(title)),
-    if (hasKana) _compactTitle(_kana.toRomaji(title)),
-    if (_hanPattern.hasMatch(title))
-      _compactTitle(PinyinHelper.getPinyin(title,
-          separator: '', format: PinyinFormat.WITHOUT_TONE)),
+    compact,
+    if (kanaSafe.isNotEmpty)
+      _safeConvert(() => _compactTitle(_kana.toHiragana(kanaSafe))),
+    if (kanaSafe.isNotEmpty)
+      _safeConvert(() => _compactTitle(_kana.toRomaji(kanaSafe))),
   }..remove('');
+}
+
+/// 保留音节边界：仅在输入拉丁拼音时按连续完整音节匹配，避免跨字截断或中文同音串台。
+List<String> _extractPinyinTokens(String compact) {
+  if (!_hanPattern.hasMatch(compact)) return const <String>[];
+  final spaced = _safeConvert(
+    () => PinyinHelper.getPinyin(
+      compact,
+      separator: ' ',
+      format: PinyinFormat.WITHOUT_TONE,
+    ),
+  );
+  if (spaced.isEmpty) return const <String>[];
+  return spaced
+      .split(_whitespace)
+      .map(_compactTitle)
+      .where((token) => token.isNotEmpty)
+      .toList(growable: false);
+}
+
+_TitleForms _buildTitleForms(String title) {
+  final compact = _compactTitle(title);
+  if (compact.isEmpty) return const _TitleForms(<String>{}, <String>[]);
+  return _TitleForms(
+    _buildTextFormsFromCompact(compact),
+    _extractPinyinTokens(compact),
+  );
+}
+
+bool _matchesSyllableSequence(String needle, List<String> tokens) {
+  final needleLen = needle.length;
+  for (var start = 0; start < tokens.length; start++) {
+    var offset = 0;
+    for (var end = start; end < tokens.length; end++) {
+      final token = tokens[end];
+      if (offset + token.length > needleLen) break;
+      if (!needle.startsWith(token, offset)) break;
+      offset += token.length;
+      if (offset == needleLen) return true;
+    }
+  }
+  return false;
 }
 
 bool matchesFuzzySongTitle(String query, Iterable<String> titles) {
   if (_cachedQuery != query) {
     _cachedQuery = query;
-    _cachedQueryForms = _forms(query);
+    final compact = _compactTitle(query);
+    _cachedQueryTextForms = _buildTextFormsFromCompact(compact);
+    _cachedLatinPinyinNeedle =
+        compact.length >= 2 && _latinQueryPattern.hasMatch(compact)
+            ? compact
+            : null;
   }
-  for (final needle in _cachedQueryForms) {
-    if (needle.length < 2 || _digits.hasMatch(needle)) continue;
-    for (final title in titles) {
-      if (_titleForms.length >= 12000) _titleForms.clear();
-      for (final candidate
-          in _titleForms.putIfAbsent(title, () => _forms(title))) {
+
+  final hasTextNeedles = _cachedQueryTextForms.any(
+    (needle) => needle.length >= 2 && !_digits.hasMatch(needle),
+  );
+  final latinPinyinNeedle = _cachedLatinPinyinNeedle;
+  if (!hasTextNeedles && latinPinyinNeedle == null) return false;
+
+  for (final title in titles) {
+    if (_titleForms.length >= 12000) _titleForms.clear();
+    final forms =
+        _titleForms.putIfAbsent(title, () => _buildTitleForms(title));
+    if (latinPinyinNeedle != null &&
+        forms.pinyinTokens.isNotEmpty &&
+        _matchesSyllableSequence(latinPinyinNeedle, forms.pinyinTokens)) {
+      return true;
+    }
+    for (final needle in _cachedQueryTextForms) {
+      if (needle.length < 2 || _digits.hasMatch(needle)) continue;
+      for (final candidate in forms.textForms) {
         if (candidate.contains(needle)) return true;
         final maxEdits = needle.length >= 8
             ? 2

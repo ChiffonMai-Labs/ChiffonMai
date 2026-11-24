@@ -3,6 +3,9 @@
 // 规则来自乐曲查询页（`SongSearchPage`），需求要求随身听「照搬」它。
 // 抽到 `utils/SongQueryMatcher.dart` 后两个调用点共用一份实现，
 // 这个测试钉住字段集合与匹配方式（contains vs 精确），避免以后悄悄改掉。
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:my_first_flutter_app/entity/DivingFish/Song.dart';
 import 'package:my_first_flutter_app/entity/Portable/PortableSong.dart';
@@ -155,6 +158,101 @@ void main() {
     test('空查询视为命中（随身听空搜索框要显示全部）', () {
       expect(matchesPortableSongQuery(song, ''), isTrue);
       expect(matchesPortableSongQuery(song, normalizeSongQuery('   ')), isTrue);
+    });
+  });
+
+  group('模糊搜索与特殊假名容错', () {
+    test('促音后接长音符 ッー 不再抛出 Bad state: No element 且保留可检索性', () {
+      final caramelldansen = _dfSong(
+        id: '56',
+        title: 'ウッーウッーウマウマ(ﾟ∀ﾟ)',
+        artist: 'Caramell',
+        bpm: 165,
+      );
+
+      expect(_dfMatch(caramelldansen, '白系'), isFalse);
+      expect(_dfMatch(caramelldansen, 'うまうま'), isTrue);
+      expect(_dfMatch(caramelldansen, 'umauma'), isTrue);
+    });
+
+    test('正常片假名长音仍保留平假名与罗马音模糊匹配', () {
+      final song = _dfSong(id: '9001', title: 'オーバー');
+
+      expect(_dfMatch(song, 'おうばあ'), isTrue);
+      expect(_dfMatch(song, 'ooba'), isTrue);
+    });
+
+    test('带 emoji 代理对与极端长音组合不抛异常', () {
+      final emojiSong = _dfSong(id: '9002', title: '🎵カード');
+      final middleDotSong = _dfSong(id: '9003', title: 'テストッ・ーッーー');
+
+      expect(_dfMatch(emojiSong, 'かあど'), isTrue);
+      expect(_dfMatch(emojiSong, '白系'), isFalse);
+      expect(_dfMatch(middleDotSong, '白系'), isFalse);
+      expect(_dfMatch(middleDotSong, 'てすと'), isTrue);
+    });
+
+    test('遍历全量曲库 union-divingfish.json 搜索「白系」零异常', () {
+      final raw =
+          File('assets/others/union-divingfish.json').readAsStringSync();
+      final decoded = jsonDecode(raw) as List<dynamic>;
+      final songs = decoded
+          .map((item) => Song.fromJson(item as Map<String, dynamic>))
+          .toList(growable: false);
+      expect(songs, isNotEmpty);
+
+      final query = normalizeSongQuery('白系');
+      for (final song in songs) {
+        expect(() => matchesDivingFishSongQuery(song, query), returnsNormally,
+            reason: 'song id=${song.id}, title=${song.title}');
+      }
+    });
+
+    test('收紧拼音模糊匹配：搜「白系」或「baixi」不误命中 143/571/711/11106/11637', () {
+      final cases = [
+        (song: _dfSong(id: '143', title: 'Fragrance'), aliases: const ['白香芋']),
+        (
+          song: _dfSong(id: '571', title: 'Our Wrenally'),
+          aliases: const ['白夏祭'],
+        ),
+        (
+          song: _dfSong(id: '711', title: '拝啓ドッペルゲンガー'),
+          aliases: const ['拜启'],
+        ),
+        (song: _dfSong(id: '11106', title: 'Valsqotch'), aliases: const ['迪拜熊']),
+        (song: _dfSong(id: '11637', title: 'バグ'), aliases: const ['八夕']),
+      ];
+
+      for (final item in cases) {
+        expect(
+          _dfMatch(item.song, '白系', aliases: item.aliases),
+          isFalse,
+          reason: 'song ${item.song.id} (${item.song.title}) 不应被「白系」误命中',
+        );
+        expect(
+          _dfMatch(item.song, 'baixi', aliases: item.aliases),
+          isFalse,
+          reason: 'song ${item.song.id} (${item.song.title}) 不应被「baixi」误命中',
+        );
+      }
+    });
+
+    test('拉丁拼音按完整音节搜中文曲名/别名与英文拼写容错仍正常命中', () {
+      final fragrance = _dfSong(id: '143', title: 'Fragrance');
+      final haikei = _dfSong(id: '711', title: '拝啓ドッペルゲンガー');
+      final valsqotch = _dfSong(id: '11106', title: 'Valsqotch');
+      final bug = _dfSong(id: '11637', title: 'バグ');
+      final qunqing = _dfSong(id: '11466', title: '群青シグナル');
+
+      // 完整音节拉丁拼音搜索
+      expect(_dfMatch(fragrance, 'baixiangyu', aliases: const ['白香芋']), isTrue);
+      expect(_dfMatch(haikei, 'baiqi', aliases: const ['拜启']), isTrue);
+      expect(_dfMatch(bug, 'baxi', aliases: const ['八夕']), isTrue);
+      expect(_dfMatch(qunqing, 'qunqing'), isTrue);
+
+      // 英文拼写小手误仍允许编辑距离容错
+      expect(_dfMatch(fragrance, 'fragrnce'), isTrue);
+      expect(_dfMatch(valsqotch, 'valsqoch'), isTrue);
     });
   });
 }
