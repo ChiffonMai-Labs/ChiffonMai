@@ -9949,6 +9949,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get flowDevelopmentAndMaintenance => 'Development and maintenance';
 
   @override
+  String get flowLeadDevAndAndroidBuild =>
+      'Lead development and Android builds';
+
+  @override
+  String get flowIosBuildAndMaintenance => 'iOS builds and maintenance';
+
+  @override
   String get flowInputError => 'Input error';
 
   @override
@@ -12130,7 +12137,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get flowTheDeveloperBehindChiffonMai =>
-      'The developer behind ChiffonMai.';
+      'The developers behind ChiffonMai.';
 
   @override
   String get flowSpecialThanks => 'Special thanks';

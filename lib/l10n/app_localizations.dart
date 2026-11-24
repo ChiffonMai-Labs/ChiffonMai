@@ -16601,6 +16601,18 @@ abstract class AppLocalizations {
   /// **'开发与维护'**
   String get flowDevelopmentAndMaintenance;
 
+  /// No description provided for @flowLeadDevAndAndroidBuild.
+  ///
+  /// In zh, this message translates to:
+  /// **'主开发与Android平台的构建'**
+  String get flowLeadDevAndAndroidBuild;
+
+  /// No description provided for @flowIosBuildAndMaintenance.
+  ///
+  /// In zh, this message translates to:
+  /// **'iOS平台的构建与维护'**
+  String get flowIosBuildAndMaintenance;
+
   /// No description provided for @flowInputError.
   ///
   /// In zh, this message translates to:

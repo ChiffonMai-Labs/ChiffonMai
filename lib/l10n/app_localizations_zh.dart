@@ -9497,6 +9497,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get flowDevelopmentAndMaintenance => '开发与维护';
 
   @override
+  String get flowLeadDevAndAndroidBuild => '主开发与Android平台的构建';
+
+  @override
+  String get flowIosBuildAndMaintenance => 'iOS平台的构建与维护';
+
+  @override
   String get flowInputError => '输入错误';
 
   @override
@@ -24795,6 +24801,12 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get flowDevelopmentAndMaintenance => '開發與維護';
+
+  @override
+  String get flowLeadDevAndAndroidBuild => '主開發與Android平台的構建';
+
+  @override
+  String get flowIosBuildAndMaintenance => 'iOS平台的構建與維護';
 
   @override
   String get flowInputError => '輸入錯誤';

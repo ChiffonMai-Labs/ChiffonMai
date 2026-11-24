@@ -56,6 +56,8 @@ class _AboutAppPageState extends State<AboutAppPage> {
 
   /// 创作与支持（排名不分先后）。
   static const List<_Credit> _creativeCredits = [
+    _Credit('Michaelwucoc', '为本项目的开发提供了技术支持和经济支持，为项目的推进提供了极大的帮助',
+        AppLinks.michaelwucocGitHubUrl, 'michaelwucoc'),
     _Credit('Xn1xUfguF1GiNg', '为本项目提供的背景图和戚风小狐狸（真的非常可爱）',
         'https://huajia.163.com/main/profile/RrwM5xQB'),
     _Credit('Takanashi Rikkkkkkka', '为本项目的个性化谱面推荐功能提供宝贵设计思路'),
@@ -65,8 +67,6 @@ class _AboutAppPageState extends State<AboutAppPage> {
         'https://space.bilibili.com/438391224'),
     _Credit('迪拉熊重度依赖', '为本项目在前端细节与交互体验上提供了诸多宝贵建议',
         'https://github.com/Timome-Sudo', 'dilaxiong'),
-    _Credit('Michaelwucoc', '为本项目的开发提供了技术支持和经济支持，为项目的推进提供了极大的帮助',
-        AppLinks.michaelwucocGitHubUrl),
     _Credit('ChiffonMai交流群的全体群友', '为本项目开发提供了诸多宝贵建议和反馈'),
   ];
 
@@ -105,6 +105,8 @@ class _AboutAppPageState extends State<AboutAppPage> {
         'MaiScan Rev', '设计思路借鉴', 'https://github.com/PojavAnge/MaiScan-Rev'),
     _Credit(
         '中二查歌', '设计思路借鉴', 'https://github.com/k4641321/chusearchsong_flutter'),
+    _Credit('bakapiano/maimai-score-hub', '设计思路借鉴',
+        'https://github.com/bakapiano/maimai-score-hub'),
   ];
 
   /// 捐献支持名单。带了 [avatarKey] 的会通过后端头像代理显示 QQ 头像。
@@ -159,18 +161,10 @@ class _AboutAppPageState extends State<AboutAppPage> {
     AppToast.show(context.l10n.flowCouldNotOpenLinkP0((url).toString()), tone: AppToastTone.error);
   }
 
-  /// 邮箱优先走邮件客户端；没有可用客户端时退回「复制到剪贴板」，
-  /// 保证用户在任何设备上都能拿到地址。
-  Future<void> _openEmail() async {
-    final uri = Uri(scheme: 'mailto', path: _email);
-    try {
-      if (await ExternalLaunchUtil.open(uri)) {
-        return;
-      }
-    } catch (e) {
-      debugPrint('[AboutAppPage] 打开邮件客户端失败: $e');
-    }
+  /// 点击邮箱按钮直接复制到剪贴板。
+  Future<void> _copyEmail() async {
     await Clipboard.setData(const ClipboardData(text: _email));
+    if (!mounted) return;
     AppToast.show(context.l10n.flowEmailAddressCopied);
   }
 
@@ -377,67 +371,107 @@ class _AboutAppPageState extends State<AboutAppPage> {
 
   /// 局部主题色块代替整页白色容器，圆角与参考图中的人物区域保持一致。
   Widget _buildDeveloperSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildMaintainerCard(
+          name: _developerName,
+          role: context.l10n.flowLeadDevAndAndroidBuild,
+          avatarUrl: ApiUrls.MaintainerAvatarUrl,
+          actions: [
+            _buildContactButton(Icons.play_circle_outline_rounded,
+                context.l10n.flowBilibili, () => _openUrl(_bilibiliUrl)),
+            _buildContactButton(FontAwesomeIcons.github.data, 'GitHub',
+                () => _openUrl(_githubUrl)),
+            _buildContactButton(
+                Icons.email_outlined, context.l10n.flowEmail, _copyEmail),
+          ],
+        ),
+        const SizedBox(height: AppDesignTokens.cardGap),
+        _buildMaintainerCard(
+          name: 'Michaelwucoc',
+          role: context.l10n.flowIosBuildAndMaintenance,
+          avatarUrl: ApiUrls.AboutAvatarUrl('michaelwucoc'),
+          actions: [
+            _buildContactButton(FontAwesomeIcons.github.data, 'GitHub',
+                () => _openUrl(AppLinks.michaelwucocGitHubUrl)),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMaintainerCard({
+    required String name,
+    required String role,
+    required String avatarUrl,
+    required List<Widget> actions,
+  }) {
     final scheme = Theme.of(context).colorScheme;
     return Material(
       color: AppSurfaces.card(context),
       borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            CircleAvatar(
-              radius: 25,
-              backgroundColor: scheme.primaryContainer,
-              child: ClipOval(
-                child: CachedNetworkImage(
-                  // 仅请求自家后端；腾讯请求头、限频和 24 小时磁盘缓存均由后端处理。
-                  imageUrl: ApiUrls.MaintainerAvatarUrl,
-                  width: 50,
-                  height: 50,
-                  fit: BoxFit.cover,
-                  memCacheWidth:
-                      (50 * MediaQuery.devicePixelRatioOf(context)).round(),
-                  fadeInDuration: Duration.zero,
-                  fadeOutDuration: Duration.zero,
-                  placeholder: (context, url) => const ImageLoadingIndicator(
-                      background: Colors.transparent),
-                  errorWidget: (context, url, error) => Icon(
-                      Icons.person_outline_rounded,
-                      size: 28,
-                      color: scheme.onPrimaryContainer),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 25,
+                  backgroundColor: scheme.primaryContainer,
+                  child: ClipOval(
+                    child: CachedNetworkImage(
+                      // 仅请求自家后端代理；限频与磁盘缓存均由后端处理。
+                      imageUrl: avatarUrl,
+                      width: 50,
+                      height: 50,
+                      fit: BoxFit.cover,
+                      memCacheWidth:
+                          (50 * MediaQuery.devicePixelRatioOf(context)).round(),
+                      fadeInDuration: Duration.zero,
+                      fadeOutDuration: Duration.zero,
+                      placeholder: (context, url) =>
+                          const ImageLoadingIndicator(
+                              background: Colors.transparent),
+                      errorWidget: (context, url, error) => Icon(
+                          Icons.person_outline_rounded,
+                          size: 28,
+                          color: scheme.onPrimaryContainer),
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-                child: Column(
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                  Text(_developerName,
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                        color: scheme.onSecondaryContainer,
-                      )),
-                  const SizedBox(height: 3),
-                  Text(context.l10n.flowDevelopmentAndMaintenance,
-                      style: TextStyle(
-                          fontSize: 13, color: scheme.onSecondaryContainer)),
-                ])),
-          ]),
-          const SizedBox(height: 14),
-          Wrap(spacing: 8, runSpacing: 8, children: [
-            _buildContactButton(Icons.play_circle_outline_rounded, context.l10n.flowBilibili,
-                () => _openUrl(_bilibiliUrl)),
-            _buildContactButton(
-                FontAwesomeIcons.github.data, 'GitHub', () => _openUrl(_githubUrl)),
-            _buildContactButton(Icons.email_outlined, context.l10n.flowEmail, _openEmail),
-          ]),
-          const SizedBox(height: 8),
-          SelectableText(_email,
-              style:
-                  TextStyle(fontSize: 12, color: scheme.onSecondaryContainer)),
-        ]),
+                      Text(
+                        name,
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: scheme.onSecondaryContainer,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        role,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: scheme.onSecondaryContainer,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Wrap(spacing: 8, runSpacing: 8, children: actions),
+          ],
+        ),
       ),
     );
   }

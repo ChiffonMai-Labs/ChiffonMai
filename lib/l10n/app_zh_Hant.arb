@@ -2751,6 +2751,8 @@
   "flowVersionP02": "版本 {p0}",
   "flowAppRegistrationICP20240152563A": "APP備案號：津ICP備2024015256號-3A",
   "flowDevelopmentAndMaintenance": "開發與維護",
+  "flowLeadDevAndAndroidBuild": "主開發與Android平台的構建",
+  "flowIosBuildAndMaintenance": "iOS平台的構建與維護",
   "flowInputError": "輸入錯誤",
   "flowTargetAchievement": "目標達成率",
   "flowEG1005000": "例如 100.5000",

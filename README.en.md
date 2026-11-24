@@ -45,7 +45,7 @@ ChiffonMai is a community-made, **unofficial** mobile toolbox for players of the
 
 ## Privacy
 
-The maintainer is **ChiffonOwO**. Read the full [Privacy Policy](assets/legal/privacy_policy.en.md) and [User Agreement](assets/legal/user_agreement.en.md); both are bundled for offline reading and available online at [chiffonmai.cloud/privacy](https://chiffonmai.cloud/privacy).
+The maintainers are **ChiffonOwO** (lead development & Android builds) and **Michaelwucoc** (iOS builds & maintenance). Read the full [Privacy Policy](assets/legal/privacy_policy.en.md) and [User Agreement](assets/legal/user_agreement.en.md); both are bundled for offline reading and available online at [chiffonmai.cloud/privacy](https://chiffonmai.cloud/privacy).
 
 - On first launch you must accept the agreement and privacy policy; only the accepted version, time and guardian confirmation are stored locally.
 - Tokens are kept in the system secure storage; no plaintext passwords.

@@ -267,7 +267,7 @@ flutter build apk --release --dart-define="CLIENT_API_KEY=<客户端网关 Key>"
 
 ## 账号和隐私
 
-开发维护者为 **ChiffonOwO**（[GitHub](https://github.com/ChiffonOwO) · [哔哩哔哩](https://space.bilibili.com/442305158)）。完整说明见[《隐私政策》](assets/legal/privacy_policy.md)与[《用户协议》](assets/legal/user_agreement.md)，两文随安装包离线可读（[繁体](assets/legal/privacy_policy.zh_Hant.md) / [English](assets/legal/privacy_policy.en.md) / [日本語](assets/legal/privacy_policy.ja.md)），也可在线查看 [chiffonmai.cloud/privacy](https://chiffonmai.cloud/privacy)；App 内路径为「我的 → 关于 APP」。
+开发维护者为 **ChiffonOwO**（主开发与 Android 平台的构建，[GitHub](https://github.com/ChiffonOwO) · [哔哩哔哩](https://space.bilibili.com/442305158)）与 **Michaelwucoc**（iOS 平台的构建与维护，[GitHub](https://github.com/Michaelwucoc)）。完整说明见[《隐私政策》](assets/legal/privacy_policy.md)与[《用户协议》](assets/legal/user_agreement.md)，两文随安装包离线可读（[繁体](assets/legal/privacy_policy.zh_Hant.md) / [English](assets/legal/privacy_policy.en.md) / [日本語](assets/legal/privacy_policy.ja.md)），也可在线查看 [chiffonmai.cloud/privacy](https://chiffonmai.cloud/privacy)；App 内路径为「我的 → 关于 APP」。
 
 - 首次启动的引导页需要确认用户协议与隐私政策后才能继续，本机只记录所确认的版本、时间以及是否由监护人确认。
 - 不登录也可以使用曲库查询、歌曲详情、计算器、推荐、随机抽歌、谱面播放、地图和多数本地工具。
@@ -320,13 +320,13 @@ ChiffonMai 免费、无广告、不接入统计 SDK。赞助用于服务器开�
 
 ### 创作与支持
 
+- **Michaelwucoc**：为本项目的开发提供了技术支持和经济支持，为项目的推进提供了极大的帮助。[GitHub](https://github.com/Michaelwucoc)
 - **Xn1xUfguF1GiNg**：为本项目提供的背景图和戚风小狐狸（真的非常可爱）。[个人页面](https://huajia.163.com/main/profile/RrwM5xQB)
 - **Takanashi Rikkkkkkka**：为本项目的个性化谱面推荐功能提供宝贵设计思路。
 - **三由yyyh**：为本项目的页面设计提供了宝贵意见。
 - **MYD**：提供了用于测试开发的个人游玩数据。
 - **乐观的熊猫**：提议开发 ChiffonMai，为本项目诞生提供最初契机。[bilibili](https://space.bilibili.com/438391224)
 - **迪拉熊重度依赖**：为本项目在前端细节与交互体验上提供了诸多宝贵建议。[GitHub](https://github.com/Timome-Sudo)
-- **Michaelwucoc**：为本项目的开发提供了技术支持和经济支持，为项目的推进提供了极大的帮助。[GitHub](https://github.com/Michaelwucoc)
 - **ChiffonMai交流群的全体群友**：为本项目开发提供了诸多宝贵建议和反馈。
 
 ### 捐献致谢
@@ -367,6 +367,7 @@ ChiffonMai 免费、无广告、不接入统计 SDK。赞助用于服务器开�
 - [**舞萌猜猜呗之潘一把**](https://github.com/yukineko2233/v0-maimai-wordle)：设计思路借鉴。[在线体验](https://maimai.yukineko2233.top/)
 - [**MaiScan Rev**](https://github.com/PojavAnge/MaiScan-Rev)：设计思路借鉴。
 - [**中二查歌**](https://github.com/k4641321/chusearchsong_flutter)：设计思路借鉴。
+- [**bakapiano/maimai-score-hub**](https://github.com/bakapiano/maimai-score-hub)：设计思路借鉴。
 
 ### 开源组件
 

@@ -9624,6 +9624,12 @@ class AppLocalizationsJa extends AppLocalizations {
   String get flowDevelopmentAndMaintenance => '開発と保守';
 
   @override
+  String get flowLeadDevAndAndroidBuild => 'メイン開発とAndroid版のビルド';
+
+  @override
+  String get flowIosBuildAndMaintenance => 'iOS版のビルドと保守';
+
+  @override
   String get flowInputError => '入力エラー';
 
   @override
