@@ -40,6 +40,7 @@ class ChartPlaySettings {
   final SimaiMirrorMode mirrorMode;
   final SimaiBackgroundMode backgroundMode;
   final double speed;
+  final double playbackRate;
   final bool rotateSlideStar;
   final bool pinkSlideStar;
   final bool standardBreakSlide;
@@ -65,6 +66,7 @@ class ChartPlaySettings {
     this.mirrorMode = SimaiMirrorMode.none,
     this.backgroundMode = SimaiBackgroundMode.judgeLine,
     this.speed = 8.0,
+    this.playbackRate = 1.0,
     this.rotateSlideStar = true,
     this.pinkSlideStar = false,
     this.standardBreakSlide = false,
@@ -94,6 +96,7 @@ class ChartPlaySettings {
       mirrorMode: c.mirrorMode,
       backgroundMode: c.backgroundMode,
       speed: c.speed,
+      playbackRate: c.playbackRate,
       rotateSlideStar: c.rotateSlideStar,
       pinkSlideStar: c.pinkSlideStar,
       standardBreakSlide: c.standardBreakSlide,
@@ -121,6 +124,7 @@ class ChartPlaySettings {
     c.mirrorMode = mirrorMode;
     c.backgroundMode = backgroundMode;
     c.speed = speed;
+    c.playbackRate = playbackRate;
     c.rotateSlideStar = rotateSlideStar;
     c.pinkSlideStar = pinkSlideStar;
     c.standardBreakSlide = standardBreakSlide;
@@ -142,6 +146,7 @@ class ChartPlaySettings {
         'mirrorMode': mirrorMode.name,
         'backgroundMode': backgroundMode.name,
         'speed': speed,
+        'playbackRate': playbackRate,
         'rotateSlideStar': rotateSlideStar,
         'pinkSlideStar': pinkSlideStar,
         'standardBreakSlide': standardBreakSlide,
@@ -173,6 +178,8 @@ class ChartPlaySettings {
       backgroundMode: _enumByName(SimaiBackgroundMode.values,
           json['backgroundMode'], fallback.backgroundMode),
       speed: _clampDouble(json['speed'], 3.0, 9.0, fallback.speed),
+      playbackRate:
+          _clampDouble(json['playbackRate'], 0.1, 3.0, fallback.playbackRate),
       rotateSlideStar: _bool(json['rotateSlideStar'], fallback.rotateSlideStar),
       pinkSlideStar: _bool(json['pinkSlideStar'], fallback.pinkSlideStar),
       standardBreakSlide:
@@ -274,7 +281,7 @@ class ChartPlaySettingsStore {
     _loaded = true;
     _loading = null;
     debugPrint('[ChartPlaySettings] 已加载设置: speed=${_settings.speed} '
-        'mirror=${_settings.mirrorMode.name}');
+        'rate=${_settings.playbackRate} mirror=${_settings.mirrorMode.name}');
     return _settings;
   }
 

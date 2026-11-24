@@ -165,12 +165,14 @@ class SoLoudAudioPlayer {
 
   Future<void> setRate(double rate) async {
     _ensureUsable();
-    _rate = rate.clamp(0.1, 1.0).toDouble();
+    _rate = rate.clamp(0.1, 3.0).toDouble();
     final handle = _handle;
+    Duration? position;
     if (handle != null && !handle.isError && _soloud.isInitialized) {
       _soloud.setRelativePlaySpeed(handle, _rate);
+      position = _readPosition(handle);
     }
-    _emit(_latest?.state ?? SoLoudAudioState.idle);
+    _emit(_latest?.state ?? SoLoudAudioState.idle, position: position);
   }
 
   Future<void> setVolume(double volume) async {

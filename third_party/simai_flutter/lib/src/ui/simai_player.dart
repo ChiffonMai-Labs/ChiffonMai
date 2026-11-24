@@ -81,6 +81,7 @@ class SimaiPlayerController extends ChangeNotifier {
   int _seekGeneration = 0;
   double _totalDurationSnapshot = 0.0;
   late final int _noteCountSnapshot;
+  late final List<double> _noteTimes = _buildNoteTimes(chart);
   bool _isDisposed = false;
 
   final ValueNotifier<double> timeNotifier = ValueNotifier<double>(0.0);
@@ -166,9 +167,10 @@ class SimaiPlayerController extends ChangeNotifier {
 
   set playbackRate(double value) {
     final safeValue = value.isFinite ? value : 1.0;
-    final clamped = safeValue.clamp(0.1, 1.0).toDouble();
-    if (_playbackRate == clamped) return;
-    _playbackRate = clamped;
+    final clamped = safeValue.clamp(0.1, 3.0).toDouble();
+    final quantized = (clamped * 20).round() / 20.0;
+    if (_playbackRate == quantized) return;
+    _playbackRate = quantized;
     _applyToGame();
     notifyListeners();
   }
@@ -394,16 +396,29 @@ class SimaiPlayerController extends ChangeNotifier {
     return boundaryTime < 0 ? 0.0 : boundaryTime;
   }
 
+  static List<double> _buildNoteTimes(MaiChart chart) {
+    final raw = <double>[
+      for (final collection in chart.noteCollections)
+        if (collection.isNotEmpty && collection.time.isFinite) collection.time,
+    ]..sort();
+    final unique = <double>[];
+    for (final t in raw) {
+      if (unique.isEmpty || (t - unique.last) > 1e-5) {
+        unique.add(t);
+      }
+    }
+    return unique;
+  }
+
   double computePreviousNoteTime(double time) {
-    if (chart.noteCollections.isEmpty) return time;
-    const double tolerance = 0.1;
+    if (_noteTimes.isEmpty) return time;
+    final double tolerance = _isPlaying ? 0.08 : 1e-4;
 
     int lo = 0;
-    int hi = chart.noteCollections.length - 1;
+    int hi = _noteTimes.length - 1;
     while (lo <= hi) {
       final mid = (lo + hi) >> 1;
-      final t = chart.noteCollections[mid].time;
-      if (t < time - tolerance) {
+      if (_noteTimes[mid] < time - tolerance) {
         lo = mid + 1;
       } else {
         hi = mid - 1;
@@ -411,39 +426,26 @@ class SimaiPlayerController extends ChangeNotifier {
     }
 
     if (hi < 0) return 0.0;
-    return chart.noteCollections[hi].time;
+    return _noteTimes[hi];
   }
 
   double computeNextNoteTime(double time) {
-    if (chart.noteCollections.isEmpty) return time;
-    final epsilon = 1e-6;
+    if (_noteTimes.isEmpty) return time;
+    const double epsilon = 1e-4;
 
-    int index = _findCollectionIndex(time);
-    index++;
-
-    if (index >= chart.noteCollections.length) return time;
-
-    if (chart.noteCollections[index].time <= time + epsilon) {
-      index++;
-    }
-
-    if (index >= chart.noteCollections.length) return time;
-    return chart.noteCollections[index].time;
-  }
-
-  int _findCollectionIndex(double time) {
     int lo = 0;
-    int hi = chart.noteCollections.length - 1;
+    int hi = _noteTimes.length - 1;
     while (lo <= hi) {
       final mid = (lo + hi) >> 1;
-      final t = chart.noteCollections[mid].time;
-      if (t <= time) {
+      if (_noteTimes[mid] <= time + epsilon) {
         lo = mid + 1;
       } else {
         hi = mid - 1;
       }
     }
-    return hi;
+
+    if (lo >= _noteTimes.length) return time;
+    return _noteTimes[lo];
   }
 
   void _attachGame(SimaiGame game) {
@@ -1483,7 +1485,44 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
                           valueSuffix:
                               'x${controller.speed.toStringAsFixed(2)}',
                         ),
-                        const SizedBox(height: 16),
+                        _buildSliderSetting(
+                          context,
+                          label: '播放倍速',
+                          icon: Icons.slow_motion_video,
+                          value: controller.playbackRate.clamp(0.1, 3.0),
+                          min: 0.1,
+                          max: 3.0,
+                          divisions: 58,
+                          onChanged: (v) => controller.playbackRate = v,
+                          valueSuffix:
+                              '${controller.playbackRate.toStringAsFixed(2)}x',
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                          child: Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: [
+                              for (final rate in const [
+                                0.5,
+                                0.75,
+                                1.0,
+                                1.5,
+                                2.0,
+                                3.0,
+                              ])
+                                _buildPlaybackRateChip(
+                                  context,
+                                  rate: rate,
+                                  selected:
+                                      (controller.playbackRate - rate).abs() <
+                                      0.001,
+                                  onTap: () => controller.playbackRate = rate,
+                                ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
                         _buildSwitchSetting(
                           context,
                           label: '星星旋转',
@@ -1759,6 +1798,45 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
             onChanged: onChanged,
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildPlaybackRateChip(
+    BuildContext context, {
+    required double rate,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    return Material(
+      color: selected
+          ? colorScheme.primaryContainer
+          : colorScheme.onSurface.withValues(alpha: 0.08),
+      shape: StadiumBorder(
+        side: BorderSide(
+          color: selected ? colorScheme.primary : colorScheme.outlineVariant,
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        splashFactory: NoSplash.splashFactory,
+        highlightColor: Colors.transparent,
+        hoverColor: Colors.transparent,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          child: Text(
+            '${rate}x',
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: selected
+                  ? colorScheme.onPrimaryContainer
+                  : colorScheme.onSurfaceVariant,
+              fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+            ),
+          ),
+        ),
       ),
     );
   }

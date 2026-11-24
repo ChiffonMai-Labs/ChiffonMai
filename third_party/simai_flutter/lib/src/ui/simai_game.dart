@@ -626,8 +626,9 @@ class SimaiGame extends FlameGame {
 
   Future<void> setPlaybackRate(double rate) async {
     final safe = rate.isFinite ? rate : 1.0;
-    final clamped = safe.clamp(0.1, 1.0).toDouble();
+    final clamped = safe.clamp(0.1, 3.0).toDouble();
     if (playbackRate == clamped) return;
+    _anchorChartClock();
     playbackRate = clamped;
     _stopSfxVoices();
     _resyncSfxPosition();
@@ -727,11 +728,9 @@ class SimaiGame extends FlameGame {
     final int generation = ++_seekGeneration;
     double settledChartTime = time;
     _isSeeking = true;
-    // Calculate target audio position
-    double audioPos = time - offset;
-
-    // Clamp to valid range
-    if (audioPos < 0) audioPos = 0;
+    // 计算目标音频位置；保留 rawAudioPos 用于判断是否仍处于前奏负偏移区间。
+    final double rawAudioPos = time - offset;
+    final double audioPos = rawAudioPos < 0 ? 0.0 : rawAudioPos;
 
     chartTime = time;
     _pendingSeekReset = true;
@@ -743,23 +742,24 @@ class SimaiGame extends FlameGame {
 
     final audioPlayer = _audioPlayer;
     if (syncAudio && _hasAudio && audioPlayer != null) {
-      final int targetAudioMs = (audioPos * 1000).toInt();
+      final int targetAudioUs = (audioPos * 1000000).round();
       final bool wasPlaying = isPlaying;
       try {
-        // Always pause before seeking. During timeline dragging, the logical
-        // playback flag may already be false while the backend is still
-        // processing the previous pause/resume command.
+        // 拖动时间轴或跳转音符前先暂停音频，避免异步解码器状态覆盖目标时间。
         await audioPlayer.pause();
-        await audioPlayer.seek(Duration(milliseconds: targetAudioMs));
+        await audioPlayer.seek(Duration(microseconds: targetAudioUs));
 
         if (generation != _seekGeneration) return;
 
-        // Use the position selected by SoLoud as the new clock.
+        // 仅在播放中且处于音频正片区间时同步解码器位置；暂停态保持精确的谱面时间，
+        // 防止 MP3 帧对齐导致时间回退到音符之前。
         final settled = audioPlayer.latestSnapshot;
         if (settled != null) {
           _audioClockSnapshot = settled;
-          settledChartTime =
-              settled.position.inMicroseconds / 1000000.0 + offset;
+          if (wasPlaying && rawAudioPos >= 0) {
+            settledChartTime =
+                settled.position.inMicroseconds / 1000000.0 + offset;
+          }
         }
         if (wasPlaying) {
           unawaited(audioPlayer.play());
