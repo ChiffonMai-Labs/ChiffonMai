@@ -5,13 +5,15 @@ import '../../service/GainRecommend/GainRecommendCore.dart';
 import '../../service/GainRecommend/ScoreInsights.dart';
 import '../../utils/AppDesignTokens.dart';
 import '../../utils/AppTheme.dart';
+import '../../utils/Best50Tie.dart';
 import '../../utils/CoverUtil.dart';
 import '../../widgets/AppUi.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
+import '../../widgets/Best50Ui.dart';
 import '../SongInfoPage.dart';
 
 /// 好友合作 Best50 页面：同谱取双方最高成绩重排 B35 + B15。
-class CooperativeBest50Page extends StatelessWidget {
+class CooperativeBest50Page extends StatefulWidget {
   const CooperativeBest50Page({
     super.key,
     required this.result,
@@ -26,25 +28,133 @@ class CooperativeBest50Page extends StatelessWidget {
   final String friendName;
 
   @override
+  State<CooperativeBest50Page> createState() => _CooperativeBest50PageState();
+}
+
+class _CooperativeBest50PageState extends State<CooperativeBest50Page> {
+  late Best50TiePool<GainChartRecord> _b35Pool;
+  late Best50TiePool<GainChartRecord> _b15Pool;
+
+  @override
+  void initState() {
+    super.initState();
+    _initPools();
+  }
+
+  @override
+  void didUpdateWidget(CooperativeBest50Page oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.result != widget.result) {
+      _initPools();
+    }
+  }
+
+  void _initPools() {
+    final baseline = widget.result.baseline;
+    _b35Pool = Best50TiePool<GainChartRecord>.fromSplit(
+      defaultShown: baseline.b35,
+      defaultRemaining: widget.result.b35Remaining,
+      tieValueOf: (r) => r.ra,
+      keyOf: (r) => r.key.storageKey,
+    );
+    _b15Pool = Best50TiePool<GainChartRecord>.fromSplit(
+      defaultShown: baseline.b15,
+      defaultRemaining: widget.result.b15Remaining,
+      tieValueOf: (r) => r.ra,
+      keyOf: (r) => r.key.storageKey,
+    );
+  }
+
+  String _ownerLabelOf(BuildContext context, GainChartRecord record) {
+    final l10n = context.l10n;
+    return switch (widget.result.contributors[record.key]) {
+      CooperativeContributor.mine => l10n.flowMe,
+      CooperativeContributor.friend => widget.friendName,
+      CooperativeContributor.both => l10n.awmcSharedContribution,
+      null => '',
+    };
+  }
+
+  Best50CardData _toCardData(BuildContext context, GainChartRecord record) {
+    final ownerLabel = _ownerLabelOf(context, record);
+    return Best50CardData(
+      songId: record.songId,
+      title: record.title,
+      levelIndex: record.levelIndex,
+      type: record.type,
+      rating: record.ra,
+      ds: record.ds,
+      achievement: record.achievements,
+      fc: '',
+      fs: '',
+      stars: '',
+      dxScore: 0,
+      maxDxScore: 0,
+      badge: ownerLabel.isEmpty ? null : ownerLabel,
+      onOpenSong: () {
+        FocusManager.instance.primaryFocus?.unfocus();
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => SongInfoPage(
+              songId: '${record.songId}',
+              initialLevelIndex: record.levelIndex,
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _pickTies(BuildContext context, String name) async {
+    final isB35 = name == 'B35';
+    final pool = isB35 ? _b35Pool : _b15Pool;
+    if (!pool.hasTies || pool.shown.isEmpty) return;
+    final chosen = await showBest50TieSelectionDialog(
+      context,
+      candidates: [for (final r in pool.candidates) _toCardData(context, r)],
+      candidateKeys: [for (final r in pool.candidates) r.key.storageKey],
+      initialSelectedKeys: pool.selectedKeys,
+      defaultKeys: pool.defaultKeys,
+      slotCount: pool.slotCount,
+      label: 'RA ${pool.shown.last.ra}',
+      segmentTitle: name,
+    );
+    if (chosen == null || !mounted) return;
+    setState(() {
+      if (isB35) {
+        _b35Pool = _b35Pool.withSelection(chosen);
+      } else {
+        _b15Pool = _b15Pool.withSelection(chosen);
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final scheme = Theme.of(context).colorScheme;
     final brightness = Theme.of(context).brightness;
-    final baseline = result.baseline;
+    final b35Group = _b35Pool.shown;
+    final b15Group = _b15Pool.shown;
 
     var myCount = 0;
     var friendCount = 0;
     var sharedCount = 0;
-    for (final contributor in result.contributors.values) {
-      switch (contributor) {
+    for (final record in [...b35Group, ...b15Group]) {
+      switch (widget.result.contributors[record.key]) {
         case CooperativeContributor.mine:
           myCount++;
         case CooperativeContributor.friend:
           friendCount++;
         case CooperativeContributor.both:
           sharedCount++;
+        case null:
+          break;
       }
     }
+    final raSum =
+        [...b35Group, ...b15Group].fold<int>(0, (sum, r) => sum + r.ra);
 
     Widget statBox(String label, int value, Color? accent) => Expanded(
           child: Container(
@@ -87,7 +197,7 @@ class CooperativeBest50Page extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      '${baseline.raSum}',
+                      '$raSum',
                       style: AppTheme.number(
                         fontSize: 28,
                         fontWeight: FontWeight.w800,
@@ -106,7 +216,7 @@ class CooperativeBest50Page extends StatelessWidget {
                         BorderRadius.circular(AppDesignTokens.radiusSmall),
                   ),
                   child: Text(
-                    '${l10n.flowMe} · $mySource  /  $friendName · $friendSource',
+                    '${l10n.flowMe} · ${widget.mySource}  /  ${widget.friendName} · ${widget.friendSource}',
                     style:
                         TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
                   ),
@@ -116,7 +226,7 @@ class CooperativeBest50Page extends StatelessWidget {
                   children: [
                     statBox(l10n.flowMe, myCount, scheme.primary),
                     const SizedBox(width: 8),
-                    statBox(friendName, friendCount,
+                    statBox(widget.friendName, friendCount,
                         AppColors.linkBlue(brightness)),
                     const SizedBox(width: 8),
                     statBox(l10n.awmcSharedContribution, sharedCount,
@@ -126,13 +236,13 @@ class CooperativeBest50Page extends StatelessWidget {
               ],
             ),
           ),
-          for (final (name, group) in [
-            ('B35', baseline.b35),
-            ('B15', baseline.b15)
+          for (final (name, pool, group) in [
+            ('B35', _b35Pool, b35Group),
+            ('B15', _b15Pool, b15Group),
           ])
             if (group.isNotEmpty) ...[
               const SizedBox(height: AppDesignTokens.cardGap),
-              _buildGroupCard(context, name, group, brightness),
+              _buildGroupCard(context, name, pool, group, brightness),
             ],
         ],
       ),
@@ -142,10 +252,10 @@ class CooperativeBest50Page extends StatelessWidget {
   Widget _buildGroupCard(
     BuildContext context,
     String name,
+    Best50TiePool<GainChartRecord> pool,
     List<GainChartRecord> group,
     Brightness brightness,
   ) {
-    final l10n = context.l10n;
     final scheme = Theme.of(context).colorScheme;
     return AppCard(
       child: Column(
@@ -160,6 +270,16 @@ class CooperativeBest50Page extends StatelessWidget {
               foreground: scheme.onSurfaceVariant,
             ),
           ),
+          if (pool.hasTies) ...[
+            Best50TiePickerBar(
+              label: 'RA ${group.last.ra}',
+              selectedCount: pool.slotCount,
+              totalCount: pool.candidates.length,
+              customized: pool.isCustomized,
+              onTap: () => _pickTies(context, name),
+            ),
+            const SizedBox(height: 10),
+          ],
           for (final (index, record) in group.indexed) ...[
             if (index > 0) const SizedBox(height: 8),
             _buildRecordRow(context, index + 1, record, brightness),
@@ -177,11 +297,11 @@ class CooperativeBest50Page extends StatelessWidget {
   ) {
     final l10n = context.l10n;
     final scheme = Theme.of(context).colorScheme;
-    final contributor = result.contributors[record.key];
+    final contributor = widget.result.contributors[record.key];
     final (String ownerLabel, Color ownerColor) = switch (contributor) {
       CooperativeContributor.mine => (l10n.flowMe, scheme.primary),
       CooperativeContributor.friend => (
-          friendName,
+          widget.friendName,
           AppColors.linkBlue(brightness)
         ),
       CooperativeContributor.both => (

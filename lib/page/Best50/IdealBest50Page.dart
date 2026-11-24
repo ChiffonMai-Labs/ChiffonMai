@@ -8,8 +8,11 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../../entity/DivingFish/Song.dart';
 import '../../manager/DivingFish/MaimaiMusicDataManager.dart';
+import '../../service/AccountStore.dart';
 import '../../service/Best50/Best50ConvertToImgService.dart';
 import '../../service/Best50/IdealBest50Service.dart';
+import '../../utils/Best50Order.dart';
+import '../../utils/Best50Tie.dart';
 import '../../utils/ExportQualitySelector.dart';
 import '../../utils/ImageEncodeUtil.dart';
 import '../../utils/StringUtil.dart';
@@ -38,6 +41,10 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
   List<Map<String, dynamic>> _newEntries = [];
   Map<String, Song> _songIndex = {};
   List<dynamic> _maimaiMusicData = [];
+  String _accountKey = '';
+  int _resultVersion = 0;
+  Best50TiePool<Map<String, dynamic>>? _sdTiePool;
+  Best50TiePool<Map<String, dynamic>>? _dxTiePool;
   bool _isLoading = true;
 
   @override
@@ -49,21 +56,148 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
   Future<void> _load() async {
     final data = await IdealBest50Service().calculate();
     final songs = await MaimaiMusicDataManager().getCachedSongs() ?? <Song>[];
+    final accountKey = await AccountStore.accountKey();
+    final sdSaved = await Best50TieSelectionStore.load(accountKey, 'ideal_sd');
+    final dxSaved = await Best50TieSelectionStore.load(accountKey, 'ideal_dx');
     if (!mounted) return;
+
+    final songIndex = {for (final s in songs) s.id: s};
+    Best50TiePool<Map<String, dynamic>>? sdPool;
+    Best50TiePool<Map<String, dynamic>>? dxPool;
+    var sdSongs = <Map<String, dynamic>>[];
+    var dxSongs = <Map<String, dynamic>>[];
+    var newEntries = <Map<String, dynamic>>[];
+
+    if (data != null) {
+      sdPool = Best50TiePool<Map<String, dynamic>>.fromSplit(
+        defaultShown: [
+          for (final m in data['sd'] as List)
+            Map<String, dynamic>.from(m as Map),
+        ],
+        defaultRemaining: [
+          for (final m in (data['sdRemaining'] as List?) ?? const [])
+            Map<String, dynamic>.from(m as Map),
+        ],
+        tieValueOf: (item) => (item['ra'] as num?)?.toInt() ?? 0,
+        keyOf: best50MapChartKey,
+        savedKeys: sdSaved,
+      );
+      dxPool = Best50TiePool<Map<String, dynamic>>.fromSplit(
+        defaultShown: [
+          for (final m in data['dx'] as List)
+            Map<String, dynamic>.from(m as Map),
+        ],
+        defaultRemaining: [
+          for (final m in (data['dxRemaining'] as List?) ?? const [])
+            Map<String, dynamic>.from(m as Map),
+        ],
+        tieValueOf: (item) => (item['ra'] as num?)?.toInt() ?? 0,
+        keyOf: best50MapChartKey,
+        savedKeys: dxSaved,
+      );
+      sdSongs = sdPool.shown;
+      dxSongs = dxPool.shown;
+      newEntries = _recomputeNewEntries(
+        data,
+        sdSongs,
+        dxSongs,
+        songIndex.values,
+      );
+    }
+
     setState(() {
+      _accountKey = accountKey;
       _data = data;
-      _sdSongs = data == null
-          ? []
-          : List<Map<String, dynamic>>.from(data['sd'] as List);
-      _dxSongs = data == null
-          ? []
-          : List<Map<String, dynamic>>.from(data['dx'] as List);
-      _newEntries = data == null
-          ? []
-          : List<Map<String, dynamic>>.from(data['newEntries'] as List);
-      _songIndex = {for (final s in songs) s.id: s};
+      _sdTiePool = sdPool;
+      _dxTiePool = dxPool;
+      _sdSongs = sdSongs;
+      _dxSongs = dxSongs;
+      _newEntries = newEntries;
+      _songIndex = songIndex;
       _maimaiMusicData = songs.map((s) => s.toJson()).toList();
       _isLoading = false;
+    });
+  }
+
+  List<Map<String, dynamic>> _recomputeNewEntries(
+    Map<String, dynamic> data,
+    List<Map<String, dynamic>> sdSongs,
+    List<Map<String, dynamic>> dxSongs,
+    Iterable<Song> songs,
+  ) {
+    final origKeysRaw = data['origKeys'];
+    if (origKeysRaw is! List) {
+      return List<Map<String, dynamic>>.from(
+          (data['newEntries'] as List?) ?? const []);
+    }
+    final origKeys = {for (final k in origKeysRaw) k.toString()};
+    final origRaRaw = data['origRaByKey'];
+    final origRaByKey = origRaRaw is Map
+        ? {
+            for (final e in origRaRaw.entries)
+              e.key.toString(): (e.value as num?)?.toInt() ?? 0,
+          }
+        : const <String, int>{};
+    final order = Best50Order.fromSongs(songs);
+    final idealEntries = [...sdSongs, ...dxSongs]..sort(order.compareMaps);
+    return [
+      for (final m in idealEntries)
+        if (!origKeys.contains(best50MapChartKey(m)))
+          {
+            'title': m['title'] ?? '未知歌曲',
+            'ds': m['ds'] ?? 0,
+            'level_index': m['level_index'] ?? 0,
+            'oldRa': origRaByKey[best50MapChartKey(m)] ?? 0,
+            'newRa': m['ra'] ?? 0,
+          },
+    ];
+  }
+
+  Future<void> _pickTiesForSegment(int segment) async {
+    final pool = segment == 0 ? _sdTiePool : _dxTiePool;
+    if (pool == null || !pool.hasTies || pool.shown.isEmpty) return;
+    final label = 'RA ${pool.shown.last['ra']}';
+    final segTitle = segment == 0 ? 'B35' : 'B15';
+    final chosen = await showBest50TieSelectionDialog(
+      context,
+      candidates: [for (final c in pool.candidates) _cardData(c)],
+      candidateKeys: [for (final c in pool.candidates) best50MapChartKey(c)],
+      initialSelectedKeys: pool.selectedKeys,
+      defaultKeys: pool.defaultKeys,
+      slotCount: pool.slotCount,
+      label: label,
+      segmentTitle: segTitle,
+    );
+    if (chosen == null || !mounted) return;
+    final updated = pool.withSelection(chosen);
+    final accountKey =
+        _accountKey.isNotEmpty ? _accountKey : await AccountStore.accountKey();
+    await Best50TieSelectionStore.saveOrClear(
+      accountKey,
+      segment == 0 ? 'ideal_sd' : 'ideal_dx',
+      updated,
+    );
+    if (!mounted) return;
+    final nextSd = segment == 0 ? updated.shown : _sdSongs;
+    final nextDx = segment == 1 ? updated.shown : _dxSongs;
+    setState(() {
+      _accountKey = accountKey;
+      if (segment == 0) {
+        _sdTiePool = updated;
+        _sdSongs = nextSd;
+      } else {
+        _dxTiePool = updated;
+        _dxSongs = nextDx;
+      }
+      if (_data != null) {
+        _newEntries = _recomputeNewEntries(
+          _data!,
+          nextSd,
+          nextDx,
+          _songIndex.values,
+        );
+      }
+      _resultVersion++;
     });
   }
 
@@ -155,6 +289,36 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
       exportingLabel: title,
       enableThunderMode: true,
       enableBest50Background: true,
+      extraSectionBuilder: (sheetContext, setSheetState) {
+        final items = <Best50ExportTieItem>[
+          if (_sdTiePool != null &&
+              _sdTiePool!.hasTies &&
+              _sdTiePool!.shown.isNotEmpty)
+            Best50ExportTieItem(
+              segment: 'B35',
+              label: 'RA ${_sdTiePool!.shown.last['ra']}',
+              selectedCount: _sdTiePool!.slotCount,
+              totalCount: _sdTiePool!.candidates.length,
+              customized: _sdTiePool!.isCustomized,
+              onTap: () => _pickTiesForSegment(0),
+            ),
+          if (_dxTiePool != null &&
+              _dxTiePool!.hasTies &&
+              _dxTiePool!.shown.isNotEmpty)
+            Best50ExportTieItem(
+              segment: 'B15',
+              label: 'RA ${_dxTiePool!.shown.last['ra']}',
+              selectedCount: _dxTiePool!.slotCount,
+              totalCount: _dxTiePool!.candidates.length,
+              customized: _dxTiePool!.isCustomized,
+              onTap: () => _pickTiesForSegment(1),
+            ),
+        ];
+        return Best50ExportTieSection(
+          items: items,
+          onUpdated: () => setSheetState(() {}),
+        );
+      },
       previewBuilder: (previewContext, previewQuality) =>
           B50ConvertToImg.buildPreviewWidget(
         previewContext,
@@ -400,16 +564,25 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
         ),
       );
     }
+    final activePool = _segment == 0 ? _sdTiePool : _dxTiePool;
+    final remainingRaw = activePool != null && activePool.hasTies
+        ? activePool.remaining
+        : (_data?[_segment == 0 ? 'sdRemaining' : 'dxRemaining'] as List?) ??
+            const [];
     return Best50Grid(
-      contentKey: _segment,
+      contentKey: '$_segment-$_resultVersion',
       items: [for (final m in songs) _cardData(m)],
       remaining: [
-        for (final m in (_data?[_segment == 0 ? 'sdRemaining' : 'dxRemaining']
-                as List?) ??
-            const [])
+        for (final m in remainingRaw)
           _cardData(Map<String, dynamic>.from(m as Map))
       ],
       remainingLabel: 'RA ${songs.last['ra']}',
+      onSelectTies: activePool != null && activePool.hasTies
+          ? () => _pickTiesForSegment(_segment)
+          : null,
+      tieSelectedCount: activePool?.slotCount,
+      tieTotalCount: activePool?.candidates.length,
+      tieCustomized: activePool?.isCustomized ?? false,
     );
   }
 

@@ -7,6 +7,7 @@ import '../../manager/DivingFish/MaimaiMusicDataManager.dart';
 import '../../utils/SongFilterUtil.dart';
 import '../../utils/Best50Tie.dart';
 import '../../utils/Best50Order.dart';
+import '../AccountStore.dart';
 
 class DiffBest50Service {
   // 单例模式
@@ -275,31 +276,85 @@ class DiffBest50Service {
         recordMap[key] = Map<String, dynamic>.from(record as Map);
       }
 
+      final songs = await MaimaiMusicDataManager().getCachedSongs();
+      final order = Best50Order.fromSongs(songs ?? const []);
+      final isNewById = {
+        for (final song in songs ?? const []) song.id: song.basicInfo.isNew,
+      };
+      final oldPoolRecords = <Map<String, dynamic>>[];
+      final newPoolRecords = <Map<String, dynamic>>[];
+      for (final raw in recordMap.values) {
+        final sid = raw['song_id']?.toString() ?? '';
+        if (SongFilterUtil.isUtageSong(sid)) continue;
+        (isNewById[sid] == true ? newPoolRecords : oldPoolRecords).add(raw);
+      }
+      oldPoolRecords.sort(order.compareMaps);
+      newPoolRecords.sort(order.compareMaps);
+
+      final rawSdCharts = (best50Data['charts']?['sd'] is List)
+          ? [
+              for (final c in best50Data['charts']['sd'] as List)
+                Map<String, dynamic>.from(c as Map),
+            ]
+          : <Map<String, dynamic>>[];
+      final rawDxCharts = (best50Data['charts']?['dx'] is List)
+          ? [
+              for (final c in best50Data['charts']['dx'] as List)
+                Map<String, dynamic>.from(c as Map),
+            ]
+          : <Map<String, dynamic>>[];
+
+      List<Map<String, dynamic>> applyOfficialTieSelection(
+        List<Map<String, dynamic>> base,
+        List<Map<String, dynamic>> allRecords,
+        Set<String>? savedKeys,
+      ) {
+        if (base.isEmpty || savedKeys == null || savedKeys.isEmpty) return base;
+        final cutoff = base.last['ra'];
+        final baseKeys = {for (final b in base) best50MapChartKey(b)};
+        final tied = [
+          for (final r in allRecords)
+            if (r['ra'] == cutoff && !baseKeys.contains(best50MapChartKey(r)))
+              r,
+        ]..sort(order.compareMaps);
+        if (tied.isEmpty) return base;
+        final pool = Best50TiePool<Map<String, dynamic>>.fromSplit(
+          defaultShown: base,
+          defaultRemaining: tied,
+          tieValueOf: (item) => (item['ra'] as num?)?.toInt() ?? 0,
+          keyOf: best50MapChartKey,
+          savedKeys: savedKeys,
+        );
+        return pool.shown;
+      }
+
+      final accountKey = await AccountStore.accountKey();
+      final sdSaved = await Best50TieSelectionStore.load(accountKey, 'b50_sd');
+      final dxSaved = await Best50TieSelectionStore.load(accountKey, 'b50_dx');
+      final selectedSdCharts =
+          applyOfficialTieSelection(rawSdCharts, oldPoolRecords, sdSaved);
+      final selectedDxCharts =
+          applyOfficialTieSelection(rawDxCharts, newPoolRecords, dxSaved);
+
       // 存储计算结果（分离sd和dx）
       List<Map<String, dynamic>> diffSdSongs = []; // Best35 - 非当前版本
       List<Map<String, dynamic>> diffDxSongs = []; // Best15 - 当前版本
 
       // 处理SD数据（Best35）
-      if (best50Data['charts']?['sd'] is List) {
-        for (var chart in (best50Data['charts']['sd'] as List)) {
-          await _processChart(Map<String, dynamic>.from(chart as Map),
-              recordMap, chartsData, diffSdSongs);
-        }
+      for (var chart in selectedSdCharts) {
+        await _processChart(chart, recordMap, chartsData, diffSdSongs);
       }
 
       // 处理DX数据（Best15）
-      if (best50Data['charts']?['dx'] is List) {
-        for (var chart in (best50Data['charts']['dx'] as List)) {
-          await _processChart(Map<String, dynamic>.from(chart as Map),
-              recordMap, chartsData, diffDxSongs);
-        }
+      for (var chart in selectedDxCharts) {
+        await _processChart(chart, recordMap, chartsData, diffDxSongs);
       }
 
       // 分别按diffRating降序排序
-      final songs = await MaimaiMusicDataManager().getCachedSongs();
-      final order = Best50Order.fromSongs(songs ?? const []);
-      diffSdSongs.sort((a, b) => order.compareMaps(a, b, ratingField: 'diffRating'));
-      diffDxSongs.sort((a, b) => order.compareMaps(a, b, ratingField: 'diffRating'));
+      diffSdSongs
+          .sort((a, b) => order.compareMaps(a, b, ratingField: 'diffRating'));
+      diffDxSongs
+          .sort((a, b) => order.compareMaps(a, b, ratingField: 'diffRating'));
 
       // 合并结果
       List<Map<String, dynamic>> diffBest50 = [...diffSdSongs, ...diffDxSongs];

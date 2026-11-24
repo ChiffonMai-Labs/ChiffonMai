@@ -103,6 +103,8 @@ class ExportQualitySelector {
     bool enableBest50Background = false,
     bool initialThunderMode = false,
     bool initialThunderVertical = true,
+    Widget Function(BuildContext context, StateSetter setSheetState)?
+        extraSectionBuilder,
     FutureOr<Widget> Function(
             BuildContext context, ExportQualityResult quality)?
         previewBuilder,
@@ -321,6 +323,10 @@ class ExportQualitySelector {
                                   ],
                                 ),
                               ),
+                            ],
+                            if (extraSectionBuilder != null) ...[
+                              const SizedBox(height: 12),
+                              extraSectionBuilder(context, setState),
                             ],
                             if (previewBuilder != null) ...[
                               const SizedBox(height: 12),

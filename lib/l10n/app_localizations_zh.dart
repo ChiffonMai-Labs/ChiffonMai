@@ -15366,6 +15366,45 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get rankingHideAnonymousTop100Hint => '已开启：展示前 100 名非匿名玩家';
+
+  @override
+  String get best50TieSelectTitle => '选择末尾同分谱面';
+
+  @override
+  String get best50TieSelectEntry => '末尾同分自选';
+
+  @override
+  String best50TieSelectSummary(String label, int total, int selected) {
+    return '$label 共 $total 首同分，选 $selected 首入榜';
+  }
+
+  @override
+  String best50TieSelectDialogHint(int count, String label, int selected) {
+    return '请选择恰好 $count 首 $label 谱面组成榜单（已选 $selected/$count）';
+  }
+
+  @override
+  String get best50TieCustomizedBadge => '已自选';
+
+  @override
+  String get best50TieResetDefault => '恢复默认';
+
+  @override
+  String best50TieSelectionFull(int count) {
+    return '已选满 $count 首，请先取消其他谱面';
+  }
+
+  @override
+  String get best50TieExportSectionTitle => '末尾同分谱面组成';
+
+  @override
+  String best50TieExportSegmentSummary(
+      String segment, String label, int selected, int total) {
+    return '$segment · $label（$selected/$total）';
+  }
+
+  @override
+  String get best50TieSelectAction => '选择';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -30732,4 +30771,43 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get rankingHideAnonymousTop100Hint => '已開啟：展示前 100 名非匿名玩家';
+
+  @override
+  String get best50TieSelectTitle => '選擇末尾同分譜面';
+
+  @override
+  String get best50TieSelectEntry => '末尾同分自選';
+
+  @override
+  String best50TieSelectSummary(String label, int total, int selected) {
+    return '$label 共 $total 首同分，選 $selected 首入榜';
+  }
+
+  @override
+  String best50TieSelectDialogHint(int count, String label, int selected) {
+    return '請選擇恰好 $count 首 $label 譜面組成榜單（已選 $selected/$count）';
+  }
+
+  @override
+  String get best50TieCustomizedBadge => '已自選';
+
+  @override
+  String get best50TieResetDefault => '恢復預設';
+
+  @override
+  String best50TieSelectionFull(int count) {
+    return '已選滿 $count 首，請先取消其他譜面';
+  }
+
+  @override
+  String get best50TieExportSectionTitle => '末尾同分譜面組成';
+
+  @override
+  String best50TieExportSegmentSummary(
+      String segment, String label, int selected, int total) {
+    return '$segment · $label（$selected/$total）';
+  }
+
+  @override
+  String get best50TieSelectAction => '選擇';
 }

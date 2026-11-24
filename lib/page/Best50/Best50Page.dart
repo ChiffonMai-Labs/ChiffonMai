@@ -35,6 +35,7 @@ import 'package:my_first_flutter_app/service/BackgroundExportService.dart';
 import '../../utils/MusicDataIndex.dart';
 import '../../utils/JsonIsolate.dart';
 import '../../utils/Best50Order.dart';
+import '../../utils/Best50Tie.dart';
 
 class B50Page extends StatefulWidget {
   final Map<String, dynamic>? b50Data;
@@ -54,8 +55,19 @@ class _B50PageState extends State<B50Page> {
   // 按新旧曲分组的完整成绩，用来找和榜单末位 RA 并列的谱面。
   List<Map<String, dynamic>> _oldRecords = [];
   List<Map<String, dynamic>> _newRecords = [];
+  List<Map<String, dynamic>> _baseSdSongs = [];
+  List<Map<String, dynamic>> _baseDxSongs = [];
   List<Map<String, dynamic>> _theoreticalDxSongs = [];
   List<Map<String, dynamic>> _theoreticalSdSongs = [];
+  String _accountKey = '';
+  bool _viewingSnapshot = false;
+  int _tieBuildGen = 0;
+  int _theoTieGen = 0;
+  int _tieVersion = 0;
+  Best50TiePool<Map<String, dynamic>>? _sdTiePool;
+  Best50TiePool<Map<String, dynamic>>? _dxTiePool;
+  Best50TiePool<Map<String, dynamic>>? _theoreticalSdTiePool;
+  Best50TiePool<Map<String, dynamic>>? _theoreticalDxTiePool;
   // 存储被截断的相同定数歌曲
   Map<String, dynamic>?
       _remainingSdSongsInfo; // {ds: 14.7, count: 5, songs: [...]}
@@ -92,7 +104,8 @@ class _B50PageState extends State<B50Page> {
   Future<void> _loadB50Data() async {
     try {
       _snapshotRevision = AccountSwitchService.revision;
-      _snapshotKey = 'b50_snapshots_${await AccountStore.accountKey()}';
+      _accountKey = await AccountStore.accountKey();
+      _snapshotKey = 'b50_snapshots_$_accountKey';
       // 加载maimai音乐数据
       if (await MaimaiMusicDataManager().hasCachedData()) {
         final songs = await MaimaiMusicDataManager().getCachedSongs();
@@ -168,13 +181,16 @@ class _B50PageState extends State<B50Page> {
         if (raw is! Map) continue;
         final record = Map<String, dynamic>.from(raw);
         final songId = record['song_id'];
-        if (songId is! int || record['ra'] == null) continue;
+        if (songId is! int ||
+            SongFilterUtil.isUtageSong(songId.toString()) ||
+            record['ra'] == null) continue;
         (_isSongNew(songId) ? newRecords : oldRecords).add(record);
       }
       setState(() {
         _oldRecords = oldRecords;
         _newRecords = newRecords;
       });
+      unawaited(_rebuildNormalTiePools());
     } catch (e) {
       debugPrint('读取并列谱面失败: $e');
     }
@@ -217,7 +233,11 @@ class _B50PageState extends State<B50Page> {
     return false;
   }
 
-  void _updateB50Data(Map<String, dynamic> newData, {bool sortCharts = false}) {
+  void _updateB50Data(
+    Map<String, dynamic> newData, {
+    bool sortCharts = false,
+    bool isSnapshot = false,
+  }) {
     final charts = newData['charts'] as Map? ?? const {};
     final dx = List<Map<String, dynamic>>.from(charts['dx'] as List? ?? []);
     final sd = List<Map<String, dynamic>>.from(charts['sd'] as List? ?? []);
@@ -227,13 +247,62 @@ class _B50PageState extends State<B50Page> {
       sd.sort(order.compareMaps);
     }
     setState(() {
+      _viewingSnapshot = isSnapshot;
       _b50Data = newData;
+      _baseDxSongs = List<Map<String, dynamic>>.of(dx);
+      _baseSdSongs = List<Map<String, dynamic>>.of(sd);
       _dxSongs = dx;
       _sdSongs = sd;
       _isLoading = false;
     });
     _calculateTheoreticalBest50();
+    unawaited(_rebuildNormalTiePools());
     _loadTagDataAndCalculateStats();
+  }
+
+  Future<void> _rebuildNormalTiePools() async {
+    final gen = ++_tieBuildGen;
+    if (_viewingSnapshot || widget.b50Data != null) {
+      if (!mounted) return;
+      setState(() {
+        _sdTiePool = null;
+        _dxTiePool = null;
+        _sdSongs = List<Map<String, dynamic>>.of(_baseSdSongs);
+        _dxSongs = List<Map<String, dynamic>>.of(_baseDxSongs);
+      });
+      return;
+    }
+    final accountKey =
+        _accountKey.isNotEmpty ? _accountKey : await AccountStore.accountKey();
+    final sdSaved = await Best50TieSelectionStore.load(accountKey, 'b50_sd');
+    final dxSaved = await Best50TieSelectionStore.load(accountKey, 'b50_dx');
+    if (!mounted || gen != _tieBuildGen) return;
+
+    final sdPool = Best50TiePool<Map<String, dynamic>>.fromSplit(
+      defaultShown: _baseSdSongs,
+      defaultRemaining: _tiedRecords(_baseSdSongs, _oldRecords),
+      tieValueOf: (item) => (item['ra'] as num?)?.toInt() ?? 0,
+      keyOf: best50MapChartKey,
+      savedKeys: sdSaved,
+    );
+    final dxPool = Best50TiePool<Map<String, dynamic>>.fromSplit(
+      defaultShown: _baseDxSongs,
+      defaultRemaining: _tiedRecords(_baseDxSongs, _newRecords),
+      tieValueOf: (item) => (item['ra'] as num?)?.toInt() ?? 0,
+      keyOf: best50MapChartKey,
+      savedKeys: dxSaved,
+    );
+    setState(() {
+      _accountKey = accountKey;
+      _sdTiePool = sdPool;
+      _dxTiePool = dxPool;
+      _sdSongs = sdPool.shown;
+      _dxSongs = dxPool.shown;
+      _tieVersion++;
+    });
+    if (_tagsEntity != null && mounted) {
+      unawaited(_calculateTagGroupStats());
+    }
   }
 
   // 计算理论Rating Best50
@@ -302,10 +371,136 @@ class _B50PageState extends State<B50Page> {
     oldSongs.sort(order.compareMaps);
 
     // 取Best15和Best35，并计算剩余相同定数的歌曲
-    _theoreticalDxSongs = _takeWithRemaining(
+    final theoDxDefault = _takeWithRemaining(
         newSongs, 15, (info) => _remainingDxSongsInfo = info);
-    _theoreticalSdSongs = _takeWithRemaining(
+    final theoSdDefault = _takeWithRemaining(
         oldSongs, 35, (info) => _remainingSdSongsInfo = info);
+    final sdPool = Best50TiePool<Map<String, dynamic>>.fromSplit(
+      defaultShown: theoSdDefault,
+      defaultRemaining: List<Map<String, dynamic>>.from(
+          _remainingSdSongsInfo?['songs'] ?? const []),
+      tieValueOf: (item) => (item['ds'] as num?)?.toDouble() ?? 0.0,
+      keyOf: best50MapChartKey,
+    );
+    final dxPool = Best50TiePool<Map<String, dynamic>>.fromSplit(
+      defaultShown: theoDxDefault,
+      defaultRemaining: List<Map<String, dynamic>>.from(
+          _remainingDxSongsInfo?['songs'] ?? const []),
+      tieValueOf: (item) => (item['ds'] as num?)?.toDouble() ?? 0.0,
+      keyOf: best50MapChartKey,
+    );
+    _theoreticalSdTiePool = sdPool;
+    _theoreticalDxTiePool = dxPool;
+    _theoreticalSdSongs = sdPool.shown;
+    _theoreticalDxSongs = dxPool.shown;
+    unawaited(_applySavedTheoreticalTies(
+      theoSdDefault: theoSdDefault,
+      theoDxDefault: theoDxDefault,
+    ));
+  }
+
+  Future<void> _applySavedTheoreticalTies({
+    required List<Map<String, dynamic>> theoSdDefault,
+    required List<Map<String, dynamic>> theoDxDefault,
+  }) async {
+    final gen = ++_theoTieGen;
+    final accountKey =
+        _accountKey.isNotEmpty ? _accountKey : await AccountStore.accountKey();
+    final sdSaved =
+        await Best50TieSelectionStore.load(accountKey, 'b50_theo_sd');
+    final dxSaved =
+        await Best50TieSelectionStore.load(accountKey, 'b50_theo_dx');
+    if (!mounted || gen != _theoTieGen) return;
+
+    final sdPool = Best50TiePool<Map<String, dynamic>>.fromSplit(
+      defaultShown: theoSdDefault,
+      defaultRemaining: List<Map<String, dynamic>>.from(
+          _remainingSdSongsInfo?['songs'] ?? const []),
+      tieValueOf: (item) => (item['ds'] as num?)?.toDouble() ?? 0.0,
+      keyOf: best50MapChartKey,
+      savedKeys: sdSaved,
+    );
+    final dxPool = Best50TiePool<Map<String, dynamic>>.fromSplit(
+      defaultShown: theoDxDefault,
+      defaultRemaining: List<Map<String, dynamic>>.from(
+          _remainingDxSongsInfo?['songs'] ?? const []),
+      tieValueOf: (item) => (item['ds'] as num?)?.toDouble() ?? 0.0,
+      keyOf: best50MapChartKey,
+      savedKeys: dxSaved,
+    );
+    setState(() {
+      _accountKey = accountKey;
+      _theoreticalSdTiePool = sdPool;
+      _theoreticalDxTiePool = dxPool;
+      _theoreticalSdSongs = sdPool.shown;
+      _theoreticalDxSongs = dxPool.shown;
+      _tieVersion++;
+    });
+  }
+
+  Future<void> _pickTiesForSegment(
+    int segment, {
+    bool? theoreticalOverride,
+  }) async {
+    final isTheo = theoreticalOverride ?? _isTheoreticalMode;
+    final pool = segment == 0
+        ? (isTheo ? _theoreticalSdTiePool : _sdTiePool)
+        : (isTheo ? _theoreticalDxTiePool : _dxTiePool);
+    if (pool == null || !pool.hasTies) return;
+
+    final shown = pool.shown;
+    if (shown.isEmpty) return;
+    final label = isTheo
+        ? context.l10n.flowConstantP0(
+            ((shown.last['ds'] as num?)?.toDouble() ?? 0.0).toStringAsFixed(1))
+        : 'RA ${shown.last['ra']}';
+    final segTitle = segment == 0 ? 'B35' : 'B15';
+
+    final chosen = await showBest50TieSelectionDialog(
+      context,
+      candidates: [for (final c in pool.candidates) _cardData(c)],
+      candidateKeys: [for (final c in pool.candidates) best50MapChartKey(c)],
+      initialSelectedKeys: pool.selectedKeys,
+      defaultKeys: pool.defaultKeys,
+      slotCount: pool.slotCount,
+      label: label,
+      segmentTitle: segTitle,
+    );
+    if (chosen == null || !mounted) return;
+
+    final updated = pool.withSelection(chosen);
+    final accountKey =
+        _accountKey.isNotEmpty ? _accountKey : await AccountStore.accountKey();
+    final scopeKey = isTheo
+        ? (segment == 0 ? 'b50_theo_sd' : 'b50_theo_dx')
+        : (segment == 0 ? 'b50_sd' : 'b50_dx');
+    await Best50TieSelectionStore.saveOrClear(accountKey, scopeKey, updated);
+    if (!mounted) return;
+
+    setState(() {
+      _accountKey = accountKey;
+      if (isTheo) {
+        if (segment == 0) {
+          _theoreticalSdTiePool = updated;
+          _theoreticalSdSongs = updated.shown;
+        } else {
+          _theoreticalDxTiePool = updated;
+          _theoreticalDxSongs = updated.shown;
+        }
+      } else {
+        if (segment == 0) {
+          _sdTiePool = updated;
+          _sdSongs = updated.shown;
+        } else {
+          _dxTiePool = updated;
+          _dxSongs = updated.shown;
+        }
+      }
+      _tieVersion++;
+    });
+    if (!isTheo && _tagsEntity != null) {
+      unawaited(_calculateTagGroupStats());
+    }
   }
 
   // 取前limit个元素，并计算剩余相同定数的歌曲
@@ -503,11 +698,19 @@ class _B50PageState extends State<B50Page> {
     final songs = _segment == 0
         ? (_isTheoreticalMode ? _theoreticalSdSongs : _sdSongs)
         : (_isTheoreticalMode ? _theoreticalDxSongs : _dxSongs);
+    final activePool = _segment == 0
+        ? (_isTheoreticalMode ? _theoreticalSdTiePool : _sdTiePool)
+        : (_isTheoreticalMode ? _theoreticalDxTiePool : _dxTiePool);
     final theoreticalRemaining =
         _segment == 0 ? _remainingSdSongsInfo : _remainingDxSongsInfo;
-    final List<Map<String, dynamic>> remaining = _isTheoreticalMode
-        ? List<Map<String, dynamic>>.from(theoreticalRemaining?['songs'] ?? [])
-        : _tiedRecords(songs, _segment == 0 ? _oldRecords : _newRecords);
+    final List<Map<String, dynamic>> remaining =
+        activePool != null && activePool.hasTies
+            ? activePool.remaining
+            : (_isTheoreticalMode
+                ? List<Map<String, dynamic>>.from(
+                    theoreticalRemaining?['songs'] ?? [])
+                : _tiedRecords(
+                    songs, _segment == 0 ? _oldRecords : _newRecords));
     final remainingLabel = _isTheoreticalMode
         ? context.l10n.flowConstantP0(
             (((theoreticalRemaining?['ds'] ?? 0.0) as double)
@@ -563,10 +766,16 @@ class _B50PageState extends State<B50Page> {
             ],
             const SizedBox(height: AppDesignTokens.cardGap),
             Best50Grid(
-              contentKey: '$_isTheoreticalMode-$_segment',
+              contentKey: '$_isTheoreticalMode-$_segment-$_tieVersion',
               items: [for (final s in songs) _cardData(s)],
               remaining: [for (final s in remaining) _cardData(s)],
               remainingLabel: remainingLabel,
+              onSelectTies: activePool != null && activePool.hasTies
+                  ? () => _pickTiesForSegment(_segment)
+                  : null,
+              tieSelectedCount: activePool?.slotCount,
+              tieTotalCount: activePool?.candidates.length,
+              tieCustomized: activePool?.isCustomized ?? false,
             ),
           ],
         ),
@@ -710,7 +919,7 @@ class _B50PageState extends State<B50Page> {
                                   _updateB50Data({
                                     'rating': s['rating'],
                                     'charts': s['charts'],
-                                  }, sortCharts: true);
+                                  }, sortCharts: true, isSnapshot: true);
                                 },
                                 child: Padding(
                                   padding: EdgeInsets.all(6),
@@ -1236,6 +1445,50 @@ class _B50PageState extends State<B50Page> {
             _isTheoreticalMode ? context.l10n.flowTheoreticalBest50 : 'Best50',
         enableThunderMode: true,
         enableBest50Background: true,
+        extraSectionBuilder: (sheetContext, setSheetState) {
+          final sdPool =
+              _isTheoreticalMode ? _theoreticalSdTiePool : _sdTiePool;
+          final dxPool =
+              _isTheoreticalMode ? _theoreticalDxTiePool : _dxTiePool;
+          final tieItems = <Best50ExportTieItem>[
+            if (sdPool != null && sdPool.hasTies && sdPool.shown.isNotEmpty)
+              Best50ExportTieItem(
+                segment: 'B35',
+                label: _isTheoreticalMode
+                    ? sheetContext.l10n.flowConstantP0(
+                        ((sdPool.shown.last['ds'] as num?)?.toDouble() ?? 0.0)
+                            .toStringAsFixed(1))
+                    : 'RA ${sdPool.shown.last['ra']}',
+                selectedCount: sdPool.slotCount,
+                totalCount: sdPool.candidates.length,
+                customized: sdPool.isCustomized,
+                onTap: () => _pickTiesForSegment(
+                  0,
+                  theoreticalOverride: _isTheoreticalMode,
+                ),
+              ),
+            if (dxPool != null && dxPool.hasTies && dxPool.shown.isNotEmpty)
+              Best50ExportTieItem(
+                segment: 'B15',
+                label: _isTheoreticalMode
+                    ? sheetContext.l10n.flowConstantP0(
+                        ((dxPool.shown.last['ds'] as num?)?.toDouble() ?? 0.0)
+                            .toStringAsFixed(1))
+                    : 'RA ${dxPool.shown.last['ra']}',
+                selectedCount: dxPool.slotCount,
+                totalCount: dxPool.candidates.length,
+                customized: dxPool.isCustomized,
+                onTap: () => _pickTiesForSegment(
+                  1,
+                  theoreticalOverride: _isTheoreticalMode,
+                ),
+              ),
+          ];
+          return Best50ExportTieSection(
+            items: tieItems,
+            onUpdated: () => setSheetState(() {}),
+          );
+        },
         previewBuilder: (previewContext, previewQuality) =>
             B50ConvertToImg.buildPreviewWidget(
           previewContext,

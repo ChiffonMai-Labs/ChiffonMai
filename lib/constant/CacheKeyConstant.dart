@@ -105,6 +105,9 @@ class CacheKeyConstant {
   /// Best50 系列页的显示模式。
   static const String best50DisplayMode = 'best50_display_mode';
 
+  /// Best50 末尾同分谱面的自选结果（按账号与榜单类型分键持久化）。
+  static const String best50TieSelections = 'best50_tie_selections_v1';
+
   // ===== 三账号系统（水鱼 / 落雪 / AWMC NET 各一套缓存）=====
   // 账号元信息（昵称 / Rating / id / 是否有缓存），一个 JSON map
   static const String accountStore = 'account_store_v1';

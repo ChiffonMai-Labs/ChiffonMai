@@ -26857,6 +26857,67 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'已开启：展示前 100 名非匿名玩家'**
   String get rankingHideAnonymousTop100Hint;
+
+  /// No description provided for @best50TieSelectTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择末尾同分谱面'**
+  String get best50TieSelectTitle;
+
+  /// No description provided for @best50TieSelectEntry.
+  ///
+  /// In zh, this message translates to:
+  /// **'末尾同分自选'**
+  String get best50TieSelectEntry;
+
+  /// No description provided for @best50TieSelectSummary.
+  ///
+  /// In zh, this message translates to:
+  /// **'{label} 共 {total} 首同分，选 {selected} 首入榜'**
+  String best50TieSelectSummary(String label, int total, int selected);
+
+  /// No description provided for @best50TieSelectDialogHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'请选择恰好 {count} 首 {label} 谱面组成榜单（已选 {selected}/{count}）'**
+  String best50TieSelectDialogHint(int count, String label, int selected);
+
+  /// No description provided for @best50TieCustomizedBadge.
+  ///
+  /// In zh, this message translates to:
+  /// **'已自选'**
+  String get best50TieCustomizedBadge;
+
+  /// No description provided for @best50TieResetDefault.
+  ///
+  /// In zh, this message translates to:
+  /// **'恢复默认'**
+  String get best50TieResetDefault;
+
+  /// No description provided for @best50TieSelectionFull.
+  ///
+  /// In zh, this message translates to:
+  /// **'已选满 {count} 首，请先取消其他谱面'**
+  String best50TieSelectionFull(int count);
+
+  /// No description provided for @best50TieExportSectionTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'末尾同分谱面组成'**
+  String get best50TieExportSectionTitle;
+
+  /// No description provided for @best50TieExportSegmentSummary.
+  ///
+  /// In zh, this message translates to:
+  /// **'{segment} · {label}（{selected}/{total}）'**
+  String best50TieExportSegmentSummary(
+      String segment, String label, int selected, int total);
+
+  /// No description provided for @best50TieSelectAction.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择'**
+  String get best50TieSelectAction;
 }
 
 class _AppLocalizationsDelegate

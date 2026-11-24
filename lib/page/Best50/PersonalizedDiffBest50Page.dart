@@ -23,6 +23,8 @@ import '../../widgets/Best50Ui.dart';
 import '../../widgets/AppDialogs.dart';
 import 'package:my_first_flutter_app/service/BackgroundExportService.dart';
 import 'package:my_first_flutter_app/widgets/AppToast.dart';
+import '../../service/AccountStore.dart';
+import '../../utils/Best50Tie.dart';
 import '../../utils/MusicDataIndex.dart';
 
 class PersonalizedDiffBest50Page extends StatefulWidget {
@@ -46,6 +48,8 @@ class _PersonalizedDiffBest50PageState
   Future<void>? _activeLoad;
   int? _selectedTagId;
   String? _selectedTagName;
+  String _accountKey = '';
+  Best50TiePool<Map<String, dynamic>>? _tiePool;
 
   // 尺寸相关变量
   late double screenWidth;
@@ -143,10 +147,43 @@ class _PersonalizedDiffBest50PageState
       final data = await service.getTagDiffBest50Data(tagId);
       if (!mounted || generation != _loadGeneration) return;
 
+      final accountKey = _accountKey.isNotEmpty
+          ? _accountKey
+          : await AccountStore.accountKey();
+      final saved =
+          await Best50TieSelectionStore.load(accountKey, 'pdiff_$tagId');
+      if (!mounted || generation != _loadGeneration) return;
+
+      final dataMap =
+          data == null ? null : Map<String, dynamic>.from(data);
+      final defaultSongs = [
+        for (final s in (dataMap?['diffBest50'] as List?) ?? const [])
+          Map<String, dynamic>.from(s as Map),
+      ];
+      final defaultRemaining = [
+        for (final s in (dataMap?['remaining'] as List?) ?? const [])
+          Map<String, dynamic>.from(s as Map),
+      ];
+      final pool = dataMap == null
+          ? null
+          : Best50TiePool<Map<String, dynamic>>.fromSplit(
+              defaultShown: defaultSongs,
+              defaultRemaining: defaultRemaining,
+              tieValueOf: (item) => (item['diffRating'] as num?)?.toInt() ?? 0,
+              keyOf: best50MapChartKey,
+              savedKeys: saved,
+            );
+      final shown = pool?.shown ?? defaultSongs;
+      if (dataMap != null) {
+        dataMap['diffBest50'] = shown;
+      }
+
       setState(() {
-        _diffBest50Data = data;
-        _diffSongs = List<Map<String, dynamic>>.from(data?['diffBest50'] ?? []);
-        _remaining = List<Map<String, dynamic>>.from(data?['remaining'] ?? []);
+        _accountKey = accountKey;
+        _diffBest50Data = dataMap;
+        _tiePool = pool;
+        _diffSongs = shown;
+        _remaining = pool?.remaining ?? defaultRemaining;
         _resultVersion++;
         _isRefreshing = false;
       });
@@ -155,12 +192,50 @@ class _PersonalizedDiffBest50PageState
       if (!mounted || generation != _loadGeneration) return;
       setState(() {
         _diffBest50Data = null;
+        _tiePool = null;
         _diffSongs = [];
         _remaining = [];
         _resultVersion++;
         _isRefreshing = false;
       });
     }
+  }
+
+  Future<void> _pickTies() async {
+    final pool = _tiePool;
+    final tagId = _selectedTagId;
+    if (pool == null || tagId == null || !pool.hasTies || pool.shown.isEmpty) {
+      return;
+    }
+    final label = 'RA ${pool.shown.last['diffRating']}';
+    final chosen = await showBest50TieSelectionDialog(
+      context,
+      candidates: [for (final c in pool.candidates) _cardData(c)],
+      candidateKeys: [for (final c in pool.candidates) best50MapChartKey(c)],
+      initialSelectedKeys: pool.selectedKeys,
+      defaultKeys: pool.defaultKeys,
+      slotCount: pool.slotCount,
+      label: label,
+      segmentTitle: _selectedTagName,
+    );
+    if (chosen == null || !mounted) return;
+    final updated = pool.withSelection(chosen);
+    final accountKey =
+        _accountKey.isNotEmpty ? _accountKey : await AccountStore.accountKey();
+    await Best50TieSelectionStore.saveOrClear(
+      accountKey,
+      'pdiff_$tagId',
+      updated,
+    );
+    if (!mounted) return;
+    setState(() {
+      _accountKey = accountKey;
+      _tiePool = updated;
+      _diffSongs = updated.shown;
+      _remaining = updated.remaining;
+      _diffBest50Data?['diffBest50'] = _diffSongs;
+      _resultVersion++;
+    });
   }
 
   // 显示标签选择对话框
@@ -321,6 +396,24 @@ class _PersonalizedDiffBest50PageState
         exportingLabel: context.l10n.featureCustomFittedBest50,
         enableThunderMode: true,
         enableBest50Background: true,
+        extraSectionBuilder: (sheetContext, setSheetState) {
+          final pool = _tiePool;
+          final items = <Best50ExportTieItem>[
+            if (pool != null && pool.hasTies && pool.shown.isNotEmpty)
+              Best50ExportTieItem(
+                segment: _selectedTagName ?? sheetContext.l10n.flowTags,
+                label: 'RA ${pool.shown.last['diffRating']}',
+                selectedCount: pool.slotCount,
+                totalCount: pool.candidates.length,
+                customized: pool.isCustomized,
+                onTap: _pickTies,
+              ),
+          ];
+          return Best50ExportTieSection(
+            items: items,
+            onUpdated: () => setSheetState(() {}),
+          );
+        },
         previewBuilder: (previewContext, previewQuality) =>
             PersonalizedDiffBest50ConvertToImg.buildPreviewWidget(
           previewContext,
@@ -443,6 +536,13 @@ class _PersonalizedDiffBest50PageState
                             ],
                             remainingLabel:
                                 'RA ${_diffSongs.last['diffRating']}',
+                            onSelectTies:
+                                _tiePool != null && _tiePool!.hasTies
+                                    ? _pickTies
+                                    : null,
+                            tieSelectedCount: _tiePool?.slotCount,
+                            tieTotalCount: _tiePool?.candidates.length,
+                            tieCustomized: _tiePool?.isCustomized ?? false,
                             contentKey: _resultVersion,
                           ),
                         ],

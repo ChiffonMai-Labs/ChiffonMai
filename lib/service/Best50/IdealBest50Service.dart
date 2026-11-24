@@ -127,6 +127,8 @@ class IdealBest50Service {
       'rating': idealRating,
       'originalRating': originalRating,
       'newEntries': newEntries,
+      'origKeys': origKeys.toList(),
+      'origRaByKey': origRaByKey,
     };
   }
 

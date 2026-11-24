@@ -29,6 +29,8 @@ import '../../widgets/Best50Ui.dart';
 import '../../widgets/AppDialogs.dart';
 import '../../widgets/AppToast.dart';
 import 'package:my_first_flutter_app/service/BackgroundExportService.dart';
+import '../../service/AccountStore.dart';
+import '../../utils/Best50Tie.dart';
 import '../../utils/MusicDataIndex.dart';
 
 class PersonalizedBest50Page extends StatefulWidget {
@@ -42,6 +44,8 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
   List<Map<String, dynamic>> _personalizedSongs = [];
   List<Map<String, dynamic>> _remainingSongs = [];
   String? _remainingLabel;
+  String _accountKey = '';
+  Best50TiePool<Map<String, dynamic>>? _tiePool;
   bool _isLoading = true; // 只表示首次进入，之后切换时旧内容留在屏幕上
   bool _fetchQueued = false;
   Future<void>? _activeFetch;
@@ -277,20 +281,70 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
     }
   }
 
+  String _tieScopeKey(String type) => switch (type) {
+        'charter_50' => 'p50_charter_${_selectedCharter ?? ''}',
+        'version_50' => 'p50_version_${_selectedVersion ?? ''}',
+        'genre_50' => 'p50_genre_${_selectedGenre ?? ''}',
+        'star_50' => 'p50_star_${_selectedStar ?? ''}',
+        'tag_50' => 'p50_tag_${_selectedTagId ?? ''}',
+        'difficulty_50' => 'p50_diff_${_selectedDifficultyLevel ?? ''}',
+        'level_50' => 'p50_level_${_selectedLevel ?? ''}',
+        'best_n' => 'p50_bestn_$_selectedN',
+        _ when _supportsInclusiveMode() => 'p50_${type}_inc_$_isInclusiveMode',
+        _ => 'p50_$type',
+      };
+
   void _applyResult(
     String type,
     List<Map<String, dynamic>> songs,
     List<Map<String, dynamic>> remaining,
-    String? remainingLabel,
-  ) {
+    String? remainingLabel, {
+    Best50TiePool<Map<String, dynamic>>? tiePool,
+  }) {
     if (!mounted || _fetchQueued) return; // 选项已经又变了，这批结果作废
     setState(() {
-      _personalizedSongs = songs;
-      _remainingSongs = remaining;
+      _tiePool = tiePool;
+      _personalizedSongs = tiePool != null ? tiePool.shown : songs;
+      _remainingSongs = tiePool != null ? tiePool.remaining : remaining;
       _remainingLabel = remainingLabel;
       _resultType = type;
       _resultVersion++;
       _isLoading = false;
+    });
+  }
+
+  Future<void> _pickTies() async {
+    final pool = _tiePool;
+    if (pool == null || !pool.hasTies || pool.shown.isEmpty) return;
+    final label = _remainingLabel ??
+        (_resultType == 'pc_50'
+            ? 'PC ${pool.shown.last['playCount']}'
+            : 'RA ${pool.shown.last['ra']}');
+    final chosen = await showBest50TieSelectionDialog(
+      context,
+      candidates: [for (final c in pool.candidates) _cardData(c)],
+      candidateKeys: [for (final c in pool.candidates) best50MapChartKey(c)],
+      initialSelectedKeys: pool.selectedKeys,
+      defaultKeys: pool.defaultKeys,
+      slotCount: pool.slotCount,
+      label: label,
+    );
+    if (chosen == null || !mounted) return;
+    final updated = pool.withSelection(chosen);
+    final accountKey =
+        _accountKey.isNotEmpty ? _accountKey : await AccountStore.accountKey();
+    await Best50TieSelectionStore.saveOrClear(
+      accountKey,
+      _tieScopeKey(_resultType),
+      updated,
+    );
+    if (!mounted) return;
+    setState(() {
+      _accountKey = accountKey;
+      _tiePool = updated;
+      _personalizedSongs = updated.shown;
+      _remainingSongs = updated.remaining;
+      _resultVersion++;
     });
   }
 
@@ -446,9 +500,31 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
         final remainingLabel = service.lastRemainingLabel;
         final enrichedRemaining =
             await service.enrichRecordsWithSongInfo(service.lastRemaining);
+        final accountKey = _accountKey.isNotEmpty
+            ? _accountKey
+            : await AccountStore.accountKey();
+        _accountKey = accountKey;
+        final saved = requestType == 'random_50'
+            ? null
+            : await Best50TieSelectionStore.load(
+                accountKey, _tieScopeKey(requestType));
+        final pool = Best50TiePool<Map<String, dynamic>>.fromSplit(
+          defaultShown: enrichedRecords,
+          defaultRemaining: enrichedRemaining,
+          tieValueOf: (item) => requestType == 'pc_50'
+              ? (item['playCount'] as num?)?.toInt() ?? 0
+              : (item['ra'] as num?)?.toInt() ?? 0,
+          keyOf: best50MapChartKey,
+          savedKeys: saved,
+        );
 
         _applyResult(
-            requestType, enrichedRecords, enrichedRemaining, remainingLabel);
+          requestType,
+          enrichedRecords,
+          enrichedRemaining,
+          remainingLabel,
+          tiePool: pool,
+        );
       } else {
         _applyResult(requestType, [], [], null);
       }
@@ -547,6 +623,28 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
         exportingLabel: context.l10n.featureCustomBest50Analysis,
         enableThunderMode: true,
         enableBest50Background: true,
+        extraSectionBuilder: (sheetContext, setSheetState) {
+          final pool = _tiePool;
+          final items = <Best50ExportTieItem>[
+            if (pool != null && pool.hasTies && pool.shown.isNotEmpty)
+              Best50ExportTieItem(
+                segment: context.featureText(_options.firstWhere(
+                    (o) => o['value'] == _resultType)['label']!),
+                label: _remainingLabel ??
+                    (_resultType == 'pc_50'
+                        ? 'PC ${pool.shown.last['playCount']}'
+                        : 'RA ${pool.shown.last['ra']}'),
+                selectedCount: pool.slotCount,
+                totalCount: pool.candidates.length,
+                customized: pool.isCustomized,
+                onTap: _pickTies,
+              ),
+          ];
+          return Best50ExportTieSection(
+            items: items,
+            onUpdated: () => setSheetState(() {}),
+          );
+        },
         previewBuilder: (previewContext, previewQuality) =>
             PersonalizedB50ConvertToImg.buildPreviewWidget(
           previewContext,
@@ -1508,10 +1606,15 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
       );
     }
 
+    final pool = _tiePool;
     return Best50Grid(
       items: [for (final s in _personalizedSongs) _cardData(s)],
       remaining: [for (final s in _remainingSongs) _cardData(s)],
       remainingLabel: _remainingLabel,
+      onSelectTies: pool != null && pool.hasTies ? _pickTies : null,
+      tieSelectedCount: pool?.slotCount,
+      tieTotalCount: pool?.candidates.length,
+      tieCustomized: pool?.isCustomized ?? false,
       contentKey: _resultVersion,
     );
   }

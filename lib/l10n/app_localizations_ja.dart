@@ -15681,4 +15681,43 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get rankingHideAnonymousTop100Hint => '匿名以外の上位100名を表示中';
+
+  @override
+  String get best50TieSelectTitle => '末尾同点譜面の選択';
+
+  @override
+  String get best50TieSelectEntry => '末尾同点カスタム';
+
+  @override
+  String best50TieSelectSummary(String label, int total, int selected) {
+    return '$label の同点 $total 曲から $selected 曲を選択';
+  }
+
+  @override
+  String best50TieSelectDialogHint(int count, String label, int selected) {
+    return '$label の同点譜面をちょうど $count 曲選んでください（$selected/$count）';
+  }
+
+  @override
+  String get best50TieCustomizedBadge => 'カスタム';
+
+  @override
+  String get best50TieResetDefault => '初期設定に戻す';
+
+  @override
+  String best50TieSelectionFull(int count) {
+    return '$count 曲選択済みです。他の譜面の選択を解除してください';
+  }
+
+  @override
+  String get best50TieExportSectionTitle => '末尾同点譜面の構成';
+
+  @override
+  String best50TieExportSegmentSummary(
+      String segment, String label, int selected, int total) {
+    return '$segment · $label（$selected/$total）';
+  }
+
+  @override
+  String get best50TieSelectAction => '選択';
 }

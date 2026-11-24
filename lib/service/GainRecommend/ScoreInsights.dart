@@ -57,10 +57,17 @@ typedef B50Audit = ({
 enum CooperativeContributor { mine, friend, both }
 
 class CooperativeBest50 {
-  const CooperativeBest50(this.baseline, this.contributors);
+  const CooperativeBest50(
+    this.baseline,
+    this.contributors, {
+    this.b35Remaining = const [],
+    this.b15Remaining = const [],
+  });
 
   final GainBaseline baseline;
   final Map<GainChartKey, CooperativeContributor> contributors;
+  final List<GainChartRecord> b35Remaining;
+  final List<GainChartRecord> b15Remaining;
 
   static Future<CooperativeBest50?> fromComparison(
       List mine, List friend) async {
@@ -93,11 +100,39 @@ class CooperativeBest50 {
         contributors[record.key] = CooperativeContributor.friend;
       }
     }
-    final baseline = computeGainBaseline(normalizeGainRecords(best.values));
-    return CooperativeBest50(baseline, {
-      for (final record in [...baseline.b35, ...baseline.b15])
-        record.key: contributors[record.key]!,
-    });
+    final normalized = normalizeGainRecords(best.values);
+    final baseline = computeGainBaseline(normalized);
+    List<GainChartRecord> remainingOf(
+        List<GainChartRecord> shown, bool isNew) {
+      if (shown.isEmpty) return const [];
+      final cutoff = shown.last.ra;
+      final shownKeys = {for (final r in shown) r.key};
+      return [
+        for (final r in normalized)
+          if (r.isNew == isNew && r.ra == cutoff && !shownKeys.contains(r.key))
+            r,
+      ]..sort((a, b) {
+          final byAchv = b.achievements.compareTo(a.achievements);
+          return byAchv != 0 ? byAchv : a.key.compareTo(b.key);
+        });
+    }
+
+    final b35Remaining = remainingOf(baseline.b35, false);
+    final b15Remaining = remainingOf(baseline.b15, true);
+    return CooperativeBest50(
+      baseline,
+      {
+        for (final record in [
+          ...baseline.b35,
+          ...baseline.b15,
+          ...b35Remaining,
+          ...b15Remaining,
+        ])
+          record.key: contributors[record.key]!,
+      },
+      b35Remaining: b35Remaining,
+      b15Remaining: b15Remaining,
+    );
   }
 }
 

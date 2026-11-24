@@ -16270,4 +16270,43 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get rankingHideAnonymousTop100Hint =>
       'Showing top 100 non-anonymous players';
+
+  @override
+  String get best50TieSelectTitle => 'Choose Tied Tail Charts';
+
+  @override
+  String get best50TieSelectEntry => 'Customize Tied Tail';
+
+  @override
+  String best50TieSelectSummary(String label, int total, int selected) {
+    return '$label: pick $selected of $total tied charts';
+  }
+
+  @override
+  String best50TieSelectDialogHint(int count, String label, int selected) {
+    return 'Select exactly $count charts tied at $label ($selected/$count)';
+  }
+
+  @override
+  String get best50TieCustomizedBadge => 'Custom';
+
+  @override
+  String get best50TieResetDefault => 'Reset';
+
+  @override
+  String best50TieSelectionFull(int count) {
+    return 'Already selected $count. Deselect another chart first.';
+  }
+
+  @override
+  String get best50TieExportSectionTitle => 'Tied Tail Chart Selection';
+
+  @override
+  String best50TieExportSegmentSummary(
+      String segment, String label, int selected, int total) {
+    return '$segment · $label ($selected/$total)';
+  }
+
+  @override
+  String get best50TieSelectAction => 'Select';
 }

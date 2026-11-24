@@ -10627,5 +10627,64 @@
   "commentReportAlreadySubmitted": "你已举报过该评论",
   "rankingHideAnonymous": "屏蔽匿名用户",
   "rankingHideAnonymousTotalHint": "已开启：展示全部非匿名玩家",
-  "rankingHideAnonymousTop100Hint": "已开启：展示前 100 名非匿名玩家"
+  "rankingHideAnonymousTop100Hint": "已开启：展示前 100 名非匿名玩家",
+  "best50TieSelectTitle": "选择末尾同分谱面",
+  "best50TieSelectEntry": "末尾同分自选",
+  "best50TieSelectSummary": "{label} 共 {total} 首同分，选 {selected} 首入榜",
+  "@best50TieSelectSummary": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      },
+      "total": {
+        "type": "int"
+      },
+      "selected": {
+        "type": "int"
+      }
+    }
+  },
+  "best50TieSelectDialogHint": "请选择恰好 {count} 首 {label} 谱面组成榜单（已选 {selected}/{count}）",
+  "@best50TieSelectDialogHint": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "label": {
+        "type": "String"
+      },
+      "selected": {
+        "type": "int"
+      }
+    }
+  },
+  "best50TieCustomizedBadge": "已自选",
+  "best50TieResetDefault": "恢复默认",
+  "best50TieSelectionFull": "已选满 {count} 首，请先取消其他谱面",
+  "@best50TieSelectionFull": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "best50TieExportSectionTitle": "末尾同分谱面组成",
+  "best50TieExportSegmentSummary": "{segment} · {label}（{selected}/{total}）",
+  "@best50TieExportSegmentSummary": {
+    "placeholders": {
+      "segment": {
+        "type": "String"
+      },
+      "label": {
+        "type": "String"
+      },
+      "selected": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "best50TieSelectAction": "选择"
 }

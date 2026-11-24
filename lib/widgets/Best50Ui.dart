@@ -17,6 +17,7 @@ import '../utils/RatingSegmentPreferences.dart';
 import '../utils/StringUtil.dart';
 import 'AppUi.dart';
 import 'AppDialogs.dart';
+import 'AppToast.dart';
 import 'B50GameCardWidget.dart';
 import 'MarqueeText.dart';
 
@@ -688,6 +689,10 @@ class Best50Grid extends StatelessWidget {
   final List<Best50CardData> items;
   final List<Best50CardData> remaining;
   final String? remainingLabel;
+  final VoidCallback? onSelectTies;
+  final int? tieSelectedCount;
+  final int? tieTotalCount;
+  final bool tieCustomized;
 
   /// 榜单内容的标识。换数据或换分段时传新值，新内容重新播放入场动画。
   final Object? contentKey;
@@ -697,6 +702,10 @@ class Best50Grid extends StatelessWidget {
     required this.items,
     this.remaining = const [],
     this.remainingLabel,
+    this.onSelectTies,
+    this.tieSelectedCount,
+    this.tieTotalCount,
+    this.tieCustomized = false,
     this.contentKey,
   });
 
@@ -739,11 +748,25 @@ class Best50Grid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final count = items.length + (remaining.isEmpty ? 0 : 1);
+    final showTieBar = onSelectTies != null &&
+        remaining.isNotEmpty &&
+        tieSelectedCount != null &&
+        tieTotalCount != null;
     return ValueListenableBuilder<Best50DisplayMode>(
       valueListenable: Best50DisplayPreference.instance,
       builder: (context, mode, _) => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (showTieBar) ...[
+            Best50TiePickerBar(
+              label: remainingLabel ?? '',
+              selectedCount: tieSelectedCount!,
+              totalCount: tieTotalCount!,
+              customized: tieCustomized,
+              onTap: onSelectTies!,
+            ),
+            const SizedBox(height: 10),
+          ],
           const Best50DisplayModeBar(),
           const SizedBox(height: 10),
           LayoutBuilder(
@@ -763,11 +786,12 @@ class Best50Grid extends StatelessWidget {
                       compact: mode == Best50DisplayMode.oneColumn,
                       count: remaining.length,
                       label: remainingLabel ?? '',
-                      onTap: () => showBest50RemainingDialog(
-                        context,
-                        items: remaining,
-                        label: remainingLabel ?? '',
-                      ),
+                      onTap: onSelectTies ??
+                          () => showBest50RemainingDialog(
+                                context,
+                                items: remaining,
+                                label: remainingLabel ?? '',
+                              ),
                     ),
                   );
                 }
@@ -1709,4 +1733,450 @@ Future<void> showBest50OpportunityDialog(
       );
     },
   );
+}
+
+// ---------------------------------------------------------------------------
+// 末尾同分谱面自选
+// ---------------------------------------------------------------------------
+
+bool _sameStringSet(Set<String> a, Set<String> b) =>
+    a.length == b.length && a.containsAll(b);
+
+/// 榜单顶部的「末尾同分自选」入口条。
+class Best50TiePickerBar extends StatelessWidget {
+  final String label;
+  final int selectedCount;
+  final int totalCount;
+  final bool customized;
+  final VoidCallback onTap;
+
+  const Best50TiePickerBar({
+    super.key,
+    required this.label,
+    required this.selectedCount,
+    required this.totalCount,
+    required this.customized,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final l10n = context.l10n;
+    return PressScale(
+      scale: 0.985,
+      child: Material(
+        color: AppSurfaces.card(context),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          splashFactory: NoSplash.splashFactory,
+          highlightColor: Colors.transparent,
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            child: Row(
+              children: [
+                Icon(Icons.tune_rounded, size: 18, color: scheme.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              l10n.best50TieSelectEntry,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w700,
+                                color: scheme.onSurface,
+                              ),
+                            ),
+                          ),
+                          if (customized) ...[
+                            const SizedBox(width: 6),
+                            AppBadge(
+                              text: l10n.best50TieCustomizedBadge,
+                              background:
+                                  scheme.primary.withValues(alpha: 0.14),
+                              foreground: scheme.primary,
+                              numeric: false,
+                              fontSize: 10.5,
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        l10n.best50TieSelectSummary(
+                            label, totalCount, selectedCount),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  l10n.best50TieSelectAction,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: scheme.primary,
+                  ),
+                ),
+                Icon(Icons.chevron_right_rounded,
+                    size: 18, color: scheme.primary),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 弹出末尾同分谱面多选弹窗；取消返回 null，确认返回恰好含 [slotCount] 个键的集合。
+Future<Set<String>?> showBest50TieSelectionDialog(
+  BuildContext context, {
+  required List<Best50CardData> candidates,
+  required List<String> candidateKeys,
+  required Set<String> initialSelectedKeys,
+  required Set<String> defaultKeys,
+  required int slotCount,
+  required String label,
+  String? segmentTitle,
+}) {
+  final selected = Set<String>.of(initialSelectedKeys);
+  return showDialog<Set<String>>(
+    context: context,
+    builder: (dialogContext) => StatefulBuilder(
+      builder: (dialogContext, setDialogState) {
+        final l10n = dialogContext.l10n;
+        final scheme = Theme.of(dialogContext).colorScheme;
+        final brightness = Theme.of(dialogContext).brightness;
+        final complete = selected.length == slotCount;
+        final isDefault = _sameStringSet(selected, defaultKeys);
+        final titleText = segmentTitle != null && segmentTitle.isNotEmpty
+            ? '$segmentTitle · ${l10n.best50TieSelectTitle}'
+            : l10n.best50TieSelectTitle;
+        return AppAlertDialog(
+          icon: const Icon(Icons.tune_rounded),
+          title: Text(titleText),
+          subtitle: l10n.best50TieSelectDialogHint(
+              slotCount, label, selected.length),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    AppBadge(
+                      text: '${selected.length} / $slotCount',
+                      background: complete
+                          ? scheme.primary.withValues(alpha: 0.14)
+                          : AppColors.warningOrange(brightness)
+                              .withValues(alpha: 0.15),
+                      foreground: complete
+                          ? scheme.primary
+                          : AppColors.warningOrange(brightness),
+                      fontSize: 12,
+                    ),
+                    const Spacer(),
+                    TextButton.icon(
+                      onPressed: isDefault
+                          ? null
+                          : () => setDialogState(() {
+                                selected
+                                  ..clear()
+                                  ..addAll(defaultKeys);
+                              }),
+                      icon: const Icon(Icons.restart_alt_rounded, size: 16),
+                      label: Text(l10n.best50TieResetDefault),
+                      style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.sizeOf(dialogContext).height * 0.50,
+                  ),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: candidates.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 6),
+                    itemBuilder: (ctx, index) {
+                      final data = candidates[index];
+                      final key = candidateKeys[index];
+                      final checked = selected.contains(key);
+                      final sub =
+                          '${data.difficultyLabel} ${data.dsText} · ${data.achievementText} · RA ${data.rating}'
+                          '${data.badge != null ? ' · ${data.badge}' : ''}';
+                      return Material(
+                        color: checked
+                            ? scheme.primary.withValues(alpha: 0.10)
+                            : AppSurfaces.inset(ctx),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(
+                              AppDesignTokens.radiusSmall),
+                          side: BorderSide(
+                            color: checked
+                                ? scheme.primary
+                                : scheme.outlineVariant,
+                          ),
+                        ),
+                        clipBehavior: Clip.antiAlias,
+                        child: InkWell(
+                          splashFactory: NoSplash.splashFactory,
+                          highlightColor: Colors.transparent,
+                          onTap: () {
+                            if (checked) {
+                              setDialogState(() => selected.remove(key));
+                            } else if (slotCount == 1) {
+                              setDialogState(() {
+                                selected
+                                  ..clear()
+                                  ..add(key);
+                              });
+                            } else if (selected.length < slotCount) {
+                              setDialogState(() => selected.add(key));
+                            } else {
+                              AppToast.show(
+                                l10n.best50TieSelectionFull(slotCount),
+                                tone: AppToastTone.warning,
+                              );
+                            }
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(10, 8, 6, 8),
+                            child: Row(
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(
+                                      AppDesignTokens.radiusSmall),
+                                  child: CoverUtil.buildCoverWidgetWithContext(
+                                      ctx, data.songId.toString(), 44),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          SongTypeBadge(
+                                            songId: data.songId.toString(),
+                                            type: data.type,
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Expanded(
+                                            child: MarqueeText(
+                                              text: data.title,
+                                              style: TextStyle(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w600,
+                                                height: 1.3,
+                                                color: scheme.onSurface,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        sub,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 11.5,
+                                          color: scheme.onSurfaceVariant,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                IconButton(
+                                  onPressed: data.onOpenSong,
+                                  tooltip: l10n.flowViewSongDetails,
+                                  visualDensity: VisualDensity.compact,
+                                  iconSize: 18,
+                                  icon: Icon(
+                                    Icons.open_in_new_rounded,
+                                    color: scheme.onSurfaceVariant,
+                                  ),
+                                ),
+                                Icon(
+                                  checked
+                                      ? Icons.check_circle_rounded
+                                      : Icons.radio_button_unchecked_rounded,
+                                  size: 22,
+                                  color: checked
+                                      ? scheme.primary
+                                      : scheme.onSurfaceVariant,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, null),
+              child: Text(l10n.featureCancel),
+            ),
+            FilledButton(
+              onPressed: complete
+                  ? () => Navigator.pop(dialogContext, Set<String>.of(selected))
+                  : null,
+              child: Text(l10n.featureOK),
+            ),
+          ],
+        );
+      },
+    ),
+  );
+}
+
+/// 导出弹窗中一个分段的同分自选项。
+class Best50ExportTieItem {
+  final String segment;
+  final String label;
+  final int selectedCount;
+  final int totalCount;
+  final bool customized;
+  final Future<void> Function() onTap;
+
+  const Best50ExportTieItem({
+    required this.segment,
+    required this.label,
+    required this.selectedCount,
+    required this.totalCount,
+    required this.customized,
+    required this.onTap,
+  });
+}
+
+/// 导出弹窗内的「末尾同分谱面组成」区域，样式与雷霆模式面板一致。
+class Best50ExportTieSection extends StatelessWidget {
+  final List<Best50ExportTieItem> items;
+  final VoidCallback onUpdated;
+
+  const Best50ExportTieSection({
+    super.key,
+    required this.items,
+    required this.onUpdated,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (items.isEmpty) return const SizedBox.shrink();
+    final scheme = Theme.of(context).colorScheme;
+    final l10n = context.l10n;
+    return Container(
+      decoration: BoxDecoration(
+        color: AppSurfaces.inset(context),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.tune_rounded, size: 16, color: scheme.primary),
+              const SizedBox(width: 6),
+              Text(
+                l10n.best50TieExportSectionTitle,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: scheme.onSurface,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          for (var i = 0; i < items.length; i++) ...[
+            if (i > 0)
+              Divider(height: 1, color: AppSurfaces.hairline(context)),
+            InkWell(
+              splashFactory: NoSplash.splashFactory,
+              highlightColor: Colors.transparent,
+              onTap: () async {
+                await items[i].onTap();
+                onUpdated();
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        l10n.best50TieExportSegmentSummary(
+                          items[i].segment,
+                          items[i].label,
+                          items[i].selectedCount,
+                          items[i].totalCount,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w500,
+                          color: scheme.onSurface,
+                        ),
+                      ),
+                    ),
+                    if (items[i].customized) ...[
+                      const SizedBox(width: 6),
+                      AppBadge(
+                        text: l10n.best50TieCustomizedBadge,
+                        background: scheme.primary.withValues(alpha: 0.14),
+                        foreground: scheme.primary,
+                        numeric: false,
+                        fontSize: 10,
+                      ),
+                    ],
+                    const SizedBox(width: 6),
+                    Text(
+                      l10n.best50TieSelectAction,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: scheme.primary,
+                      ),
+                    ),
+                    Icon(Icons.chevron_right_rounded,
+                        size: 18, color: scheme.primary),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 }

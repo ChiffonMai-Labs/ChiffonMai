@@ -4460,5 +4460,15 @@
   "commentReportAlreadySubmitted": "你已舉報過該評論",
   "rankingHideAnonymous": "屏蔽匿名用戶",
   "rankingHideAnonymousTotalHint": "已開啟：展示全部非匿名玩家",
-  "rankingHideAnonymousTop100Hint": "已開啟：展示前 100 名非匿名玩家"
+  "rankingHideAnonymousTop100Hint": "已開啟：展示前 100 名非匿名玩家",
+  "best50TieSelectTitle": "選擇末尾同分譜面",
+  "best50TieSelectEntry": "末尾同分自選",
+  "best50TieSelectSummary": "{label} 共 {total} 首同分，選 {selected} 首入榜",
+  "best50TieSelectDialogHint": "請選擇恰好 {count} 首 {label} 譜面組成榜單（已選 {selected}/{count}）",
+  "best50TieCustomizedBadge": "已自選",
+  "best50TieResetDefault": "恢復預設",
+  "best50TieSelectionFull": "已選滿 {count} 首，請先取消其他譜面",
+  "best50TieExportSectionTitle": "末尾同分譜面組成",
+  "best50TieExportSegmentSummary": "{segment} · {label}（{selected}/{total}）",
+  "best50TieSelectAction": "選擇"
 }

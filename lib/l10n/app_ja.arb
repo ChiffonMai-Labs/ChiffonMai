@@ -4460,5 +4460,15 @@
   "commentReportAlreadySubmitted": "このコメントはすでに通報済みです",
   "rankingHideAnonymous": "匿名ユーザーを非表示",
   "rankingHideAnonymousTotalHint": "匿名以外の全プレイヤーを表示中",
-  "rankingHideAnonymousTop100Hint": "匿名以外の上位100名を表示中"
+  "rankingHideAnonymousTop100Hint": "匿名以外の上位100名を表示中",
+  "best50TieSelectTitle": "末尾同点譜面の選択",
+  "best50TieSelectEntry": "末尾同点カスタム",
+  "best50TieSelectSummary": "{label} の同点 {total} 曲から {selected} 曲を選択",
+  "best50TieSelectDialogHint": "{label} の同点譜面をちょうど {count} 曲選んでください（{selected}/{count}）",
+  "best50TieCustomizedBadge": "カスタム",
+  "best50TieResetDefault": "初期設定に戻す",
+  "best50TieSelectionFull": "{count} 曲選択済みです。他の譜面の選択を解除してください",
+  "best50TieExportSectionTitle": "末尾同点譜面の構成",
+  "best50TieExportSegmentSummary": "{segment} · {label}（{selected}/{total}）",
+  "best50TieSelectAction": "選択"
 }

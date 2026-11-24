@@ -4460,5 +4460,15 @@
   "commentReportAlreadySubmitted": "You have already reported this comment",
   "rankingHideAnonymous": "Hide anonymous users",
   "rankingHideAnonymousTotalHint": "Showing all non-anonymous players",
-  "rankingHideAnonymousTop100Hint": "Showing top 100 non-anonymous players"
+  "rankingHideAnonymousTop100Hint": "Showing top 100 non-anonymous players",
+  "best50TieSelectTitle": "Choose Tied Tail Charts",
+  "best50TieSelectEntry": "Customize Tied Tail",
+  "best50TieSelectSummary": "{label}: pick {selected} of {total} tied charts",
+  "best50TieSelectDialogHint": "Select exactly {count} charts tied at {label} ({selected}/{count})",
+  "best50TieCustomizedBadge": "Custom",
+  "best50TieResetDefault": "Reset",
+  "best50TieSelectionFull": "Already selected {count}. Deselect another chart first.",
+  "best50TieExportSectionTitle": "Tied Tail Chart Selection",
+  "best50TieExportSegmentSummary": "{segment} · {label} ({selected}/{total})",
+  "best50TieSelectAction": "Select"
 }

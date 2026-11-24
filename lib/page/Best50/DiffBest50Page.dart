@@ -22,6 +22,8 @@ import '../../widgets/Best50Ui.dart';
 import '../../widgets/AppDialogs.dart';
 import 'package:my_first_flutter_app/service/BackgroundExportService.dart';
 import 'package:my_first_flutter_app/widgets/AppToast.dart';
+import '../../service/AccountStore.dart';
+import '../../utils/Best50Tie.dart';
 import '../../utils/MusicDataIndex.dart';
 
 class DiffBest50Page extends StatefulWidget {
@@ -45,6 +47,10 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
   // 拟合Best50模式：0为模式A，1为模式B，2为模式C
   int _currentMode = 0;
   int _resultMode = 0; // 屏幕上这批结果所属的模式
+  String _accountKey = '';
+  Best50TiePool<Map<String, dynamic>>? _modeATiePool;
+  Best50TiePool<Map<String, dynamic>>? _modeCSdTiePool;
+  Best50TiePool<Map<String, dynamic>>? _modeCDxTiePool;
 
   // 尺寸相关变量
   late double screenWidth;
@@ -118,16 +124,85 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
       }
 
       if (!mounted || generation != _loadGeneration) return;
+      final accountKey = _accountKey.isNotEmpty
+          ? _accountKey
+          : await AccountStore.accountKey();
+      final dataMap = Map<String, dynamic>.from(diffBest50Data as Map);
+      var diffSongs = [
+        for (final s in (dataMap['diffBest50'] as List?) ?? const [])
+          Map<String, dynamic>.from(s as Map),
+      ];
+      var diffSdSongs = [
+        for (final s in (dataMap['diffSdSongs'] as List?) ?? const [])
+          Map<String, dynamic>.from(s as Map),
+      ];
+      var diffDxSongs = [
+        for (final s in (dataMap['diffDxSongs'] as List?) ?? const [])
+          Map<String, dynamic>.from(s as Map),
+      ];
+      Best50TiePool<Map<String, dynamic>>? modeAPool;
+      Best50TiePool<Map<String, dynamic>>? modeCSdPool;
+      Best50TiePool<Map<String, dynamic>>? modeCDxPool;
+
+      if (mode == 0) {
+        final saved = await Best50TieSelectionStore.load(accountKey, 'diff_a');
+        modeAPool = Best50TiePool<Map<String, dynamic>>.fromSplit(
+          defaultShown: diffSongs,
+          defaultRemaining: [
+            for (final s in (dataMap['remaining'] as List?) ?? const [])
+              Map<String, dynamic>.from(s as Map),
+          ],
+          tieValueOf: (item) => (item['diffRating'] as num?)?.toInt() ?? 0,
+          keyOf: best50MapChartKey,
+          savedKeys: saved,
+        );
+        diffSongs = modeAPool.shown;
+        dataMap['diffBest50'] = diffSongs;
+      } else if (mode == 2) {
+        final sdSaved =
+            await Best50TieSelectionStore.load(accountKey, 'diff_c_sd');
+        final dxSaved =
+            await Best50TieSelectionStore.load(accountKey, 'diff_c_dx');
+        modeCSdPool = Best50TiePool<Map<String, dynamic>>.fromSplit(
+          defaultShown: diffSdSongs,
+          defaultRemaining: [
+            for (final s in (dataMap['sdRemaining'] as List?) ?? const [])
+              Map<String, dynamic>.from(s as Map),
+          ],
+          tieValueOf: (item) => (item['diffRating'] as num?)?.toInt() ?? 0,
+          keyOf: best50MapChartKey,
+          savedKeys: sdSaved,
+        );
+        modeCDxPool = Best50TiePool<Map<String, dynamic>>.fromSplit(
+          defaultShown: diffDxSongs,
+          defaultRemaining: [
+            for (final s in (dataMap['dxRemaining'] as List?) ?? const [])
+              Map<String, dynamic>.from(s as Map),
+          ],
+          tieValueOf: (item) => (item['diffRating'] as num?)?.toInt() ?? 0,
+          keyOf: best50MapChartKey,
+          savedKeys: dxSaved,
+        );
+        diffSdSongs = modeCSdPool.shown;
+        diffDxSongs = modeCDxPool.shown;
+        diffSongs = [...diffSdSongs, ...diffDxSongs];
+        dataMap['diffSdSongs'] = diffSdSongs;
+        dataMap['diffDxSongs'] = diffDxSongs;
+        dataMap['diffBest50'] = diffSongs;
+      }
+
+      if (!mounted || generation != _loadGeneration) return;
       setState(() {
+        _accountKey = accountKey;
         _resultMode = mode;
         _resultVersion++;
-        _diffBest50Data = diffBest50Data;
-        _diffSongs =
-            List<Map<String, dynamic>>.from(diffBest50Data['diffBest50'] ?? []);
-        _diffSdSongs = List<Map<String, dynamic>>.from(
-            diffBest50Data['diffSdSongs'] ?? []);
-        _diffDxSongs = List<Map<String, dynamic>>.from(
-            diffBest50Data['diffDxSongs'] ?? []);
+        _diffBest50Data = dataMap;
+        _diffSongs = diffSongs;
+        _diffSdSongs = diffSdSongs;
+        _diffDxSongs = diffDxSongs;
+        _modeATiePool = modeAPool;
+        _modeCSdTiePool = modeCSdPool;
+        _modeCDxTiePool = modeCDxPool;
         _isLoading = false;
       });
     } catch (e) {
@@ -150,6 +225,46 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
       _currentMode = (_currentMode + 1) % 3;
     });
     _loadDiffBest50Data();
+  }
+
+  Best50TiePool<Map<String, dynamic>>? _poolForCurrentSegment() {
+    if (_resultMode == 0) return _modeATiePool;
+    if (_resultMode == 2) {
+      return _segment == 0 ? _modeCSdTiePool : _modeCDxTiePool;
+    }
+    return null;
+  }
+
+  Future<void> _pickTiesForTarget({
+    required Best50TiePool<Map<String, dynamic>>? pool,
+    required String scopeKey,
+    String? segmentTitle,
+    required void Function(Best50TiePool<Map<String, dynamic>> updated)
+        applyPool,
+  }) async {
+    if (pool == null || !pool.hasTies || pool.shown.isEmpty) return;
+    final label = 'RA ${_toInt(pool.shown.last['diffRating'])}';
+    final chosen = await showBest50TieSelectionDialog(
+      context,
+      candidates: [for (final c in pool.candidates) _cardData(c)],
+      candidateKeys: [for (final c in pool.candidates) best50MapChartKey(c)],
+      initialSelectedKeys: pool.selectedKeys,
+      defaultKeys: pool.defaultKeys,
+      slotCount: pool.slotCount,
+      label: label,
+      segmentTitle: segmentTitle,
+    );
+    if (chosen == null || !mounted) return;
+    final updated = pool.withSelection(chosen);
+    final accountKey =
+        _accountKey.isNotEmpty ? _accountKey : await AccountStore.accountKey();
+    await Best50TieSelectionStore.saveOrClear(accountKey, scopeKey, updated);
+    if (!mounted) return;
+    setState(() {
+      _accountKey = accountKey;
+      applyPool(updated);
+      _resultVersion++;
+    });
   }
 
   @override
@@ -255,6 +370,13 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
     final List<dynamic> songs = _resultMode == 0
         ? _diffSongs
         : (_segment == 0 ? _diffSdSongs : _diffDxSongs);
+    final activePool = _poolForCurrentSegment();
+    final remainingRaw = activePool != null && activePool.hasTies
+        ? activePool.remaining
+        : ((_diffBest50Data?[_resultMode == 0
+                ? 'remaining'
+                : (_segment == 0 ? 'sdRemaining' : 'dxRemaining')] as List?) ??
+            const []);
     return SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(
         AppDesignTokens.gutter,
@@ -273,15 +395,49 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
               for (final s in songs) _cardData(Map<String, dynamic>.from(s))
             ],
             remaining: [
-              for (final s in (_diffBest50Data?[_resultMode == 0
-                          ? 'remaining'
-                          : (_segment == 0 ? 'sdRemaining' : 'dxRemaining')]
-                      as List?) ??
-                  const [])
+              for (final s in remainingRaw)
                 _cardData(Map<String, dynamic>.from(s as Map))
             ],
             remainingLabel:
                 songs.isEmpty ? null : 'RA ${_toInt(songs.last['diffRating'])}',
+            onSelectTies: activePool != null && activePool.hasTies
+                ? () {
+                    if (_resultMode == 0) {
+                      _pickTiesForTarget(
+                        pool: _modeATiePool,
+                        scopeKey: 'diff_a',
+                        applyPool: (updated) {
+                          _modeATiePool = updated;
+                          _diffSongs = updated.shown;
+                          _diffBest50Data?['diffBest50'] = _diffSongs;
+                        },
+                      );
+                    } else if (_resultMode == 2) {
+                      final seg = _segment;
+                      _pickTiesForTarget(
+                        pool: seg == 0 ? _modeCSdTiePool : _modeCDxTiePool,
+                        scopeKey: seg == 0 ? 'diff_c_sd' : 'diff_c_dx',
+                        segmentTitle: seg == 0 ? 'B35' : 'B15',
+                        applyPool: (updated) {
+                          if (seg == 0) {
+                            _modeCSdTiePool = updated;
+                            _diffSdSongs = updated.shown;
+                            _diffBest50Data?['diffSdSongs'] = _diffSdSongs;
+                          } else {
+                            _modeCDxTiePool = updated;
+                            _diffDxSongs = updated.shown;
+                            _diffBest50Data?['diffDxSongs'] = _diffDxSongs;
+                          }
+                          _diffSongs = [..._diffSdSongs, ..._diffDxSongs];
+                          _diffBest50Data?['diffBest50'] = _diffSongs;
+                        },
+                      );
+                    }
+                  }
+                : null,
+            tieSelectedCount: activePool?.slotCount,
+            tieTotalCount: activePool?.candidates.length,
+            tieCustomized: activePool?.isCustomized ?? false,
           ),
         ],
       ),
@@ -571,6 +727,82 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
         exportingLabel: context.l10n.featureFittedBest50,
         enableThunderMode: true,
         enableBest50Background: true,
+        extraSectionBuilder: (sheetContext, setSheetState) {
+          final items = <Best50ExportTieItem>[
+            if (_resultMode == 0 &&
+                _modeATiePool != null &&
+                _modeATiePool!.hasTies &&
+                _modeATiePool!.shown.isNotEmpty)
+              Best50ExportTieItem(
+                segment: 'B50',
+                label: 'RA ${_toInt(_modeATiePool!.shown.last['diffRating'])}',
+                selectedCount: _modeATiePool!.slotCount,
+                totalCount: _modeATiePool!.candidates.length,
+                customized: _modeATiePool!.isCustomized,
+                onTap: () => _pickTiesForTarget(
+                  pool: _modeATiePool,
+                  scopeKey: 'diff_a',
+                  applyPool: (updated) {
+                    _modeATiePool = updated;
+                    _diffSongs = updated.shown;
+                    _diffBest50Data?['diffBest50'] = _diffSongs;
+                  },
+                ),
+              ),
+            if (_resultMode == 2 &&
+                _modeCSdTiePool != null &&
+                _modeCSdTiePool!.hasTies &&
+                _modeCSdTiePool!.shown.isNotEmpty)
+              Best50ExportTieItem(
+                segment: 'B35',
+                label:
+                    'RA ${_toInt(_modeCSdTiePool!.shown.last['diffRating'])}',
+                selectedCount: _modeCSdTiePool!.slotCount,
+                totalCount: _modeCSdTiePool!.candidates.length,
+                customized: _modeCSdTiePool!.isCustomized,
+                onTap: () => _pickTiesForTarget(
+                  pool: _modeCSdTiePool,
+                  scopeKey: 'diff_c_sd',
+                  segmentTitle: 'B35',
+                  applyPool: (updated) {
+                    _modeCSdTiePool = updated;
+                    _diffSdSongs = updated.shown;
+                    _diffBest50Data?['diffSdSongs'] = _diffSdSongs;
+                    _diffSongs = [..._diffSdSongs, ..._diffDxSongs];
+                    _diffBest50Data?['diffBest50'] = _diffSongs;
+                  },
+                ),
+              ),
+            if (_resultMode == 2 &&
+                _modeCDxTiePool != null &&
+                _modeCDxTiePool!.hasTies &&
+                _modeCDxTiePool!.shown.isNotEmpty)
+              Best50ExportTieItem(
+                segment: 'B15',
+                label:
+                    'RA ${_toInt(_modeCDxTiePool!.shown.last['diffRating'])}',
+                selectedCount: _modeCDxTiePool!.slotCount,
+                totalCount: _modeCDxTiePool!.candidates.length,
+                customized: _modeCDxTiePool!.isCustomized,
+                onTap: () => _pickTiesForTarget(
+                  pool: _modeCDxTiePool,
+                  scopeKey: 'diff_c_dx',
+                  segmentTitle: 'B15',
+                  applyPool: (updated) {
+                    _modeCDxTiePool = updated;
+                    _diffDxSongs = updated.shown;
+                    _diffBest50Data?['diffDxSongs'] = _diffDxSongs;
+                    _diffSongs = [..._diffSdSongs, ..._diffDxSongs];
+                    _diffBest50Data?['diffBest50'] = _diffSongs;
+                  },
+                ),
+              ),
+          ];
+          return Best50ExportTieSection(
+            items: items,
+            onUpdated: () => setSheetState(() {}),
+          );
+        },
         previewBuilder: (previewContext, previewQuality) =>
             DiffBest50ConvertToImg.buildPreviewWidget(
           previewContext,
