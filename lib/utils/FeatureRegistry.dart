@@ -76,7 +76,7 @@ class FeatureRegistry {
           title: '成长与对比',
           subtitle: '回顾提升记录，对比好友成绩',
           icon: Icons.auto_graph_rounded,
-          titles: ['成绩提升历史', 'Rating 历史', '好友对比']),
+          titles: ['成绩提升历史', 'Rating 历史', '成绩分析', '好友对比']),
       FeatureSection(
           title: 'Best50 概览',
           subtitle: '当前表现与拟合潜力',
@@ -150,7 +150,7 @@ class FeatureRegistry {
           title: '文字线索',
           subtitle: '凭记忆、别名与字母线索猜歌',
           icon: Icons.text_fields_rounded,
-          titles: ['无提示猜歌', '根据别名猜歌', '舞萌开字母']),
+          titles: ['无提示猜歌', '根据别名猜歌', '舞萌开字母', '离线挑战']),
       FeatureSection(
           title: '曲绘辨识',
           subtitle: '观察局部、像素、模糊、快闪与拼图曲绘',
@@ -196,6 +196,8 @@ class FeatureRegistry {
             '拉取成绩并更新数据',
             '刷新机台游玩次数',
             cabinetAppearanceTitle,
+            'AWMC 机台查询',
+            'AWMC 资源查询',
           ]),
       FeatureSection(
           title: '批量与定时同步',
@@ -305,6 +307,10 @@ class FeatureRegistry {
           icon: Icons.timeline_rounded,
           title: 'Rating 历史',
           subtitle: '看 Rating 随时间的变化'),
+      '成绩分析': const ButtonItem(
+          icon: Icons.insights_rounded,
+          title: '成绩分析',
+          subtitle: '成绩全景 · B50 边缘巡检 · 弱项处方'),
       '好友对比': const ButtonItem(
           icon: Icons.people, title: '好友对比', subtitle: '看看你和好友的成绩差异'),
       'Best50': const ButtonItem(
@@ -403,6 +409,10 @@ class FeatureRegistry {
           icon: Icons.gamepad, title: '根据别名猜歌', subtitle: '用别名挑战你的熟悉度'),
       '舞萌开字母': const ButtonItem(
           icon: Icons.gamepad, title: '舞萌开字母', subtitle: '看首字母猜歌'),
+      '离线挑战': const ButtonItem(
+          icon: Icons.quiz_outlined,
+          title: '离线挑战',
+          subtitle: '极限二选一 · 规则版 20 问'),
       '根据部分曲绘猜歌': const ButtonItem(
           icon: Icons.gamepad, title: '根据部分曲绘猜歌', subtitle: '看一小块曲绘猜出歌曲'),
       '根据模糊曲绘猜歌': const ButtonItem(
@@ -479,6 +489,14 @@ class FeatureRegistry {
           icon: Icons.checkroom_outlined,
           title: cabinetAppearanceTitle,
           subtitle: cabinetAppearanceSubtitle),
+      'AWMC 机台查询': const ButtonItem(
+          icon: Icons.point_of_sale_outlined,
+          title: 'AWMC 机台查询',
+          subtitle: '账号预览 · 已拥有道具 · 游玩地区'),
+      'AWMC 资源查询': const ButtonItem(
+          icon: Icons.manage_search_rounded,
+          title: 'AWMC 资源查询',
+          subtitle: '资源候选 · 对手资料'),
       '数据备份': const ButtonItem(
           icon: Icons.backup, title: '数据备份', subtitle: '导入或导出本地数据'),
       '删除账号': const ButtonItem(

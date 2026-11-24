@@ -538,6 +538,14 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
               onToggleFavorite: () => _toggleFavorite('Rating 历史'),
               onTap: () => _open(context, const RatingHistoryPage()),
             ),
+            '成绩分析': HubActionTile(
+              title: '成绩分析',
+              subtitle: '成绩全景 · B50 边缘巡检 · 弱项处方',
+              icon: Icons.insights_rounded,
+              isFavorited: _isFavorited('成绩分析'),
+              onToggleFavorite: () => _toggleFavorite('成绩分析'),
+              onTap: () => _open(context, const ScoreInsightsPage()),
+            ),
             '好友对比': HubActionTile(
               title: '好友对比',
               subtitle: '看看你和好友的成绩差异',

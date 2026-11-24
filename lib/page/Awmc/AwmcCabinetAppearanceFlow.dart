@@ -8,11 +8,13 @@ import '../../service/AWMC/AwmcApiService.dart';
 import '../../service/AWMC/AwmcStore.dart';
 import '../../service/CommunityAvatarStore.dart';
 import '../../service/CommunityTravelAppearanceStore.dart';
+import '../../utils/AppDesignTokens.dart';
 import '../../utils/AppTheme.dart';
 import '../../widgets/AppDialogs.dart';
 import '../../widgets/AppToast.dart';
 import '../../widgets/LxnsAssetImage.dart';
 import '../../widgets/SyncDialogUi.dart';
+import '../../widgets/TrophyTitleBadge.dart';
 import '../CommunityTravelAppearancePage.dart';
 
 abstract final class AwmcCabinetAppearanceFlow {
@@ -237,22 +239,38 @@ class _CabinetAppearanceReviewState extends State<_CabinetAppearanceReview> {
     String label,
     Collection? item, {
     String Function(int)? image,
+    IconData? placeholderIcon,
     String? empty,
     int? slot,
   }) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final member = slot == null ? null : _team?[slot];
     final fallback = empty ?? l10n.flowNotSet;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          if (item != null && image != null) ...[
-            SizedBox(
-              height: 36,
-              width: 48,
-              child: LxnsAssetImage(url: image(item.id)),
+          if (image != null) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: SizedBox(
+                height: 36,
+                width: 48,
+                child: item != null
+                    ? LxnsAssetImage(url: image(item.id))
+                    : DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: AppSurfaces.inset(context),
+                        ),
+                        child: Icon(
+                          placeholderIcon ?? Icons.image_outlined,
+                          size: 18,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+              ),
             ),
             const SizedBox(width: 10),
           ],
@@ -289,6 +307,63 @@ class _CabinetAppearanceReviewState extends State<_CabinetAppearanceReview> {
     );
   }
 
+  /// 称号需展示宽幅底图与文字，使用独立凹槽容器以免打断上方左图右文列表的对齐轴线。
+  Widget _trophyItem(
+    String label,
+    Collection? trophy, {
+    String? empty,
+  }) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final fallback = empty ?? l10n.flowNotSet;
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+      decoration: BoxDecoration(
+        color: AppSurfaces.inset(context),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(label, style: theme.textTheme.labelMedium),
+              ),
+              if (trophy != null)
+                Text(
+                  '#${trophy.id}',
+                  style: AppTheme.number(
+                    fontSize: 11.5,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+            ],
+          ),
+          if (trophy != null) ...[
+            const SizedBox(height: 6),
+            TrophyTitleBadge(
+              name: trophy.name.isNotEmpty
+                  ? trophy.name
+                  : l10n.homeTrophyId(trophy.id.toString()),
+              color: trophy.color,
+              trophyId: trophy.id,
+            ),
+          ] else ...[
+            const SizedBox(height: 2),
+            Text(
+              fallback,
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(color: scheme.onSurfaceVariant),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
@@ -313,17 +388,23 @@ class _CabinetAppearanceReviewState extends State<_CabinetAppearanceReview> {
           ),
           const SizedBox(height: 14),
           _item(l10n.flowIconCollectible, widget.avatar,
-              image: lxnsIconUrl, empty: unchanged),
+              image: lxnsIconUrl,
+              placeholderIcon: Icons.account_circle_outlined,
+              empty: unchanged),
           _item(l10n.flowPlateCollectible, widget.plate,
               image: lxnsPlateUrl,
+              placeholderIcon: Icons.badge_outlined,
               empty: cabinet.plateId == null ? unchanged : null),
           _item(l10n.flowFrameCollectible, widget.frame,
               image: lxnsFrameUrl,
+              placeholderIcon: Icons.photo_outlined,
               empty: cabinet.frameId == null ? unchanged : null),
-          _item(l10n.flowTitleCollectible, widget.trophy,
-              empty: cabinet.trophyId == null ? unchanged : null),
           _item(l10n.flowPartnerCollectible, widget.partner,
-              image: partnerImageUrl, empty: unchanged),
+              image: partnerImageUrl,
+              placeholderIcon: Icons.face_outlined,
+              empty: unchanged),
+          _trophyItem(l10n.flowTitleCollectible, widget.trophy,
+              empty: cabinet.trophyId == null ? unchanged : null),
           const Divider(height: 24),
           Text(l10n.flowTravelBuddyCollectible,
               style: theme.textTheme.titleSmall),
@@ -342,6 +423,7 @@ class _CabinetAppearanceReviewState extends State<_CabinetAppearanceReview> {
                   : l10n.communityTravelSlot(slot),
               slots[slot],
               image: travelBuddyImageUrl,
+              placeholderIcon: Icons.person_outline_rounded,
               slot: slot,
             ),
         ],

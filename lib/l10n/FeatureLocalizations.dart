@@ -10,6 +10,17 @@ extension FeatureLocalizationsContext on BuildContext {
 
 String localizeFeatureText(AppLocalizations l10n, String source) =>
     switch (source) {
+      "AWMC 机台查询" => l10n.awmcCabinetTitle,
+      "账号预览 · 已拥有道具 · 游玩地区" =>
+        '${l10n.awmcCabinetPreview} · ${l10n.awmcOwnedItems} · ${l10n.awmcPlayRegions}',
+      "AWMC 资源查询" => 'AWMC · ${l10n.awmcUnlockCandidates}',
+      "资源候选 · 对手资料" =>
+        '${l10n.awmcUnlockCandidates} · ${l10n.awmcRivalProfile}',
+      "离线挑战" => l10n.awmcLocalQuizzes,
+      "极限二选一 · 规则版 20 问" => '${l10n.awmcQuizEither} · ${l10n.awmcQuizTwenty}',
+      "成绩分析" => l10n.awmcScoreInsights,
+      "成绩全景 · B50 边缘巡检 · 弱项处方" =>
+        '${l10n.awmcScoreOverview} · ${l10n.awmcB50Audit} · ${l10n.awmcWeaknessPrescription}',
       "绑定与授权管理" => l10n.accountBindingManage,
       "登录、授权与绑定各数据源账号" => l10n.accountBindingManageSubtitle,
       "自定义标签" => l10n.customTagTitle,

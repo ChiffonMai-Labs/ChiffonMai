@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart' as ios;
 import 'AwmcNet/PlayerConnectionPage.dart';
+import 'Awmc/AwmcCabinetPage.dart';
 import 'Awmc/AwmcResourcesPage.dart';
 import '../widgets/AccountAuthorizationDialog.dart';
 import '../widgets/AccountAuthorizationStatus.dart';
@@ -912,6 +913,22 @@ class SystemHubPageState extends State<SystemHubPage>
                 disabledReason: _busyReason,
                 disabled: anyBusy && _cabinetAppearanceProgress == null,
               ),
+              'AWMC 机台查询': HubActionTile(
+                title: 'AWMC 机台查询',
+                subtitle: '账号预览 · 已拥有道具 · 游玩地区',
+                icon: Icons.point_of_sale_outlined,
+                isFavorited: _isFavorited('AWMC 机台查询'),
+                onToggleFavorite: () => _toggleFavorite('AWMC 机台查询'),
+                onTap: () => _open(context, const AwmcCabinetPage()),
+              ),
+              'AWMC 资源查询': HubActionTile(
+                title: 'AWMC 资源查询',
+                subtitle: '资源候选 · 对手资料',
+                icon: Icons.manage_search_rounded,
+                isFavorited: _isFavorited('AWMC 资源查询'),
+                onToggleFavorite: () => _toggleFavorite('AWMC 资源查询'),
+                onTap: () => _open(context, const AwmcResourcesPage()),
+              ),
               '数据备份': HubActionTile(
                 title: '数据备份',
                 subtitle: '导入或导出本地数据',
@@ -1102,18 +1119,6 @@ class SystemHubPageState extends State<SystemHubPage>
               subtitle: '账号、同步、备份与应用偏好',
               icon: Icons.person_rounded,
               hero: Column(children: [
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.manage_search_rounded),
-                  title: Text('AWMC · ${context.l10n.awmcUnlockCandidates}'),
-                  subtitle: Text(context.l10n.awmcRivalProfile),
-                  onTap: () {
-                    FocusManager.instance.primaryFocus?.unfocus();
-                    Navigator.of(context).push<void>(MaterialPageRoute(
-                      builder: (_) => const AwmcResourcesPage(),
-                    ));
-                  },
-                ),
                 if (Theme.of(context).platform == TargetPlatform.iOS)
                   ios.CupertinoListTile(
                       leading: const Icon(ios.CupertinoIcons.link),

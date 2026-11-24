@@ -695,11 +695,17 @@ class _FriendComparePageState extends State<FriendComparePage> {
               ),
             ],
           ),
-          if (result.cooperativeBest50 case final CooperativeBest50 joint)
-            Align(
-              alignment: AlignmentDirectional.centerEnd,
-              child: TextButton.icon(
-                onPressed: () => Navigator.push(
+          if (result.cooperativeBest50 case final CooperativeBest50 joint) ...[
+            const SizedBox(height: 12),
+            Material(
+              color: AppSurfaces.inset(context),
+              clipBehavior: Clip.antiAlias,
+              shape: RoundedRectangleBorder(
+                borderRadius:
+                    BorderRadius.circular(AppDesignTokens.radiusSmall),
+              ),
+              child: InkWell(
+                onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(
                     builder: (_) => CooperativeBest50Page(
@@ -710,10 +716,38 @@ class _FriendComparePageState extends State<FriendComparePage> {
                     ),
                   ),
                 ),
-                icon: const Icon(Icons.group_outlined),
-                label: Text(context.l10n.awmcCoopBest50),
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  child: Row(
+                    children: [
+                      Icon(Icons.group_outlined,
+                          size: 18, color: scheme.primary),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          context.l10n.awmcCoopBest50,
+                          style: const TextStyle(
+                              fontSize: 13.5, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      Text(
+                        '${joint.baseline.raSum}',
+                        style: AppTheme.number(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: scheme.primary,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(Icons.chevron_right_rounded,
+                          size: 18, color: scheme.onSurfaceVariant),
+                    ],
+                  ),
+                ),
               ),
             ),
+          ],
         ],
       ),
     );

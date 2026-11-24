@@ -6,9 +6,12 @@ import '../l10n/LocalizationsExtension.dart';
 import '../service/AWMC/AwmcNetSongService.dart';
 import '../service/AccountStore.dart';
 import '../service/History/ChartHistoryCore.dart';
+import '../utils/AppDesignTokens.dart';
+import '../utils/AppTheme.dart';
 import '../utils/CurrentDataSourceNotifier.dart';
 import 'AppUi.dart';
 
+/// 歌曲详情页内嵌的 AWMC NET 云端历史卡片。
 class AwmcCloudSongHistory extends StatefulWidget {
   const AwmcCloudSongHistory({
     super.key,
@@ -118,55 +121,163 @@ class _AwmcCloudSongHistoryState extends State<AwmcCloudSongHistory> {
   Widget build(BuildContext context) {
     if (_qq == null) return const SizedBox.shrink();
     final l10n = context.l10n;
+    final scheme = Theme.of(context).colorScheme;
     final history = _history;
     final events =
-        (history?[widget.levelIndex] ?? const <ChartHistoryEvent>[]).reversed;
+        (history?[widget.levelIndex] ?? const <ChartHistoryEvent>[])
+            .reversed
+            .toList();
     final locale = MaterialLocalizations.of(context);
     final seconds = _retrySeconds;
+
     return Padding(
-      padding: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.only(top: AppDesignTokens.cardGap),
       child: AppCard(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(l10n.awmcNetSongHistory,
-                style: Theme.of(context).textTheme.titleSmall),
+            AppSectionHeader(
+              title: l10n.awmcNetSongHistory,
+              padding: const EdgeInsets.only(bottom: 10),
+            ),
             if (_loading)
-              Text(l10n.flowLoading2)
+              Row(
+                children: [
+                  const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    l10n.flowLoading2,
+                    style:
+                        TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
+                  ),
+                ],
+              )
             else if (seconds > 0)
-              Text(l10n.awmcNetSongRetryIn('$seconds'))
+              _statusBanner(
+                context,
+                Icons.hourglass_bottom_rounded,
+                l10n.awmcNetSongRetryIn('$seconds'),
+              )
             else if (history == null) ...[
-              if (_status == 404) Text(l10n.awmcNetSongHistoryHidden),
-              if (_status != null && _status != 404 && _status != 429)
-                Text(l10n.awmcChartUnavailable),
-              TextButton(
-                onPressed: _fetch,
-                child: Text(_status == null
-                    ? l10n.awmcNetViewSongHistory
-                    : l10n.flowRetry),
+              if (_status == 404) ...[
+                _statusBanner(
+                  context,
+                  Icons.lock_outline_rounded,
+                  l10n.awmcNetSongHistoryHidden,
+                ),
+                const SizedBox(height: 10),
+              ] else if (_status != null && _status != 404 && _status != 429) ...[
+                _statusBanner(
+                  context,
+                  Icons.cloud_off_outlined,
+                  l10n.awmcChartUnavailable,
+                ),
+                const SizedBox(height: 10),
+              ],
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: FilledButton.tonalIcon(
+                  onPressed: _fetch,
+                  icon: Icon(
+                    _status == null
+                        ? Icons.history_rounded
+                        : Icons.refresh_rounded,
+                    size: 18,
+                  ),
+                  label: Text(_status == null
+                      ? l10n.awmcNetViewSongHistory
+                      : l10n.flowRetry),
+                ),
               ),
             ] else if (events.isEmpty)
-              Text(l10n.flowNoData)
+              Text(
+                l10n.flowNoData,
+                style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
+              )
             else ...[
-              for (final event in _expanded ? events : events.take(5))
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Text(
-                    '${locale.formatShortDate(DateTime.fromMillisecondsSinceEpoch(event.tMs))} '
-                    '· ${event.achievement.toStringAsFixed(4)}%'
-                    '${event.dxScore > 0 ? " · DX ${event.dxScore}" : ""}',
+              for (final (index, event)
+                  in (_expanded ? events : events.take(5)).indexed) ...[
+                if (index > 0) const SizedBox(height: 6),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                  decoration: BoxDecoration(
+                    color: AppSurfaces.inset(context),
+                    borderRadius:
+                        BorderRadius.circular(AppDesignTokens.radiusSmall),
+                  ),
+                  child: Row(
+                    children: [
+                      Text(
+                        locale.formatShortDate(
+                            DateTime.fromMillisecondsSinceEpoch(event.tMs)),
+                        style: TextStyle(
+                            fontSize: 12, color: scheme.onSurfaceVariant),
+                      ),
+                      const Spacer(),
+                      Text(
+                        '${event.achievement.toStringAsFixed(4)}%',
+                        style: AppTheme.number(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w700,
+                          color: scheme.onSurface,
+                        ),
+                      ),
+                      if (event.dxScore > 0) ...[
+                        const SizedBox(width: 8),
+                        AppBadge(
+                          text: 'DX ${event.dxScore}',
+                          background: AppSurfaces.card(context),
+                          foreground: scheme.onSurfaceVariant,
+                          fontSize: 11,
+                        ),
+                      ],
+                    ],
                   ),
                 ),
-              if (events.length > 5)
-                TextButton(
-                  onPressed: () => setState(() => _expanded = !_expanded),
-                  child: Text(_expanded
-                      ? l10n.flowCollapse
-                      : l10n.flowShowAllP0Entries('${events.length}')),
+              ],
+              if (events.length > 5) ...[
+                const SizedBox(height: 10),
+                Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: LinkPill(
+                    label: _expanded
+                        ? l10n.flowCollapse
+                        : l10n.flowShowAllP0Entries('${events.length}'),
+                    onTap: () => setState(() => _expanded = !_expanded),
+                  ),
                 ),
+              ],
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _statusBanner(BuildContext context, IconData icon, String message) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppSurfaces.inset(context),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 17, color: scheme.onSurfaceVariant),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
+            ),
+          ),
+        ],
       ),
     );
   }

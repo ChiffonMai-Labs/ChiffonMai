@@ -13,6 +13,7 @@ import '../utils/CoverUtil.dart';
 import '../widgets/BackgroundPageScaffold.dart';
 import 'SongInfoPage.dart';
 import '../utils/AppDesignTokens.dart';
+import '../widgets/AppDialogs.dart';
 import '../widgets/AppToast.dart';
 import '../widgets/AppUi.dart';
 import '../widgets/MarqueeText.dart';
@@ -223,29 +224,75 @@ class _GainRecommendPageState extends State<GainRecommendPage> {
           final valid = value != null && value > record.achievements
               ? quantizeGainTarget(value)
               : null;
-          return AlertDialog(
+          return AppAlertDialog(
+            icon: appDialogIconTile(
+              Icons.track_changes_rounded,
+              Theme.of(context).colorScheme.primary,
+            ),
             title: Text(l10n.awmcPracticeTarget),
+            subtitle: candidate.title,
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(candidate.title),
-                  const SizedBox(height: 8),
-                  Text(l10n.awmcPracticeRange(
-                      record.achievements.toStringAsFixed(4), '$gainAchvCap')),
+                  Text(
+                    l10n.awmcPracticeRange(
+                        record.achievements.toStringAsFixed(4), '$gainAchvCap'),
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
                   TextFormField(
                     initialValue: candidate.target.toStringAsFixed(4),
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(suffixText: '%'),
+                    decoration: InputDecoration(
+                      labelText: l10n.awmcPracticeTarget,
+                      suffixText: '%',
+                      filled: true,
+                      fillColor: AppSurfaces.inset(context),
+                    ).insetLabel(context),
                     onChanged: (text) => update(() {
                       target = double.tryParse(text.trim().replaceAll(',', '.'));
                     }),
                   ),
-                  const SizedBox(height: 8),
-                  if (valid != null)
-                    Text('${l10n.flowNetGain} · +${gainIndependentNetGain(baseline, record, valid)}'),
+                  if (valid != null) ...[
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 9),
+                      decoration: BoxDecoration(
+                        color: AppSurfaces.inset(context),
+                        borderRadius:
+                            BorderRadius.circular(AppDesignTokens.radiusSmall),
+                      ),
+                      child: Row(
+                        children: [
+                          Text(
+                            l10n.flowNetGain,
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                            ),
+                          ),
+                          const Spacer(),
+                          Text(
+                            '+${gainIndependentNetGain(baseline, record, valid)}',
+                            style: AppTheme.number(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),

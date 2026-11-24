@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../l10n/LocalizationsExtension.dart';
 import 'GuessChartGame/LocalSongQuizPage.dart';
 import 'HubComponents.dart';
 import '../utils/FavoriteFeaturesNotifier.dart';
@@ -88,6 +87,14 @@ class _PlayHubPageState extends State<PlayHubPage> {
               isFavorited: _isFavorited('舞萌开字母'),
               onToggleFavorite: () => _toggleFavorite('舞萌开字母'),
               onTap: () => _open(context, const GuessSongByOpenLettersPage()),
+            ),
+            '离线挑战': HubActionTile(
+              title: '离线挑战',
+              subtitle: '极限二选一 · 规则版 20 问',
+              icon: Icons.quiz_outlined,
+              isFavorited: _isFavorited('离线挑战'),
+              onToggleFavorite: () => _toggleFavorite('离线挑战'),
+              onTap: () => _open(context, const LocalSongQuizPage()),
             ),
             '根据部分曲绘猜歌': HubActionTile(
               title: '根据部分曲绘猜歌',
@@ -203,13 +210,6 @@ class _PlayHubPageState extends State<PlayHubPage> {
             showHeader: widget.showHeader,
             icon: Icons.sports_esports_rounded,
             children: [
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.quiz_outlined),
-                title: Text(context.l10n.awmcLocalQuizzes),
-                subtitle: Text('${context.l10n.awmcQuizEither} · ${context.l10n.awmcQuizTwenty}'),
-                onTap: () => _open(context, const LocalSongQuizPage()),
-              ),
               for (final section in sections) ...[
                 if (section.title == '单人游戏设置')
                   features['单人猜歌游戏设置']!

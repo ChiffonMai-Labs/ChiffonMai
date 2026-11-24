@@ -694,7 +694,19 @@ extension _SongInfoLayout on _SongInfoPageState {
               ),
             ],
           ),
-          if (cloudRecord) Text(context.l10n.awmcNetUtageScore, style: muted),
+          if (cloudRecord) ...[
+            const SizedBox(height: 6),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: AppBadge(
+                text: context.l10n.awmcNetUtageScore,
+                background: AppSurfaces.inset(context),
+                foreground: scheme.primary,
+                numeric: false,
+                fontSize: 11,
+              ),
+            ),
+          ],
           const SizedBox(height: 1),
           AnimatedSize(
             duration: sizeMotion,
@@ -1203,13 +1215,23 @@ extension _SongInfoLayout on _SongInfoPageState {
           // 谱面评分
           _buildChartRatingSection(accentColor),
           const SizedBox(height: 12),
-          if (awmcChartKey != null)
-            AwmcChartDetails(chartKey: awmcChartKey, section: AwmcChartDetailsSection.ratings),
+          if (awmcChartKey != null) ...[
+            AwmcChartDetails(
+                chartKey: awmcChartKey,
+                section: AwmcChartDetailsSection.ratings),
+            const SizedBox(height: 12),
+          ],
           // 评论区
           _buildCommentsSection(),
           if (awmcChartKey != null) ...[
-            AwmcChartDetails(chartKey: awmcChartKey, section: AwmcChartDetailsSection.comments),
-            AwmcChartDetails(chartKey: awmcChartKey, section: AwmcChartDetailsSection.community),
+            const SizedBox(height: 12),
+            AwmcChartDetails(
+                chartKey: awmcChartKey,
+                section: AwmcChartDetailsSection.comments),
+            const SizedBox(height: 12),
+            AwmcChartDetails(
+                chartKey: awmcChartKey,
+                section: AwmcChartDetailsSection.community),
           ],
         ];
         break;
@@ -1394,8 +1416,12 @@ extension _SongInfoLayout on _SongInfoPageState {
     final hasCombo = _hasDistributionData(currentDiffData, true);
     final awmcChartKey = AwmcChartTagService.chartKey(widget.songId, _currentDiffIndex);
     return [
-      if (awmcChartKey != null)
-        AwmcChartDetails(chartKey: awmcChartKey, section: AwmcChartDetailsSection.analysis),
+      if (awmcChartKey != null) ...[
+        AwmcChartDetails(
+            chartKey: awmcChartKey,
+            section: AwmcChartDetailsSection.analysis),
+        const SizedBox(height: 12),
+      ],
       // 评级分布
       if (hasRating) ...[
         AppCard(child: _buildRatingDistribution(currentDiffData)),
@@ -1463,12 +1489,40 @@ extension _SongInfoLayout on _SongInfoPageState {
           ),
         );
     return [
-      ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-        leading: const Icon(Icons.edit_note_rounded),
-        title: Text(context.l10n.awmcLocalAliases),
+      AppCard(
         onTap: _editLocalSongAliases,
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: scheme.primary.withValues(alpha: 0.12),
+                borderRadius:
+                    BorderRadius.circular(AppDesignTokens.radiusSmall),
+              ),
+              child: Icon(Icons.edit_note_rounded, color: scheme.primary),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(context.l10n.awmcLocalAliases,
+                      style: const TextStyle(
+                          fontSize: 15, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 2),
+                  Text(context.l10n.awmcLocalAliasHint,
+                      style: TextStyle(
+                          fontSize: 12, color: scheme.onSurfaceVariant)),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant),
+          ],
+        ),
       ),
+      const SizedBox(height: 12),
       // 容错速览（宴谱的达成率口径不同，不显示）
       if (tapGreatLoss > 0 && widget.songId.length != 6) ...[
         Row(
@@ -1529,21 +1583,30 @@ extension _SongInfoLayout on _SongInfoPageState {
     final l10n = context.l10n;
     final result = await showDialog<String>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
+      builder: (dialogContext) => AppAlertDialog(
+        icon: appDialogIconTile(
+          Icons.edit_note_rounded,
+          Theme.of(dialogContext).colorScheme.primary,
+        ),
         title: Text(l10n.awmcLocalAliases),
         content: TextFormField(
           initialValue: value,
           minLines: 3,
           maxLines: 6,
           maxLength: 600,
-          decoration: InputDecoration(helperText: l10n.awmcLocalAliasHint),
+          decoration: InputDecoration(
+            labelText: l10n.awmcLocalAliases,
+            helperText: l10n.awmcLocalAliasHint,
+            filled: true,
+            fillColor: AppSurfaces.inset(dialogContext),
+          ).insetLabel(dialogContext),
           onChanged: (text) => value = text,
         ),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(dialogContext),
               child: Text(l10n.featureCancel)),
-          TextButton(
+          FilledButton(
               onPressed: () => Navigator.pop(dialogContext, value),
               child: Text(l10n.flowConfirm)),
         ],

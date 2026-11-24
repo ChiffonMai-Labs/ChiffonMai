@@ -545,23 +545,46 @@ class _ScoreImprovementHistoryPageState
     }).toList();
     final period = await showDialog<_GrowthPeriod>(
       context: context,
-      builder: (dialogContext) => SimpleDialog(
+      builder: (dialogContext) => AppAlertDialog(
+        icon: appDialogIconTile(
+          Icons.ios_share,
+          Theme.of(dialogContext).colorScheme.primary,
+        ),
         title: Text(l10n.awmcGrowthPoster),
-        children: [
-          for (final option in _GrowthPeriod.values)
-            SimpleDialogOption(
-              onPressed: rowsByPeriod[option.index].isEmpty
-                  ? null
-                  : () => Navigator.pop(dialogContext, option),
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(labels[option.index]),
-                    if (rowsByPeriod[option.index].isEmpty)
-                      Text(l10n.flowNoDataToExport,
-                          style: Theme.of(dialogContext).textTheme.bodySmall),
-                  ]),
-            ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final option in _GrowthPeriod.values) ...[
+              if (option.index > 0) const SizedBox(height: 8),
+              Opacity(
+                opacity: rowsByPeriod[option.index].isEmpty ? 0.5 : 1,
+                child: AppDialogOption(
+                  title: labels[option.index],
+                  subtitle: rowsByPeriod[option.index].isEmpty
+                      ? l10n.flowNoDataToExport
+                      : null,
+                  trailing: rowsByPeriod[option.index].isEmpty
+                      ? null
+                      : Icon(
+                          Icons.chevron_right_rounded,
+                          size: 18,
+                          color: Theme.of(dialogContext)
+                              .colorScheme
+                              .onSurfaceVariant,
+                        ),
+                  onTap: rowsByPeriod[option.index].isEmpty
+                      ? null
+                      : () => Navigator.pop(dialogContext, option),
+                ),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(l10n.featureCancel),
+          ),
         ],
       ),
     );
