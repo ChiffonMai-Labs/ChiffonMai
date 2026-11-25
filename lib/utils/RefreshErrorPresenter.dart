@@ -89,6 +89,11 @@ Future<void> presentRefreshError(
     return;
   }
 
-  await showErrorMessageDialog(context,
-      message: context.l10n.flowCouldNotRefreshDataP0((error).toString()));
+  await showErrorMessageDialog(
+    context,
+    title: context.l10n.flowCouldNotRefreshData,
+    error: error,
+    stage: '刷新成绩数据',
+    source: 'shuiyu',
+  );
 }

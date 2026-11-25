@@ -37,6 +37,7 @@ import '../service/RecommendByTagsService.dart';
 import '../service/RankingList/SongRankingService.dart';
 import '../service/RankingList/RankingUploadGuard.dart';
 import '../utils/ApiClient.dart';
+import '../utils/AppError.dart';
 import '../utils/CacheSourceRegistry.dart';
 import '../utils/CurrentDataSourceNotifier.dart';
 import '../utils/StringUtil.dart';
@@ -157,10 +158,14 @@ Future<RefreshDataRequest?> showRefreshDataDialog(
   } on AccountUpdateBusy catch (error) {
     AppToast.show(error.toString(), tone: AppToastTone.warning);
     return null;
-  } catch (_) {
+  } catch (error, stack) {
     if (context.mounted && origin?.isCurrent != false) {
-      AppToast.show(context.l10n.flowCouldNotRefreshData,
-          tone: AppToastTone.error);
+      AppToast.showError(
+        error,
+        stack: stack,
+        title: context.l10n.flowCouldNotRefreshData,
+        stage: '打开刷新面板',
+      );
     }
     return null;
   } finally {
@@ -186,11 +191,16 @@ Future<bool> executeRefreshData(
     // 别静默地「什么都不做然后报成功」：以前输入为空时会跳过整个刷新，
     // 最后仍然 onProgress(100, '数据刷新完成') 并 return true，调用方就弹
     // 「数据刷新成功!」——用户以为刷了，其实一条数据都没动。
-    throw StateError(
-      source == RefreshDataSource.luoxue && !request.useSavedAuthorization
+    throw AppError(
+      code: 'AUTH-MISSING-IDENTITY',
+      stage: '校验刷新凭据',
+      source: source.key,
+      userMessage: source == RefreshDataSource.luoxue &&
+              !request.useSavedAuthorization
           ? appL10n.flowLXNSAuthorizationCodeMissing
           : appL10n.flowNoLookupIDObtainedForP0(
               appLocalizeLabel(source.displayName)),
+      suggestion: appL10n.errSuggestionReauth,
     );
   }
   try {
@@ -568,8 +578,15 @@ Future<void> _refreshBest50DataWithProgressImpl(
     ]);
     logRefresh('parallel-data', refreshStopwatch.elapsedMilliseconds);
     final userPlayData = results[0] as Map<String, dynamic>?;
-    if (userPlayData == null)
-      throw StateError(appL10n.flowCouldNotFetchDivingFishScores);
+    if (userPlayData == null) {
+      throw AppError(
+        code: 'DATA-FISH-FETCH',
+        stage: '拉取水鱼成绩',
+        source: 'shuiyu',
+        userMessage: appL10n.flowCouldNotFetchDivingFishScores,
+        suggestion: appL10n.errSuggestionRetryLater,
+      );
+    }
     await AccountSwitchService.bindIdentity(RefreshDataSource.shuiyu, qq);
     final settingsPrefs = await SharedPreferences.getInstance();
     await settingsPrefs.setBool(
@@ -694,7 +711,13 @@ Future<void> _refreshBest50DataWithProgressImpl(
           SongRankingService().deleteSongRankings(userId),
         ]);
         if (deleteResults.any((success) => !success)) {
-          throw StateError(appL10n.flowCouldNotRemoveLeaderboardEntries);
+          throw AppError(
+            code: 'SRV-RANKING-DELETE',
+            stage: '移出排行榜',
+            source: 'shuiyu',
+            userMessage: appL10n.flowCouldNotRemoveLeaderboardEntries,
+            suggestion: appL10n.errSuggestionRetryLater,
+          );
         }
       }
     } on RankingUploadException catch (e) {
@@ -942,7 +965,13 @@ Future<void> _refreshAwmcNetDataWithProgressImpl(
         SongRankingService().deleteSongRankings(userId),
       ]);
       if (deleteResults.any((success) => !success)) {
-        throw StateError(appL10n.flowCouldNotRemoveLeaderboardEntries);
+        throw AppError(
+          code: 'SRV-RANKING-DELETE',
+          stage: '移出排行榜',
+          source: 'awmc',
+          userMessage: appL10n.flowCouldNotRemoveLeaderboardEntries,
+          suggestion: appL10n.errSuggestionRetryLater,
+        );
       }
     }
   } on RankingUploadException catch (e) {
@@ -1012,13 +1041,25 @@ Future<void> _handleLuoXueAuthWithProgressImpl(
       final success = await LuoXueUserPlayDataManager()
           .exchangeCodeForToken(authCode.trim());
       if (!success) {
-        throw Exception(appL10n.flowAuthorizationFailedCheckYourCode);
+        throw AppError(
+          code: 'AUTH-LXNS-CODE',
+          stage: '兑换落雪授权码',
+          source: 'luoxue',
+          userMessage: appL10n.flowAuthorizationFailedCheckYourCode,
+          suggestion: appL10n.errSuggestionReauth,
+        );
       }
     } else {
       final accessToken = await LuoXueOAuthManager().getAccessToken();
       if (accessToken == null || accessToken.isEmpty) {
-        throw Exception(
-            appL10n.flowLXNSAuthorizationExpiredEnterANewAuthorization);
+        throw AppError(
+          code: 'AUTH-LXNS-EXPIRED',
+          stage: '校验落雪访问令牌',
+          source: 'luoxue',
+          userMessage:
+              appL10n.flowLXNSAuthorizationExpiredEnterANewAuthorization,
+          suggestion: appL10n.errSuggestionReauth,
+        );
       }
     }
 
@@ -1057,7 +1098,13 @@ Future<void> _handleLuoXueAuthWithProgressImpl(
     final playerInfo = results[0] as LuoXuePlayer?;
     final rawPlayerScores = results[1] as List<LuoXueScore>?;
     if (playerInfo == null || rawPlayerScores == null) {
-      throw StateError(appL10n.flowCouldNotFetchLXNSProfileOrScores);
+      throw AppError(
+        code: 'DATA-LXNS-FETCH',
+        stage: '拉取落雪玩家与成绩',
+        source: 'luoxue',
+        userMessage: appL10n.flowCouldNotFetchLXNSProfileOrScores,
+        suggestion: appL10n.errSuggestionRetryLater,
+      );
     }
     await AccountSwitchService.bindIdentity(
         RefreshDataSource.luoxue, playerInfo.friendCode.toString());
@@ -1076,8 +1123,15 @@ Future<void> _handleLuoXueAuthWithProgressImpl(
     final playerRecords = await LuoXueUserPlayDataManager()
         .getPlayerRecordsAsRecordItems(
             playerInfo: playerInfo, scores: rawPlayerScores, songs: songs);
-    if (playerRecords == null)
-      throw StateError(appL10n.flowCouldNotConvertLXNSScores);
+    if (playerRecords == null) {
+      throw AppError(
+        code: 'DATA-LXNS-CONVERT',
+        stage: '转换落雪成绩格式',
+        source: 'luoxue',
+        userMessage: appL10n.flowCouldNotConvertLXNSScores,
+        suggestion: appL10n.errSuggestionRetryLater,
+      );
+    }
     logRefresh('luoxue-score-conversion', refreshStopwatch.elapsedMilliseconds);
     String currentNickname = '未知玩家';
     int best35RA = 0;
@@ -1105,8 +1159,15 @@ Future<void> _handleLuoXueAuthWithProgressImpl(
         playerRecords,
         songs: songs,
       );
-      if (result == null)
-        throw StateError(appL10n.flowMissingSongDataCannotCalculateLXNSRating);
+      if (result == null) {
+        throw AppError(
+          code: 'DATA-SONGS-MISSING',
+          stage: '计算落雪 Rating',
+          source: 'luoxue',
+          userMessage: appL10n.flowMissingSongDataCannotCalculateLXNSRating,
+          suggestion: appL10n.errSuggestionRetryLater,
+        );
+      }
       best35Records = result.best35;
       best15Records = result.best15;
       if (best35Records != null) {
@@ -1191,7 +1252,13 @@ Future<void> _handleLuoXueAuthWithProgressImpl(
             SongRankingService().deleteSongRankings(userId),
           ]);
           if (deleteResults.any((success) => !success)) {
-            throw StateError(appL10n.flowCouldNotRemoveLeaderboardEntries);
+            throw AppError(
+              code: 'SRV-RANKING-DELETE',
+              stage: '移出排行榜',
+              source: 'luoxue',
+              userMessage: appL10n.flowCouldNotRemoveLeaderboardEntries,
+              suggestion: appL10n.errSuggestionRetryLater,
+            );
           }
         }
       } on RankingUploadException catch (e) {

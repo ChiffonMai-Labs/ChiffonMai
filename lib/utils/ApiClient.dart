@@ -1,11 +1,14 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'dart:convert';
 import 'dart:io' show GZipCodec, HttpClient;
+import 'dart:math' show Random;
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart' show IOClient;
 import 'package:http_parser/http_parser.dart' show MediaType;
 import 'package:my_first_flutter_app/api/ApiUrls.dart';
+import 'AppError.dart';
+import 'SensitiveRedactor.dart';
 
 /// 带超时和连接池复用的 HTTP 客户端，所有 API 调用统一使用此类。
 ///
@@ -49,18 +52,125 @@ class ApiClient {
     _sharedClient = null;
   }
 
+  static final Random _requestIdRandom = Random();
+
+  /// 生成符合服务端 `X-Request-Id` 校验规则的短追踪编号。
+  static String generateRequestId() {
+    final r = _requestIdRandom.nextInt(0x1000000).toRadixString(16).padLeft(6, '0');
+    final t = (DateTime.now().millisecondsSinceEpoch & 0xFFFF)
+        .toRadixString(16)
+        .padLeft(4, '0');
+    return 'cm-$r-$t';
+  }
+
+  /// 从响应头或 JSON 响应体读取服务端请求编号。
+  static String? requestIdOf(http.Response response) {
+    for (final entry in response.headers.entries) {
+      if (entry.key.toLowerCase() == 'x-request-id' && entry.value.trim().isNotEmpty) {
+        return entry.value.trim();
+      }
+    }
+    try {
+      final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+      if (decoded is Map) {
+        final rid = decoded['requestId'] ?? decoded['request_id'];
+        if (rid is String && rid.trim().isNotEmpty) return rid.trim();
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// 从 HTTP 错误响应解析结构化 [AppError]，兼容新版诊断字段与旧版响应结构。
+  static AppError parseError(
+    http.Response response, {
+    String? title,
+    String? stage,
+    String? source,
+    String? fallbackCode,
+  }) {
+    final requestId = requestIdOf(response);
+    final urlSummary = SensitiveRedactor.redactUrl(response.request?.url);
+    Map<String, dynamic>? jsonBody;
+    String rawBodyText = '';
+    try {
+      rawBodyText = utf8.decode(response.bodyBytes, allowMalformed: true).trim();
+      final decoded = jsonDecode(rawBodyText);
+      if (decoded is Map<String, dynamic>) {
+        jsonBody = decoded;
+      } else if (decoded is Map) {
+        jsonBody = Map<String, dynamic>.from(decoded);
+      }
+    } catch (_) {}
+
+    final serverErrorCode = jsonBody?['errorCode']?.toString().trim();
+    final legacyCode = jsonBody?['code']?.toString().trim();
+    final legacyError = jsonBody?['error']?.toString().trim();
+    final serverStage = jsonBody?['stage']?.toString().trim();
+    final serverUserMessage = jsonBody?['userMessage']?.toString().trim();
+    final serverMessage = jsonBody?['message']?.toString().trim();
+
+    final rawMsg = (serverUserMessage != null && serverUserMessage.isNotEmpty)
+        ? serverUserMessage
+        : (serverMessage != null && serverMessage.isNotEmpty)
+            ? serverMessage
+            : (legacyError != null && legacyError.isNotEmpty)
+                ? legacyError
+                : 'HTTP ${response.statusCode}';
+
+    final code = (serverErrorCode != null && serverErrorCode.isNotEmpty)
+        ? serverErrorCode
+        : (legacyCode != null && legacyCode.isNotEmpty)
+            ? 'SRV-${legacyCode.toUpperCase().replaceAll('_', '-')}'
+            : (fallbackCode ?? 'NET-HTTP-${response.statusCode}');
+
+    final detailParts = <String>[
+      if (urlSummary.isNotEmpty) '接口: $urlSummary',
+      '状态: HTTP ${response.statusCode}',
+      if (legacyCode != null && legacyCode.isNotEmpty) 'legacyCode=$legacyCode',
+      if (legacyError != null && legacyError.isNotEmpty) 'legacyError=$legacyError',
+      if (jsonBody == null && rawBodyText.isNotEmpty)
+        'body=${rawBodyText.length > 240 ? '${rawBodyText.substring(0, 240)}…' : rawBodyText}',
+    ];
+
+    return AppErrorMapper.fromMessage(
+      rawMsg,
+      title: title,
+      stage: (serverStage != null && serverStage.isNotEmpty) ? serverStage : stage,
+      source: source,
+      code: code,
+      requestId: requestId,
+      httpStatus: response.statusCode,
+      technicalDetail: SensitiveRedactor.redact(detailParts.join('\n')),
+    );
+  }
+
   /// 合并默认请求头。
-  /// 对自家后端（chiffonmai.cloud）附加网关/OAuth 代理鉴权头 `x-prober-key`。
+  /// 对自家后端（chiffonmai.cloud）附加网关/OAuth 代理鉴权头 `x-prober-key` 与 `X-Request-Id`。
   static Map<String, String> _mergeHeaders(
       Uri url, Map<String, String>? headers) {
     final merged = <String, String>{
       'Accept-Encoding': 'gzip',
     };
-    if (url.host == 'chiffonmai.cloud' && ApiUrls.BackendApiKey.isNotEmpty) {
+    final isOwnBackend = url.host == 'chiffonmai.cloud';
+    if (isOwnBackend && ApiUrls.BackendApiKey.isNotEmpty) {
       merged['x-prober-key'] = ApiUrls.BackendApiKey;
     }
     if (headers != null) {
       merged.addAll(headers);
+    }
+    if (isOwnBackend) {
+      String? existingRequestId;
+      for (final entry in merged.entries) {
+        if (entry.key.toLowerCase() == 'x-request-id' && entry.value.trim().isNotEmpty) {
+          existingRequestId = entry.value.trim();
+          break;
+        }
+      }
+      final requestId = existingRequestId ?? generateRequestId();
+      if (existingRequestId == null) {
+        merged['X-Request-Id'] = requestId;
+      }
+      AppErrorRegistry.noteOutboundRequest(url.host, url.path, requestId);
     }
     return merged;
   }

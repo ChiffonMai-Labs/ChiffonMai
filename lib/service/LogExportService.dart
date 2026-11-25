@@ -7,6 +7,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/ExportPathUtil.dart';
+import '../utils/SensitiveRedactor.dart';
 import '../utils/WindowDiagnostics.dart';
 
 /// 轻量日志环形缓存。只保留最近 2000 行，用户主动点击时写到公开目录。
@@ -23,24 +24,29 @@ class LogExportService {
   Future<void>? _ready;
   File? _sessionFile;
   String _previousSession = '';
+  String? _cachedAppVersion;
+
+  /// 已缓存的应用版本号（如 `3.0.1+42`），未加载完成前可能为空。
+  String? get cachedAppVersion => _cachedAppVersion;
+
+  /// 预热版本信息，供同步构建错误诊断条使用。
+  Future<void> preloadAppInfo() async {
+    if (_cachedAppVersion != null) return;
+    try {
+      final info = await PackageInfo.fromPlatform();
+      _cachedAppVersion = '${info.version}+${info.buildNumber}';
+    } catch (_) {}
+  }
+
+  /// 返回最近若干条已脱敏的内存日志，供复制排查信息附带。
+  List<String> recentLines({int maxLines = 15}) {
+    if (_lines.isEmpty || maxLines <= 0) return const [];
+    final start = _lines.length > maxLines ? _lines.length - maxLines : 0;
+    return List<String>.unmodifiable(_lines.sublist(start));
+  }
 
   @visibleForTesting
-  static String redact(String text) {
-    final safe = text
-        .replaceAll(RegExp(r'SGWCMAID[A-Za-z0-9]+'), '[二维码已隐藏]')
-        .replaceAll(RegExp(r'\b(?:gw_|eyJ)[A-Za-z0-9_.-]+'), '[凭据已隐藏]')
-        .replaceAllMapped(
-          RegExp(
-              r'''(password|passwd|token|authorization|cookie|api[_-]?key|import[_-]?token)["']?\s*[:=]\s*["']?[^\s,;}"']+''',
-              caseSensitive: false),
-          (match) => '${match[1]}=[已隐藏]',
-        );
-    // 调用栈中的类名也可能很长；保留栈帧，避免脱敏把定位信息一起抹掉。
-    return safe.split('\n').map((line) {
-      if (RegExp(r'^\s*(?:#\d+\b|package:|dart:)').hasMatch(line)) return line;
-      return line.replaceAll(RegExp(r'\b[A-Za-z0-9_-]{32,}\b'), '[长标识已隐藏]');
-    }).join('\n');
-  }
+  static String redact(String text) => SensitiveRedactor.redact(text);
 
   Future<void> _prepareSession() async {
     try {

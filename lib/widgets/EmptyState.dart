@@ -4,7 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 
 import '../utils/AppDesignTokens.dart';
+import '../utils/AppError.dart';
+import '../utils/AppTheme.dart';
 import 'AppUi.dart';
+import 'ErrorMessageDialog.dart';
 
 /// 全 App 共用的页面级空状态：图标、标题、说明和可选操作按钮。
 ///
@@ -30,6 +33,9 @@ class EmptyState extends StatefulWidget {
   final IconData? actionIcon;
   final VoidCallback? onAction;
 
+  /// 结构化错误：传入后可自动显示人话原因、紧凑错误码与「查看详情」按钮。
+  final AppError? error;
+
   const EmptyState({
     super.key,
     this.icon,
@@ -39,6 +45,7 @@ class EmptyState extends StatefulWidget {
     this.actionLabel,
     this.actionIcon,
     this.onAction,
+    this.error,
   });
 
   @override
@@ -52,15 +59,19 @@ class _EmptyStateState extends State<EmptyState> {
   String? _descriptionOf(BuildContext context) {
     final pool = widget.randomMessages;
     if (widget.message != null) return widget.message;
+    if (widget.error != null) return widget.error!.userMessage;
     if (pool.isNotEmpty) return pool[_pick % pool.length];
-    return widget.title == null ? context.l10n.flowNothingHereYet : null;
+    return widget.title == null && widget.error?.title == null
+        ? context.l10n.flowNothingHereYet
+        : null;
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final title = widget.title;
+    final err = widget.error;
+    final title = widget.title ?? err?.title;
     final description = _descriptionOf(context);
     final actionLabel = widget.actionLabel;
     final onAction = widget.onAction;
@@ -108,19 +119,55 @@ class _EmptyStateState extends State<EmptyState> {
                   ),
                 ),
               ],
-              if (actionLabel != null && onAction != null) ...[
-                const SizedBox(height: AppDesignTokens.gutter),
-                if (widget.actionIcon != null)
-                  FilledButton.tonalIcon(
-                    onPressed: onAction,
-                    icon: Icon(widget.actionIcon),
-                    label: Text(actionLabel),
-                  )
-                else
-                  FilledButton.tonal(
-                    onPressed: onAction,
-                    child: Text(actionLabel),
+              if (err != null) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppSurfaces.inset(context),
+                    borderRadius: BorderRadius.circular(AppDesignTokens.radiusPill),
                   ),
+                  child: Text(
+                    err.compactBadge(),
+                    textAlign: TextAlign.center,
+                    style: AppTheme.number(
+                      fontSize: 11.5,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
+              if ((actionLabel != null && onAction != null) || err != null) ...[
+                const SizedBox(height: AppDesignTokens.gutter),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 8,
+                  alignment: WrapAlignment.center,
+                  children: [
+                    if (actionLabel != null && onAction != null)
+                      if (widget.actionIcon != null)
+                        FilledButton.tonalIcon(
+                          onPressed: onAction,
+                          icon: Icon(widget.actionIcon),
+                          label: Text(actionLabel),
+                        )
+                      else
+                        FilledButton.tonal(
+                          onPressed: onAction,
+                          child: Text(actionLabel),
+                        ),
+                    if (err != null)
+                      TextButton.icon(
+                        onPressed: () => showErrorMessageDialog(
+                          context,
+                          appError: err,
+                          onRetry: onAction,
+                        ),
+                        icon: const Icon(Icons.info_outline_rounded, size: 18),
+                        label: Text(context.l10n.errViewDetails),
+                      ),
+                  ],
+                ),
               ],
             ],
           ),

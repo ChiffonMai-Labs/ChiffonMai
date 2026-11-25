@@ -5,9 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter/scheduler.dart';
 
+import '../service/BackgroundExportService.dart';
 import '../utils/AppDesignTokens.dart';
+import '../utils/AppError.dart';
 import '../utils/AppTheme.dart';
 import 'AppUi.dart';
+import 'ErrorMessageDialog.dart';
 
 /// 提示语气：决定图标和强调色。不传时按文案判断（见 [AppToast.show]）。
 enum AppToastTone { info, success, warning, error }
@@ -69,11 +72,71 @@ class AppToast {
 
   static void hide() => _current.value = null;
 
+  /// 结构化错误轻提示：自动脱敏、去掉裸异常前缀，并附带「详情」按钮打开诊断弹窗。
+  static void showError(
+    Object error, {
+    String? title,
+    String? stage,
+    String? source,
+    VoidCallback? onRetry,
+    StackTrace? stack,
+    Duration? duration,
+  }) {
+    final mapped = AppErrorRegistry.record(
+      AppErrorMapper.from(
+        error,
+        stack: stack,
+        title: title,
+        stage: stage,
+        source: source,
+      ),
+    );
+    final brief = mapped.userMessage.length > 80
+        ? '${mapped.userMessage.substring(0, 80)}…'
+        : mapped.userMessage;
+    show(
+      brief,
+      tone: AppToastTone.error,
+      duration: duration ?? const Duration(milliseconds: 5200),
+      actionLabel: appL10n.errDetails,
+      onAction: () {
+        final ctx = BackgroundExport.navigatorKey.currentState?.overlay?.context;
+        if (ctx == null || !ctx.mounted) return;
+        showErrorMessageDialog(
+          ctx,
+          appError: mapped,
+          onRetry: onRetry,
+        );
+      },
+    );
+  }
+
   static AppToastTone _inferTone(String message) {
-    final errors = [appL10n.flowFailed, '错误', '无法', '异常', '出错', '超时', '不能', '未能'];
-    const warnings = ['请', '未', '暂无', '不支持', '没有', '不足', '再按'];
+    final lower = message.toLowerCase();
+    final errors = [
+      appL10n.flowFailed,
+      '错误',
+      '錯誤',
+      '无法',
+      '無法',
+      '异常',
+      '異常',
+      '出错',
+      '出錯',
+      '超时',
+      '逾時',
+      '不能',
+      '未能',
+      '失敗',
+      'エラー',
+    ];
+    const warnings = ['请', '請', '未', '暂无', '暫無', '不支持', '不支援', '没有', '沒有', '不足', '再按'];
     final successes = ['成功', '已', appL10n.featureDone];
-    if (errors.any(message.contains)) return AppToastTone.error;
+    if (errors.any(message.contains) ||
+        lower.contains('failed') ||
+        lower.contains('error')) {
+      return AppToastTone.error;
+    }
     if (successes.any(message.startsWith) || message.contains('成功')) {
       return AppToastTone.success;
     }
