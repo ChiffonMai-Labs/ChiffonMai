@@ -3,13 +3,17 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter/services.dart' show AssetManifest, rootBundle;
 import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constant/CacheKeyConstant.dart';
+import '../entity/DivingFish/Song.dart';
 import '../manager/DivingFish/MaimaiMusicDataManager.dart';
+import '../utils/ApiClient.dart';
 import '../utils/CoverUtil.dart';
+import 'AwmcCoverService.dart';
+import 'DxRatingCoverService.dart';
 
 /// 在后台 isolate 中完成照片解码、裁方形、缩放和 pHash，避免相册大图阻塞 UI。
 Map<String, dynamic> _extractPhotoFeatures(Uint8List bytes) {
@@ -46,148 +50,369 @@ Map<String, dynamic> _extractPhotoFeatures(Uint8List bytes) {
   };
 }
 
-/// 曲绘识别服务（Tier 2 重构版）
+/// 曲绘识别服务（全量曲库 + coverId 去重索引版）
 ///
 /// 与旧版相比：
-///   - 后台 isolate 跑 DCT 计算（CPU 密集，不阻塞 UI）
-///   - 并行批处理：每批 32 个 cover，多核提速
-///   - 文件缓存：写入应用文档目录（绕过 SharedPreferences XML 序列化）
-///   - 增量构建：跳过 manifest 中已缓存的 songId
-///   - songId → coverId 映射走 [CoverUtil.extractCoverId]（与 SongInfoPage 一致）
-///
-/// 缓存结构（v3）：songId → {ph: hexString, r/g/b: int}
+///   - 索引直接覆盖全部随包曲绘与全量曲库（国服 + 非国服/Union + 宴会场）
+///   - 按 `coverId` 建索引（v4），同一曲绘对应的 ST/DX/宴谱条目共享特征，
+///     识别时再映射回全量曲库代表曲目
+///   - 对未随包的少数曲目按 AWMC → DXRating → 水鱼 链异步补齐特征
 class CoverRecognitionService {
   static final CoverRecognitionService instance = CoverRecognitionService._();
   CoverRecognitionService._();
 
   Map<String, Map<String, dynamic>>? _featureCache;
+  Map<String, int>? _remoteAttempted;
+  Set<String>? _bundledCoverIdsCache;
 
-  static const int _cacheVersion = 3;
+  static const int _cacheVersion = 4;
   static const int _batchSize = 32;
+  static const int _remoteConcurrency = 6;
+  static const Duration _remoteTimeout = Duration(seconds: 8);
+  static const Duration _remoteRetryCooldown = Duration(hours: 24);
+  static final RegExp _bundledCoverPattern =
+      RegExp(r'^assets/cover/(\d+)\.webp$');
 
   // ─── 缓存文件 ──────────────────────────────────────────────
 
-  Future<File> _getCacheFile() async {
+  Future<File> _getCacheFile({int version = _cacheVersion}) async {
     final dir = await getApplicationDocumentsDirectory();
-    return File('${dir.path}/cover_features_v$_cacheVersion.json');
+    return File('${dir.path}/cover_features_v$version.json');
   }
 
-  Future<Map<String, Map<String, dynamic>>> _loadFeaturesFromFile() async {
+  Future<({Map<String, Map<String, dynamic>> features, Map<String, int> attempted})>
+      _loadCacheStateFromFile() async {
     try {
       final file = await _getCacheFile();
-      if (!await file.exists()) return {};
+      if (!await file.exists()) {
+        return (
+          features: <String, Map<String, dynamic>>{},
+          attempted: <String, int>{},
+        );
+      }
       final content = await file.readAsString();
       final decoded = jsonDecode(content);
       if (decoded is Map && decoded['v'] == _cacheVersion) {
-        final data = decoded['data'] as Map<String, dynamic>;
-        return data.map((k, v) => MapEntry(k, v as Map<String, dynamic>));
+        final rawData = decoded['data'];
+        final features = <String, Map<String, dynamic>>{};
+        if (rawData is Map) {
+          for (final entry in rawData.entries) {
+            if (entry.value is Map) {
+              features['${entry.key}'] =
+                  Map<String, dynamic>.from(entry.value as Map);
+            }
+          }
+        }
+        final rawAttempted = decoded['remoteAttempted'];
+        final attempted = <String, int>{};
+        if (rawAttempted is Map) {
+          for (final entry in rawAttempted.entries) {
+            if (entry.value is num) {
+              attempted['${entry.key}'] = (entry.value as num).toInt();
+            }
+          }
+        }
+        return (features: features, attempted: attempted);
       }
     } catch (e) {
       debugPrint('读取曲绘特征缓存失败: $e');
     }
-    return {};
+    return (
+      features: <String, Map<String, dynamic>>{},
+      attempted: <String, int>{},
+    );
   }
 
-  Future<void> _saveFeaturesToFile(
-      Map<String, Map<String, dynamic>> features) async {
+  Future<void> _saveCacheToFile(
+    Map<String, Map<String, dynamic>> features,
+    Map<String, int> attempted,
+  ) async {
     try {
       final file = await _getCacheFile();
-      final payload = jsonEncode({'v': _cacheVersion, 'data': features});
+      final payload = jsonEncode({
+        'v': _cacheVersion,
+        'data': features,
+        'remoteAttempted': attempted,
+      });
       await file.writeAsString(payload);
       // 同步写一个时间戳，便于外部观测构建时间
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt(CacheKeyConstant.coverHashCacheTimestamp,
           DateTime.now().millisecondsSinceEpoch);
+      final legacyFile = await _getCacheFile(version: 3);
+      if (await legacyFile.exists()) {
+        await legacyFile.delete();
+      }
     } catch (e) {
       debugPrint('保存曲绘特征缓存失败: $e');
     }
   }
 
+  /// 枚举应用包内所有数字 ID 曲绘（排除 `0.webp` 默认占位图）。
+  Future<Set<String>> _listBundledCoverIds() async {
+    if (_bundledCoverIdsCache != null) return _bundledCoverIdsCache!;
+    final ids = <String>{};
+    try {
+      final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
+      for (final assetPath in manifest.listAssets()) {
+        final match = _bundledCoverPattern.firstMatch(assetPath);
+        if (match == null) continue;
+        final cid = match.group(1)!;
+        if (cid.isNotEmpty && cid != '0') {
+          ids.add(cid);
+        }
+      }
+    } catch (e) {
+      debugPrint('[CoverRecognition] 读取 AssetManifest 失败，退回 cover_manifest: $e');
+    }
+
+    if (ids.isEmpty) {
+      try {
+        final manifestJson =
+            await rootBundle.loadString('assets/cover_manifest.json');
+        final songIds = jsonDecode(manifestJson) as List<dynamic>;
+        for (final raw in songIds) {
+          final cid = CoverUtil.extractCoverId('$raw');
+          if (cid.isNotEmpty && cid != '0') {
+            ids.add(cid);
+          }
+        }
+      } catch (e) {
+        debugPrint('[CoverRecognition] 读取 cover_manifest 失败: $e');
+      }
+    }
+
+    _bundledCoverIdsCache = Set<String>.unmodifiable(ids);
+    return _bundledCoverIdsCache!;
+  }
+
+  /// 将全量曲库（含国服 + 非国服/Union + 宴会场）按 `coverId` 归并，
+  /// 并为每个 `coverId` 选出最合适的代表曲目。
+  Map<String, Song> _buildCoverToSongMap(List<Song> songs) {
+    final map = <String, Song>{};
+    for (final song in songs) {
+      final coverId = CoverUtil.extractCoverId(song.id);
+      if (coverId.isEmpty || coverId == '0') continue;
+      final existing = map[coverId];
+      if (existing == null || _songPriorityCompare(song, existing) < 0) {
+        map[coverId] = song;
+      }
+    }
+    return map;
+  }
+
+  /// 负数表示 [a] 比 [b] 更适合作为同一 `coverId` 的代表曲目：
+  /// 1) 常规谱优于宴会场（6位ID） 2) 国服优于非国服 3) DX 优于 SD 4) ID 数值更小优先
+  static int _songPriorityCompare(Song a, Song b) {
+    final aUtage = a.id.length >= 6 ? 1 : 0;
+    final bUtage = b.id.length >= 6 ? 1 : 0;
+    if (aUtage != bUtage) return aUtage - bUtage;
+
+    final aExtra = a.isExtra ? 1 : 0;
+    final bExtra = b.isExtra ? 1 : 0;
+    if (aExtra != bExtra) return aExtra - bExtra;
+
+    final aDx = a.type.toUpperCase() == 'DX' ? 0 : 1;
+    final bDx = b.type.toUpperCase() == 'DX' ? 0 : 1;
+    if (aDx != bDx) return aDx - bDx;
+
+    final aNum = int.tryParse(a.id) ?? 1 << 30;
+    final bNum = int.tryParse(b.id) ?? 1 << 30;
+    if (aNum != bNum) return aNum.compareTo(bNum);
+
+    return a.id.compareTo(b.id);
+  }
+
+  bool _isWithinRetryCooldown(int? lastAttemptMs, int nowMs) {
+    if (lastAttemptMs == null) return false;
+    return nowMs - lastAttemptMs < _remoteRetryCooldown.inMilliseconds;
+  }
+
   Future<bool> isHashCacheValid() async {
     try {
-      final file = await _getCacheFile();
-      if (!await file.exists()) return false;
-      final content = await file.readAsString();
-      final decoded = jsonDecode(content);
-      return decoded is Map && decoded['v'] == _cacheVersion;
+      Map<String, Map<String, dynamic>> features;
+      Map<String, int> attempted;
+      if (_featureCache != null && _remoteAttempted != null) {
+        features = _featureCache!;
+        attempted = _remoteAttempted!;
+      } else {
+        final state = await _loadCacheStateFromFile();
+        features = state.features;
+        attempted = state.attempted;
+        if (features.isNotEmpty) {
+          _featureCache = features;
+          _remoteAttempted = attempted;
+        }
+      }
+      if (features.isEmpty) return false;
+
+      final bundledIds = await _listBundledCoverIds();
+      for (final cid in bundledIds) {
+        if (!features.containsKey(cid)) return false;
+      }
+
+      final songs = await MaimaiMusicDataManager().getCachedSongs();
+      if (songs != null && songs.isNotEmpty) {
+        final nowMs = DateTime.now().millisecondsSinceEpoch;
+        for (final song in songs) {
+          final cid = CoverUtil.extractCoverId(song.id);
+          if (cid.isEmpty || cid == '0') continue;
+          if (!features.containsKey(cid) &&
+              !_isWithinRetryCooldown(attempted[cid], nowMs)) {
+            return false;
+          }
+        }
+      }
+      return true;
     } catch (e) {
       return false;
     }
   }
 
-  // ─── 索引构建（Tier 2：后台 isolate + 批处理 + 增量） ───────────
+  // ─── 索引构建（全量曲库 + 后台 isolate + 批处理 + 增量） ───────
 
-  /// 预计算 / 增量补齐所有曲绘的 pHash 和颜色特征
+  /// 预计算 / 增量补齐全量曲绘的 pHash 和颜色特征
   Future<void> precomputeHashes({
     void Function(int current, int total)? onProgress,
   }) async {
-    // 1. 读 manifest（songIds）
-    final manifestJson =
-        await rootBundle.loadString('assets/cover_manifest.json');
-    final songIds = (jsonDecode(manifestJson) as List<dynamic>)
-        .map((e) => e as String)
-        .toList();
-
-    // 2. 读已有缓存
-    final existing = await _loadFeaturesFromFile();
+    // 1. 读取已有特征与失败冷却记录
+    final state = await _loadCacheStateFromFile();
+    final existing = state.features;
+    final attempted = state.attempted;
     _featureCache = existing;
+    _remoteAttempted = attempted;
 
-    // 3. 找出缺失的 songId（增量）
-    final missing = songIds.where((sid) => !existing.containsKey(sid)).toList();
-    if (missing.isEmpty) {
-      onProgress?.call(songIds.length, songIds.length);
-      debugPrint('[CoverRecognition] 缓存已覆盖全部 ${songIds.length} 个 songId，跳过构建');
+    // 2. 枚举全部随包曲绘 + 获取全量曲库（只读缓存，若空则拉取一次）
+    final bundledIds = await _listBundledCoverIds();
+    final musicManager = MaimaiMusicDataManager();
+    var songs = await musicManager.getCachedSongs();
+    if (songs == null || songs.isEmpty) {
+      await musicManager.fetchAndUpdateMusicData();
+      songs = await musicManager.getCachedSongs();
+    }
+    final coverToSong = _buildCoverToSongMap(songs ?? const <Song>[]);
+
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    final missingLocal = bundledIds
+        .where((cid) => !existing.containsKey(cid))
+        .toList(growable: false);
+    final missingRemote = coverToSong.keys
+        .where((cid) =>
+            !bundledIds.contains(cid) &&
+            !existing.containsKey(cid) &&
+            !_isWithinRetryCooldown(attempted[cid], nowMs))
+        .toList(growable: false);
+
+    if (missingLocal.isEmpty && missingRemote.isEmpty) {
+      onProgress?.call(existing.length, existing.length);
+      debugPrint(
+          '[CoverRecognition] 缓存已覆盖全量 ${existing.length} 张曲绘，跳过构建');
       return;
     }
+
+    final total = missingLocal.length + missingRemote.length;
+    int processed = 0;
+    onProgress?.call(0, total);
     debugPrint(
-        '[CoverRecognition] 增量构建：缺失 ${missing.length} / 共 ${songIds.length}');
+        '[CoverRecognition] 增量构建：本地缺失 ${missingLocal.length}，远程补齐 ${missingRemote.length}');
 
-    // 4. songId → coverId 映射；同一 coverId 对应的所有 songId 共用一份特征
-    final coverToSongIds = <String, List<String>>{};
-    for (final sid in missing) {
-      final coverId = CoverUtil.extractCoverId(sid);
-      if (coverId.isEmpty || coverId == '0') continue;
-      coverToSongIds.putIfAbsent(coverId, () => []).add(sid);
-    }
-
-    // 5. 主线程预加载 bytes（rootBundle 必须在 main isolate）
-    final tasks = <({String coverId, Uint8List bytes})>[];
-    for (final coverId in coverToSongIds.keys) {
+    // 3. 主线程预加载本地随包曲绘 bytes（rootBundle 必须在 main isolate）
+    final localTasks = <({String coverId, Uint8List bytes})>[];
+    for (final coverId in missingLocal) {
       try {
         final byteData = await rootBundle.load('assets/cover/$coverId.webp');
-        tasks.add((coverId: coverId, bytes: byteData.buffer.asUint8List()));
+        localTasks.add(
+            (coverId: coverId, bytes: byteData.buffer.asUint8List()));
       } catch (_) {
-        // 本地无资源，跳过
+        processed++;
       }
     }
 
-    // 6. 分批后台 isolate 计算（DCT 在 isolate 内做，UI 不阻塞）
-    int processed = 0;
-    final total = tasks.length;
-    final newFeatures = <String, Map<String, dynamic>>{};
-
-    for (int i = 0; i < tasks.length; i += _batchSize) {
-      final batch = tasks.skip(i).take(_batchSize).toList();
-      // 单次 compute() 处理一批，多批串行调度（compute 自身已开新 isolate，
-      // 并行收益有限，串行更稳且内存友好）
+    // 4. 分批后台 isolate 计算本地随包曲绘特征
+    for (int i = 0; i < localTasks.length; i += _batchSize) {
+      final batch = localTasks.skip(i).take(_batchSize).toList();
       final batchResults = await compute(_processBatchIsolate, batch);
       for (final entry in batchResults.entries) {
-        final sids = coverToSongIds[entry.key] ?? const <String>[];
-        for (final sid in sids) {
-          newFeatures[sid] = entry.value;
-        }
+        existing[entry.key] = entry.value;
+        attempted.remove(entry.key);
       }
       processed += batch.length;
-      onProgress?.call(processed, total);
-      // 让 UI 有机会刷新进度
+      onProgress?.call(math.min(processed, total), total);
       await Future.delayed(Duration.zero);
     }
 
-    // 7. 合并 + 写文件
-    existing.addAll(newFeatures);
+    // 5. 对未随包的曲目按 AWMC → DXRating → 水鱼 链下载曲绘并提取特征
+    if (missingRemote.isNotEmpty) {
+      await AwmcCoverService.instance.ensureLoaded(allowNetwork: false);
+      await DxRatingCoverService.instance.ensureLoaded(allowNetwork: false);
+
+      final remoteTasks = <({String coverId, Uint8List bytes})>[];
+      int cursor = 0;
+      Future<void> worker() async {
+        while (true) {
+          if (cursor >= missingRemote.length) break;
+          final coverId = missingRemote[cursor++];
+          final song = coverToSong[coverId];
+          final bytes =
+              song == null ? null : await _downloadCoverBytes(song);
+          if (bytes != null && bytes.isNotEmpty) {
+            remoteTasks.add((coverId: coverId, bytes: bytes));
+          } else {
+            attempted[coverId] = nowMs;
+            processed++;
+            onProgress?.call(math.min(processed, total), total);
+          }
+        }
+      }
+
+      final workerCount = math.min(_remoteConcurrency, missingRemote.length);
+      await Future.wait(
+        List<Future<void>>.generate(workerCount, (_) => worker()),
+      );
+
+      for (int i = 0; i < remoteTasks.length; i += _batchSize) {
+        final batch = remoteTasks.skip(i).take(_batchSize).toList();
+        final batchResults = await compute(_processBatchIsolate, batch);
+        for (final entry in batchResults.entries) {
+          existing[entry.key] = entry.value;
+          attempted.remove(entry.key);
+        }
+        processed += batch.length;
+        onProgress?.call(math.min(processed, total), total);
+        await Future.delayed(Duration.zero);
+      }
+    }
+
+    // 6. 合并 + 写文件
     _featureCache = existing;
-    await _saveFeaturesToFile(existing);
+    _remoteAttempted = attempted;
+    onProgress?.call(total, total);
+    await _saveCacheToFile(existing, attempted);
     debugPrint('[CoverRecognition] 完成，共 ${existing.length} 张曲绘特征');
+  }
+
+  Future<Uint8List?> _downloadCoverBytes(Song song) async {
+    final urls = <String>[
+      ...AwmcCoverService.instance.coverUrlsFor(song.id, width: 240),
+      if (DxRatingCoverService.instance.coverUrlFor(song.id)
+          case final String dxUrl)
+        dxUrl,
+      CoverUtil.getNetworkCoverUrl(song.id),
+    ];
+    for (final rawUrl in urls) {
+      try {
+        final response = await ApiClient.get(
+          Uri.parse(rawUrl),
+          timeout: _remoteTimeout,
+        );
+        if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
+          return response.bodyBytes;
+        }
+      } catch (_) {
+        // 继续尝试下一条候选源
+      }
+    }
+    return null;
   }
 
   /// 单批特征提取（运行在后台 isolate）。
@@ -307,9 +532,12 @@ class CoverRecognitionService {
 
   Future<void> clearCache() async {
     try {
-      final file = await _getCacheFile();
-      if (await file.exists()) await file.delete();
+      for (final version in const [_cacheVersion, 3]) {
+        final file = await _getCacheFile(version: version);
+        if (await file.exists()) await file.delete();
+      }
       _featureCache = null;
+      _remoteAttempted = null;
     } catch (e) {
       debugPrint('清除曲绘特征缓存失败: $e');
     }
@@ -319,7 +547,9 @@ class CoverRecognitionService {
 
   Future<Map<String, Map<String, dynamic>>> getCachedFeatures() async {
     if (_featureCache != null) return _featureCache!;
-    _featureCache = await _loadFeaturesFromFile();
+    final state = await _loadCacheStateFromFile();
+    _featureCache = state.features;
+    _remoteAttempted = state.attempted;
     return _featureCache!;
   }
 
@@ -347,7 +577,7 @@ class CoverRecognitionService {
         return null;
       }
 
-      // 比对所有曲绘
+      // 比对所有曲绘（缓存键为 coverId）
       final allMatches = <Map<String, dynamic>>[];
       for (final entry in cachedFeatures.entries) {
         final feat = entry.value;
@@ -366,7 +596,7 @@ class CoverRecognitionService {
         final combinedSim = 0.55 * hashSim + 0.45 * colorSim;
 
         allMatches.add({
-          'songId': entry.key,
+          'coverId': entry.key,
           'hashDistance': hashDist,
           'hashSimilarity': hashSim * 100,
           'colorSimilarity': colorSim * 100,
@@ -382,28 +612,30 @@ class CoverRecognitionService {
         return null;
       }
 
-      // 填充歌曲信息
+      // 填充全量歌曲信息（水鱼 + Union 非国服）
       final musicManager = MaimaiMusicDataManager();
-      final songs = await musicManager.getCachedSongs();
-      final songMap = <String, String>{};
-      if (songs != null) {
-        for (final s in songs) {
-          songMap[s.id] = '${s.title}\t${s.basicInfo.artist}';
-        }
+      var songs = await musicManager.getCachedSongs();
+      if (songs == null || songs.isEmpty) {
+        await musicManager.fetchAndUpdateMusicData();
+        songs = await musicManager.getCachedSongs();
       }
+      final coverToSong = _buildCoverToSongMap(songs ?? const <Song>[]);
 
       for (final match in topCandidates) {
-        final sid = match['songId'] as String;
+        final coverId = match['coverId'] as String;
         final combinedSim = match['combinedSimilarity'] as double;
         match['similarity'] = combinedSim * 100;
-        final info = songMap[sid];
-        if (info != null) {
-          final parts = info.split('\t');
-          match['songTitle'] = parts[0];
-          match['artist'] = parts.length > 1 ? parts[1] : '';
+        final song = coverToSong[coverId];
+        if (song != null) {
+          match['songId'] = song.id;
+          match['songTitle'] = song.title;
+          match['artist'] = song.basicInfo.artist;
+          match['isExtra'] = song.isExtra;
         } else {
-          match['songTitle'] = '歌曲 #$sid';
+          match['songId'] = coverId;
+          match['songTitle'] = '歌曲 #$coverId';
           match['artist'] = '';
+          match['isExtra'] = false;
         }
       }
 
