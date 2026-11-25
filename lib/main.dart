@@ -30,6 +30,7 @@ import 'package:my_first_flutter_app/utils/UserProfileNotifier.dart';
 import 'package:my_first_flutter_app/widgets/PortablePlayerBadge.dart';
 import 'package:my_first_flutter_app/utils/NavigationPreferences.dart';
 import 'service/AccountSwitchService.dart';
+import 'service/AppFontService.dart';
 import 'service/LogExportService.dart';
 import 'utils/WindowDiagnostics.dart';
 import 'widgets/AppToast.dart';
@@ -124,6 +125,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     ThemeManager().customBackgroundPathNotifier,
     NavigationPreferences.instance,
     AppLanguagePreferences.instance,
+    AppFontService.instance,
   ]);
 
   /// 收藏夹「一键导入」通道，与 MainActivity.kt 中的 IMPORT_CHANNEL 对应
@@ -172,6 +174,10 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         '[Window] 生命周期 $state，framesEnabled=${WidgetsBinding.instance.framesEnabled}');
     if (state == AppLifecycleState.resumed) {
       unawaited(NavigationPreferences.instance.applySystemUiMode());
+      if (!AppTheme.debugLocalFontFamily &&
+          !AppFontService.instance.isCjkLoaded) {
+        unawaited(AppFontService.instance.ensureLoaded());
+      }
     }
   }
 
@@ -325,23 +331,15 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   Future<void> _prepareStartupFonts() async {
     if (!AppTheme.debugLocalFontFamily) {
       try {
-        // 保留在线字体；先准备常用字重，避免引导刚出现就开始替换字体。
-        final styles = <TextStyle>[
-          for (final weight in [
-            FontWeight.w400,
-            FontWeight.w500,
-            FontWeight.w600,
-            FontWeight.w700,
-            FontWeight.w800,
-          ]) ...[
-            GoogleFonts.outfit(fontWeight: weight),
-            GoogleFonts.notoSansSc(fontWeight: weight),
-          ],
-        ];
-        await GoogleFonts.pendingFonts(styles)
-            .timeout(const Duration(milliseconds: 1200));
+        // Outfit 已随包本地内置；中文字体优先从本地支持目录加载，缺失时向自家服务端拉取单份可变字体。
+        final cached = await AppFontService.instance.loadCachedIfPresent();
+        if (!cached) {
+          await AppFontService.instance
+              .ensureLoaded()
+              .timeout(const Duration(milliseconds: 1200), onTimeout: () => false);
+        }
       } catch (error) {
-        debugPrint('[Startup] 在线字体准备未完成，继续启动: $error');
+        debugPrint('[Startup] 自托管字体准备未完成，继续启动: $error');
       }
     }
     if (mounted) setState(() => _fontsPrepared = true);

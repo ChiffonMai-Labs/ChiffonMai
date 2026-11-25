@@ -4,9 +4,9 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:simai_flutter/simai_flutter.dart';
+import 'package:my_first_flutter_app/service/AppFontService.dart';
 import 'package:my_first_flutter_app/service/ChartPlaySettingsStore.dart';
 import 'package:my_first_flutter_app/service/LoadingTipsStore.dart';
 import 'package:my_first_flutter_app/service/SongPlayService.dart';
@@ -414,23 +414,15 @@ class _ChartPlayPageState extends State<ChartPlayPage>
     return style.copyWith(
       fontFamily: font.fontFamily,
       fontFamilyFallback: font.fontFamilyFallback,
+      fontVariations: font.fontVariations,
     );
   }
 
   Future<void> _prepareChartFonts() async {
     try {
-      for (final weight in const [
-        FontWeight.w400,
-        FontWeight.w500,
-        FontWeight.w700,
-        FontWeight.w800,
-      ]) {
-        AppTheme.font(fontWeight: weight);
-      }
-      await GoogleFonts.pendingFonts().timeout(
-        const Duration(seconds: 6),
-        onTimeout: () => const <void>[],
-      );
+      await AppFontService.instance
+          .ensureLoaded()
+          .timeout(const Duration(seconds: 6), onTimeout: () => false);
     } catch (e) {
       debugPrint('[ChartPlay] 准备导出字体失败（继续使用已加载字体）: $e');
     }

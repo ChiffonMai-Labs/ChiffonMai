@@ -207,6 +207,10 @@ class ApiUrls {
   static const String MaidataCatalogUrl = '$MaidataApiBaseUrl/catalog';
   static String maidataSongUrl(String songId) => '$MaidataApiBaseUrl/$songId';
 
+  // 自托管思源黑体可变字体（NotoSansSC-VF.ttf）
+  static const String NotoSansScVfFontUrl =
+      '$BackendBaseUrl/api/assets/fonts/noto-sans-sc-vf.ttf';
+
   // 单曲 maidata 兜底（wmc.pub）
   //
   // 全量 / 单曲本地缓存都没命中时，最后一道兜底：直接按 songId 拉这家的 maidata.txt。

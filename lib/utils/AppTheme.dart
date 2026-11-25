@@ -1,8 +1,8 @@
 import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import 'package:my_first_flutter_app/service/AppFontService.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'VideoExportPageTransitionsTheme.dart';
 
 /// 集中式主题定义：提供浅色和暗色 ThemeData，以及主题感知的颜色访问器
@@ -31,7 +31,8 @@ class AppTheme {
 
   // ========== 字体 ==========
 
-  /// 全 App 的字体：思源黑体（`google_fonts` 运行时从网络获取）。
+  /// 全 App 的字体：主字体 `AppOutfit`（本地随包内置），中文回落到自托管可变字体
+  /// `AppNotoSansSC`（下载后持久化至应用支持目录）。
   ///
   /// **凡是被组件自己套了 `DefaultTextStyle` 的样式，都必须走这里。**
   /// 全局字体的注入方式是「替换 `textTheme` + 根部 `DefaultTextStyle`」，
@@ -40,14 +41,11 @@ class AppTheme {
   /// 不带 `fontFamily`，标题就会退回系统默认字体（Roboto），于是出现
   /// 「同一个页面里标题和正文不是同一套字」。
   ///
-  /// ⚠️ google_fonts 的族名是**按字重分文件**的（`NotoSansSC_regular` /
-  /// `NotoSansSC_700` …），所以字重必须一起传进来 ——
-  /// 先取到族名再 `copyWith(fontWeight:)` 会拿到错的字重文件。
-  ///
-  /// ⚠️ **只能在 `build` 里调用**：它内部会走 `rootBundle`，
-  /// 需要 `ServicesBinding` 已经初始化（`main()` 顶层、`test` 顶层调用会抛
-  /// 「Binding has not yet been initialized」）。所以主题构造（[lightTheme] 等）
-  /// 一律用裸 `TextStyle`，字体族由 [withGlobalFonts] 在运行时补上。
+  /// ⚠️ `NotoSansSC-VF.ttf` 的可变字重轴 `wght` 默认值为 100，因此所有样式都必须
+  /// 显式传递 `fontVariations: [FontVariation('wght', ...)]`，确保 w400 等字重显示正确。
+  static List<FontVariation> _weightVariations(FontWeight weight) =>
+      <FontVariation>[FontVariation('wght', weight.value.toDouble())];
+
   static TextStyle font({
     double? fontSize,
     FontWeight? fontWeight,
@@ -59,10 +57,8 @@ class AppTheme {
     TextDecorationStyle? decorationStyle,
     Color? decorationColor,
   }) {
-    // 测试/探针旁路：测试环境没有网络、也没有 `NotoSansSC_*` 这些族，
-    // 真去联网会失败，而 google_fonts 的失败挂在内部 future 上、外部接不住
-    // （实测会把 golden 探针判失败）。旁路只换族名，字重映射规则与 google_fonts
-    // 一致（w400 → `_regular`，其余 → 数字），所以出图效果与真机同口径。
+    // 测试/探针旁路：测试环境没有 `AppNotoSansSC` 注册族，
+    // 旁路只换族名，字重映射规则与本地测试字体注册一致（w400 → `_regular`，其余 → 数字）。
     if (debugLocalFontFamily) {
       final weight = (fontWeight ?? FontWeight.w400).value;
       return TextStyle(
@@ -92,10 +88,8 @@ class AppTheme {
     );
   }
 
-  static final Map<int, ({String? primary, String? cjk})>
-      _resolvedFontFamilies = {};
-
-  /// 全 App 主字体 Outfit。它没有中文，中文按相同字重回落到思源黑体（不走系统字体）。
+  /// 全 App 主字体 `AppOutfit`（本地打包）。它没有中文，中文按相同字重通过
+  /// `FontVariation('wght', ...)` 回落到自托管可变思源黑体 `AppNotoSansSC`。
   static TextStyle _outfit({
     double? fontSize,
     FontWeight? fontWeight,
@@ -105,17 +99,14 @@ class AppTheme {
     List<FontFeature>? fontFeatures,
   }) {
     final weight = fontWeight ?? FontWeight.w400;
-    final cached = _resolvedFontFamilies.putIfAbsent(weight.value, () {
-      return (
-        primary: GoogleFonts.outfit(fontWeight: weight).fontFamily,
-        cjk: GoogleFonts.notoSansSc(fontWeight: weight).fontFamily,
-      );
-    });
+    final cjkLoaded = AppFontService.instance.isCjkLoaded;
     return TextStyle(
-      fontFamily: cached.primary,
-      fontFamilyFallback: cached.cjk == null ? null : [cached.cjk!],
+      fontFamily: AppFontService.primaryFamily,
+      fontFamilyFallback:
+          cjkLoaded ? const <String>[AppFontService.cjkFamily] : null,
       fontSize: fontSize,
       fontWeight: fontWeight,
+      fontVariations: _weightVariations(weight),
       color: color,
       height: height,
       letterSpacing: letterSpacing,
@@ -125,12 +116,9 @@ class AppTheme {
 
   /// 数字 / 拉丁展示字体：**Outfit**（几何无衬线，等宽数字）。
   ///
-  /// 只用于 Rating、达成率、定数、物量这类**数字为主角**的位置；
-  /// 中文正文继续走 [font]（思源黑体）。和 [font] 一样走 google_fonts、
-  /// 字重必须随调用一起传入，并且**只能在 `build` 里调用**。
-  ///
-  /// 默认开启 `tabularFigures`：数字逐帧变化（计数动画、实时计算）时
-  /// 宽度不抖。
+  /// 只用于 Rating、达成率、定数、物量、评级缩写这类**数字为主角**的位置；
+  /// 中文正文继续走 [font]（思源黑体）。默认开启 `tabularFigures`：
+  /// 数字逐帧变化（计数动画、实时计算）时宽度不抖。
   static TextStyle number({
     double? fontSize,
     FontWeight? fontWeight,
@@ -167,33 +155,40 @@ class AppTheme {
   @visibleForTesting
   static bool debugLocalFontFamily = false;
 
-  /// 主题文字：Outfit，每一档的中文回落都用同字重的思源黑体。
+  /// 主题文字：本地 `AppOutfit`，每一档的中文回落都通过 `wght` 轴对齐自托管思源黑体。
   static TextTheme _outfitTextTheme(TextTheme base) {
     if (debugLocalFontFamily) {
       return base.apply(fontFamily: 'NotoSansSC_regular');
     }
-    final outfit = GoogleFonts.outfitTextTheme(base);
-    final noto = GoogleFonts.notoSansScTextTheme(base);
-    TextStyle? merge(TextStyle? style, TextStyle? cjk) =>
-        style?.copyWith(fontFamilyFallback: [
-          if (cjk?.fontFamily != null) cjk!.fontFamily!,
-        ]);
-    return outfit.copyWith(
-      displayLarge: merge(outfit.displayLarge, noto.displayLarge),
-      displayMedium: merge(outfit.displayMedium, noto.displayMedium),
-      displaySmall: merge(outfit.displaySmall, noto.displaySmall),
-      headlineLarge: merge(outfit.headlineLarge, noto.headlineLarge),
-      headlineMedium: merge(outfit.headlineMedium, noto.headlineMedium),
-      headlineSmall: merge(outfit.headlineSmall, noto.headlineSmall),
-      titleLarge: merge(outfit.titleLarge, noto.titleLarge),
-      titleMedium: merge(outfit.titleMedium, noto.titleMedium),
-      titleSmall: merge(outfit.titleSmall, noto.titleSmall),
-      bodyLarge: merge(outfit.bodyLarge, noto.bodyLarge),
-      bodyMedium: merge(outfit.bodyMedium, noto.bodyMedium),
-      bodySmall: merge(outfit.bodySmall, noto.bodySmall),
-      labelLarge: merge(outfit.labelLarge, noto.labelLarge),
-      labelMedium: merge(outfit.labelMedium, noto.labelMedium),
-      labelSmall: merge(outfit.labelSmall, noto.labelSmall),
+    final cjkLoaded = AppFontService.instance.isCjkLoaded;
+    final fallback =
+        cjkLoaded ? const <String>[AppFontService.cjkFamily] : null;
+    TextStyle? applySlot(TextStyle? style) {
+      if (style == null) return null;
+      final weight = style.fontWeight ?? FontWeight.w400;
+      return style.copyWith(
+        fontFamily: AppFontService.primaryFamily,
+        fontFamilyFallback: fallback,
+        fontVariations: _weightVariations(weight),
+      );
+    }
+
+    return base.copyWith(
+      displayLarge: applySlot(base.displayLarge),
+      displayMedium: applySlot(base.displayMedium),
+      displaySmall: applySlot(base.displaySmall),
+      headlineLarge: applySlot(base.headlineLarge),
+      headlineMedium: applySlot(base.headlineMedium),
+      headlineSmall: applySlot(base.headlineSmall),
+      titleLarge: applySlot(base.titleLarge),
+      titleMedium: applySlot(base.titleMedium),
+      titleSmall: applySlot(base.titleSmall),
+      bodyLarge: applySlot(base.bodyLarge),
+      bodyMedium: applySlot(base.bodyMedium),
+      bodySmall: applySlot(base.bodySmall),
+      labelLarge: applySlot(base.labelLarge),
+      labelMedium: applySlot(base.labelMedium),
+      labelSmall: applySlot(base.labelSmall),
     );
   }
 
