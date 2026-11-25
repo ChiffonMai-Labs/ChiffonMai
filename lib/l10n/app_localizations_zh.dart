@@ -15319,11 +15319,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get displayModeSimple => '简洁模式';
 
   @override
-  String get displayModeStandardHint => '显示全部 5 个标签页、概览图表、背景装饰与完整功能列表';
+  String get displayModeStandardHint => '显示全部 5 个标签页、背景装饰、完整说明与动效';
 
   @override
-  String get displayModeSimpleHint =>
-      '精简为 3 个核心标签页，收敛视觉装饰并折叠低频功能；所有功能仍可通过搜索或展开访问';
+  String get displayModeSimpleHint => '精简为 3 个核心标签页，隐藏背景装饰、动效与冗余说明，保留紧凑一致的功能布局';
 
   @override
   String get simpleModeActiveHint => '当前为简洁模式';
@@ -15411,6 +15410,272 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get flowNoMatchingLoadingQuotes => '未找到匹配的加载语录';
+
+  @override
+  String get songUnlockCondition => '解禁条件';
+
+  @override
+  String get songUnlockNone => '无需解禁';
+
+  @override
+  String get songUnlockRequired => '需解禁';
+
+  @override
+  String get favoriteManagerTitle => '管理常用功能';
+
+  @override
+  String get favoriteManagerSearchHint => '搜索功能名称或说明';
+
+  @override
+  String favoriteManagerSelectedCount(int count) {
+    return '已收藏 $count 项';
+  }
+
+  @override
+  String get favoriteManagerEmptyHint => '点击此处或前往各分类页管理常用功能';
+
+  @override
+  String get favoriteManagerOnlyFavorited => '仅看已收藏';
+
+  @override
+  String get hubGroupCatalogAndData => '图鉴与资料';
+
+  @override
+  String get hubGroupCatalogAndDataSubtitle => '更新日历、收藏品与定数分析';
+
+  @override
+  String get hubGroupVersionAndConstant => '版本与定数分析';
+
+  @override
+  String get hubGroupVersionAndConstantSubtitle => '国服更新对照 · 版本对照 · 定数分布';
+
+  @override
+  String get hubLibrarySearchHint => '搜索乐曲、别名、谱师或标签';
+
+  @override
+  String get hubScoreBest50AndInsights => 'Best50 与分析';
+
+  @override
+  String get hubScoreAllRankings => '全部排行榜';
+
+  @override
+  String get hubMoreActionsTooltip => '查看详情与收藏';
+
+  @override
+  String get hubGroupAttendancePrep => '出勤常用';
+
+  @override
+  String get hubGroupAttendancePrepSubtitle => '收藏谱面、待玩清单与机厅地图';
+
+  @override
+  String get hubGroupSongPicks => '选曲与推荐';
+
+  @override
+  String get hubGroupSongPicksSubtitle => '每日推荐、吃分与定向挑谱';
+
+  @override
+  String get hubGroupMorePicks => '更多选曲与推荐';
+
+  @override
+  String get hubGroupMorePicksSubtitle => '随机乐曲 · 出勤转盘 · 标签 / 目标 Rating / 定数区间';
+
+  @override
+  String get hubGroupArcadeMapsSubtitle => '全国音游地图 · 全球音游街机地图';
+
+  @override
+  String get hubGroupSoloGuess => '单人猜歌';
+
+  @override
+  String get hubGroupSoloGuessSubtitle => '文字 · 曲绘 · 音频 · 谱面，共 13 种玩法';
+
+  @override
+  String get hubGroupGuessChallenge => '猜歌挑战';
+
+  @override
+  String get hubGroupGuessChallengeSubtitle => '单人模式、多人联机与游戏设置';
+
+  @override
+  String get hubPillNoClue => '无提示';
+
+  @override
+  String get hubPillPartialCover => '部分曲绘';
+
+  @override
+  String get hubGroupAccountAndSync => '账号与同步';
+
+  @override
+  String get hubGroupAccountAndSyncSubtitle => '拉取成绩、同步查分器与管理账号';
+
+  @override
+  String get hubGroupSyncCenterSubtitle => '查看各平台同步统计、多端与自动同步';
+
+  @override
+  String get hubPillMultiPlatform => '多端';
+
+  @override
+  String get hubGroupAccountAuthSubtitle => '绑定与授权 · 注册引导 · 删除账号';
+
+  @override
+  String get hubGroupSettingsAndTools => '设置与工具';
+
+  @override
+  String get hubGroupSettingsAndToolsSubtitle => '偏好设置、机台工具、数据维护与社区动态';
+
+  @override
+  String get hubGroupCabinetAndAwmc => '机台与 AWMC';
+
+  @override
+  String get hubGroupCabinetAndAwmcSubtitle => '游玩次数 · 机台装扮 · 机台查询 · 资源查询';
+
+  @override
+  String get hubGroupDataAndMaintenance => '数据与维护';
+
+  @override
+  String get hubGroupDataAndMaintenanceSubtitle => '数据备份 · 缓存管理 · 加载语录 · 状态与日志';
+
+  @override
+  String get hubGroupCommunitySubtitle => '最近评论 · 最近评分';
+
+  @override
+  String get hubGroupAboutAndUpdates => '关于与更新';
+
+  @override
+  String get hubGroupAboutAndUpdatesSubtitle => '版本更新、公告与项目反馈';
+
+  @override
+  String get hubGroupAboutAndFeedback => '关于与反馈';
+
+  @override
+  String get hubGroupAboutAndFeedbackSubtitle =>
+      '关于 APP · 官网 · 友链 · QQ 群 · 反馈 · 支持';
+
+  @override
+  String get hubGroupLocalAndPrefs => '本地与偏好';
+
+  @override
+  String get hubGroupProjectAndLinks => '项目与链接';
+
+  @override
+  String get hubGroupDataAndCabinet => '数据与机台';
+
+  @override
+  String get hubGroupDataAndCabinetSubtitle => '成绩刷新、机台数据与 AWMC 查询';
+
+  @override
+  String get hubGroupAboutAndSupport => '关于与支持';
+
+  @override
+  String get hubGroupAboutAndSupportSubtitle => '版本更新、公告、项目链接与反馈支持';
+
+  @override
+  String get hubGroupAllBest50Subtitle => '当前表现、拟合上限、标签筛选与制图';
+
+  @override
+  String get hubGroupAllRankingsSubtitle => 'Rating、达成率与特殊玩家榜单';
+
+  @override
+  String get errDetails => '详情';
+
+  @override
+  String get errViewDetails => '查看详情';
+
+  @override
+  String get errCopyDiagnostic => '复制排查信息';
+
+  @override
+  String get errDiagnosticCopied => '已复制排查信息，可直接粘贴反馈';
+
+  @override
+  String get errTechnicalDetails => '技术详情';
+
+  @override
+  String get errExportFullLogs => '导出完整日志';
+
+  @override
+  String get errDiagnosticHint => '反馈问题时请截图此条或点击下方「复制排查信息」';
+
+  @override
+  String get errNetworkOffline => '无法连接服务器，请检查网络或代理设置后重试';
+
+  @override
+  String get errNetworkTimeout => '请求服务器超时，请检查网络后重试';
+
+  @override
+  String get errNetworkTls => '安全连接握手失败，请检查系统时间或网络环境';
+
+  @override
+  String get errNetworkInterrupted => '网络传输意外中断，请重试';
+
+  @override
+  String get errDataParseFailed => '返回数据格式异常，解析失败';
+
+  @override
+  String get errFileIoFailed => '本地文件读写失败，请检查存储空间与权限';
+
+  @override
+  String get errRateLimited => '请求过于频繁，请稍后再试';
+
+  @override
+  String get errServerBusy => '服务暂时不可用或正在维护，请稍后重试';
+
+  @override
+  String get errServerInternal => '服务器处理请求时出现异常，请稍后重试';
+
+  @override
+  String get errUnauthorized => '登录或授权已失效，请重新登录后再试';
+
+  @override
+  String get errForbidden => '没有权限执行当前操作';
+
+  @override
+  String get errNotFound => '请求的资源不存在或已被移除';
+
+  @override
+  String get errExportCanvasNotReady => '导出画布尚未就绪，请等待页面加载完成后重试';
+
+  @override
+  String get errExportBoundaryMissing => '未能获取导出画布区域，请返回页面后重试';
+
+  @override
+  String get errExportContextLost => '导出过程中页面已关闭，请留在当前页面重试';
+
+  @override
+  String get errExportNoStorageDir => '无法访问导出目录，请检查存储权限和可用空间';
+
+  @override
+  String get errExportEncodeFailed => '图片编码或像素读取失败，可尝试降低导出分辨率后重试';
+
+  @override
+  String get errExportWriteFailed => '写入导出文件失败，请检查存储权限与剩余空间';
+
+  @override
+  String get errSuggestionCheckNetwork => '建议：检查 Wi-Fi / 移动网络或关闭异常代理后重试';
+
+  @override
+  String get errSuggestionRetryLater => '建议：等待几秒后重试，若多次失败请附带上方排查编号反馈';
+
+  @override
+  String get errSuggestionCheckStorage => '建议：确认已授予存储权限，且设备剩余空间充足';
+
+  @override
+  String get errSuggestionReauth => '建议：前往账号或授权管理重新登录/重新授权后再试';
+
+  @override
+  String get errSuggestionContactDev => '建议：截图本弹窗或点击「复制排查信息」发送给开发者排查';
+
+  @override
+  String get songAvgNoteDensity => '平均物量密度';
+
+  @override
+  String flowCouldNotExportP0(String p0) {
+    return '$p0导出失败';
+  }
+
+  @override
+  String songAvgNoteDensityDetail(
+      String notes, String duration, String density) {
+    return '总物量 $notes ÷ 参考时长 $duration = $density 个/秒\n按当前难度全部音符数与参考时长估算，仅供参考。';
+  }
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -30730,11 +30995,10 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get displayModeSimple => '簡潔模式';
 
   @override
-  String get displayModeStandardHint => '顯示全部 5 個分頁、概覽圖表、背景裝飾與完整功能列表';
+  String get displayModeStandardHint => '顯示全部 5 個分頁、背景裝飾、完整說明與動效';
 
   @override
-  String get displayModeSimpleHint =>
-      '精簡為 3 個核心分頁，收斂視覺裝飾並折疊低頻功能；所有功能仍可透過搜尋或展開存取';
+  String get displayModeSimpleHint => '精簡為 3 個核心分頁，隱藏背景裝飾、動效與冗餘說明，保留緊湊一致的功能佈局';
 
   @override
   String get simpleModeActiveHint => '目前為簡潔模式';
@@ -30822,4 +31086,270 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get flowNoMatchingLoadingQuotes => '未找到符合的載入語錄';
+
+  @override
+  String get songUnlockCondition => '解禁條件';
+
+  @override
+  String get songUnlockNone => '無需解禁';
+
+  @override
+  String get songUnlockRequired => '需解禁';
+
+  @override
+  String get favoriteManagerTitle => '管理常用功能';
+
+  @override
+  String get favoriteManagerSearchHint => '搜尋功能名稱或說明';
+
+  @override
+  String favoriteManagerSelectedCount(int count) {
+    return '已收藏 $count 項';
+  }
+
+  @override
+  String get favoriteManagerEmptyHint => '點擊此處或前往各分類頁管理常用功能';
+
+  @override
+  String get favoriteManagerOnlyFavorited => '僅看已收藏';
+
+  @override
+  String get hubGroupCatalogAndData => '圖鑑與資料';
+
+  @override
+  String get hubGroupCatalogAndDataSubtitle => '更新日曆、收藏品與定數分析';
+
+  @override
+  String get hubGroupVersionAndConstant => '版本與定數分析';
+
+  @override
+  String get hubGroupVersionAndConstantSubtitle => '國服更新對照 · 版本對照 · 定數分佈';
+
+  @override
+  String get hubLibrarySearchHint => '搜尋樂曲、別名、譜師或標籤';
+
+  @override
+  String get hubScoreBest50AndInsights => 'Best50 與分析';
+
+  @override
+  String get hubScoreAllRankings => '全部排行榜';
+
+  @override
+  String get hubMoreActionsTooltip => '查看詳情與收藏';
+
+  @override
+  String get hubGroupAttendancePrep => '出勤常用';
+
+  @override
+  String get hubGroupAttendancePrepSubtitle => '收藏譜面、待玩清單與機廳地圖';
+
+  @override
+  String get hubGroupSongPicks => '選曲與推薦';
+
+  @override
+  String get hubGroupSongPicksSubtitle => '每日推薦、吃分與定向挑譜';
+
+  @override
+  String get hubGroupMorePicks => '更多選曲與推薦';
+
+  @override
+  String get hubGroupMorePicksSubtitle => '隨機樂曲 · 出勤轉盤 · 標籤 / 目標 Rating / 定數區間';
+
+  @override
+  String get hubGroupArcadeMapsSubtitle => '全國音遊地圖 · 全球音遊街機地圖';
+
+  @override
+  String get hubGroupSoloGuess => '單人猜歌';
+
+  @override
+  String get hubGroupSoloGuessSubtitle => '文字 · 曲繪 · 音訊 · 譜面，共 13 種玩法';
+
+  @override
+  String get hubGroupGuessChallenge => '猜歌挑戰';
+
+  @override
+  String get hubGroupGuessChallengeSubtitle => '單人模式、多人連線與遊戲設定';
+
+  @override
+  String get hubPillNoClue => '無提示';
+
+  @override
+  String get hubPillPartialCover => '部分曲繪';
+
+  @override
+  String get hubGroupAccountAndSync => '帳號與同步';
+
+  @override
+  String get hubGroupAccountAndSyncSubtitle => '拉取成績、同步查分器與管理帳號';
+
+  @override
+  String get hubGroupSyncCenterSubtitle => '查看各平台同步統計、多端與自動同步';
+
+  @override
+  String get hubPillMultiPlatform => '多端';
+
+  @override
+  String get hubGroupAccountAuthSubtitle => '綁定與授權 · 註冊引導 · 刪除帳號';
+
+  @override
+  String get hubGroupSettingsAndTools => '設定與工具';
+
+  @override
+  String get hubGroupSettingsAndToolsSubtitle => '偏好設定、機台工具、資料維護與社群動態';
+
+  @override
+  String get hubGroupCabinetAndAwmc => '機台與 AWMC';
+
+  @override
+  String get hubGroupCabinetAndAwmcSubtitle => '遊玩次數 · 機台裝扮 · 機台查詢 · 資源查詢';
+
+  @override
+  String get hubGroupDataAndMaintenance => '資料與維護';
+
+  @override
+  String get hubGroupDataAndMaintenanceSubtitle => '資料備份 · 快取管理 · 載入語錄 · 狀態與日誌';
+
+  @override
+  String get hubGroupCommunitySubtitle => '最近評論 · 最近評分';
+
+  @override
+  String get hubGroupAboutAndUpdates => '關於與更新';
+
+  @override
+  String get hubGroupAboutAndUpdatesSubtitle => '版本更新、公告與專案回饋';
+
+  @override
+  String get hubGroupAboutAndFeedback => '關於與回饋';
+
+  @override
+  String get hubGroupAboutAndFeedbackSubtitle =>
+      '關於 APP · 官網 · 友鏈 · QQ 群 · 回饋 · 支持';
+
+  @override
+  String get hubGroupLocalAndPrefs => '本地與偏好';
+
+  @override
+  String get hubGroupProjectAndLinks => '專案與連結';
+
+  @override
+  String get hubGroupDataAndCabinet => '資料與機台';
+
+  @override
+  String get hubGroupDataAndCabinetSubtitle => '成績刷新、機台資料與 AWMC 查詢';
+
+  @override
+  String get hubGroupAboutAndSupport => '關於與支持';
+
+  @override
+  String get hubGroupAboutAndSupportSubtitle => '版本更新、公告、專案連結與回饋支持';
+
+  @override
+  String get hubGroupAllBest50Subtitle => '當前表現、擬合上限、標籤篩選與製圖';
+
+  @override
+  String get hubGroupAllRankingsSubtitle => 'Rating、達成率與特殊玩家榜單';
+
+  @override
+  String get errDetails => '詳情';
+
+  @override
+  String get errViewDetails => '查看詳情';
+
+  @override
+  String get errCopyDiagnostic => '複製排查資訊';
+
+  @override
+  String get errDiagnosticCopied => '已複製排查資訊，可直接貼上回報';
+
+  @override
+  String get errTechnicalDetails => '技術詳情';
+
+  @override
+  String get errExportFullLogs => '匯出完整日誌';
+
+  @override
+  String get errDiagnosticHint => '回報問題時請截圖此條或點擊下方「複製排查資訊」';
+
+  @override
+  String get errNetworkOffline => '無法連線伺服器，請檢查網路或代理設定後重試';
+
+  @override
+  String get errNetworkTimeout => '請求伺服器逾時，請檢查網路後重試';
+
+  @override
+  String get errNetworkTls => '安全連線交握失敗，請檢查系統時間或網路環境';
+
+  @override
+  String get errNetworkInterrupted => '網路傳輸意外中斷，請重試';
+
+  @override
+  String get errDataParseFailed => '回傳資料格式異常，解析失敗';
+
+  @override
+  String get errFileIoFailed => '本機檔案讀寫失敗，請檢查儲存空間與權限';
+
+  @override
+  String get errRateLimited => '請求過於頻繁，請稍後再試';
+
+  @override
+  String get errServerBusy => '服務暫時不可用或正在維護，請稍後重試';
+
+  @override
+  String get errServerInternal => '伺服器處理請求時發生異常，請稍後重試';
+
+  @override
+  String get errUnauthorized => '登入或授權已失效，請重新登入後再試';
+
+  @override
+  String get errForbidden => '沒有權限執行目前操作';
+
+  @override
+  String get errNotFound => '請求的資源不存在或已被移除';
+
+  @override
+  String get errExportCanvasNotReady => '匯出畫布尚未就緒，請等待頁面載入完成後重試';
+
+  @override
+  String get errExportBoundaryMissing => '未能取得匯出畫布區域，請返回頁面後重試';
+
+  @override
+  String get errExportContextLost => '匯出過程中頁面已關閉，請留在目前頁面重試';
+
+  @override
+  String get errExportNoStorageDir => '無法存取匯出目錄，請檢查儲存權限與可用空間';
+
+  @override
+  String get errExportEncodeFailed => '圖片編碼或像素讀取失敗，可嘗試降低匯出解析度後重試';
+
+  @override
+  String get errExportWriteFailed => '寫入匯出檔案失敗，請檢查儲存權限與剩餘空間';
+
+  @override
+  String get errSuggestionCheckNetwork => '建議：檢查 Wi-Fi / 行動網路或關閉異常代理後重試';
+
+  @override
+  String get errSuggestionRetryLater => '建議：等待幾秒後重試，若多次失敗請附上上方排查編號回報';
+
+  @override
+  String get errSuggestionCheckStorage => '建議：確認已授予儲存權限，且裝置剩餘空間充足';
+
+  @override
+  String get errSuggestionReauth => '建議：前往帳號或授權管理重新登入/重新授權後再試';
+
+  @override
+  String get errSuggestionContactDev => '建議：截圖本視窗或點擊「複製排查資訊」傳送給開發者排查';
+
+  @override
+  String get songAvgNoteDensity => '平均物量密度';
+
+  @override
+  String flowCouldNotExportP0(String p0) {
+    return '$p0導出失敗';
+  }
+
+  @override
+  String songAvgNoteDensityDetail(
+      String notes, String duration, String density) {
+    return '總物量 $notes ÷ 參考時長 $duration = $density 個/秒\n依目前難度全部音符數與參考時長估算，僅供參考。';
+  }
 }

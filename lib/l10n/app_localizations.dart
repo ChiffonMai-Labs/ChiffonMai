@@ -26771,13 +26771,13 @@ abstract class AppLocalizations {
   /// No description provided for @displayModeStandardHint.
   ///
   /// In zh, this message translates to:
-  /// **'显示全部 5 个标签页、概览图表、背景装饰与完整功能列表'**
+  /// **'显示全部 5 个标签页、背景装饰、完整说明与动效'**
   String get displayModeStandardHint;
 
   /// No description provided for @displayModeSimpleHint.
   ///
   /// In zh, this message translates to:
-  /// **'精简为 3 个核心标签页，收敛视觉装饰并折叠低频功能；所有功能仍可通过搜索或展开访问'**
+  /// **'精简为 3 个核心标签页，隐藏背景装饰、动效与冗余说明，保留紧凑一致的功能布局'**
   String get displayModeSimpleHint;
 
   /// No description provided for @simpleModeActiveHint.
@@ -26930,6 +26930,523 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'未找到匹配的加载语录'**
   String get flowNoMatchingLoadingQuotes;
+
+  /// No description provided for @songUnlockCondition.
+  ///
+  /// In zh, this message translates to:
+  /// **'解禁条件'**
+  String get songUnlockCondition;
+
+  /// No description provided for @songUnlockNone.
+  ///
+  /// In zh, this message translates to:
+  /// **'无需解禁'**
+  String get songUnlockNone;
+
+  /// No description provided for @songUnlockRequired.
+  ///
+  /// In zh, this message translates to:
+  /// **'需解禁'**
+  String get songUnlockRequired;
+
+  /// No description provided for @favoriteManagerTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'管理常用功能'**
+  String get favoriteManagerTitle;
+
+  /// No description provided for @favoriteManagerSearchHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索功能名称或说明'**
+  String get favoriteManagerSearchHint;
+
+  /// No description provided for @favoriteManagerSelectedCount.
+  ///
+  /// In zh, this message translates to:
+  /// **'已收藏 {count} 项'**
+  String favoriteManagerSelectedCount(int count);
+
+  /// No description provided for @favoriteManagerEmptyHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'点击此处或前往各分类页管理常用功能'**
+  String get favoriteManagerEmptyHint;
+
+  /// No description provided for @favoriteManagerOnlyFavorited.
+  ///
+  /// In zh, this message translates to:
+  /// **'仅看已收藏'**
+  String get favoriteManagerOnlyFavorited;
+
+  /// No description provided for @hubGroupCatalogAndData.
+  ///
+  /// In zh, this message translates to:
+  /// **'图鉴与资料'**
+  String get hubGroupCatalogAndData;
+
+  /// No description provided for @hubGroupCatalogAndDataSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'更新日历、收藏品与定数分析'**
+  String get hubGroupCatalogAndDataSubtitle;
+
+  /// No description provided for @hubGroupVersionAndConstant.
+  ///
+  /// In zh, this message translates to:
+  /// **'版本与定数分析'**
+  String get hubGroupVersionAndConstant;
+
+  /// No description provided for @hubGroupVersionAndConstantSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'国服更新对照 · 版本对照 · 定数分布'**
+  String get hubGroupVersionAndConstantSubtitle;
+
+  /// No description provided for @hubLibrarySearchHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索乐曲、别名、谱师或标签'**
+  String get hubLibrarySearchHint;
+
+  /// No description provided for @hubScoreBest50AndInsights.
+  ///
+  /// In zh, this message translates to:
+  /// **'Best50 与分析'**
+  String get hubScoreBest50AndInsights;
+
+  /// No description provided for @hubScoreAllRankings.
+  ///
+  /// In zh, this message translates to:
+  /// **'全部排行榜'**
+  String get hubScoreAllRankings;
+
+  /// No description provided for @hubMoreActionsTooltip.
+  ///
+  /// In zh, this message translates to:
+  /// **'查看详情与收藏'**
+  String get hubMoreActionsTooltip;
+
+  /// No description provided for @hubGroupAttendancePrep.
+  ///
+  /// In zh, this message translates to:
+  /// **'出勤常用'**
+  String get hubGroupAttendancePrep;
+
+  /// No description provided for @hubGroupAttendancePrepSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'收藏谱面、待玩清单与机厅地图'**
+  String get hubGroupAttendancePrepSubtitle;
+
+  /// No description provided for @hubGroupSongPicks.
+  ///
+  /// In zh, this message translates to:
+  /// **'选曲与推荐'**
+  String get hubGroupSongPicks;
+
+  /// No description provided for @hubGroupSongPicksSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'每日推荐、吃分与定向挑谱'**
+  String get hubGroupSongPicksSubtitle;
+
+  /// No description provided for @hubGroupMorePicks.
+  ///
+  /// In zh, this message translates to:
+  /// **'更多选曲与推荐'**
+  String get hubGroupMorePicks;
+
+  /// No description provided for @hubGroupMorePicksSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'随机乐曲 · 出勤转盘 · 标签 / 目标 Rating / 定数区间'**
+  String get hubGroupMorePicksSubtitle;
+
+  /// No description provided for @hubGroupArcadeMapsSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'全国音游地图 · 全球音游街机地图'**
+  String get hubGroupArcadeMapsSubtitle;
+
+  /// No description provided for @hubGroupSoloGuess.
+  ///
+  /// In zh, this message translates to:
+  /// **'单人猜歌'**
+  String get hubGroupSoloGuess;
+
+  /// No description provided for @hubGroupSoloGuessSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'文字 · 曲绘 · 音频 · 谱面，共 13 种玩法'**
+  String get hubGroupSoloGuessSubtitle;
+
+  /// No description provided for @hubGroupGuessChallenge.
+  ///
+  /// In zh, this message translates to:
+  /// **'猜歌挑战'**
+  String get hubGroupGuessChallenge;
+
+  /// No description provided for @hubGroupGuessChallengeSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'单人模式、多人联机与游戏设置'**
+  String get hubGroupGuessChallengeSubtitle;
+
+  /// No description provided for @hubPillNoClue.
+  ///
+  /// In zh, this message translates to:
+  /// **'无提示'**
+  String get hubPillNoClue;
+
+  /// No description provided for @hubPillPartialCover.
+  ///
+  /// In zh, this message translates to:
+  /// **'部分曲绘'**
+  String get hubPillPartialCover;
+
+  /// No description provided for @hubGroupAccountAndSync.
+  ///
+  /// In zh, this message translates to:
+  /// **'账号与同步'**
+  String get hubGroupAccountAndSync;
+
+  /// No description provided for @hubGroupAccountAndSyncSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'拉取成绩、同步查分器与管理账号'**
+  String get hubGroupAccountAndSyncSubtitle;
+
+  /// No description provided for @hubGroupSyncCenterSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'查看各平台同步统计、多端与自动同步'**
+  String get hubGroupSyncCenterSubtitle;
+
+  /// No description provided for @hubPillMultiPlatform.
+  ///
+  /// In zh, this message translates to:
+  /// **'多端'**
+  String get hubPillMultiPlatform;
+
+  /// No description provided for @hubGroupAccountAuthSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'绑定与授权 · 注册引导 · 删除账号'**
+  String get hubGroupAccountAuthSubtitle;
+
+  /// No description provided for @hubGroupSettingsAndTools.
+  ///
+  /// In zh, this message translates to:
+  /// **'设置与工具'**
+  String get hubGroupSettingsAndTools;
+
+  /// No description provided for @hubGroupSettingsAndToolsSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'偏好设置、机台工具、数据维护与社区动态'**
+  String get hubGroupSettingsAndToolsSubtitle;
+
+  /// No description provided for @hubGroupCabinetAndAwmc.
+  ///
+  /// In zh, this message translates to:
+  /// **'机台与 AWMC'**
+  String get hubGroupCabinetAndAwmc;
+
+  /// No description provided for @hubGroupCabinetAndAwmcSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'游玩次数 · 机台装扮 · 机台查询 · 资源查询'**
+  String get hubGroupCabinetAndAwmcSubtitle;
+
+  /// No description provided for @hubGroupDataAndMaintenance.
+  ///
+  /// In zh, this message translates to:
+  /// **'数据与维护'**
+  String get hubGroupDataAndMaintenance;
+
+  /// No description provided for @hubGroupDataAndMaintenanceSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'数据备份 · 缓存管理 · 加载语录 · 状态与日志'**
+  String get hubGroupDataAndMaintenanceSubtitle;
+
+  /// No description provided for @hubGroupCommunitySubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'最近评论 · 最近评分'**
+  String get hubGroupCommunitySubtitle;
+
+  /// No description provided for @hubGroupAboutAndUpdates.
+  ///
+  /// In zh, this message translates to:
+  /// **'关于与更新'**
+  String get hubGroupAboutAndUpdates;
+
+  /// No description provided for @hubGroupAboutAndUpdatesSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'版本更新、公告与项目反馈'**
+  String get hubGroupAboutAndUpdatesSubtitle;
+
+  /// No description provided for @hubGroupAboutAndFeedback.
+  ///
+  /// In zh, this message translates to:
+  /// **'关于与反馈'**
+  String get hubGroupAboutAndFeedback;
+
+  /// No description provided for @hubGroupAboutAndFeedbackSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'关于 APP · 官网 · 友链 · QQ 群 · 反馈 · 支持'**
+  String get hubGroupAboutAndFeedbackSubtitle;
+
+  /// No description provided for @hubGroupLocalAndPrefs.
+  ///
+  /// In zh, this message translates to:
+  /// **'本地与偏好'**
+  String get hubGroupLocalAndPrefs;
+
+  /// No description provided for @hubGroupProjectAndLinks.
+  ///
+  /// In zh, this message translates to:
+  /// **'项目与链接'**
+  String get hubGroupProjectAndLinks;
+
+  /// No description provided for @hubGroupDataAndCabinet.
+  ///
+  /// In zh, this message translates to:
+  /// **'数据与机台'**
+  String get hubGroupDataAndCabinet;
+
+  /// No description provided for @hubGroupDataAndCabinetSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'成绩刷新、机台数据与 AWMC 查询'**
+  String get hubGroupDataAndCabinetSubtitle;
+
+  /// No description provided for @hubGroupAboutAndSupport.
+  ///
+  /// In zh, this message translates to:
+  /// **'关于与支持'**
+  String get hubGroupAboutAndSupport;
+
+  /// No description provided for @hubGroupAboutAndSupportSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'版本更新、公告、项目链接与反馈支持'**
+  String get hubGroupAboutAndSupportSubtitle;
+
+  /// No description provided for @hubGroupAllBest50Subtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前表现、拟合上限、标签筛选与制图'**
+  String get hubGroupAllBest50Subtitle;
+
+  /// No description provided for @hubGroupAllRankingsSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'Rating、达成率与特殊玩家榜单'**
+  String get hubGroupAllRankingsSubtitle;
+
+  /// No description provided for @errDetails.
+  ///
+  /// In zh, this message translates to:
+  /// **'详情'**
+  String get errDetails;
+
+  /// No description provided for @errViewDetails.
+  ///
+  /// In zh, this message translates to:
+  /// **'查看详情'**
+  String get errViewDetails;
+
+  /// No description provided for @errCopyDiagnostic.
+  ///
+  /// In zh, this message translates to:
+  /// **'复制排查信息'**
+  String get errCopyDiagnostic;
+
+  /// No description provided for @errDiagnosticCopied.
+  ///
+  /// In zh, this message translates to:
+  /// **'已复制排查信息，可直接粘贴反馈'**
+  String get errDiagnosticCopied;
+
+  /// No description provided for @errTechnicalDetails.
+  ///
+  /// In zh, this message translates to:
+  /// **'技术详情'**
+  String get errTechnicalDetails;
+
+  /// No description provided for @errExportFullLogs.
+  ///
+  /// In zh, this message translates to:
+  /// **'导出完整日志'**
+  String get errExportFullLogs;
+
+  /// No description provided for @errDiagnosticHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'反馈问题时请截图此条或点击下方「复制排查信息」'**
+  String get errDiagnosticHint;
+
+  /// No description provided for @errNetworkOffline.
+  ///
+  /// In zh, this message translates to:
+  /// **'无法连接服务器，请检查网络或代理设置后重试'**
+  String get errNetworkOffline;
+
+  /// No description provided for @errNetworkTimeout.
+  ///
+  /// In zh, this message translates to:
+  /// **'请求服务器超时，请检查网络后重试'**
+  String get errNetworkTimeout;
+
+  /// No description provided for @errNetworkTls.
+  ///
+  /// In zh, this message translates to:
+  /// **'安全连接握手失败，请检查系统时间或网络环境'**
+  String get errNetworkTls;
+
+  /// No description provided for @errNetworkInterrupted.
+  ///
+  /// In zh, this message translates to:
+  /// **'网络传输意外中断，请重试'**
+  String get errNetworkInterrupted;
+
+  /// No description provided for @errDataParseFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'返回数据格式异常，解析失败'**
+  String get errDataParseFailed;
+
+  /// No description provided for @errFileIoFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'本地文件读写失败，请检查存储空间与权限'**
+  String get errFileIoFailed;
+
+  /// No description provided for @errRateLimited.
+  ///
+  /// In zh, this message translates to:
+  /// **'请求过于频繁，请稍后再试'**
+  String get errRateLimited;
+
+  /// No description provided for @errServerBusy.
+  ///
+  /// In zh, this message translates to:
+  /// **'服务暂时不可用或正在维护，请稍后重试'**
+  String get errServerBusy;
+
+  /// No description provided for @errServerInternal.
+  ///
+  /// In zh, this message translates to:
+  /// **'服务器处理请求时出现异常，请稍后重试'**
+  String get errServerInternal;
+
+  /// No description provided for @errUnauthorized.
+  ///
+  /// In zh, this message translates to:
+  /// **'登录或授权已失效，请重新登录后再试'**
+  String get errUnauthorized;
+
+  /// No description provided for @errForbidden.
+  ///
+  /// In zh, this message translates to:
+  /// **'没有权限执行当前操作'**
+  String get errForbidden;
+
+  /// No description provided for @errNotFound.
+  ///
+  /// In zh, this message translates to:
+  /// **'请求的资源不存在或已被移除'**
+  String get errNotFound;
+
+  /// No description provided for @errExportCanvasNotReady.
+  ///
+  /// In zh, this message translates to:
+  /// **'导出画布尚未就绪，请等待页面加载完成后重试'**
+  String get errExportCanvasNotReady;
+
+  /// No description provided for @errExportBoundaryMissing.
+  ///
+  /// In zh, this message translates to:
+  /// **'未能获取导出画布区域，请返回页面后重试'**
+  String get errExportBoundaryMissing;
+
+  /// No description provided for @errExportContextLost.
+  ///
+  /// In zh, this message translates to:
+  /// **'导出过程中页面已关闭，请留在当前页面重试'**
+  String get errExportContextLost;
+
+  /// No description provided for @errExportNoStorageDir.
+  ///
+  /// In zh, this message translates to:
+  /// **'无法访问导出目录，请检查存储权限和可用空间'**
+  String get errExportNoStorageDir;
+
+  /// No description provided for @errExportEncodeFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'图片编码或像素读取失败，可尝试降低导出分辨率后重试'**
+  String get errExportEncodeFailed;
+
+  /// No description provided for @errExportWriteFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'写入导出文件失败，请检查存储权限与剩余空间'**
+  String get errExportWriteFailed;
+
+  /// No description provided for @errSuggestionCheckNetwork.
+  ///
+  /// In zh, this message translates to:
+  /// **'建议：检查 Wi-Fi / 移动网络或关闭异常代理后重试'**
+  String get errSuggestionCheckNetwork;
+
+  /// No description provided for @errSuggestionRetryLater.
+  ///
+  /// In zh, this message translates to:
+  /// **'建议：等待几秒后重试，若多次失败请附带上方排查编号反馈'**
+  String get errSuggestionRetryLater;
+
+  /// No description provided for @errSuggestionCheckStorage.
+  ///
+  /// In zh, this message translates to:
+  /// **'建议：确认已授予存储权限，且设备剩余空间充足'**
+  String get errSuggestionCheckStorage;
+
+  /// No description provided for @errSuggestionReauth.
+  ///
+  /// In zh, this message translates to:
+  /// **'建议：前往账号或授权管理重新登录/重新授权后再试'**
+  String get errSuggestionReauth;
+
+  /// No description provided for @errSuggestionContactDev.
+  ///
+  /// In zh, this message translates to:
+  /// **'建议：截图本弹窗或点击「复制排查信息」发送给开发者排查'**
+  String get errSuggestionContactDev;
+
+  /// No description provided for @songAvgNoteDensity.
+  ///
+  /// In zh, this message translates to:
+  /// **'平均物量密度'**
+  String get songAvgNoteDensity;
+
+  /// No description provided for @flowCouldNotExportP0.
+  ///
+  /// In zh, this message translates to:
+  /// **'{p0}导出失败'**
+  String flowCouldNotExportP0(String p0);
+
+  /// No description provided for @songAvgNoteDensityDetail.
+  ///
+  /// In zh, this message translates to:
+  /// **'总物量 {notes} ÷ 参考时长 {duration} = {density} 个/秒\n按当前难度全部音符数与参考时长估算，仅供参考。'**
+  String songAvgNoteDensityDetail(
+      String notes, String duration, String density);
 }
 
 class _AppLocalizationsDelegate

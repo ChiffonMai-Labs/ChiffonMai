@@ -16218,11 +16218,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get displayModeStandardHint =>
-      'Shows all 5 tabs, overview charts, background artwork, and full feature lists';
+      'Shows all 5 tabs, background artwork, full descriptions, and animations';
 
   @override
   String get displayModeSimpleHint =>
-      'Streamlines to 3 core tabs, reduces visual clutter, and collapses secondary features; everything remains searchable';
+      'Streamlines to 3 core tabs, hides backgrounds, animations, and extra descriptions while keeping the same clean layout';
 
   @override
   String get simpleModeActiveHint => 'Simple mode active';
@@ -16315,4 +16315,314 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get flowNoMatchingLoadingQuotes => 'No matching loading quotes';
+
+  @override
+  String get songUnlockCondition => 'Unlock Condition';
+
+  @override
+  String get songUnlockNone => 'No unlock needed';
+
+  @override
+  String get songUnlockRequired => 'Unlock required';
+
+  @override
+  String get favoriteManagerTitle => 'Manage Shortcuts';
+
+  @override
+  String get favoriteManagerSearchHint => 'Search feature name or description';
+
+  @override
+  String favoriteManagerSelectedCount(int count) {
+    return '$count pinned';
+  }
+
+  @override
+  String get favoriteManagerEmptyHint => 'Tap here to manage shortcut features';
+
+  @override
+  String get favoriteManagerOnlyFavorited => 'Pinned only';
+
+  @override
+  String get hubGroupCatalogAndData => 'Catalog & Data';
+
+  @override
+  String get hubGroupCatalogAndDataSubtitle =>
+      'Update calendar, collectibles, and constant charts';
+
+  @override
+  String get hubGroupVersionAndConstant => 'Versions & Constants';
+
+  @override
+  String get hubGroupVersionAndConstantSubtitle =>
+      'CN update diff · Version list · Constant distribution';
+
+  @override
+  String get hubLibrarySearchHint => 'Search songs, aliases, charters, or tags';
+
+  @override
+  String get hubScoreBest50AndInsights => 'Best50 & Insights';
+
+  @override
+  String get hubScoreAllRankings => 'All Leaderboards';
+
+  @override
+  String get hubMoreActionsTooltip => 'View details & pin';
+
+  @override
+  String get hubGroupAttendancePrep => 'Arcade Essentials';
+
+  @override
+  String get hubGroupAttendancePrepSubtitle =>
+      'Favorites, play queue, and arcade maps';
+
+  @override
+  String get hubGroupSongPicks => 'Picks & Recommendations';
+
+  @override
+  String get hubGroupSongPicksSubtitle =>
+      'Daily picks, rating gain, and targeted recommendations';
+
+  @override
+  String get hubGroupMorePicks => 'More Picks & Recommendations';
+
+  @override
+  String get hubGroupMorePicksSubtitle =>
+      'Random songs · Roulette · Tags / Target Rating / Constants';
+
+  @override
+  String get hubGroupArcadeMapsSubtitle =>
+      'China rhythm game map · Worldwide arcade map';
+
+  @override
+  String get hubGroupSoloGuess => 'Solo Song Quizzes';
+
+  @override
+  String get hubGroupSoloGuessSubtitle =>
+      '13 modes across text, covers, audio, and charts';
+
+  @override
+  String get hubGroupGuessChallenge => 'Song Quizzes';
+
+  @override
+  String get hubGroupGuessChallengeSubtitle =>
+      'Solo modes, multiplayer lobby, and settings';
+
+  @override
+  String get hubPillNoClue => 'No Clue';
+
+  @override
+  String get hubPillPartialCover => 'Cropped Cover';
+
+  @override
+  String get hubGroupAccountAndSync => 'Account & Sync';
+
+  @override
+  String get hubGroupAccountAndSyncSubtitle =>
+      'Refresh scores, sync trackers, and manage accounts';
+
+  @override
+  String get hubGroupSyncCenterSubtitle =>
+      'Platform sync stats, multi-sync, and auto-sync';
+
+  @override
+  String get hubPillMultiPlatform => 'Multi';
+
+  @override
+  String get hubGroupAccountAuthSubtitle =>
+      'Bindings & auth · Setup guide · Delete account';
+
+  @override
+  String get hubGroupSettingsAndTools => 'Settings & Tools';
+
+  @override
+  String get hubGroupSettingsAndToolsSubtitle =>
+      'Preferences, cabinet tools, maintenance, and community';
+
+  @override
+  String get hubGroupCabinetAndAwmc => 'Cabinet & AWMC';
+
+  @override
+  String get hubGroupCabinetAndAwmcSubtitle =>
+      'Play counts · Appearance · Cabinet & resource lookup';
+
+  @override
+  String get hubGroupDataAndMaintenance => 'Data & Maintenance';
+
+  @override
+  String get hubGroupDataAndMaintenanceSubtitle =>
+      'Backup · Cache · Loading quotes · Status & logs';
+
+  @override
+  String get hubGroupCommunitySubtitle => 'Recent comments · Recent ratings';
+
+  @override
+  String get hubGroupAboutAndUpdates => 'About & Updates';
+
+  @override
+  String get hubGroupAboutAndUpdatesSubtitle =>
+      'Updates, announcements, and feedback';
+
+  @override
+  String get hubGroupAboutAndFeedback => 'About & Feedback';
+
+  @override
+  String get hubGroupAboutAndFeedbackSubtitle =>
+      'About · Website · Links · QQ group · Feedback · Support';
+
+  @override
+  String get hubGroupLocalAndPrefs => 'Local & Preferences';
+
+  @override
+  String get hubGroupProjectAndLinks => 'Project & Links';
+
+  @override
+  String get hubGroupDataAndCabinet => 'Data & Cabinet';
+
+  @override
+  String get hubGroupDataAndCabinetSubtitle =>
+      'Score refresh, cabinet data, and AWMC lookup';
+
+  @override
+  String get hubGroupAboutAndSupport => 'About & Support';
+
+  @override
+  String get hubGroupAboutAndSupportSubtitle =>
+      'Updates, announcements, links, and support';
+
+  @override
+  String get hubGroupAllBest50Subtitle =>
+      'Current, fitted, tag-filtered, and custom Best50';
+
+  @override
+  String get hubGroupAllRankingsSubtitle =>
+      'Rating, achievement, and special leaderboards';
+
+  @override
+  String get errDetails => 'Details';
+
+  @override
+  String get errViewDetails => 'View details';
+
+  @override
+  String get errCopyDiagnostic => 'Copy diagnostics';
+
+  @override
+  String get errDiagnosticCopied =>
+      'Diagnostics copied. Paste it when reporting.';
+
+  @override
+  String get errTechnicalDetails => 'Technical details';
+
+  @override
+  String get errExportFullLogs => 'Export full logs';
+
+  @override
+  String get errDiagnosticHint =>
+      'Screenshot this bar or tap Copy diagnostics below when reporting';
+
+  @override
+  String get errNetworkOffline =>
+      'Cannot reach server. Check your network or proxy and try again.';
+
+  @override
+  String get errNetworkTimeout =>
+      'Server request timed out. Check your network and try again.';
+
+  @override
+  String get errNetworkTls =>
+      'Secure connection handshake failed. Check device time or network.';
+
+  @override
+  String get errNetworkInterrupted =>
+      'Network transfer was interrupted. Please try again.';
+
+  @override
+  String get errDataParseFailed =>
+      'Unexpected response format. Failed to parse data.';
+
+  @override
+  String get errFileIoFailed =>
+      'Local file read/write failed. Check storage space and permissions.';
+
+  @override
+  String get errRateLimited =>
+      'Too many requests. Please wait a moment and try again.';
+
+  @override
+  String get errServerBusy =>
+      'Service is temporarily unavailable. Please try again later.';
+
+  @override
+  String get errServerInternal =>
+      'Server encountered an error. Please try again later.';
+
+  @override
+  String get errUnauthorized =>
+      'Session or authorization expired. Please sign in again.';
+
+  @override
+  String get errForbidden =>
+      'You do not have permission to perform this action.';
+
+  @override
+  String get errNotFound =>
+      'Requested resource was not found or has been removed.';
+
+  @override
+  String get errExportCanvasNotReady =>
+      'Export canvas is not ready yet. Wait for the page to finish loading and retry.';
+
+  @override
+  String get errExportBoundaryMissing =>
+      'Could not capture the export canvas. Return to the page and retry.';
+
+  @override
+  String get errExportContextLost =>
+      'Page closed during export. Stay on the page and try again.';
+
+  @override
+  String get errExportNoStorageDir =>
+      'Cannot access export folder. Check storage permissions and free space.';
+
+  @override
+  String get errExportEncodeFailed =>
+      'Image capture or encoding failed. Try a lower export quality/resolution.';
+
+  @override
+  String get errExportWriteFailed =>
+      'Failed to write export file. Check storage permissions and free space.';
+
+  @override
+  String get errSuggestionCheckNetwork =>
+      'Tip: Check Wi-Fi / cellular connection or proxy settings and retry.';
+
+  @override
+  String get errSuggestionRetryLater =>
+      'Tip: Wait a moment and retry. Include the code above if it keeps failing.';
+
+  @override
+  String get errSuggestionCheckStorage =>
+      'Tip: Verify storage permissions and ensure enough free space.';
+
+  @override
+  String get errSuggestionReauth =>
+      'Tip: Re-sign in or re-authorize in Account settings and try again.';
+
+  @override
+  String get errSuggestionContactDev =>
+      'Tip: Screenshot this dialog or tap Copy diagnostics to share with support.';
+
+  @override
+  String get songAvgNoteDensity => 'Avg Note Density';
+
+  @override
+  String flowCouldNotExportP0(String p0) {
+    return 'Could not export $p0';
+  }
+
+  @override
+  String songAvgNoteDensityDetail(
+      String notes, String duration, String density) {
+    return 'Total notes $notes ÷ Duration $duration = $density notes/s\nEstimated from all notes in this chart and reference duration.';
+  }
 }

@@ -15633,11 +15633,11 @@ class AppLocalizationsJa extends AppLocalizations {
   String get displayModeSimple => 'シンプルモード';
 
   @override
-  String get displayModeStandardHint => '5つのタブ、概要グラフ、背景装飾、全機能リストを表示します';
+  String get displayModeStandardHint => '5つのタブ、背景装飾、詳しい説明、アニメーションを表示します';
 
   @override
   String get displayModeSimpleHint =>
-      '3つの主要タブに整理し、装飾を抑えて低頻度機能を折りたたみます（検索や展開で全機能を利用可能）';
+      '3つの主要タブに整理し、背景装飾・アニメーション・説明文を省いたコンパクトな表示にします';
 
   @override
   String get simpleModeActiveHint => 'シンプルモード中';
@@ -15726,4 +15726,278 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get flowNoMatchingLoadingQuotes => '一致する読み込み中の名言が見つかりません';
+
+  @override
+  String get songUnlockCondition => '解禁条件';
+
+  @override
+  String get songUnlockNone => '解禁不要';
+
+  @override
+  String get songUnlockRequired => '要解禁';
+
+  @override
+  String get favoriteManagerTitle => 'よく使う機能を管理';
+
+  @override
+  String get favoriteManagerSearchHint => '機能名や説明を検索';
+
+  @override
+  String favoriteManagerSelectedCount(int count) {
+    return '$count件を登録済み';
+  }
+
+  @override
+  String get favoriteManagerEmptyHint => 'ここをタップしてよく使う機能を管理';
+
+  @override
+  String get favoriteManagerOnlyFavorited => '登録済みのみ';
+
+  @override
+  String get hubGroupCatalogAndData => '図鑑・データ';
+
+  @override
+  String get hubGroupCatalogAndDataSubtitle => '更新カレンダー、コレクション、定数分析';
+
+  @override
+  String get hubGroupVersionAndConstant => 'バージョン・定数分析';
+
+  @override
+  String get hubGroupVersionAndConstantSubtitle => '中国版更新比較 · バージョン比較 · 定数分布';
+
+  @override
+  String get hubLibrarySearchHint => '楽曲・別名・譜面制作者・タグを検索';
+
+  @override
+  String get hubScoreBest50AndInsights => 'Best50・分析';
+
+  @override
+  String get hubScoreAllRankings => 'すべてのランキング';
+
+  @override
+  String get hubMoreActionsTooltip => '詳細と登録を表示';
+
+  @override
+  String get hubGroupAttendancePrep => '出勤の基本';
+
+  @override
+  String get hubGroupAttendancePrepSubtitle => 'お気に入り、次に遊ぶ曲、店舗マップ';
+
+  @override
+  String get hubGroupSongPicks => '選曲・おすすめ';
+
+  @override
+  String get hubGroupSongPicksSubtitle => '今日のおすすめ、レート上げ、条件別選曲';
+
+  @override
+  String get hubGroupMorePicks => 'その他の選曲・おすすめ';
+
+  @override
+  String get hubGroupMorePicksSubtitle => 'ランダム · ルーレット · タグ / 目標レート / 定数範囲';
+
+  @override
+  String get hubGroupArcadeMapsSubtitle => '中国音ゲーマップ · 世界ゲームセンターマップ';
+
+  @override
+  String get hubGroupSoloGuess => 'ソロ曲当てゲーム';
+
+  @override
+  String get hubGroupSoloGuessSubtitle => '文字・ジャケット・音声・譜面の全13モード';
+
+  @override
+  String get hubGroupGuessChallenge => '曲当てチャレンジ';
+
+  @override
+  String get hubGroupGuessChallengeSubtitle => 'ソロモード、マルチ対戦、ゲーム設定';
+
+  @override
+  String get hubPillNoClue => 'ヒントなし';
+
+  @override
+  String get hubPillPartialCover => '一部ジャケット';
+
+  @override
+  String get hubGroupAccountAndSync => 'アカウント・同期';
+
+  @override
+  String get hubGroupAccountAndSyncSubtitle => '成績取得、スコア同期、アカウント管理';
+
+  @override
+  String get hubGroupSyncCenterSubtitle => '各プラットフォームの同期統計・一括同期・自動同期';
+
+  @override
+  String get hubPillMultiPlatform => '一括';
+
+  @override
+  String get hubGroupAccountAuthSubtitle => '連携・認証 · 登録ガイド · アカウント削除';
+
+  @override
+  String get hubGroupSettingsAndTools => '設定・ツール';
+
+  @override
+  String get hubGroupSettingsAndToolsSubtitle => '設定、筐体ツール、データ管理、コミュニティ';
+
+  @override
+  String get hubGroupCabinetAndAwmc => '筐体・AWMC';
+
+  @override
+  String get hubGroupCabinetAndAwmcSubtitle => 'プレイ回数 · 筐体カスタマイズ · 筐体/リソース検索';
+
+  @override
+  String get hubGroupDataAndMaintenance => 'データ・メンテナンス';
+
+  @override
+  String get hubGroupDataAndMaintenanceSubtitle =>
+      'バックアップ · キャッシュ · 読み込みメッセージ · 状態・ログ';
+
+  @override
+  String get hubGroupCommunitySubtitle => '最新のコメント · 最新の評価';
+
+  @override
+  String get hubGroupAboutAndUpdates => 'アプリ情報・更新';
+
+  @override
+  String get hubGroupAboutAndUpdatesSubtitle => 'アップデート、お知らせ、フィードバック';
+
+  @override
+  String get hubGroupAboutAndFeedback => 'アプリ情報・フィードバック';
+
+  @override
+  String get hubGroupAboutAndFeedbackSubtitle =>
+      'アプリについて · 公式サイト · リンク · QQ · 意見・支援';
+
+  @override
+  String get hubGroupLocalAndPrefs => 'ローカル・設定';
+
+  @override
+  String get hubGroupProjectAndLinks => 'プロジェクト・リンク';
+
+  @override
+  String get hubGroupDataAndCabinet => 'データ・筐体';
+
+  @override
+  String get hubGroupDataAndCabinetSubtitle => '成績更新、筐体データ、AWMC 検索';
+
+  @override
+  String get hubGroupAboutAndSupport => 'アプリ情報・サポート';
+
+  @override
+  String get hubGroupAboutAndSupportSubtitle => '更新、お知らせ、リンク、サポート';
+
+  @override
+  String get hubGroupAllBest50Subtitle => '現在・推定・タグ別・カスタム Best50';
+
+  @override
+  String get hubGroupAllRankingsSubtitle => 'レート・達成率・特殊ランキング';
+
+  @override
+  String get errDetails => '詳細';
+
+  @override
+  String get errViewDetails => '詳細を見る';
+
+  @override
+  String get errCopyDiagnostic => '診断情報をコピー';
+
+  @override
+  String get errDiagnosticCopied => '診断情報をコピーしました。そのまま貼り付けて報告できます';
+
+  @override
+  String get errTechnicalDetails => '技術詳細';
+
+  @override
+  String get errExportFullLogs => '完全なログを出力';
+
+  @override
+  String get errDiagnosticHint => '報告時はこの行のスクリーンショットまたは下の「診断情報をコピー」をご利用ください';
+
+  @override
+  String get errNetworkOffline => 'サーバーに接続できません。通信状況やプロキシ設定を確認して再試行してください';
+
+  @override
+  String get errNetworkTimeout => 'サーバーへのリクエストがタイムアウトしました。通信状況を確認して再試行してください';
+
+  @override
+  String get errNetworkTls => '安全な接続のハンドシェイクに失敗しました。端末時刻やネットワーク環境を確認してください';
+
+  @override
+  String get errNetworkInterrupted => '通信が途中で切断されました。もう一度お試しください';
+
+  @override
+  String get errDataParseFailed => '応答データの形式が不正なため解析できませんでした';
+
+  @override
+  String get errFileIoFailed => 'ローカルファイルの読み書きに失敗しました。空き容量と権限を確認してください';
+
+  @override
+  String get errRateLimited => 'リクエストが多すぎます。しばらくしてから再試行してください';
+
+  @override
+  String get errServerBusy => 'サービスが一時的に利用できません。時間をおいて再試行してください';
+
+  @override
+  String get errServerInternal => 'サーバー側でエラーが発生しました。時間をおいて再試行してください';
+
+  @override
+  String get errUnauthorized => 'ログインまたは認証の有効期限が切れました。再ログインしてください';
+
+  @override
+  String get errForbidden => 'この操作を実行する権限がありません';
+
+  @override
+  String get errNotFound => '指定されたリソースが見つからないか削除されました';
+
+  @override
+  String get errExportCanvasNotReady =>
+      '書き出し用キャンバスの準備ができていません。読み込み完了後に再試行してください';
+
+  @override
+  String get errExportBoundaryMissing => '書き出し領域を取得できませんでした。画面に戻って再試行してください';
+
+  @override
+  String get errExportContextLost => '書き出し中に画面が閉じられました。画面を閉じずに再試行してください';
+
+  @override
+  String get errExportNoStorageDir =>
+      '書き出し先フォルダーにアクセスできません。ストレージ権限と空き容量を確認してください';
+
+  @override
+  String get errExportEncodeFailed =>
+      '画像の生成またはエンコードに失敗しました。画質や解像度を下げて再試行してください';
+
+  @override
+  String get errExportWriteFailed => '書き出しファイルの保存に失敗しました。ストレージ権限と空き容量を確認してください';
+
+  @override
+  String get errSuggestionCheckNetwork =>
+      'ヒント: Wi-Fi / モバイル通信やプロキシ設定を確認して再試行してください';
+
+  @override
+  String get errSuggestionRetryLater =>
+      'ヒント: しばらく待ってから再試行し、繰り返す場合は上の診断コードを添えてご報告ください';
+
+  @override
+  String get errSuggestionCheckStorage =>
+      'ヒント: ストレージ権限が許可され、十分な空き容量があるか確認してください';
+
+  @override
+  String get errSuggestionReauth => 'ヒント: アカウント設定から再ログインまたは再認証を行って再試行してください';
+
+  @override
+  String get errSuggestionContactDev =>
+      'ヒント: この画面をスクリーンショットするか「診断情報をコピー」して開発者にお送りください';
+
+  @override
+  String get songAvgNoteDensity => '平均ノーツ密度';
+
+  @override
+  String flowCouldNotExportP0(String p0) {
+    return '$p0を書き出せませんでした';
+  }
+
+  @override
+  String songAvgNoteDensityDetail(
+      String notes, String duration, String density) {
+    return '総ノーツ数 $notes ÷ 参考時間 $duration = $density ノーツ/秒\n現在の難易度の全ノーツ数と参考時間から算出した目安です。';
+  }
 }
