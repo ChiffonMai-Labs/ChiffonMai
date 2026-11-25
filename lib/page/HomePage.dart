@@ -49,6 +49,7 @@ import '../manager/MaidataManager.dart';
 import '../manager/SongAliasManager.dart';
 import '../entity/FeatureModels.dart';
 import 'HubComponents.dart';
+import 'FavoriteManagerPage.dart';
 import 'FeatureCategoryPage.dart';
 import '../utils/FeatureRegistry.dart';
 import 'AchievementFullReverseCalculatorPage.dart';
@@ -321,7 +322,6 @@ class HomePageState extends State<HomePage> {
     SyncRouteNotifier.instance.addListener(_onSyncRouteChanged);
     widget.activeTask.addListener(_onSyncRouteChanged);
     NavigationPreferences.instance.addListener(_onSyncRouteChanged);
-    AppModePreferences.instance.addListener(_onSyncRouteChanged);
     unawaited(AppModePreferences.instance.load());
     SyncRouteNotifier.instance.ensureLoaded();
     CommunityAvatarStore.instance.addListener(_pushDesktopProfile);
@@ -487,7 +487,6 @@ class HomePageState extends State<HomePage> {
     SyncRouteNotifier.instance.removeListener(_onSyncRouteChanged);
     widget.activeTask.removeListener(_onSyncRouteChanged);
     NavigationPreferences.instance.removeListener(_onSyncRouteChanged);
-    AppModePreferences.instance.removeListener(_onSyncRouteChanged);
     _loginStateNotifier.dispose();
     super.dispose();
   }
@@ -558,12 +557,18 @@ class HomePageState extends State<HomePage> {
     );
     try {
       await UserProfileNotifier.clearShuiyuAccountCache();
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('登出水鱼账号失败：$e');
       if (mounted) {
         Navigator.of(context, rootNavigator: true).pop();
-        await showErrorMessageDialog(context,
-            message: context.l10n.flowSignOutFailedP0((e).toString()));
+        await showErrorMessageDialog(
+          context,
+          title: context.l10n.flowSigningOutOfDivingFish,
+          error: e,
+          stack: stack,
+          stage: '登出水鱼账号',
+          source: 'shuiyu',
+        );
       }
       return;
     }
@@ -604,7 +609,7 @@ class HomePageState extends State<HomePage> {
 
   Widget _buildScaffold(BuildContext context, Set<String> favoriteTitles) {
     final brightness = Theme.of(context).brightness;
-    final isSimple = AppModePreferences.instance.isSimple;
+    final isSimple = AppModeScope.isSimpleOf(context);
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -1158,7 +1163,7 @@ class HomePageState extends State<HomePage> {
     final scheme = Theme.of(context).colorScheme;
     final connectFirst =
         Theme.of(context).platform == TargetPlatform.iOS && !_hasPlayerScores;
-    final isSimple = AppModePreferences.instance.isSimple;
+    final isSimple = AppModeScope.isSimpleOf(context);
     final total = _best50TotalRA;
     final tier = AppColors.ratingTier(total);
     final fraction = total > 0 ? _best35TotalRA / total : 0.7;
@@ -2626,11 +2631,16 @@ class HomePageState extends State<HomePage> {
           AppToast.show(context.l10n.flowMaidataRefreshed,
               tone: AppToastTone.success);
           ConfettiEffect.show(context);
-        } catch (e) {
+        } catch (e, stack) {
           debugPrint('[HomePage] 刷新 maidata 失败: $e');
           if (!mounted) return;
-          await showErrorMessageDialog(context,
-              message: context.l10n.flowRefreshFailedP0(e.toString()));
+          await showErrorMessageDialog(
+            context,
+            title: context.l10n.flowCouldNotRefreshData,
+            error: e,
+            stack: stack,
+            stage: '重新拉取全量谱面',
+          );
         }
       }
     }
@@ -2972,12 +2982,14 @@ class HomePageState extends State<HomePage> {
           context.featureText('正在检查更新...'),
           () => updateManager.showUpdateDialog(context, force: true),
         );
-      } catch (_) {
+      } catch (e, stack) {
         if (!mounted) return;
         await showErrorMessageDialog(
           context,
           title: context.featureText('检查更新失败'),
-          message: context.featureText('请检查网络连接后重试'),
+          error: e,
+          stack: stack,
+          stage: '检查应用更新',
         );
       }
     }
@@ -3063,7 +3075,7 @@ class HomePageState extends State<HomePage> {
       for (final item in _searchableCategories.expand((c) => c.items))
         item.title: item,
     };
-    final isSimple = AppModePreferences.instance.isSimple;
+    final isSimple = AppModeScope.isSimpleOf(context);
     final items = [
       for (final title in titles)
         if (available.containsKey(title)) available[title]!,
@@ -3102,7 +3114,31 @@ class HomePageState extends State<HomePage> {
                           TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
                 ),
               ),
-              if (!usingDefaultShortcuts) _buildFavoriteSortButton(context),
+              if (displayItems.isEmpty || usingDefaultShortcuts)
+                TextButton(
+                  onPressed: _openFavoriteManager,
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    minimumSize: const Size(44, 40),
+                  ),
+                  child: Text(context.l10n.customTagManage,
+                      style: const TextStyle(
+                          fontSize: 13, fontWeight: FontWeight.w600)),
+                )
+              else ...[
+                if (_sortingFavorites)
+                  TextButton(
+                    onPressed: _openFavoriteManager,
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      minimumSize: const Size(44, 40),
+                    ),
+                    child: Text(context.l10n.customTagManage,
+                        style: const TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.w600)),
+                  ),
+                _buildFavoriteSortButton(context),
+              ],
             ],
           ),
         ),
@@ -3138,8 +3174,9 @@ class HomePageState extends State<HomePage> {
         if (displayItems.isEmpty)
           AppCard(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+            onTap: _openFavoriteManager,
             child: Text(
-              context.featureText('点击分类中的 ⭐ 星标即可收藏功能，收藏后直接显示在此处'),
+              context.l10n.favoriteManagerEmptyHint,
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
             ),
@@ -3293,6 +3330,15 @@ class HomePageState extends State<HomePage> {
             child: const PlayZoneHubPage(showHeader: false),
           ),
         ),
+      ),
+    );
+  }
+
+  void _openFavoriteManager() {
+    FocusManager.instance.primaryFocus?.unfocus();
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => const FavoriteManagerPage(),
       ),
     );
   }

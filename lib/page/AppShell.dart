@@ -294,25 +294,27 @@ class _AppShellState extends State<AppShell> {
                 onHorizontalDragEnd: NavigationPreferences.instance.swipeEnabled
                     ? _onHorizontalDragEnd
                     : null,
-                child: ThemeAwareBackground(
-                  showDecorativeImage: _index == 0,
-                  child: MainNavigationInsets(
-                    bottom: navigationReserve,
-                    child: Padding(
-                      padding: EdgeInsets.only(
-                        left: viewPadding.left,
-                        right: viewPadding.right,
-                      ),
-                      child: Center(
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(
-                              maxWidth: AppDesignTokens.maxContentWidth),
-                          child: MainNavigationViewport(
-                            pages: _pages,
-                            index: _index,
-                            transitionEnabled: NavigationPreferences
-                                    .instance.transitionEnabled &&
-                                !isSimple,
+                child: DeferredAppModeScope(
+                  child: ThemeAwareBackground(
+                    showDecorativeImage: _index == 0,
+                    child: MainNavigationInsets(
+                      bottom: navigationReserve,
+                      child: Padding(
+                        padding: EdgeInsets.only(
+                          left: viewPadding.left,
+                          right: viewPadding.right,
+                        ),
+                        child: Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(
+                                maxWidth: AppDesignTokens.maxContentWidth),
+                            child: MainNavigationViewport(
+                              pages: _pages,
+                              index: _index,
+                              transitionEnabled: NavigationPreferences
+                                      .instance.transitionEnabled &&
+                                  !isSimple,
+                            ),
                           ),
                         ),
                       ),

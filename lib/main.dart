@@ -42,6 +42,7 @@ import 'service/BackgroundAppUpdateService.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   LogExportService.instance.install();
+  unawaited(LogExportService.instance.preloadAppInfo());
   GoogleFonts.config.allowRuntimeFetching = true;
   runApp(MyApp());
   // 首次引导只准备主题和引导状态，其他服务由入口页在引导结束后启动。
@@ -116,6 +117,14 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   String? _lastWindowPadding;
   bool _windowMetricsReportScheduled = false;
   Timer? _windowRepaintTimer;
+  late final Listenable _appListenable = Listenable.merge([
+    ThemeManager().notifier,
+    ThemeManager().pureBlackNotifier,
+    ThemeManager().seedColorNotifier,
+    ThemeManager().customBackgroundPathNotifier,
+    NavigationPreferences.instance,
+    AppLanguagePreferences.instance,
+  ]);
 
   /// 收藏夹「一键导入」通道，与 MainActivity.kt 中的 IMPORT_CHANNEL 对应
   static const MethodChannel _openFileChannel =
@@ -349,14 +358,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: Listenable.merge([
-        ThemeManager().notifier,
-        ThemeManager().pureBlackNotifier,
-        ThemeManager().seedColorNotifier,
-        ThemeManager().customBackgroundPathNotifier,
-        NavigationPreferences.instance,
-        AppLanguagePreferences.instance,
-      ]),
+      listenable: _appListenable,
       builder: (context, _) {
         final themeMode = ThemeManager().isLoaded
             ? ThemeManager().themeMode
@@ -416,39 +418,41 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                   //   之前放在 AppShell.body 里，功能页是 push 到 AppShell 之上的
                   //   新路由，球会被完全盖住 —— 表现就是「进具体功能页只听到声音、
                   //   看不到球」。
-                  child: Stack(
-                    children: [
-                      if (child != null) child,
-                      // 随身听悬浮球：自己判断该不该显示（没在放歌、
-                      // 或随身听页面正开着时都返回空盒子）。
-                      if (_backgroundServicesStarted)
-                        Positioned.fill(
-                          child: PortablePlayerBall(
-                            // 这里的 context（builder 的）在 Navigator **之上**，
-                            // 弹层/跳转都得用 Navigator 自己的 overlay context，
-                            // 否则 `Navigator.of` 会抛「does not include a
-                            // Navigator」—— 表现就是「点球没反应」。
-                            navigatorKey: _navigatorKey,
-                            onOpenLibrary: () {
-                              final navigatorContext =
-                                  _navigatorKey.currentState?.overlay?.context;
-                              if (navigatorContext == null) {
-                                return Future<void>.value();
-                              }
-                              return AppShell.openPortablePlayerPage(
-                                navigatorContext,
-                              );
-                            },
+                  child: AppModeProvider(
+                    child: Stack(
+                      children: [
+                        if (child != null) child,
+                        // 随身听悬浮球：自己判断该不该显示（没在放歌、
+                        // 或随身听页面正开着时都返回空盒子）。
+                        if (_backgroundServicesStarted)
+                          Positioned.fill(
+                            child: PortablePlayerBall(
+                              // 这里的 context（builder 的）在 Navigator **之上**，
+                              // 弹层/跳转都得用 Navigator 自己的 overlay context，
+                              // 否则 `Navigator.of` 会抛「does not include a
+                              // Navigator」—— 表现就是「点球没反应」。
+                              navigatorKey: _navigatorKey,
+                              onOpenLibrary: () {
+                                final navigatorContext =
+                                    _navigatorKey.currentState?.overlay?.context;
+                                if (navigatorContext == null) {
+                                  return Future<void>.value();
+                                }
+                                return AppShell.openPortablePlayerPage(
+                                  navigatorContext,
+                                );
+                              },
+                            ),
                           ),
+                        // 轻提示同样挂在 Navigator 之上，对话框打开时也看得到。
+                        const Positioned(
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          child: AppToastHost(),
                         ),
-                      // 轻提示同样挂在 Navigator 之上，对话框打开时也看得到。
-                      const Positioned(
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        child: AppToastHost(),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),

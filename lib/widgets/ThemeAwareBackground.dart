@@ -74,6 +74,11 @@ class _BgImage extends StatelessWidget {
   final bool isPureBlack;
   const _BgImage({required this.isDark, required this.isPureBlack});
 
+  static final Listenable _overlayListenable = Listenable.merge([
+    ThemeManager().lightOverlayNotifier,
+    ThemeManager().chiffonOpacityNotifier,
+  ]);
+
   @override
   Widget build(BuildContext context) {
     // 纯黑模式：不渲染背景图，直接返回纯黑
@@ -88,15 +93,12 @@ class _BgImage extends StatelessWidget {
       );
     }
 
+    final isSimple = AppModeScope.isSimpleOf(context);
     return ListenableBuilder(
-      listenable: Listenable.merge([
-        ThemeManager().lightOverlayNotifier,
-        ThemeManager().chiffonOpacityNotifier,
-        AppModePreferences.instance,
-      ]),
+      listenable: _overlayListenable,
       builder: (context, _) {
         // 简洁模式下不加载背景图，直接铺页面主题底色，切回常规模式后恢复原有壁纸。
-        if (AppModePreferences.instance.isSimple) {
+        if (isSimple) {
           return ColoredBox(color: Theme.of(context).colorScheme.surface);
         }
         final opacity = ThemeManager().lightOverlayOpacity;
@@ -116,12 +118,19 @@ class _BgImage extends StatelessWidget {
                     as ImageProvider<Object>
                 : FileImage(File(ThemeManager().customBackgroundPath!))
                     as ImageProvider<Object>;
+        final media = MediaQuery.of(context);
+        final cacheWidth =
+            (media.size.width * media.devicePixelRatio).round().clamp(360, 1280);
 
         return Stack(
           fit: StackFit.expand,
           children: [
             Image(
-              image: backgroundImage,
+              image: ResizeImage.resizeIfNeeded(
+                cacheWidth,
+                null,
+                backgroundImage,
+              ),
               fit: BoxFit.cover,
               gaplessPlayback: true,
             ),
@@ -164,15 +173,13 @@ class _ChiffonImage extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
+    final isSimple = AppModeScope.isSimpleOf(context);
     return ListenableBuilder(
-      listenable: Listenable.merge([
-        ThemeManager().chiffonOpacityNotifier,
-        AppModePreferences.instance,
-      ]),
+      listenable: ThemeManager().chiffonOpacityNotifier,
       builder: (context, _) {
         final opacity = ThemeManager().chiffonOpacity;
         // 简洁模式或透明度为 0 时直接不占位：既省掉解码，也不破坏常规模式已保存的设置。
-        if (AppModePreferences.instance.isSimple || opacity <= 0) {
+        if (isSimple || opacity <= 0) {
           return const SizedBox.shrink();
         }
         return Center(

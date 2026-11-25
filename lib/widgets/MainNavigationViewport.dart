@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../utils/AppModePreferences.dart';
 import '../utils/WindowDiagnostics.dart';
 
 /// 保留所有主页面的状态，只对当前页和上一页进行淡入滑动过渡。
@@ -96,7 +97,9 @@ class _MainNavigationViewportState extends State<MainNavigationViewport>
                       opacity: i == current ? progress : 1 - progress,
                       child: TickerMode(
                         enabled: i == current,
-                        child: widget.pages[i],
+                        child: DeferredAppModeScope(
+                          child: widget.pages[i],
+                        ),
                       ),
                     ),
                   ),

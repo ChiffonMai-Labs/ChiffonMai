@@ -53,52 +53,6 @@ class FeatureRegistry {
     '同步成绩到水鱼',
   ];
 
-  /// 简洁模式下各 Hub 页首屏直接展示的核心功能，其余条目折叠进「更多功能」。
-  static const Map<String, Set<String>> simpleCoreFeatures = {
-    '曲库': {
-      '乐曲查询',
-      '更新日历',
-      '曲绘识别',
-      '收藏品查询',
-    },
-    '成绩': {
-      'Best50',
-      '成绩查询',
-      '个性化成绩查询',
-      '成绩提升历史',
-      '牌子进度',
-      '段位表',
-      '单曲 Rating 计算',
-    },
-    '出勤': {
-      '每日推荐',
-      '吃分推荐',
-      '收藏夹',
-      '下次想玩',
-    },
-    '休闲': {
-      '随身听',
-      '自定义谱面播放',
-      '无提示猜歌',
-      '根据歌曲片段猜歌',
-    },
-    '我的': {
-      '绑定与授权管理',
-      '切换账号',
-      '拉取成绩并更新数据',
-      '同步成绩到水鱼',
-      '同步成绩到落雪',
-      '同步成绩到 AWMC NET',
-      '数据备份',
-      '系统设置',
-      '检查更新',
-    },
-  };
-
-  /// 判断指定功能在简洁模式下是否属于该分类的首屏核心功能。
-  static bool isSimpleCore(String category, String title) =>
-      simpleCoreFeatures[category]?.contains(title) ?? false;
-
   static const Map<String, List<FeatureSection>> sections = {
     '曲库': [
       FeatureSection(
@@ -107,20 +61,15 @@ class FeatureRegistry {
           icon: Icons.search_rounded,
           titles: ['乐曲查询', '非国服乐曲查询', '自定义标签']),
       FeatureSection(
-          title: '版本与曲库分析',
-          subtitle: '版本资料、更新对照与谱面定数',
+          title: '图鉴与资料',
+          subtitle: '更新日历、收藏品与定数分析',
           icon: Icons.library_books_outlined,
-          titles: ['国服更新对照', '更新日历', '版本对照', '定数分布']),
+          titles: ['更新日历', '收藏品查询', '国服更新对照', '版本对照', '定数分布']),
       FeatureSection(
           title: '图像识别',
           subtitle: '通过曲绘找歌，识别结算成绩',
           icon: Icons.image_search_outlined,
           titles: ['曲绘识别', '结算画面识别']),
-      FeatureSection(
-          title: '收藏品图鉴',
-          subtitle: '浏览头像、姓名框等游戏收藏品',
-          icon: Icons.collections_bookmark_outlined,
-          titles: ['收藏品查询']),
     ],
     '成绩': [
       FeatureSection(
@@ -129,40 +78,33 @@ class FeatureRegistry {
           icon: Icons.search_rounded,
           titles: ['成绩查询', '个性化成绩查询']),
       FeatureSection(
+          title: 'Best50',
+          subtitle: '当前表现、拟合上限、标签筛选与制图',
+          icon: Icons.analytics_outlined,
+          titles: [
+            'Best50',
+            '拟合 Best50',
+            '个性化 Best50',
+            '个性化拟合 Best50',
+            '理想 Best50',
+            '自定义 Best50',
+          ]),
+      FeatureSection(
           title: '成长与对比',
           subtitle: '回顾提升记录，对比好友成绩',
           icon: Icons.auto_graph_rounded,
           titles: ['成绩提升历史', 'Rating 历史', '成绩分析', '好友对比']),
       FeatureSection(
-          title: 'Best50 概览',
-          subtitle: '当前表现与拟合潜力',
-          icon: Icons.analytics_outlined,
-          titles: ['Best50', '拟合 Best50']),
-      FeatureSection(
-          title: '个性化分析',
-          subtitle: '按标签和条件筛选 Best50',
-          icon: Icons.tune_rounded,
-          titles: ['个性化 Best50', '个性化拟合 Best50']),
-      FeatureSection(
-          title: '目标与制图',
-          subtitle: '模拟理想成绩，制作自定义成绩图',
-          icon: Icons.edit_note_rounded,
-          titles: ['理想 Best50', '自定义 Best50']),
-      FeatureSection(
-          title: 'Rating 排名',
-          subtitle: '官方 Rating 与拟合 Rating 排行',
+          title: '排行榜',
+          subtitle: 'Rating、达成率与特殊玩家榜单',
           icon: Icons.leaderboard_outlined,
-          titles: ['Rating 排行榜', '拟合总Rating排行榜']),
-      FeatureSection(
-          title: '达成率排名',
-          subtitle: '比较全量成绩的平均表现',
-          icon: Icons.percent_rounded,
-          titles: ['平均达成率排行榜', '平均DX分数达成率排行榜']),
-      FeatureSection(
-          title: '特殊排名',
-          subtitle: '探索不同角度的玩家数据',
-          icon: Icons.workspace_premium_outlined,
-          titles: ['特殊排行榜']),
+          titles: [
+            'Rating 排行榜',
+            '拟合总Rating排行榜',
+            '平均达成率排行榜',
+            '平均DX分数达成率排行榜',
+            '特殊排行榜',
+          ]),
       FeatureSection(
           title: '进度与挑战',
           subtitle: '牌子、段位与 KALEIDXSCOPE',
@@ -176,20 +118,23 @@ class FeatureRegistry {
     ],
     '出勤': [
       FeatureSection(
-          title: '随机选曲',
-          subtitle: '决定今天玩什么',
-          icon: Icons.shuffle_rounded,
-          titles: ['每日推荐', '随机乐曲', '出勤转盘']),
-      FeatureSection(
-          title: '练习推荐',
-          subtitle: '围绕收益、标签、目标与定数挑谱',
-          icon: Icons.trending_up_rounded,
-          titles: ['吃分推荐', '基于标签推荐', '基于目标 Rating 推荐', '基于定数区间推荐']),
-      FeatureSection(
           title: '收藏与待玩',
           subtitle: '整理谱面，准备下次出勤',
           icon: Icons.queue_music_rounded,
           titles: ['收藏夹', '下次想玩']),
+      FeatureSection(
+          title: '选曲与推荐',
+          subtitle: '每日推荐、吃分与定向挑谱',
+          icon: Icons.trending_up_rounded,
+          titles: [
+            '每日推荐',
+            '吃分推荐',
+            '随机乐曲',
+            '出勤转盘',
+            '基于标签推荐',
+            '基于目标 Rating 推荐',
+            '基于定数区间推荐',
+          ]),
       FeatureSection(
           title: '机厅地图',
           subtitle: '查找国内与全球音游机厅',
@@ -197,6 +142,11 @@ class FeatureRegistry {
           titles: ['全国音游地图', '全球音游街机地图']),
     ],
     '休闲': [
+      FeatureSection(
+          title: '音乐与谱面播放',
+          subtitle: '听舞萌歌曲，播放自定义谱面',
+          icon: Icons.play_circle_outline_rounded,
+          titles: ['随身听', '自定义谱面播放']),
       FeatureSection(
           title: '单人游戏设置',
           subtitle: '统一管理各模式的规则与偏好',
@@ -227,11 +177,6 @@ class FeatureRegistry {
           subtitle: '与朋友一起挑战曲库',
           icon: Icons.groups_outlined,
           titles: ['多人猜歌游戏']),
-      FeatureSection(
-          title: '音乐与谱面播放',
-          subtitle: '听舞萌歌曲，播放自定义谱面',
-          icon: Icons.play_circle_outline_rounded,
-          titles: ['随身听', '自定义谱面播放']),
     ],
     '我的': [
       FeatureSection(
@@ -240,13 +185,19 @@ class FeatureRegistry {
           icon: Icons.manage_accounts_outlined,
           titles: ['绑定与授权管理', '切换账号', '账号注册引导', '删除账号']),
       FeatureSection(
-          title: '单平台同步',
-          subtitle: '分别同步成绩到各查分器',
+          title: '成绩同步',
+          subtitle: '查看各平台同步统计、多端与自动同步',
           icon: Icons.cloud_sync_outlined,
-          titles: ['同步成绩到 AWMC NET', '同步成绩到水鱼', '同步成绩到落雪']),
+          titles: [
+            '同步成绩到 AWMC NET',
+            '同步成绩到水鱼',
+            '同步成绩到落雪',
+            '同步成绩到多端',
+            '自动同步',
+          ]),
       FeatureSection(
-          title: '数据刷新',
-          subtitle: '更新成绩缓存与机台游玩次数',
+          title: '数据与机台',
+          subtitle: '成绩刷新、机台数据与 AWMC 查询',
           icon: Icons.refresh_rounded,
           titles: [
             '拉取成绩并更新数据',
@@ -256,40 +207,37 @@ class FeatureRegistry {
             'AWMC 资源查询',
           ]),
       FeatureSection(
-          title: '批量与定时同步',
-          subtitle: '多端同步与自动同步',
-          icon: Icons.schedule_outlined,
-          titles: ['同步成绩到多端', '自动同步']),
-      FeatureSection(
-          title: '本地数据管理',
-          subtitle: '备份数据，管理本地缓存',
+          title: '数据与维护',
+          subtitle: '数据备份 · 缓存管理 · 加载语录 · 状态与日志',
           icon: Icons.storage_outlined,
-          titles: ['数据备份', '缓存管理']),
-      FeatureSection(
-          title: '应用偏好',
-          subtitle: '主题、交互与加载语录',
-          icon: Icons.tune_rounded,
-          titles: ['系统设置', '加载语录管理']),
-      FeatureSection(
-          title: '运行诊断',
-          subtitle: '检查服务状态，导出运行日志',
-          icon: Icons.network_check_rounded,
-          titles: ['服务器状态', '打印日志']),
+          titles: [
+            '系统设置',
+            '数据备份',
+            '缓存管理',
+            '加载语录管理',
+            '服务器状态',
+            '打印日志',
+          ]),
       FeatureSection(
           title: '社区动态',
           subtitle: '查看最近评论与评分',
           icon: Icons.forum_outlined,
           titles: ['最近评论', '最近评分']),
       FeatureSection(
-          title: '版本与项目',
-          subtitle: '版本更新、项目介绍与相关链接',
+          title: '关于与支持',
+          subtitle: '版本更新、公告、项目链接与反馈支持',
           icon: Icons.info_outline_rounded,
-          titles: ['公告中心', '检查更新', '关于 APP', '访问官方网站', '查看友情链接']),
-      FeatureSection(
-          title: '反馈与支持',
-          subtitle: '反馈问题、交流建议与支持开发',
-          icon: Icons.support_agent_rounded,
-          titles: ['问题反馈', '加入 QQ 群', '问卷调查', '支持开发者']),
+          titles: [
+            '检查更新',
+            '公告中心',
+            '关于 APP',
+            '访问官方网站',
+            '查看友情链接',
+            '问题反馈',
+            '加入 QQ 群',
+            '问卷调查',
+            '支持开发者',
+          ]),
     ],
   };
 

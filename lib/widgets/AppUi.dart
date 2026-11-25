@@ -1323,6 +1323,14 @@ List<double> stackedBarWidths(
   ];
   if (nonEmpty.isEmpty) return widths;
   final available = total - gap * (nonEmpty.length - 1);
+  if (available <= 0) return widths;
+  if (nonEmpty.length * minWidth >= available) {
+    final equal = available / nonEmpty.length;
+    for (final i in nonEmpty) {
+      widths[i] = equal;
+    }
+    return widths;
+  }
   final pinned = <int>{};
   while (true) {
     final free = available - pinned.length * minWidth;
@@ -1697,12 +1705,14 @@ class FilterPill extends StatelessWidget {
 /// 一排胶囊入口里的一个（Best50 变体、排行榜）。
 class LinkPill extends StatelessWidget {
   final String label;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   const LinkPill({super.key, required this.label, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final enabled = onTap != null;
     return Material(
       color: AppSurfaces.inset(context),
       shape: const StadiumBorder(),
@@ -1714,8 +1724,13 @@ class LinkPill extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             child: Text(label,
-                style:
-                    const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: enabled
+                      ? null
+                      : scheme.onSurface.withValues(alpha: 0.45),
+                )),
           ),
         ),
       ),
@@ -1756,7 +1771,7 @@ String? comboLabelOf(String raw) {
   }
 }
 
-/// 连击 / 同步徽章：FC 绿、AP 橙、FS 蓝、FDX 橙，颜色见
+/// 连击 / 同步徽章：FC 绿、AP 橙、FS 蓝、FDX 橙、SYNC 冰青，颜色见
 /// [AppColors.achievementBackground]。尺寸与 [RankBadge] 相同。
 class ComboLabelBadge extends StatelessWidget {
   /// 接口原值（`fcp`、`fsd`……）或显示文字都可以。

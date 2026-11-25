@@ -1,10 +1,10 @@
+import '../l10n/FeatureLocalizations.dart';
 import '../l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import 'HubComponents.dart';
 import 'CustomTagsPage.dart';
-import '../utils/AppModePreferences.dart';
+import '../utils/AppDesignTokens.dart';
 import '../utils/FavoriteFeaturesNotifier.dart';
-import '../utils/FeatureRegistry.dart';
 import '../service/CoverRecognitionService.dart';
 import 'SongSearchPage.dart';
 import 'UnionUpdateComparePage.dart';
@@ -15,6 +15,7 @@ import 'DifficultyDistributionPage.dart';
 import 'CoverRecognitionPage.dart';
 import 'ScoreOcrPage.dart';
 import '../widgets/AppToast.dart';
+import '../widgets/AppUi.dart';
 
 class LibraryHubPage extends StatefulWidget {
   final bool showHeader;
@@ -95,161 +96,230 @@ class _LibraryHubPageState extends State<LibraryHubPage> {
     _open(context, const CoverRecognitionPage());
   }
 
+  void _showSearchGroupSheet(BuildContext context) {
+    showHubGroupSheet(
+      context,
+      title: '乐曲检索',
+      subtitle: '搜索国服与非国服曲库',
+      itemsBuilder: (sheetContext) => [
+        HubActionTile(
+          title: '乐曲查询',
+          subtitle: '按歌名、别名、谱师和标签搜索',
+          icon: Icons.search_rounded,
+          isFavorited: _isFavorited('乐曲查询'),
+          onToggleFavorite: () => _toggleFavorite('乐曲查询'),
+          onTap: () {
+            Navigator.of(sheetContext).pop();
+            _open(context, const SongSearchPage());
+          },
+        ),
+        HubActionTile(
+          title: '非国服乐曲查询',
+          subtitle: '搜索与筛选非国服曲库',
+          icon: Icons.travel_explore_rounded,
+          isFavorited: _isFavorited('非国服乐曲查询'),
+          onToggleFavorite: () => _toggleFavorite('非国服乐曲查询'),
+          onTap: () {
+            Navigator.of(sheetContext).pop();
+            _open(context, const SongSearchPage(extraOnly: true));
+          },
+        ),
+        HubActionTile(
+          title: '自定义标签',
+          subtitle: '自定义标签名称、颜色与谱面，接入标签筛选与统计',
+          icon: Icons.sell_outlined,
+          isFavorited: _isFavorited('自定义标签'),
+          onToggleFavorite: () => _toggleFavorite('自定义标签'),
+          onTap: () {
+            Navigator.of(sheetContext).pop();
+            _open(context, const CustomTagsPage());
+          },
+        ),
+      ],
+    );
+  }
+
+  void _showVersionAndConstantSheet(BuildContext context) {
+    showHubGroupSheet(
+      context,
+      title: '版本与定数分析',
+      subtitle: '国服更新对照 · 版本对照 · 定数分布',
+      itemsBuilder: (sheetContext) => [
+        HubActionTile(
+          title: '国服更新对照',
+          subtitle: '看日服已上、国服还没上的曲目',
+          icon: Icons.flag_rounded,
+          isFavorited: _isFavorited('国服更新对照'),
+          onToggleFavorite: () => _toggleFavorite('国服更新对照'),
+          onTap: () {
+            Navigator.of(sheetContext).pop();
+            _open(context, const UnionUpdateComparePage());
+          },
+        ),
+        HubActionTile(
+          title: '版本对照',
+          subtitle: '按版本整理可游玩曲目',
+          icon: Icons.compare_arrows_rounded,
+          isFavorited: _isFavorited('版本对照'),
+          onToggleFavorite: () => _toggleFavorite('版本对照'),
+          onTap: () {
+            Navigator.of(sheetContext).pop();
+            _open(context, VersionView());
+          },
+        ),
+        HubActionTile(
+          title: '定数分布',
+          subtitle: '查看谱面定数分布',
+          icon: Icons.bar_chart_rounded,
+          isFavorited: _isFavorited('定数分布'),
+          onToggleFavorite: () => _toggleFavorite('定数分布'),
+          onTap: () {
+            Navigator.of(sheetContext).pop();
+            _open(context, const DifficultyDistributionPage());
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSearchCard(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return AppCard(
+      radius: AppDesignTokens.radiusCard,
+      padding: const EdgeInsets.fromLTRB(14, 10, 10, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => _open(context, const SongSearchPage()),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      children: [
+                        Icon(Icons.search_rounded,
+                            size: 20, color: scheme.onSurfaceVariant),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            context.l10n.hubLibrarySearchHint,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 15,
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              IconButton(
+                tooltip: context.l10n.hubMoreActionsTooltip,
+                visualDensity: VisualDensity.compact,
+                onPressed: () => _showSearchGroupSheet(context),
+                icon: const Icon(Icons.more_horiz_rounded, size: 20),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              LinkPill(
+                label: context.featureText('非国服乐曲查询'),
+                onTap: () =>
+                    _open(context, const SongSearchPage(extraOnly: true)),
+              ),
+              LinkPill(
+                label: context.featureText('自定义标签'),
+                onTap: () => _open(context, const CustomTagsPage()),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) =>
       ValueListenableBuilder<FavoritesPayload>(
         valueListenable: FavoriteFeaturesNotifier.instance,
-        builder: (context, payload, _) {
-          final features = <String, Widget>{
-            '乐曲查询': HubActionTile(
-              title: '乐曲查询',
-              subtitle: '按歌名、别名、谱师和标签搜索',
-              icon: Icons.search_rounded,
-              isFavorited: _isFavorited('乐曲查询'),
-              onToggleFavorite: () => _toggleFavorite('乐曲查询'),
-              onTap: () => _open(context, const SongSearchPage()),
+        builder: (context, payload, _) => HubPageScaffold(
+          title: '曲库',
+          subtitle: '搜索乐曲、浏览资料与图像识别',
+          icon: Icons.library_music_rounded,
+          showHeader: widget.showHeader,
+          hero: _buildSearchCard(context),
+          children: [
+            HubSection(
+              title: '图鉴与资料',
+              subtitle: '更新日历、收藏品与定数分析',
+              icon: Icons.library_books_outlined,
+              children: [
+                HubActionTile(
+                  title: '更新日历',
+                  subtitle: '按日期查看国服每次更新的谱面',
+                  icon: Icons.calendar_month_rounded,
+                  isFavorited: _isFavorited('更新日历'),
+                  onToggleFavorite: () => _toggleFavorite('更新日历'),
+                  onTap: () => _open(context, const UpdateCalendarPage()),
+                ),
+                HubActionTile(
+                  title: '收藏品查询',
+                  subtitle: '查看头像、姓名框等收藏品',
+                  icon: Icons.collections_bookmark_outlined,
+                  isFavorited: _isFavorited('收藏品查询'),
+                  onToggleFavorite: () => _toggleFavorite('收藏品查询'),
+                  onTap: () => _open(context, const CollectionSearchPage()),
+                ),
+                HubActionTile(
+                  title: '版本与定数分析',
+                  subtitle: '国服更新对照 · 版本对照 · 定数分布',
+                  icon: Icons.library_books_outlined,
+                  onTap: () => _showVersionAndConstantSheet(context),
+                ),
+              ],
             ),
-            '非国服乐曲查询': HubActionTile(
-              title: '非国服乐曲查询',
-              subtitle: '搜索与筛选非国服曲库',
-              icon: Icons.travel_explore_rounded,
-              isFavorited: _isFavorited('非国服乐曲查询'),
-              onToggleFavorite: () => _toggleFavorite('非国服乐曲查询'),
-              onTap: () =>
-                  _open(context, const SongSearchPage(extraOnly: true)),
-            ),
-            '自定义标签': HubActionTile(
-              title: '自定义标签',
-              subtitle: '自定义标签名称、颜色与谱面，接入标签筛选与统计',
-              icon: Icons.sell_outlined,
-              isFavorited: _isFavorited('自定义标签'),
-              onToggleFavorite: () => _toggleFavorite('自定义标签'),
-              onTap: () => _open(context, const CustomTagsPage()),
-            ),
-            '国服更新对照': HubActionTile(
-              title: '国服更新对照',
-              subtitle: '看日服已上、国服还没上的曲目',
-              icon: Icons.flag_rounded,
-              isFavorited: _isFavorited('国服更新对照'),
-              onToggleFavorite: () => _toggleFavorite('国服更新对照'),
-              onTap: () => _open(context, const UnionUpdateComparePage()),
-            ),
-            '更新日历': HubActionTile(
-              title: '更新日历',
-              subtitle: '按日期查看国服每次更新的谱面',
-              icon: Icons.calendar_month_rounded,
-              isFavorited: _isFavorited('更新日历'),
-              onToggleFavorite: () => _toggleFavorite('更新日历'),
-              onTap: () => _open(context, const UpdateCalendarPage()),
-            ),
-            '版本对照': HubActionTile(
-              title: '版本对照',
-              subtitle: '按版本整理可游玩曲目',
-              icon: Icons.compare_arrows_rounded,
-              isFavorited: _isFavorited('版本对照'),
-              onToggleFavorite: () => _toggleFavorite('版本对照'),
-              onTap: () => _open(context, VersionView()),
-            ),
-            '定数分布': HubActionTile(
-              title: '定数分布',
-              subtitle: '查看谱面定数分布',
-              icon: Icons.bar_chart_rounded,
-              isFavorited: _isFavorited('定数分布'),
-              onToggleFavorite: () => _toggleFavorite('定数分布'),
-              onTap: () => _open(context, const DifficultyDistributionPage()),
-            ),
-            '曲绘识别': HubActionTile(
-              title: '曲绘识别',
-              subtitle: '用相机或图片快速找歌',
+            const SizedBox(height: 24),
+            HubSection(
+              title: '图像识别',
+              subtitle: '通过曲绘找歌，识别结算成绩',
               icon: Icons.image_search_outlined,
-              isFavorited: _isFavorited('曲绘识别'),
-              onToggleFavorite: () => _toggleFavorite('曲绘识别'),
-              onTap: _openCoverRecognition,
-              loading: _coverIndexBuilding,
-              loadingText: _coverIndexBuilding ? '正在构建曲绘索引…' : null,
-              progressCurrent:
-                  _coverIndexBuilding ? _coverProgressCurrent : null,
-              progressTotal: _coverIndexBuilding ? _coverProgressTotal : null,
+              children: [
+                HubActionTile(
+                  title: '曲绘识别',
+                  subtitle: '用相机或图片快速找歌',
+                  icon: Icons.image_search_outlined,
+                  isFavorited: _isFavorited('曲绘识别'),
+                  onToggleFavorite: () => _toggleFavorite('曲绘识别'),
+                  onTap: _openCoverRecognition,
+                  loading: _coverIndexBuilding,
+                  loadingText: _coverIndexBuilding ? '正在构建曲绘索引…' : null,
+                  progressCurrent:
+                      _coverIndexBuilding ? _coverProgressCurrent : null,
+                  progressTotal:
+                      _coverIndexBuilding ? _coverProgressTotal : null,
+                ),
+                HubActionTile(
+                  title: '结算画面识别',
+                  subtitle: '拍摄机台结算画面，自动识别成绩',
+                  icon: Icons.document_scanner_outlined,
+                  isFavorited: _isFavorited('结算画面识别'),
+                  onToggleFavorite: () => _toggleFavorite('结算画面识别'),
+                  onTap: () => _open(context, const ScoreOcrPage()),
+                ),
+              ],
             ),
-            '结算画面识别': HubActionTile(
-              title: '结算画面识别',
-              subtitle: '拍摄机台结算画面，自动识别成绩',
-              icon: Icons.document_scanner_outlined,
-              isFavorited: _isFavorited('结算画面识别'),
-              onToggleFavorite: () => _toggleFavorite('结算画面识别'),
-              onTap: () => _open(context, const ScoreOcrPage()),
-            ),
-            '收藏品查询': HubActionTile(
-              title: '收藏品查询',
-              subtitle: '查看头像、姓名框等收藏品',
-              icon: Icons.collections_bookmark_outlined,
-              isFavorited: _isFavorited('收藏品查询'),
-              onToggleFavorite: () => _toggleFavorite('收藏品查询'),
-              onTap: () => _open(context, const CollectionSearchPage()),
-            ),
-          };
-
-          final sections = FeatureRegistry.sections['曲库']!;
-          return ListenableBuilder(
-            listenable: AppModePreferences.instance,
-            builder: (context, _) {
-              final isSimple = AppModePreferences.instance.isSimple;
-              if (!isSimple) {
-                return HubPageScaffold(
-                  title: '曲库',
-                  subtitle: '搜索乐曲、浏览资料与图像识别',
-                  icon: Icons.library_music_rounded,
-                  showHeader: widget.showHeader,
-                  children: [
-                    for (final section in sections) ...[
-                      HubSection(
-                        title: section.title,
-                        subtitle: section.subtitle,
-                        icon: section.icon,
-                        badgeCount: section.titles.length,
-                        children: [
-                          for (final title in section.titles) features[title]!
-                        ],
-                      ),
-                      if (section != sections.last) const SizedBox(height: 24),
-                    ],
-                  ],
-                );
-              }
-              final coreWidgets = <Widget>[];
-              final moreFeatures = <String, Widget>{};
-              for (final section in sections) {
-                for (final title in section.titles) {
-                  if (FeatureRegistry.isSimpleCore('曲库', title)) {
-                    coreWidgets.add(features[title]!);
-                  } else {
-                    moreFeatures[title] = features[title]!;
-                  }
-                }
-              }
-              return HubPageScaffold(
-                title: '曲库',
-                subtitle: '搜索乐曲、浏览资料与图像识别',
-                icon: Icons.library_music_rounded,
-                showHeader: widget.showHeader,
-                children: [
-                  if (coreWidgets.isNotEmpty) ...[
-                    HubSection(
-                      title: context.l10n.simpleModeCoreFeatures,
-                      icon: Icons.star_outline_rounded,
-                      children: coreWidgets,
-                    ),
-                    if (moreFeatures.isNotEmpty) const SizedBox(height: 16),
-                  ],
-                  SimpleMoreFeaturesSection(
-                    sections: sections,
-                    features: moreFeatures,
-                    count: moreFeatures.length,
-                  ),
-                ],
-              );
-            },
-          );
-        },
+          ],
+        ),
       );
 }

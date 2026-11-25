@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../constant/CacheKeyConstant.dart';
@@ -71,5 +71,98 @@ class AppModePreferences extends ChangeNotifier {
       debugPrint('保存界面模式偏好失败: $error');
     });
     await _writes;
+  }
+}
+
+/// 向子树广播当前界面模式的轻量级作用域，避免几十个子组件各自监听偏好实例。
+class AppModeScope extends InheritedWidget {
+  final AppDisplayMode mode;
+
+  const AppModeScope({
+    super.key,
+    required this.mode,
+    required super.child,
+  });
+
+  /// 读取当前上下文是否为简洁模式；未挂载作用域时回落到全局偏好实例。
+  static bool isSimpleOf(BuildContext context) {
+    final scope = context.dependOnInheritedWidgetOfExactType<AppModeScope>();
+    return (scope?.mode ?? AppModePreferences.instance.mode) ==
+        AppDisplayMode.simple;
+  }
+
+  @override
+  bool updateShouldNotify(AppModeScope oldWidget) => mode != oldWidget.mode;
+}
+
+/// 顶层全局模式提供器，放在路由之上统一驱动所有页面与弹窗。
+class AppModeProvider extends StatelessWidget {
+  final Widget child;
+
+  const AppModeProvider({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: AppModePreferences.instance,
+      child: child,
+      builder: (context, child) => AppModeScope(
+        mode: AppModePreferences.instance.mode,
+        child: child!,
+      ),
+    );
+  }
+}
+
+/// 按可见性延迟同步模式的作用域：处于后台或离屏标签页时跳过重建，切回可见时再同步。
+class DeferredAppModeScope extends StatefulWidget {
+  final Widget child;
+
+  const DeferredAppModeScope({super.key, required this.child});
+
+  @override
+  State<DeferredAppModeScope> createState() => _DeferredAppModeScopeState();
+}
+
+class _DeferredAppModeScopeState extends State<DeferredAppModeScope> {
+  AppDisplayMode _mode = AppModePreferences.instance.mode;
+  bool _active = false;
+
+  @override
+  void initState() {
+    super.initState();
+    AppModePreferences.instance.addListener(_onModeChanged);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final active = TickerMode.valuesOf(context).enabled;
+    _active = active;
+    if (active) {
+      _mode = AppModePreferences.instance.mode;
+    }
+  }
+
+  @override
+  void dispose() {
+    AppModePreferences.instance.removeListener(_onModeChanged);
+    super.dispose();
+  }
+
+  void _onModeChanged() {
+    if (!mounted || !_active) return;
+    final next = AppModePreferences.instance.mode;
+    if (_mode != next) {
+      setState(() => _mode = next);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AppModeScope(
+      mode: _mode,
+      child: widget.child,
+    );
   }
 }

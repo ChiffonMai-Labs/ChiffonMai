@@ -92,6 +92,9 @@ class AppTheme {
     );
   }
 
+  static final Map<int, ({String? primary, String? cjk})>
+      _resolvedFontFamilies = {};
+
   /// 全 App 主字体 Outfit。它没有中文，中文按相同字重回落到思源黑体（不走系统字体）。
   static TextStyle _outfit({
     double? fontSize,
@@ -101,17 +104,22 @@ class AppTheme {
     double? letterSpacing,
     List<FontFeature>? fontFeatures,
   }) {
-    return GoogleFonts.outfit(
+    final weight = fontWeight ?? FontWeight.w400;
+    final cached = _resolvedFontFamilies.putIfAbsent(weight.value, () {
+      return (
+        primary: GoogleFonts.outfit(fontWeight: weight).fontFamily,
+        cjk: GoogleFonts.notoSansSc(fontWeight: weight).fontFamily,
+      );
+    });
+    return TextStyle(
+      fontFamily: cached.primary,
+      fontFamilyFallback: cached.cjk == null ? null : [cached.cjk!],
       fontSize: fontSize,
       fontWeight: fontWeight,
       color: color,
       height: height,
       letterSpacing: letterSpacing,
       fontFeatures: fontFeatures,
-    ).copyWith(
-      fontFamilyFallback: [
-        GoogleFonts.notoSansSc(fontWeight: fontWeight).fontFamily!,
-      ],
     );
   }
 
@@ -964,7 +972,7 @@ class AppColors {
       Color(0xFFF0CF5A),
       Color(0xFF3F7FD9),
       Color(0xFF93BAEF),
-      Color(0xFFB39DDB),
+      Color(0xFF4CC6C8),
       Color(0xFFCBD3D2),
     ];
     const dark = [
@@ -972,7 +980,7 @@ class AppColors {
       Color(0xFFB99A3A),
       Color(0xFF4F8DE6),
       Color(0xFF2F5C9C),
-      Color(0xFF7E68B5),
+      Color(0xFF2E9599),
       Color(0xFF4A5453),
     ];
     return (brightness == Brightness.dark ? dark : light)[index];
@@ -1201,7 +1209,7 @@ class AppColors {
       case 'FDX+':
         return const Color(0xFFF57C00);
       case 'SYNC':
-        return const Color(0xFFFF5722);
+        return const Color(0xFF0A5C6E);
       default:
         return const Color(0xFF666666);
     }
@@ -1223,7 +1231,7 @@ class AppColors {
       case 'FDX+':
         return const Color(0xFFFFF3E0);
       case 'SYNC':
-        return const Color(0xFFFFE0B2);
+        return const Color(0xFFDFF7F5);
       default:
         return const Color(0xFFF0F0F0);
     }

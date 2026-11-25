@@ -189,6 +189,7 @@ class SystemHubPageState extends State<SystemHubPage>
   bool _refreshingPlayCounts = false;
   String _refreshPlayCountsText = '';
   String? _cabinetAppearanceProgress;
+  final ValueNotifier<int> _subPageRevision = ValueNotifier<int>(0);
   // 三个同步入口的进行状态由 SyncFlowMixin 持有（同步按钮上进度 + 互斥）。
 
   /// 任意长任务进行中：用于禁用其它入口，避免并发刷新互相踩缓存
@@ -220,12 +221,35 @@ class SystemHubPageState extends State<SystemHubPage>
   @override
   void onSyncStateChanged() => _publishActiveTask();
 
-  void _publishActiveTask() => widget.activeTask.value = _activeTask;
+  void _notifySubPages() {
+    if (mounted) _subPageRevision.value++;
+  }
+
+  void _publishActiveTask() {
+    widget.activeTask.value = _activeTask;
+    _notifySubPages();
+  }
 
   void _onCacheTaskChanged() {
     _onSyncRouteChanged();
     _publishActiveTask();
   }
+
+  late final Listenable _hubListenable = Listenable.merge([
+    FavoriteFeaturesNotifier.instance,
+    LoginStateNotifier.instance,
+  ]);
+
+  late final Listenable _subPageListenable = Listenable.merge([
+    _subPageRevision,
+    FavoriteFeaturesNotifier.instance,
+    LoginStateNotifier.instance,
+    UpdateNotifier.available,
+    CacheManagementService.instance,
+    HomeRefreshNotifier.isBusy,
+    AccountAuthorizationStatus.changes,
+    SyncRouteNotifier.instance,
+  ]);
 
   @override
   void initState() {
@@ -248,11 +272,14 @@ class SystemHubPageState extends State<SystemHubPage>
   }
 
   void _onSyncRouteChanged() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    setState(() {});
+    _notifySubPages();
   }
 
   @override
   void dispose() {
+    _subPageRevision.dispose();
     WidgetsBinding.instance.removeObserver(this);
     AccountAuthorizationStatus.changes.removeListener(_onSyncRouteChanged);
     CommunityAvatarStore.instance.removeListener(_onAvatarChanged);
@@ -265,7 +292,9 @@ class SystemHubPageState extends State<SystemHubPage>
   }
 
   void _onHomeRefreshBusyChanged() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    setState(() {});
+    _notifySubPages();
   }
 
   @override
@@ -285,6 +314,7 @@ class SystemHubPageState extends State<SystemHubPage>
     setState(() {
       _userNickname = p.nickname;
     });
+    _notifySubPages();
   }
 
   /// 共享收藏列表：当前是否已收藏（来自 FavoriteFeaturesNotifier，跨页面实时同步）
@@ -435,10 +465,15 @@ class SystemHubPageState extends State<SystemHubPage>
         filePath: file.path,
         fileName: file.uri.pathSegments.last,
       );
-    } catch (e) {
-      if (mounted)
-        AppToast.show(context.l10n.flowCouldNotExportLogsP0((e).toString()),
-            tone: AppToastTone.error);
+    } catch (e, stack) {
+      if (mounted) {
+        AppToast.showError(
+          e,
+          stack: stack,
+          title: context.l10n.featureExportLogs,
+          stage: '导出运行日志',
+        );
+      }
     }
   }
 
@@ -550,10 +585,16 @@ class SystemHubPageState extends State<SystemHubPage>
       await CacheManagementService.instance.reloadBaseMaidata();
       if (mounted)
         AppToast.show(context.l10n.flowBaseNoteMaidataDownloadedAgain);
-    } catch (error) {
-      if (mounted)
-        await showErrorMessageDialog(context,
-            message: context.l10n.flowDownloadFailedP0((error).toString()));
+    } catch (error, stack) {
+      if (mounted) {
+        await showErrorMessageDialog(
+          context,
+          title: context.featureText('重新下载失败'),
+          error: error,
+          stack: stack,
+          stage: '重载基础谱面缓存',
+        );
+      }
     }
   }
 
@@ -569,10 +610,14 @@ class SystemHubPageState extends State<SystemHubPage>
       final outcome = await AwmcPlayCountSyncFlow.run(
         context,
         onBusy: (text) {
-          if (mounted) setState(() => _refreshPlayCountsText = text);
+          if (!mounted) return;
+          setState(() => _refreshPlayCountsText = text);
+          _notifySubPages();
         },
         onIdle: () {
-          if (mounted) setState(() => _refreshPlayCountsText = '');
+          if (!mounted) return;
+          setState(() => _refreshPlayCountsText = '');
+          _notifySubPages();
         },
       );
       if (!mounted || outcome.cancelled) return;
@@ -606,7 +651,9 @@ class SystemHubPageState extends State<SystemHubPage>
       await AppTaskActivity.run(() => AwmcCabinetAppearanceFlow.run(
             context,
             onProgress: (label) {
-              if (mounted) setState(() => _cabinetAppearanceProgress = label);
+              if (!mounted) return;
+              setState(() => _cabinetAppearanceProgress = label);
+              _notifySubPages();
             },
           ));
     } catch (error) {
@@ -790,12 +837,17 @@ class SystemHubPageState extends State<SystemHubPage>
       LoginStateNotifier.setLoggedIn(false);
       AppToast.show(context.l10n.flowSignedOutOfDivingFish,
           tone: AppToastTone.success);
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('登出水鱼账号失败：$e');
       if (mounted) {
-        await showErrorMessageDialog(context,
-            message:
-                context.l10n.flowCouldNotSignOutOfDivingFish((e).toString()));
+        await showErrorMessageDialog(
+          context,
+          title: context.l10n.flowSigningOutOfDivingFish,
+          error: e,
+          stack: stack,
+          stage: '登出水鱼账号',
+          source: 'shuiyu',
+        );
       }
     } finally {
       if (mounted) {
@@ -958,483 +1010,786 @@ class SystemHubPageState extends State<SystemHubPage>
     );
   }
 
+  String? _activeSyncLabel(BuildContext context) {
+    String format(String key, String detail) {
+      final base = context.featureText(key);
+      return detail.isEmpty ? base : '$base · $detail';
+    }
+
+    if (syncingAwmcNet) return format('同步成绩到 AWMC NET', awmcNetText);
+    if (syncingDivingFish) return format('同步成绩到水鱼', syncText);
+    if (syncingLuoXue) return format('同步成绩到落雪', luoXueText);
+    if (syncingMulti) return format('同步成绩到多端', multiSyncText);
+    return null;
+  }
+
+  double? get _activeSyncProgress {
+    if (syncingAwmcNet) return awmcNetProgress;
+    if (syncingDivingFish) return divingFishProgress;
+    if (syncingLuoXue) return luoXueProgress;
+    if (syncingMulti) return multiSyncProgress;
+    return null;
+  }
+
+  bool get _cabinetToolBusy =>
+      _refreshingPlayCounts || _cabinetAppearanceProgress != null;
+
+  String? get _cabinetToolText => _refreshingPlayCounts
+      ? _refreshPlayCountsText
+      : _cabinetAppearanceProgress;
+
+  void _openSubPage(BuildContext context, HubSubPage page) {
+    FocusManager.instance.primaryFocus?.unfocus();
+    Navigator.push<void>(
+      context,
+      MaterialPageRoute<void>(builder: (_) => page),
+    ).then((_) => _loadProfile());
+  }
+
+  Widget _buildSyncEntryTile(BuildContext context) {
+    final l10n = context.l10n;
+    return HubActionTile(
+      title: '成绩同步',
+      subtitle: '查看各平台同步统计、多端与自动同步',
+      icon: Icons.cloud_sync_outlined,
+      onTap: () => _openSyncSubPage(context),
+      loading: anySyncBusy,
+      loadingText: _activeSyncLabel(context),
+      showProgress: true,
+      progressValue: _activeSyncProgress,
+      disabled: anyBusy && !anySyncBusy,
+      disabledReason: _busyReason,
+      footer: Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        children: [
+          LinkPill(
+            label: l10n.accountBindingAwmc,
+            onTap: anyBusy ? null : syncToAwmcNetWithButton,
+          ),
+          LinkPill(
+            label: l10n.accountBindingDivingFish,
+            onTap: anyBusy ? null : syncToDivingFishByCurrentRoute,
+          ),
+          LinkPill(
+            label: l10n.accountBindingLxns,
+            onTap: anyBusy ? null : syncToLuoXueByCurrentRoute,
+          ),
+          LinkPill(
+            label: l10n.hubPillMultiPlatform,
+            onTap: anyBusy ? null : syncToMultiplePlatforms,
+          ),
+          LinkPill(
+            label: l10n.featureAutoSync,
+            onTap: anyBusy
+                ? null
+                : () {
+                    FocusManager.instance.primaryFocus?.unfocus();
+                    _open(context, const AutoSyncPage());
+                  },
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openSyncSubPage(BuildContext context) {
+    _openSubPage(
+      context,
+      HubSubPage(
+        title: '成绩同步',
+        listenable: _subPageListenable,
+        builder: (pageContext) => [
+          HubSection(
+            title: '单平台同步',
+            subtitle: '分别同步成绩到各查分器',
+            icon: Icons.cloud_sync_outlined,
+            contentPadding: const EdgeInsets.only(bottom: 8),
+            children: _buildSinglePlatformSyncTiles(),
+          ),
+          const SizedBox(height: 24),
+          HubSection(
+            title: '批量与定时同步',
+            subtitle: '多端同步与自动同步',
+            icon: Icons.schedule_outlined,
+            contentPadding: const EdgeInsets.only(bottom: 8),
+            children: _buildBatchSyncTiles(pageContext),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openAccountAuthSubPage(BuildContext context) {
+    _openSubPage(
+      context,
+      HubSubPage(
+        title: '账号与授权',
+        listenable: _subPageListenable,
+        builder: (pageContext) => [
+          HubSection(
+            title: '账号与授权',
+            subtitle: '管理账号与数据源登录状态',
+            icon: Icons.manage_accounts_outlined,
+            children: _buildAccountAuthTiles(pageContext, includeSwitch: false),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openCabinetSubPage(BuildContext context) {
+    _openSubPage(
+      context,
+      HubSubPage(
+        title: '机台与 AWMC',
+        listenable: _subPageListenable,
+        builder: (pageContext) => [
+          HubSection(
+            title: '机台与 AWMC',
+            subtitle: '游玩次数 · 机台装扮 · 机台查询 · 资源查询',
+            icon: Icons.point_of_sale_outlined,
+            children: _buildCabinetTiles(pageContext),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openMaintenanceSubPage(BuildContext context) {
+    _openSubPage(
+      context,
+      HubSubPage(
+        title: '数据与维护',
+        listenable: _subPageListenable,
+        builder: (pageContext) => [
+          HubSection(
+            title: '本地与偏好',
+            subtitle: '备份数据，管理本地缓存',
+            icon: Icons.storage_outlined,
+            children: _buildLocalDataTiles(pageContext),
+          ),
+          const SizedBox(height: 24),
+          HubSection(
+            title: '运行诊断',
+            subtitle: '检查服务状态，导出运行日志',
+            icon: Icons.network_check_rounded,
+            children: _buildDiagnosticTiles(pageContext),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showCommunitySheet(BuildContext context) {
+    showHubGroupSheet(
+      context,
+      title: '社区动态',
+      subtitle: '最近评论 · 最近评分',
+      listenable: _subPageListenable,
+      itemsBuilder: (sheetContext) => _buildCommunityTiles(
+        sheetContext,
+        beforeOpen: () => Navigator.of(sheetContext).pop(),
+      ),
+    );
+  }
+
+  void _openAboutFeedbackSubPage(BuildContext context) {
+    _openSubPage(
+      context,
+      HubSubPage(
+        title: '关于与反馈',
+        listenable: _subPageListenable,
+        builder: (pageContext) => [
+          HubSection(
+            title: '项目与链接',
+            subtitle: '版本更新、项目介绍与相关链接',
+            icon: Icons.info_outline_rounded,
+            children: _buildProjectLinkTiles(pageContext),
+          ),
+          const SizedBox(height: 24),
+          HubSection(
+            title: '反馈与支持',
+            subtitle: '反馈问题、交流建议与支持开发',
+            icon: Icons.support_agent_rounded,
+            children: _buildFeedbackSupportTiles(pageContext),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildSinglePlatformSyncTiles() => [
+        HubActionTile(
+          title: '同步成绩到 AWMC NET',
+          subtitle: '用机台二维码导入成绩到 AWMC NET',
+          icon: Icons.cloud_upload_outlined,
+          isFavorited: _isFavorited('同步成绩到 AWMC NET'),
+          onToggleFavorite: () => _toggleFavorite('同步成绩到 AWMC NET'),
+          // AWMC NET 只有「机台二维码」这一条写入路径，只显示近 100 次统计。
+          onTap: syncToAwmcNetWithButton,
+          loading: syncingAwmcNet,
+          loadingText: awmcNetText,
+          showProgress: true,
+          progressValue: awmcNetProgress,
+          disabledReason: _busyReason,
+          disabled: anyBusy && !syncingAwmcNet,
+          footerLift: SyncStatsFooter.footerLift,
+          footer: const SyncStatsFooter(
+            slot: (SyncLine.direct, SyncPlatform.awmc),
+          ),
+        ),
+        HubActionTile(
+          title: '同步成绩到水鱼',
+          subtitle: '扫码抓取并同步最新成绩',
+          icon: Icons.cloud_upload_outlined,
+          isFavorited: _isFavorited('同步成绩到水鱼'),
+          onToggleFavorite: () => _toggleFavorite('同步成绩到水鱼'),
+          onTap: syncToDivingFishByCurrentRoute,
+          loading: syncingDivingFish,
+          loadingText: syncText,
+          showProgress: true,
+          progressValue: divingFishProgress,
+          disabledReason: _busyReason,
+          disabled: anyBusy && !syncingDivingFish,
+          footerLift: SyncStatsFooter.footerLift,
+          footer: const SyncStatsFooter(
+            slot: (SyncLine.awmc, SyncPlatform.divingFish),
+          ),
+        ),
+        HubActionTile(
+          title: '同步成绩到落雪',
+          subtitle: '将本地成绩同步到落雪咖啡屋',
+          icon: Icons.cloud_sync_outlined,
+          isFavorited: _isFavorited('同步成绩到落雪'),
+          onToggleFavorite: () => _toggleFavorite('同步成绩到落雪'),
+          onTap: syncToLuoXueByCurrentRoute,
+          loading: syncingLuoXue,
+          loadingText: luoXueText,
+          showProgress: true,
+          progressValue: luoXueProgress,
+          disabledReason: _busyReason,
+          disabled: anyBusy && !syncingLuoXue,
+          footerLift: SyncStatsFooter.footerLift,
+          footer: const SyncStatsFooter(
+            slot: (SyncLine.awmc, SyncPlatform.luoXue),
+          ),
+        ),
+      ];
+
+  List<Widget> _buildBatchSyncTiles(BuildContext ctx) => [
+        HubActionTile(
+          title: '同步成绩到多端',
+          subtitle: '一份成绩同步到多个查分器',
+          icon: Icons.devices_other_outlined,
+          isFavorited: _isFavorited('同步成绩到多端'),
+          onToggleFavorite: () => _toggleFavorite('同步成绩到多端'),
+          onTap: syncToMultiplePlatforms,
+          loading: syncingMulti,
+          loadingText: multiSyncText,
+          showProgress: true,
+          progressValue: multiSyncProgress,
+          disabledReason: _busyReason,
+          disabled: anyBusy && !syncingMulti,
+        ),
+        HubActionTile(
+          title: '自动同步',
+          subtitle: '每天定时同步成绩，解放双手',
+          icon: Icons.schedule_outlined,
+          isFavorited: _isFavorited('自动同步'),
+          onToggleFavorite: () => _toggleFavorite('自动同步'),
+          onTap: () {
+            FocusManager.instance.primaryFocus?.unfocus();
+            _open(ctx, const AutoSyncPage());
+          },
+          disabledReason: _busyReason,
+          disabled: anyBusy,
+          footerLift: SyncStatsFooter.footerLift,
+          footer: AutoSyncStatusFooter(
+            onTap: () {
+              if (!anyBusy) {
+                FocusManager.instance.primaryFocus?.unfocus();
+                _open(ctx, const AutoSyncPage());
+              }
+            },
+          ),
+        ),
+      ];
+
+  Widget _buildBindingAuthTile({bool compactFooter = false}) => HubActionTile(
+        title: '绑定与授权管理',
+        subtitle: '登录、授权与绑定各数据源账号',
+        icon: Icons.admin_panel_settings_outlined,
+        isFavorited: _isFavorited('绑定与授权管理'),
+        onToggleFavorite: () => _toggleFavorite('绑定与授权管理'),
+        onTap: _manageAccountBindings,
+        loading: _loggingOut,
+        loadingText: _logoutText,
+        disabledReason: _busyReason,
+        disabled: anyBusy && !_loggingOut,
+        footer: compactFooter ? null : const AccountBindingStatusFooter(),
+      );
+
+  Widget _buildSwitchAccountTile({bool showFooter = true}) => HubActionTile(
+        title: '切换账号',
+        subtitle: '切换数据源与玩家信息，使用本地缓存',
+        icon: Icons.switch_account_outlined,
+        isFavorited: _isFavorited('切换账号'),
+        onToggleFavorite: () => _toggleFavorite('切换账号'),
+        onTap: () => openFeature(const ButtonItem(
+            title: '切换账号',
+            subtitle: '切换数据源与玩家信息，使用本地缓存',
+            icon: Icons.switch_account_outlined)),
+        disabled: anyBusy,
+        disabledReason: _busyReason,
+        footer: showFooter ? const AccountSwitchStatusFooter() : null,
+      );
+
+  List<Widget> _buildAccountAuthTiles(
+    BuildContext ctx, {
+    bool includeSwitch = true,
+  }) =>
+      [
+        _buildBindingAuthTile(),
+        if (includeSwitch) _buildSwitchAccountTile(),
+        HubActionTile(
+          title: '账号注册引导',
+          subtitle: '水鱼注册、落雪注册与 AWMC NET 档案创建引导',
+          icon: Icons.person_add_alt_1_outlined,
+          isFavorited: _isFavorited('账号注册引导'),
+          onToggleFavorite: () => _toggleFavorite('账号注册引导'),
+          onTap: () => showAccountRegistrationGuide(ctx),
+        ),
+        HubActionTile(
+          title: '删除账号',
+          subtitle: '删除本机账号、成绩缓存与服务端记录',
+          icon: Icons.delete_forever_outlined,
+          isFavorited: _isFavorited('删除账号'),
+          onToggleFavorite: () => _toggleFavorite('删除账号'),
+          onTap: () {
+            FocusManager.instance.primaryFocus?.unfocus();
+            _open(ctx, const DeleteAccountPage());
+          },
+          disabled: anyBusy,
+          disabledReason: _busyReason,
+        ),
+      ];
+
+  List<Widget> _buildCabinetTiles(BuildContext ctx) => [
+        HubActionTile(
+          title: '刷新机台游玩次数',
+          subtitle: '单独读取当前账号的 PC 数；不会附带同步成绩',
+          icon: Icons.numbers_outlined,
+          isFavorited: _isFavorited('刷新机台游玩次数'),
+          onToggleFavorite: () => _toggleFavorite('刷新机台游玩次数'),
+          onTap: _refreshPlayCounts,
+          loading: _refreshingPlayCounts,
+          loadingText: _refreshPlayCountsText,
+          disabledReason: _busyReason,
+          disabled: anyBusy && !_refreshingPlayCounts,
+        ),
+        HubActionTile(
+          title: FeatureRegistry.cabinetAppearanceTitle,
+          subtitle: FeatureRegistry.cabinetAppearanceSubtitle,
+          icon: Icons.checkroom_outlined,
+          isFavorited: _isFavorited(FeatureRegistry.cabinetAppearanceTitle),
+          onToggleFavorite: () =>
+              _toggleFavorite(FeatureRegistry.cabinetAppearanceTitle),
+          onTap: _syncCabinetAppearance,
+          loading: _cabinetAppearanceProgress != null,
+          loadingText: _cabinetAppearanceProgress,
+          disabledReason: _busyReason,
+          disabled: anyBusy && _cabinetAppearanceProgress == null,
+        ),
+        HubActionTile(
+          title: 'AWMC 机台查询',
+          subtitle: '账号预览 · 已拥有道具 · 游玩地区',
+          icon: Icons.point_of_sale_outlined,
+          isFavorited: _isFavorited('AWMC 机台查询'),
+          onToggleFavorite: () => _toggleFavorite('AWMC 机台查询'),
+          onTap: () {
+            FocusManager.instance.primaryFocus?.unfocus();
+            _open(ctx, const AwmcCabinetPage());
+          },
+        ),
+        HubActionTile(
+          title: 'AWMC 资源查询',
+          subtitle: '资源候选 · 对手资料',
+          icon: Icons.manage_search_rounded,
+          isFavorited: _isFavorited('AWMC 资源查询'),
+          onToggleFavorite: () => _toggleFavorite('AWMC 资源查询'),
+          onTap: () {
+            FocusManager.instance.primaryFocus?.unfocus();
+            _open(ctx, const AwmcResourcesPage());
+          },
+        ),
+      ];
+
+  List<Widget> _buildLocalDataTiles(BuildContext ctx) => [
+        HubActionTile(
+          title: '数据备份',
+          subtitle: '导入或导出本地数据',
+          icon: Icons.backup_outlined,
+          isFavorited: _isFavorited('数据备份'),
+          onToggleFavorite: () => _toggleFavorite('数据备份'),
+          onTap: () {
+            FocusManager.instance.primaryFocus?.unfocus();
+            _open(ctx, const DataBackupPage());
+          },
+        ),
+        HubActionTile(
+          title: '缓存管理',
+          subtitle: '查看并清理音源、PV、maidata 缓存',
+          loading: CacheManagementService.instance.reloadingBase,
+          loadingText: CacheManagementService.instance.reloadText,
+          progressValue: CacheManagementService.instance.reloadProgress,
+          disabled: anyBusy && !CacheManagementService.instance.reloadingBase,
+          disabledReason: _busyReason,
+          icon: Icons.storage_outlined,
+          isFavorited: _isFavorited('缓存管理'),
+          onToggleFavorite: () => _toggleFavorite('缓存管理'),
+          onTap: _showCacheManagementDialog,
+        ),
+        HubActionTile(
+          title: '加载语录管理',
+          subtitle: '选择加载时展示的语录',
+          icon: Icons.format_quote,
+          isFavorited: _isFavorited('加载语录管理'),
+          onToggleFavorite: () => _toggleFavorite('加载语录管理'),
+          onTap: () {
+            FocusManager.instance.primaryFocus?.unfocus();
+            _open(ctx, const LoadingTipsPage());
+          },
+        ),
+      ];
+
+  List<Widget> _buildDiagnosticTiles(BuildContext ctx) => [
+        HubActionTile(
+          title: '服务器状态',
+          subtitle: '查看舞萌服务状态',
+          icon: Icons.cloud_outlined,
+          isFavorited: _isFavorited('服务器状态'),
+          onToggleFavorite: () => _toggleFavorite('服务器状态'),
+          onTap: () {
+            FocusManager.instance.primaryFocus?.unfocus();
+            _open(ctx, const MaimaiServerStatusPage());
+          },
+        ),
+        HubActionTile(
+          title: '打印日志',
+          subtitle: '导出最近运行日志，方便排查问题',
+          icon: Icons.receipt_long_outlined,
+          isFavorited: _isFavorited('打印日志'),
+          onToggleFavorite: () => _toggleFavorite('打印日志'),
+          onTap: _exportLogs,
+        ),
+      ];
+
+  List<Widget> _buildCommunityTiles(
+    BuildContext ctx, {
+    VoidCallback? beforeOpen,
+  }) =>
+      [
+        HubActionTile(
+          title: '最近评论',
+          subtitle: '查看社区最近评论',
+          icon: Icons.comment_outlined,
+          isFavorited: _isFavorited('最近评论'),
+          onToggleFavorite: () => _toggleFavorite('最近评论'),
+          onTap: () {
+            beforeOpen?.call();
+            FocusManager.instance.primaryFocus?.unfocus();
+            _open(context, const RecentCommentsPage());
+          },
+        ),
+        HubActionTile(
+          title: '最近评分',
+          subtitle: '查看社区最近评分',
+          icon: Icons.star_outline_rounded,
+          isFavorited: _isFavorited('最近评分'),
+          onToggleFavorite: () => _toggleFavorite('最近评分'),
+          onTap: () {
+            beforeOpen?.call();
+            FocusManager.instance.primaryFocus?.unfocus();
+            _open(context, const RecentRatingsPage());
+          },
+        ),
+      ];
+
+  List<Widget> _buildProjectLinkTiles(BuildContext ctx) => [
+        HubActionTile(
+          title: '关于 APP',
+          subtitle: '了解项目与版本信息',
+          icon: Icons.info_outline_rounded,
+          isFavorited: _isFavorited('关于 APP'),
+          onToggleFavorite: () => _toggleFavorite('关于 APP'),
+          onTap: () {
+            FocusManager.instance.primaryFocus?.unfocus();
+            _open(ctx, const AboutAppPage());
+          },
+        ),
+        HubActionTile(
+          title: '访问官方网站',
+          subtitle: '前往 chiffonmai.cloud 查看项目主页',
+          icon: Icons.public,
+          isFavorited: _isFavorited('访问官方网站'),
+          onToggleFavorite: () => _toggleFavorite('访问官方网站'),
+          onTap: () => _launchExternal(
+            ctx,
+            AppLinks.officialSite,
+            '官网链接',
+            failMessage: ctx.l10n.flowCouldNotOpenABrowserWebsiteLink(
+                (AppLinks.officialSite).toString()),
+          ),
+        ),
+        HubActionTile(
+          title: '查看友情链接',
+          subtitle: '发现同好项目',
+          icon: Icons.link_rounded,
+          isFavorited: _isFavorited('查看友情链接'),
+          onToggleFavorite: () => _toggleFavorite('查看友情链接'),
+          onTap: () {
+            FocusManager.instance.primaryFocus?.unfocus();
+            _open(ctx, const FriendLinksPage());
+          },
+        ),
+      ];
+
+  List<Widget> _buildFeedbackSupportTiles(BuildContext ctx) => [
+        HubActionTile(
+          title: '问题反馈',
+          subtitle: '反馈使用中遇到的问题',
+          icon: Icons.feedback_outlined,
+          isFavorited: _isFavorited('问题反馈'),
+          onToggleFavorite: () => _toggleFavorite('问题反馈'),
+          onTap: () => _launchExternal(ctx, AppLinks.feedbackUrl, '反馈链接'),
+        ),
+        HubActionTile(
+          title: '加入 QQ 群',
+          subtitle: ctx.l10n.hubJoinGroup(AppLinks.qqGroupNumber),
+          icon: Icons.groups_outlined,
+          isFavorited: _isFavorited('加入 QQ 群'),
+          onToggleFavorite: () => _toggleFavorite('加入 QQ 群'),
+          onTap: () => _launchExternal(
+            ctx,
+            AppLinks.qqGroupJoinUrl,
+            '群号',
+            // 加群链接在浏览器里只是个空壳中转页，所以要复制**群号**
+            copyText: AppLinks.qqGroupNumber,
+            failMessage: ctx.l10n.flowCouldNotOpenQQGroupIDP0(
+                (AppLinks.qqGroupNumber).toString()),
+          ),
+        ),
+        HubActionTile(
+          title: '问卷调查',
+          subtitle: '助力 ChiffonMai 更上一层楼',
+          icon: Icons.poll_outlined,
+          isFavorited: _isFavorited('问卷调查'),
+          onToggleFavorite: () => _toggleFavorite('问卷调查'),
+          onTap: () => _launchExternal(ctx, AppLinks.surveyUrl, '问卷链接'),
+        ),
+        HubActionTile(
+          title: '支持开发者',
+          subtitle: '支持项目持续更新',
+          icon: Icons.volunteer_activism_outlined,
+          isFavorited: _isFavorited('支持开发者'),
+          onToggleFavorite: () => _toggleFavorite('支持开发者'),
+          onTap: () {
+            FocusManager.instance.primaryFocus?.unfocus();
+            _open(ctx, const SupportDeveloperPage());
+          },
+        ),
+      ];
+
+  Widget _buildRefreshDataTile() => HubActionTile(
+        title: '拉取成绩并更新数据',
+        subtitle: '拉取所选账号的成绩并重算 Best50，同时更新曲目、定数与标签',
+        icon: Icons.file_upload_sharp,
+        isFavorited: _isFavorited('拉取成绩并更新数据'),
+        onToggleFavorite: () => _toggleFavorite('拉取成绩并更新数据'),
+        onTap: _refreshData,
+        loading: _refreshing,
+        loadingText: _refreshText,
+        showProgress: true,
+        progressValue: _refreshProgress,
+        disabledReason: _busyReason,
+        disabled: anyBusy && !_refreshing,
+      );
+
+  Widget _buildSettingsTile(BuildContext ctx) => HubActionTile(
+        title: '系统设置',
+        subtitle: '调整主题、背景图、交互与同步选项',
+        icon: Icons.palette_outlined,
+        isFavorited: _isFavorited('系统设置'),
+        onToggleFavorite: () => _toggleFavorite('系统设置'),
+        onTap: () {
+          FocusManager.instance.primaryFocus?.unfocus();
+          _open(ctx, const SettingsPage());
+        },
+      );
+
+  Widget _buildAnnouncementsTile(BuildContext ctx) => HubActionTile(
+        title: '公告中心',
+        subtitle: '查看服务公告与项目动态',
+        icon: Icons.campaign_outlined,
+        isFavorited: _isFavorited('公告中心'),
+        onToggleFavorite: () => _toggleFavorite('公告中心'),
+        onTap: () {
+          FocusManager.instance.primaryFocus?.unfocus();
+          _open(ctx, const AnnouncementsPage());
+        },
+      );
+
+  Widget _buildCheckUpdateTile() => ValueListenableBuilder<UpdateAvailability?>(
+        valueListenable: UpdateNotifier.available,
+        builder: (context, update, _) {
+          if (update == null) {
+            return HubActionTile(
+              title: UpdateNotifier.idleTitle,
+              subtitle: UpdateNotifier.idleSubtitle,
+              icon: Icons.system_update_alt_outlined,
+              isFavorited: _isFavorited(UpdateNotifier.idleTitle),
+              onToggleFavorite: () => _toggleFavorite(UpdateNotifier.idleTitle),
+              onTap: _checkUpdate,
+            );
+          }
+          return HubActionTile(
+            title: UpdateNotifier.titleFor(update),
+            subtitle: context.l10n.hubUpdateReleased(
+                update.latestVersion.isEmpty
+                    ? context.featureText('新版本')
+                    : 'v${update.latestVersion}'),
+            icon: Icons.arrow_upward_rounded,
+            titleColor: UpdateAvailableIcon.green,
+            leading: const UpdateAvailableIcon(),
+            isFavorited: _isFavorited(UpdateNotifier.idleTitle),
+            onToggleFavorite: () => _toggleFavorite(UpdateNotifier.idleTitle),
+            onTap: _checkUpdate,
+          );
+        },
+      );
+
+  Widget _buildStandardHero(BuildContext context) => Column(children: [
+        if (Theme.of(context).platform == TargetPlatform.iOS)
+          ios.CupertinoListTile(
+              leading: const Icon(ios.CupertinoIcons.link),
+              title: Text(context.l10n.qqPlayerConnect),
+              trailing: const ios.CupertinoListTileChevron(),
+              onTap: () => PlayerConnectionPage.open(context)),
+        CommunityAppearanceBanner(
+          appearance: CommunityAvatarStore.instance.value,
+          nickname: _userNickname,
+          onPickTap: _showCollectionPicker,
+          onRetry: () => unawaited(CommunityAvatarStore.instance.retry()),
+          onTravelAppearanceTap: () {
+            FocusManager.instance.primaryFocus?.unfocus();
+            Navigator.push<void>(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const CommunityTravelAppearancePage(),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 8),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppSurfaces.card(context),
+            borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
+          ),
+          child: const MyPlayerExperience(),
+        ),
+      ]);
+
   @override
-  Widget build(BuildContext context) => ListenableBuilder(
-        listenable: Listenable.merge([
-          FavoriteFeaturesNotifier.instance,
-          LoginStateNotifier.instance,
-          AppModePreferences.instance,
-        ]),
-        builder: (context, _) {
-          final features = <String, Widget>{
-              '账号注册引导': HubActionTile(
-                title: '账号注册引导',
-                subtitle: '水鱼注册、落雪注册与 AWMC NET 档案创建引导',
-                icon: Icons.person_add_alt_1_outlined,
-                isFavorited: _isFavorited('账号注册引导'),
-                onToggleFavorite: () => _toggleFavorite('账号注册引导'),
-                onTap: () => showAccountRegistrationGuide(context),
-              ),
-              '切换账号': HubActionTile(
-                title: '切换账号',
-                subtitle: '切换数据源与玩家信息，使用本地缓存',
-                icon: Icons.switch_account_outlined,
-                isFavorited: _isFavorited('切换账号'),
-                onToggleFavorite: () => _toggleFavorite('切换账号'),
-                onTap: () => openFeature(const ButtonItem(
-                    title: '切换账号',
-                    subtitle: '切换数据源与玩家信息，使用本地缓存',
-                    icon: Icons.switch_account_outlined)),
-                disabled: anyBusy,
-                disabledReason: _busyReason,
-                footer: const AccountSwitchStatusFooter(),
-              ),
-              '绑定与授权管理': HubActionTile(
-                title: '绑定与授权管理',
-                subtitle: '登录、授权与绑定各数据源账号',
-                icon: Icons.admin_panel_settings_outlined,
-                isFavorited: _isFavorited('绑定与授权管理'),
-                onToggleFavorite: () => _toggleFavorite('绑定与授权管理'),
-                onTap: _manageAccountBindings,
+  Widget build(BuildContext context) {
+    final isSimple = AppModeScope.isSimpleOf(context);
+    return ListenableBuilder(
+      listenable: _hubListenable,
+      builder: (context, _) => HubPageScaffold(
+        title: '我的',
+        subtitle: '账号、同步、备份与应用偏好',
+        icon: Icons.person_rounded,
+        hero: isSimple ? _buildSimpleHero(context) : _buildStandardHero(context),
+        children: [
+          HubSection(
+            title: '账号与同步',
+            subtitle: '拉取成绩、同步查分器与管理账号',
+            icon: Icons.cloud_sync_outlined,
+            children: [
+              _buildRefreshDataTile(),
+              _buildSyncEntryTile(context),
+              _buildSwitchAccountTile(showFooter: !isSimple),
+              HubActionTile(
+                title: '账号与授权',
+                subtitle: '绑定与授权 · 注册引导 · 删除账号',
+                icon: Icons.manage_accounts_outlined,
+                onTap: () => _openAccountAuthSubPage(context),
                 loading: _loggingOut,
                 loadingText: _logoutText,
-                disabledReason: _busyReason,
                 disabled: anyBusy && !_loggingOut,
-                footer: const AccountBindingStatusFooter(),
-              ),
-              '删除账号': HubActionTile(
-                title: '删除账号',
-                subtitle: '删除本机账号、成绩缓存与服务端记录',
-                icon: Icons.delete_forever_outlined,
-                isFavorited: _isFavorited('删除账号'),
-                onToggleFavorite: () => _toggleFavorite('删除账号'),
-                onTap: () => _open(context, const DeleteAccountPage()),
-                disabled: anyBusy,
                 disabledReason: _busyReason,
               ),
-              '同步成绩到水鱼': HubActionTile(
-                title: '同步成绩到水鱼',
-                subtitle: '扫码抓取并同步最新成绩',
-                icon: Icons.cloud_upload_outlined,
-                isFavorited: _isFavorited('同步成绩到水鱼'),
-                onToggleFavorite: () => _toggleFavorite('同步成绩到水鱼'),
-                onTap: syncToDivingFishByCurrentRoute,
-                loading: syncingDivingFish,
-                loadingText: syncText,
-                showProgress: true,
-                progressValue: divingFishProgress,
-                disabledReason: _busyReason,
-                disabled: anyBusy && !syncingDivingFish,
-                footerLift: SyncStatsFooter.footerLift,
-                footer: const SyncStatsFooter(
-                  slot: (SyncLine.awmc, SyncPlatform.divingFish),
-                ),
-              ),
-              '同步成绩到落雪': HubActionTile(
-                title: '同步成绩到落雪',
-                subtitle: '将本地成绩同步到落雪咖啡屋',
-                icon: Icons.cloud_sync_outlined,
-                isFavorited: _isFavorited('同步成绩到落雪'),
-                onToggleFavorite: () => _toggleFavorite('同步成绩到落雪'),
-                onTap: syncToLuoXueByCurrentRoute,
-                loading: syncingLuoXue,
-                loadingText: luoXueText,
-                showProgress: true,
-                progressValue: luoXueProgress,
-                disabledReason: _busyReason,
-                disabled: anyBusy && !syncingLuoXue,
-                footerLift: SyncStatsFooter.footerLift,
-                footer: const SyncStatsFooter(
-                  slot: (SyncLine.awmc, SyncPlatform.luoXue),
-                ),
-              ),
-              '同步成绩到 AWMC NET': HubActionTile(
-                title: '同步成绩到 AWMC NET',
-                subtitle: '用机台二维码导入成绩到 AWMC NET',
-                icon: Icons.cloud_upload_outlined,
-                isFavorited: _isFavorited('同步成绩到 AWMC NET'),
-                onToggleFavorite: () => _toggleFavorite('同步成绩到 AWMC NET'),
-                // AWMC NET 只有「机台二维码」这一条写入路径（读成绩的 AWMC 数据源
-                // 不需要登录），所以**没有线路切换器**，只有一行近 100 次统计
-                // —— 也就是 SyncStatsFooter 而不是 SyncRouteFooter。
-                // 等待进度与另外两个同步入口一样显示在这个按钮上。
-                onTap: syncToAwmcNetWithButton,
-                loading: syncingAwmcNet,
-                loadingText: awmcNetText,
-                showProgress: true,
-                progressValue: awmcNetProgress,
-                disabledReason: _busyReason,
-                disabled: anyBusy && !syncingAwmcNet,
-                // 统计行上提一点贴紧按钮：tile 底部本来就空着约 23px，
-                // 一行小字挂在那里会显得离按钮太远（见 SyncStatsFooter.footerLift）
-                footerLift: SyncStatsFooter.footerLift,
-                footer: const SyncStatsFooter(
-                  slot: (SyncLine.direct, SyncPlatform.awmc),
-                ),
-              ),
-              '同步成绩到多端': HubActionTile(
-                title: '同步成绩到多端',
-                subtitle: '一份成绩同步到多个查分器',
-                icon: Icons.devices_other_outlined,
-                isFavorited: _isFavorited('同步成绩到多端'),
-                onToggleFavorite: () => _toggleFavorite('同步成绩到多端'),
-                onTap: syncToMultiplePlatforms,
-                loading: syncingMulti,
-                loadingText: multiSyncText,
-                showProgress: true,
-                progressValue: multiSyncProgress,
-                disabledReason: _busyReason,
-                disabled: anyBusy && !syncingMulti,
-              ),
-              '自动同步': HubActionTile(
-                title: '自动同步',
-                subtitle: '每天定时同步成绩，解放双手',
-                icon: Icons.schedule_outlined,
-                isFavorited: _isFavorited('自动同步'),
-                onToggleFavorite: () => _toggleFavorite('自动同步'),
-                onTap: () => _open(context, const AutoSyncPage()),
-                disabledReason: _busyReason,
-                disabled: anyBusy,
-                footerLift: SyncStatsFooter.footerLift,
-                footer: AutoSyncStatusFooter(
-                  onTap: () {
-                    if (!anyBusy) _open(context, const AutoSyncPage());
-                  },
-                ),
-              ),
-              '拉取成绩并更新数据': HubActionTile(
-                title: '拉取成绩并更新数据',
-                subtitle: '拉取所选账号的成绩并重算 Best50，同时更新曲目、定数与标签',
-                icon: Icons.file_upload_sharp,
-                isFavorited: _isFavorited('拉取成绩并更新数据'),
-                onToggleFavorite: () => _toggleFavorite('拉取成绩并更新数据'),
-                onTap: _refreshData,
-                loading: _refreshing,
-                loadingText: _refreshText,
-                showProgress: true,
-                progressValue: _refreshProgress,
-                disabledReason: _busyReason,
-                disabled: anyBusy && !_refreshing,
-              ),
-              '刷新机台游玩次数': HubActionTile(
-                title: '刷新机台游玩次数',
-                subtitle: '单独读取当前账号的 PC 数；不会附带同步成绩',
-                icon: Icons.numbers_outlined,
-                isFavorited: _isFavorited('刷新机台游玩次数'),
-                onToggleFavorite: () => _toggleFavorite('刷新机台游玩次数'),
-                onTap: _refreshPlayCounts,
-                loading: _refreshingPlayCounts,
-                loadingText: _refreshPlayCountsText,
-                disabledReason: _busyReason,
-                disabled: anyBusy && !_refreshingPlayCounts,
-              ),
-              FeatureRegistry.cabinetAppearanceTitle: HubActionTile(
-                title: FeatureRegistry.cabinetAppearanceTitle,
-                subtitle: FeatureRegistry.cabinetAppearanceSubtitle,
-                icon: Icons.checkroom_outlined,
-                isFavorited: _isFavorited(FeatureRegistry.cabinetAppearanceTitle),
-                onToggleFavorite: () =>
-                    _toggleFavorite(FeatureRegistry.cabinetAppearanceTitle),
-                onTap: _syncCabinetAppearance,
-                loading: _cabinetAppearanceProgress != null,
-                loadingText: _cabinetAppearanceProgress,
-                disabledReason: _busyReason,
-                disabled: anyBusy && _cabinetAppearanceProgress == null,
-              ),
-              'AWMC 机台查询': HubActionTile(
-                title: 'AWMC 机台查询',
-                subtitle: '账号预览 · 已拥有道具 · 游玩地区',
+            ],
+          ),
+          const SizedBox(height: 24),
+          HubSection(
+            title: '设置与工具',
+            subtitle: '偏好设置、机台工具、数据维护与社区动态',
+            icon: Icons.tune_rounded,
+            children: [
+              _buildSettingsTile(context),
+              HubActionTile(
+                title: '机台与 AWMC',
+                subtitle: '游玩次数 · 机台装扮 · 机台查询 · 资源查询',
                 icon: Icons.point_of_sale_outlined,
-                isFavorited: _isFavorited('AWMC 机台查询'),
-                onToggleFavorite: () => _toggleFavorite('AWMC 机台查询'),
-                onTap: () => _open(context, const AwmcCabinetPage()),
+                onTap: () => _openCabinetSubPage(context),
+                loading: _cabinetToolBusy,
+                loadingText: _cabinetToolText,
+                disabled: anyBusy && !_cabinetToolBusy,
+                disabledReason: _busyReason,
               ),
-              'AWMC 资源查询': HubActionTile(
-                title: 'AWMC 资源查询',
-                subtitle: '资源候选 · 对手资料',
-                icon: Icons.manage_search_rounded,
-                isFavorited: _isFavorited('AWMC 资源查询'),
-                onToggleFavorite: () => _toggleFavorite('AWMC 资源查询'),
-                onTap: () => _open(context, const AwmcResourcesPage()),
-              ),
-              '数据备份': HubActionTile(
-                title: '数据备份',
-                subtitle: '导入或导出本地数据',
-                icon: Icons.backup_outlined,
-                isFavorited: _isFavorited('数据备份'),
-                onToggleFavorite: () => _toggleFavorite('数据备份'),
-                onTap: () => _open(context, const DataBackupPage()),
-              ),
-              '缓存管理': HubActionTile(
-                title: '缓存管理',
-                subtitle: '查看并清理音源、PV、maidata 缓存',
+              HubActionTile(
+                title: '数据与维护',
+                subtitle: '数据备份 · 缓存管理 · 加载语录 · 状态与日志',
+                icon: Icons.storage_outlined,
+                onTap: () => _openMaintenanceSubPage(context),
                 loading: CacheManagementService.instance.reloadingBase,
                 loadingText: CacheManagementService.instance.reloadText,
+                showProgress: true,
                 progressValue: CacheManagementService.instance.reloadProgress,
                 disabled:
                     anyBusy && !CacheManagementService.instance.reloadingBase,
                 disabledReason: _busyReason,
-                icon: Icons.storage_outlined,
-                isFavorited: _isFavorited('缓存管理'),
-                onToggleFavorite: () => _toggleFavorite('缓存管理'),
-                onTap: _showCacheManagementDialog,
               ),
-              '系统设置': HubActionTile(
-                title: '系统设置',
-                subtitle: '调整主题、背景图、交互与同步选项',
-                icon: Icons.palette_outlined,
-                isFavorited: _isFavorited('系统设置'),
-                onToggleFavorite: () => _toggleFavorite('系统设置'),
-                onTap: () => _open(context, const SettingsPage()),
+              HubActionTile(
+                title: '社区动态',
+                subtitle: '最近评论 · 最近评分',
+                icon: Icons.forum_outlined,
+                onTap: () => _showCommunitySheet(context),
               ),
-              '加载语录管理': HubActionTile(
-                title: '加载语录管理',
-                subtitle: '选择加载时展示的语录',
-                icon: Icons.format_quote,
-                isFavorited: _isFavorited('加载语录管理'),
-                onToggleFavorite: () => _toggleFavorite('加载语录管理'),
-                onTap: () => _open(context, const LoadingTipsPage()),
+            ],
+          ),
+          const SizedBox(height: 24),
+          HubSection(
+            title: '关于与更新',
+            subtitle: '版本更新、公告与项目反馈',
+            icon: Icons.info_outline_rounded,
+            children: [
+              _buildCheckUpdateTile(),
+              _buildAnnouncementsTile(context),
+              HubActionTile(
+                title: '关于与反馈',
+                subtitle: '关于 APP · 官网 · 友链 · QQ 群 · 反馈 · 支持',
+                icon: Icons.support_agent_rounded,
+                onTap: () => _openAboutFeedbackSubPage(context),
               ),
-              '服务器状态': HubActionTile(
-                title: '服务器状态',
-                subtitle: '查看舞萌服务状态',
-                icon: Icons.cloud_outlined,
-                isFavorited: _isFavorited('服务器状态'),
-                onToggleFavorite: () => _toggleFavorite('服务器状态'),
-                onTap: () => _open(context, const MaimaiServerStatusPage()),
-              ),
-              '打印日志': HubActionTile(
-                title: '打印日志',
-                subtitle: '导出最近运行日志，方便排查问题',
-                icon: Icons.receipt_long_outlined,
-                isFavorited: _isFavorited('打印日志'),
-                onToggleFavorite: () => _toggleFavorite('打印日志'),
-                onTap: _exportLogs,
-              ),
-              '最近评论': HubActionTile(
-                title: '最近评论',
-                subtitle: '查看社区最近评论',
-                icon: Icons.comment_outlined,
-                isFavorited: _isFavorited('最近评论'),
-                onToggleFavorite: () => _toggleFavorite('最近评论'),
-                onTap: () => _open(context, const RecentCommentsPage()),
-              ),
-              '最近评分': HubActionTile(
-                title: '最近评分',
-                subtitle: '查看社区最近评分',
-                icon: Icons.star_outline_rounded,
-                isFavorited: _isFavorited('最近评分'),
-                onToggleFavorite: () => _toggleFavorite('最近评分'),
-                onTap: () => _open(context, const RecentRatingsPage()),
-              ),
-              '检查更新': // 「检查更新」在检测到新版本时会变成「发现新版本」+
-// 绿色圆环箭头（见 UpdateAvailableIcon）。
-// 点击逻辑两者完全一致，都是 _checkUpdate。
-                  ValueListenableBuilder<UpdateAvailability?>(
-                valueListenable: UpdateNotifier.available,
-                builder: (context, update, _) {
-                  if (update == null) {
-                    return HubActionTile(
-                      title: UpdateNotifier.idleTitle,
-                      subtitle: UpdateNotifier.idleSubtitle,
-                      icon: Icons.system_update_alt_outlined,
-                      isFavorited: _isFavorited(UpdateNotifier.idleTitle),
-                      onToggleFavorite: () =>
-                          _toggleFavorite(UpdateNotifier.idleTitle),
-                      onTap: _checkUpdate,
-                    );
-                  }
-                  return HubActionTile(
-                    title: UpdateNotifier.titleFor(update),
-                    subtitle: context.l10n.hubUpdateReleased(
-                        update.latestVersion.isEmpty
-                            ? context.featureText('新版本')
-                            : 'v${update.latestVersion}'),
-                    icon: Icons.arrow_upward_rounded,
-                    titleColor: UpdateAvailableIcon.green,
-                    leading: const UpdateAvailableIcon(),
-                    isFavorited: _isFavorited(UpdateNotifier.idleTitle),
-                    onToggleFavorite: () =>
-                        _toggleFavorite(UpdateNotifier.idleTitle),
-                    onTap: _checkUpdate,
-                  );
-                },
-              ),
-              '公告中心': HubActionTile(
-                title: '公告中心',
-                subtitle: '查看服务公告与项目动态',
-                icon: Icons.campaign_outlined,
-                isFavorited: _isFavorited('公告中心'),
-                onToggleFavorite: () => _toggleFavorite('公告中心'),
-                onTap: () => _open(context, const AnnouncementsPage()),
-              ),
-              '关于 APP': HubActionTile(
-                title: '关于 APP',
-                subtitle: '了解项目与版本信息',
-                icon: Icons.info_outline_rounded,
-                isFavorited: _isFavorited('关于 APP'),
-                onToggleFavorite: () => _toggleFavorite('关于 APP'),
-                onTap: () => _open(context, const AboutAppPage()),
-              ),
-              '访问官方网站': HubActionTile(
-                title: '访问官方网站',
-                subtitle: '前往 chiffonmai.cloud 查看项目主页',
-                icon: Icons.public,
-                isFavorited: _isFavorited('访问官方网站'),
-                onToggleFavorite: () => _toggleFavorite('访问官方网站'),
-                onTap: () => _launchExternal(
-                  context,
-                  AppLinks.officialSite,
-                  '官网链接',
-                  failMessage: context.l10n.flowCouldNotOpenABrowserWebsiteLink(
-                      (AppLinks.officialSite).toString()),
-                ),
-              ),
-              '查看友情链接': HubActionTile(
-                title: '查看友情链接',
-                subtitle: '发现同好项目',
-                icon: Icons.link_rounded,
-                isFavorited: _isFavorited('查看友情链接'),
-                onToggleFavorite: () => _toggleFavorite('查看友情链接'),
-                onTap: () => _open(context, const FriendLinksPage()),
-              ),
-              '问题反馈': HubActionTile(
-                title: '问题反馈',
-                subtitle: '反馈使用中遇到的问题',
-                icon: Icons.feedback_outlined,
-                isFavorited: _isFavorited('问题反馈'),
-                onToggleFavorite: () => _toggleFavorite('问题反馈'),
-                onTap: () =>
-                    _launchExternal(context, AppLinks.feedbackUrl, '反馈链接'),
-              ),
-              '加入 QQ 群': HubActionTile(
-                title: '加入 QQ 群',
-                subtitle: context.l10n.hubJoinGroup(AppLinks.qqGroupNumber),
-                icon: Icons.groups_outlined,
-                isFavorited: _isFavorited('加入 QQ 群'),
-                onToggleFavorite: () => _toggleFavorite('加入 QQ 群'),
-                onTap: () => _launchExternal(
-                  context,
-                  AppLinks.qqGroupJoinUrl,
-                  '群号',
-                  // 加群链接在浏览器里只是个空壳中转页，所以要复制**群号**
-                  copyText: AppLinks.qqGroupNumber,
-                  failMessage: context.l10n.flowCouldNotOpenQQGroupIDP0(
-                      (AppLinks.qqGroupNumber).toString()),
-                ),
-              ),
-              '问卷调查': HubActionTile(
-                title: '问卷调查',
-                subtitle: '助力 ChiffonMai 更上一层楼',
-                icon: Icons.poll_outlined,
-                isFavorited: _isFavorited('问卷调查'),
-                onToggleFavorite: () => _toggleFavorite('问卷调查'),
-                onTap: () =>
-                    _launchExternal(context, AppLinks.surveyUrl, '问卷链接'),
-              ),
-              '支持开发者': HubActionTile(
-                title: '支持开发者',
-                subtitle: '支持项目持续更新',
-                icon: Icons.volunteer_activism_outlined,
-                isFavorited: _isFavorited('支持开发者'),
-                onToggleFavorite: () => _toggleFavorite('支持开发者'),
-                onTap: () => _open(context, const SupportDeveloperPage()),
-              ),
-            };
-            final sections = FeatureRegistry.sections['我的']!;
-            if (!AppModePreferences.instance.isSimple) {
-              return HubPageScaffold(
-                title: '我的',
-                subtitle: '账号、同步、备份与应用偏好',
-                icon: Icons.person_rounded,
-                hero: Column(children: [
-                  if (Theme.of(context).platform == TargetPlatform.iOS)
-                    ios.CupertinoListTile(
-                        leading: const Icon(ios.CupertinoIcons.link),
-                        title: Text(context.l10n.qqPlayerConnect),
-                        trailing: const ios.CupertinoListTileChevron(),
-                        onTap: () => PlayerConnectionPage.open(context)),
-                  CommunityAppearanceBanner(
-                    appearance: CommunityAvatarStore.instance.value,
-                    nickname: _userNickname,
-                    onPickTap: _showCollectionPicker,
-                    onRetry: () =>
-                        unawaited(CommunityAvatarStore.instance.retry()),
-                    onTravelAppearanceTap: () {
-                      FocusManager.instance.primaryFocus?.unfocus();
-                      Navigator.push<void>(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const CommunityTravelAppearancePage(),
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppSurfaces.card(context),
-                      borderRadius:
-                          BorderRadius.circular(AppDesignTokens.radiusCard),
-                    ),
-                    child: const MyPlayerExperience(),
-                  ),
-                ]),
-                children: [
-                  for (final section in sections) ...[
-                    HubSection(
-                      title: section.title,
-                      subtitle: section.subtitle,
-                      icon: section.icon,
-                      badgeCount: section.titles.length,
-                      contentPadding: section.title == '单平台同步' ||
-                              section.title == '批量与定时同步'
-                          ? const EdgeInsets.only(bottom: 8)
-                          : EdgeInsets.zero,
-                      children: [
-                        for (final title in section.titles) features[title]!
-                      ],
-                    ),
-                    if (section != sections.last) const SizedBox(height: 24),
-                  ],
-                ],
-              );
-            }
-
-            final coreWidgets = <Widget>[];
-            final moreFeatures = <String, Widget>{};
-            for (final section in sections) {
-              for (final title in section.titles) {
-                if (FeatureRegistry.isSimpleCore('我的', title)) {
-                  coreWidgets.add(features[title]!);
-                } else {
-                  moreFeatures[title] = features[title]!;
-                }
-              }
-            }
-            return HubPageScaffold(
-              title: '我的',
-              subtitle: '账号、同步、备份与应用偏好',
-              icon: Icons.person_rounded,
-              hero: _buildSimpleHero(context),
-              children: [
-                if (coreWidgets.isNotEmpty) ...[
-                  HubSection(
-                    title: context.l10n.simpleModeCoreFeatures,
-                    icon: Icons.star_outline_rounded,
-                    children: coreWidgets,
-                  ),
-                  if (moreFeatures.isNotEmpty) const SizedBox(height: 16),
-                ],
-                SimpleMoreFeaturesSection(
-                  sections: sections,
-                  features: moreFeatures,
-                  count: moreFeatures.length,
-                ),
-              ],
-            );
-          },
-      );
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }

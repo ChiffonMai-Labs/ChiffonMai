@@ -5,10 +5,8 @@ import '../l10n/FeatureLocalizations.dart';
 import 'package:flutter/material.dart';
 import 'HubComponents.dart';
 import '../utils/AppDesignTokens.dart';
-import '../utils/AppModePreferences.dart';
 import '../widgets/AppUi.dart';
 import '../utils/FavoriteFeaturesNotifier.dart';
-import '../utils/FeatureRegistry.dart';
 import '../service/RankingList/AvgRankingListService.dart';
 import 'UserScoreSearchPage.dart';
 import 'PersonalizedScorePage.dart';
@@ -38,7 +36,6 @@ import '../service/History/ChartHistoryStore.dart';
 import '../utils/AppTheme.dart';
 import '../utils/CoverUtil.dart';
 import '../utils/CurrentDataSourceNotifier.dart';
-import '../widgets/MarqueeText.dart';
 
 class ScoreHubPage extends StatefulWidget {
   const ScoreHubPage({super.key});
@@ -143,13 +140,26 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
         ),
         const SizedBox(height: gap),
         AppCard(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+          padding: const EdgeInsets.fromLTRB(16, 10, 10, 14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(context.featureText('排行榜'),
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(context.featureText('排行榜'),
+                        style: const TextStyle(
+                            fontSize: 14, fontWeight: FontWeight.w700)),
+                  ),
+                  IconButton(
+                    tooltip: context.l10n.hubMoreActionsTooltip,
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () => _showRankingsSheet(context),
+                    icon: const Icon(Icons.more_horiz_rounded, size: 20),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
               Wrap(
                 spacing: 6,
                 runSpacing: 6,
@@ -201,8 +211,22 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
             ),
             const SizedBox(width: gap),
             Expanded(
-              child: _goalTile(
-                  context, context.l10n.featureCalculators2, Icons.calculate_outlined, null),
+              child: _goalTile(context, 'KALEIDXSCOPE',
+                  Icons.color_lens_outlined, const KaleidXScopeSelectPage()),
+            ),
+          ],
+        ),
+        const SizedBox(height: gap),
+        Row(
+          children: [
+            Expanded(
+              child: _goalTile(context, '好友对比',
+                  Icons.people_outline_rounded, const FriendComparePage()),
+            ),
+            const SizedBox(width: gap),
+            Expanded(
+              child: _goalTile(context, context.l10n.featureCalculators2,
+                  Icons.calculate_outlined, null),
             ),
           ],
         ),
@@ -210,7 +234,85 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
     );
   }
 
-  /// 「计算工具」小方块：三个计算器都在这里，功能列表里也各有入口。
+  /// Best50 与成绩分析聚合面板：保留完整说明与星标收藏。
+  void _showBest50Sheet(BuildContext context) {
+    Widget item(BuildContext sheet, String title, String subtitle,
+            IconData icon, Widget page) =>
+        HubActionTile(
+          title: title,
+          subtitle: subtitle,
+          icon: icon,
+          isFavorited: _isFavorited(title),
+          onToggleFavorite: () => _toggleFavorite(title),
+          onTap: () {
+            Navigator.of(sheet).pop();
+            _open(context, page);
+          },
+        );
+    showHubGroupSheet(
+      context,
+      title: 'Best50 与分析',
+      subtitle: '当前表现、拟合上限、标签筛选与制图',
+      itemsBuilder: (sheet) => [
+        item(sheet, 'Best50', '查看当前 Best35 与 Best15',
+            Icons.leaderboard_rounded, const B50Page()),
+        item(sheet, '拟合 Best50', '分析潜在 Rating 上限',
+            Icons.auto_graph_rounded, const DiffBest50Page()),
+        item(sheet, '个性化 Best50', '按标签筛选 Best50',
+            Icons.filter_alt_outlined, const PersonalizedBest50Page()),
+        item(sheet, '个性化拟合 Best50', '按标签查看拟合 Rating 上限',
+            Icons.analytics_outlined, const PersonalizedDiffBest50Page()),
+        item(sheet, '理想 Best50', '全员升一档后的 Best50 模拟',
+            Icons.auto_fix_high_rounded, const IdealBest50Page()),
+        item(sheet, '自定义 Best50', '手动填写 50 张成绩卡片',
+            Icons.edit_note_rounded, const CustomBest50Page()),
+        item(sheet, '成绩分析', '成绩全景 · B50 边缘巡检 · 弱项处方',
+            Icons.insights_rounded, const ScoreInsightsPage()),
+      ],
+    );
+  }
+
+  /// 全部排行榜聚合面板：保留完整说明与星标收藏。
+  void _showRankingsSheet(BuildContext context) {
+    Widget item(BuildContext sheet, String title, String subtitle,
+            IconData icon, Widget page) =>
+        HubActionTile(
+          title: title,
+          subtitle: subtitle,
+          icon: icon,
+          isFavorited: _isFavorited(title),
+          onToggleFavorite: () => _toggleFavorite(title),
+          onTap: () {
+            Navigator.of(sheet).pop();
+            _open(context, page);
+          },
+        );
+    showHubGroupSheet(
+      context,
+      title: '全部排行榜',
+      subtitle: 'Rating、达成率与特殊玩家榜单',
+      itemsBuilder: (sheet) => [
+        item(sheet, 'Rating 排行榜', '查看玩家 Rating 排行', Icons.public_rounded,
+            const RatingRankListPage()),
+        item(sheet, '拟合总Rating排行榜', '拟合总 Rating 站内排行',
+            Icons.auto_graph_rounded, const FittedRatingRankingListPage()),
+        item(
+            sheet,
+            '平均达成率排行榜',
+            '按全量成绩的平均达成率排名',
+            Icons.percent_rounded,
+            const AvgScoreRankingListPage(
+                initialMetric: AvgMetric.achievement)),
+        item(sheet, '平均DX分数达成率排行榜', '按全量成绩的平均DX分数达成率排名',
+            Icons.score_outlined,
+            const AvgScoreRankingListPage(initialMetric: AvgMetric.dx)),
+        item(sheet, '特殊排行榜', 'BPM 55？BPM 339？！',
+            Icons.workspace_premium_outlined, const SpecialRankingListPage()),
+      ],
+    );
+  }
+
+  /// 「计算工具」小方块：三个计算器都在这里，带星标收藏。
   void _showCalculators(BuildContext context) {
     Widget item(BuildContext sheet, String title, String subtitle,
             IconData icon, Widget page) =>
@@ -225,25 +327,30 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
             _open(context, page);
           },
         );
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (sheet) => SafeArea(
-        child: ValueListenableBuilder<FavoritesPayload>(
-          valueListenable: FavoriteFeaturesNotifier.instance,
-          builder: (sheet, _, __) => Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              item(sheet, '单曲 Rating 计算', context.l10n.featureCalculateASongRatingFromAchievement,
-                  Icons.calculate_outlined, const SingleRatingCalculator()),
-              item(sheet, '达成率计算', context.l10n.featureCalculateAchievementFromJudgements, Icons.percent_rounded,
-                  const AchievementRateCalculator()),
-              item(sheet, '达成率反推', context.l10n.featureInferBREAKDetailsFromJudgements, Icons.replay_rounded,
-                  const AchievementFullReverseCalculator()),
-            ],
-          ),
-        ),
-      ),
+    showHubGroupSheet(
+      context,
+      title: context.l10n.featureCalculators2,
+      subtitle: 'Rating、达成率与判定反推',
+      itemsBuilder: (sheet) => [
+        item(
+            sheet,
+            '单曲 Rating 计算',
+            context.l10n.featureCalculateASongRatingFromAchievement,
+            Icons.calculate_outlined,
+            const SingleRatingCalculator()),
+        item(
+            sheet,
+            '达成率计算',
+            context.l10n.featureCalculateAchievementFromJudgements,
+            Icons.percent_rounded,
+            const AchievementRateCalculator()),
+        item(
+            sheet,
+            '达成率反推',
+            context.l10n.featureInferBREAKDetailsFromJudgements,
+            Icons.replay_rounded,
+            const AchievementFullReverseCalculator()),
+      ],
     );
   }
 
@@ -268,9 +375,16 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
             child: Icon(icon, size: 18, color: tint.foreground),
           ),
           const SizedBox(height: 8),
-          MarqueeText(text: context.featureText(title),
-              style:
-                  const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              context.featureText(title),
+              maxLines: 1,
+              softWrap: false,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+          ),
         ],
       ),
     );
@@ -369,6 +483,13 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
                       fontSize: 24,
                       fontWeight: FontWeight.w700,
                       color: scheme.onSurface)),
+              const SizedBox(width: 2),
+              IconButton(
+                tooltip: context.l10n.hubMoreActionsTooltip,
+                visualDensity: VisualDensity.compact,
+                onPressed: () => _showBest50Sheet(context),
+                icon: const Icon(Icons.more_horiz_rounded, size: 20),
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -499,279 +620,21 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
       FavoriteFeaturesNotifier.toggle(title);
 
   @override
-  Widget build(BuildContext context) =>
-      ValueListenableBuilder<FavoritesPayload>(
-        valueListenable: FavoriteFeaturesNotifier.instance,
-        builder: (context, payload, _) {
-          final features = <String, Widget>{
-            '成绩查询': HubActionTile(
-              title: '成绩查询',
-              subtitle: '浏览全部游玩记录与筛选结果',
-              icon: Icons.score_outlined,
-              isFavorited: _isFavorited('成绩查询'),
-              onToggleFavorite: () => _toggleFavorite('成绩查询'),
-              onTap: () => _open(context, const UserScoreSearchPage()),
-            ),
-            '个性化成绩查询': HubActionTile(
-              title: '个性化成绩查询',
-              subtitle: '按等级或谱师查看成绩',
-              icon: Icons.tune_rounded,
-              isFavorited: _isFavorited('个性化成绩查询'),
-              onToggleFavorite: () => _toggleFavorite('个性化成绩查询'),
-              onTap: () => _open(context, const PersonalizedScorePage()),
-            ),
-            '成绩提升历史': HubActionTile(
-              title: '成绩提升历史',
-              subtitle: '按日回顾最佳成绩的变化与提升',
-              icon: Icons.auto_graph_rounded,
-              isFavorited: _isFavorited('成绩提升历史'),
-              onToggleFavorite: () => _toggleFavorite('成绩提升历史'),
-              onTap: () {
-                FocusManager.instance.primaryFocus?.unfocus();
-                _open(context, const ScoreImprovementHistoryPage());
-              },
-            ),
-            'Rating 历史': HubActionTile(
-              title: 'Rating 历史',
-              subtitle: '看 Rating 随时间的变化',
-              icon: Icons.timeline_rounded,
-              isFavorited: _isFavorited('Rating 历史'),
-              onToggleFavorite: () => _toggleFavorite('Rating 历史'),
-              onTap: () => _open(context, const RatingHistoryPage()),
-            ),
-            '成绩分析': HubActionTile(
-              title: '成绩分析',
-              subtitle: '成绩全景 · B50 边缘巡检 · 弱项处方',
-              icon: Icons.insights_rounded,
-              isFavorited: _isFavorited('成绩分析'),
-              onToggleFavorite: () => _toggleFavorite('成绩分析'),
-              onTap: () => _open(context, const ScoreInsightsPage()),
-            ),
-            '好友对比': HubActionTile(
-              title: '好友对比',
-              subtitle: '看看你和好友的成绩差异',
-              icon: Icons.people_outline_rounded,
-              isFavorited: _isFavorited('好友对比'),
-              onToggleFavorite: () => _toggleFavorite('好友对比'),
-              onTap: () => _open(context, const FriendComparePage()),
-            ),
-            'Best50': HubActionTile(
-              title: 'Best50',
-              subtitle: '查看当前 Best35 与 Best15',
-              icon: Icons.leaderboard_rounded,
-              isFavorited: _isFavorited('Best50'),
-              onToggleFavorite: () => _toggleFavorite('Best50'),
-              onTap: () => _open(context, const B50Page()),
-            ),
-            '拟合 Best50': HubActionTile(
-              title: '拟合 Best50',
-              subtitle: '分析潜在 Rating 上限',
-              icon: Icons.auto_graph_rounded,
-              isFavorited: _isFavorited('拟合 Best50'),
-              onToggleFavorite: () => _toggleFavorite('拟合 Best50'),
-              onTap: () => _open(context, const DiffBest50Page()),
-            ),
-            '个性化 Best50': HubActionTile(
-              title: '个性化 Best50',
-              subtitle: '按标签筛选 Best50',
-              icon: Icons.filter_alt_outlined,
-              isFavorited: _isFavorited('个性化 Best50'),
-              onToggleFavorite: () => _toggleFavorite('个性化 Best50'),
-              onTap: () => _open(context, const PersonalizedBest50Page()),
-            ),
-            '个性化拟合 Best50': HubActionTile(
-              title: '个性化拟合 Best50',
-              subtitle: '按标签查看拟合 Rating 上限',
-              icon: Icons.analytics_outlined,
-              isFavorited: _isFavorited('个性化拟合 Best50'),
-              onToggleFavorite: () => _toggleFavorite('个性化拟合 Best50'),
-              onTap: () => _open(context, const PersonalizedDiffBest50Page()),
-            ),
-            '理想 Best50': HubActionTile(
-              title: '理想 Best50',
-              subtitle: '全员升一档后的 Best50 模拟',
-              icon: Icons.auto_fix_high_rounded,
-              isFavorited: _isFavorited('理想 Best50'),
-              onToggleFavorite: () => _toggleFavorite('理想 Best50'),
-              onTap: () => _open(context, const IdealBest50Page()),
-            ),
-            '自定义 Best50': HubActionTile(
-              title: '自定义 Best50',
-              subtitle: '手动填写 50 张成绩卡片',
-              icon: Icons.edit_note_rounded,
-              isFavorited: _isFavorited('自定义 Best50'),
-              onToggleFavorite: () => _toggleFavorite('自定义 Best50'),
-              onTap: () => _open(context, const CustomBest50Page()),
-            ),
-            'Rating 排行榜': HubActionTile(
-              title: 'Rating 排行榜',
-              subtitle: '查看玩家 Rating 排行',
-              icon: Icons.public_rounded,
-              isFavorited: _isFavorited('Rating 排行榜'),
-              onToggleFavorite: () => _toggleFavorite('Rating 排行榜'),
-              onTap: () => _open(context, const RatingRankListPage()),
-            ),
-            '拟合总Rating排行榜': HubActionTile(
-              title: '拟合总Rating排行榜',
-              subtitle: '拟合总 Rating 站内排行',
-              icon: Icons.auto_graph_rounded,
-              isFavorited: _isFavorited('拟合总Rating排行榜'),
-              onToggleFavorite: () => _toggleFavorite('拟合总Rating排行榜'),
-              onTap: () => _open(context, const FittedRatingRankingListPage()),
-            ),
-            '平均达成率排行榜': HubActionTile(
-              title: '平均达成率排行榜',
-              subtitle: '按全量成绩的平均达成率排名',
-              icon: Icons.percent_rounded,
-              isFavorited: _isFavorited('平均达成率排行榜'),
-              onToggleFavorite: () => _toggleFavorite('平均达成率排行榜'),
-              onTap: () => _open(
-                  context,
-                  const AvgScoreRankingListPage(
-                      initialMetric: AvgMetric.achievement)),
-            ),
-            '平均DX分数达成率排行榜': HubActionTile(
-              title: '平均DX分数达成率排行榜',
-              subtitle: '按全量成绩的平均DX分数达成率排名',
-              icon: Icons.score_outlined,
-              isFavorited: _isFavorited('平均DX分数达成率排行榜'),
-              onToggleFavorite: () => _toggleFavorite('平均DX分数达成率排行榜'),
-              onTap: () => _open(context,
-                  const AvgScoreRankingListPage(initialMetric: AvgMetric.dx)),
-            ),
-            '特殊排行榜': HubActionTile(
-              title: '特殊排行榜',
-              subtitle: 'BPM 55？BPM 339？！',
-              icon: Icons.workspace_premium_outlined,
-              isFavorited: _isFavorited('特殊排行榜'),
-              onToggleFavorite: () => _toggleFavorite('特殊排行榜'),
-              onTap: () => _open(context, const SpecialRankingListPage()),
-            ),
-            '牌子进度': HubActionTile(
-              title: '牌子进度',
-              subtitle: '查看各版本与目标牌子',
-              icon: Icons.workspace_premium_outlined,
-              isFavorited: _isFavorited('牌子进度'),
-              onToggleFavorite: () => _toggleFavorite('牌子进度'),
-              onTap: () => _open(context, const PaiziProgressPage()),
-            ),
-            '段位表': HubActionTile(
-              title: '段位表',
-              subtitle: '挑战你的下一段位',
-              icon: Icons.arrow_circle_up_rounded,
-              isFavorited: _isFavorited('段位表'),
-              onToggleFavorite: () => _toggleFavorite('段位表'),
-              onTap: () => _open(context, const RankListPage()),
-            ),
-            'KALEIDXSCOPE': HubActionTile(
-              title: 'KALEIDXSCOPE',
-              subtitle: '探索独特的舞萌玩法',
-              icon: Icons.color_lens_outlined,
-              isFavorited: _isFavorited('KALEIDXSCOPE'),
-              onToggleFavorite: () => _toggleFavorite('KALEIDXSCOPE'),
-              onTap: () => _open(context, const KaleidXScopeSelectPage()),
-            ),
-            '单曲 Rating 计算': HubActionTile(
-              title: '单曲 Rating 计算',
-              subtitle: '根据达成率计算单首 rating',
-              icon: Icons.calculate_outlined,
-              isFavorited: _isFavorited('单曲 Rating 计算'),
-              onToggleFavorite: () => _toggleFavorite('单曲 Rating 计算'),
-              onTap: () => _open(context, const SingleRatingCalculator()),
-            ),
-            '达成率计算': HubActionTile(
-              title: '达成率计算',
-              subtitle: '根据判定详情算出达成率',
-              icon: Icons.percent_rounded,
-              isFavorited: _isFavorited('达成率计算'),
-              onToggleFavorite: () => _toggleFavorite('达成率计算'),
-              onTap: () => _open(context, const AchievementRateCalculator()),
-            ),
-            '达成率反推': HubActionTile(
-              title: '达成率反推',
-              subtitle: '根据判定详情推出绝赞详情',
-              icon: Icons.replay_rounded,
-              isFavorited: _isFavorited('达成率反推'),
-              onToggleFavorite: () => _toggleFavorite('达成率反推'),
-              onTap: () =>
-                  _open(context, const AchievementFullReverseCalculator()),
-            ),
-          };
-
-          final sections = FeatureRegistry.sections['成绩']!;
-          return ListenableBuilder(
-            listenable: AppModePreferences.instance,
-            builder: (context, _) {
-              final isSimple = AppModePreferences.instance.isSimple;
-              if (!isSimple) {
-                return HubPageScaffold(
-                  title: '成绩',
-                  subtitle: '查成绩、看提升、比排名与追踪进度',
-                  icon: Icons.analytics_rounded,
-                  hero: _buildOverview(context),
-                  children: [
-                    if (Theme.of(context).platform == TargetPlatform.iOS)
-                      ios.CupertinoListTile(
-                          leading: const Icon(ios.CupertinoIcons.link),
-                          title: Text(context.l10n.qqPlayerConnect),
-                          trailing: const ios.CupertinoListTileChevron(),
-                          onTap: () => PlayerConnectionPage.open(context)),
-                    for (final section in sections) ...[
-                      HubSection(
-                        title: section.title,
-                        subtitle: section.subtitle,
-                        icon: section.icon,
-                        badgeCount: section.titles.length,
-                        children: [
-                          for (final title in section.titles) features[title]!
-                        ],
-                      ),
-                      if (section != sections.last) const SizedBox(height: 24),
-                    ],
-                  ],
-                );
-              }
-              final coreWidgets = <Widget>[];
-              final moreFeatures = <String, Widget>{};
-              for (final section in sections) {
-                for (final title in section.titles) {
-                  if (FeatureRegistry.isSimpleCore('成绩', title)) {
-                    coreWidgets.add(features[title]!);
-                  } else {
-                    moreFeatures[title] = features[title]!;
-                  }
-                }
-              }
-              return HubPageScaffold(
-                title: '成绩',
-                subtitle: '查成绩、看提升、比排名与追踪进度',
-                icon: Icons.analytics_rounded,
-                hero: _buildSearchEntry(context),
-                children: [
-                  if (Theme.of(context).platform == TargetPlatform.iOS)
-                    ios.CupertinoListTile(
-                        leading: const Icon(ios.CupertinoIcons.link),
-                        title: Text(context.l10n.qqPlayerConnect),
-                        trailing: const ios.CupertinoListTileChevron(),
-                        onTap: () => PlayerConnectionPage.open(context)),
-                  if (coreWidgets.isNotEmpty) ...[
-                    HubSection(
-                      title: context.l10n.simpleModeCoreFeatures,
-                      icon: Icons.star_outline_rounded,
-                      children: coreWidgets,
-                    ),
-                    if (moreFeatures.isNotEmpty) const SizedBox(height: 16),
-                  ],
-                  SimpleMoreFeaturesSection(
-                    sections: sections,
-                    features: moreFeatures,
-                    count: moreFeatures.length,
-                  ),
-                ],
-              );
-            },
-          );
-        },
+  Widget build(BuildContext context) => HubPageScaffold(
+        title: '成绩',
+        subtitle: '查成绩、看提升、比排名与追踪进度',
+        icon: Icons.analytics_rounded,
+        children: [
+          if (Theme.of(context).platform == TargetPlatform.iOS) ...[
+            ios.CupertinoListTile(
+                leading: const Icon(ios.CupertinoIcons.link),
+                title: Text(context.l10n.qqPlayerConnect),
+                trailing: const ios.CupertinoListTileChevron(),
+                onTap: () => PlayerConnectionPage.open(context)),
+            const SizedBox(height: AppDesignTokens.cardGap),
+          ],
+          _buildOverview(context),
+        ],
       );
 }
 

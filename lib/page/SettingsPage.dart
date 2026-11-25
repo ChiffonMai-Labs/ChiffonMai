@@ -58,6 +58,13 @@ class _SettingsPageState extends State<SettingsPage> {
 
   /// AWMC 网关同步前探活超时（秒）。默认 15 秒，见「同步与网关」分区。
   int _awmcProbeTimeoutSeconds = AwmcGatewaySettings.defaultProbeTimeoutSeconds;
+  late final Listenable _settingsListenable = Listenable.merge([
+    ThemeManager().seedColorNotifier,
+    ThemeManager().customBackgroundPathNotifier,
+    ThemeManager().chiffonOpacityNotifier,
+    ThemeManager().pureBlackNotifier,
+    ThemeManager().notifier,
+  ]);
 
   @override
   void initState() {
@@ -392,14 +399,7 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           Expanded(
             child: ListenableBuilder(
-              listenable: Listenable.merge([
-                ThemeManager().seedColorNotifier,
-                ThemeManager().customBackgroundPathNotifier,
-                ThemeManager().chiffonOpacityNotifier,
-                ThemeManager().pureBlackNotifier,
-                ThemeManager().notifier,
-                AppModePreferences.instance,
-              ]),
+              listenable: _settingsListenable,
               builder: (context, _) => ListView(
                 controller: _scrollController,
                 padding: EdgeInsets.fromLTRB(
@@ -490,7 +490,7 @@ class _SettingsPageState extends State<SettingsPage> {
         title: context.l10n.backgroundImage,
         icon: Icons.wallpaper_rounded,
         children: [
-          if (AppModePreferences.instance.isSimple)
+          if (AppModeScope.isSimpleOf(context))
             Text(context.l10n.simpleModeBackgroundHiddenHint,
                 style: _hintStyle()),
           if (disabled)
