@@ -495,9 +495,12 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
     }
   }
 
-  void _addExcludedSongEntries(List<Widget Function(BuildContext)> entries) {
+  void _addExcludedSongEntries(
+    List<Widget Function(BuildContext)> entries, {
+    double topPadding = 4,
+  }) {
     entries.add((_) => Padding(
-          padding: const EdgeInsets.only(top: 4),
+          padding: EdgeInsets.only(top: topPadding),
           child: AppSectionHeader(
             title: context.l10n.flowExcludedSongs,
             subtitle: context.l10n.flowP0SongsExcludedFromRequirements(
@@ -517,7 +520,7 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
   }
 
   /// 去重后的歌曲列表：相同曲目组成的条件只显示一次，标题带歌曲总数。
-  void _addSongListEntries(List<Widget Function(BuildContext)> entries,
+  bool _addSongListEntries(List<Widget Function(BuildContext)> entries,
       List<CollectionRequired> requiredList) {
     final seenSongLists = <String>{};
     final seenSongs = <String>{};
@@ -530,11 +533,12 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
       seenSongs.addAll(keys);
       lists.add(songs);
     }
-    if (seenSongs.isEmpty) return;
+    if (seenSongs.isEmpty) return false;
     entries.add((_) => AppSectionHeader(
           title: context.l10n.flowSongList,
           subtitle:
               context.l10n.flowP0SongsTotal((seenSongs.length).toString()),
+          padding: const EdgeInsets.fromLTRB(4, 16, 4, 8),
         ));
     for (final songs in lists) {
       _addSongRows(entries, [
@@ -542,6 +546,7 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
       ]);
       entries.add((_) => const SizedBox(height: AppDesignTokens.cardGap));
     }
+    return true;
   }
 
   /// 所需条件的一行：左边条件名，右边徽章。
@@ -779,6 +784,10 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
     final descriptionNeedsTranslation = collection.description != null &&
         _isEnglishOrJapanese(collection.description!);
     final isTrophy = widget.collectionType == 'trophies';
+    final requiredList = collection.required;
+    final mergedConditions = requiredList != null && requiredList.isNotEmpty
+        ? _getMergedRequiredConditions(requiredList)
+        : const <Widget>[];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -930,7 +939,7 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
             ),
           ),
         ],
-        if (collection.required != null && collection.required!.isNotEmpty) ...[
+        if (mergedConditions.isNotEmpty) ...[
           const SizedBox(height: AppDesignTokens.cardGap),
           AppCard(
             child: Column(
@@ -940,11 +949,10 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
                   title: context.l10n.flowUnlockRequirements,
                   padding: EdgeInsets.zero,
                 ),
-                ..._getMergedRequiredConditions(collection.required!),
+                ...mergedConditions,
               ],
             ),
           ),
-          const SizedBox(height: 16),
         ],
       ],
     );
@@ -958,11 +966,11 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
     ];
     final requiredList = collection.required;
     if (requiredList != null && requiredList.isNotEmpty) {
-      _addSongListEntries(entries, requiredList);
+      final hasSongList = _addSongListEntries(entries, requiredList);
       if (!_isLoadingSongs &&
           widget.collectionType == 'plates' &&
           PaiziProgressService().isProgressPlate(collection)) {
-        _addExcludedSongEntries(entries);
+        _addExcludedSongEntries(entries, topPadding: hasSongList ? 4 : 16);
       }
     }
     if (_isLoadingSongs) {
