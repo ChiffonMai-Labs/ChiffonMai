@@ -16,6 +16,7 @@ import 'package:my_first_flutter_app/manager/LuoXue/CollectionsManager.dart';
 import 'package:my_first_flutter_app/manager/MaiTagsManager.dart';
 import 'package:my_first_flutter_app/entity/LuoXue/Collection.dart';
 import 'package:my_first_flutter_app/utils/ApiClient.dart';
+import 'package:my_first_flutter_app/utils/AppError.dart';
 import 'package:my_first_flutter_app/utils/ExternalLaunchUtil.dart';
 import 'package:my_first_flutter_app/utils/CurrentDataSourceNotifier.dart';
 import 'package:my_first_flutter_app/utils/ScoreInputValidator.dart';
@@ -106,7 +107,12 @@ class SongInfoService {
       timeout: const Duration(seconds: 5),
     );
     if (response.statusCode != 200) {
-      throw StateError('参考时长读取失败 (${response.statusCode})');
+      throw ApiClient.parseError(
+        response,
+        stage: '读取参考时长',
+        source: 'chiffonmai',
+        fallbackCode: 'NET-SONG-DURATION',
+      );
     }
     final data = jsonDecode(response.body);
     if (data is! Map || data['success'] != true) {
@@ -149,7 +155,12 @@ class SongInfoService {
         body: jsonEncode({'duration_seconds': seconds}),
       );
       if (response.statusCode != 200) {
-        throw StateError('参考时长上报失败 (${response.statusCode})');
+        throw ApiClient.parseError(
+          response,
+          stage: '上报参考时长',
+          source: 'chiffonmai',
+          fallbackCode: 'NET-SONG-DURATION',
+        );
       }
     } catch (error) {
       debugPrint('上报参考时长失败: $error');
@@ -1021,22 +1032,41 @@ class SongInfoService {
                 : null,
           };
         }
+        final appError = ApiClient.parseError(
+          response,
+          stage: '发表评论',
+          source: 'chiffonmai',
+          fallbackCode: 'SRV-COMMENT-POST',
+        );
         return {
           'success': false,
-          'message': result['error'] ?? appL10n.flowCouldNotPostComment,
+          'message': result['error'] ?? appError.userMessage,
+          'appError': appError.copyWith(
+            userMessage: (result['error']?.toString().trim().isNotEmpty == true)
+                ? result['error'].toString().trim()
+                : appError.userMessage,
+          ),
         };
       }
-      final errorResult = json.decode(response.body);
+      final appError = ApiClient.parseError(
+        response,
+        stage: '发表评论',
+        source: 'chiffonmai',
+        fallbackCode: 'SRV-COMMENT-POST',
+      );
       return {
         'success': false,
-        'message': errorResult['error'] ??
-            appL10n.commentPostHttpFailed(response.statusCode.toString()),
+        'message': appError.userMessage,
+        'appError': appError,
       };
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('SongInfoService: 创建评论异常: $e');
+      final appError =
+          AppErrorMapper.from(e, stack: stack, stage: '发表评论', source: 'chiffonmai');
       return {
         'success': false,
-        'message': appL10n.flowNetworkErrorP0(e.toString()),
+        'message': appError.userMessage,
+        'appError': appError,
       };
     }
   }
@@ -1072,22 +1102,41 @@ class SongInfoService {
             'message': result['message'] ?? appL10n.flowCommentDeleted,
           };
         }
+        final appError = ApiClient.parseError(
+          response,
+          stage: '删除评论',
+          source: 'chiffonmai',
+          fallbackCode: 'SRV-COMMENT-DELETE',
+        );
         return {
           'success': false,
           'message': result['error'] ?? appL10n.flowCouldNotDeleteComment,
+          'appError': appError.copyWith(
+            userMessage: (result['error']?.toString().trim().isNotEmpty == true)
+                ? result['error'].toString().trim()
+                : appL10n.flowCouldNotDeleteComment,
+          ),
         };
       }
-      final errorResult = json.decode(response.body);
+      final appError = ApiClient.parseError(
+        response,
+        stage: '删除评论',
+        source: 'chiffonmai',
+        fallbackCode: 'SRV-COMMENT-DELETE',
+      );
       return {
         'success': false,
-        'message': errorResult['error'] ??
-            appL10n.commentDeleteHttpFailed(response.statusCode.toString()),
+        'message': appError.userMessage,
+        'appError': appError,
       };
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('SongInfoService: 删除评论异常: $e');
+      final appError =
+          AppErrorMapper.from(e, stack: stack, stage: '删除评论', source: 'chiffonmai');
       return {
         'success': false,
-        'message': appL10n.flowNetworkErrorP0(e.toString()),
+        'message': appError.userMessage,
+        'appError': appError,
       };
     }
   }
@@ -1116,19 +1165,38 @@ class SongInfoService {
             'alreadyReported': result['alreadyReported'] == true,
           };
         }
+        final appError = ApiClient.parseError(
+          response,
+          stage: '举报评论',
+          source: 'chiffonmai',
+          fallbackCode: 'SRV-COMMENT-REPORT',
+        );
         return {
           'success': false,
-          'message': result is Map ? result['error'] : null,
+          'message': result is Map ? result['error'] : appError.userMessage,
+          'appError': appError,
         };
       }
-      final errorResult = json.decode(response.body);
+      final appError = ApiClient.parseError(
+        response,
+        stage: '举报评论',
+        source: 'chiffonmai',
+        fallbackCode: 'SRV-COMMENT-REPORT',
+      );
       return {
         'success': false,
-        'message': errorResult is Map ? errorResult['error'] : null,
+        'message': appError.userMessage,
+        'appError': appError,
       };
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('SongInfoService: 举报评论异常: $e');
-      return {'success': false};
+      final appError =
+          AppErrorMapper.from(e, stack: stack, stage: '举报评论', source: 'chiffonmai');
+      return {
+        'success': false,
+        'message': appError.userMessage,
+        'appError': appError,
+      };
     }
   }
 
@@ -1434,10 +1502,26 @@ class SongInfoService {
       if (response.statusCode == 200) {
         return json.decode(response.body);
       }
-      return {'success': false, 'message': appL10n.flowCouldNotSubmitRating};
-    } catch (e) {
+      final appError = ApiClient.parseError(
+        response,
+        stage: '提交谱面评分',
+        source: 'chiffonmai',
+        fallbackCode: 'SRV-RATING-SUBMIT',
+      );
+      return {
+        'success': false,
+        'message': appError.userMessage,
+        'appError': appError,
+      };
+    } catch (e, stack) {
       debugPrint('提交谱面评分失败: $e');
-      return {'success': false, 'message': e.toString()};
+      final appError =
+          AppErrorMapper.from(e, stack: stack, stage: '提交谱面评分', source: 'chiffonmai');
+      return {
+        'success': false,
+        'message': appError.userMessage,
+        'appError': appError,
+      };
     }
   }
 
@@ -1470,10 +1554,26 @@ class SongInfoService {
       if (response.statusCode == 200) {
         return json.decode(response.body);
       }
-      return {'success': false, 'message': appL10n.flowCouldNotDeleteRating};
-    } catch (e) {
+      final appError = ApiClient.parseError(
+        response,
+        stage: '删除谱面评分',
+        source: 'chiffonmai',
+        fallbackCode: 'SRV-RATING-DELETE',
+      );
+      return {
+        'success': false,
+        'message': appError.userMessage,
+        'appError': appError,
+      };
+    } catch (e, stack) {
       debugPrint('删除谱面评分失败: $e');
-      return {'success': false, 'message': e.toString()};
+      final appError =
+          AppErrorMapper.from(e, stack: stack, stage: '删除谱面评分', source: 'chiffonmai');
+      return {
+        'success': false,
+        'message': appError.userMessage,
+        'appError': appError,
+      };
     }
   }
 }

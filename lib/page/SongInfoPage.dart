@@ -52,8 +52,6 @@ import 'RankingList/SongRankingPage.dart';
 import 'package:my_first_flutter_app/entity/FavoriteFolder.dart';
 import 'package:my_first_flutter_app/service/FavoriteFolderService.dart';
 import 'package:my_first_flutter_app/service/RankingList/SongRankingService.dart';
-import 'package:my_first_flutter_app/service/BiliSearchService.dart';
-import 'package:my_first_flutter_app/service/BiliRedisService.dart';
 import 'package:my_first_flutter_app/service/SongInfo/SongScoreShareService.dart';
 import 'package:my_first_flutter_app/service/SongInfo/SongInfoExportToImgService.dart';
 import 'package:my_first_flutter_app/service/ChartNoteService.dart';
@@ -84,6 +82,8 @@ import '../widgets/MarqueeText.dart';
 import '../widgets/AppDialogs.dart';
 import '../widgets/Best50Ui.dart';
 import '../widgets/AppToast.dart';
+import '../widgets/ErrorMessageDialog.dart';
+import '../utils/AppError.dart';
 import 'package:my_first_flutter_app/service/BackgroundExportService.dart';
 
 part 'song_info/SongInfoLoaders.dart';
@@ -212,6 +212,11 @@ class _SongInfoPageState extends State<_SongInfoView> {
 
   /// 当前谱面类型各难度的国服上线日期（yyyy-MM-dd），用来提示尚未上线谱面的异常成绩。
   Map<int, String> _cnChartReleaseDates = const {};
+
+  /// 落雪曲库中当前谱面类型的曲目级/各难度级锁定状态，以及所属区域名。
+  bool? _cnSongLocked;
+  Map<int, bool> _cnChartLockedByDiff = const {};
+  String? _cnUnlockMap;
   Map<String, dynamic>? _songData;
   List<dynamic>? _diffData; // 保持为dynamic类型，兼容Map和DiffData
   Map<String, dynamic>? _userData;
@@ -244,14 +249,6 @@ class _SongInfoPageState extends State<_SongInfoView> {
   // 参考时长
   int? _referenceDurationSeconds;
   bool _referenceDurationLoading = false;
-
-  // B站谱面确认播放量
-  int? _biliPlayCount;
-  bool _biliPlayCountLoading = false;
-  int? _biliLoadedDiffIndex; // 记录上次加载 B站播放量时的难度索引
-  String? _biliBvid; // 当前显示的播放量对应的 BV 号
-  bool _biliFromRedis = false; // 是否从 Redis 缓存加载
-  bool _biliFromUser = false; // 是否来自用户上传的 BV
 
   // 舞萌DX 完成度-评级-乘数对照表
   final List<Map<String, dynamic>> maimaiRatingMultiplier = [
@@ -432,9 +429,9 @@ class _SongInfoPageState extends State<_SongInfoView> {
     _scheduleSongTitleVisibilityCheck();
 
     // 布局（各块的实现见 song_info/SongInfoLayout.dart）：
-    //   全出血的难度色头图（返回 / 笔记 / 收藏 / 分享、曲绘、标题、别名、难度切换）
+    //   全出血的难度色头图（返回 / 笔记 / 收藏 / 分享、曲绘、标题、难度切换）
     //   → 压在头图上的圆角内容区：玩家最佳成绩（含上分潜力）→ 关键数值
-    //   → 物量 → 基础信息 → 定数历史 → 谱面标签
+    //   → 物量 → 基础信息（含别名预览）→ 定数历史 → 谱面标签
     //   → 成绩历史 / 数据 / 社区 / 工具 四个标签页
     //   → 贴底操作栏
     final surface = Theme.of(context).colorScheme.surface;

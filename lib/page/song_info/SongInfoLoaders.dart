@@ -162,7 +162,6 @@ extension _SongInfoLoaders on _SongInfoPageState {
     _clearAwmcUtageScore();
     _rememberCurrentDifficulty(previousSongId);
     _songGeneration++;
-    BiliSearchService().cancel();
     final preloaded = _preloadedSong;
     if (preloaded != null) {
       _applySongResult(preloaded);
@@ -180,12 +179,6 @@ extension _SongInfoLoaders on _SongInfoPageState {
     _maidataDecodedSuccessfully = false;
     _referenceDurationSeconds = null;
     _referenceDurationLoading = false;
-    _biliPlayCount = null;
-    _biliPlayCountLoading = false;
-    _biliLoadedDiffIndex = null;
-    _biliBvid = null;
-    _biliFromRedis = false;
-    _biliFromUser = false;
     _comments = [];
     _commentPage = 0;
     _chartAverageScore = null;
@@ -204,6 +197,9 @@ extension _SongInfoLoaders on _SongInfoPageState {
     _unionDxFrom = null;
     _cnReleaseDate = null;
     _cnChartReleaseDates = const {};
+    _cnSongLocked = null;
+    _cnChartLockedByDiff = const {};
+    _cnUnlockMap = null;
     // didUpdateWidget 在构建阶段调用，加载里的 setState 要等这一帧结束。
     scheduleMicrotask(() {
       if (mounted) _startSongLoaders();
@@ -288,7 +284,6 @@ extension _SongInfoLoaders on _SongInfoPageState {
     final songType = _songData!['type'] ?? '';
     unawaited(_loadRelatedCollectionsCount(songTitle, songType));
     unawaited(_checkAlternativeSong(songTitle, songType));
-    _loadBiliPlayCount();
     _loadUniInfo();
     _loadCnReleaseDate();
     _loadChartRating();
@@ -593,8 +588,8 @@ extension _SongInfoLoaders on _SongInfoPageState {
     }
   }
 
-  // 找到当前歌曲（标题 + 类型 + 当前难度）对应的 sheet
-  DXDataSheet? _findMatchedSheet() {
+  // 找到当前歌曲（标题 + 类型 + 当前难度）对应的 DXData 曲目与谱面
+  ({DXDataSong song, DXDataSheet sheet})? _findMatchedDxEntry() {
     final dxData = _dxData;
     final songData = _songData;
     if (dxData == null || songData == null) return null;
@@ -606,8 +601,8 @@ extension _SongInfoLoaders on _SongInfoPageState {
         _dxDifficultyNames[_currentDiffIndex.clamp(0, 4).toInt()];
     final localSongId = _normalizeDxInternalId(widget.songId);
     final localExactId = int.tryParse(widget.songId.trim());
-    final titleMatches = <DXDataSheet>[];
-    DXDataSheet? legacyIdMatch;
+    final titleMatches = <({DXDataSong song, DXDataSheet sheet})>[];
+    ({DXDataSong song, DXDataSheet sheet})? legacyIdMatch;
 
     // 优先使用谱面 internalId。仅按曲名匹配会在同名曲、不同版本或宴会场
     // 谱面上拿到另一张谱面的定数，这是历史定数错乱的主要来源。
@@ -620,13 +615,13 @@ extension _SongInfoLoaders on _SongInfoPageState {
         // 10000 偏移编号时，才走归一化兜底；否则两个不同谱面可能被归一化
         // 成同一个编号，取到错误的定数或地区信息。
         if (localExactId != null && sheet.internalId == localExactId) {
-          return sheet;
+          return (song: song, sheet: sheet);
         }
         if (legacyIdMatch == null &&
             _normalizeDxInternalId('${sheet.internalId}') == localSongId) {
-          legacyIdMatch = sheet;
+          legacyIdMatch = (song: song, sheet: sheet);
         }
-        titleMatches.add(sheet);
+        titleMatches.add((song: song, sheet: sheet));
       }
     }
 
@@ -635,6 +630,9 @@ extension _SongInfoLoaders on _SongInfoPageState {
     return legacyIdMatch ??
         (titleMatches.length == 1 ? titleMatches.single : null);
   }
+
+  // 找到当前歌曲（标题 + 类型 + 当前难度）对应的 sheet
+  DXDataSheet? _findMatchedSheet() => _findMatchedDxEntry()?.sheet;
 
   // 构建当前歌曲（标题 + 类型 + 当前难度）的定数历史
   List<({String version, double? value})> _buildDxHistory() {
@@ -1040,8 +1038,8 @@ extension _SongInfoLoaders on _SongInfoPageState {
     return '$minutes:${seconds.toString().padLeft(2, '0')}';
   }
 
-  /// 国服首次上线日期。落雪的日期按谱面记录：同一首歌的 ST、DX 谱上线时间不同，
-  /// 取当前谱面类型里最早的一个（Re:MASTER 可能晚于其它难度上线）。
+  /// 国服首次上线日期与解禁状态。落雪的日期与锁定按谱面记录：同一首歌的 ST、DX 谱
+  /// 上线时间与解禁状态可能不同，取当前谱面类型里最早的上线日期与对应锁定状态。
   Future<void> _loadCnReleaseDate() async {
     try {
       final rawId = int.tryParse(widget.songId);
@@ -1054,12 +1052,15 @@ extension _SongInfoLoaders on _SongInfoPageState {
         if (song.id != lxnsId) continue;
         final difficulties = song.difficulties;
         final isUtage = widget.songId.length == 6;
+        final utageCharts = difficulties.utage ?? const [];
+        final standardOrDxCharts = _songData?['type'] == 'DX'
+            ? (difficulties.dx ?? const [])
+            : (difficulties.standard ?? const []);
+        final hasTypeCharts =
+            isUtage ? utageCharts.isNotEmpty : standardOrDxCharts.isNotEmpty;
         final Iterable<String?> dates = isUtage
-            ? (difficulties.utage ?? const []).map((d) => d.releaseDate)
-            : (_songData?['type'] == 'DX'
-                    ? difficulties.dx ?? const []
-                    : difficulties.standard ?? const [])
-                .map((d) => d.releaseDate);
+            ? utageCharts.map((d) => d.releaseDate)
+            : standardOrDxCharts.map((d) => d.releaseDate);
         final sorted = dates
             .whereType<String>()
             .where((d) => d.isNotEmpty)
@@ -1068,15 +1069,30 @@ extension _SongInfoLoaders on _SongInfoPageState {
         // 宴谱各谱面没有难度序号，统一按最早的日期判断
         final byLevel = <int, String>{
           if (!isUtage)
-            for (final d in (_songData?['type'] == 'DX'
-                ? difficulties.dx ?? const []
-                : difficulties.standard ?? const []))
+            for (final d in standardOrDxCharts)
               if ((d.releaseDate ?? '').isNotEmpty) d.difficulty: d.releaseDate!,
         };
-        if (mounted && sorted.isNotEmpty) {
+        final cnSongLocked = isUtage
+            ? (song.locked == true || utageCharts.any((u) => u.locked == true))
+            : song.locked == true;
+        final cnChartLocked = <int, bool>{
+          if (!isUtage)
+            for (final d in standardOrDxCharts)
+              d.difficulty: d.locked == true,
+        };
+        final rawMap = song.map?.trim();
+        final cnMap = (rawMap != null && rawMap.isNotEmpty) ? rawMap : null;
+        if (mounted && (sorted.isNotEmpty || hasTypeCharts)) {
           _update(() {
-            _cnReleaseDate = sorted.first;
-            _cnChartReleaseDates = byLevel;
+            if (sorted.isNotEmpty) {
+              _cnReleaseDate = sorted.first;
+              _cnChartReleaseDates = byLevel;
+            }
+            if (hasTypeCharts) {
+              _cnSongLocked = cnSongLocked;
+              _cnChartLockedByDiff = cnChartLocked;
+              _cnUnlockMap = cnMap;
+            }
           });
         }
         return;
@@ -1172,103 +1188,6 @@ extension _SongInfoLoaders on _SongInfoPageState {
       }
     }
     return raw;
-  }
-
-  // 加载B站谱面确认播放量
-  Future<void> _loadBiliPlayCount() async {
-    if (_biliPlayCountLoading) return;
-    _biliPlayCountLoading = true;
-    _biliLoadedDiffIndex = _currentDiffIndex;
-    final targetDiffIndex = _currentDiffIndex;
-
-    try {
-      final songId = widget.songId;
-      final songTitle = _songData!['basic_info']['title'];
-
-      // 1. 首先尝试从 Redis 缓存获取
-      final cached = await BiliRedisService().getCachedPlayCount(
-        songId: songId,
-        diffIndex: targetDiffIndex,
-      );
-
-      if (cached != null &&
-          mounted &&
-          _biliLoadedDiffIndex == targetDiffIndex) {
-        final cachedPlayCount = cached['play_count'] as int?;
-        final cachedBvid = cached['bvid'] as String?;
-        final source = cached['source'] as String?;
-        if (cachedPlayCount != null && cachedPlayCount > 0) {
-          _update(() {
-            _biliPlayCount = cachedPlayCount;
-            _biliBvid = cachedBvid;
-            _biliFromRedis = true;
-            _biliFromUser = source == 'user_upload';
-            _biliPlayCountLoading = false;
-          });
-          debugPrint(
-              '[BiliRedis] 使用 Redis 缓存播放量: $cachedPlayCount, BV: $cachedBvid, source: $source');
-          return;
-        }
-      }
-
-      // 2. Redis 未命中，通过 B站 API 搜索
-      final playCount = await BiliSearchService().fetchMaxPlayCount(
-        songTitle,
-        targetDiffIndex,
-      );
-
-      if (mounted && _biliLoadedDiffIndex == targetDiffIndex) {
-        final result = BiliSearchService().lastSearchResult;
-        final bvid = result?.bvid;
-        _update(() {
-          _biliPlayCount = playCount;
-          _biliBvid = bvid;
-          _biliFromRedis = false;
-          _biliFromUser = false;
-          _biliPlayCountLoading = false;
-        });
-
-        // 3. 搜索成功，将结果保存到 Redis
-        if (playCount != null && playCount > 0) {
-          BiliRedisService().savePlayCount(
-            songId: songId,
-            songTitle: songTitle,
-            diffIndex: targetDiffIndex,
-            playCount: playCount,
-            bvid: bvid,
-          );
-        }
-      } else {
-        _biliPlayCountLoading = false;
-      }
-    } catch (e) {
-      debugPrint('加载B站播放量失败: $e');
-      if (mounted) {
-        _update(() {
-          _biliPlayCountLoading = false;
-        });
-      }
-    }
-  }
-
-  // 格式化B站播放量显示
-  String _formatBiliPlayCount() {
-    if (_biliPlayCount == null) {
-      return _biliPlayCountLoading ? '...' : '-';
-    }
-    final n = _biliPlayCount!;
-    if (n >= 10000) {
-      return context.l10n
-          .flowP010000(((n / 10000).toStringAsFixed(1)).toString());
-    }
-    return n.toString();
-  }
-
-  /// 获取来源标签（仅在对话框中显示）
-  String _getBiliSourceLabel() {
-    if (_biliFromUser) return context.l10n.flowUserUpload;
-    if (_biliFromRedis) return context.l10n.flowRedisCache;
-    return context.l10n.flowAutomaticLookup;
   }
 
   // 获取音符数量，优先使用Maidata解析的结果

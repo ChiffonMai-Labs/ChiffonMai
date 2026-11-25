@@ -163,14 +163,22 @@ extension _SongInfoCommunity on _SongInfoPageState {
             tone: AppToastTone.success);
         _loadChartRating();
       } else {
-        AppToast.show(
-            result['message'] ?? context.l10n.flowCouldNotSubmitRating,
-            tone: AppToastTone.error);
+        final err = result['appError'];
+        AppToast.showError(
+          err is AppError
+              ? err
+              : AppErrorMapper.fromMessage(
+                  result['message']?.toString() ??
+                      context.l10n.flowCouldNotSubmitRating,
+                  stage: '提交谱面评分',
+                  source: 'chiffonmai',
+                ),
+          stage: '提交谱面评分',
+        );
       }
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('提交谱面评分失败: $e');
-      AppToast.show(context.l10n.flowCouldNotSubmitRating,
-          tone: AppToastTone.error);
+      AppToast.showError(e, stack: stack, stage: '提交谱面评分');
     }
   }
 
@@ -206,15 +214,22 @@ extension _SongInfoCommunity on _SongInfoPageState {
                         tone: AppToastTone.success);
                     _loadChartRating();
                   } else {
-                    AppToast.show(
-                        result['message'] ??
-                            context.l10n.flowCouldNotDeleteRating,
-                        tone: AppToastTone.error);
+                    final err = result['appError'];
+                    AppToast.showError(
+                      err is AppError
+                          ? err
+                          : AppErrorMapper.fromMessage(
+                              result['message']?.toString() ??
+                                  context.l10n.flowCouldNotDeleteRating,
+                              stage: '删除谱面评分',
+                              source: 'chiffonmai',
+                            ),
+                      stage: '删除谱面评分',
+                    );
                   }
-                } catch (e) {
+                } catch (e, stack) {
                   debugPrint('删除谱面评分失败: $e');
-                  AppToast.show(context.l10n.flowCouldNotDeleteRating,
-                      tone: AppToastTone.error);
+                  AppToast.showError(e, stack: stack, stage: '删除谱面评分');
                 }
               },
               child: Text(context.l10n.flowDelete,
@@ -1064,13 +1079,23 @@ extension _SongInfoCommunity on _SongInfoPageState {
         // 重新加载评论
         _loadComments();
       } else {
-        AppToast.show(result['message'] ?? context.l10n.flowCouldNotPostComment,
-            tone: AppToastTone.error);
+        final err = result['appError'];
+        AppToast.showError(
+          err is AppError
+              ? err
+              : AppErrorMapper.fromMessage(
+                  result['message']?.toString() ??
+                      context.l10n.flowCouldNotPostComment,
+                  stage: '发表评论',
+                  source: 'chiffonmai',
+                ),
+          stage: '发表评论',
+        );
       }
-    } catch (e) {
-      if (mounted)
-        AppToast.show(context.l10n.flowCouldNotPostCommentP0((e).toString()),
-            tone: AppToastTone.error);
+    } catch (e, stack) {
+      if (mounted) {
+        AppToast.showError(e, stack: stack, stage: '发表评论');
+      }
     } finally {
       // 只关闭本次发送框，避免其它路由被弹出；返回键也不能绕过发送锁。
       if (navigator.mounted && sendingDialog?.isActive == true) {
@@ -1121,8 +1146,15 @@ extension _SongInfoCommunity on _SongInfoPageState {
   // 删除评论
   Future<void> _deleteComment(int commentId) async {
     if (_commentDataSource == null || _commentOriginalId == null) {
-      AppToast.show(context.l10n.flowCannotDeleteIdentityInformationIsMissing,
-          tone: AppToastTone.error);
+      AppToast.showError(
+        AppError(
+          code: 'AUTH-COMMENT-IDENTITY',
+          userMessage: context.l10n.flowCannotDeleteIdentityInformationIsMissing,
+          stage: '删除评论',
+          retryable: false,
+        ),
+        stage: '删除评论',
+      );
       return;
     }
 
@@ -1158,13 +1190,24 @@ extension _SongInfoCommunity on _SongInfoPageState {
       originalId: _commentOriginalId!,
     );
 
+    if (!mounted) return;
     if (result['success'] == true) {
       AppToast.show(context.l10n.flowCommentDeleted,
           tone: AppToastTone.success);
       _loadComments();
     } else {
-      AppToast.show(result['message'] ?? context.l10n.flowCouldNotDeleteComment,
-          tone: AppToastTone.error);
+      final err = result['appError'];
+      AppToast.showError(
+        err is AppError
+            ? err
+            : AppErrorMapper.fromMessage(
+                result['message']?.toString() ??
+                    context.l10n.flowCouldNotDeleteComment,
+                stage: '删除评论',
+                source: 'chiffonmai',
+              ),
+        stage: '删除评论',
+      );
     }
   }
 

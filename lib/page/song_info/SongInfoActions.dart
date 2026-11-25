@@ -44,291 +44,6 @@ extension _SongInfoActions on _SongInfoPageState {
           tone: AppToastTone.success);
   }
 
-  /// 显示 BV 号上传对话框
-  void _showBvUploadDialog() {
-    if (_songData == null) return;
-
-    final songTitle = _songData!['basic_info']['title'];
-    final songId = widget.songId;
-    final diffIndex = _currentDiffIndex;
-    final diffLabel = _getDiffLabel(diffIndex);
-    final bvController = TextEditingController(text: _biliBvid ?? '');
-    bool isValidating = false;
-    String? validationMessage;
-    bool? validationPassed;
-    int? validatedPlayCount;
-
-    showDialog(
-      context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            final brightness = Theme.of(context).brightness;
-            return AppAlertDialog(
-              title: Text(context.l10n.flowBilibiliChartVideoViews),
-              content: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // 歌曲信息和当前播放量
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: AppSurfaces.inset(context),
-                        borderRadius:
-                            BorderRadius.circular(AppDesignTokens.radiusSmall),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            songTitle,
-                            style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                                color: Theme.of(context).colorScheme.onSurface),
-                          ),
-                          Text(context.l10n
-                              .flowDifficultyP02((diffLabel).toString())),
-                          const SizedBox(height: 6),
-                          if (_biliPlayCount != null) ...[
-                            Text(context.l10n.flowCurrentViewsP0(
-                                (_formatBiliPlayCount()).toString())),
-                            if (_biliBvid != null)
-                              Text(context.l10n
-                                  .flowBVIDP0((_biliBvid).toString())),
-                            Text(
-                                context.l10n.flowSourceP0(
-                                    (_getBiliSourceLabel()).toString()),
-                                style: TextStyle(
-                                  color: _biliFromUser
-                                      ? AppColors.linkBlue(brightness)
-                                      : (_biliFromRedis
-                                          ? AppColors.warningOrange(brightness)
-                                          : AppColors.successGreen(brightness)),
-                                  fontSize: 12,
-                                )),
-                          ] else if (_biliPlayCountLoading)
-                            Text(context.l10n.flowLoadingViews)
-                          else
-                            Text(context.l10n.flowNoViewDataYet,
-                                style: TextStyle(
-                                    color: AppColors.errorRed(brightness))),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    // 手动上传区域
-                    Text(context.l10n.flowEnterBVIDManually,
-                        style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            color: Theme.of(context).colorScheme.onSurface)),
-                    const SizedBox(height: 4),
-                    Text(
-                      context.l10n.flowIfViewsCannotBeFetchedAutomaticallyEnter,
-                      style: TextStyle(
-                          fontSize: 12,
-                          color:
-                              Theme.of(context).colorScheme.onSurfaceVariant),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: bvController,
-                      decoration: InputDecoration(
-                        hintText: context.l10n.flowExampleBV1xx411c7mD,
-                        suffixIcon: bvController.text.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(Icons.clear),
-                                onPressed: () {
-                                  bvController.clear();
-                                  setDialogState(() {});
-                                },
-                              )
-                            : null,
-                      ),
-                      onChanged: (_) {
-                        // 清除之前的校验结果
-                        if (validationMessage != null) {
-                          setDialogState(() {
-                            validationMessage = null;
-                            validationPassed = null;
-                            validatedPlayCount = null;
-                          });
-                        }
-                      },
-                    ),
-                    // 校验结果
-                    if (validationMessage != null) ...[
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: validationPassed == true
-                              ? AppColors.successGreen(brightness)
-                              : AppColors.errorRed(brightness),
-                          borderRadius: BorderRadius.circular(
-                              AppDesignTokens.radiusSmall),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              validationPassed == true
-                                  ? Icons.check_circle
-                                  : Icons.error,
-                              color: Colors.white,
-                              size: 20,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                validationMessage!,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                    // 校验通过后显示播放量
-                    if (validatedPlayCount != null &&
-                        validationPassed == true) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        context.l10n.flowViewsP0((validatedPlayCount! >= 10000
-                                ? context.l10n.flowP010000(
-                                    ((validatedPlayCount! / 10000)
-                                            .toStringAsFixed(1))
-                                        .toString())
-                                : validatedPlayCount.toString())
-                            .toString()),
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.successGreen(brightness),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(),
-                  child: Text(context.l10n.featureCancel),
-                ),
-                // 校验按钮
-                TextButton(
-                  onPressed: isValidating
-                      ? null
-                      : () async {
-                          final bvid = bvController.text.trim();
-                          if (bvid.isEmpty) {
-                            setDialogState(() {
-                              validationMessage = context.l10n.flowEnterABVID;
-                              validationPassed = false;
-                            });
-                            return;
-                          }
-                          if (!RegExp(r'^BV[a-zA-Z0-9]{10}$').hasMatch(bvid)) {
-                            setDialogState(() {
-                              validationMessage = context
-                                  .l10n.flowInvalidBVIDExpectedBVFollowedBy;
-                              validationPassed = false;
-                            });
-                            return;
-                          }
-
-                          setDialogState(() => isValidating = true);
-
-                          try {
-                            final result = await BiliSearchService()
-                                .validateBvForSong(bvid, songTitle);
-
-                            if (result == null) {
-                              setDialogState(() {
-                                validationMessage = context.l10n
-                                    .flowCheckFailedVideoInformationUnavailableTheBV;
-                                validationPassed = false;
-                                isValidating = false;
-                              });
-                            } else if (result.passed) {
-                              setDialogState(() {
-                                validationMessage = context.l10n
-                                    .flowVerifiedVideoTitleP0(
-                                        (result.videoInfo.title).toString());
-                                validationPassed = true;
-                                validatedPlayCount = result.videoInfo.playCount;
-                                isValidating = false;
-                              });
-                            } else {
-                              setDialogState(() {
-                                validationMessage = context.l10n
-                                    .flowCheckFailedVideoTitleP0DoesNot(
-                                        (result.videoInfo.title).toString(),
-                                        (songTitle).toString());
-                                validationPassed = false;
-                                isValidating = false;
-                              });
-                            }
-                          } catch (e) {
-                            setDialogState(() {
-                              validationMessage = context.l10n
-                                  .flowVerificationErrorP0((e).toString());
-                              validationPassed = false;
-                              isValidating = false;
-                            });
-                          }
-                        },
-                  child: isValidating
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Text(context.l10n.flowCheckBVID),
-                ),
-                // 确认上传按钮（只有校验通过后才可点击）
-                TextButton(
-                  onPressed: (validationPassed == true && !isValidating)
-                      ? () async {
-                          final bvid = bvController.text.trim();
-                          final playCount = validatedPlayCount;
-
-                          // 保存到本地状态
-                          _update(() {
-                            _biliPlayCount = playCount ?? _biliPlayCount;
-                            _biliBvid = bvid;
-                            _biliFromRedis = false;
-                            _biliFromUser = true;
-                          });
-
-                          // 保存到 Redis 服务器
-                          BiliRedisService().uploadUserBv(
-                            songId: songId,
-                            songTitle: songTitle,
-                            diffIndex: diffIndex,
-                            bvid: bvid,
-                            playCount: playCount,
-                          );
-
-                          Navigator.of(dialogContext).pop();
-                          AppToast.show(context.l10n.flowBVIDUploaded,
-                              duration: Duration(seconds: 2));
-                        }
-                      : null,
-                  child: Text(context.l10n.flowConfirmUpload),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
   // 请求存储权限
   Future<PermissionStatus> _requestStoragePermission() async {
     if (Platform.isAndroid) {
@@ -374,6 +89,14 @@ extension _SongInfoActions on _SongInfoPageState {
     final achievements = _safeToDouble(userRecord['achievements']);
     final ra = _safeToInt(userRecord['ra']);
     final dxScore = _safeToInt(userRecord['dxScore']);
+    final charts = _songData!['charts'] as List?;
+    final currentChart =
+        charts != null && _currentDiffIndex < charts.length
+            ? charts[_currentDiffIndex]
+            : null;
+    final charter = currentChart is Map
+        ? currentChart['charter']?.toString()
+        : null;
     return SongScoreShareService.buildPreviewWidget(
       theme: theme,
       context: context,
@@ -389,6 +112,8 @@ extension _SongInfoActions on _SongInfoPageState {
           : 0.0),
       genre: basicInfo['genre']?.toString() ?? '',
       bpm: _safeToInt(basicInfo['bpm']),
+      bpmText: _displayBpm(basicInfo),
+      charter: charter,
       achievements: achievements,
       ra: ra,
       dxScore: dxScore,
@@ -445,6 +170,15 @@ extension _SongInfoActions on _SongInfoPageState {
 
       // 调用导出服务
       final levelIndex = _currentDiffIndex;
+      final charts = _songData!['charts'] as List?;
+      final currentChart =
+          charts != null && levelIndex < charts.length
+              ? charts[levelIndex]
+              : null;
+      final charter = currentChart is Map
+          ? currentChart['charter']?.toString()
+          : null;
+      final bpmText = _displayBpm(basicInfo);
       BackgroundExport.run(
         label: context.l10n.flowScoreShareCard,
         task: (exportContext) => SongScoreShareService.convertToImage(
@@ -458,6 +192,8 @@ extension _SongInfoActions on _SongInfoPageState {
           ds: ds,
           genre: genre,
           bpm: bpm,
+          bpmText: bpmText,
+          charter: charter,
           achievements: achievements,
           ra: ra,
           dxScore: dxScore,
@@ -469,9 +205,16 @@ extension _SongInfoActions on _SongInfoPageState {
           theme: quality.theme,
         ),
       );
-    } catch (e) {
-      AppToast.show(context.l10n.flowExportFailedP02((e).toString()),
-          tone: AppToastTone.error);
+    } catch (e, stack) {
+      if (mounted) {
+        await showErrorMessageDialog(
+          context,
+          error: e,
+          stack: stack,
+          title: context.l10n.flowCouldNotExportP0('成绩分享卡'),
+          stage: '导出成绩分享卡',
+        );
+      }
     }
   }
 
@@ -547,9 +290,16 @@ extension _SongInfoActions on _SongInfoPageState {
           theme: quality.theme,
         ),
       );
-    } catch (e) {
-      AppToast.show(context.l10n.flowExportFailedP02((e).toString()),
-          tone: AppToastTone.error);
+    } catch (e, stack) {
+      if (mounted) {
+        await showErrorMessageDialog(
+          context,
+          error: e,
+          stack: stack,
+          title: context.l10n.flowCouldNotExportP0('歌曲信息图'),
+          stage: '导出歌曲信息图',
+        );
+      }
     }
   }
 
@@ -581,10 +331,17 @@ extension _SongInfoActions on _SongInfoPageState {
           try {
             String coverPath = CoverUtil.getLocalCoverPathRetry1(songId);
             byteData = await rootBundle.load(coverPath);
-          } catch (e3) {
+          } catch (e3, stack3) {
             if (mounted) {
-              AppToast.show(context.l10n.flowCouldNotLoadCoverArt,
-                  tone: AppToastTone.error);
+              AppToast.showError(
+                AppError(
+                  code: 'EXP-COVER-LOAD',
+                  userMessage: context.l10n.flowCouldNotLoadCoverArt,
+                  stage: '读取曲绘',
+                  technicalDetail: '$e3\n$stack3',
+                ),
+                stage: '读取曲绘',
+              );
             }
             return;
           }
@@ -593,8 +350,14 @@ extension _SongInfoActions on _SongInfoPageState {
 
       if (byteData == null) {
         if (mounted) {
-          AppToast.show(context.l10n.flowCouldNotLoadCoverArt,
-              tone: AppToastTone.error);
+          AppToast.showError(
+            AppError(
+              code: 'EXP-COVER-LOAD',
+              userMessage: context.l10n.flowCouldNotLoadCoverArt,
+              stage: '读取曲绘',
+            ),
+            stage: '读取曲绘',
+          );
         }
         return;
       }
@@ -610,7 +373,13 @@ extension _SongInfoActions on _SongInfoPageState {
         } finally {
           image.dispose();
         }
-        if (png == null) throw StateError(appL10n.flowCouldNotReadImageData);
+        if (png == null) {
+          throw AppError(
+            code: 'EXP-COVER-READ',
+            userMessage: appL10n.flowCouldNotReadImageData,
+            stage: '读取曲绘',
+          );
+        }
         await PhotoLibrary.saveBytes(
             png.buffer.asUint8List(png.offsetInBytes, png.lengthInBytes),
             'cover.png');
@@ -653,13 +422,20 @@ extension _SongInfoActions on _SongInfoPageState {
         AppToast.show(context.l10n.flowCoverArtSavedToPhotos,
             tone: AppToastTone.success);
       }
-    } catch (e) {
+    } catch (e, stack) {
       if (mounted) {
-        AppToast.show(
-            Platform.isIOS
-                ? PhotoLibrary.failureMessage(e)
-                : context.l10n.flowSaveFailedP02(e.toString()),
-            tone: AppToastTone.error);
+        AppToast.showError(
+          Platform.isIOS
+              ? AppError(
+                  code: 'EXP-COVER-SAVE',
+                  userMessage: PhotoLibrary.failureMessage(e),
+                  stage: '保存曲绘',
+                  technicalDetail: e.toString(),
+                )
+              : e,
+          stack: stack,
+          stage: '保存曲绘',
+        );
       }
     }
   }
@@ -1323,12 +1099,11 @@ extension _SongInfoActions on _SongInfoPageState {
       }
       await showChartPlayback(context,
           song: song, content: content, inotes: inotes);
-    } catch (error) {
+    } catch (error, stack) {
       if (!mounted || route?.isCurrent == false || widget.songId != song.songId) {
         return;
       }
-      AppToast.show(context.l10n.flowCouldNotFetchChartCodeP0(error.toString()),
-          tone: AppToastTone.error);
+      AppToast.showError(error, stack: stack, stage: '打开谱面播放');
     } finally {
       _openingChartPlayback = false;
     }

@@ -206,10 +206,11 @@ class LuoXueSongsManager {
       'type': difficulty.type,
       'difficulty': difficulty.difficulty,
       'level': difficulty.level,
-      'levelValue': difficulty.levelValue,
-      'noteDesigner': difficulty.noteDesigner,
+      'level_value': difficulty.levelValue,
+      'note_designer': difficulty.noteDesigner,
       'version': difficulty.version,
       'release_date': difficulty.releaseDate,
+      'locked': difficulty.locked,
       'notes': difficulty.notes != null ? _notesToJson(difficulty.notes!) : null,
     };
   }
@@ -218,9 +219,10 @@ class LuoXueSongsManager {
     return {
       'kanji': utage.kanji,
       'description': utage.description,
-      'isBuddy': utage.isBuddy,
+      'is_buddy': utage.isBuddy,
       'level': utage.level,
       'release_date': utage.releaseDate,
+      'locked': utage.locked,
       'notes': utage.notes != null ? _anyNotesToJson(utage.notes!) : null,
     };
   }

@@ -4,10 +4,10 @@ part of '../SongInfoPage.dart';
 ///
 /// 结构（自上而下）：
 /// 1. [_buildSongHero]：全出血难度色头图 —— 返回 / 笔记 / 收藏 / 分享、曲绘、标题、曲师、
-///    类型 / 编号 / DX·ST 切换、别名、难度切换；
+///    类型 / 编号 / DX·ST 切换、难度切换；
 /// 2. [_buildBestScoreCard]：玩家最佳成绩（达成率 + 评级 + 连击同步 + 四项数值）；
 /// 3. [_buildKeyStatsRow]：定数 / 拟合（含差值）/ 平均达成 / 时长；
-/// 4. [_buildChartInfo]：基础信息、物量分布与绝赞、定数历史、谱面标签；
+/// 4. [_buildChartInfo]：基础信息（含别名预览）、物量分布与绝赞、定数历史、谱面标签；
 /// 5. [_buildDetailTabBar] + [_buildDetailTabContent]：成绩历史 / 数据 / 社区 / 工具；
 /// 6. [_buildSongActionBar]：贴底操作栏（原两列十个按钮，常用三个 + 更多 + 主按钮）。
 ///
@@ -20,20 +20,13 @@ extension _SongInfoLayout on _SongInfoPageState {
 
   /// 切换难度：与旧版难度标签页的点击逻辑一致。
   void _selectDifficulty(int index) {
-    BiliSearchService().cancel();
     _update(() {
       _currentDiffIndex = index;
-      _biliPlayCount = null;
-      _biliPlayCountLoading = false;
-      _biliBvid = null;
-      _biliFromRedis = false;
-      _biliFromUser = false;
     });
     _loadChartRating();
     _loadComments();
     _checkBookmarkStatus();
     _checkNoteStatus();
-    _loadBiliPlayCount();
     _loadBest50Opportunity();
     _loadAwmcChartTags();
   }
@@ -307,7 +300,7 @@ extension _SongInfoLayout on _SongInfoPageState {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             FadeSwitcher(
               value: 'cover-${widget.songId}',
@@ -316,6 +309,7 @@ extension _SongInfoLayout on _SongInfoPageState {
             const SizedBox(width: 16),
             Expanded(
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   FadeSwitcher(
@@ -336,13 +330,11 @@ extension _SongInfoLayout on _SongInfoPageState {
                       ),
                     ),
                   ],
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 8),
                   FadeSwitcher(
                     value: 'type-${widget.songId}',
                     child: _buildHeroTypeRow(),
                   ),
-                  const SizedBox(height: 6),
-                  _buildAliasSection(title),
                 ],
               ),
             ),
@@ -1299,6 +1291,8 @@ extension _SongInfoLayout on _SongInfoPageState {
     final breakValues = [for (final c in breakCounts) c ?? 0];
     final totalBreaks = breakValues.fold<int>(0, (sum, n) => sum + n);
     final protectionStats = _maidataProtectionStats[_currentDiffIndex];
+    final songTitle = basicInfo['title']?.toString() ?? '';
+    final aliases = SongAliasManager.instance.aliases[songTitle] ?? const <String>[];
 
     return [
       AppCard(
@@ -1330,11 +1324,25 @@ extension _SongInfoLayout on _SongInfoPageState {
               children: [
                 _buildStatItem(context.l10n.flowCharter,
                     currentChart['charter']?.toString() ?? '-'),
-                _buildBiliPlayCountStat(),
+                _buildNoteDensityStat(currentChart),
               ],
             ),
             const SizedBox(height: 12),
-            Row(children: [_buildPlayableRegionStat(context)]),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildPlayableRegionStat(context),
+                _buildUnlockConditionStat(),
+              ],
+            ),
+            if (aliases.isNotEmpty) ...[
+              Divider(
+                height: 24,
+                thickness: 1,
+                color: scheme.outlineVariant.withValues(alpha: 0.5),
+              ),
+              _buildBasicInfoAliasFooter(songTitle, aliases),
+            ],
           ],
         ),
       ),

@@ -110,49 +110,30 @@ extension _SongInfoWidgets on _SongInfoPageState {
     return '$minutes:$wholeSeconds.$fraction';
   }
 
-  /// 构建 B站播放量统计项（带 BV 上传功能）
-  Widget _buildBiliPlayCountStat() {
-    return Expanded(
-      child: GestureDetector(
-        onTap: _showBvUploadDialog,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              context.l10n.flowPlayOnBilibili,
-              style: TextStyle(
-                fontSize: 11,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Flexible(
-                  child: Text(
-                    _formatBiliPlayCount(),
-                    style: AppTheme.number(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: Theme.of(context).colorScheme.onSurface,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(width: 2),
-                Icon(
-                  _biliBvid != null ? Icons.edit : Icons.upload_file,
-                  size: 10,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
+  /// 平均物量密度：总物量 ÷ 参考时长，与左侧「谱师」同属当前难度核心谱面特征。
+  Widget _buildNoteDensityStat(dynamic currentChart) {
+    final totalNotes = _getNoteCounts(currentChart).fold<int>(0, (s, n) => s + n);
+    final seconds = _referenceDurationSeconds;
+    final String display;
+    if (seconds == null) {
+      display = _referenceDurationLoading ? '...' : '-';
+    } else if (seconds <= 0 || totalNotes <= 0) {
+      display = '-';
+    } else {
+      display = '${(totalNotes / seconds).toStringAsFixed(2)} /s';
+    }
+    final detail = (seconds != null && seconds > 0 && totalNotes > 0)
+        ? context.l10n.songAvgNoteDensityDetail(
+            '$totalNotes',
+            _formatReferenceDuration(),
+            (totalNotes / seconds).toStringAsFixed(2),
+          )
+        : display;
+    return _buildStatItem(
+      context.l10n.songAvgNoteDensity,
+      display,
+      scrollable: false,
+      dialogValue: detail,
     );
   }
 
@@ -300,35 +281,77 @@ extension _SongInfoWidgets on _SongInfoPageState {
     const regionIds = <String>['cn', 'jp', 'intl', 'usa'];
 
     return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(context.l10n.flowPlayableRegions,
-              style: TextStyle(
-                  fontSize: 11,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant)),
-          const SizedBox(height: 4),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (int i = 0; i < regionLabels.length; i++) ...[
-                  if (i > 0) SizedBox(width: screenWidth * 0.012),
-                  _buildRegionBadge(
-                    regionLabels[i],
-                    (i == 0 && forceCn) ||
-                        serverIds.contains(regionIds[i]),
-                    screenWidth,
-                  ),
+      child: Padding(
+        padding: const EdgeInsets.only(right: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(context.l10n.flowPlayableRegions,
+                style: TextStyle(
+                    fontSize: 11,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            const SizedBox(height: 4),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (int i = 0; i < regionLabels.length; i++) ...[
+                    if (i > 0) SizedBox(width: screenWidth * 0.012),
+                    _buildRegionBadge(
+                      regionLabels[i],
+                      (i == 0 && forceCn) ||
+                          serverIds.contains(regionIds[i]),
+                      screenWidth,
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
+  }
+
+  /// 解禁条件：国服来自落雪（locked + map），日服来自 DXRating（isLocked）。
+  /// 两国服与日服结论一致时合并为单行，不一致时拆成国服 / 日服双行。
+  Widget _buildUnlockConditionStat() {
+    final l10n = context.l10n;
+    String? cnText;
+    if (_cnSongLocked != null) {
+      final cnLocked =
+          _cnSongLocked == true || (_cnChartLockedByDiff[_currentDiffIndex] == true);
+      if (!cnLocked) {
+        cnText = l10n.songUnlockNone;
+      } else {
+        cnText = _cnUnlockMap ?? l10n.songUnlockRequired;
+      }
+    }
+
+    final matchedDx = _findMatchedDxEntry();
+    final String? jpText =
+        matchedDx != null && matchedDx.sheet.serverIds.contains('jp')
+            ? (matchedDx.song.isLocked
+                ? l10n.songUnlockRequired
+                : l10n.songUnlockNone)
+            : null;
+
+    final label = l10n.songUnlockCondition;
+    if (cnText != null && jpText != null) {
+      if (cnText == jpText) {
+        return _buildStatItem(label, cnText);
+      }
+      return _buildRegionStat(label, [
+        (l10n.flowChina, cnText),
+        (l10n.flowJapan, jpText),
+      ]);
+    }
+    if (cnText != null || jpText != null) {
+      return _buildStatItem(label, (cnText ?? jpText)!);
+    }
+    return _buildStatItem(label, '-');
   }
 
   Widget _buildRegionBadge(String label, bool active, double screenWidth) {
@@ -404,7 +427,7 @@ extension _SongInfoWidgets on _SongInfoPageState {
   }
 
   Widget _buildStatItem(String label, String value,
-      {Color? valueColor, bool scrollable = true}) {
+      {Color? valueColor, bool scrollable = true, String? dialogValue}) {
     // 2026-11：数值放在白卡片上，统一用正文色；标签用次要文字色。
     // （难度色只留给头图和难度切换，避免浅色难度色在白底上看不清）
     final scheme = Theme.of(context).colorScheme;
@@ -419,7 +442,7 @@ extension _SongInfoWidgets on _SongInfoPageState {
         padding: const EdgeInsets.only(right: 12),
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onTap: () => _showStatDialog(label, value),
+          onTap: () => _showStatDialog(label, dialogValue ?? value),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -461,15 +484,19 @@ extension _SongInfoWidgets on _SongInfoPageState {
     );
   }
 
-  /// 分段比例条（物量、绝赞共用）：切难度时色块宽度过渡。
+  /// 分段比例条（物量、绝赞、保护套共用）：保留外层圆角与 2dp 紧贴分隔，
+  /// 通过 [stackedBarWidths] 给极少 NOTE 分配保底最小宽度，并兼容极窄容器。
   Widget _buildDistributionBar(List<int> counts, List<Color> colors) {
     final motion = AppDesignTokens.motion(context, AppDesignTokens.slowMotion);
-    final total = counts.fold<int>(0, (sum, n) => sum + n);
     final lastNonZero = counts.lastIndexWhere((c) => c > 0);
-    final gapCount = counts.where((c) => c > 0).length - 1;
     return LayoutBuilder(
       builder: (context, constraints) {
-        final usable = constraints.maxWidth - (gapCount < 0 ? 0 : gapCount) * 2;
+        final widths = stackedBarWidths(
+          counts,
+          constraints.maxWidth,
+          gap: 2,
+          minWidth: 6,
+        );
         return ClipRRect(
           borderRadius: BorderRadius.circular(6),
           child: SizedBox(
@@ -480,9 +507,9 @@ extension _SongInfoWidgets on _SongInfoPageState {
                   AnimatedContainer(
                     duration: motion,
                     curve: AppDesignTokens.emphasizedCurve,
-                    width: total == 0 ? 0 : usable * counts[i] / total,
+                    width: widths[i],
                     margin: EdgeInsets.only(
-                        right: counts[i] > 0 && i != lastNonZero ? 2 : 0),
+                        right: widths[i] > 0 && i != lastNonZero ? 2 : 0),
                     color: colors[i],
                   ),
               ],
@@ -638,122 +665,214 @@ extension _SongInfoWidgets on _SongInfoPageState {
   // 构建徽章
   Widget _buildBadge(String text) => ComboLabelBadge(raw: text);
 
-  // 构建别名区域
-  Widget _buildAliasSection(String songTitle) {
-    final brightness = Theme.of(context).brightness;
-    // 从 SongAliasManager 获取别名数据
-    final aliases = SongAliasManager.instance.aliases[songTitle] ?? [];
-
-    if (aliases.isEmpty) {
-      // 2026-11：别名区放在难度色头图里，空状态改成半透明白色小标签。
-      return Container(
-        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 12),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.16),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Text(
-          context.l10n.flowAliasesNone,
-          style: AppTheme.number(
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-            color: Colors.white.withValues(alpha: 0.85),
-          ),
-        ),
-      );
-    }
-
-    return GestureDetector(
-      onTap: () {
-        // 显示弹窗查看所有别名
-        showDialog(
-          context: context,
-          builder: (BuildContext context) {
-            return AppAlertDialog(
-              title:
-                  Text(context.l10n.flowAliasesForP0((songTitle).toString())),
-              content: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      context.l10n.flowTapAnyAliasToCopy,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    // 每条别名可点击复制到剪贴板（点击后不关闭弹窗，方便连续复制）
-                    ...aliases.map((alias) => InkWell(
-                          borderRadius: BorderRadius.circular(
-                              AppDesignTokens.radiusSmall),
-                          onTap: () async {
-                            await Clipboard.setData(ClipboardData(text: alias));
-                            AppToast.show(
-                                context.l10n.flowCopiedP0((alias).toString()),
-                                tone: AppToastTone.success);
-                          },
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                                vertical: 6, horizontal: 4),
-                            // 用 Expanded 撑满宽度，保证整行都是可点区域
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    alias,
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .onSurface,
-                                    ),
-                                  ),
+  /// 显示所有别名弹窗，每条别名点击即可复制到剪贴板。
+  void _showAliasesDialog(String songTitle, List<String> aliases) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AppAlertDialog(
+          title: Text(context.l10n.flowAliasesForP0((songTitle).toString())),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  context.l10n.flowTapAnyAliasToCopy,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                // 每条别名可点击复制到剪贴板（点击后不关闭弹窗，方便连续复制）
+                ...aliases.map((alias) => InkWell(
+                      borderRadius:
+                          BorderRadius.circular(AppDesignTokens.radiusSmall),
+                      onTap: () async {
+                        await Clipboard.setData(ClipboardData(text: alias));
+                        AppToast.show(
+                            context.l10n.flowCopiedP0((alias).toString()),
+                            tone: AppToastTone.success);
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 6, horizontal: 4),
+                        // 用 Expanded 撑满宽度，保证整行都是可点区域
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                alias,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color:
+                                      Theme.of(context).colorScheme.onSurface,
                                 ),
-                              ],
+                              ),
                             ),
-                          ),
-                        )),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                  },
-                  child: Text(context.l10n.featureClose),
-                ),
+                          ],
+                        ),
+                      ),
+                    )),
               ],
-            );
-          },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: Text(context.l10n.featureClose),
+            ),
+          ],
         );
       },
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 12),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(16),
-          border:
-              Border.all(color: AppColors.tableBorder(brightness), width: 1),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              context.l10n.flowViewAliasesP0((aliases.length).toString()),
+    );
+  }
+
+  /// 基础信息卡片底部的别名预览通栏（按真实可用宽度动态铺满最多两行，点击展开全部别名）。
+  Widget _buildBasicInfoAliasFooter(String songTitle, List<String> aliases) {
+    final scheme = Theme.of(context).colorScheme;
+    final defaultStyle = DefaultTextStyle.of(context).style;
+    final textScaler = MediaQuery.textScalerOf(context);
+    final textDirection = Directionality.of(context);
+
+    TextStyle chipTextStyle({bool muted = false}) => defaultStyle.merge(
+          AppTheme.number(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w600,
+            color: muted ? scheme.onSurfaceVariant : scheme.onSurface,
+          ),
+        );
+
+    double measureChipWidth(String label, {bool muted = false}) {
+      final painter = TextPainter(
+        text: TextSpan(text: label, style: chipTextStyle(muted: muted)),
+        maxLines: 1,
+        textDirection: textDirection,
+        textScaler: textScaler,
+      )..layout();
+      // 左右内边距各 8dp + 1dp 舍入余量，避免浮点误差误换行。
+      final width = painter.width.ceilToDouble() + 16.0 + 1.0;
+      painter.dispose();
+      return width;
+    }
+
+    Widget chip(String label, double maxWidth, {bool muted = false}) =>
+        ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: maxWidth),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: AppSurfaces.inset(context),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: AppTheme.number(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: Theme.of(context).colorScheme.onSurface,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: muted ? scheme.onSurfaceVariant : scheme.onSurface,
               ),
             ),
-            SizedBox(width: 4),
-            Icon(
-              Icons.arrow_forward_ios,
-              size: 12,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        );
+
+    return Semantics(
+      button: true,
+      label: context.l10n.flowViewAliasesP0((aliases.length).toString()),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => _showAliasesDialog(songTitle, aliases),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  context.l10n.flowAlias,
+                  style:
+                      TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
+                ),
+                const Spacer(),
+                Text(
+                  '${context.l10n.flowAll} (${aliases.length})',
+                  style: AppTheme.number(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: scheme.primary,
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 15,
+                  color: scheme.primary,
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final maxWidth = constraints.maxWidth;
+                if (!maxWidth.isFinite || maxWidth <= 0) {
+                  return const SizedBox.shrink();
+                }
+                const spacing = 6.0;
+                bool fitsInTwoRows(List<double> widths) {
+                  if (widths.isEmpty) return true;
+                  int row = 1;
+                  double used = 0;
+                  for (final rawW in widths) {
+                    final w = math.min(rawW, maxWidth);
+                    if (used == 0) {
+                      used = w;
+                    } else if (used + spacing + w <= maxWidth + 0.5) {
+                      used += spacing + w;
+                    } else {
+                      row++;
+                      if (row > 2) return false;
+                      used = w;
+                    }
+                  }
+                  return true;
+                }
+
+                final chipWidths = [
+                  for (final alias in aliases)
+                    math.min(measureChipWidth(alias), maxWidth),
+                ];
+
+                int shownCount = aliases.length;
+                if (!fitsInTwoRows(chipWidths)) {
+                  shownCount = 1;
+                  for (var k = aliases.length - 1; k >= 1; k--) {
+                    final restWidth = measureChipWidth(
+                      '+${aliases.length - k}',
+                      muted: true,
+                    );
+                    if (fitsInTwoRows([
+                      ...chipWidths.take(k),
+                      restWidth,
+                    ])) {
+                      shownCount = k;
+                      break;
+                    }
+                  }
+                }
+                final restCount = aliases.length - shownCount;
+                return Wrap(
+                  spacing: spacing,
+                  runSpacing: spacing,
+                  children: [
+                    for (final alias in aliases.take(shownCount))
+                      chip(alias, maxWidth),
+                    if (restCount > 0)
+                      chip('+$restCount', maxWidth, muted: true),
+                  ],
+                );
+              },
             ),
           ],
         ),

@@ -1,27 +1,34 @@
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
+import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
+import 'package:my_first_flutter_app/utils/ExportUserInfoWidget.dart';
 import 'dart:io';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:media_scanner/media_scanner.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:my_first_flutter_app/utils/CoverUtil.dart';
 import 'package:my_first_flutter_app/utils/StringUtil.dart';
 import 'package:my_first_flutter_app/utils/ColorUtil.dart';
 import 'package:my_first_flutter_app/utils/ImageEncodeUtil.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import '../../widgets/LxnsAssetImage.dart';
 import 'package:my_first_flutter_app/widgets/ExportStatsUi.dart';
 
-/// 徽章颜色数据
+/// 徽章配色数据
 class _BadgeColors {
   final Color bg;
   final Color fg;
   final String label;
-  const _BadgeColors({required this.bg, required this.fg, required this.label});
+  final String assetKey;
+  const _BadgeColors({
+    required this.bg,
+    required this.fg,
+    required this.label,
+    required this.assetKey,
+  });
 }
 
 /// 单曲成绩分享卡片服务
@@ -46,6 +53,8 @@ class SongScoreShareService {
     required String fc,
     required String fs,
     required String rawRate,
+    String? bpmText,
+    String? charter,
     int? jpegQuality,
     ExportImageTheme theme = ExportImageTheme.light,
   }) async {
@@ -58,12 +67,13 @@ class SongScoreShareService {
       final status = await _requestStoragePermission();
       debugPrint('Storage permission: $status');
 
-      // 读取用户信息
-      final prefs = await SharedPreferences.getInstance();
-      final userNickname = prefs.getString('userNickname') ?? '';
-      final totalRating = prefs.getInt('best50TotalRA') ?? 0;
-      final avatarId = prefs.getInt('selectedAvatarId') ?? 1;
-      final avatarUrl = avatarId > 0 ? lxnsIconUrl(avatarId) : null;
+      // 统一读取玩家信息（昵称、Rating、头像、数据源、导出时间）
+      final userInfo = await ExportUserInfoWidget.loadUserInfo();
+      final userNickname = userInfo['nickname'] as String? ?? '';
+      final totalRating = userInfo['totalRating'] as int? ?? 0;
+      final avatarUrl = userInfo['avatarUrl'] as String? ?? '';
+      final dataSource = userInfo['dataSource'] as String? ?? '';
+      final exportTime = userInfo['exportTime'] as String? ?? '';
 
       // 创建GlobalKey用于截图
       GlobalKey globalKey = GlobalKey();
@@ -83,6 +93,8 @@ class SongScoreShareService {
           ds: ds,
           genre: genre,
           bpm: bpm,
+          bpmText: bpmText,
+          charter: charter,
           achievements: achievements,
           ra: ra,
           dxScore: dxScore,
@@ -93,6 +105,8 @@ class SongScoreShareService {
           userNickname: userNickname,
           totalRating: totalRating,
           avatarUrl: avatarUrl,
+          dataSource: dataSource,
+          exportTime: exportTime,
         ),
       );
 
@@ -160,10 +174,11 @@ class SongScoreShareService {
     required String fc,
     required String fs,
     required String rawRate,
+    String? bpmText,
+    String? charter,
     ExportImageTheme theme = ExportImageTheme.light,
   }) async {
-    final prefs = await SharedPreferences.getInstance();
-    final avatarId = prefs.getInt('selectedAvatarId') ?? 1;
+    final userInfo = await ExportUserInfoWidget.loadUserInfo();
     return _buildShareCard(
       theme: theme,
       context: context,
@@ -176,6 +191,8 @@ class SongScoreShareService {
       ds: ds,
       genre: genre,
       bpm: bpm,
+      bpmText: bpmText,
+      charter: charter,
       achievements: achievements,
       ra: ra,
       dxScore: dxScore,
@@ -183,13 +200,15 @@ class SongScoreShareService {
       fc: fc,
       fs: fs,
       rawRate: rawRate,
-      userNickname: prefs.getString('userNickname') ?? '',
-      totalRating: prefs.getInt('best50TotalRA') ?? 0,
-      avatarUrl: avatarId > 0 ? lxnsIconUrl(avatarId) : null,
+      userNickname: userInfo['nickname'] as String? ?? '',
+      totalRating: userInfo['totalRating'] as int? ?? 0,
+      avatarUrl: userInfo['avatarUrl'] as String? ?? '',
+      dataSource: userInfo['dataSource'] as String? ?? '',
+      exportTime: userInfo['exportTime'] as String? ?? '',
     );
   }
 
-  /// 构建分享卡片Widget
+  /// 构建分享卡片 Widget（曲绘氛围海报风）
   static Widget _buildShareCard({
     required BuildContext context,
     required String songId,
@@ -201,6 +220,8 @@ class SongScoreShareService {
     required double ds,
     required String genre,
     required int bpm,
+    String? bpmText,
+    String? charter,
     required double achievements,
     required int ra,
     required int dxScore,
@@ -211,488 +232,1185 @@ class SongScoreShareService {
     required String userNickname,
     required int totalRating,
     String? avatarUrl,
+    String dataSource = '',
+    String exportTime = '',
     ExportImageTheme theme = ExportImageTheme.light,
   }) {
-    // UTAGE 宴会場检测（6位数ID的歌曲使用粉色主题）
+    final c = ExportPalette.forTheme(theme);
     final bool isUtage = songId.length == 6;
+    final bool isReMaster = !isUtage && levelIndex == ChartDifficulty.reMaster;
+    final Color accentColor =
+        ColorUtil.getExportCardColor(levelIndex, isUtage: isUtage);
 
-    // 获取主题色（与 SongInfoPage 保持一致）
-    final accentColor =
-        isUtage ? Color(0xFFFF69B4) : ColorUtil.getCardColor(levelIndex);
+    // 压暗头图底色，确保包括 Re:MASTER / ADVANCED 在内的所有难度都有清晰的白字对比度。
+    final Color heroDeep = Color.lerp(accentColor, Colors.black, 0.74)!;
+    final Color heroLight = Color.lerp(accentColor, Colors.black, 0.40)!;
+    final Color ratingInk = c.isLight
+        ? Color.lerp(accentColor, Colors.black,
+            (levelIndex == 1 || isReMaster) ? 0.48 : 0.22)!
+        : Color.lerp(accentColor, Colors.white, 0.36)!;
 
-    // 达成率百分比
-    final achievementPercent = achievements;
-    // 评级直接使用 API 返回的 rate 字段（与 userPlayDataManager 缓存一致）
-    final rateDisplay = StringUtil.formatRate(rawRate);
-    final typeLabel = StringUtil.formatSongType(songType);
-    final dxScorePercent = maxDxScore > 0
-        ? (dxScore / maxDxScore * 100).toStringAsFixed(2)
-        : '0.00';
+    final String typeText = isUtage ? 'UT' : (songType == 'DX' ? 'DX' : 'ST');
+    final Color typeBg = isUtage
+        ? const Color(0xFFD81B3C)
+        : (songType == 'DX'
+            ? const Color(0xFFC95A12)
+            : const Color(0xFF1F4FA5));
 
-    // 难度名称（UTAGE 歌曲显示 ChartDifficulty.utageLabel，与 SongInfoPage 保持一致）
     final diffNames = ChartDifficulty.standardLabels;
     final diffName = isUtage
         ? ChartDifficulty.utageLabel
         : diffNames[levelIndex.clamp(0, 4)];
 
-    // 星星等级（与 SongInfoPage._calculateStars 保持一致：带空格格式 "✦ 6"）
-    final scoreRate = maxDxScore > 0 ? dxScore / maxDxScore : 0.0;
-    final String starDisplay = _calcStars(scoreRate);
-    // 星星 bonus（与 SongInfoPage._calculateStarsBonus 保持一致："✦ 6 +123"）
-    final String starBonus = _calcStarsBonus(scoreRate, dxScore, maxDxScore);
-    final Color starColor = _getStarColor(starDisplay);
+    final String rateKey = _resolveRateKey(rawRate, achievements);
+    final String rateDisplay = rawRate.trim().isNotEmpty
+        ? StringUtil.formatRate(rawRate)
+        : rateKey.replaceAll('p', '+').toUpperCase();
 
-    // FC/FS 颜色（与 SongInfoPage._buildBadge 保持一致）
-    final fcColors = _getBadgeColors(fc);
-    final fsColors = _getBadgeColors(fs);
+    final String achStr = achievements.toStringAsFixed(4);
+    final int dotIdx = achStr.indexOf('.');
+    final String achInt = dotIdx >= 0 ? achStr.substring(0, dotIdx) : achStr;
+    final String achFrac = dotIdx >= 0 ? '${achStr.substring(dotIdx)}%' : '%';
 
-    final hasUser = userNickname.isNotEmpty || totalRating > 0;
-    final c = ExportPalette.forTheme(theme);
-    // 连击、同步的前景色是配浅色底的，深色下提亮一些。
-    Color onPanel(Color fg) =>
-        c.isLight ? fg : Color.lerp(fg, Colors.white, 0.35)!;
-    final heroForeground = Colors.white;
-    Widget heroChip(String text) => Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+    final _BadgeColors? fcBadge = _getBadgeColors(fc, isLight: c.isLight);
+    final _BadgeColors? fsBadge = _getBadgeColors(fs, isLight: c.isLight);
+
+    final double scoreRate =
+        maxDxScore > 0 ? (dxScore / maxDxScore).clamp(0.0, 1.0) : 0.0;
+    final String dxScorePercent = maxDxScore > 0
+        ? (dxScore / maxDxScore * 100).toStringAsFixed(2)
+        : '0.00';
+    final int starTargetMin = _starMinScore(scoreRate, maxDxScore);
+    final int starDiff = dxScore - starTargetMin;
+    final String starDiffText =
+        '${starDiff >= 0 ? '+' : ''}$starDiff';
+    final _StarVisual starVisual = _starVisual(scoreRate, c);
+
+    final bool hasUser = userNickname.isNotEmpty || totalRating > 0;
+    final String trimmedGenre = genre.trim();
+    final String trimmedCharter = charter?.trim() ?? '';
+    final String bpmDisplay =
+        (bpmText != null && bpmText.trim().isNotEmpty) ? bpmText.trim() : '$bpm';
+    final List<String> metaParts = [
+      if (trimmedGenre.isNotEmpty) trimmedGenre,
+      'BPM $bpmDisplay',
+      if (trimmedCharter.isNotEmpty && trimmedCharter != '-') trimmedCharter,
+    ];
+
+    Widget heroTag(String text, {Color? bg, Color? fg}) => Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.2),
-            borderRadius: BorderRadius.circular(999),
+            color: bg ?? Colors.white.withValues(alpha: 0.18),
+            borderRadius: BorderRadius.circular(10),
           ),
-          child: Text(text,
-              style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                  color: heroForeground)),
+          child: Text(
+            text,
+            style: TextStyle(
+              fontSize: 21,
+              height: 1.15,
+              fontWeight: FontWeight.w800,
+              color: fg ?? Colors.white,
+            ),
+          ),
+        );
+
+    Widget heroRing(double size) => Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.white.withValues(alpha: 0.06),
+          ),
         );
 
     return ExportPage(
       theme: theme,
       width: 1200,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // 头部：难度色渐变 + 曲绘 + 歌曲信息
-          ExportHeroSurface(
-            colors: [Color.lerp(accentColor, Colors.black, 0.5)!, accentColor],
-            radius: 0,
-            padding: const EdgeInsets.fromLTRB(44, 48, 44, 44),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Container(
-                  width: 280,
-                  height: 280,
-                  clipBehavior: Clip.antiAlias,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    border: Border.all(color: Colors.white, width: 7),
-                    borderRadius: BorderRadius.circular(32),
+      padding: const EdgeInsets.all(28),
+      child: Container(
+        decoration: BoxDecoration(
+          color: c.panel,
+          borderRadius: BorderRadius.circular(36),
+          border: Border.all(color: c.cardBorder, width: 1.5),
+          boxShadow: c.isLight
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.08),
+                    blurRadius: 28,
+                    offset: const Offset(0, 12),
                   ),
-                  child: CoverUtil.buildCoverWidgetWithContext(
-                      context, songId, 280),
-                ),
-                const SizedBox(width: 36),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(songTitle,
-                          style: TextStyle(
-                              fontSize: 52,
-                              fontWeight: FontWeight.w900,
-                              color: heroForeground,
-                              height: 1.18),
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis),
-                      const SizedBox(height: 10),
-                      Text(artist,
-                          style: TextStyle(
-                              fontSize: 28,
-                              color: Colors.white.withValues(alpha: 0.88),
-                              fontWeight: FontWeight.w500)),
-                      const SizedBox(height: 20),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          heroChip(
-                              isUtage ? ChartDifficulty.utageLabel : typeLabel),
-                          heroChip('$diffName $levelStr'),
-                          heroChip(context.l10n.flowConstantP0(
-                              (ds.toStringAsFixed(1)).toString())),
-                          heroChip('BPM $bpm'),
-                          heroChip(genre),
-                        ],
+                ]
+              : null,
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(36),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // 区块 1：曲绘氛围头图
+              Stack(
+                children: [
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [heroDeep, heroLight],
+                        ),
                       ),
-                    ],
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ),
-
-          Padding(
-            padding: const EdgeInsets.all(28),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                IntrinsicHeight(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // 达成率：核心数据，大字突出
-                      Expanded(
-                        flex: 5,
-                        child: ExportStatsPanel(
+                  Positioned.fill(
+                    child: ClipRect(
+                      child: Transform.scale(
+                        scale: 1.18,
+                        child: ImageFiltered(
+                          imageFilter:
+                              ui.ImageFilter.blur(sigmaX: 26, sigmaY: 26),
+                          child: Opacity(
+                            opacity: 0.45,
+                            child: SizedBox.expand(
+                              child: FittedBox(
+                                fit: BoxFit.cover,
+                                child: SizedBox(
+                                  width: 320,
+                                  height: 320,
+                                  child: CoverUtil.buildCoverWidgetWithContext(
+                                      context, songId, 320),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  // 双层渐变暗遮罩，保障白字在任意亮色曲绘下均有高对比度。
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                          colors: [
+                            Colors.black.withValues(alpha: 0.46),
+                            Colors.black.withValues(alpha: 0.62),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.black.withValues(alpha: 0.14),
+                            Colors.black.withValues(alpha: 0.48),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned(right: -110, top: -150, child: heroRing(460)),
+                  Positioned(left: -90, bottom: -160, child: heroRing(340)),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(44, 44, 44, 40),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: 256,
+                          height: 256,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(28),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.38),
+                                blurRadius: 24,
+                                offset: const Offset(0, 10),
+                              ),
+                            ],
+                          ),
+                          child: Container(
+                            clipBehavior: Clip.antiAlias,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(28),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.72),
+                                width: 4,
+                              ),
+                            ),
+                            child: CoverUtil.buildCoverWidgetWithContext(
+                                context, songId, 256),
+                          ),
+                        ),
+                        const SizedBox(width: 36),
+                        Expanded(
                           child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Row(
+                              Wrap(
+                                spacing: 10,
+                                runSpacing: 8,
+                                crossAxisAlignment: WrapCrossAlignment.center,
                                 children: [
-                                  Expanded(
-                                    child: Text(
-                                        context.l10n.flowSongAchievement,
-                                        style: TextStyle(
-                                            fontSize: 26,
-                                            fontWeight: FontWeight.w600,
-                                            color: c.muted)),
+                                  heroTag(typeText, bg: typeBg),
+                                  heroTag(
+                                    '$diffName $levelStr',
+                                    bg: accentColor,
+                                    fg: isReMaster
+                                        ? const Color(0xFF3B1D5E)
+                                        : Colors.white,
                                   ),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 24, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: accentColor,
-                                      borderRadius: BorderRadius.circular(999),
+                                  heroTag(context.l10n.flowConstantP0(
+                                      ds.toStringAsFixed(1))),
+                                  Text(
+                                    '#$songId',
+                                    style: TextStyle(
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.w700,
+                                      color:
+                                          Colors.white.withValues(alpha: 0.82),
+                                      fontFeatures: const [
+                                        FontFeature.tabularFigures()
+                                      ],
                                     ),
-                                    child: Text(rateDisplay,
-                                        style: const TextStyle(
-                                            fontSize: 32,
-                                            fontWeight: FontWeight.w800,
-                                            color: Colors.white)),
                                   ),
                                 ],
                               ),
-                              FittedBox(
-                                fit: BoxFit.scaleDown,
-                                alignment: Alignment.centerLeft,
-                                child: Text(
-                                    '${achievementPercent.toStringAsFixed(4)}%',
-                                    maxLines: 1,
-                                    style: TextStyle(
-                                        fontSize: 96,
-                                        height: 1.2,
-                                        fontWeight: FontWeight.w900,
-                                        color: c.ink,
-                                        fontFeatures: [
-                                          FontFeature.tabularFigures()
-                                        ])),
+                              const SizedBox(height: 16),
+                              Text(
+                                songTitle,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 48,
+                                  height: 1.16,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.white,
+                                  shadows: [
+                                    Shadow(
+                                      color:
+                                          Colors.black.withValues(alpha: 0.45),
+                                      blurRadius: 12,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (artist.trim().isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                Text(
+                                  artist,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 25,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white.withValues(alpha: 0.88),
+                                  ),
+                                ),
+                              ],
+                              const SizedBox(height: 12),
+                              Text(
+                                metaParts.join(' · '),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 21,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.white.withValues(alpha: 0.78),
+                                  fontFeatures: const [
+                                    FontFeature.tabularFigures()
+                                  ],
+                                ),
                               ),
                             ],
                           ),
                         ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+
+              // 区块 2：核心成绩舞台 + DX 分数进度条
+              Padding(
+                padding: const EdgeInsets.fromLTRB(36, 30, 36, 26),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // 主角成绩卡
+                    Container(
+                      padding: const EdgeInsets.fromLTRB(32, 26, 32, 26),
+                      decoration: BoxDecoration(
+                        color: c.inset,
+                        borderRadius: BorderRadius.circular(28),
                       ),
-                      if (hasUser) ...[
-                        const SizedBox(width: 14),
-                        // 玩家
-                        Expanded(
-                          flex: 3,
-                          child: ExportStatsPanel(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                if (avatarUrl != null) ...[
-                                  Container(
-                                    width: 76,
-                                    height: 76,
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(18),
-                                      image: DecorationImage(
-                                        image: CachedNetworkImageProvider(
-                                            avatarUrl,
-                                            cacheManager:
-                                                lxnsAssetCacheManager),
-                                        fit: BoxFit.cover,
+                      child: IntrinsicHeight(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Text(
+                                        context.l10n.flowSongAchievement,
+                                        style: TextStyle(
+                                          fontSize: 22,
+                                          fontWeight: FontWeight.w600,
+                                          color: c.muted,
+                                        ),
+                                      ),
+                                      const Spacer(),
+                                      _buildRankVisual(
+                                          rateKey, rateDisplay, c.brightness),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 10),
+                                  FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    alignment: Alignment.centerLeft,
+                                    child: Text.rich(
+                                      TextSpan(
+                                        children: [
+                                          TextSpan(
+                                            text: achInt,
+                                            style: TextStyle(
+                                              fontSize: 92,
+                                              height: 1.05,
+                                              fontWeight: FontWeight.w900,
+                                              color: c.ink,
+                                              letterSpacing: -1,
+                                              fontFeatures: const [
+                                                FontFeature.tabularFigures()
+                                              ],
+                                            ),
+                                          ),
+                                          TextSpan(
+                                            text: achFrac,
+                                            style: TextStyle(
+                                              fontSize: 64,
+                                              height: 1.05,
+                                              fontWeight: FontWeight.w800,
+                                              color: c.ink,
+                                              fontFeatures: const [
+                                                FontFeature.tabularFigures()
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      maxLines: 1,
+                                    ),
+                                  ),
+                                  if (fcBadge != null ||
+                                      fsBadge != null ||
+                                      achievements >= 80.0) ...[
+                                    const SizedBox(height: 16),
+                                    Wrap(
+                                      spacing: 12,
+                                      runSpacing: 10,
+                                      children: [
+                                        if (fcBadge != null)
+                                          _buildAchievementPill(fcBadge),
+                                        if (fsBadge != null)
+                                          _buildAchievementPill(fsBadge),
+                                        if (fcBadge == null &&
+                                            fsBadge == null &&
+                                            achievements >= 80.0)
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 18, vertical: 7),
+                                            decoration: BoxDecoration(
+                                              color: c.track,
+                                              borderRadius:
+                                                  BorderRadius.circular(999),
+                                            ),
+                                            child: Text(
+                                              'CLEAR',
+                                              style: TextStyle(
+                                                fontSize: 22,
+                                                fontWeight: FontWeight.w700,
+                                                color: c.muted,
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 24),
+                            // 单曲 Rating 焦点卡
+                            Container(
+                              width: 248,
+                              padding:
+                                  const EdgeInsets.fromLTRB(22, 22, 22, 22),
+                              decoration: BoxDecoration(
+                                color: accentColor.withValues(
+                                    alpha: c.isLight ? 0.12 : 0.22),
+                                borderRadius: BorderRadius.circular(24),
+                                border: Border.all(
+                                  color: accentColor.withValues(
+                                      alpha: c.isLight ? 0.36 : 0.45),
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    'RATING',
+                                    style: TextStyle(
+                                      fontSize: 19,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 1.4,
+                                      color: c.muted,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Text(
+                                      '$ra',
+                                      maxLines: 1,
+                                      style: TextStyle(
+                                        fontSize: 66,
+                                        height: 1.08,
+                                        fontWeight: FontWeight.w900,
+                                        color: ratingInk,
+                                        fontFeatures: const [
+                                          FontFeature.tabularFigures()
+                                        ],
                                       ),
                                     ),
                                   ),
-                                  const SizedBox(height: 10),
+                                  const SizedBox(height: 8),
+                                  FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Text(
+                                      '$diffName $levelStr · ${ds.toStringAsFixed(1)}',
+                                      maxLines: 1,
+                                      style: TextStyle(
+                                        fontSize: 19,
+                                        fontWeight: FontWeight.w600,
+                                        color: c.muted,
+                                        fontFeatures: const [
+                                          FontFeature.tabularFigures()
+                                        ],
+                                      ),
+                                    ),
+                                  ),
                                 ],
-                                if (userNickname.isNotEmpty)
-                                  Text(userNickname,
-                                      style: TextStyle(
-                                          fontSize: 30,
-                                          fontWeight: FontWeight.w800,
-                                          color: c.ink)),
-                                if (totalRating > 0)
-                                  Text(
-                                      context.l10n.flowTotalRatingP0(
-                                          (totalRating).toString()),
-                                      style: TextStyle(
-                                          fontSize: 24,
-                                          color: c.muted,
-                                          fontWeight: FontWeight.w600)),
-                              ],
+                              ),
                             ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 18),
+
+                    // DX 分数与星级卡片
+                    Container(
+                      padding: const EdgeInsets.fromLTRB(30, 22, 30, 22),
+                      decoration: BoxDecoration(
+                        color: c.inset,
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Expanded(
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  alignment: Alignment.centerLeft,
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        context.l10n.flowDXScore2,
+                                        style: TextStyle(
+                                          fontSize: 22,
+                                          fontWeight: FontWeight.w700,
+                                          color: c.muted,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 14),
+                                      Text(
+                                        '$dxScore / $maxDxScore',
+                                        style: TextStyle(
+                                          fontSize: 34,
+                                          fontWeight: FontWeight.w800,
+                                          color: c.ink,
+                                          fontFeatures: const [
+                                            FontFeature.tabularFigures()
+                                          ],
+                                        ),
+                                      ),
+                                      if (maxDxScore > 0) ...[
+                                        const SizedBox(width: 12),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 12, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: c.track,
+                                            borderRadius:
+                                                BorderRadius.circular(999),
+                                          ),
+                                          child: Text(
+                                            dxScore > maxDxScore
+                                                ? 'MAX +${dxScore - maxDxScore}'
+                                                : 'MAX -${maxDxScore - dxScore}',
+                                            style: TextStyle(
+                                              fontSize: 19,
+                                              fontWeight: FontWeight.w700,
+                                              color: c.ink,
+                                              fontFeatures: const [
+                                                FontFeature.tabularFigures()
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                      const SizedBox(width: 12),
+                                      Text(
+                                        '$dxScorePercent%',
+                                        style: TextStyle(
+                                          fontSize: 22,
+                                          fontWeight: FontWeight.w700,
+                                          color: c.muted,
+                                          fontFeatures: const [
+                                            FontFeature.tabularFigures()
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              _buildStarSummary(
+                                starVisual: starVisual,
+                                diffText: starDiffText,
+                                c: c,
+                              ),
+                            ],
                           ),
+                          const SizedBox(height: 16),
+                          _buildDxScoreProgressBar(
+                            scoreRate: scoreRate,
+                            fillColor: starVisual.barColor,
+                            c: c,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // 区块 3：底部玩家名片与落款条
+              Padding(
+                padding: const EdgeInsets.fromLTRB(36, 0, 36, 28),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Container(height: 1.5, color: c.track),
+                    const SizedBox(height: 20),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          child: hasUser
+                              ? Row(
+                                  children: [
+                                    Container(
+                                      width: 64,
+                                      height: 64,
+                                      clipBehavior: Clip.antiAlias,
+                                      decoration: BoxDecoration(
+                                        color: c.inset,
+                                        borderRadius: BorderRadius.circular(18),
+                                        border: Border.all(
+                                            color: c.track, width: 1.5),
+                                      ),
+                                      child: (avatarUrl != null &&
+                                              avatarUrl.isNotEmpty)
+                                          ? LxnsAssetImage(
+                                              url: avatarUrl,
+                                              width: 64,
+                                              height: 64,
+                                              fit: BoxFit.cover,
+                                              placeholder: Icon(
+                                                Icons.person_rounded,
+                                                size: 34,
+                                                color: c.muted,
+                                              ),
+                                              errorWidget: Icon(
+                                                Icons.person_rounded,
+                                                size: 34,
+                                                color: c.muted,
+                                              ),
+                                            )
+                                          : Icon(
+                                              Icons.person_rounded,
+                                              size: 34,
+                                              color: c.muted,
+                                            ),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              if (userNickname.isNotEmpty)
+                                                Flexible(
+                                                  child: Text(
+                                                    userNickname,
+                                                    maxLines: 1,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                    style: TextStyle(
+                                                      fontSize: 28,
+                                                      fontWeight:
+                                                          FontWeight.w800,
+                                                      color: c.ink,
+                                                    ),
+                                                  ),
+                                                ),
+                                              if (userNickname.isNotEmpty &&
+                                                  totalRating > 0)
+                                                const SizedBox(width: 12),
+                                              if (totalRating > 0)
+                                                ColorUtil.buildRatingBadge(
+                                                  totalRating,
+                                                  height: 34,
+                                                ),
+                                            ],
+                                          ),
+                                          if (dataSource.isNotEmpty ||
+                                              exportTime.isNotEmpty) ...[
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              [
+                                                if (dataSource.isNotEmpty)
+                                                  dataSource,
+                                                if (exportTime.isNotEmpty)
+                                                  exportTime,
+                                              ].join(' · '),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                fontSize: 19,
+                                                fontWeight: FontWeight.w500,
+                                                color: c.muted,
+                                                fontFeatures: const [
+                                                  FontFeature.tabularFigures()
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : Text(
+                                  exportTime,
+                                  style: TextStyle(
+                                    fontSize: 19,
+                                    fontWeight: FontWeight.w500,
+                                    color: c.muted,
+                                    fontFeatures: const [
+                                      FontFeature.tabularFigures()
+                                    ],
+                                  ),
+                                ),
+                        ),
+                        const SizedBox(width: 24),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              'ChiffonMai',
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w800,
+                                color: c.accent,
+                              ),
+                            ),
+                            Text(
+                              'Generated by ChiffonMai',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                color: c.muted,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 14),
-                // 统计
-                ExportStatsPanel(
-                  child: Row(
-                    children: [
-                      _buildStatItem(
-                        c: c,
-                        icon: Icons.star_rounded,
-                        label: 'Rating',
-                        value: ra.toString(),
-                        accentColor: accentColor,
-                      ),
-                      _buildStatDivider(c),
-                      _buildStatItem(
-                        c: c,
-                        icon: Icons.score_rounded,
-                        label: context.l10n.flowDXScore2,
-                        value: '$dxScore / $maxDxScore',
-                        subtitle: '$dxScorePercent%',
-                        accentColor: accentColor,
-                      ),
-                      _buildStatDivider(c),
-                      _buildStatItem(
-                        c: c,
-                        icon: Icons.music_note_rounded,
-                        label: context.l10n.flowCombo,
-                        value: fcColors.label,
-                        accentColor: accentColor,
-                        valueColor: onPanel(fcColors.fg),
-                      ),
-                      _buildStatDivider(c),
-                      _buildStatItem(
-                        c: c,
-                        icon: Icons.auto_awesome_rounded,
-                        label: context.l10n.flowSync,
-                        value: fsColors.label,
-                        accentColor: accentColor,
-                        valueColor: onPanel(fsColors.fg),
-                      ),
-                      _buildStatDivider(c),
-                      // 星数（带 bonus 差值）
-                      _buildStatItem(
-                        c: c,
-                        icon: Icons.stars_rounded,
-                        label: context.l10n.flowStars,
-                        value: starDisplay,
-                        subtitle: starBonus,
-                        accentColor: accentColor,
-                        valueColor: starColor,
-                      ),
-                    ],
-                  ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 根据 rawRate 或达成率解析官方评级资源键名。
+  static String _resolveRateKey(String rawRate, double achievements) {
+    final normalized = rawRate.trim().toLowerCase().replaceAll('+', 'p');
+    const validKeys = {
+      'sssp',
+      'sss',
+      'ssp',
+      'ss',
+      'sp',
+      's',
+      'aaa',
+      'aa',
+      'a',
+      'bbb',
+      'bb',
+      'b',
+      'c',
+      'd',
+    };
+    if (validKeys.contains(normalized)) return normalized;
+    if (achievements >= 100.5) return 'sssp';
+    if (achievements >= 100.0) return 'sss';
+    if (achievements >= 99.5) return 'ssp';
+    if (achievements >= 99.0) return 'ss';
+    if (achievements >= 98.0) return 'sp';
+    if (achievements >= 97.0) return 's';
+    if (achievements >= 94.0) return 'aaa';
+    if (achievements >= 90.0) return 'aa';
+    if (achievements >= 80.0) return 'a';
+    if (achievements >= 75.0) return 'bbb';
+    if (achievements >= 70.0) return 'bb';
+    if (achievements >= 60.0) return 'b';
+    if (achievements >= 50.0) return 'c';
+    return 'd';
+  }
+
+  /// 官方评级图，离线或缺失时自动回退高对比度文本胶囊。
+  static Widget _buildRankVisual(
+      String rateKey, String rateDisplay, Brightness brightness) {
+    final fallbackColors = AppColors.rankBadge(rateDisplay, brightness);
+    return Image.asset(
+      'assets/gamrank/$rateKey.png',
+      height: 48,
+      fit: BoxFit.contain,
+      errorBuilder: (_, __, ___) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+        decoration: BoxDecoration(
+          color: fallbackColors.background,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          rateDisplay,
+          style: TextStyle(
+            fontSize: 26,
+            fontWeight: FontWeight.w900,
+            color: fallbackColors.foreground,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 连击 / 同步徽章胶囊（官方小图标 + 统一配色文字）。
+  static Widget _buildAchievementPill(_BadgeColors badge) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(10, 6, 16, 6),
+      decoration: BoxDecoration(
+        color: badge.bg,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: badge.fg.withValues(alpha: 0.24), width: 1.2),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Image.asset(
+            'assets/grade/${badge.assetKey}.png',
+            width: 34,
+            height: 34,
+            fit: BoxFit.contain,
+            errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            badge.label,
+            style: TextStyle(
+              fontSize: 24,
+              height: 1.1,
+              fontWeight: FontWeight.w800,
+              color: badge.fg,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 右侧星级摘要：整数 1–5 星直接显示星图 + 差值，避免重复写等级；
+  /// 半星 / 6 星 / 0 星使用矢量星标图标，避免部分系统字体缺少 `✦` 字符变成方框。
+  static Widget _buildStarSummary({
+    required _StarVisual starVisual,
+    required String diffText,
+    required ExportPalette c,
+  }) {
+    final int? intStar = starVisual.intStar;
+    Widget starPill({
+      required String numberText,
+      required Color bg,
+      required Color fg,
+      double fontSize = 22,
+    }) =>
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.star_rounded, size: fontSize + 2, color: fg),
+              const SizedBox(width: 4),
+              Text(
+                numberText,
+                style: TextStyle(
+                  fontSize: fontSize,
+                  height: 1.1,
+                  fontWeight: FontWeight.w800,
+                  color: fg,
+                  fontFeatures: const [FontFeature.tabularFigures()],
                 ),
-                const SizedBox(height: 20),
-                Center(
-                  child: Text(
-                    'Generated by ChiffonMai',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w600,
-                      color: c.muted,
+              ),
+            ],
+          ),
+        );
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (intStar != null) ...[
+          Image.asset(
+            'assets/dxstars/$intStar.png',
+            height: 36,
+            fit: BoxFit.contain,
+            errorBuilder: (_, __, ___) => starPill(
+              numberText: starVisual.shortValue,
+              bg: starVisual.pillBg,
+              fg: starVisual.pillFg,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            diffText,
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
+              color: starVisual.diffColor,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+        ] else if (starVisual.stars == 0) ...[
+          starPill(
+            numberText: '0',
+            bg: c.track,
+            fg: c.muted,
+            fontSize: 21,
+          ),
+          const SizedBox(width: 10),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '距 ',
+                style: TextStyle(
+                  fontSize: 21,
+                  fontWeight: FontWeight.w700,
+                  color: c.muted,
+                ),
+              ),
+              Icon(Icons.star_rounded, size: 22, color: c.muted),
+              Text(
+                '1 $diffText',
+                style: TextStyle(
+                  fontSize: 21,
+                  fontWeight: FontWeight.w700,
+                  color: c.muted,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ],
+          ),
+        ] else ...[
+          starPill(
+            numberText: starVisual.shortValue,
+            bg: starVisual.pillBg,
+            fg: starVisual.pillFg,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            diffText,
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
+              color: starVisual.diffColor,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  /// DX 分数进度条：按星级阈值画精细刻度。
+  static Widget _buildDxScoreProgressBar({
+    required double scoreRate,
+    required Color fillColor,
+    required ExportPalette c,
+  }) {
+    const thresholds = [0.85, 0.90, 0.93, 0.95, 0.97];
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(7),
+      child: SizedBox(
+        height: 14,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final totalW = constraints.maxWidth;
+            final fillW = (totalW * scoreRate.clamp(0.0, 1.0)).clamp(0.0, totalW);
+            return Stack(
+              children: [
+                Positioned.fill(child: ColoredBox(color: c.track)),
+                Positioned(
+                  left: 0,
+                  top: 0,
+                  bottom: 0,
+                  width: fillW,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: fillColor,
+                      borderRadius: BorderRadius.circular(7),
                     ),
                   ),
                 ),
+                for (final t in thresholds)
+                  Positioned(
+                    left: (totalW * t) - 1,
+                    top: 0,
+                    bottom: 0,
+                    width: 2,
+                    child: ColoredBox(color: c.panel.withValues(alpha: 0.72)),
+                  ),
               ],
-            ),
-          ),
-        ],
+            );
+          },
+        ),
       ),
     );
   }
 
-  /// 构建信息标签
-  static Widget _buildInfoChip(String text, Color color,
-      {bool filled = false}) {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-      decoration: BoxDecoration(
-        color: filled ? color : Colors.transparent,
-        border: filled ? null : Border.all(color: color, width: 2),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Text(text,
-          style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: filled ? Colors.white : color)),
-    );
-  }
-
-  /// 构建统计项
-  static Widget _buildStatItem({
-    required IconData icon,
-    required String label,
-    required String value,
-    String? subtitle,
-    required Color accentColor,
-    required ExportPalette c,
-    Color? valueColor,
-  }) {
-    return Expanded(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 28, color: accentColor.withAlpha(180)),
-          SizedBox(height: 8),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 20,
-              color: c.muted,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          SizedBox(height: 4),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 32,
-              fontWeight: FontWeight.bold,
-              color: valueColor ?? c.ink,
-            ),
-          ),
-          if (subtitle != null) ...[
-            SizedBox(height: 2),
-            Text(
-              subtitle,
-              style: TextStyle(
-                fontSize: 18,
-                color: c.muted,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  /// 统计项分隔线
-  static Widget _buildStatDivider(ExportPalette c) {
-    return Container(
-      width: 2,
-      height: 80,
-      color: c.track,
-    );
-  }
-
-  // --- 星星和徽章颜色（与 SongInfoPage 保持一致）---
-
-  /// 计算星星等级显示字符串（与 SongInfoPage._calculateStars 一致："✦ 6"）
-  static String _calcStars(double scoreRate) {
-    if (scoreRate >= 0.99) return '✦ 6';
-    if (scoreRate >= 0.98) return '✦ 5.5';
-    if (scoreRate >= 0.97) return '✦ 5';
-    if (scoreRate >= 0.95) return '✦ 4';
-    if (scoreRate >= 0.93) return '✦ 3';
-    if (scoreRate >= 0.90) return '✦ 2';
-    if (scoreRate >= 0.85) return '✦ 1';
-    return '✦ 0';
-  }
-
-  /// 计算星星 bonus 差值（与 SongInfoPage._calculateStarsBonus 一致："✦ 6 +123"）
-  static String _calcStarsBonus(double scoreRate, int score, int maxScore) {
-    double starLevel = 0, minRate = 0.0;
+  static int _starMinScore(double scoreRate, int maxScore) {
+    if (maxScore <= 0) return 0;
+    final double minRate;
     if (scoreRate >= 0.99) {
-      starLevel = 6;
       minRate = 0.99;
     } else if (scoreRate >= 0.98) {
-      starLevel = 5.5;
       minRate = 0.98;
     } else if (scoreRate >= 0.97) {
-      starLevel = 5;
       minRate = 0.97;
     } else if (scoreRate >= 0.95) {
-      starLevel = 4;
       minRate = 0.95;
     } else if (scoreRate >= 0.93) {
-      starLevel = 3;
       minRate = 0.93;
     } else if (scoreRate >= 0.90) {
-      starLevel = 2;
       minRate = 0.90;
-    } else if (scoreRate >= 0.85) {
-      starLevel = 1;
-      minRate = 0.85;
     } else {
-      starLevel = 0;
       minRate = 0.85;
     }
-
-    int minScore = (maxScore * minRate).ceil();
-    int difference = score - minScore;
-    String symbol = difference >= 0 ? '+' : '';
-    dynamic displayLevel = starLevel == 0 ? 1 : starLevel;
-    final levelStr2 = displayLevel == displayLevel.roundToDouble()
-        ? displayLevel.toInt().toString()
-        : displayLevel.toString();
-    return '✦ $levelStr2 $symbol$difference';
+    return (maxScore * minRate).ceil();
   }
 
-  /// 获取星星颜色（与 SongInfoPage._getStarsColor 一致）
-  static Color _getStarColor(String stars) {
-    if (stars.startsWith('✦ 6') ||
-        stars.startsWith('✦ 5.5') ||
-        stars.startsWith('✦ 5')) return Colors.yellow;
-    if (stars.startsWith('✦ 4') || stars.startsWith('✦ 3'))
-      return Colors.orange;
-    if (stars.startsWith('✦ 2') || stars.startsWith('✦ 1'))
-      return Colors.green.shade300;
-    if (stars.startsWith('✦ 0')) return Colors.grey;
-    return Colors.white;
+  static _StarVisual _starVisual(double scoreRate, ExportPalette c) {
+    final double stars;
+    final String shortValue;
+    int? intStar;
+    if (scoreRate >= 0.99) {
+      stars = 6;
+      shortValue = '6';
+    } else if (scoreRate >= 0.98) {
+      stars = 5.5;
+      shortValue = '5.5';
+    } else if (scoreRate >= 0.97) {
+      stars = 5;
+      intStar = 5;
+      shortValue = '5';
+    } else if (scoreRate >= 0.95) {
+      stars = 4;
+      intStar = 4;
+      shortValue = '4';
+    } else if (scoreRate >= 0.93) {
+      stars = 3;
+      intStar = 3;
+      shortValue = '3';
+    } else if (scoreRate >= 0.90) {
+      stars = 2;
+      intStar = 2;
+      shortValue = '2';
+    } else if (scoreRate >= 0.85) {
+      stars = 1;
+      intStar = 1;
+      shortValue = '1';
+    } else {
+      stars = 0;
+      shortValue = '0';
+    }
+
+    if (stars >= 5) {
+      return _StarVisual(
+        stars: stars,
+        intStar: intStar,
+        shortValue: shortValue,
+        pillBg: const Color(0xFFF5C542),
+        pillFg: const Color(0xFF2B2100),
+        diffColor: c.isLight ? const Color(0xFF9C6500) : const Color(0xFFF5C542),
+        barColor: const Color(0xFFE8B400),
+      );
+    }
+    if (stars >= 3) {
+      return _StarVisual(
+        stars: stars,
+        intStar: intStar,
+        shortValue: shortValue,
+        pillBg: const Color(0xFFE8852A),
+        pillFg: Colors.white,
+        diffColor: c.isLight ? const Color(0xFFB35400) : const Color(0xFFFFB26B),
+        barColor: const Color(0xFFE8852A),
+      );
+    }
+    if (stars >= 1) {
+      return _StarVisual(
+        stars: stars,
+        intStar: intStar,
+        shortValue: shortValue,
+        pillBg: const Color(0xFF2E9E5B),
+        pillFg: Colors.white,
+        diffColor: c.isLight ? const Color(0xFF1E7A44) : const Color(0xFF7BE0A0),
+        barColor: const Color(0xFF2E9E5B),
+      );
+    }
+    return _StarVisual(
+      stars: 0,
+      intStar: null,
+      shortValue: '0',
+      pillBg: c.track,
+      pillFg: c.muted,
+      diffColor: c.muted,
+      barColor: c.accent,
+    );
   }
 
-  /// 获取徽章颜色（与 SongInfoPage._buildBadge 一致）
-  static _BadgeColors _getBadgeColors(String text) {
-    switch (text) {
+  /// 获取连击 / 同步徽章颜色（SYNC 采用机台冰青底 + 深青蓝字配色）。
+  static _BadgeColors? _getBadgeColors(String text, {required bool isLight}) {
+    switch (text.trim().toLowerCase()) {
       case 'app':
+      case 'ap+':
         return _BadgeColors(
-            bg: Color(0xFFFFF3E0), fg: Color(0xFFF57C00), label: 'AP+');
+          bg: isLight ? const Color(0xFFFFF3E0) : const Color(0xFF473010),
+          fg: isLight ? const Color(0xFFD96B00) : const Color(0xFFFFC978),
+          label: 'AP+',
+          assetKey: 'app',
+        );
       case 'ap':
         return _BadgeColors(
-            bg: Color(0xFFFFF3E0), fg: Color(0xFFF57C00), label: 'AP');
+          bg: isLight ? const Color(0xFFFFF3E0) : const Color(0xFF473010),
+          fg: isLight ? const Color(0xFFD96B00) : const Color(0xFFFFC978),
+          label: 'AP',
+          assetKey: 'ap',
+        );
       case 'fcp':
+      case 'fc+':
         return _BadgeColors(
-            bg: Color(0xFFD4F4DD), fg: Color(0xFF2E7D32), label: 'FC+');
+          bg: isLight ? const Color(0xFFD4F4DD) : const Color(0xFF193C26),
+          fg: isLight ? const Color(0xFF2E7D32) : const Color(0xFF8CE2A6),
+          label: 'FC+',
+          assetKey: 'fcp',
+        );
       case 'fc':
         return _BadgeColors(
-            bg: Color(0xFFD4F4DD), fg: Color(0xFF2E7D32), label: 'FC');
+          bg: isLight ? const Color(0xFFD4F4DD) : const Color(0xFF193C26),
+          fg: isLight ? const Color(0xFF2E7D32) : const Color(0xFF8CE2A6),
+          label: 'FC',
+          assetKey: 'fc',
+        );
       case 'fsp':
+      case 'fs+':
         return _BadgeColors(
-            bg: Color.fromARGB(255, 224, 244, 255),
-            fg: Color.fromARGB(255, 0, 135, 245),
-            label: 'FS+');
+          bg: isLight ? const Color(0xFFE0F4FF) : const Color(0xFF1A3557),
+          fg: isLight ? const Color(0xFF1565C0) : const Color(0xFF8CC5FF),
+          label: 'FS+',
+          assetKey: 'fsp',
+        );
       case 'fs':
         return _BadgeColors(
-            bg: Color.fromARGB(255, 224, 244, 255),
-            fg: Color.fromARGB(255, 0, 135, 245),
-            label: 'FS');
+          bg: isLight ? const Color(0xFFE0F4FF) : const Color(0xFF1A3557),
+          fg: isLight ? const Color(0xFF1565C0) : const Color(0xFF8CC5FF),
+          label: 'FS',
+          assetKey: 'fs',
+        );
       case 'sync':
         return _BadgeColors(
-            bg: Color.fromARGB(255, 224, 244, 255),
-            fg: Color.fromARGB(255, 0, 135, 245),
-            label: 'SC');
+          bg: isLight ? const Color(0xFFDFF7F5) : const Color(0xFF143A42),
+          fg: isLight ? const Color(0xFF0A5C6E) : const Color(0xFF7CEBF0),
+          label: 'SYNC',
+          assetKey: 'sync',
+        );
       case 'fsd':
+      case 'fdx':
         return _BadgeColors(
-            bg: Color(0xFFFFF3E0), fg: Color(0xFFF57C00), label: 'FDX');
+          bg: isLight ? const Color(0xFFFFF3E0) : const Color(0xFF473010),
+          fg: isLight ? const Color(0xFFD96B00) : const Color(0xFFFFC978),
+          label: 'FDX',
+          assetKey: 'fsd',
+        );
       case 'fsdp':
+      case 'fdx+':
         return _BadgeColors(
-            bg: Color(0xFFFFF3E0), fg: Color(0xFFF57C00), label: 'FDX+');
+          bg: isLight ? const Color(0xFFFFF3E0) : const Color(0xFF473010),
+          fg: isLight ? const Color(0xFFD96B00) : const Color(0xFFFFC978),
+          label: 'FDX+',
+          assetKey: 'fsdp',
+        );
       default:
-        return _BadgeColors(
-            bg: Colors.grey.shade200, fg: Colors.grey, label: '-');
+        return null;
     }
   }
 
@@ -842,5 +1560,25 @@ class SongScoreShareService {
       return false;
     }
   }
+}
 
+/// 星级呈现样式数据。
+class _StarVisual {
+  final double stars;
+  final int? intStar;
+  final String shortValue;
+  final Color pillBg;
+  final Color pillFg;
+  final Color diffColor;
+  final Color barColor;
+
+  const _StarVisual({
+    required this.stars,
+    required this.intStar,
+    required this.shortValue,
+    required this.pillBg,
+    required this.pillFg,
+    required this.diffColor,
+    required this.barColor,
+  });
 }
