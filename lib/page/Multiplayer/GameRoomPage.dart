@@ -35,9 +35,11 @@ import '../../widgets/MultiplayerRoomOverview.dart';
 import '../../widgets/GuessUi.dart';
 import '../../widgets/AppUi.dart';
 import '../../utils/AppDesignTokens.dart';
+import '../../utils/AppError.dart';
 import '../../widgets/AppDialogs.dart';
 import '../../widgets/AppToast.dart';
 import '../../widgets/ChartPeekPlaybackUi.dart';
+import '../../widgets/ErrorMessageDialog.dart';
 
 class GameRoomPage extends StatefulWidget {
   final RoomEntity room;
@@ -54,6 +56,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
   GameStateEntity? _gameState;
   PlayerEntity? _currentPlayer;
   String? _initializationError;
+  AppError? _initAppError;
   bool _isLeaving = false;
   bool _leaveDialogOpen = false;
   bool _canPopAfterLeave = false;
@@ -370,10 +373,26 @@ class _GameRoomPageState extends State<GameRoomPage> {
 
   Future<void> _initRoom() async {
     try {
-      if (mounted) setState(() => _initializationError = null);
+      if (mounted) {
+        setState(() {
+          _initializationError = null;
+          _initAppError = null;
+        });
+      }
       await _initializeRoomState();
-    } catch (error) {
-      if (mounted) setState(() => _initializationError = appL10n.flowCouldNotConnectToTheRoomCheck);
+    } catch (error, stack) {
+      if (mounted) {
+        setState(() {
+          _initializationError = appL10n.flowCouldNotConnectToTheRoomCheck;
+          _initAppError = AppErrorMapper.from(
+            error,
+            stack: stack,
+            title: appL10n.flowCouldNotConnectToTheRoomCheck,
+            stage: '连接多人房间',
+            source: 'multiplayer',
+          );
+        });
+      }
     }
   }
 
@@ -497,10 +516,10 @@ class _GameRoomPageState extends State<GameRoomPage> {
       _applyGameState(_manager.currentGameState);
 
     // 监听服务器错误消息
-    _errorMessageSubscription = _manager.errorMessageStream.listen((message) {
+    _errorMessageSubscription = _manager.errorStream.listen((err) {
       if (!mounted || _isLeaving) return;
       setState(_completeAction);
-      AppToast.show(message);
+      AppToast.showError(err, stage: '多人对局');
     });
   }
 
@@ -639,7 +658,12 @@ class _GameRoomPageState extends State<GameRoomPage> {
           ? GuessPixelatedCover.provider(coverProvider,
               destructionLevel: (_currentRoom ?? widget.room).pixelationLevel) : null;
       if (prepareCover && (target == null || coverProvider == null)) {
-        throw StateError(appL10n.flowNoCoverArtAvailable);
+        throw AppError(
+          code: 'DATA-MP-COVER',
+          userMessage: appL10n.flowNoCoverArtAvailable,
+          stage: '加载题目曲绘',
+          source: 'multiplayer',
+        ).asStateError();
       }
       if ((_currentRoom?.gameType == GameType.flash || prepareCover) &&
           coverProvider != null) {
@@ -1098,10 +1122,22 @@ class _GameRoomPageState extends State<GameRoomPage> {
         debugPrint('[GameRoom] 执行返回大厅');
         if (mounted) Navigator.pop(context);
       });
-    } catch (error) {
+    } catch (error, stack) {
       if (!mounted) return;
       setState(() => _isLeaving = false);
-      AppToast.show(error is TimeoutException ? context.l10n.flowNoConfirmationOfLeavingReceivedPleaseRetry : context.l10n.flowCouldNotLeaveRoomP0((error).toString()), tone: AppToastTone.warning);
+      AppToast.showError(
+        error is TimeoutException
+            ? AppError(
+                code: 'NET-MP-LEAVE-TIMEOUT',
+                userMessage:
+                    context.l10n.flowNoConfirmationOfLeavingReceivedPleaseRetry,
+                stage: '离开房间',
+                source: 'multiplayer',
+              )
+            : error,
+        stack: stack,
+        stage: '离开房间',
+      );
     }
   }
 
@@ -3437,7 +3473,15 @@ class _GameRoomPageState extends State<GameRoomPage> {
       if (!current()) return;
       final utility = LuoXueSongUtil();
       final musicId = LuoXueSongUtil.toLxnsMusicId(targetSongId);
-      if (musicId <= 0) throw StateError(context.l10n.flowInvalidSongID);
+      if (musicId <= 0) {
+        throw AppError(
+          code: 'DATA-MP-SONG-ID',
+          userMessage: context.l10n.flowInvalidSongID,
+          stage: '准备音频题目',
+          source: 'multiplayer',
+          retryable: false,
+        ).asStateError();
+      }
       final mode = switch (_currentRoom?.gameType) {
         GameType.reverseAudio => GuessAudioMode.reverseAudio,
         GameType.pitchAudio => GuessAudioMode.pitchAudio,
@@ -3448,7 +3492,14 @@ class _GameRoomPageState extends State<GameRoomPage> {
       if (mode == GuessAudioMode.normal) {
         final file = await utility.getMusicFile(musicId.toString());
         if (!current()) return;
-        if (file == null) throw StateError(context.l10n.flowCouldNotFetchAudioTryAgainLater);
+        if (file == null) {
+          throw AppError(
+            code: 'NET-MP-AUDIO-FETCH',
+            userMessage: context.l10n.flowCouldNotFetchAudioTryAgainLater,
+            stage: '获取对局音频',
+            source: 'multiplayer',
+          ).asStateError();
+        }
         final durationEvent = player.onDurationChanged.first
             .timeout(const Duration(seconds: 3))
             .then<Duration?>((value) => value, onError: (_) => null);
@@ -3456,8 +3507,14 @@ class _GameRoomPageState extends State<GameRoomPage> {
         if (!current()) return;
         final duration = await player.getDuration() ?? await durationEvent;
         if (!current()) return;
-        if (duration == null || duration <= Duration.zero)
-          throw StateError(context.l10n.flowCouldNotReadAudioDuration);
+        if (duration == null || duration <= Duration.zero) {
+          throw AppError(
+            code: 'DATA-MP-AUDIO-DURATION',
+            userMessage: context.l10n.flowCouldNotReadAudioDuration,
+            stage: '读取音频时长',
+            source: 'multiplayer',
+          ).asStateError();
+        }
         _audioStartTime ??= GameSeedUtil.generateAudioStartTime(
             roomId: roomId,
             roundNumber: roundNumber,
@@ -3486,10 +3543,10 @@ class _GameRoomPageState extends State<GameRoomPage> {
         _currentPosition = 0;
       });
       _startPlaybackTimer(current);
-    } catch (error) {
+    } catch (error, stack) {
       if (current()) {
         setState(() => _isPlaying = false);
-        AppToast.show(context.l10n.flowAudioPlaybackFailedP0((error).toString()), tone: AppToastTone.error);
+        AppToast.showError(error, stack: stack, stage: '播放对局音频');
       }
     } finally {
       if (!current() && player != null && identical(player, _audioPlayer)) {
@@ -3535,10 +3592,10 @@ class _GameRoomPageState extends State<GameRoomPage> {
     try {
       await player.resume();
       if (current()) _startPlaybackTimer(current);
-    } catch (error) {
+    } catch (error, stack) {
       if (current()) {
         setState(() => _isPlaying = false);
-        AppToast.show(context.l10n.flowAudioPlaybackFailedP0((error).toString()), tone: AppToastTone.error);
+        AppToast.showError(error, stack: stack, stage: '恢复播放对局音频');
       }
     }
   }
@@ -3688,6 +3745,15 @@ class _GameRoomPageState extends State<GameRoomPage> {
                 content: Text(_initializationError!),
                 leading: Icon(Icons.wifi_off_rounded, color: scheme.error),
                 actions: [
+                  if (_initAppError != null)
+                    TextButton(
+                      onPressed: () => showErrorMessageDialog(
+                        context,
+                        appError: _initAppError!,
+                        onRetry: _initRoom,
+                      ),
+                      child: Text(context.l10n.errDetails),
+                    ),
                   TextButton(onPressed: _initRoom, child:  Text(context.l10n.flowReconnect))
                 ],
               ),

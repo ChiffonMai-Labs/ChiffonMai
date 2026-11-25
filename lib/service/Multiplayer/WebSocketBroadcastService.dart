@@ -6,6 +6,7 @@ import '../../entity/Multiplayer/GameType.dart';
 import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:web_socket_channel/status.dart' as status;
+import '../../utils/AppError.dart';
 
 // 消息回调类型
 typedef MessageCallback = void Function(Map<String, dynamic> message);
@@ -161,7 +162,12 @@ class WebSocketBroadcastService {
       // 等待连接真正建立
       await channel.ready.timeout(const Duration(seconds: 10));
       if (_isDisconnecting || !identical(_channel, channel)) {
-        throw StateError(appL10n.svcConnectionCancelled);
+        throw AppError(
+          code: 'NET-WS-CANCELLED',
+          userMessage: appL10n.svcConnectionCancelled,
+          stage: '建立联机连接',
+          source: 'multiplayer',
+        ).asStateError();
       }
 
       _isConnected = true;
@@ -302,7 +308,12 @@ class WebSocketBroadcastService {
       _resumePlayerId = resumePlayerId;
     }
     if (!_isConnected || _channel == null) {
-      throw StateError(appL10n.svcDisconnectedReconnectAndTryAgain);
+      throw AppError(
+        code: 'NET-WS-DISCONNECTED',
+        userMessage: appL10n.svcDisconnectedReconnectAndTryAgain,
+        stage: '初始化联机身份',
+        source: 'multiplayer',
+      ).asStateError();
     }
 
     try {
@@ -338,7 +349,12 @@ class WebSocketBroadcastService {
   // 发送创建房间消息
   Future<void> sendCreateRoom(Map<String, dynamic> options) async {
     if (!_isConnected || _channel == null) {
-      throw StateError(appL10n.svcDisconnectedReconnectAndTryAgain);
+      throw AppError(
+        code: 'NET-WS-DISCONNECTED',
+        userMessage: appL10n.svcDisconnectedReconnectAndTryAgain,
+        stage: '创建房间',
+        source: 'multiplayer',
+      ).asStateError();
     }
 
     try {
@@ -357,7 +373,12 @@ class WebSocketBroadcastService {
   // 发送加入房间消息（支持房间ID或房间码）
   Future<void> sendJoinRoom(String roomId, String? nickname) async {
     if (!_isConnected || _channel == null) {
-      throw StateError(appL10n.svcDisconnectedReconnectAndTryAgain);
+      throw AppError(
+        code: 'NET-WS-DISCONNECTED',
+        userMessage: appL10n.svcDisconnectedReconnectAndTryAgain,
+        stage: '加入房间',
+        source: 'multiplayer',
+      ).asStateError();
     }
 
     try {
@@ -407,7 +428,12 @@ class WebSocketBroadcastService {
   // 发送更新准备状态消息
   Future<void> sendUpdateReady(bool ready) async {
     if (!_isConnected || _channel == null) {
-      throw StateError(appL10n.svcDisconnectedReconnectAndTryAgain);
+      throw AppError(
+        code: 'NET-WS-DISCONNECTED',
+        userMessage: appL10n.svcDisconnectedReconnectAndTryAgain,
+        stage: '更新准备状态',
+        source: 'multiplayer',
+      ).asStateError();
     }
 
     try {
@@ -426,7 +452,12 @@ class WebSocketBroadcastService {
   // 发送开始游戏消息
   Future<void> sendStartGame() async {
     if (!_isConnected || _channel == null) {
-      throw StateError(appL10n.svcDisconnectedReconnectAndTryAgain);
+      throw AppError(
+        code: 'NET-WS-DISCONNECTED',
+        userMessage: appL10n.svcDisconnectedReconnectAndTryAgain,
+        stage: '开始游戏',
+        source: 'multiplayer',
+      ).asStateError();
     }
 
     try {
@@ -445,7 +476,12 @@ class WebSocketBroadcastService {
   // 发送开始下一回合消息
   Future<void> sendStartNextRound() async {
     if (!_isConnected || _channel == null) {
-      throw StateError(appL10n.svcDisconnectedReconnectAndTryAgain);
+      throw AppError(
+        code: 'NET-WS-DISCONNECTED',
+        userMessage: appL10n.svcDisconnectedReconnectAndTryAgain,
+        stage: '开始下一回合',
+        source: 'multiplayer',
+      ).asStateError();
     }
 
     try {
@@ -465,7 +501,12 @@ class WebSocketBroadcastService {
   Future<void> sendCoverPreparation(String action, String roomId, String roundId,
       {Map<String, double>? crop, bool failed = false}) async {
     if (!_isConnected || _channel == null) {
-      throw StateError(appL10n.svcDisconnectedTheCoverReadyStatusWasNot);
+      throw AppError(
+        code: 'NET-WS-DISCONNECTED',
+        userMessage: appL10n.svcDisconnectedTheCoverReadyStatusWasNot,
+        stage: '同步曲绘准备状态',
+        source: 'multiplayer',
+      ).asStateError();
     }
     _channel!.sink.add(jsonEncode({
       'action': action,
@@ -481,7 +522,12 @@ class WebSocketBroadcastService {
   // 发送猜测消息
   Future<void> sendGuess(String songId, String songName) async {
     if (!_isConnected || _channel == null) {
-      throw StateError(appL10n.svcDisconnectedThisGuessWasNotSubmittedReconnect);
+      throw AppError(
+        code: 'NET-WS-DISCONNECTED',
+        userMessage: appL10n.svcDisconnectedThisGuessWasNotSubmittedReconnect,
+        stage: '提交猜测',
+        source: 'multiplayer',
+      ).asStateError();
     }
 
     try {
@@ -503,7 +549,12 @@ class WebSocketBroadcastService {
   // 发送开字母消息（letters 模式）
   Future<void> sendOpenLetter(String letter) async {
     if (!_isConnected || _channel == null) {
-      throw StateError(appL10n.svcDisconnectedReconnectAndTryAgain);
+      throw AppError(
+        code: 'NET-WS-DISCONNECTED',
+        userMessage: appL10n.svcDisconnectedReconnectAndTryAgain,
+        stage: '开字母',
+        source: 'multiplayer',
+      ).asStateError();
     }
 
     try {
@@ -522,7 +573,12 @@ class WebSocketBroadcastService {
   // 发送离开房间消息
   Future<void> sendLeaveRoom() async {
     if (!_isConnected || _channel == null) {
-      throw StateError(appL10n.svcDisconnectedReconnectBeforeLeavingTheRoom);
+      throw AppError(
+        code: 'NET-WS-DISCONNECTED',
+        userMessage: appL10n.svcDisconnectedReconnectBeforeLeavingTheRoom,
+        stage: '离开房间',
+        source: 'multiplayer',
+      ).asStateError();
     }
 
     try {
@@ -560,7 +616,12 @@ class WebSocketBroadcastService {
   // 发送投降消息
   Future<void> sendSurrender() async {
     if (!_isConnected || _channel == null) {
-      throw StateError(appL10n.svcDisconnectedReconnectAndTryAgain);
+      throw AppError(
+        code: 'NET-WS-DISCONNECTED',
+        userMessage: appL10n.svcDisconnectedReconnectAndTryAgain,
+        stage: '认输投降',
+        source: 'multiplayer',
+      ).asStateError();
     }
 
     try {

@@ -10,6 +10,7 @@ import 'package:my_first_flutter_app/service/GuessChartGame/GuessChartCommonSett
 import 'package:my_first_flutter_app/widgets/BackgroundPageScaffold.dart';
 import '../../widgets/AppToast.dart';
 import '../../utils/AppDesignTokens.dart';
+import '../../utils/AppError.dart';
 import '../../widgets/AppUi.dart';
 import '../../widgets/ChartPeekPlaybackUi.dart';
 import '../../widgets/GuessAudioRateSlider.dart';
@@ -197,11 +198,19 @@ class _RoomCreatePageState extends State<RoomCreatePage> {
       if (room != null) {
         Navigator.pop(context, room);
       } else {
-        AppToast.show(context.l10n.flowCouldNotCreateRoom, tone: AppToastTone.error);
+        AppToast.showError(
+          AppError(
+            code: 'SRV-WS-ROOM-CREATE',
+            userMessage: context.l10n.flowCouldNotCreateRoom,
+            stage: '创建联机房间',
+            source: 'multiplayer',
+          ),
+          stage: '创建联机房间',
+        );
       }
-    } catch (e) {
+    } catch (e, stack) {
       if (!mounted) return;
-      AppToast.show(context.l10n.flowCouldNotCreateRoomP02((e).toString()), tone: AppToastTone.error);
+      AppToast.showError(e, stack: stack, stage: '创建联机房间');
     } finally {
       if (mounted) setState(() => _isCreating = false);
     }

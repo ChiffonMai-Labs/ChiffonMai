@@ -8,6 +8,7 @@ import 'package:crypto/crypto.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../api/ApiUrls.dart';
 import '../../utils/ApiClient.dart';
+import '../../utils/AppError.dart';
 
 enum GuessAudioMode { normal, reverseAudio, pitchAudio }
 
@@ -31,13 +32,21 @@ class GuessAudioService {
           ascii.decode(header.sublist(0, 4)) != 'RIFF' ||
           ascii.decode(header.sublist(8, 16)) != 'WAVEfmt ' ||
           ascii.decode(header.sublist(36, 40)) != 'data') {
-        throw StateError(appL10n.flowCouldNotReadExcerptDuration);
+        throw AppError(
+          code: 'DATA-AUDIO-DURATION',
+          userMessage: appL10n.flowCouldNotReadExcerptDuration,
+          stage: '读取音频片段时长',
+        ).asStateError();
       }
       final data = ByteData.sublistView(header);
       final byteRate = data.getUint32(28, Endian.little);
       final size = data.getUint32(40, Endian.little);
       if (byteRate == 0 || size == 0 || await input.length() < size + 44) {
-        throw StateError(appL10n.flowAudioExcerptIsIncomplete);
+        throw AppError(
+          code: 'DATA-AUDIO-INCOMPLETE',
+          userMessage: appL10n.flowAudioExcerptIsIncomplete,
+          stage: '校验音频片段',
+        ).asStateError();
       }
       return Duration(
           microseconds: size * Duration.microsecondsPerSecond ~/ byteRate);
@@ -158,7 +167,12 @@ class GuessAudioService {
         bytes.add(chunk);
         // 5× 题面的原声最长为 150 秒，仍限制在固定 PCM 输出的体积上界内。
         if (bytes.length > (original ? 7 : 2) * 1024 * 1024) {
-          throw StateError('音频响应过大');
+          throw AppError(
+            code: 'NET-AUDIO-TOO-LARGE',
+            userMessage: '音源片段体积超出预期上限，请重试',
+            stage: '下载猜歌音频',
+            source: 'chiffonmai',
+          ).asStateError();
         }
         if (watch.elapsedMilliseconds > 45000) throw TimeoutException('音频传输超时');
         if (watch.elapsedMilliseconds - lastProgress >= 1000) {
@@ -169,14 +183,39 @@ class GuessAudioService {
       final data = bytes.takeBytes();
       if (response.statusCode != 200) {
         String? code;
+        String? serverErrorCode;
+        String? serverMsg;
+        String? reqId = response.headers['x-request-id']?.trim();
         try {
-          code = (jsonDecode(utf8.decode(data)) as Map)['code']?.toString();
+          final parsed = jsonDecode(utf8.decode(data, allowMalformed: true));
+          if (parsed is Map) {
+            code = parsed['code']?.toString();
+            serverErrorCode = parsed['errorCode']?.toString();
+            serverMsg =
+                (parsed['userMessage'] ?? parsed['error'])?.toString().trim();
+            reqId ??= parsed['requestId']?.toString().trim();
+          }
         } catch (_) {}
-        throw StateError(
-            '音源请求失败 HTTP ${response.statusCode}${code == null ? '' : ' ($code)'}');
+        throw AppError(
+          code: (serverErrorCode != null && serverErrorCode.isNotEmpty)
+              ? serverErrorCode
+              : 'SRV-AUDIO-FETCH',
+          userMessage: (serverMsg != null && serverMsg.isNotEmpty)
+              ? serverMsg
+              : '音源请求失败 HTTP ${response.statusCode}${code == null ? '' : ' ($code)'}',
+          stage: '下载猜歌音频',
+          source: 'chiffonmai',
+          httpStatus: response.statusCode,
+          requestId: (reqId != null && reqId.isNotEmpty) ? reqId : null,
+        ).asStateError();
       }
       if (data.length < 44 || String.fromCharCodes(data.take(4)) != 'RIFF') {
-        throw StateError(appL10n.flowAudioResponseIsNotAValidWAV);
+        throw AppError(
+          code: 'DATA-AUDIO-INVALID-WAV',
+          userMessage: appL10n.flowAudioResponseIsNotAValidWAV,
+          stage: '校验猜歌音频格式',
+          source: 'chiffonmai',
+        ).asStateError();
       }
       log('片段下载完成 ${watch.elapsedMilliseconds}ms bytes=${data.length}');
       final temporary = File('${output.path}.tmp');

@@ -29,6 +29,7 @@ import 'GuessChartLoadingView.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
 import '../../widgets/GuessUi.dart';
 import '../../utils/AppDesignTokens.dart';
+import '../../utils/AppError.dart';
 import '../../widgets/AppDialogs.dart';
 import '../../widgets/AppToast.dart';
 import '../../widgets/AppUi.dart';
@@ -703,9 +704,6 @@ class _GuessChartBySongExcerptPageState
     required double masterMaxDx,
     required List<String> selectedGenres,
   }) async {
-    // 先取好 messenger：下面 await 之后再用 context 会踩
-    // use_build_context_synchronously
-    final messenger = ScaffoldMessenger.of(context);
     // Let the dialog pop animation and the save confirmation render before
     // the full-library validation starts on the UI isolate.
     await Future<void>.delayed(const Duration(milliseconds: 350));
@@ -938,7 +936,13 @@ class _GuessChartBySongExcerptPageState
         final original =
             await LuoXueSongUtil().getMusicFile(_luoXueSongId.toString());
         if (!current()) return;
-        if (original == null) throw StateError(context.l10n.flowAudioIsTemporarilyUnavailable);
+        if (original == null) {
+          throw AppError(
+            code: 'NET-AUDIO-UNAVAILABLE',
+            userMessage: context.l10n.flowAudioIsTemporarilyUnavailable,
+            stage: '获取猜歌音频',
+          ).asStateError();
+        }
         log('普通模式原音源文件就绪');
         final durationEvent = player.onDurationChanged.first
             .timeout(const Duration(seconds: 3))
@@ -947,8 +951,13 @@ class _GuessChartBySongExcerptPageState
         if (!current()) return;
         final duration = await player.getDuration() ?? await durationEvent;
         if (!current()) return;
-        if (duration == null || duration <= Duration.zero)
-          throw StateError(context.l10n.flowCouldNotReadAudioDuration);
+        if (duration == null || duration <= Duration.zero) {
+          throw AppError(
+            code: 'DATA-AUDIO-DURATION',
+            userMessage: context.l10n.flowCouldNotReadAudioDuration,
+            stage: '读取音频时长',
+          ).asStateError();
+        }
         _audioStartTime ??= GuessChartBySongExcerptPage.pickAudioStartTime(
             totalSeconds: duration.inSeconds,
             playDuration: _currentPlayDuration);
@@ -976,7 +985,13 @@ class _GuessChartBySongExcerptPageState
         if (!current()) return;
         log('播放器音源装载完成');
       }
-      if (actualDuration <= 0) throw StateError(context.l10n.flowAudioExcerptIsEmpty);
+      if (actualDuration <= 0) {
+        throw AppError(
+          code: 'DATA-AUDIO-EMPTY',
+          userMessage: context.l10n.flowAudioExcerptIsEmpty,
+          stage: '校验音频片段',
+        ).asStateError();
+      }
       await player.seek(Duration(seconds: _playbackOffset));
       log('播放器定位完成');
       if (!current()) return;
@@ -990,11 +1005,11 @@ class _GuessChartBySongExcerptPageState
       if (!current()) return;
       log('开始播放，本轮实际时长 ${actualDuration.toStringAsFixed(3)}s');
       _startPlaybackWatch(current);
-    } catch (error) {
+    } catch (error, stack) {
       log('播放准备失败：$error');
       if (current()) {
         setState(() => _isPlaying = false);
-        AppToast.show(context.l10n.flowAudioPlaybackFailedP0((error).toString()), tone: AppToastTone.error);
+        AppToast.showError(error, stack: stack, stage: '播放猜歌音频');
       }
     } finally {
       if (!current() && player != null && identical(player, _audioPlayer)) {
@@ -1048,10 +1063,10 @@ class _GuessChartBySongExcerptPageState
     try {
       await player.resume();
       if (current()) _startPlaybackWatch(current);
-    } catch (error) {
+    } catch (error, stack) {
       if (current()) {
         setState(() => _isPlaying = false);
-        AppToast.show(context.l10n.flowAudioPlaybackFailedP0((error).toString()), tone: AppToastTone.error);
+        AppToast.showError(error, stack: stack, stage: '恢复猜歌音频');
       }
     }
   }

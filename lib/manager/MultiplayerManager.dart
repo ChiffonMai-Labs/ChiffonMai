@@ -8,6 +8,7 @@ import 'package:my_first_flutter_app/entity/Multiplayer/GameType.dart';
 import 'package:my_first_flutter_app/api/ApiUrls.dart';
 import 'package:my_first_flutter_app/service/GuessChartGame/MultiplayerCloudBaseService.dart';
 import 'package:my_first_flutter_app/service/GuessChartGame/MultiplayerGameService.dart';
+import 'package:my_first_flutter_app/utils/AppError.dart';
 
 class MultiplayerManager {
   static final MultiplayerManager _instance = MultiplayerManager._internal();
@@ -32,11 +33,14 @@ class MultiplayerManager {
       StreamController.broadcast();
   final StreamController<String> _errorMessageController =
       StreamController.broadcast();
+  final StreamController<AppError> _errorController =
+      StreamController.broadcast();
 
   Stream<RoomEntity?> get roomStream => _roomController.stream;
   Stream<GameStateEntity?> get gameStateStream => _gameStateController.stream;
   Stream<List<RoomEntity>> get roomListStream => _roomListController.stream;
   Stream<String> get errorMessageStream => _errorMessageController.stream;
+  Stream<AppError> get errorStream => _errorController.stream;
 
   /// 当前所在房间（不在房间时为 null）。
   ///
@@ -206,7 +210,14 @@ class MultiplayerManager {
         break;
       case MultiplayerEventType.error:
         if (event is ErrorEvent) {
-          _errorMessageController.add(event.message);
+          final appErr = event.appError ??
+              AppErrorMapper.fromMessage(
+                event.message,
+                stage: '多人联机',
+                source: 'multiplayer',
+              );
+          _errorMessageController.add(appErr.userMessage);
+          _errorController.add(appErr);
         }
         break;
       case MultiplayerEventType.joinFailed:
@@ -292,7 +303,16 @@ class MultiplayerManager {
         } else if (event is ErrorEvent) {
           completed = true;
           debugPrint('[DEBUG][Manager] 房间创建失败: ${event.message}');
-          completer.completeError(StateError(event.message));
+          completer.completeError(
+            (event.appError ??
+                    AppError(
+                      code: 'SRV-WS-ROOM-CREATE',
+                      userMessage: event.message,
+                      stage: '创建房间',
+                      source: 'multiplayer',
+                    ))
+                .asStateError(),
+          );
           sub?.cancel();
         }
       }
@@ -353,7 +373,16 @@ class MultiplayerManager {
         } else if (event is ErrorEvent) {
           completed = true;
           debugPrint('[DEBUG][Manager] Error occurred: ${event.message}');
-          completer.complete(null);
+          completer.completeError(
+            (event.appError ??
+                    AppError(
+                      code: 'SRV-WS-ROOM-JOIN',
+                      userMessage: event.message,
+                      stage: '加入房间',
+                      source: 'multiplayer',
+                    ))
+                .asStateError(),
+          );
           sub?.cancel();
         }
       }

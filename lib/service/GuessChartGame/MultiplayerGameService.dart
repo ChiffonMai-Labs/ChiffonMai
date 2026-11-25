@@ -9,6 +9,7 @@ import 'package:my_first_flutter_app/entity/Multiplayer/PlayerEntity.dart';
 import 'package:my_first_flutter_app/entity/Multiplayer/GameStateEntity.dart';
 import 'package:my_first_flutter_app/entity/Multiplayer/GuessRecord.dart';
 import 'package:my_first_flutter_app/entity/Multiplayer/GameType.dart';
+import 'package:my_first_flutter_app/utils/AppError.dart';
 
 enum MultiplayerEventType {
   connected,
@@ -254,8 +255,23 @@ class MultiplayerGameService {
           _eventController.add(MultiplayerEvent.leftRoom());
           break;
         case 'error':
+          final Map<String, dynamic> errMap =
+              payload ?? const <String, dynamic>{};
+          final rawMsg = (errMap['userMessage'] ?? errMap['message'] ?? '').toString();
+          final errCode = errMap['errorCode']?.toString().trim();
+          final reqId = errMap['requestId']?.toString().trim();
+          final retryable = errMap['retryable'] == true;
+          final cleanMsg = AppErrorMapper.cleanText(rawMsg);
           _eventController.add(MultiplayerEvent.error(
-            message: payload?['message'] ?? '',
+            message: cleanMsg,
+            appError: AppError(
+              code: (errCode != null && errCode.isNotEmpty) ? errCode : 'SRV-WS-ERROR',
+              userMessage: cleanMsg.isEmpty ? appL10n.featureUnknownError : cleanMsg,
+              stage: '多人联机',
+              source: 'multiplayer',
+              requestId: (reqId != null && reqId.isNotEmpty) ? reqId : null,
+              retryable: retryable,
+            ),
           ));
           break;
         case 'heartbeat':
@@ -263,8 +279,17 @@ class MultiplayerGameService {
         default:
           break;
       }
-    } catch (e) {
-      _eventController.add(MultiplayerEvent.error(message: appL10n.flowCouldNotParseMessageP0((e).toString())));
+    } catch (e, stack) {
+      final mapped = AppErrorMapper.from(
+        e,
+        stack: stack,
+        stage: '解析联机消息',
+        source: 'multiplayer',
+      );
+      _eventController.add(MultiplayerEvent.error(
+        message: mapped.userMessage,
+        appError: mapped,
+      ));
     }
   }
 
@@ -334,7 +359,10 @@ sealed class MultiplayerEvent {
   factory MultiplayerEvent.hostChanged({required String newHostNickname}) = HostChangedEvent;
   
   /// 错误
-  factory MultiplayerEvent.error({required String message}) = ErrorEvent;
+  factory MultiplayerEvent.error({
+    required String message,
+    AppError? appError,
+  }) = ErrorEvent;
   
   /// 初始化完成
   factory MultiplayerEvent.initialized() = InitializedEvent;
@@ -492,7 +520,8 @@ class GameEndEvent extends MultiplayerEvent {
 
 class ErrorEvent extends MultiplayerEvent {
   final String message;
-  const ErrorEvent({required this.message});
+  final AppError? appError;
+  const ErrorEvent({required this.message, this.appError});
   
   @override
   MultiplayerEventType get type => MultiplayerEventType.error;

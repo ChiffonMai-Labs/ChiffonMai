@@ -16,6 +16,7 @@ import 'ChartPlayPage.dart';
 import '../service/ChartPlaySettingsStore.dart';
 import '../widgets/AppHeader.dart';
 import '../utils/AppDesignTokens.dart';
+import '../utils/AppError.dart';
 import '../widgets/AppDialogs.dart';
 import '../widgets/AppToast.dart';
 
@@ -311,18 +312,25 @@ class _PersonalizedChartPlayConfigureState
               context.l10n.flowLoadedMaidataWithP0Difficulties(
                   (_inoteList.length).toString()),
               tone: AppToastTone.success);
-        } catch (e) {
-          AppToast.show(context.l10n.flowUnsupportedEncodingUseUTF8OrShift,
-              tone: AppToastTone.error);
+        } catch (e, stack) {
+          if (mounted) {
+            AppToast.showError(
+              AppError(
+                code: 'DATA-MAIDATA-ENCODING',
+                userMessage: context.l10n.flowUnsupportedEncodingUseUTF8OrShift,
+                stage: '读取 maidata 文本',
+                technicalDetail: '$e\n$stack',
+              ),
+              stage: '读取 maidata 文本',
+            );
+          }
           debugPrint('maidata read error: $e');
         }
       }
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('文件选择失败: $e');
       if (mounted) {
-        AppToast.show(
-            context.l10n.flowCouldNotOpenTheFilePickerP0((e).toString()),
-            tone: AppToastTone.error);
+        AppToast.showError(e, stack: stack, stage: '选择 maidata 文件');
       }
     }
   }
@@ -347,12 +355,10 @@ class _PersonalizedChartPlayConfigureState
               tone: AppToastTone.success);
         }
       }
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('图片选择失败: $e');
       if (mounted) {
-        AppToast.show(
-            context.l10n.flowCouldNotOpenTheImagePickerP0((e).toString()),
-            tone: AppToastTone.error);
+        AppToast.showError(e, stack: stack, stage: '选择曲绘背景');
       }
     }
   }
@@ -377,12 +383,10 @@ class _PersonalizedChartPlayConfigureState
               tone: AppToastTone.success);
         }
       }
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('音频选择失败: $e');
       if (mounted) {
-        AppToast.show(
-            context.l10n.flowCouldNotOpenTheAudioPickerP0((e).toString()),
-            tone: AppToastTone.error);
+        AppToast.showError(e, stack: stack, stage: '选择音频文件');
       }
     }
   }
@@ -407,11 +411,10 @@ class _PersonalizedChartPlayConfigureState
       if (!mounted) return;
       // 已经是归档副本了，不要再归档一次
       await _importChartPackage(bytes, entry.displayName);
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('从历史重新解析失败: $e');
       if (mounted) {
-        AppToast.show(context.l10n.flowCouldNotParseAgainP0((e).toString()),
-            tone: AppToastTone.error);
+        AppToast.showError(e, stack: stack, stage: '重新解析历史谱面包');
       }
     } finally {
       if (mounted) setState(() => _historyBusyPath = null);
@@ -484,11 +487,10 @@ class _PersonalizedChartPlayConfigureState
       // 归档由 _importChartPackage 在解压成功后才做：
       // 选到无效压缩包时不该在「最近解析」里留一条坏记录。
       await _importChartPackage(bytes, picked.name, archiveAs: picked.name);
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('谱面包导入失败: $e');
       if (mounted) {
-        AppToast.show(context.l10n.flowImportFailedP0((e).toString()),
-            tone: AppToastTone.error);
+        AppToast.showError(e, stack: stack, stage: '导入自制谱面包');
       }
     }
   }

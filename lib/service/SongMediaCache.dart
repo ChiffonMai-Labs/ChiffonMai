@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 
 import '../utils/ApiClient.dart';
+import '../utils/AppError.dart';
 
 typedef MediaCacheProgress = void Function(
     double? progress, double bytesPerSecond, String status);
@@ -185,7 +186,14 @@ class SongMediaCache {
         if (onProgress != null) task.addListener(onProgress);
         task.file = () async {
           final cached = await existing();
-          if (_generation[kind] != generation) throw StateError('缓存已清理');
+          if (_generation[kind] != generation) {
+            throw AppError(
+              code: 'DATA-MEDIA-CACHE-CLEARED',
+              userMessage: '媒体缓存已被清理，请重试',
+              stage: '读取媒体缓存',
+              retryable: true,
+            ).asStateError();
+          }
           if (cached != null) {
             task.report(1, 0, appL10n.svcLoadedP0FromTheLocalCache((kind == 'audio' ? appL10n.svcAudio : 'PV').toString()));
             return cached;
@@ -242,7 +250,12 @@ class SongMediaCache {
               .transform(StreamTransformer<List<int>, List<int>>.fromHandlers(
             handleData: (chunk, output) {
               if (_generation[kind] != generation) {
-                throw StateError('缓存已清理');
+                throw AppError(
+                  code: 'DATA-MEDIA-CACHE-CLEARED',
+                  userMessage: '媒体缓存已被清理，请重试',
+                  stage: '写入媒体缓存',
+                  retryable: true,
+                ).asStateError();
               }
               received += chunk.length;
               output.add(chunk);
@@ -269,7 +282,14 @@ class SongMediaCache {
           } catch (_) {}
           rethrow;
         }
-        if (_generation[kind] != generation) throw StateError('缓存已清理');
+        if (_generation[kind] != generation) {
+          throw AppError(
+            code: 'DATA-MEDIA-CACHE-CLEARED',
+            userMessage: '媒体缓存已被清理，请重试',
+            stage: '校验媒体缓存',
+            retryable: true,
+          ).asStateError();
+        }
         if ((total != null && total > 0 && received != total) ||
             !await _valid(part, kind)) {
           throw FormatException(appL10n.svcTheMediaFileIsIncompleteOrHas);
@@ -285,7 +305,18 @@ class SongMediaCache {
         if (await part.exists()) await part.delete();
       }
     }
-    throw StateError(appL10n.svcMediaDownloadFailedP0(lastError.toString()));
+    final mapped = AppErrorMapper.from(
+      lastError ?? '未知下载错误',
+      stage: '下载媒体资源',
+    );
+    throw AppError(
+      code: 'NET-MEDIA-DOWNLOAD',
+      userMessage: appL10n.svcMediaDownloadFailedP0(mapped.userMessage),
+      stage: '下载媒体资源',
+      httpStatus: mapped.httpStatus,
+      requestId: mapped.requestId,
+      technicalDetail: mapped.technicalDetail,
+    ).asStateError();
   }
 
   Future<(int, int)> audioUsage() async {

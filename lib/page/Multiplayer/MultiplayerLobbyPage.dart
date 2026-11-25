@@ -11,6 +11,7 @@ import 'package:my_first_flutter_app/entity/Multiplayer/RoomEntity.dart';
 import 'package:my_first_flutter_app/widgets/BackgroundPageScaffold.dart';
 import '../../widgets/AppUi.dart';
 import '../../utils/AppDesignTokens.dart';
+import '../../utils/AppError.dart';
 import '../../widgets/AppToast.dart';
 
 class MultiplayerLobbyPage extends StatefulWidget {
@@ -96,8 +97,10 @@ class _MultiplayerLobbyPageState extends State<MultiplayerLobbyPage> {
         await Navigator.push(context,
             MaterialPageRoute(builder: (context) => GameRoomPage(room: result)));
       }
-    } catch (error) {
-      if (mounted) AppToast.show(context.l10n.flowCouldNotCreateRoomP0((error).toString()), tone: AppToastTone.error);
+    } catch (error, stack) {
+      if (mounted) {
+        AppToast.showError(error, stack: stack, stage: '创建联机房间');
+      }
     } finally {
       if (mounted) setState(() => _isCreating = false);
     }
@@ -115,11 +118,20 @@ class _MultiplayerLobbyPageState extends State<MultiplayerLobbyPage> {
       if (!mounted || roomId == null) return;
       final room = await _manager.joinRoom(roomId);
       if (!mounted) return;
-      if (room == null) throw StateError(context.l10n.flowRoomDoesNotExistOrCannotBe);
+      if (room == null) {
+        throw AppError(
+          code: 'SRV-WS-ROOM-NOT-FOUND',
+          userMessage: context.l10n.flowRoomDoesNotExistOrCannotBe,
+          stage: '加入联机房间',
+          source: 'multiplayer',
+        ).asStateError();
+      }
       await Navigator.push(context,
           MaterialPageRoute(builder: (context) => GameRoomPage(room: room)));
-    } catch (error) {
-      if (mounted) AppToast.show(context.l10n.flowCouldNotJoinRoomP0((error).toString()), tone: AppToastTone.error);
+    } catch (error, stack) {
+      if (mounted) {
+        AppToast.showError(error, stack: stack, stage: '加入联机房间');
+      }
     } finally {
       if (mounted) setState(() => _isJoining = false);
     }
