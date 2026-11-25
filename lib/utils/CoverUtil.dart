@@ -239,7 +239,10 @@ class CoverUtil {
                               : const ImageLoadingIndicator(),
                       errorBuilder: (context, error, stackTrace) {
                         // AWMC 曲绘和旧缓存的网络兜底。
-                        return DxRatingCoverImage(songId: songId);
+                        return DxRatingCoverImage(
+                          songId: songId,
+                          cacheWidth: cacheWidth,
+                        );
                       },
                     );
                   },

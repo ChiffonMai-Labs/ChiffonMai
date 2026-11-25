@@ -14,6 +14,7 @@ import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 // 「游离的库文档注释」（dangling_library_doc_comments）而报警告。
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -50,6 +51,11 @@ class PortableCover extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cacheWidth = size.isFinite && size > 0
+        ? (size * MediaQuery.devicePixelRatioOf(context))
+            .round()
+            .clamp(64, 512)
+        : null;
     return ClipRRect(
       borderRadius: BorderRadius.circular(radius),
       child: Container(
@@ -60,12 +66,17 @@ class PortableCover extends StatelessWidget {
         child: Image.asset(
           song.coverAssetPath,
           fit: BoxFit.cover,
+          cacheWidth: cacheWidth,
           errorBuilder: (context, error, stackTrace) {
             return Image.network(
               song.coverNetworkUrl,
               fit: BoxFit.cover,
+              cacheWidth: cacheWidth,
               errorBuilder: (context, error, stackTrace) {
-                return DxRatingCoverImage(songId: song.divingFishId);
+                return DxRatingCoverImage(
+                  songId: song.divingFishId,
+                  cacheWidth: cacheWidth,
+                );
               },
             );
           },
@@ -131,11 +142,21 @@ class _PortablePlayerBallState extends State<PortablePlayerBall>
   /// 不把球收起来的话它会浮在卡片的遮罩之上，再点一下还能叠出第二张卡片。
   bool _miniCardOpen = false;
 
-  /// 进度环靠它推进。**必须**订阅 positionStream：控制器只在切歌/播放暂停时
-  /// notifyListeners，光靠监听器的话进度环会一直停在切入时的位置不动。
-  /// just_audio 的 positionStream 默认约 200ms 一跳，5fps 重建一个 48px 的小部件
-  /// 开销可以忽略。
+  /// 进度环靠它推进。只更新局部 [ValueNotifier]，避免每 200ms 重建整颗悬浮球，
+  /// 且在球隐藏时跳过更新。
+  final ValueNotifier<double> _progressNotifier = ValueNotifier<double>(0);
   StreamSubscription<Duration>? _positionSub;
+
+  bool get _isVisible {
+    if (_miniCardOpen) return false;
+    if (PortablePlayerScope.isBallHidden.value) return false;
+    if (PortablePlayerScope.isLibraryPageOpen.value ||
+        PortablePlayerScope.isNowPlayingPageOpen.value) {
+      return false;
+    }
+    if (PortablePlayerScope.isSongInfoPlayback.value) return false;
+    return _player.currentSong != null;
+  }
 
   @override
   void initState() {
@@ -151,8 +172,11 @@ class _PortablePlayerBallState extends State<PortablePlayerBall>
     // 用户从迷你卡片中隐藏悬浮球后，继续播放仍要保留后台状态。
     PortablePlayerScope.isBallHidden.addListener(_onPlayerChanged);
     _positionSub = _player.positionStream.listen((_) {
-      if (mounted && _player.isPlaying) setState(() {});
+      if (mounted && _isVisible && _player.isPlaying) {
+        _progressNotifier.value = _progress();
+      }
     });
+    _progressNotifier.value = _progress();
     _restoreOffset();
     _syncPulse();
   }
@@ -166,6 +190,7 @@ class _PortablePlayerBallState extends State<PortablePlayerBall>
     PortablePlayerScope.isBallHidden.removeListener(_onPlayerChanged);
     _positionSub?.cancel();
     _player.removeListener(_onPlayerChanged);
+    _progressNotifier.dispose();
     _pulse.dispose();
     super.dispose();
   }
@@ -186,14 +211,16 @@ class _PortablePlayerBallState extends State<PortablePlayerBall>
   }
 
   void _refreshFromPlayer() {
+    _progressNotifier.value = _progress();
     setState(() {});
     _syncPulse();
   }
 
   void _syncPulse() {
-    if (_player.isPlaying && !_pulse.isAnimating) {
-      _pulse.repeat(reverse: true);
-    } else if (!_player.isPlaying && _pulse.isAnimating) {
+    // 悬浮球处于隐藏状态时必须停掉脉冲 ticker，避免在后台或播放页空转耗电。
+    if (_isVisible && _player.isPlaying) {
+      if (!_pulse.isAnimating) _pulse.repeat(reverse: true);
+    } else if (_pulse.isAnimating) {
       _pulse.stop();
       _pulse.value = 0;
     }
@@ -237,6 +264,7 @@ class _PortablePlayerBallState extends State<PortablePlayerBall>
     // 取不到（key 没传 / Navigator 还没挂好）就先不开，总好过抛异常
     if (navigatorContext == null) return;
     setState(() => _miniCardOpen = true);
+    _syncPulse();
     try {
       await showModalBottomSheet<void>(
         context: navigatorContext,
@@ -245,32 +273,17 @@ class _PortablePlayerBallState extends State<PortablePlayerBall>
         builder: (_) => PortableMiniCard(onOpenLibrary: widget.onOpenLibrary),
       );
     } finally {
-      if (mounted) setState(() => _miniCardOpen = false);
+      if (mounted) {
+        setState(() => _miniCardOpen = false);
+        _syncPulse();
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // 卡片开着时先把球收起来（理由见 [_miniCardOpen]）
-    if (_miniCardOpen) return const SizedBox.shrink();
-    if (PortablePlayerScope.isBallHidden.value) {
-      return const SizedBox.shrink();
-    }
-    // 随身听曲库页自己就是播放入口，球在那上面只会碍事。
-    // 这个判断刻意放在**球自己**身上（而不是让外面的 AppShell 包一层
-    // ValueListenableBuilder）——球的宿主是 `main.dart` 的 MaterialApp.builder，
-    // 它需要自己决定显不显示，宿主越薄越不容易忘。
-    if (PortablePlayerScope.isLibraryPageOpen.value ||
-        PortablePlayerScope.isNowPlayingPageOpen.value) {
-      return const SizedBox.shrink();
-    }
-    // SongInfoPage 的「播放音乐」流程压住球：用户没主动进随身听，
-    // 球突然冒出来会很突兀；不压的话他会以为随身听被「强制打开」了。
-    if (PortablePlayerScope.isSongInfoPlayback.value) {
-      return const SizedBox.shrink();
-    }
-    final song = _player.currentSong;
-    if (song == null) return const SizedBox.shrink();
+    if (!_isVisible) return const SizedBox.shrink();
+    final song = _player.currentSong!;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -321,19 +334,21 @@ class _PortablePlayerBallState extends State<PortablePlayerBall>
                   if (!mounted) return;
                   setState(() => _dragging = false);
                 },
-                child: AnimatedBuilder(
-                  animation: _pulse,
-                  builder: (context, child) {
-                    final scale = 1 + _pulse.value * 0.04;
-                    return Transform.scale(
-                      scale: _dragging ? 1.08 : scale,
-                      child: child,
-                    );
-                  },
-                  child: _BallFace(
-                    song: song,
-                    isPlaying: _player.isPlaying,
-                    progress: _progress(),
+                child: RepaintBoundary(
+                  child: AnimatedBuilder(
+                    animation: _pulse,
+                    builder: (context, child) {
+                      final scale = 1 + _pulse.value * 0.04;
+                      return Transform.scale(
+                        scale: _dragging ? 1.08 : scale,
+                        child: child,
+                      );
+                    },
+                    child: _BallFace(
+                      song: song,
+                      isPlaying: _player.isPlaying,
+                      progressListenable: _progressNotifier,
+                    ),
                   ),
                 ),
               ),
@@ -355,12 +370,12 @@ class _PortablePlayerBallState extends State<PortablePlayerBall>
 class _BallFace extends StatelessWidget {
   final PortableSong song;
   final bool isPlaying;
-  final double progress;
+  final ValueListenable<double> progressListenable;
 
   const _BallFace({
     required this.song,
     required this.isPlaying,
-    required this.progress,
+    required this.progressListenable,
   });
 
   @override
@@ -405,15 +420,18 @@ class _BallFace extends StatelessWidget {
             size: 22,
             color: Colors.white,
           ),
-          // 环形进度：跟随播放位置
+          // 环形进度：仅局部随播放位置刷新
           SizedBox(
             width: size,
             height: size,
-            child: CircularProgressIndicator(
-              value: progress,
-              strokeWidth: 2.4,
-              backgroundColor: Colors.transparent,
-              valueColor: AlwaysStoppedAnimation<Color>(scheme.primary),
+            child: ValueListenableBuilder<double>(
+              valueListenable: progressListenable,
+              builder: (context, progress, _) => CircularProgressIndicator(
+                value: progress,
+                strokeWidth: 2.4,
+                backgroundColor: Colors.transparent,
+                valueColor: AlwaysStoppedAnimation<Color>(scheme.primary),
+              ),
             ),
           ),
         ],

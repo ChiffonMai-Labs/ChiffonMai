@@ -23,10 +23,14 @@ class DxRatingCoverImage extends StatefulWidget {
   /// 与其它曲绘一致的填充方式。
   final BoxFit fit;
 
+  /// 目标解码宽度（物理像素）；为 null 时按原图解码。
+  final int? cacheWidth;
+
   const DxRatingCoverImage({
     super.key,
     required this.songId,
     this.fit = BoxFit.cover,
+    this.cacheWidth,
   });
 
   /// 与 `CoverUtil.buildCoverPath('0')` 一致（不 import 它，避免循环依赖）。
@@ -75,6 +79,7 @@ class _DxRatingCoverImageState extends State<DxRatingCoverImage> {
       return Image.asset(
         DxRatingCoverImage.defaultCoverAsset,
         fit: widget.fit,
+        cacheWidth: widget.cacheWidth,
         errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
       );
     }
@@ -82,6 +87,7 @@ class _DxRatingCoverImageState extends State<DxRatingCoverImage> {
       key: ValueKey(_urls[index]),
       imageUrl: _urls[index],
       cacheManager: dxRatingCoverCacheManager,
+      memCacheWidth: widget.cacheWidth,
       fit: widget.fit,
       fadeInDuration: const Duration(milliseconds: 120),
       placeholder: (context, _) => const ImageLoadingIndicator(),

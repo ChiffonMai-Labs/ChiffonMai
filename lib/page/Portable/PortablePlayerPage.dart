@@ -59,6 +59,7 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
   /// 列表刚加载好时为 true：只有这一小段时间里出现的行才播入场，
   /// 之后滚动回收重建的行直接显示，不然每滑一下都会重播。
   bool _playListEntrance = false;
+  Timer? _entranceTimer;
   String? _error;
 
   /// 搜索防抖定时器 —— 与乐曲查询页一致（1000ms）。
@@ -115,6 +116,7 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
       PortablePlayerScope.hideBall();
     }
     _searchTimer?.cancel();
+    _entranceTimer?.cancel();
     _eventSub?.cancel();
     _player.removeListener(_safeSetState);
     for (final sub in _playerSubs) {
@@ -148,6 +150,10 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
         if (songs.isEmpty) {
           _error = appL10n.flowTheLibraryIsNotReadyRefreshData;
         }
+      });
+      _entranceTimer?.cancel();
+      _entranceTimer = Timer(const Duration(milliseconds: 800), () {
+        _playListEntrance = false;
       });
     } catch (e) {
       if (!mounted) return;
@@ -482,85 +488,86 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
   Widget _buildCurrentBar(ColorScheme scheme) {
     final song = _player.currentSong;
     if (song == null) return const SizedBox.shrink();
-    return StreamBuilder<Duration>(
-      // 进度条要跟着播放走（positionStream 约 200ms 一次）。
-      // 只重建这一条，列表不受影响。
-      stream: _player.positionStream,
-      initialData: _player.position,
-      builder: (context, snapshot) {
-        final duration = _player.duration;
-        final totalMs = duration?.inMilliseconds ?? 0;
-        // 拖动中显示手指的位置，其余时候显示真实播放位置
-        final shown = _dragValue != null && totalMs > 0
-            ? Duration(milliseconds: (_dragValue! * totalMs).round())
-            : (snapshot.data ?? Duration.zero);
-        final value = totalMs > 0
-            ? (shown.inMilliseconds / totalMs).clamp(0.0, 1.0)
-            : 0.0;
-        // 封面边长 = 右侧「曲名 + 状态 + 播放条」三行的总高。
-        // 1.5 是这两档字号的行高比上限（实测本机字体 13→19.0 / 11→16.0，
-        // 即 ≈1.46，取 1.5 留余量，免得字大的机型把列撑爆）；
-        // 第三行（进度条 + 时间）固定 20；最后 6 由 spaceBetween 平分成两段行距。
-        final scaler = MediaQuery.textScalerOf(context);
-        final coverSide = math.max(
-          52.0,
-          scaler.scale(13) * 1.5 + scaler.scale(11) * 1.5 + 20 + 6,
-        );
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(
-              AppDesignTokens.gutter, 4, AppDesignTokens.gutter, 0),
-          child: Material(
-            color: scheme.primaryContainer,
-            elevation: 3,
-            shadowColor: scheme.shadow.withValues(alpha: 0.3),
-            clipBehavior: Clip.antiAlias,
-            borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
-            child: InkWell(
-              onTap: _openNowPlaying,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(10, 10, 6, 10),
-                child: Row(
-                  children: [
-                    // 封面撑满右侧三行的高度；右边那一列被钉成同一个高度，
-                    // 用 `spaceBetween` 把三行铺开 —— 字号缩放时也对得上。
-                    SizedBox(
-                      width: coverSide,
-                      height: coverSide,
-                      child: PortableCover(
-                        song: song,
-                        size: coverSide,
-                        radius: AppDesignTokens.radiusSmall,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: SizedBox(
-                        height: coverSide,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            MarqueeText(
-                              text: song.title,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: scheme.onPrimaryContainer,
-                              ),
-                            ),
-                            Text(
-                              _player.isPlaying
-                                  ? context.l10n.flowNowPlaying
-                                  : context.l10n.flowPaused,
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: scheme.primary,
-                              ),
-                            ),
-                            // 第三行：进度条 + 时间（高度定成 20，见 coverSide 的注释）
-                            SizedBox(
-                              height: 20,
-                              child: Row(
+    // 封面边长 = 右侧「曲名 + 状态 + 播放条」三行的总高。
+    // 1.5 是这两档字号的行高比上限（实测本机字体 13→19.0 / 11→16.0，
+    // 即 ≈1.46，取 1.5 留余量，免得字大的机型把列撑爆）；
+    // 第三行（进度条 + 时间）固定 20；最后 6 由 spaceBetween 平分成两段行距。
+    final scaler = MediaQuery.textScalerOf(context);
+    final coverSide = math.max(
+      52.0,
+      scaler.scale(13) * 1.5 + scaler.scale(11) * 1.5 + 20 + 6,
+    );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+          AppDesignTokens.gutter, 4, AppDesignTokens.gutter, 0),
+      child: Material(
+        color: scheme.primaryContainer,
+        elevation: 3,
+        shadowColor: scheme.shadow.withValues(alpha: 0.3),
+        clipBehavior: Clip.antiAlias,
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
+        child: InkWell(
+          onTap: _openNowPlaying,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(10, 10, 6, 10),
+            child: Row(
+              children: [
+                // 封面撑满右侧三行的高度；右边那一列被钉成同一个高度，
+                // 用 `spaceBetween` 把三行铺开 —— 字号缩放时也对得上。
+                SizedBox(
+                  width: coverSide,
+                  height: coverSide,
+                  child: PortableCover(
+                    song: song,
+                    size: coverSide,
+                    radius: AppDesignTokens.radiusSmall,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: SizedBox(
+                    height: coverSide,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        MarqueeText(
+                          text: song.title,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: scheme.onPrimaryContainer,
+                          ),
+                        ),
+                        Text(
+                          _player.isPlaying
+                              ? context.l10n.flowNowPlaying
+                              : context.l10n.flowPaused,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: scheme.primary,
+                          ),
+                        ),
+                        // 第三行：仅这一行随 200ms positionStream 局部刷新。
+                        SizedBox(
+                          height: 20,
+                          child: StreamBuilder<Duration>(
+                            stream: _player.positionStream,
+                            initialData: _player.position,
+                            builder: (context, snapshot) {
+                              final duration = _player.duration;
+                              final totalMs = duration?.inMilliseconds ?? 0;
+                              // 拖动中显示手指的位置，其余时候显示真实播放位置
+                              final shown = _dragValue != null && totalMs > 0
+                                  ? Duration(
+                                      milliseconds:
+                                          (_dragValue! * totalMs).round())
+                                  : (snapshot.data ?? Duration.zero);
+                              final value = totalMs > 0
+                                  ? (shown.inMilliseconds / totalMs)
+                                      .clamp(0.0, 1.0)
+                                  : 0.0;
+                              return Row(
                                 children: [
                                   Expanded(
                                     child: SliderTheme(
@@ -608,29 +615,29 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
                                     ),
                                   ),
                                 ],
-                              ),
-                            ),
-                          ],
+                              );
+                            },
+                          ),
                         ),
-                      ),
+                      ],
                     ),
-                    IconButton(
-                      icon: Icon(
-                        _player.isPlaying ? Icons.pause : Icons.play_arrow,
-                        color: scheme.primary,
-                      ),
-                      onPressed: () => _player.togglePlayPause(),
-                    ),
-                    const PortablePlaybackModeButton(
-                      iconButtonKey: Key('portablePlaybackModeButton'),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
+                IconButton(
+                  icon: Icon(
+                    _player.isPlaying ? Icons.pause : Icons.play_arrow,
+                    color: scheme.primary,
+                  ),
+                  onPressed: () => _player.togglePlayPause(),
+                ),
+                const PortablePlaybackModeButton(
+                  iconButtonKey: Key('portablePlaybackModeButton'),
+                ),
+              ],
             ),
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 
@@ -661,14 +668,6 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
       );
     }
 
-    if (_playListEntrance) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        // 错开的最后一行也播完之后再关
-        Future<void>.delayed(const Duration(milliseconds: 800), () {
-          _playListEntrance = false;
-        });
-      });
-    }
     return Column(
       children: [
         Expanded(
@@ -677,17 +676,22 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
             itemExtent: _rowExtentOf(context),
             padding: const EdgeInsets.only(top: 4),
             itemCount: _filtered.length,
-            itemBuilder: (context, index) => Padding(
-              padding: const EdgeInsets.fromLTRB(
-                  AppDesignTokens.gutter, 0, AppDesignTokens.gutter, 8),
-              child: EntranceAnimation(
-                index: index,
-                enabled: _playListEntrance,
-                offset: const Offset(0, 12),
-                duration: const Duration(milliseconds: 360),
-                child: _buildRow(_filtered[index], scheme),
-              ),
-            ),
+            itemBuilder: (context, index) {
+              final row = _buildRow(_filtered[index], scheme);
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(
+                    AppDesignTokens.gutter, 0, AppDesignTokens.gutter, 8),
+                child: _playListEntrance
+                    ? EntranceAnimation(
+                        index: index,
+                        enabled: true,
+                        offset: const Offset(0, 12),
+                        duration: const Duration(milliseconds: 360),
+                        child: row,
+                      )
+                    : row,
+              );
+            },
           ),
         ),
         _buildFooter(scheme),
