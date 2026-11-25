@@ -431,9 +431,13 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
     Widget strip(String label, List<int> covers) => LayoutBuilder(
           builder: (context, constraints) {
             const cell = 30.0; // 26 + 间距 4
-            const labelWidth = 34.0, moreWidth = 32.0;
-            final fit =
-                ((constraints.maxWidth - labelWidth - moreWidth) / cell).floor();
+            const labelWidth = 34.0, moreWidth = 26.0;
+            final available =
+                (constraints.maxWidth - labelWidth).clamp(0.0, double.infinity);
+            final maxFull = (available / cell).floor();
+            final fit = covers.length <= maxFull
+                ? maxFull
+                : ((available - moreWidth) / cell).floor().clamp(0, covers.length);
             final shown = covers.take(fit < 0 ? 0 : fit).toList();
             return Row(
               children: [
@@ -456,10 +460,12 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
                           context, id.toString(), 26),
                     ),
                   ),
-                if (covers.length > shown.length)
+                if (covers.length > shown.length) ...[
+                  const Spacer(),
                   Text('+${covers.length - shown.length}',
                       style: TextStyle(
                           fontSize: 11, color: scheme.onSurfaceVariant)),
+                ],
               ],
             );
           },
@@ -483,13 +489,6 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
                       fontSize: 24,
                       fontWeight: FontWeight.w700,
                       color: scheme.onSurface)),
-              const SizedBox(width: 2),
-              IconButton(
-                tooltip: context.l10n.hubMoreActionsTooltip,
-                visualDensity: VisualDensity.compact,
-                onPressed: () => _showBest50Sheet(context),
-                icon: const Icon(Icons.more_horiz_rounded, size: 20),
-              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -527,6 +526,31 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
               LinkPill(
                   label: context.l10n.awmcScoreInsights,
                   onTap: () => _open(context, const ScoreInsightsPage())),
+              Tooltip(
+                message: context.l10n.hubMoreActionsTooltip,
+                child: Material(
+                  color: AppSurfaces.inset(context),
+                  shape: const StadiumBorder(),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    splashFactory: NoSplash.splashFactory,
+                    highlightColor: Colors.transparent,
+                    onTap: () => _showBest50Sheet(context),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(minHeight: 30),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        child: Icon(
+                          Icons.more_horiz_rounded,
+                          size: 18,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
         ],
