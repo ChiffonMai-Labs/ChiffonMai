@@ -2197,7 +2197,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get flowThisClearsAllMaidataCachesAndDownloads =>
-      '将清除所有maidata缓存并从服务器重新拉取全部maidata数据，耗时可能较长。\n\n确定要刷新吗？';
+      '将清除所有已缓存的 maidata 并重新拉取轻量谱面目录，之后单曲将在使用时按需下载。\n\n确定要刷新吗？';
 
   @override
   String get flowMaidataRefreshed => 'Maidata刷新成功';
@@ -5880,7 +5880,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get flowCacheMetadataDescription => 'cn/jp 可游玩地区等';
 
   @override
-  String get flowCacheMaidataDescription => '谱面追加辅助（追加列表 + 完整 maidata）';
+  String get flowCacheMaidataDescription => '谱面目录索引（单曲谱面按需缓存）';
 
   @override
   String get flowSongDetails => '歌曲详情';
@@ -17871,7 +17871,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get flowThisClearsAllMaidataCachesAndDownloads =>
-      '將清除所有maidata緩存並從服務器重新拉取全部maidata數據，耗時可能較長。\n\n確定要刷新嗎？';
+      '將清除所有已緩存的 maidata 並重新拉取輕量譜面目錄，之後單曲將在使用時按需下載。\n\n確定要刷新嗎？';
 
   @override
   String get flowMaidataRefreshed => 'Maidata刷新成功';
@@ -21554,7 +21554,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get flowCacheMetadataDescription => 'cn/jp 可遊玩地區等';
 
   @override
-  String get flowCacheMaidataDescription => '譜面追加輔助（追加列表 + 完整 maidata）';
+  String get flowCacheMaidataDescription => '譜面目錄索引（單曲譜面按需緩存）';
 
   @override
   String get flowSongDetails => '歌曲詳情';

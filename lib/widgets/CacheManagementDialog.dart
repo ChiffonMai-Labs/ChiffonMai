@@ -26,7 +26,6 @@ class _CacheManagementDialogState extends State<_CacheManagementDialog> {
   AppCacheKind? _clearing;
   double _clearProgress = 0;
   String? _error;
-  bool _closing = false;
 
   @override
   void initState() {
@@ -117,16 +116,6 @@ class _CacheManagementDialogState extends State<_CacheManagementDialog> {
                     ? context.l10n.flowCalculating3
                     : context.l10n.flowP0FilesTotalP1((usage.maidataFiles).toString(), (_formatBytes(usage.maidataBytes)).toString()),
               ),
-              TextButton.icon(
-                onPressed: _clearing == null && usage != null && !_closing
-                    ? () {
-                        setState(() => _closing = true);
-                        Navigator.of(context).pop(true);
-                      }
-                    : null,
-                icon: const Icon(Icons.refresh),
-                label:  Text(context.l10n.flowReloadBaseMaidata),
-              ),
               if (_clearing != null) ...[
                 const SizedBox(height: 8),
                 SmoothLinearProgressIndicator(
@@ -176,7 +165,7 @@ class _CacheManagementDialogState extends State<_CacheManagementDialog> {
     required String subtitle,
   }) {
     final isClearing = _clearing == kind;
-    final disabled = _clearing != null || _usage == null || _closing;
+    final disabled = _clearing != null || _usage == null;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Container(

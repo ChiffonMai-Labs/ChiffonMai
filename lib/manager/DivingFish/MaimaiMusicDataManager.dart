@@ -24,7 +24,6 @@ class MaimaiMusicDataManager {
 
   final MultiplayerCloudBaseService _cloudService =
       MultiplayerCloudBaseService();
-  Future<void>? _maidataRefreshFuture;
   List<Song>? _cachedSongs;
   Map<String, Song>? _cachedSongIndex;
   Future<List<Song>>? _songLoadFuture;
@@ -330,60 +329,17 @@ class MaimaiMusicDataManager {
     bool forceMaidataRefresh = false,
   }) async {
     final maidataManager = MaidataManager();
-    if (!forceNetwork &&
-        !forceMaidataRefresh &&
-        await hasValidMusicCache()) {
+    if (forceMaidataRefresh) {
+      await maidataManager.getCatalog(forceRefresh: true);
+    }
+
+    if (!forceNetwork && await hasValidMusicCache()) {
       debugPrint('曲库缓存有效，跳过网络刷新');
-      if (!await maidataManager.isFullCacheValid()) {
-        _scheduleMaidataRefresh(maidataManager);
-      }
       return true;
     }
 
-    if (forceMaidataRefresh) {
-      final activeRefresh = _maidataRefreshFuture;
-      if (activeRefresh != null) {
-        await activeRefresh;
-      }
-      try {
-        await maidataManager.fetchAndCacheFullMaidata();
-      } catch (_) {
-        // 公共谱面下载失败仍允许曲库更新，音游成绩继续使用可用曲库。
-        await fetchAndUpdateMusicData(forceNetwork: forceNetwork);
-        rethrow;
-      }
-      return fetchAndUpdateMusicData(
-        maidataTexts: maidataManager.getAllMaidataTexts(),
-        forceNetwork: forceNetwork,
-      );
-    }
-
-    // 普通”刷新数据”只等待水鱼/union 曲库。maidata 是体积很大的辅助数据，
-    // 有效期内无需扫描；过期后在主刷新完成后转入后台维护。
-    final result = await fetchAndUpdateMusicData(
-      forceNetwork: forceNetwork,
-    );
-    if (!await maidataManager.isFullCacheValid()) {
-      _scheduleMaidataRefresh(maidataManager);
-    }
-    return result;
-  }
-
-  void _scheduleMaidataRefresh(MaidataManager manager) {
-    if (_maidataRefreshFuture != null) return;
-    _maidataRefreshFuture = _refreshMaidataCache(manager);
-  }
-
-  Future<void> _refreshMaidataCache(MaidataManager manager) async {
-    try {
-      debugPrint('maidata 缓存无效，开始后台更新，不阻塞本次数据刷新');
-      await manager.fetchAndCacheFullMaidata();
-      debugPrint('maidata 后台缓存更新完成');
-    } catch (e) {
-      debugPrint('maidata 后台缓存更新失败: $e');
-    } finally {
-      _maidataRefreshFuture = null;
-    }
+    // 普通刷新只更新水鱼 / Union 曲库；maidata 单曲按需拉取，不再后台扫全库。
+    return fetchAndUpdateMusicData(forceNetwork: forceNetwork);
   }
 
   Future<bool> hasCachedData() async {

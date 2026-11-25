@@ -31,6 +31,8 @@ class CacheKeyConstant {
   static const String cachedSongsTimestamp = 'cached_songs_timestamp';
 
   // Maidata相关
+  static const String maidataCatalogTimestamp = 'maidata_catalog_timestamp';
+  static const String maidataCatalogEtag = 'maidata_catalog_etag';
   static const String maidataFullCache = 'maidata_full_cache';
   static const String maidataFullCacheTimestamp =
       'maidata_full_cache_timestamp';

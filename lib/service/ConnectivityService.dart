@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:internet_connection_checker/internet_connection_checker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../constant/CacheKeyConstant.dart';
 
 /// 网络连接监听服务（单例）
 /// 包装 internet_connection_checker，提供连接状态监听和缓存年龄查询
@@ -21,7 +22,7 @@ class ConnectivityService {
   /// 缓存时间戳键映射：功能名称 → 对应的 CacheTimestampConstant 键
   /// 用于查询缓存年龄
   static const Map<String, String> _cacheTimestampKeys = {
-    'musicData': 'maidata_full_cache_timestamp',
+    'musicData': CacheKeyConstant.cachedSongsTimestamp,
     'diffData': 'diff_music_data_last_update',
     'userData': 'user_play_data_timestamp',
     'tagsData': 'mai_tags_cache_timestamp',

@@ -1,4 +1,3 @@
-import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import '../utils/AppTaskActivity.dart';
 import 'dart:io';
 import 'dart:convert';
@@ -36,34 +35,6 @@ class CacheUsage {
 class CacheManagementService extends ChangeNotifier {
   CacheManagementService._();
   static final instance = CacheManagementService._();
-  bool reloadingBase = false;
-  String reloadText = '';
-  double? reloadProgress;
-
-  Future<void> reloadBaseMaidata() => AppTaskActivity.run(() async {
-        if (reloadingBase) return;
-        reloadingBase = true;
-        reloadText = appL10n.svcDiscoveringBaseMaidata;
-        reloadProgress = null;
-        notifyListeners();
-        try {
-          await MaidataManager().initialize();
-          await MaidataManager().fetchAndCacheFullMaidata(
-              onProgress: (current, total) {
-            reloadText = total > 0
-                ? appL10n.svcFetchingMaidataP0P1(current.toString(), total.toString())
-                : appL10n.svcFoundP0MaidataFiles(current.toString());
-            reloadProgress =
-                total > 0 ? (current / total).clamp(0.0, 1.0) : null;
-            notifyListeners();
-          });
-        } finally {
-          reloadingBase = false;
-          reloadText = '';
-          reloadProgress = null;
-          notifyListeners();
-        }
-      });
 
   Future<CacheUsage> inspect() async {
     final maidataManager = MaidataManager();
@@ -73,9 +44,13 @@ class CacheManagementService extends ChangeNotifier {
     final pv = await _measureDirectory(
       Directory('${documents.path}/portable_pv_cache'),
     );
-    final maidata = await _measureFiles(
+    final maidataDirUsage = await _measureDirectory(
+      Directory('${documents.path}/maidata_cache'),
+    );
+    final maidataExtraFiles = await _measureFiles(
       documents,
       (file) =>
+          file.path.endsWith('maidata_catalog.json') ||
           file.path.endsWith('maidata_full_cache.json') ||
           file.path.endsWith('maidata_url_map.json'),
     );
@@ -96,8 +71,7 @@ class CacheManagementService extends ChangeNotifier {
       audioFiles: audio.$2,
       pvBytes: pv.$1,
       pvFiles: pv.$2,
-      maidataBytes: maidata.$1 + preferenceBytes,
-      // 全量 JSON 中每首歌曲也是一份 maidata，不能只数物理容器文件。
+      maidataBytes: maidataDirUsage.$1 + maidataExtraFiles.$1 + preferenceBytes,
       maidataFiles: maidataManager.cachedCount,
     );
   }
@@ -108,7 +82,6 @@ class CacheManagementService extends ChangeNotifier {
   }) =>
       AppTaskActivity.run(() async {
         onProgress(0);
-        final documents = await getApplicationDocumentsDirectory();
         switch (kind) {
           case AppCacheKind.audio:
             await SongMediaCache.instance.clear('audio');
@@ -116,8 +89,6 @@ class CacheManagementService extends ChangeNotifier {
             await SongMediaCache.instance.clear('pv');
           case AppCacheKind.maidata:
             await MaidataManager().clearCache();
-            final urlMap = File('${documents.path}/maidata_url_map.json');
-            if (await urlMap.exists()) await urlMap.delete();
         }
         // 删除通常瞬间完成，保留几个平滑的阶段，让用户明确看到操作已完成。
         onProgress(.55);

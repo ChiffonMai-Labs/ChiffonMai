@@ -43,37 +43,17 @@ class HomeService {
     final startTime = DateTime.now();
 
     try {
-      // 第一阶段：初始化基础管理器（必须串行）
+      // 第一阶段：仅做本地轻量初始化（单曲磁盘索引与已缓存轻量目录），不再抓取全量 maidata
       onProgress(appL10n.svcInitializingTheMaidataManager);
-      final maidataManager = MaidataManager();
-      await maidataManager.initialize();
-      
-      // 如果缓存未就绪或过期，获取全量maidata
-      if (!maidataManager.isFullCacheReady ||
-          !await maidataManager.isFullCacheValid()) {
-        debugPrint('Maidata缓存未就绪，开始获取全量maidata...');
-        onProgress(appL10n.svcFetchingAllMaidataTheFirstLoadMay);
-        try {
-          await maidataManager.fetchAndCacheFullMaidata();
-        } catch (error) {
-          // 谱面资源刷新失败时继续初始化曲库、难度和其它独立数据源。
-          debugPrint('[HomeInit] 全量谱面刷新未完成: $error');
-        }
-      } else {
-        onProgress(appL10n.svcLoadingMaidataFromCache);
-      }
-      
-      // 获取maidata文本列表用于追加
-      List<String> maidataTexts = maidataManager.getAllMaidataTexts();
-      debugPrint('已获取 ${maidataTexts.length} 首歌曲的maidata');
-      
+      await MaidataManager().initialize();
+
       // 第二阶段：并行获取音乐数据和难度数据
       onProgress(appL10n.svcSyncingSongInfoAndDifficultyData);
       final maimaiMusicManager = MaimaiMusicDataManager();
       final diffMusicManager = DiffMusicDataManager();
-      
+
       await Future.wait([
-        maimaiMusicManager.fetchAndUpdateMusicData(maidataTexts: maidataTexts),
+        maimaiMusicManager.fetchAndUpdateMusicData(),
         diffMusicManager.fetchAndUpdateDiffData(),
       ]);
       onProgress(appL10n.svcLoadingTheSongAliasDatabase);

@@ -4184,7 +4184,7 @@ abstract class AppLocalizations {
   /// No description provided for @flowThisClearsAllMaidataCachesAndDownloads.
   ///
   /// In zh, this message translates to:
-  /// **'将清除所有maidata缓存并从服务器重新拉取全部maidata数据，耗时可能较长。\n\n确定要刷新吗？'**
+  /// **'将清除所有已缓存的 maidata 并重新拉取轻量谱面目录，之后单曲将在使用时按需下载。\n\n确定要刷新吗？'**
   String get flowThisClearsAllMaidataCachesAndDownloads;
 
   /// No description provided for @flowMaidataRefreshed.
@@ -10378,7 +10378,7 @@ abstract class AppLocalizations {
   /// No description provided for @flowCacheMaidataDescription.
   ///
   /// In zh, this message translates to:
-  /// **'谱面追加辅助（追加列表 + 完整 maidata）'**
+  /// **'谱面目录索引（单曲谱面按需缓存）'**
   String get flowCacheMaidataDescription;
 
   /// No description provided for @flowSongDetails.

@@ -1,14 +1,23 @@
+import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:flutter/foundation.dart';
+import 'package:jp_transliterate/jp_transliterate.dart';
+import 'package:my_first_flutter_app/utils/ApiClient.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../api/ApiUrls.dart';
 import '../constant/CacheKeyConstant.dart';
 import '../constant/CacheTimestampConstant.dart';
-import 'package:jp_transliterate/jp_transliterate.dart';
-import 'package:my_first_flutter_app/utils/ApiClient.dart';
 
+/// 谱面 maidata 按需加载与持久化管理器（单例）。
+///
+/// 采用「轻量目录索引 + 单曲按需拉取 + 单曲文件磁盘缓存 + 有界内存 LRU」架构：
+/// - 启动与首页刷新不再抓取全库 maidata；
+/// - 歌曲详情页、谱面播放、多人/单人看谱猜歌、BPM 历史仅按需拉取所需曲目；
+/// - 单曲文件落盘于 `documents/maidata_cache/<songId>.txt`，过期自动清理。
 class MaidataManager {
   static final MaidataManager _instance = MaidataManager._internal();
   factory MaidataManager() => _instance;
@@ -17,62 +26,67 @@ class MaidataManager {
   @visibleForTesting
   MaidataManager.forTesting();
 
+  static const int _memoryLruLimit = 64;
+  static final RegExp _validSongIdRegex = RegExp(r'^\d{1,6}$');
+
+  final LinkedHashMap<String, String> _memoryCache =
+      LinkedHashMap<String, String>();
+  final Set<String> _diskCachedIds = <String>{};
+  final Map<String, String> _legacySingleMaidata = <String, String>{};
+  final Map<String, String> _wmcFallbackCache = <String, String>{};
+
+  Map<String, List<String>>? _catalog;
+  Map<String, dynamic>? _indexData;
+
+  bool _isInitialized = false;
+  Future<void>? _initializing;
+  Future<Map<String, List<String>>>? _catalogFetch;
+  final Map<String, Future<String?>> _inFlightSongs =
+      <String, Future<String?>>{};
+  final Map<String, Future<String?>> _wmcRequests =
+      <String, Future<String?>>{};
+  final Set<Future<void>> _writes = <Future<void>>{};
+  int _cacheGeneration = 0;
+
   String _cleanMaidataContent(String content) {
-    String result = content.replaceAll(RegExp(r'\[DX\]'), '');
+    var result = content.replaceAll(RegExp(r'\[DX\]'), '');
     result = result.replaceAll(RegExp(r'\[SD\]'), '');
     result = result.replaceAll(RegExp(r'\[宴\]'), '');
     result = result.replaceAll(r'$', '');
     return result;
   }
 
-  /// 解码响应体为字符串。优先 UTF-8（覆盖绝大多数 maidata），
-  /// 失败时回退到 Shift-JIS。使用原生 String.contains 替代逐字符遍历，
-  /// 在全量刷新（1000+ 文件）时可节省数秒 CPU 时间。
+  /// 解码响应体为字符串。优先 UTF-8（覆盖绝大多数 maidata），失败回退 Shift-JIS。
   String _decodeContent(List<int> bytes) {
-    // 快速路径：尝试 UTF-8（allowMalformed 不会抛异常）
     final utf8Result = utf8.decode(bytes, allowMalformed: true);
-    // 仅检查替换字符 U+FFFD，这是编码失败的可靠信号
-    if (!utf8Result.contains('�')) {
+    if (!utf8Result.contains('\uFFFD')) {
       return utf8Result;
     }
 
-    // UTF-8 出现替换字符，尝试 Shift-JIS
     try {
       final shiftJisResult = _decodeShiftJis(bytes);
-      if (shiftJisResult.isNotEmpty && !shiftJisResult.contains('�')) {
+      if (shiftJisResult.isNotEmpty && !shiftJisResult.contains('\uFFFD')) {
         return shiftJisResult;
       }
     } catch (_) {}
 
-    // 回退到 UTF-8 最佳努力结果
     return utf8Result;
   }
 
   String _decodeShiftJis(List<int> bytes) {
-    StringBuffer result = StringBuffer();
-    int i = 0;
+    final result = StringBuffer();
+    var i = 0;
     while (i < bytes.length) {
-      int byte1 = bytes[i] & 0xFF;
+      final byte1 = bytes[i] & 0xFF;
 
       if (byte1 < 0x80) {
         result.writeCharCode(byte1);
         i++;
-      } else if (byte1 >= 0x81 && byte1 <= 0x9F) {
+      } else if ((byte1 >= 0x81 && byte1 <= 0x9F) ||
+          (byte1 >= 0xE0 && byte1 <= 0xFC)) {
         if (i + 1 < bytes.length) {
-          int byte2 = bytes[i + 1] & 0xFF;
-          int code = _shiftJisToUnicode(byte1, byte2);
-          if (code != 0) {
-            result.writeCharCode(code);
-          }
-          i += 2;
-        } else {
-          result.writeCharCode(byte1);
-          i++;
-        }
-      } else if (byte1 >= 0xE0 && byte1 <= 0xFC) {
-        if (i + 1 < bytes.length) {
-          int byte2 = bytes[i + 1] & 0xFF;
-          int code = _shiftJisToUnicode(byte1, byte2);
+          final byte2 = bytes[i + 1] & 0xFF;
+          final code = _shiftJisToUnicode(byte1, byte2);
           if (code != 0) {
             result.writeCharCode(code);
           }
@@ -92,14 +106,14 @@ class MaidataManager {
   int _shiftJisToUnicode(int byte1, int byte2) {
     int offset;
     if (byte1 >= 0x81 && byte1 <= 0x9F) {
-      offset = ((byte1 - 0x81) * 0x100);
+      offset = (byte1 - 0x81) * 0x100;
     } else if (byte1 >= 0xE0 && byte1 <= 0xFC) {
-      offset = ((byte1 - 0xC1) * 0x100);
+      offset = (byte1 - 0xC1) * 0x100;
     } else {
       return 0;
     }
 
-    int sjis = offset + byte2;
+    final sjis = offset + byte2;
 
     if (sjis >= 0x8140 && sjis <= 0x889E) {
       return 0x4E00 +
@@ -122,71 +136,51 @@ class MaidataManager {
     return 0;
   }
 
-  Map<String, String> _cachedMaidata = {};
-  Map<String, dynamic>? _indexData;
-  bool _isInitialized = false;
-  Future<void>? _initializing;
-  final Map<String, String> _singleMaidata = {};
-  final Map<String, Future<String?>> _wmcRequests = {};
-  final Set<Future<void>> _writes = {};
-  int _cacheGeneration = 0;
-  Future<void>? _fullFetch;
-  final Set<Future<List<String>>> _incrementalFetches = {};
-
-  /// songId → URL 映射缓存，避免增量刷新时重新抓取目录列表
-  Map<String, String> _idToUrlMap = {};
-
-  /// 单曲 maidata 内存兜底：本地全量/单曲缓存都没命中时，从
-  /// [ApiUrls.wmcMaidataUrl] 拉一份回来塞这里。
-  /// 同时写入有有效期的单曲缓存，重启后无需再次下载。
-  final Map<String, String> _wmcFallbackCache = {};
-
-  /// 全量缓存文件路径（应用私有目录，不占 SharedPreferences 的 XML 空间）
-  Future<File> _getCacheFile() async {
-    final dir = await getApplicationDocumentsDirectory();
-    return File('${dir.path}/maidata_full_cache.json');
+  String? _extractSongId(String content) {
+    final shortMatch = RegExp(r'&shortid=(\d+)').firstMatch(content);
+    if (shortMatch != null) return shortMatch.group(1);
+    final idMatch = RegExp(r'&id=(\d+)').firstMatch(content);
+    if (idMatch != null) return idMatch.group(1);
+    return null;
   }
 
-  /// URL 映射缓存文件
-  Future<File> _getUrlMapFile() async {
+  Future<Directory> _getSingleCacheDir() async {
     final dir = await getApplicationDocumentsDirectory();
-    return File('${dir.path}/maidata_url_map.json');
+    return Directory('${dir.path}/maidata_cache');
   }
 
-  /// 加载 songId→URL 映射（如果存在）
-  Future<void> _loadUrlMap() async {
-    try {
-      final file = await _getUrlMapFile();
-      if (await file.exists()) {
-        final content = await file.readAsString();
-        _idToUrlMap = await compute((String jsonStr) {
-          return Map<String, String>.from(json.decode(jsonStr) as Map);
-        }, content);
-      }
-    } catch (e) {
-      debugPrint('[DEBUG][MaidataManager] 加载URL映射失败: $e');
-      _idToUrlMap = {};
+  Future<File> _getSingleCacheFile(String songId) async {
+    final dir = await _getSingleCacheDir();
+    return File('${dir.path}/$songId.txt');
+  }
+
+  Future<File> _getCatalogFile() async {
+    final dir = await getApplicationDocumentsDirectory();
+    return File('${dir.path}/maidata_catalog.json');
+  }
+
+  void _touchMemory(String songId, String content) {
+    _memoryCache.remove(songId);
+    _memoryCache[songId] = content;
+    while (_memoryCache.length > _memoryLruLimit) {
+      _memoryCache.remove(_memoryCache.keys.first);
     }
   }
 
-  /// 保存 songId→URL 映射
-  Future<void> _saveUrlMap() async {
-    try {
-      final file = await _getUrlMapFile();
-      await file.writeAsString(json.encode(_idToUrlMap));
-    } catch (e) {
-      debugPrint('[DEBUG][MaidataManager] 保存URL映射失败: $e');
-    }
+  bool _isTimestampValid(DateTime modified) {
+    return DateTime.now().difference(modified).inMilliseconds <
+        CacheTimestampConstant.songMaidataCacheMillis;
   }
 
   Future<void> initialize() async {
     if (_isInitialized) return;
     final running = _initializing;
     if (running != null) return running;
-    final task = Future.wait([
-      _loadFromCache(),
-      _loadUrlMap(),
-      _loadSingleCache(),
+    final task = Future.wait<void>([
+      _cleanupLegacyFullCache(),
+      _scanSingleDiskCache(),
+      _loadLegacySinglePrefsCache(),
+      _loadCatalogFromCache(),
     ]).then((_) {
       _isInitialized = true;
     });
@@ -198,30 +192,108 @@ class MaidataManager {
     }
   }
 
-  /// 与单曲详情页使用同一份持久缓存，多人按需下载也会在下次启动时恢复。
-  Future<void> _loadSingleCache() async {
-    final prefs = await SharedPreferences.getInstance();
-    for (final key in prefs.getKeys()) {
-      if (!key.startsWith(CacheKeyConstant.maidataCachePrefix)) continue;
-      try {
-        final data = json.decode(prefs.getString(key)!);
-        final id = key.substring(CacheKeyConstant.maidataCachePrefix.length);
-        final content = data['content'] as String;
-        final timestamp = data['timestamp'] as int;
-        if (DateTime.now().millisecondsSinceEpoch - timestamp <
-                CacheTimestampConstant.songMaidataCacheMillis &&
-            _extractSongId(content) == id) {
-          _singleMaidata[id] = content;
-        } else {
-          await prefs.remove(key);
-        }
-      } catch (_) {
-        await prefs.remove(key);
-      }
+  /// 清理旧版全量缓存文件，释放磁盘占用，不再把整库 JSON 读进内存。
+  Future<void> _cleanupLegacyFullCache() async {
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final legacyFull = File('${dir.path}/maidata_full_cache.json');
+      if (await legacyFull.exists()) await legacyFull.delete();
+      final legacyUrlMap = File('${dir.path}/maidata_url_map.json');
+      if (await legacyUrlMap.exists()) await legacyUrlMap.delete();
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(CacheKeyConstant.maidataFullCache);
+      await prefs.remove(CacheKeyConstant.maidataFullCacheTimestamp);
+    } catch (e) {
+      debugPrint('[MaidataManager] 清理旧版全量缓存失败: $e');
     }
   }
 
+  /// 扫描已有的单曲文件缓存目录，只登记可用 songId 并清理过期文件。
+  Future<void> _scanSingleDiskCache() async {
+    try {
+      final dir = await _getSingleCacheDir();
+      if (!await dir.exists()) return;
+      await for (final entity in dir.list(followLinks: false)) {
+        if (entity is! File) continue;
+        final name = entity.uri.pathSegments.last;
+        if (!name.endsWith('.txt')) continue;
+        final songId = name.substring(0, name.length - 4);
+        if (!_validSongIdRegex.hasMatch(songId)) continue;
+        try {
+          final stat = await entity.stat();
+          if (_isTimestampValid(stat.modified)) {
+            _diskCachedIds.add(songId);
+          } else {
+            await entity.delete();
+          }
+        } catch (_) {}
+      }
+    } catch (e) {
+      debugPrint('[MaidataManager] 扫描单曲磁盘缓存失败: $e');
+    }
+  }
+
+  /// 兼容读取旧版 SharedPreferences 单曲缓存，过期则删除。
+  Future<void> _loadLegacySinglePrefsCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      for (final key in prefs.getKeys().toList()) {
+        if (!key.startsWith(CacheKeyConstant.maidataCachePrefix)) continue;
+        try {
+          final raw = prefs.getString(key);
+          if (raw == null) {
+            await prefs.remove(key);
+            continue;
+          }
+          final data = json.decode(raw) as Map<String, dynamic>;
+          final id = key.substring(CacheKeyConstant.maidataCachePrefix.length);
+          final content = data['content'] as String;
+          final timestamp = data['timestamp'] as int;
+          if (DateTime.now().millisecondsSinceEpoch - timestamp <
+                  CacheTimestampConstant.songMaidataCacheMillis &&
+              _extractSongId(content) == id) {
+            _legacySingleMaidata[id] = content;
+          } else {
+            await prefs.remove(key);
+          }
+        } catch (_) {
+          await prefs.remove(key);
+        }
+      }
+    } catch (e) {
+      debugPrint('[MaidataManager] 加载旧版单曲缓存失败: $e');
+    }
+  }
+
+  Future<void> _loadCatalogFromCache() async {
+    try {
+      final file = await _getCatalogFile();
+      if (!await file.exists()) return;
+      final raw = await file.readAsString();
+      final decoded = await compute(_decodeCatalogPayload, raw);
+      if (decoded.isNotEmpty) {
+        _catalog = decoded;
+      }
+    } catch (e) {
+      debugPrint('[MaidataManager] 加载轻量目录缓存失败: $e');
+    }
+  }
+
+  static Map<String, List<String>> _decodeCatalogPayload(String raw) {
+    final decoded = json.decode(raw);
+    if (decoded is! Map) return <String, List<String>>{};
+    final songsRaw = decoded['songs'] is Map ? decoded['songs'] as Map : decoded;
+    final result = <String, List<String>>{};
+    songsRaw.forEach((key, value) {
+      if (key is String && value is List) {
+        result[key] = value.map((e) => e.toString()).toList();
+      }
+    });
+    return result;
+  }
+
   Future<void> cacheMaidata(String songId, String content) async {
+    if (!_validSongIdRegex.hasMatch(songId)) return;
     if (_extractSongId(content) != songId) return;
     final task = _writeSingleCache(songId, content);
     _writes.add(task);
@@ -234,480 +306,305 @@ class MaidataManager {
 
   Future<void> _writeSingleCache(String songId, String content) async {
     final generation = _cacheGeneration;
-    _singleMaidata[songId] = content;
-    final prefs = await SharedPreferences.getInstance();
-    if (_cacheGeneration != generation) return;
-    await prefs.setString(
-        '${CacheKeyConstant.maidataCachePrefix}$songId',
-        json.encode({
-          'content': content,
-          'timestamp': DateTime.now().millisecondsSinceEpoch
-        }));
-  }
+    _touchMemory(songId, content);
+    _diskCachedIds.add(songId);
+    _legacySingleMaidata.remove(songId);
 
-  Future<void> _loadFromCache() async {
+    final file = await _getSingleCacheFile(songId);
+    if (_cacheGeneration != generation) return;
+    await file.parent.create(recursive: true);
+    final temp = File('${file.path}.tmp');
+    try {
+      await temp.writeAsString(content);
+      if (_cacheGeneration != generation) return;
+      await temp.rename(file.path);
+    } finally {
+      if (await temp.exists()) await temp.delete();
+    }
+
     try {
       final prefs = await SharedPreferences.getInstance();
-      final timestamp =
-          prefs.getInt(CacheKeyConstant.maidataFullCacheTimestamp);
-
-      if (timestamp != null) {
-        final file = await _getCacheFile();
-        if (await file.exists()) {
-          final content = await file.readAsString();
-          _cachedMaidata = await compute((String jsonStr) {
-            return Map<String, String>.from(json.decode(jsonStr) as Map);
-          }, content);
-          debugPrint('[MaidataManager] 已加载本地全量缓存，共 ${_cachedMaidata.length} 首歌曲');
-          return;
-        }
-      }
-
-      // 兼容旧版：尝试从 SharedPreferences 迁移旧数据
-      final legacyData = prefs.getString(CacheKeyConstant.maidataFullCache);
-      if (legacyData != null) {
-        debugPrint(
-            '[DEBUG][MaidataManager] 检测到旧版 SharedPreferences 缓存，正在迁移到文件...');
-        _cachedMaidata = await compute((String jsonStr) {
-          return Map<String, String>.from(json.decode(jsonStr) as Map);
-        }, legacyData);
-        // 异步写入文件并清理旧数据
-        final file = await _getCacheFile();
-        await file.writeAsString(legacyData);
-        await prefs.setInt(CacheKeyConstant.maidataFullCacheTimestamp,
-            DateTime.now().millisecondsSinceEpoch);
-        await prefs.remove(CacheKeyConstant.maidataFullCache);
-        debugPrint(
-            '[DEBUG][MaidataManager] 旧缓存已迁移到文件，共 ${_cachedMaidata.length} 首歌曲');
-        return;
-      }
-    } catch (e) {
-      debugPrint('[DEBUG][MaidataManager] 加载缓存失败: $e');
-    }
+      await prefs.remove('${CacheKeyConstant.maidataCachePrefix}$songId');
+    } catch (_) {}
   }
 
-  /// 全量拉取 maidata 并落盘。
-  ///
-  /// [onProgress] 分两个阶段：
-  ///   * 阶段 1（发现）：7 个流派的文件夹列表并行返回，此时总数还不存在，
-  ///     逐个流派上报「已发现数」且 `total` 为 0。板块目录本身要好几秒，
-  ///     不做这一档的话按钮上会一直空着，看起来像没点动。
-  ///   * 阶段 2（下载）：总数已确定，按「已下载 / 总数」上报。
-  ///
-  /// 所有流派共用并发额度，每 250ms 最多更新一次下载进度。
-  Future<void> fetchAndCacheFullMaidata({
-    void Function(int current, int total)? onProgress,
-  }) async {
-    final running = _fullFetch;
-    if (running != null) return running;
-    final task = _fetchFullMaidata(onProgress: onProgress);
-    _fullFetch = task;
-    try {
-      await task;
-    } finally {
-      _fullFetch = null;
-    }
-  }
-
-  Future<void> _fetchFullMaidata({
-    void Function(int current, int total)? onProgress,
-  }) async {
-    final generation = _cacheGeneration;
-    debugPrint('[DEBUG][MaidataManager] 开始获取全量maidata.txt...');
-
-    final List<String> genrePaths = [
-      '${ApiUrls.MaidataServerBaseUrl}/maimai',
-      '${ApiUrls.MaidataServerBaseUrl}/niconicoボーカロイド',
-      '${ApiUrls.MaidataServerBaseUrl}/ゲームバラエティ',
-      '${ApiUrls.MaidataServerBaseUrl}/東方Project',
-      '${ApiUrls.MaidataServerBaseUrl}/オンゲキCHUNITHM',
-      '${ApiUrls.MaidataServerBaseUrl}/宴会場',
-      '${ApiUrls.MaidataServerBaseUrl}/POPSアニメ',
-    ];
-
-    const concurrency = 8;
-    final newUrlMap = <String, String>{};
-    final downloaded = <String, String>{};
-    final lastIndexById = <String, int>{};
-    var foldersFound = 0;
-    var discoveryFailures = 0;
-    Object? firstFailure;
-
-    // 先发现全部文件，便于进度条使用固定的总数。
-    final genreUrls = await Future.wait(genrePaths.map((path) async {
-      final List<String> folders;
-      try {
-        folders = await _getFoldersInPath(path, strict: true);
-      } catch (error) {
-        firstFailure ??= error;
-        discoveryFailures++;
-        return const <String>[];
-      }
-      foldersFound += folders.length;
-      onProgress?.call(foldersFound, 0);
-      return folders.map((folder) => '$path/$folder/maidata.txt').toList();
-    }));
-    if (_cacheGeneration != generation) return;
-
-    final urls = {for (final group in genreUrls) ...group}.toList();
-    var nextIndex = 0;
-    var processed = 0;
-    var transportFailures = 0;
-    var missing = 0;
-    final reporting = Stopwatch()..start();
-
-    void report({bool force = false}) {
-      if (!force && reporting.elapsedMilliseconds < 250) return;
-      reporting.reset();
-      onProgress?.call(processed, urls.length);
-    }
-
-    Future<void> download() async {
-      while (nextIndex < urls.length &&
-          transportFailures < concurrency &&
-          _cacheGeneration == generation) {
-        final index = nextIndex++;
-        final url = urls[index];
-        try {
-          final result = await _fetchSingleMaidata(url, strict: true);
-          if (result == null) {
-            missing++;
-          } else {
-            final (id, content) = result;
-            // 同一 ID 的覆盖顺序跟随目录顺序，避免网络完成顺序改变缓存内容。
-            if (index > (lastIndexById[id] ?? -1)) {
-              lastIndexById[id] = index;
-              downloaded[id] = content;
-              newUrlMap[id] = url;
-            }
-          }
-        } catch (error) {
-          firstFailure ??= error;
-          transportFailures++;
-        }
-        processed++;
-        report();
-        if (processed % 32 == 0) await Future<void>.delayed(Duration.zero);
-      }
-    }
-
-    report(force: true);
-    if (discoveryFailures == 0) {
-      await Future.wait(List.generate(concurrency, (_) => download()));
-    }
-    if (_cacheGeneration != generation) return;
-    report(force: true);
-    debugPrint('[MaidataManager] 全量刷新：成功 ${downloaded.length} 首，'
-        '请求 $processed/${urls.length}，目录失败 $discoveryFailures，'
-        '下载失败 $transportFailures，无可用谱面 $missing'
-        '${firstFailure == null ? '' : '，首个错误：$firstFailure'}');
-
-    // 网络异常时保留上一份完整缓存及其时间戳，避免半份数据冒充新缓存。
-    if (discoveryFailures > 0 || transportFailures > 0 || downloaded.isEmpty) {
-      throw StateError('全量谱面下载未完成，已保留原有缓存，请稍后重试');
-    }
-
-    // JSON 编码在后台 isolate 中执行，写入文件而非 SharedPreferences。
-    // 必须等待落盘完成后再结束刷新，否则下一次刷新会再次判断为缓存无效。
-    // 文件直接写入比 SharedPreferences XML 快 10-100 倍（尤其是几十 MB 的大数据）
-    final encoded = await compute((Map<String, String> data) {
-      return json.encode(data);
-    }, downloaded);
-    if (_cacheGeneration != generation) return;
-    final file = await _getCacheFile();
-    final temporary = File('${file.path}.tmp');
-    try {
-      await temporary.writeAsString(encoded);
-      if (_cacheGeneration != generation) return;
-      await temporary.rename(file.path);
-    } finally {
-      if (await temporary.exists()) await temporary.delete();
-    }
-    _cachedMaidata = downloaded;
-    _idToUrlMap = newUrlMap;
-    await _saveUrlMap();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(
-      CacheKeyConstant.maidataFullCacheTimestamp,
-      DateTime.now().millisecondsSinceEpoch,
-    );
-    await prefs.remove(CacheKeyConstant.maidataFullCache);
-    final sizeMB = (encoded.length / 1024 / 1024).toStringAsFixed(1);
-    debugPrint(
-      '[DEBUG][MaidataManager] 已保存到文件（共 ${_cachedMaidata.length} 首，约 $sizeMB MB）',
-    );
-
-    // 同时刷新index缓存，确保shortId映射是最新的
-    await _fetchAndCacheIndex();
-  }
-
-  /// 获取单个maidata.txt并返回 (songId, content) 或 null
-  Future<(String, String)?> _fetchSingleMaidata(String url,
-      {bool strict = false}) async {
-    try {
-      final response = await ApiClient.getAbortable(Uri.parse(url));
-      if (response.statusCode == 200) {
-        String content = _decodeContent(response.bodyBytes);
-        String? songId = _extractSongId(content);
-        if (songId != null) {
-          return (songId, content);
-        }
-      } else if (strict &&
-          response.statusCode != 404 &&
-          response.statusCode != 410) {
-        throw HttpException('HTTP ${response.statusCode}');
-      }
-    } catch (e) {
-      if (strict) rethrow;
-      debugPrint('[DEBUG][MaidataManager] 获取 $url 失败: $e');
-    }
-    return null;
-  }
-
-  Future<List<String>> _getFoldersInPath(String path,
-      {bool strict = false}) async {
-    List<String> folders = [];
-
-    try {
-      final response = await ApiClient.getAbortable(Uri.parse(path));
-
-      if (response.statusCode == 200) {
-        String decodedBody = _decodeContent(response.bodyBytes);
-        RegExp linkRegex = RegExp(r'<a\s+href="([^"]+)/?"');
-        Iterable<Match> matches = linkRegex.allMatches(decodedBody);
-
-        for (Match match in matches) {
-          String folder = match.group(1)!;
-          if (folder.isNotEmpty &&
-              !folder.startsWith('.') &&
-              !folder.startsWith('/')) {
-            folders.add(folder.replaceFirst(RegExp(r'/+$'), ''));
-          }
-        }
-      } else if (strict) {
-        throw HttpException('HTTP ${response.statusCode}');
-      }
-    } catch (e) {
-      if (strict) rethrow;
-      debugPrint('[DEBUG][MaidataManager] 获取文件夹列表失败: $e');
-    }
-
-    return folders.toSet().toList();
-  }
-
-  String? _extractSongId(String content) {
-    RegExp shortIdRegex = RegExp(r'&shortid=(\d+)');
-    Match? match = shortIdRegex.firstMatch(content);
-
-    if (match != null) {
-      return match.group(1);
-    }
-
-    RegExp idRegex = RegExp(r'&id=(\d+)');
-    match = idRegex.firstMatch(content);
-
-    if (match != null) {
-      return match.group(1);
-    }
-
-    return null;
-  }
-
-  /// 严格按 songId 精确命中。
-  ///
-  /// 不再做"去前导零 / 补前导零到 5 位 / 补前导零到 6 位"等变体查询。
-  /// 谱面代码中的 shortId 必须与 SongInfoPage 传入的 songId 一致；
-  /// 找不到就返回 null，不要用别的 ID 来顶替。
+  /// 同步读取内存中的原始缓存（已清理标记符号）。
   String? getMaidata(String songId) {
-    final content = _cachedMaidata[songId] ?? _singleMaidata[songId];
+    final content = _memoryCache[songId] ?? _legacySingleMaidata[songId];
     if (content != null) {
-      debugPrint('[MaidataManager] getMaidata: 严格命中, songId=$songId');
+      _touchMemory(songId, content);
       return _cleanMaidataContent(content);
     }
-    debugPrint(
-        '[MaidataManager] getMaidata: 严格查询失败, songId=$songId, 缓存总数: ${_cachedMaidata.length}');
+    return null;
+  }
+
+  /// 仅从本地（内存或磁盘单曲文件）读取指定曲目的 maidata，不发起网络请求。
+  Future<String?> readCachedMaidata(String songId) async {
+    await initialize();
+    if (!_validSongIdRegex.hasMatch(songId)) return null;
+
+    final memHit = _memoryCache[songId];
+    if (memHit != null) {
+      _touchMemory(songId, memHit);
+      return _cleanMaidataContent(memHit);
+    }
+
+    final file = await _getSingleCacheFile(songId);
+    if (await file.exists()) {
+      try {
+        final stat = await file.stat();
+        if (_isTimestampValid(stat.modified)) {
+          final content = await file.readAsString();
+          if (_extractSongId(content) == songId) {
+            _touchMemory(songId, content);
+            _diskCachedIds.add(songId);
+            return _cleanMaidataContent(content);
+          }
+        }
+        await file.delete();
+        _diskCachedIds.remove(songId);
+      } catch (_) {}
+    }
+
+    final legacy = _legacySingleMaidata[songId];
+    if (legacy != null) {
+      await cacheMaidata(songId, legacy);
+      return _cleanMaidataContent(legacy);
+    }
     return null;
   }
 
   bool hasCachedMaidata(String songId) {
-    return _cachedMaidata.containsKey(songId) ||
-        _singleMaidata.containsKey(songId);
+    return _memoryCache.containsKey(songId) ||
+        _diskCachedIds.contains(songId) ||
+        _legacySingleMaidata.containsKey(songId);
   }
 
-  int get cachedCount =>
-      {..._cachedMaidata.keys, ..._singleMaidata.keys}.length;
+  int get cachedCount => {
+        ..._memoryCache.keys,
+        ..._diskCachedIds,
+        ..._legacySingleMaidata.keys,
+      }.length;
 
   bool get isCacheReady =>
-      _cachedMaidata.isNotEmpty || _singleMaidata.isNotEmpty;
-  bool get isFullCacheReady => _cachedMaidata.isNotEmpty;
+      cachedCount > 0 || (_catalog != null && _catalog!.isNotEmpty);
 
-  /// 检查全量 maidata 缓存是否在有效期内（TTL）
-  Future<bool> isFullCacheValid() async {
+  List<String>? getCatalogInotes(String songId) => _catalog?[songId];
+
+  Future<bool> isCatalogValid() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final timestamp =
-          prefs.getInt(CacheKeyConstant.maidataFullCacheTimestamp);
+      final timestamp = prefs.getInt(CacheKeyConstant.maidataCatalogTimestamp);
       if (timestamp == null) return false;
-
       final now = DateTime.now().millisecondsSinceEpoch;
-      if (now - timestamp >= CacheTimestampConstant.maidataFullCacheMillis) {
+      if (now - timestamp >= CacheTimestampConstant.maidataCatalogCacheMillis) {
         return false;
       }
-
-      final file = await _getCacheFile();
+      final file = await _getCatalogFile();
       return await file.exists();
-    } catch (e) {
-      debugPrint('[MaidataManager] 检查缓存有效性失败: $e');
+    } catch (_) {
       return false;
     }
   }
 
-  List<String> getAllMaidataTexts() {
-    return {..._singleMaidata, ..._cachedMaidata}
-        .values
-        .map((content) => _cleanMaidataContent(content))
-        .toList();
-  }
+  /// 获取轻量谱面目录（`songId -> 可用 inote 编号列表`），带本地文件缓存与 ETag 校验。
+  Future<Map<String, List<String>>> getCatalog({
+    bool forceRefresh = false,
+  }) async {
+    await initialize();
+    if (!forceRefresh &&
+        _catalog != null &&
+        _catalog!.isNotEmpty &&
+        await isCatalogValid()) {
+      return _catalog!;
+    }
+    final running = _catalogFetch;
+    if (running != null && !forceRefresh) return running;
 
-  // 根据歌曲ID列表获取对应的maidata（URL映射 + 流水线优化版）
-  Future<List<String>> fetchMaidataForSongIds(List<String> songIds) async {
-    final task = _fetchMaidataForSongIds(songIds);
-    _incrementalFetches.add(task);
+    final task = _fetchCatalog(forceRefresh: forceRefresh);
+    _catalogFetch = task;
     try {
       return await task;
     } finally {
-      _incrementalFetches.remove(task);
+      if (identical(_catalogFetch, task)) {
+        _catalogFetch = null;
+      }
     }
   }
 
-  Future<List<String>> _fetchMaidataForSongIds(List<String> songIds) async {
-    await initialize();
+  Future<Map<String, List<String>>> _fetchCatalog({
+    required bool forceRefresh,
+  }) async {
     final generation = _cacheGeneration;
-    debugPrint(
-        '[DEBUG][MaidataManager] 开始获取指定歌曲ID的maidata（共 ${songIds.length} 首）');
-
-    final List<String> result = [];
-    final Set<String> remainingIds = Set.from(songIds);
-
-    // 先检查本地缓存中是否已有
-    for (final String songId in songIds) {
-      final cached = getMaidata(songId);
-      if (cached != null) {
-        result.add(cached);
-        remainingIds.remove(songId);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final etag = forceRefresh
+          ? null
+          : prefs.getString(CacheKeyConstant.maidataCatalogEtag);
+      final headers = <String, String>{};
+      if (etag != null && etag.isNotEmpty && (_catalog?.isNotEmpty ?? false)) {
+        headers['If-None-Match'] = etag;
       }
-    }
 
-    if (remainingIds.isEmpty) {
-      debugPrint('[DEBUG][MaidataManager] 全部命中缓存，无需网络请求');
-      return result;
-    }
-
-    int fetchedCount = 0;
-
-    // 优先通过 URL 映射直接获取（跳过目录抓取）
-    final List<String> directUrls = [];
-    for (final id in remainingIds) {
-      final url = _idToUrlMap[id];
-      if (url != null) {
-        directUrls.add(url);
+      final response = await ApiClient.get(
+        Uri.parse(ApiUrls.MaidataCatalogUrl),
+        headers: headers.isEmpty ? null : headers,
+      );
+      if (_cacheGeneration != generation) {
+        return _catalog ?? const <String, List<String>>{};
       }
-    }
 
-    if (directUrls.isNotEmpty) {
-      debugPrint(
-          '[DEBUG][MaidataManager] URL映射命中 ${directUrls.length} 首，直接获取（跳过目录扫描）...');
+      if (response.statusCode == 304 &&
+          _catalog != null &&
+          _catalog!.isNotEmpty) {
+        await prefs.setInt(
+          CacheKeyConstant.maidataCatalogTimestamp,
+          DateTime.now().millisecondsSinceEpoch,
+        );
+        return _catalog!;
+      }
 
-      const mapBatchSize = 80;
-      for (int i = 0; i < directUrls.length; i += mapBatchSize) {
-        final end = (i + mapBatchSize < directUrls.length)
-            ? i + mapBatchSize
-            : directUrls.length;
-        final batch = directUrls.sublist(i, end);
-        final batchResults =
-            await Future.wait(batch.map((url) => _fetchSingleMaidata(url)));
-
-        for (final r in batchResults) {
-          if (_cacheGeneration != generation) return result;
-          if (r == null) continue;
-          final (songId, content) = r;
-          if (remainingIds.remove(songId)) {
-            await cacheMaidata(songId, content);
-            result.add(_cleanMaidataContent(content));
-            fetchedCount++;
-          }
+      if (response.statusCode == 200) {
+        final raw = utf8.decode(response.bodyBytes, allowMalformed: true);
+        final parsed = await compute(_decodeCatalogPayload, raw);
+        if (_cacheGeneration != generation) {
+          return _catalog ?? const <String, List<String>>{};
         }
-      }
-    }
-
-    if (remainingIds.isEmpty) {
-      debugPrint('[DEBUG][MaidataManager] 全部通过URL映射获取完成（共 $fetchedCount 首）');
-      return result;
-    }
-
-    debugPrint(
-        '[DEBUG][MaidataManager] URL映射未覆盖 ${remainingIds.length} 首，回退到目录扫描...');
-
-    // 回退：扫描目录查找剩余歌曲
-    final baseUrl = ApiUrls.MaidataServerBaseUrl;
-    const genrePaths = <String>[
-      '/maimai',
-      '/niconicoボーカロイド',
-      '/ゲームバラエティ',
-      '/東方Project',
-      '/オンゲキCHUNITHM',
-      '/宴会場',
-    ];
-
-    await Future.wait(
-      genrePaths.map((path) async {
-        if (remainingIds.isEmpty) return;
-
-        final folders = await _getFoldersInPath('$baseUrl$path');
-        if (folders.isEmpty || remainingIds.isEmpty) return;
-
-        final urls =
-            folders.map((f) => '$baseUrl$path/$f/maidata.txt').toList();
-
-        const batchSize = 50;
-        for (int i = 0;
-            i < urls.length && remainingIds.isNotEmpty;
-            i += batchSize) {
-          final end =
-              (i + batchSize < urls.length) ? i + batchSize : urls.length;
-          final batch = urls.sublist(i, end);
-
-          final batchResults =
-              await Future.wait(batch.map((url) => _fetchSingleMaidata(url)));
-
-          for (int j = 0; j < batchResults.length; j++) {
-            if (_cacheGeneration != generation) return;
-            final r = batchResults[j];
-            if (r == null) continue;
-            final (songId, content) = r;
-            // 同时更新 URL 映射供下次使用
-            _idToUrlMap[songId] = batch[j];
-            if (remainingIds.remove(songId)) {
-              await cacheMaidata(songId, content);
-              result.add(_cleanMaidataContent(content));
-              fetchedCount++;
+        if (parsed.isNotEmpty) {
+          _catalog = parsed;
+          final file = await _getCatalogFile();
+          final temp = File('${file.path}.tmp');
+          try {
+            await temp.writeAsString(json.encode(<String, dynamic>{
+              'version': 1,
+              'songs': parsed,
+            }));
+            if (_cacheGeneration == generation) {
+              await temp.rename(file.path);
             }
+          } finally {
+            if (await temp.exists()) await temp.delete();
           }
+          await prefs.setInt(
+            CacheKeyConstant.maidataCatalogTimestamp,
+            DateTime.now().millisecondsSinceEpoch,
+          );
+          final respEtag = response.headers['etag'];
+          if (respEtag != null && respEtag.isNotEmpty) {
+            await prefs.setString(
+                CacheKeyConstant.maidataCatalogEtag, respEtag);
+          }
+          debugPrint('[MaidataManager] 轻量目录已更新，共 ${parsed.length} 首');
+          return parsed;
         }
-      }),
-    );
-
-    // 等待 URL 映射落盘，缓存清理才能覆盖正在进行的增量请求。
-    if (_cacheGeneration == generation) await _saveUrlMap();
-
-    debugPrint(
-        '[DEBUG][MaidataManager] 指定歌曲maidata获取完成，成功获取 $fetchedCount 首（含缓存共 ${result.length} 首）');
-    return result;
+      }
+    } catch (e) {
+      debugPrint('[MaidataManager] 获取轻量目录失败: $e');
+    }
+    return _catalog ?? const <String, List<String>>{};
   }
 
-  // ========== index.json 缓存，用于 songId → shortId 映射 ==========
+  /// 按需获取单首歌曲的 maidata 文本。
+  ///
+  /// 读取顺序：内存 LRU → 磁盘单曲缓存 → 自家 `/api/maidata/:songId` → `wmc.pub` 兜底。
+  /// 返回清理过标记字符后的文本；同曲目并发请求自动合并去重。
+  Future<String?> fetchMaidata(
+    String songId, {
+    bool forceNetwork = false,
+  }) async {
+    await initialize();
+    if (!_validSongIdRegex.hasMatch(songId)) return null;
 
-  /// 获取缓存的index数据（shortId → title 映射），如果缓存过期则从服务器拉取
+    if (!forceNetwork) {
+      final cached = await readCachedMaidata(songId);
+      if (cached != null) return cached;
+    }
+
+    final running = _inFlightSongs[songId];
+    if (running != null) return running;
+
+    final task = _fetchSingleSongFromNetwork(songId);
+    _inFlightSongs[songId] = task;
+    try {
+      return await task;
+    } finally {
+      _inFlightSongs.remove(songId);
+    }
+  }
+
+  Future<String?> _fetchSingleSongFromNetwork(String songId) async {
+    final generation = _cacheGeneration;
+    try {
+      final response = await ApiClient.get(
+        Uri.parse(ApiUrls.maidataSongUrl(songId)),
+      );
+      if (_cacheGeneration != generation) return null;
+      if (response.statusCode == 200) {
+        final content = _decodeContent(response.bodyBytes);
+        if (_extractSongId(content) == songId) {
+          await cacheMaidata(songId, content);
+          return _cleanMaidataContent(content);
+        }
+      } else {
+        debugPrint('[MaidataManager] 主源未命中 songId=$songId, '
+            'status=${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('[MaidataManager] 主源请求失败 songId=$songId: $e');
+    }
+
+    if (_cacheGeneration != generation) return null;
+    return _fetchWmcMaidata(songId);
+  }
+
+  /// 按歌曲 ID 列表按需批量获取 maidata（并发去重，不触发目录扫描）。
+  Future<List<String>> fetchMaidataForSongIds(List<String> songIds) async {
+    await initialize();
+    final uniqueIds = songIds.toSet().toList();
+    final results = <String>[];
+    const batchSize = 4;
+    for (var i = 0; i < uniqueIds.length; i += batchSize) {
+      final end = (i + batchSize < uniqueIds.length)
+          ? i + batchSize
+          : uniqueIds.length;
+      final batch = uniqueIds.sublist(i, end);
+      final fetched = await Future.wait(batch.map((id) => fetchMaidata(id)));
+      for (final item in fetched) {
+        if (item != null && item.isNotEmpty) {
+          results.add(item);
+        }
+      }
+    }
+    return results;
+  }
+
+  /// 离线或目录缺失时，根据已有单曲缓存构造临时 `songId -> inotes` 映射供本地游乐功能兜底。
+  Future<Map<String, List<String>>> buildOfflineCachedInotes() async {
+    await initialize();
+    final map = <String, List<String>>{};
+    final ids = {
+      ..._memoryCache.keys,
+      ..._diskCachedIds,
+      ..._legacySingleMaidata.keys,
+    };
+    for (final id in ids) {
+      final content = await readCachedMaidata(id);
+      if (content == null || content.isEmpty) continue;
+      final inotes = <String>[];
+      for (final m in RegExp(r'&inote_(\d+)').allMatches(content)) {
+        final numStr = m.group(1)!;
+        if (!inotes.contains(numStr)) inotes.add(numStr);
+      }
+      if (inotes.isNotEmpty) {
+        inotes.sort((a, b) => int.parse(a).compareTo(int.parse(b)));
+        map[id] = inotes;
+      }
+    }
+    return map;
+  }
+
+  // ========== 兼容 index.json 映射（按需才拉，不在冷启动触发） ==========
+
   Future<Map<String, dynamic>> getIndex() async {
     if (_indexData != null && _indexData!.isNotEmpty) {
       return _indexData!;
@@ -717,7 +614,7 @@ class MaidataManager {
       return _indexData!;
     }
     await _fetchAndCacheIndex();
-    return _indexData ?? {};
+    return _indexData ?? <String, dynamic>{};
   }
 
   Future<void> _loadIndexFromCache() async {
@@ -728,16 +625,15 @@ class MaidataManager {
           prefs.getInt(CacheKeyConstant.maidataIndexCacheTimestamp);
       if (cachedData != null && timestamp != null) {
         final now = DateTime.now().millisecondsSinceEpoch;
-        if (now - timestamp < CacheTimestampConstant.maidataFullCacheMillis) {
+        if (now - timestamp <
+            CacheTimestampConstant.maidataCatalogCacheMillis) {
           _indexData =
               Map<String, dynamic>.from(json.decode(cachedData) as Map);
-          debugPrint(
-              '[DEBUG][MaidataManager] 已加载index缓存，共 ${_indexData!.length} 条');
           return;
         }
       }
     } catch (e) {
-      debugPrint('[DEBUG][MaidataManager] 加载index缓存失败: $e');
+      debugPrint('[MaidataManager] 加载 index 缓存失败: $e');
     }
   }
 
@@ -746,38 +642,35 @@ class MaidataManager {
       final response = await ApiClient.get(
           Uri.parse('${ApiUrls.MaidataServerPortUrl}/index.json'));
       if (response.statusCode == 200) {
-        String content = _decodeContent(response.bodyBytes);
+        final content = _decodeContent(response.bodyBytes);
         _indexData = Map<String, dynamic>.from(json.decode(content) as Map);
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString(
             CacheKeyConstant.maidataIndexCache, json.encode(_indexData));
         await prefs.setInt(CacheKeyConstant.maidataIndexCacheTimestamp,
             DateTime.now().millisecondsSinceEpoch);
-        debugPrint(
-            '[DEBUG][MaidataManager] index.json已缓存，共 ${_indexData!.length} 条');
       }
     } catch (e) {
-      debugPrint('[DEBUG][MaidataManager] 获取index.json失败: $e');
+      debugPrint('[MaidataManager] 获取 index.json 失败: $e');
     }
   }
 
-  /// 根据歌曲标题在index中查找所有匹配的shortId
   List<String> findShortIdsForTitle(String title) {
     if (_indexData == null) return [];
     final sanitized = title
         .replaceAll(RegExp(r'[\\/:*?"<>|]'), '_')
         .replaceAll(RegExp(r'\s+'), '')
         .toUpperCase();
-    List<String> result = [];
-    for (var entry in _indexData!.entries) {
-      dynamic value = entry.value;
-      String indexTitle = '';
+    final result = <String>[];
+    for (final entry in _indexData!.entries) {
+      final value = entry.value;
+      var indexTitle = '';
       if (value is String) {
         indexTitle = value;
       } else if (value is Map) {
         indexTitle = (value['title'] ?? value['name'] ?? '').toString();
       }
-      String sanitizedIndexTitle = indexTitle
+      final sanitizedIndexTitle = indexTitle
           .replaceAll(RegExp(r'[\\/:*?"<>|]'), '_')
           .replaceAll(RegExp(r'\s+'), '')
           .toUpperCase();
@@ -790,36 +683,26 @@ class MaidataManager {
     return result;
   }
 
-  /// 根据歌曲标题在index中查找所有匹配的shortId（含日语音读回退）
   Future<List<String>> findShortIdsForTitleKana(String title) async {
-    // 先尝试简单匹配
-    List<String> result = findShortIdsForTitle(title);
+    final result = findShortIdsForTitle(title);
     if (result.isNotEmpty) return result;
-
-    // 简单匹配失败，尝试jp_transliterate日语音读
     try {
       final katakanaTitle = await _tryTransliterate(title);
       if (katakanaTitle != null && katakanaTitle != title) {
         final katakanaResult = findShortIdsForTitle(katakanaTitle);
-        if (katakanaResult.isNotEmpty) {
-          debugPrint(
-              '[MaidataManager] 日语音读匹配成功: "$title" -> "$katakanaTitle", 找到 ${katakanaResult.length} 个shortId');
-          return katakanaResult;
-        }
+        if (katakanaResult.isNotEmpty) return katakanaResult;
       }
     } catch (e) {
       debugPrint('[MaidataManager] 日语音读匹配异常: $e');
     }
-
     return [];
   }
 
   Future<String?> _tryTransliterate(String title) async {
     if (JpTransliterate.isKanji(input: title)) {
       final data = await JpTransliterate.transliterate(kanji: title);
-      String katakana = data.katakana;
+      final katakana = data.katakana;
       if (katakana.isNotEmpty) {
-        // 清理片假名结果以便匹配
         return katakana
             .replaceAll(RegExp(r'[\\/:*?"<>|]'), '_')
             .replaceAll(RegExp(r'\s+'), '')
@@ -829,10 +712,9 @@ class MaidataManager {
     return null;
   }
 
-  /// 尝试通过多个shortId查找maidata（用于fallback）
   String? getMaidataByShortIds(List<String> shortIds) {
     for (final sid in shortIds) {
-      String? content = getMaidata(sid);
+      final content = getMaidata(sid);
       if (content != null) return content;
     }
     return null;
@@ -840,52 +722,60 @@ class MaidataManager {
 
   Future<void> clearCache() async {
     _cacheGeneration++;
-    // 等初始化结束再清理，避免加载中的旧缓存重新填回内存。
     await _initializing;
     await Future.wait(_writes.toList());
-    await _fullFetch;
-    await Future.wait(_incrementalFetches.toList());
+    await _catalogFetch;
+    await Future.wait(_inFlightSongs.values.toList());
     await Future.wait(_wmcRequests.values.toList());
-    _cachedMaidata.clear();
-    _singleMaidata.clear();
+
+    _memoryCache.clear();
+    _diskCachedIds.clear();
+    _legacySingleMaidata.clear();
     _wmcFallbackCache.clear();
-    _idToUrlMap.clear();
+    _catalog = null;
     _indexData = null;
     _isInitialized = false;
 
     try {
-      // 删除文件缓存
-      final file = await _getCacheFile();
-      if (await file.exists()) {
-        await file.delete();
+      final singleDir = await _getSingleCacheDir();
+      if (await singleDir.exists()) {
+        await singleDir.delete(recursive: true);
       }
-      // 清除 SharedPreferences 中的时间戳及可能的旧版全量缓存
+      final catalogFile = await _getCatalogFile();
+      if (await catalogFile.exists()) await catalogFile.delete();
+
+      final dir = await getApplicationDocumentsDirectory();
+      final legacyFull = File('${dir.path}/maidata_full_cache.json');
+      if (await legacyFull.exists()) await legacyFull.delete();
+      final legacyUrlMap = File('${dir.path}/maidata_url_map.json');
+      if (await legacyUrlMap.exists()) await legacyUrlMap.delete();
+
       final prefs = await SharedPreferences.getInstance();
-      final urlMap = await _getUrlMapFile();
-      if (await urlMap.exists()) await urlMap.delete();
-      for (final key in prefs.getKeys()) {
-        if (key.startsWith(CacheKeyConstant.maidataCachePrefix))
+      for (final key in prefs.getKeys().toList()) {
+        if (key.startsWith(CacheKeyConstant.maidataCachePrefix)) {
           await prefs.remove(key);
+        }
       }
       await prefs.remove(CacheKeyConstant.maidataFullCache);
       await prefs.remove(CacheKeyConstant.maidataFullCacheTimestamp);
       await prefs.remove(CacheKeyConstant.maidataIndexCache);
       await prefs.remove(CacheKeyConstant.maidataIndexCacheTimestamp);
-      debugPrint('[DEBUG][MaidataManager] 缓存已清空');
+      await prefs.remove(CacheKeyConstant.maidataCatalogTimestamp);
+      await prefs.remove(CacheKeyConstant.maidataCatalogEtag);
+      debugPrint('[MaidataManager] 缓存已清空');
     } catch (e) {
-      debugPrint('[DEBUG][MaidataManager] 清空缓存失败: $e');
+      debugPrint('[MaidataManager] 清空缓存失败: $e');
     }
   }
 
   // ============== 单曲兜底（wmc.pub，内存与持久缓存） ==============
 
-  /// 兜底来源：本地全量/单曲缓存都没命中时，从 wmc.pub 拉一份。
-  /// 先查全量/单曲缓存，同一曲目的并发请求复用；成功后持久化。
-  /// 返回清理后的 maidata 文本（跟 [getMaidata] 一样去掉了 `[DX]`/`[SD]`/`[宴]`/尾 `$`）。
   Future<String?> getMaidataFromWmcFallback(String songId) async {
     await initialize();
-    final persistent = getMaidata(songId);
+    if (!_validSongIdRegex.hasMatch(songId)) return null;
+    final persistent = await readCachedMaidata(songId);
     if (persistent != null) return persistent;
+
     final running = _wmcRequests[songId];
     if (running != null) return running;
     final task = _fetchWmcMaidata(songId);
@@ -901,49 +791,35 @@ class MaidataManager {
     final generation = _cacheGeneration;
     final cached = _wmcFallbackCache[songId];
     if (cached != null) {
-      debugPrint('[MaidataManager] wmc 兜底命中内存, songId=$songId');
       return _cleanMaidataContent(cached);
     }
     try {
       final url = ApiUrls.wmcMaidataUrl(songId);
-      debugPrint('[MaidataManager] wmc 兜底请求: $url');
       final response = await ApiClient.get(Uri.parse(url));
       if (_cacheGeneration != generation) return null;
       if (response.statusCode == 200) {
         final content = _decodeContent(response.bodyBytes);
-        // 必须能解析出 shortId 才算命中，否则当成垃圾丢掉
         if (_extractSongId(content) == songId) {
           _wmcFallbackCache[songId] = content;
           await cacheMaidata(songId, content);
-          debugPrint('[MaidataManager] wmc 兜底命中, songId=$songId, '
-              '内存缓存共 ${_wmcFallbackCache.length} 首');
           return _cleanMaidataContent(content);
-        } else {
-          debugPrint('[MaidataManager] wmc 兜底返回但 shortId 不匹配, songId=$songId');
         }
-      } else {
-        debugPrint('[MaidataManager] wmc 兜底非 200, songId=$songId, '
-            'status=${response.statusCode}');
       }
     } catch (e) {
-      debugPrint('[MaidataManager] wmc 兜底请求失败, songId=$songId: $e');
+      debugPrint('[MaidataManager] wmc 兜底请求失败 songId=$songId: $e');
     }
     return null;
   }
 
-  /// 清空 wmc 兜底缓存（用户在系统中心「缓存管理」里点按钮）。
   void clearWmcFallbackCache() {
-    final n = _wmcFallbackCache.length;
     _wmcFallbackCache.clear();
-    debugPrint('[MaidataManager] 已清空 wmc 兜底缓存，共 $n 首');
   }
 
-  /// 内存里现存的 wmc 兜底曲数（只用于 UI 显示状态）。
   int get wmcFallbackCacheCount => _wmcFallbackCache.length;
 
-  /// 当前进程中 maidata 文本占用的 UTF-8 字节数，用于缓存管理页展示内存占用。
+  /// 当前进程中 maidata 文本占用的 UTF-8 字节数（不含已落盘未读入内存的单曲文件）。
   int get memoryCacheBytes =>
-      _cachedMaidata.values.fold<int>(
+      _memoryCache.values.fold<int>(
         0,
         (total, text) => total + utf8.encode(text).length,
       ) +
@@ -951,7 +827,7 @@ class MaidataManager {
         0,
         (total, text) => total + utf8.encode(text).length,
       ) +
-      _singleMaidata.values.fold<int>(
+      _legacySingleMaidata.values.fold<int>(
         0,
         (total, text) => total + utf8.encode(text).length,
       );

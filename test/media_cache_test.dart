@@ -256,100 +256,103 @@ void main() {
     expect(requests, 3);
   });
 
-  test('增量 maidata 落盘，重新初始化后直接读取单曲缓存', () async {
-    await seed(
-        '${documents.path}/maidata_url_map.json',
-        utf8.encode(
-            json.encode({'8': 'https://probe.invalid/s/8/maidata.txt'})));
-    ApiClient.debugClient = MockClient((_) async {
+  test('按需单曲 maidata 落盘到独立文件，重新初始化后直接读取缓存且不再发请求', () async {
+    ApiClient.debugClient = MockClient((request) async {
       requests++;
+      expect(request.url.path, '/api/maidata/8');
       return http.Response('&shortid=8\n&inote_4=(120){4}1,2,3,4,E', 200);
     });
     final manager = MaidataManager.forTesting();
-    expect(await manager.fetchMaidataForSongIds(['8']), hasLength(1));
+    final fetched = await manager.fetchMaidata('8');
+    expect(fetched, contains('&shortid=8'));
+    expect(
+      await File('${documents.path}/maidata_cache/8.txt').exists(),
+      isTrue,
+    );
+
     final reopened = MaidataManager.forTesting();
     await reopened.initialize();
-    expect(reopened.getMaidata('8'), contains('&shortid=8'));
-    expect(await reopened.fetchMaidataForSongIds(['8']), hasLength(1));
-    expect(reopened.isFullCacheReady, isFalse);
+    expect(reopened.hasCachedMaidata('8'), isTrue);
+    expect(await reopened.readCachedMaidata('8'), contains('&shortid=8'));
+    expect(await reopened.fetchMaidata('8'), contains('&shortid=8'));
     expect(requests, 1);
   });
 
-  test('全量 maidata 共享并发额度，DNS 故障后停止排队并保留旧缓存', () async {
-    final file = File('${documents.path}/maidata_full_cache.json');
-    const oldCache = '{"8":"&shortid=8"}';
-    await file.writeAsString(oldCache);
-    final prefs = await SharedPreferences.getInstance();
-    final oldTimestamp = DateTime.now()
-        .subtract(const Duration(days: 60))
-        .millisecondsSinceEpoch;
-    await prefs.setInt(CacheKeyConstant.maidataFullCacheTimestamp, oldTimestamp);
+  test('轻量 catalog 拉取、ETag 304 复用及旧版全量缓存清理', () async {
+    await seed('${documents.path}/maidata_full_cache.json', utf8.encode('{}'));
+    await seed('${documents.path}/maidata_url_map.json', utf8.encode('{}'));
 
-    var active = 0;
-    var peak = 0;
-    var fileRequests = 0;
+    var catalogCalls = 0;
     ApiClient.debugClient = MockClient((request) async {
-      if (!request.url.path.endsWith('/maidata.txt')) {
+      if (request.url.path == '/api/maidata/catalog') {
+        catalogCalls++;
+        if (request.headers['If-None-Match'] == '"cat-v1"') {
+          return http.Response('', 304);
+        }
         return http.Response(
-            List.generate(30, (i) => '<a href="song$i/">').join(), 200);
+          json.encode({
+            'version': 1,
+            'count': 1,
+            'songs': {
+              '8': ['2', '4', '5']
+            },
+          }),
+          200,
+          headers: {'etag': '"cat-v1"'},
+        );
       }
-      fileRequests++;
-      active++;
-      if (active > peak) peak = active;
-      await Future<void>.delayed(const Duration(milliseconds: 3));
-      active--;
-      throw const SocketException('Failed host lookup');
+      return http.Response('', 404);
     });
 
     final manager = MaidataManager.forTesting();
-    await manager.initialize();
-    expect(await manager.isFullCacheValid(), isFalse);
-    expect(manager.getMaidata('8'), contains('&shortid=8'));
-    await expectLater(manager.fetchAndCacheFullMaidata(), throwsStateError);
-    expect(peak, 8);
-    expect(fileRequests, lessThanOrEqualTo(15));
-    expect(await file.readAsString(), oldCache);
-    expect(prefs.getInt(CacheKeyConstant.maidataFullCacheTimestamp), oldTimestamp);
+    final first = await manager.getCatalog();
+    expect(first['8'], ['2', '4', '5']);
+    expect(catalogCalls, 1);
+    expect(
+      await File('${documents.path}/maidata_full_cache.json').exists(),
+      isFalse,
+    );
+    expect(
+      await File('${documents.path}/maidata_url_map.json').exists(),
+      isFalse,
+    );
 
-    ApiClient.debugClient = MockClient((request) async {
-      if (request.url.path.endsWith('/maidata.txt')) {
-        final segments = request.url.pathSegments;
-        expect(segments, hasLength(3));
-        return http.Response('&shortid=9', 200);
-      }
-      if (request.url.path.endsWith('/index.json')) {
-        return http.Response('{}', 200);
-      }
-      return http.Response('<a href="song/">', 200);
-    });
-    await manager.fetchAndCacheFullMaidata();
-    expect(await manager.isFullCacheValid(), isTrue);
-    expect(await file.readAsString(), '{"9":"&shortid=9"}');
+    final refreshed = await manager.getCatalog(forceRefresh: true);
+    expect(refreshed['8'], ['2', '4', '5']);
+    expect(catalogCalls, 2);
   });
 
-  test('WMC 兜底并发复用、持久恢复，清理删除正文和内存缓存', () async {
-    ApiClient.debugClient = MockClient((_) async {
+  test('主源未命中时回落 WMC 兜底并持久化，clearCache 删除文件与内存', () async {
+    ApiClient.debugClient = MockClient((request) async {
       requests++;
+      if (request.url.host == 'chiffonmai.cloud') {
+        return http.Response('not found', 404);
+      }
       await Future<void>.delayed(const Duration(milliseconds: 5));
       return http.Response('&shortid=12025\n&inote_4=(120){4}1,2,3,4,E', 200);
     });
     final manager = MaidataManager.forTesting();
     final results = await Future.wait([
-      manager.getMaidataFromWmcFallback('12025'),
-      manager.getMaidataFromWmcFallback('12025'),
+      manager.fetchMaidata('12025'),
+      manager.fetchMaidata('12025'),
     ]);
-    expect(results.every((v) => v != null), isTrue);
+    expect(results.every((v) => v != null && v.contains('&shortid=12025')),
+        isTrue);
+    expect(requests, 2); // 主源 1 次 + wmc 兜底 1 次（并发去重）
+
     final reopened = MaidataManager.forTesting();
-    expect(await reopened.getMaidataFromWmcFallback('12025'), isNotNull);
-    expect(requests, 1);
+    expect(await reopened.fetchMaidata('12025'), isNotNull);
+    expect(requests, 2);
+
     await reopened.clearCache();
     expect(reopened.memoryCacheBytes, 0);
-    final prefs = await SharedPreferences.getInstance();
     expect(
-        prefs.getString('${CacheKeyConstant.maidataCachePrefix}12025'), isNull);
+      await File('${documents.path}/maidata_cache/12025.txt').exists(),
+      isFalse,
+    );
     final empty = MaidataManager.forTesting();
     await empty.initialize();
-    expect(empty.getMaidata('12025'), isNull);
+    expect(empty.hasCachedMaidata('12025'), isFalse);
   });
 
   test('过期单曲缓存不恢复，并删除对应持久记录', () async {
@@ -363,9 +366,18 @@ void main() {
               .subtract(const Duration(days: 31))
               .millisecondsSinceEpoch,
         }));
+    final staleFile = File('${documents.path}/maidata_cache/9.txt');
+    await staleFile.parent.create(recursive: true);
+    await staleFile.writeAsString('&shortid=9\n&inote_4=1,E');
+    await staleFile.setLastModified(
+      DateTime.now().subtract(const Duration(days: 31)),
+    );
+
     final manager = MaidataManager.forTesting();
     await manager.initialize();
-    expect(manager.getMaidata('8'), isNull);
+    expect(manager.hasCachedMaidata('8'), isFalse);
+    expect(manager.hasCachedMaidata('9'), isFalse);
     expect(prefs.getString(key), isNull);
+    expect(await staleFile.exists(), isFalse);
   });
 }

@@ -22,14 +22,8 @@ class _GuessBpmHistoryFieldsState extends State<GuessBpmHistoryFields> {
 
   static Future<ChartBpmInfo?> _load(String id) async {
     try {
-      final manager = MaidataManager();
-      await manager.initialize();
-      var content = manager.getMaidata(id);
-      if (content == null) {
-        await manager.fetchMaidataForSongIds([id]);
-        content = manager.getMaidata(id);
-      }
-      if (content == null) return null;
+      final content = await MaidataManager().fetchMaidata(id);
+      if (content == null || content.isEmpty) return null;
       final charts = <int, String>{};
       for (final match in RegExp(r'&inote_(\d+)\s*=([\s\S]*?)(?=\r?\n&|$)')
           .allMatches(content)) {

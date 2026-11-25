@@ -2382,7 +2382,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get flowThisClearsAllMaidataCachesAndDownloads =>
-      'This clears all maidata caches and downloads them again. It may take some time.\n\nContinue?';
+      'This clears all cached maidata and reloads the lightweight chart catalog. Individual charts will be downloaded on demand when opened.\n\nContinue?';
 
   @override
   String get flowMaidataRefreshed => 'Maidata refreshed';
@@ -6216,7 +6216,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get flowCacheMaidataDescription =>
-      'Chart additions (list + full maidata)';
+      'Lightweight chart catalog (charts cached on demand)';
 
   @override
   String get flowSongDetails => 'Song details';

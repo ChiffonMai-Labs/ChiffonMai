@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../api/ApiUrls.dart';
 import '../manager/SongAliasManager.dart';
 import '../constant/CacheKeyConstant.dart';
+import '../constant/CacheTimestampConstant.dart';
 
 /// 应用内一个可被强制刷新的缓存源。
 ///
@@ -176,15 +177,15 @@ class CacheSourceRegistry {
       groupKey: 'union',
     ),
 
-    // ── maidata（追加列表 + 完整 maidata；TTL 取追加列表的 15 天） ───
+    // ── maidata（轻量目录索引，单曲谱面按需缓存） ───
     CacheSourceInfo(
       id: 'maidata',
       displayName: 'maidata',
-      description: '谱面追加辅助（追加列表 + 完整 maidata）',
-      apiUrl: '${ApiUrls.MaidataServerBaseUrl}/maimai',
-      cacheKey: CacheKeyConstant.maidataAddedSongs,
-      timestampKey: CacheKeyConstant.maidataAddedSongsTimestamp,
-      ttlDays: 15,
+      description: '谱面目录索引（单曲谱面按需缓存）',
+      apiUrl: ApiUrls.MaidataCatalogUrl,
+      cacheKey: CacheKeyConstant.maidataCatalogEtag,
+      timestampKey: CacheKeyConstant.maidataCatalogTimestamp,
+      ttlDays: CacheTimestampConstant.maidataCatalogCacheDays,
       groupKey: 'maidata',
     ),
   ];

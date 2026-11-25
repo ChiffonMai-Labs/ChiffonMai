@@ -71,7 +71,6 @@ import '../service/CommunityAvatarStore.dart';
 import '../widgets/CommunityAvatar.dart';
 import '../widgets/ErrorMessageDialog.dart';
 import '../widgets/CacheManagementDialog.dart';
-import '../service/CacheManagementService.dart';
 import '../widgets/AccountRegistrationGuideDialog.dart';
 import '../widgets/ConfettiEffect.dart';
 import '../entity/FeatureModels.dart';
@@ -197,7 +196,6 @@ class SystemHubPageState extends State<SystemHubPage>
   bool get anyBusy => _activeTask != null || HomeRefreshNotifier.isBusy.value;
 
   FeatureTask? get _activeTask {
-    final cache = CacheManagementService.instance;
     if (syncingDivingFish) {
       return (title: '同步成绩到水鱼', progress: divingFishProgress);
     }
@@ -212,9 +210,6 @@ class SystemHubPageState extends State<SystemHubPage>
       return (title: FeatureRegistry.cabinetAppearanceTitle, progress: null);
     }
     if (_loggingOut) return (title: '绑定与授权管理', progress: null);
-    if (cache.reloadingBase) {
-      return (title: '缓存管理', progress: cache.reloadProgress);
-    }
     return null;
   }
 
@@ -230,11 +225,6 @@ class SystemHubPageState extends State<SystemHubPage>
     _notifySubPages();
   }
 
-  void _onCacheTaskChanged() {
-    _onSyncRouteChanged();
-    _publishActiveTask();
-  }
-
   late final Listenable _hubListenable = Listenable.merge([
     FavoriteFeaturesNotifier.instance,
     LoginStateNotifier.instance,
@@ -245,7 +235,6 @@ class SystemHubPageState extends State<SystemHubPage>
     FavoriteFeaturesNotifier.instance,
     LoginStateNotifier.instance,
     UpdateNotifier.available,
-    CacheManagementService.instance,
     HomeRefreshNotifier.isBusy,
     AccountAuthorizationStatus.changes,
     SyncRouteNotifier.instance,
@@ -266,7 +255,6 @@ class SystemHubPageState extends State<SystemHubPage>
         [_fetchAvatarIcons(), _fetchExtraAppearance(), _fetchAvatarPlates()]);
     // 线路 + 统计（与首页收藏区共享同一份状态；重复调用幂等）
     SyncRouteNotifier.instance.addListener(_onSyncRouteChanged);
-    CacheManagementService.instance.addListener(_onCacheTaskChanged);
     SyncRouteNotifier.instance.ensureLoaded();
     HomeRefreshNotifier.isBusy.addListener(_onHomeRefreshBusyChanged);
   }
@@ -286,7 +274,6 @@ class SystemHubPageState extends State<SystemHubPage>
     LoginStateNotifier.instance.removeListener(_onAvatarLoginChanged);
     UserProfileNotifier.instance.removeListener(_onUserProfileChanged);
     SyncRouteNotifier.instance.removeListener(_onSyncRouteChanged);
-    CacheManagementService.instance.removeListener(_onCacheTaskChanged);
     HomeRefreshNotifier.isBusy.removeListener(_onHomeRefreshBusyChanged);
     super.dispose();
   }
@@ -579,23 +566,7 @@ class SystemHubPageState extends State<SystemHubPage>
       AppToast.show(context.featureText('正在处理其它任务，请稍候'));
       return;
     }
-    final reload = await showCacheManagementDialog(context);
-    if (reload != true || !mounted || anyBusy) return;
-    try {
-      await CacheManagementService.instance.reloadBaseMaidata();
-      if (mounted)
-        AppToast.show(context.l10n.flowBaseNoteMaidataDownloadedAgain);
-    } catch (error, stack) {
-      if (mounted) {
-        await showErrorMessageDialog(
-          context,
-          title: context.featureText('重新下载失败'),
-          error: error,
-          stack: stack,
-          stage: '重载基础谱面缓存',
-        );
-      }
-    }
+    await showCacheManagementDialog(context);
   }
 
   /// 独立读取机台游玩次数；普通成绩同步不再复用二维码调用这个接口。
@@ -1440,10 +1411,7 @@ class SystemHubPageState extends State<SystemHubPage>
         HubActionTile(
           title: '缓存管理',
           subtitle: '查看并清理音源、PV、maidata 缓存',
-          loading: CacheManagementService.instance.reloadingBase,
-          loadingText: CacheManagementService.instance.reloadText,
-          progressValue: CacheManagementService.instance.reloadProgress,
-          disabled: anyBusy && !CacheManagementService.instance.reloadingBase,
+          disabled: anyBusy,
           disabledReason: _busyReason,
           icon: Icons.storage_outlined,
           isFavorited: _isFavorited('缓存管理'),
@@ -1756,12 +1724,7 @@ class SystemHubPageState extends State<SystemHubPage>
                 subtitle: '数据备份 · 缓存管理 · 加载语录 · 状态与日志',
                 icon: Icons.storage_outlined,
                 onTap: () => _openMaintenanceSubPage(context),
-                loading: CacheManagementService.instance.reloadingBase,
-                loadingText: CacheManagementService.instance.reloadText,
-                showProgress: true,
-                progressValue: CacheManagementService.instance.reloadProgress,
-                disabled:
-                    anyBusy && !CacheManagementService.instance.reloadingBase,
+                disabled: anyBusy,
                 disabledReason: _busyReason,
               ),
               HubActionTile(

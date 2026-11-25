@@ -994,7 +994,7 @@
   "flowCopyImportToken": "复制 ImportToken",
   "flowImportTokenCopied": "ImportToken 已复制到剪贴板",
   "flowConfirmRefresh": "确认刷新",
-  "flowThisClearsAllMaidataCachesAndDownloads": "将清除所有maidata缓存并从服务器重新拉取全部maidata数据，耗时可能较长。\n\n确定要刷新吗？",
+  "flowThisClearsAllMaidataCachesAndDownloads": "将清除所有已缓存的 maidata 并重新拉取轻量谱面目录，之后单曲将在使用时按需下载。\n\n确定要刷新吗？",
   "flowMaidataRefreshed": "Maidata刷新成功",
   "flowRefreshFailedP0": "刷新失败: {p0}",
   "@flowRefreshFailedP0": {
@@ -3911,7 +3911,7 @@
   "flowCacheTravelBuddyDescription": "AWMC 旅行伙伴",
   "flowCachePartnerDescription": "AWMC 搭档",
   "flowCacheMetadataDescription": "cn/jp 可游玩地区等",
-  "flowCacheMaidataDescription": "谱面追加辅助（追加列表 + 完整 maidata）",
+  "flowCacheMaidataDescription": "谱面目录索引（单曲谱面按需缓存）",
   "flowSongDetails": "歌曲详情",
   "flowExpandOrCollapseSongInformation": "展开或收起歌曲信息",
   "flowFavorited": "已收藏",

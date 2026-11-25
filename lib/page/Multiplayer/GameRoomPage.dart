@@ -2841,15 +2841,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
     _peekPreparing = true;
     try {
       final manager = MaidataManager();
-      await manager.initialize();
-      if (!current()) return;
-
-      String? content = manager.getMaidata(targetSongId);
-      if (content == null || content.isEmpty) {
-        // 多人抽曲由服务端决定，本机不一定缓存了这首 → 按需拉一次
-        await manager.fetchMaidataForSongIds([targetSongId]);
-        content = manager.getMaidata(targetSongId);
-      }
+      final content = await manager.fetchMaidata(targetSongId);
       if (!current()) return;
       if (content == null || content.isEmpty) {
         setState(() => _peekUnavailableReason = context.l10n.flowThisChartIsNotCachedOnThis);
@@ -2866,7 +2858,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
               pool: pool,
               masterMinDx: _currentRoom?.masterMinDx ?? 1.0,
               masterMaxDx: _currentRoom?.masterMaxDx ?? 15.0,
-              hasInote: (inote) => content!.contains('&inote_$inote'),
+              hasInote: (inote) => content.contains('&inote_$inote'),
             );
       final String? inote = GameSeedUtil.pickDeterministic(
         roomId: roomId,

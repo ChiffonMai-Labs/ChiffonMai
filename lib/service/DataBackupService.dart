@@ -61,6 +61,8 @@ class DataBackupService {
     'announcement_cache_v1',
     CacheKeyConstant.cachedSongs,
     CacheKeyConstant.cachedSongsTimestamp,
+    CacheKeyConstant.maidataCatalogTimestamp,
+    CacheKeyConstant.maidataCatalogEtag,
     CacheKeyConstant.maidataFullCache,
     CacheKeyConstant.maidataFullCacheTimestamp,
     CacheKeyConstant.maidataAddedSongs,

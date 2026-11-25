@@ -2234,7 +2234,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get flowThisClearsAllMaidataCachesAndDownloads =>
-      'すべての maidata キャッシュを削除して再取得します。時間がかかる場合があります。\n\n更新しますか？';
+      'キャッシュ済みの maidata をすべて削除し、軽量譜面カタログを再取得します。各譜面は利用時にオンデマンドでダウンロードされます。\n\n更新しますか？';
 
   @override
   String get flowMaidataRefreshed => 'maidata を更新しました';
@@ -5969,7 +5969,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get flowCacheMetadataDescription => 'プレイ可能地域（cn/jp）など';
 
   @override
-  String get flowCacheMaidataDescription => '譜面追加情報（一覧＋全 maidata）';
+  String get flowCacheMaidataDescription => '譜面カタログ（単曲譜面はオンデマンド取得）';
 
   @override
   String get flowSongDetails => '楽曲詳細';

@@ -3,12 +3,9 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:jp_transliterate/jp_transliterate.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../api/ApiUrls.dart';
 import '../manager/DivingFish/MaimaiMusicDataManager.dart';
 import '../manager/MaidataManager.dart';
-import '../constant/CacheKeyConstant.dart';
-import '../constant/CacheTimestampConstant.dart';
 import 'package:my_first_flutter_app/utils/ApiClient.dart';
 
 // 匹配结果数据类（支持自定义标题用于构建URL）
@@ -213,72 +210,27 @@ class SongMaidataPageService {
   Future<String?> fetchMaidata({
     required void Function(List<String>) onInoteParsed,
   }) async {
-    // 严格按 songId 命中：
-    // 谱面代码中的 shortId 必须与 SongInfoPage 传入的 songId 一致，
-    // 找不到就返回 null，不要用别的 ID 来顶替。
-    await MaidataManager().initialize();
-
-    // 1) 全量缓存（key 本身就是从 maidata.txt 的 &shortid= 字段提取的）
-    if (MaidataManager().isCacheReady) {
-      final fullCacheContent = MaidataManager().getMaidata(songId);
-      if (fullCacheContent != null) {
-        debugPrint('[DEBUG][Maidata] 使用全量缓存内容(songId严格命中)');
-        List<String> inoteList = _parseInoteList(fullCacheContent);
-        onInoteParsed(inoteList);
-        return fullCacheContent;
-      }
-      debugPrint('[DEBUG][Maidata] 全量缓存严格查询失败, songId=$songId');
-    }
-
-    // 2) 单曲独立缓存（key 本身就用 songId）
-    final cachedContent = await getCachedMaidata(onInoteParsed: onInoteParsed);
-    if (cachedContent != null) {
-      debugPrint('[DEBUG][Maidata] 使用独立缓存内容');
-      return cachedContent;
-    }
-
-    // 3) wmc.pub 兜底（内存缓存 + 网络拉取，最后一道）
-    final wmcContent = await MaidataManager().getMaidataFromWmcFallback(songId);
-    if (wmcContent != null) {
-      debugPrint('[DEBUG][Maidata] 使用 wmc.pub 兜底内容, songId=$songId');
-      // 兜底入口已写入共享的单曲持久缓存。
-      List<String> inoteList = _parseInoteList(wmcContent);
+    // 严格按 songId 按需命中：
+    // 内存 LRU → 磁盘单曲缓存 → 自家 `/api/maidata/:songId` → `wmc.pub` 兜底。
+    final content = await MaidataManager().fetchMaidata(songId);
+    if (content != null && content.isNotEmpty) {
+      final inoteList = _parseInoteList(content);
       onInoteParsed(inoteList);
-      return wmcContent;
+      return content;
     }
 
-    // 没有 fallback：不做 title → index.json → shortId 替换，不做目录扫描。
-    debugPrint('[DEBUG][Maidata] 严格匹配未命中，返回 null');
+    debugPrint('[DEBUG][Maidata] 严格匹配未命中，返回 null (songId=$songId)');
     return null;
   }
 
   Future<String?> getCachedMaidata({
     required void Function(List<String>) onInoteParsed,
   }) async {
-    try {
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      String cacheKey = '${CacheKeyConstant.maidataCachePrefix}$songId';
-      String? cacheData = prefs.getString(cacheKey);
-      
-      if (cacheData != null) {
-        Map<String, dynamic> data = json.decode(cacheData);
-        int timestamp = data['timestamp'] as int;
-        String content = data['content'] as String;
-        
-        int now = DateTime.now().millisecondsSinceEpoch;
-        
-        if (now - timestamp < CacheTimestampConstant.songMaidataCacheMillis) {
-          debugPrint('[DEBUG][Maidata] 缓存有效，时间戳: $timestamp');
-          List<String> inoteList = _parseInoteList(content);
-          onInoteParsed(inoteList);
-          return content;
-        } else {
-          debugPrint('[DEBUG][Maidata] 缓存已过期，删除旧缓存');
-          await prefs.remove(cacheKey);
-        }
-      }
-    } catch (e) {
-      debugPrint('[DEBUG][Maidata] 获取缓存失败: $e');
+    final content = await MaidataManager().readCachedMaidata(songId);
+    if (content != null && content.isNotEmpty) {
+      final inoteList = _parseInoteList(content);
+      onInoteParsed(inoteList);
+      return content;
     }
     return null;
   }

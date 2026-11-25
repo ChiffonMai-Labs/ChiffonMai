@@ -201,6 +201,7 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
   DateTime? _gameStartTime;
   bool _resultRecorded = false;
   int _statsGeneration = 0;
+  int _roundGeneration = 0;
 
   @override
   void initState() {
@@ -287,14 +288,15 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
     await _startNewGame();
   }
 
-  // 开始新游戏：随机选一首「曲库中有谱面缓存」的歌
+  // 开始新游戏：从轻量谱面目录筛选候选曲，再按需下载抽中的单曲 maidata
   Future<void> _startNewGame() async {
+    final generation = ++_roundGeneration;
     _searchTimer?.cancel();
     _searchGeneration++;
     _countdownTimer?.cancel();
 
     await _loadSettings();
-    if (!mounted) return;
+    if (!mounted || generation != _roundGeneration) return;
 
     setState(() {
       _isGameStarted = false;
@@ -325,19 +327,7 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
 
     _teardownPlayer();
 
-    // 曲池：全曲库（非宴会场、非 extra）∩ 已缓存 maidata 谱面
-    // ∩ 难度池内存在谱面 **且该难度定数落在设置范围内**
     final maidataManager = MaidataManager();
-    if (!maidataManager.isCacheReady) {
-      if (mounted) {
-        setState(() {
-          _isGameStarted = true;
-          _unavailableReason = context.l10n.flowNoCachedChartsCacheMaidataInThe;
-        });
-      }
-      return;
-    }
-
     final candidates = (await _collectCandidates(
       selectedVersions: _selectedVersions,
       selectedGenres: _selectedGenres,
@@ -346,75 +336,84 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
       masterMaxDx: _masterMaxDx,
     ))
       ..shuffle(Random());
+    if (!mounted || generation != _roundGeneration) return;
 
-    _targetSong = candidates.isEmpty ? null : candidates.first;
-    if (_targetSong == null) {
-      if (mounted) {
-        setState(() {
-          _isGameStarted = true;
-          _unavailableReason = context.l10n.flowNoCachedSongsMatchTheDifficultyPool;
-        });
-      }
+    if (candidates.isEmpty) {
+      setState(() {
+        _isGameStarted = true;
+        _unavailableReason = maidataManager.isCacheReady
+            ? context.l10n.flowNoCachedSongsMatchTheDifficultyPool
+            : context.l10n.flowNoCachedChartsCacheMaidataInThe;
+      });
       return;
     }
 
-    // 定下本局可用难度，供 _buildClip 随机挑选（与抽歌判定同源）
-    _eligibleInotesForRound = _eligibleInotes(
-      maidataManager: maidataManager,
-      song: _targetSong!,
-      pool: _peekDifficulties,
-      masterMinDx: _masterMinDx,
-      masterMaxDx: _masterMaxDx,
-    );
+    // 抽中曲目后再按需拉取单曲 maidata；如遇个别缺失，顺延尝试最多 3 首候选。
+    Song? pickedSong;
+    String pickedContent = '';
+    List<String> pickedInotes = const [];
+    final maxAttempts = min(3, candidates.length);
+    for (var i = 0; i < maxAttempts; i++) {
+      final candidate = candidates[i];
+      final content = await maidataManager.fetchMaidata(candidate.id);
+      if (!mounted || generation != _roundGeneration) return;
+      if (content == null || content.isEmpty) continue;
+      final inotes = GuessChartByChartPeekPage.eligibleInotesFor(
+        song: candidate,
+        pool: _peekDifficulties,
+        masterMinDx: _masterMinDx,
+        masterMaxDx: _masterMaxDx,
+        hasInote: (inote) => content.contains('&inote_$inote'),
+      );
+      if (inotes.isEmpty) continue;
+      pickedSong = candidate;
+      pickedContent = content;
+      pickedInotes = inotes;
+      break;
+    }
 
-    _maidataContent = maidataManager.getMaidata(_targetSong!.id) ?? '';
-
-    if (_maidataContent.isEmpty) {
-      if (mounted) {
-        setState(() {
-          _isGameStarted = true;
-          _unavailableReason = context.l10n.flowCouldNotReadThisSongSChart;
-        });
-      }
+    if (pickedSong == null || pickedContent.isEmpty) {
+      setState(() {
+        _targetSong = null;
+        _isGameStarted = true;
+        _unavailableReason = context.l10n.flowCouldNotReadThisSongSChart;
+      });
       return;
     }
 
-    if (!mounted) return;
+    _targetSong = pickedSong;
+    _eligibleInotesForRound = pickedInotes;
+    _maidataContent = pickedContent;
+
+    if (!mounted || generation != _roundGeneration) return;
     await _buildClip();
   }
 
   /// 取一首歌「难度池内、有谱面、且定数落在设置范围内」的 inote 列表。
   ///
-  /// 本模式的定数范围作用于**难度池里的每个难度各自的定数**，而不是
-  /// MASTER 的定数 —— 池子是用户自己挑的（可能只选 EXPERT + MASTER），
-  /// 拿 MASTER 定数去筛会与「按池抽谱」的实际行为对不上。
-  ///
-  /// 定数下标：`ds[inote - 2]`。ds 数组 0..4 依次是 BASIC..Re:MASTER，
-  /// 即 inote 2..6 各减 2（`ds[3]` = MASTER 已被 GuessChartByInfoService
-  /// 等处的 `ds.length > 3 ? ds[3] : ''` 用法证实）。
-  ///
   /// 参数显式传入，好让「抽歌」与「设置校验」用同一套判定，
   /// 避免出现「校验说能抽到、开局却抽不到」。
-  static List<String> _eligibleInotes({
-    required MaidataManager maidataManager,
+  static List<String> _eligibleInotesFromCatalog({
     required Song song,
+    required Iterable<String> availableInotes,
     required List<String> pool,
     required double masterMinDx,
     required double masterMaxDx,
   }) {
-    final content = maidataManager.getMaidata(song.id);
-    if (content == null || content.isEmpty) return const [];
+    final availableSet =
+        availableInotes is Set<String> ? availableInotes : availableInotes.toSet();
+    if (availableSet.isEmpty) return const [];
     return GuessChartByChartPeekPage.eligibleInotesFor(
       song: song,
       pool: pool,
       masterMinDx: masterMinDx,
       masterMaxDx: masterMaxDx,
-      hasInote: (inote) => content.contains('&inote_$inote'),
+      hasInote: availableSet.contains,
     );
   }
 
   /// 按给定条件算一次曲池：全曲库（非宴会场、非 extra）∩ 版本 ∩ 流派
-  /// ∩ 难度池内存在且定数在范围内。抽歌与设置校验共用。
+  /// ∩ 轻量目录中有谱面且定数在范围内。抽歌与设置校验共用。
   static Future<List<Song>> _collectCandidates({
     required List<String> selectedVersions,
     required List<String> selectedGenres,
@@ -424,7 +423,15 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
   }) async {
     final maidataManager = MaidataManager();
     final songs = await GuessChartByInfoService.loadAllSongs();
-    if (songs == null || songs.isEmpty || !maidataManager.isCacheReady) {
+    if (songs == null || songs.isEmpty) {
+      return const [];
+    }
+    var catalog = await maidataManager.getCatalog();
+    if (catalog.isEmpty && maidataManager.cachedCount > 0) {
+      // 离线且尚无轻量目录缓存时，退回本地已缓存单曲池，保证已缓存曲目仍可游玩。
+      catalog = await maidataManager.buildOfflineCachedInotes();
+    }
+    if (catalog.isEmpty) {
       return const [];
     }
     return songs
@@ -432,14 +439,14 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
             song.id.length != 6 &&
             !song.isExtra &&
             song.basicInfo.title.isNotEmpty &&
-            maidataManager.hasCachedMaidata(song.id) &&
+            catalog.containsKey(song.id) &&
             (selectedVersions.isEmpty ||
                 selectedVersions.contains(song.basicInfo.from)) &&
             (selectedGenres.isEmpty ||
                 selectedGenres.contains(song.basicInfo.genre)) &&
-            _eligibleInotes(
-              maidataManager: maidataManager,
+            _eligibleInotesFromCatalog(
               song: song,
+              availableInotes: catalog[song.id]!,
               pool: pool,
               masterMinDx: masterMinDx,
               masterMaxDx: masterMaxDx,

@@ -2612,20 +2612,10 @@ class HomePageState extends State<HomePage> {
         final refreshing = context.l10n.flowRefreshingMaidata;
         try {
           await _withHomeLoadingDialog(refreshing, () async {
-            // 清除所有maidata缓存
+            // 清除旧 maidata 缓存并刷新轻量谱面目录（单曲正文改为使用时按需下载）
             await MaidataManager().clearCache();
             await MaimaiMusicDataManager().clearAddedSongsCache();
-            final prefs = await SharedPreferences.getInstance();
-            final keys = prefs.getKeys();
-            for (final key in keys) {
-              if (key.startsWith(CacheKeyConstant.maidataCachePrefix)) {
-                await prefs.remove(key);
-              }
-            }
-            // 重新拉取全量maidata
-            await MaimaiMusicDataManager().refreshDataWithSmartMaidata(
-              forceMaidataRefresh: true,
-            );
+            await MaidataManager().getCatalog(forceRefresh: true);
           });
           if (!mounted) return;
           AppToast.show(context.l10n.flowMaidataRefreshed,

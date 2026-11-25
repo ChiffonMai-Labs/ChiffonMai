@@ -202,6 +202,11 @@ class ApiUrls {
   static const String MaidataServerBaseUrl = 'https://chiffonmai.cloud';
   static const String MaidataServerPortUrl = 'https://chiffonmai.cloud';
 
+  // Maidata 按需获取与轻量目录接口（自家后端）
+  static const String MaidataApiBaseUrl = '$BackendBaseUrl/api/maidata';
+  static const String MaidataCatalogUrl = '$MaidataApiBaseUrl/catalog';
+  static String maidataSongUrl(String songId) => '$MaidataApiBaseUrl/$songId';
+
   // 单曲 maidata 兜底（wmc.pub）
   //
   // 全量 / 单曲本地缓存都没命中时，最后一道兜底：直接按 songId 拉这家的 maidata.txt。
