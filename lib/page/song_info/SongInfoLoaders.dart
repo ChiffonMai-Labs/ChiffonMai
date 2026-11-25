@@ -10,11 +10,11 @@ extension _SongInfoLoaders on _SongInfoPageState {
   /// 没有缓存就不显示这一行（而不是显示 0——没记录和打了 0 次是两回事）。
   Future<void> _loadAwmcPlayCounts() async {
     if (AwmcPlayCountStore.isLoaded) {
-      if (mounted) _update(() {});
+      if (mounted) _updateCoalesced(() {});
       return;
     }
     await AwmcPlayCountStore.ensureLoaded();
-    if (mounted) _update(() {});
+    if (mounted) _updateCoalesced(() {});
   }
 
   /// 当前谱面的游玩次数；无缓存记录时返回 null。
@@ -201,6 +201,7 @@ extension _SongInfoLoaders on _SongInfoPageState {
     _cnChartLockedByDiff = const {};
     _cnUnlockMap = null;
     // didUpdateWidget 在构建阶段调用，加载里的 setState 要等这一帧结束。
+    _pendingCoalescedUpdates.clear();
     scheduleMicrotask(() {
       if (mounted) _startSongLoaders();
     });
@@ -259,6 +260,7 @@ extension _SongInfoLoaders on _SongInfoPageState {
       }
 
       _update(() => _isLoading = false);
+      _scheduleSongTitleVisibilityCheck();
       debugPrint('[SongInfo] core-ready: ${stopwatch.elapsedMilliseconds}ms');
       if (_songData != null) {
         final generation = _songGeneration;
@@ -295,7 +297,7 @@ extension _SongInfoLoaders on _SongInfoPageState {
       final identity = await SongInfoService.getCommentIdentity();
       if (!mounted || _isStaleSongLoad) return;
       if (identity != null) {
-        _update(() {
+        _updateCoalesced(() {
           _commentDataSource = identity.dataSource;
           _commentOriginalId = identity.originalId;
           _commentNickname = identity.nickname;
@@ -313,7 +315,7 @@ extension _SongInfoLoaders on _SongInfoPageState {
     final result =
         await SongInfoService().loadSupplementaryData(widget.songId);
     if (!mounted || _isStaleSongLoad) return;
-    _update(() {
+    _updateCoalesced(() {
       _diffData = result['diffData'];
       // 双难度谱面沿用第一份分布数据，与首屏加载时的处理保持一致。
       if ((_songData?['level'] as List?)?.length == 2 &&
@@ -336,7 +338,7 @@ extension _SongInfoLoaders on _SongInfoPageState {
         AwmcChartTagService.chartKey(widget.songId, _currentDiffIndex) != key) {
       return;
     }
-    _update(() => _awmcChartTags = groups);
+    _updateCoalesced(() => _awmcChartTags = groups);
   }
 
   /// 判断当前谱面在理论上能否挤进对应的 Best35 / Best15。
@@ -349,7 +351,7 @@ extension _SongInfoLoaders on _SongInfoPageState {
       String note = '',
     ]) {
       if (!mounted) return;
-      _update(() {
+      _updateCoalesced(() {
         _best50OpportunityText = text;
         _best50OpportunityGain = gain;
         _best50OpportunityTiers = tiers;
@@ -582,7 +584,7 @@ extension _SongInfoLoaders on _SongInfoPageState {
   Future<void> _loadDxData() async {
     final data = await DXDataManager().load();
     if (mounted && data != null) {
-      _update(() {
+      _updateCoalesced(() {
         _dxData = data;
       });
     }
@@ -702,12 +704,12 @@ extension _SongInfoLoaders on _SongInfoPageState {
     try {
       final relatedCollections =
           await SongInfoService().fetchRelatedCollections(songTitle, songType);
-      _update(() {
+      _updateCoalesced(() {
         _relatedCollectionsCount = relatedCollections.length;
       });
     } catch (e) {
       debugPrint('获取相关收藏品数量时出错: $e');
-      _update(() {
+      _updateCoalesced(() {
         _relatedCollectionsCount = 0;
       });
     } finally {
@@ -724,7 +726,7 @@ extension _SongInfoLoaders on _SongInfoPageState {
       final songs = await MaimaiMusicDataManager().getCachedSongs();
       if (!mounted || _isStaleSongLoad) return;
       if (songs == null || songs.isEmpty) {
-        _update(() => _alternativeSongId = null);
+        _updateCoalesced(() => _alternativeSongId = null);
         return;
       }
 
@@ -758,13 +760,13 @@ extension _SongInfoLoaders on _SongInfoPageState {
       );
 
       // 如果找到另一种谱面，设置其ID
-      _update(() {
+      _updateCoalesced(() {
         _alternativeSongId =
             alternativeSong.id.isNotEmpty ? alternativeSong.id : null;
       });
     } catch (e) {
       debugPrint('检测另一种谱面时出错: $e');
-      _update(() => _alternativeSongId = null);
+      _updateCoalesced(() => _alternativeSongId = null);
     }
   }
 
@@ -891,7 +893,7 @@ extension _SongInfoLoaders on _SongInfoPageState {
         if (newNoteCounts.isNotEmpty ||
             newBreakCounts.isNotEmpty ||
             newInotes.isNotEmpty) {
-          _update(() {
+          _updateCoalesced(() {
             _maidataNoteCounts = newNoteCounts;
             _maidataBreakCounts = newBreakCounts;
             _maidataProtectionStats = newProtectionStats;
@@ -1002,7 +1004,7 @@ extension _SongInfoLoaders on _SongInfoPageState {
   Future<void> _loadReferenceDuration() async {
     if (!mounted || _isStaleSongLoad || _referenceDurationLoading) return;
     final songId = widget.songId;
-    _update(() => _referenceDurationLoading = true);
+    _updateCoalesced(() => _referenceDurationLoading = true);
     int? seconds;
     try {
       try {
@@ -1020,7 +1022,7 @@ extension _SongInfoLoaders on _SongInfoPageState {
       debugPrint('解析参考时长失败: $error');
     } finally {
       if (mounted && !_isStaleSongLoad) {
-        _update(() {
+        _updateCoalesced(() {
           _referenceDurationSeconds = seconds;
           _referenceDurationLoading = false;
         });
@@ -1083,7 +1085,7 @@ extension _SongInfoLoaders on _SongInfoPageState {
         final rawMap = song.map?.trim();
         final cnMap = (rawMap != null && rawMap.isNotEmpty) ? rawMap : null;
         if (mounted && (sorted.isNotEmpty || hasTypeCharts)) {
-          _update(() {
+          _updateCoalesced(() {
             if (sorted.isNotEmpty) {
               _cnReleaseDate = sorted.first;
               _cnChartReleaseDates = byLevel;
@@ -1136,7 +1138,7 @@ extension _SongInfoLoaders on _SongInfoPageState {
       if (foundId != null) {
         final info = lookup[foundId]!;
         if (mounted) {
-          _update(() {
+          _updateCoalesced(() {
             _unionFrom = info.from;
             final dxFrom = info.dxFrom;
             _unionDxFrom = dxFrom != null && dxFrom.isNotEmpty

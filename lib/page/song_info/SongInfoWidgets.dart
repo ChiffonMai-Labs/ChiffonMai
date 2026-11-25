@@ -893,6 +893,7 @@ class _SongDrawerHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cachedChild = RepaintBoundary(child: child);
     return AnimatedBuilder(
       animation: controller,
       builder: (context, child) => Transform.translate(
@@ -902,7 +903,7 @@ class _SongDrawerHero extends StatelessWidget {
       ),
       child: ClipPath(
         clipper: _SongDrawerHeroClipper(controller),
-        child: child,
+        child: cachedChild,
       ),
     );
   }
@@ -910,6 +911,7 @@ class _SongDrawerHero extends StatelessWidget {
 
 class _SongDrawerHeroClipper extends CustomClipper<Path> {
   final ScrollController controller;
+  static final Path _emptyPath = Path();
 
   _SongDrawerHeroClipper(this.controller) : super(reclip: controller);
 
@@ -918,20 +920,53 @@ class _SongDrawerHeroClipper extends CustomClipper<Path> {
     final offset =
         controller.hasClients ? controller.offset.clamp(0.0, 1e6) : 0.0;
     final top = size.height - _songDrawerOverlap - offset;
-    const radius = AppDesignTokens.radiusLarge + 4;
+    final r = math.min(AppDesignTokens.radiusLarge + 4, size.width / 2);
     // 抽屉顶边已经滑过头图顶端，头图完全不用露出来。
-    if (top + radius <= 0) return Path();
-    return Path.combine(
-      PathOperation.difference,
-      Path()..addRect(Offset.zero & size),
-      Path()
-        // 下边固定在头图之外：抽屉滑得再远，这块也要盖住头图下半部分。
-        ..addRRect(RRect.fromRectAndCorners(
-          Rect.fromLTRB(0, top, size.width, size.height + _songDrawerOverlap),
-          topLeft: const Radius.circular(radius),
-          topRight: const Radius.circular(radius),
-        )),
-    );
+    if (top + r <= 0) return _emptyPath;
+    if (top >= size.height) return Path()..addRect(Offset.zero & size);
+    if (top >= 0) {
+      // 单路径直接描出「头图可见区域」，省去每帧 Path.combine 布尔差集运算。
+      final arcBottom = top + r;
+      return Path()
+        ..moveTo(0, 0)
+        ..lineTo(size.width, 0)
+        ..lineTo(size.width, arcBottom)
+        ..arcToPoint(
+          Offset(size.width - r, top),
+          radius: Radius.circular(r),
+          clockwise: false,
+        )
+        ..lineTo(r, top)
+        ..arcToPoint(
+          Offset(0, arcBottom),
+          radius: Radius.circular(r),
+          clockwise: false,
+        )
+        ..close();
+    }
+    // -r < top < 0 时仅左右两角在顶边露出一小段圆弧三角，避免单路径自交。
+    final dy = top + r;
+    final dx = math.sqrt((r * r - dy * dy).clamp(0.0, r * r));
+    final leftEdgeX = (r - dx).clamp(0.0, size.width / 2);
+    final rightEdgeX = (size.width - r + dx).clamp(size.width / 2, size.width);
+    return Path()
+      ..moveTo(0, 0)
+      ..lineTo(leftEdgeX, 0)
+      ..arcToPoint(
+        Offset(0, dy),
+        radius: Radius.circular(r),
+        clockwise: false,
+      )
+      ..close()
+      ..moveTo(rightEdgeX, 0)
+      ..lineTo(size.width, 0)
+      ..lineTo(size.width, dy)
+      ..arcToPoint(
+        Offset(rightEdgeX, 0),
+        radius: Radius.circular(r),
+        clockwise: false,
+      )
+      ..close();
   }
 
   @override

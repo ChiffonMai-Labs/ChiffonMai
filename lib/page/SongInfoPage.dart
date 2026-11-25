@@ -190,6 +190,9 @@ class _SongInfoPageState extends State<_SongInfoView> {
   final GlobalKey _songHeroKey = GlobalKey();
   bool _showSongTitleInAppBar = false;
   bool _titleVisibilityCheckScheduled = false;
+  bool _coalescedUpdateScheduled = false;
+  final List<({Object? generation, VoidCallback fn})> _pendingCoalescedUpdates =
+      [];
 
   // 数据加载状态
   bool _isLoading = true;
@@ -379,6 +382,7 @@ class _SongInfoPageState extends State<_SongInfoView> {
 
   @override
   void dispose() {
+    _pendingCoalescedUpdates.clear();
     CurrentDataSourceNotifier.instance.removeListener(_refreshAwmcUtageScore);
     AccountStore.revision.removeListener(_refreshAwmcUtageScore);
     if (!_difficultyRememberedOnPop) _rememberCurrentDifficulty(widget.songId);
@@ -425,8 +429,6 @@ class _SongInfoPageState extends State<_SongInfoView> {
     final userRecord = _getUserBestRecord();
     final brightness = Theme.of(context).brightness;
     final accentColor = _getAccentColor(_currentDiffIndex, brightness);
-
-    _scheduleSongTitleVisibilityCheck();
 
     // 布局（各块的实现见 song_info/SongInfoLayout.dart）：
     //   全出血的难度色头图（返回 / 笔记 / 收藏 / 分享、曲绘、标题、难度切换）
@@ -602,6 +604,32 @@ class _SongInfoPageState extends State<_SongInfoView> {
     final generation = Zone.current[_songLoadZoneKey];
     if (generation != null && generation != _songGeneration) return;
     setState(fn);
+  }
+
+  /// 将同一帧内相继完成的后台二级加载合并为一次重建，避免进入详情页连刷十余次整页树。
+  void _updateCoalesced(VoidCallback fn) {
+    final generation = Zone.current[_songLoadZoneKey];
+    if (generation != null && generation != _songGeneration) return;
+    _pendingCoalescedUpdates.add((generation: generation, fn: fn));
+    if (_coalescedUpdateScheduled) return;
+    _coalescedUpdateScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _coalescedUpdateScheduled = false;
+      if (!mounted || _pendingCoalescedUpdates.isEmpty) {
+        _pendingCoalescedUpdates.clear();
+        return;
+      }
+      final tasks = List.of(_pendingCoalescedUpdates);
+      _pendingCoalescedUpdates.clear();
+      setState(() {
+        for (final task in tasks) {
+          if (task.generation != null && task.generation != _songGeneration) {
+            continue;
+          }
+          task.fn();
+        }
+      });
+    });
   }
 }
 
