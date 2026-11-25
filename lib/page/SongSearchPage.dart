@@ -172,6 +172,10 @@ class _SongSearchPageState extends State<SongSearchPage> {
   // 歌曲标签信息缓存
   Map<String, List<String>> _songTagInfoCache = {};
   MaiTagsEntity? _cachedTagsEntity;
+  MaiTagsEntity? _indexedTagsEntity;
+  Map<String, Set<int>> _tagSongsIndex = const {};
+  Map<int, String> _tagNameIndex = const {};
+  String? _tagNameIndexLocale;
 
   // 版本列表
   List<String> _versionList = VersionListConstant.versionOrderList;
@@ -735,16 +739,8 @@ class _SongSearchPageState extends State<SongSearchPage> {
         if (tagsEntity != null) {
           debugPrint('标签数据加载成功，tagSongs数量: ${tagsEntity.tagSongs.length}');
 
-          // 预构建高效的搜索映射：(songId, sheetType, sheetDifficulty) -> List<tagId>
-          Map<String, Set<int>> tagMap = {};
-          for (var tagSong in tagsEntity.tagSongs) {
-            String key =
-                '${tagSong.songId}|${tagSong.sheetType}|${tagSong.sheetDifficulty}';
-            if (!tagMap.containsKey(key)) {
-              tagMap[key] = {};
-            }
-            tagMap[key]!.add(tagSong.tagId);
-          }
+          // 复用按 (songId, sheetType, sheetDifficulty) 建好的倒排索引，避免重复扫表。
+          final tagMap = _ensureTagIndex(tagsEntity);
           debugPrint('构建了 ${tagMap.length} 个谱面的标签映射');
 
           // 构建所选标签的集合
@@ -2690,36 +2686,56 @@ class _SongSearchPageState extends State<SongSearchPage> {
     );
   }
 
-  // 获取歌曲的标签信息（显示每个难度与用户所选标签的交集）
-  List<String> _getTagInfoForSong(dynamic song) {
-    List<String> tagInfoList = [];
-
-    // 如果没有缓存的标签实体，返回空
-    if (_cachedTagsEntity == null) {
-      return tagInfoList;
+  Map<String, Set<int>> _ensureTagIndex(MaiTagsEntity tagsEntity) {
+    if (identical(_indexedTagsEntity, tagsEntity)) {
+      return _tagSongsIndex;
     }
-
-    // 如果没有选择任何标签，返回空
-    if (_selectedTagIds.isEmpty) {
-      return tagInfoList;
+    final map = <String, Set<int>>{};
+    for (final tagSong in tagsEntity.tagSongs) {
+      final key =
+          '${tagSong.songId}|${tagSong.sheetType}|${tagSong.sheetDifficulty}';
+      (map[key] ??= <int>{}).add(tagSong.tagId);
     }
+    _indexedTagsEntity = tagsEntity;
+    _tagSongsIndex = map;
+    _tagNameIndexLocale = null;
+    return map;
+  }
 
-    // 构建所选标签的集合
-    Set<int> selectedTagSet = Set.from(_selectedTagIds);
-
-    // 获取标签名称映射
-    Map<int, String> tagIdToNameMap = {};
-    for (var tag in _cachedTagsEntity!.tags) {
+  Map<int, String> _ensureTagNameIndex(
+      MaiTagsEntity tagsEntity, BuildContext context) {
+    final localeKey = Localizations.localeOf(context).toLanguageTag();
+    if (identical(_indexedTagsEntity, tagsEntity) &&
+        _tagNameIndexLocale == localeKey) {
+      return _tagNameIndex;
+    }
+    _ensureTagIndex(tagsEntity);
+    final names = <int, String>{};
+    for (final tag in tagsEntity.tags) {
       final name = _tagName(tag.localizedName);
       // 自定义标签可能与 DXRating 标签同名，命中信息里只显示名称，所以加标记区分。
-      tagIdToNameMap[tag.id] = CustomTagStore.instance.isCustomTagId(tag.id)
+      names[tag.id] = CustomTagStore.instance.isCustomTagId(tag.id)
           ? context.l10n.customTagMarked(name)
           : name;
     }
+    _tagNameIndex = names;
+    _tagNameIndexLocale = localeKey;
+    return names;
+  }
 
-    // 获取歌曲信息
+  // 获取歌曲的标签信息（显示每个难度与用户所选标签的交集）
+  List<String> _getTagInfoForSong(dynamic song) {
+    final tagsEntity = _cachedTagsEntity;
+    if (tagsEntity == null || _selectedTagIds.isEmpty) {
+      return const [];
+    }
+
+    final tagMap = _ensureTagIndex(tagsEntity);
+    final tagIdToNameMap = _ensureTagNameIndex(tagsEntity, context);
+    final selectedTagSet = Set<int>.from(_selectedTagIds);
+
     final String songTitle = song.basicInfo.title;
-    String sheetType;
+    final String sheetType;
     if (song.type == 'DX') {
       sheetType = 'dx';
     } else if (_isUtageSong(song)) {
@@ -2728,36 +2744,24 @@ class _SongSearchPageState extends State<SongSearchPage> {
       sheetType = 'std';
     }
 
+    final tagInfoList = <String>[];
     // 只显示当前选中的难度；未选择时显示所有难度。
     for (final i in _selectedDifficultyIndices(song)) {
       if (i >= song.level.length) continue;
-      String sheetDifficulty = _getDifficultyByIndexForSong(song, i);
+      final sheetDifficulty = _getDifficultyByIndexForSong(song, i);
+      final tagIds = tagMap['$songTitle|$sheetType|$sheetDifficulty'];
+      if (tagIds == null || tagIds.isEmpty) continue;
 
-      // 查找当前谱面的标签
-      final List<TagSongItem> tagSongs = _cachedTagsEntity!.tagSongs
-          .where((tagSong) =>
-              tagSong.songId == songTitle &&
-              tagSong.sheetType == sheetType &&
-              tagSong.sheetDifficulty == sheetDifficulty)
-          .toList();
+      final tagNames = <String>[];
+      for (final tagId in tagIds) {
+        if (!selectedTagSet.contains(tagId)) continue;
+        final tagName = tagIdToNameMap[tagId];
+        if (tagName != null) tagNames.add(tagName);
+      }
 
-      if (tagSongs.isNotEmpty) {
-        // 获取该难度下与所选标签的交集
-        List<String> tagNames = [];
-        for (var tagSong in tagSongs) {
-          if (selectedTagSet.contains(tagSong.tagId)) {
-            String? tagName = tagIdToNameMap[tagSong.tagId];
-            if (tagName != null) {
-              tagNames.add(tagName);
-            }
-          }
-        }
-
-        // 如果有交集，显示该难度的标签信息
-        if (tagNames.isNotEmpty) {
-          String difficultyName = _getDifficultyDisplayNameForSong(song, i);
-          tagInfoList.add('${difficultyName}：${tagNames.join('、')}');
-        }
+      if (tagNames.isNotEmpty) {
+        final difficultyName = _getDifficultyDisplayNameForSong(song, i);
+        tagInfoList.add('$difficultyName：${tagNames.join('、')}');
       }
     }
 

@@ -377,67 +377,90 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
                 ? 'remaining'
                 : (_segment == 0 ? 'sdRemaining' : 'dxRemaining')] as List?) ??
             const []);
-    return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(
-        AppDesignTokens.gutter,
-        4,
-        AppDesignTokens.gutter,
-        MediaQuery.paddingOf(context).bottom + 20,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _buildRatingSection(),
-          const SizedBox(height: AppDesignTokens.cardGap),
-          Best50Grid(
-            contentKey: '$_resultVersion-$_segment',
-            items: [
-              for (final s in songs) _cardData(Map<String, dynamic>.from(s))
-            ],
-            remaining: [
-              for (final s in remainingRaw)
-                _cardData(Map<String, dynamic>.from(s as Map))
-            ],
-            remainingLabel:
-                songs.isEmpty ? null : 'RA ${_toInt(songs.last['diffRating'])}',
-            onSelectTies: activePool != null && activePool.hasTies
-                ? () {
-                    if (_resultMode == 0) {
-                      _pickTiesForTarget(
-                        pool: _modeATiePool,
-                        scopeKey: 'diff_a',
-                        applyPool: (updated) {
-                          _modeATiePool = updated;
-                          _diffSongs = updated.shown;
-                          _diffBest50Data?['diffBest50'] = _diffSongs;
-                        },
-                      );
-                    } else if (_resultMode == 2) {
-                      final seg = _segment;
-                      _pickTiesForTarget(
-                        pool: seg == 0 ? _modeCSdTiePool : _modeCDxTiePool,
-                        scopeKey: seg == 0 ? 'diff_c_sd' : 'diff_c_dx',
-                        segmentTitle: seg == 0 ? 'B35' : 'B15',
-                        applyPool: (updated) {
-                          if (seg == 0) {
-                            _modeCSdTiePool = updated;
-                            _diffSdSongs = updated.shown;
-                            _diffBest50Data?['diffSdSongs'] = _diffSdSongs;
-                          } else {
-                            _modeCDxTiePool = updated;
-                            _diffDxSongs = updated.shown;
-                            _diffBest50Data?['diffDxSongs'] = _diffDxSongs;
+    return ValueListenableBuilder<Best50DisplayMode>(
+      valueListenable: Best50DisplayPreference.instance,
+      builder: (context, mode, _) => CustomScrollView(
+        slivers: [
+          SliverPadding(
+            padding: EdgeInsets.fromLTRB(
+              AppDesignTokens.gutter,
+              4,
+              AppDesignTokens.gutter,
+              MediaQuery.paddingOf(context).bottom + 20,
+            ),
+            sliver: SliverMainAxisGroup(
+              slivers: [
+                SliverToBoxAdapter(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildRatingSection(),
+                      const SizedBox(height: AppDesignTokens.cardGap),
+                    ],
+                  ),
+                ),
+                ...Best50Grid.buildSlivers(
+                  context: context,
+                  mode: mode,
+                  contentKey: '$_resultVersion-$_segment',
+                  items: [
+                    for (final s in songs)
+                      _cardData(Map<String, dynamic>.from(s))
+                  ],
+                  remaining: [
+                    for (final s in remainingRaw)
+                      _cardData(Map<String, dynamic>.from(s as Map))
+                  ],
+                  remainingLabel: songs.isEmpty
+                      ? null
+                      : 'RA ${_toInt(songs.last['diffRating'])}',
+                  onSelectTies: activePool != null && activePool.hasTies
+                      ? () {
+                          if (_resultMode == 0) {
+                            _pickTiesForTarget(
+                              pool: _modeATiePool,
+                              scopeKey: 'diff_a',
+                              applyPool: (updated) {
+                                _modeATiePool = updated;
+                                _diffSongs = updated.shown;
+                                _diffBest50Data?['diffBest50'] = _diffSongs;
+                              },
+                            );
+                          } else if (_resultMode == 2) {
+                            final seg = _segment;
+                            _pickTiesForTarget(
+                              pool:
+                                  seg == 0 ? _modeCSdTiePool : _modeCDxTiePool,
+                              scopeKey: seg == 0 ? 'diff_c_sd' : 'diff_c_dx',
+                              segmentTitle: seg == 0 ? 'B35' : 'B15',
+                              applyPool: (updated) {
+                                if (seg == 0) {
+                                  _modeCSdTiePool = updated;
+                                  _diffSdSongs = updated.shown;
+                                  _diffBest50Data?['diffSdSongs'] =
+                                      _diffSdSongs;
+                                } else {
+                                  _modeCDxTiePool = updated;
+                                  _diffDxSongs = updated.shown;
+                                  _diffBest50Data?['diffDxSongs'] =
+                                      _diffDxSongs;
+                                }
+                                _diffSongs = [
+                                  ..._diffSdSongs,
+                                  ..._diffDxSongs
+                                ];
+                                _diffBest50Data?['diffBest50'] = _diffSongs;
+                              },
+                            );
                           }
-                          _diffSongs = [..._diffSdSongs, ..._diffDxSongs];
-                          _diffBest50Data?['diffBest50'] = _diffSongs;
-                        },
-                      );
-                    }
-                  }
-                : null,
-            tieSelectedCount: activePool?.slotCount,
-            tieTotalCount: activePool?.candidates.length,
-            tieCustomized: activePool?.isCustomized ?? false,
+                        }
+                      : null,
+                  tieSelectedCount: activePool?.slotCount,
+                  tieTotalCount: activePool?.candidates.length,
+                  tieCustomized: activePool?.isCustomized ?? false,
+                ),
+              ],
+            ),
           ),
         ],
       ),

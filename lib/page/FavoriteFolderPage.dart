@@ -335,6 +335,7 @@ class _FavoriteFolderDetailPage extends StatefulWidget {
 class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
   final FavoriteFolderService _service = FavoriteFolderService();
   List<FavoriteChart> _charts = [];
+  List<FavoriteChart> _sortedCharts = const [];
   bool _isLoading = true;
   Map<String, Song> _songMap = {};
 
@@ -360,6 +361,10 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
     _loadData();
   }
 
+  void _refreshSortedCharts() {
+    _sortedCharts = _service.sortCharts(_charts, _sortOption);
+  }
+
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
     final charts = await _service.getChartsInFolder(widget.folderId);
@@ -374,6 +379,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
     if (mounted) {
       setState(() {
         _charts = charts;
+        _refreshSortedCharts();
         _songMap = songMap;
         _isLoading = false;
       });
@@ -409,7 +415,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
         }
       }
       if (hasChanges && mounted) {
-        setState(() {});
+        setState(_refreshSortedCharts);
       }
     } catch (e) {
       debugPrint('加载收藏夹成绩数据失败: $e');
@@ -466,7 +472,10 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
           icon: const Icon(Icons.sort, size: 22),
           tooltip: context.l10n.flowSortOrder,
           onSelected: (option) {
-            setState(() => _sortOption = option);
+            setState(() {
+              _sortOption = option;
+              _refreshSortedCharts();
+            });
           },
           itemBuilder: (ctx) => [
              PopupMenuItem(
@@ -792,12 +801,11 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
   }
 
   Widget _buildChartList() {
-    final sortedCharts = _service.sortCharts(_charts, _sortOption);
     return ListView.builder(
       padding: const EdgeInsets.all(12),
-      itemCount: sortedCharts.length,
+      itemCount: _sortedCharts.length,
       itemBuilder: (context, index) {
-        final chart = sortedCharts[index];
+        final chart = _sortedCharts[index];
         return _buildChartCard(chart);
       },
     );
@@ -1167,11 +1175,10 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
 
     _fallbackPath = null;
     try {
-      final sortedCharts = _service.sortCharts(_charts, _sortOption);
       final folder = FavoriteFolder(
         id: widget.folderId,
         name: widget.folderName,
-        charts: sortedCharts,
+        charts: _sortedCharts,
       );
 
       final file = await FavoriteTransferService().exportFolders(

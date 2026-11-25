@@ -971,17 +971,45 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
       // viewPadding 不随输入法变化；padding 在键盘弹出时归零，页面会跟着动。
       contentPadding:
           EdgeInsets.only(bottom: MediaQuery.viewPaddingOf(context).bottom),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(AppDesignTokens.gutter, 8,
-            AppDesignTokens.gutter, AppDesignTokens.gutter),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildStatsSection(),
-            const SizedBox(height: 12.0),
-            _buildActionButtons(),
-            const SizedBox(height: 12.0),
-            _buildGrid(),
+      child: ValueListenableBuilder<Best50DisplayMode>(
+        valueListenable: Best50DisplayPreference.instance,
+        builder: (context, mode, _) => CustomScrollView(
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(AppDesignTokens.gutter, 8,
+                  AppDesignTokens.gutter, AppDesignTokens.gutter),
+              sliver: SliverMainAxisGroup(
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildStatsSection(),
+                        const SizedBox(height: 12.0),
+                        _buildActionButtons(),
+                        const SizedBox(height: 12.0),
+                        const Best50DisplayModeBar(),
+                        const SizedBox(height: 10),
+                      ],
+                    ),
+                  ),
+                  SliverLayoutBuilder(
+                    builder: (context, constraints) => SliverGrid.builder(
+                      key: ValueKey(mode),
+                      gridDelegate: Best50Grid.delegate(
+                          context, constraints.crossAxisExtent,
+                          mode: mode),
+                      itemCount: CustomBest50Store.slotCount,
+                      itemBuilder: (context, index) {
+                        final entry = _entries[index];
+                        if (entry == null) return _buildEmptySlot(index);
+                        return _buildEntryCard(entry, index, mode);
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -1072,35 +1100,6 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
     );
   }
 
-  Widget _buildGrid() {
-    return ValueListenableBuilder<Best50DisplayMode>(
-      valueListenable: Best50DisplayPreference.instance,
-      builder: (context, mode, _) => Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Best50DisplayModeBar(),
-          const SizedBox(height: 10),
-          LayoutBuilder(
-            builder: (context, constraints) => GridView.builder(
-              key: ValueKey(mode),
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              padding: EdgeInsets.zero,
-              gridDelegate: Best50Grid.delegate(context, constraints.maxWidth,
-                  mode: mode),
-              itemCount: CustomBest50Store.slotCount,
-              itemBuilder: (context, index) {
-                final entry = _entries[index];
-                if (entry == null) return _buildEmptySlot(index);
-                return _buildEntryCard(entry, index, mode);
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildEmptySlot(int index) {
     final scheme = Theme.of(context).colorScheme;
     return AppCard(
@@ -1148,10 +1147,12 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
       onOpenSong: () => _showEditSheet(index),
     );
     // 点卡片是编辑这一格，不走详情面板。
+    final animate = index < 15;
     return mode == Best50DisplayMode.cover
         ? Best50CoverCard(
             rank: index + 1,
             entranceIndex: index,
+            animateEntrance: animate,
             onTap: () => _showEditSheet(index),
             outlineColor: outlineColor,
             data: data,
@@ -1160,6 +1161,7 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
             ? Best50ScoreCard(
                 rank: index + 1,
                 entranceIndex: index,
+                animateEntrance: animate,
                 onTap: () => _showEditSheet(index),
                 outlineColor: outlineColor,
                 data: data,
@@ -1167,6 +1169,7 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
             : Best50StripCard(
                 rank: index + 1,
                 entranceIndex: index,
+                animateEntrance: animate,
                 onTap: () => _showEditSheet(index),
                 outlineColor: outlineColor,
                 data: data,

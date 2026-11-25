@@ -424,33 +424,83 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
     final songs = _segment == 0 ? _sdSongs : _dxSongs;
     int sumOf(List<Map<String, dynamic>> list) =>
         list.fold<int>(0, (sum, m) => sum + ((m['ra'] ?? 0) as int));
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(AppDesignTokens.gutter, 4,
-          AppDesignTokens.gutter, AppDesignTokens.gutter + 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _buildStatsSection(),
-          const SizedBox(height: AppDesignTokens.cardGap),
-          _buildNewEntriesSection(),
-          const SizedBox(height: AppDesignTokens.cardGap),
-          SegmentedTabs(
-            inlineCaption: true,
-            items: [
-              SegmentedTabItem('B35', caption: '${sumOf(_sdSongs)}'),
-              SegmentedTabItem('B15', caption: '${sumOf(_dxSongs)}'),
-            ],
-            selectedIndex: _segment,
-            onChanged: (i) => setState(() => _segment = i),
+    final activePool = _segment == 0 ? _sdTiePool : _dxTiePool;
+    final remainingRaw = activePool != null && activePool.hasTies
+        ? activePool.remaining
+        : (_data?[_segment == 0 ? 'sdRemaining' : 'dxRemaining'] as List?) ??
+            const [];
+    return ValueListenableBuilder<Best50DisplayMode>(
+      valueListenable: Best50DisplayPreference.instance,
+      builder: (context, mode, _) => CustomScrollView(
+        slivers: [
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(AppDesignTokens.gutter, 4,
+                AppDesignTokens.gutter, AppDesignTokens.gutter + 8),
+            sliver: SliverMainAxisGroup(
+              slivers: [
+                SliverToBoxAdapter(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildStatsSection(),
+                      const SizedBox(height: AppDesignTokens.cardGap),
+                      _buildNewEntriesSection(),
+                      const SizedBox(height: AppDesignTokens.cardGap),
+                      SegmentedTabs(
+                        inlineCaption: true,
+                        items: [
+                          SegmentedTabItem('B35',
+                              caption: '${sumOf(_sdSongs)}'),
+                          SegmentedTabItem('B15',
+                              caption: '${sumOf(_dxSongs)}'),
+                        ],
+                        selectedIndex: _segment,
+                        onChanged: (i) => setState(() => _segment = i),
+                      ),
+                      const SizedBox(height: 8),
+                      Best50MetaLine(best50MetaText(
+                          _segment == 0
+                              ? context.l10n.flowOlderVersions
+                              : context.l10n.flowCurrentVersion,
+                          songs.map((m) => (m['ra'] ?? 0) as int))),
+                      const SizedBox(height: AppDesignTokens.cardGap),
+                    ],
+                  ),
+                ),
+                if (songs.isEmpty)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Center(
+                        child: Text(context.l10n.flowNoData2,
+                            style: TextStyle(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant)),
+                      ),
+                    ),
+                  )
+                else
+                  ...Best50Grid.buildSlivers(
+                    context: context,
+                    mode: mode,
+                    contentKey: '$_segment-$_resultVersion',
+                    items: [for (final m in songs) _cardData(m)],
+                    remaining: [
+                      for (final m in remainingRaw)
+                        _cardData(Map<String, dynamic>.from(m as Map))
+                    ],
+                    remainingLabel: 'RA ${songs.last['ra']}',
+                    onSelectTies: activePool != null && activePool.hasTies
+                        ? () => _pickTiesForSegment(_segment)
+                        : null,
+                    tieSelectedCount: activePool?.slotCount,
+                    tieTotalCount: activePool?.candidates.length,
+                    tieCustomized: activePool?.isCustomized ?? false,
+                  ),
+              ],
+            ),
           ),
-          const SizedBox(height: 8),
-          Best50MetaLine(best50MetaText(
-              _segment == 0
-                  ? context.l10n.flowOlderVersions
-                  : context.l10n.flowCurrentVersion,
-              songs.map((m) => (m['ra'] ?? 0) as int))),
-          const SizedBox(height: AppDesignTokens.cardGap),
-          _buildGrid(songs),
         ],
       ),
     );
@@ -550,39 +600,6 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
                 ],
               ),
       ),
-    );
-  }
-
-  Widget _buildGrid(List<Map<String, dynamic>> songs) {
-    if (songs.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Center(
-          child: Text(context.l10n.flowNoData2,
-              style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant)),
-        ),
-      );
-    }
-    final activePool = _segment == 0 ? _sdTiePool : _dxTiePool;
-    final remainingRaw = activePool != null && activePool.hasTies
-        ? activePool.remaining
-        : (_data?[_segment == 0 ? 'sdRemaining' : 'dxRemaining'] as List?) ??
-            const [];
-    return Best50Grid(
-      contentKey: '$_segment-$_resultVersion',
-      items: [for (final m in songs) _cardData(m)],
-      remaining: [
-        for (final m in remainingRaw)
-          _cardData(Map<String, dynamic>.from(m as Map))
-      ],
-      remainingLabel: 'RA ${songs.last['ra']}',
-      onSelectTies: activePool != null && activePool.hasTies
-          ? () => _pickTiesForSegment(_segment)
-          : null,
-      tieSelectedCount: activePool?.slotCount,
-      tieTotalCount: activePool?.candidates.length,
-      tieCustomized: activePool?.isCustomized ?? false,
     );
   }
 

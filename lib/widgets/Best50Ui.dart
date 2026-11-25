@@ -745,6 +745,122 @@ class Best50Grid extends StatelessWidget {
     );
   }
 
+  /// 供 CustomScrollView 按需构建的 Sliver 集合（替代外层 SingleChildScrollView + shrinkWrap GridView）。
+  static List<Widget> buildSlivers({
+    required BuildContext context,
+    required Best50DisplayMode mode,
+    required List<Best50CardData> items,
+    List<Best50CardData> remaining = const [],
+    String? remainingLabel,
+    VoidCallback? onSelectTies,
+    int? tieSelectedCount,
+    int? tieTotalCount,
+    bool tieCustomized = false,
+    Object? contentKey,
+  }) {
+    final count = items.length + (remaining.isEmpty ? 0 : 1);
+    final showTieBar = onSelectTies != null &&
+        remaining.isNotEmpty &&
+        tieSelectedCount != null &&
+        tieTotalCount != null;
+    final maxIdLength =
+        items.any((item) => item.songId.toString().length == 6) ? 6 : 5;
+    return [
+      SliverToBoxAdapter(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (showTieBar) ...[
+              Best50TiePickerBar(
+                label: remainingLabel ?? '',
+                selectedCount: tieSelectedCount,
+                totalCount: tieTotalCount,
+                customized: tieCustomized,
+                onTap: onSelectTies,
+              ),
+              const SizedBox(height: 10),
+            ],
+            const Best50DisplayModeBar(),
+            const SizedBox(height: 10),
+          ],
+        ),
+      ),
+      SliverLayoutBuilder(
+        builder: (context, constraints) => SliverGrid.builder(
+          // 换显示模式或换内容时重新入场，不复用上一批的格子。
+          key: ValueKey((mode, contentKey)),
+          gridDelegate:
+              delegate(context, constraints.crossAxisExtent, mode: mode),
+          itemCount: count,
+          itemBuilder: (context, index) => _buildGridItem(
+            context,
+            index: index,
+            mode: mode,
+            items: items,
+            remaining: remaining,
+            remainingLabel: remainingLabel,
+            onSelectTies: onSelectTies,
+            maxIdLength: maxIdLength,
+            animateEntrance: index < 15,
+          ),
+        ),
+      ),
+    ];
+  }
+
+  static Widget _buildGridItem(
+    BuildContext context, {
+    required int index,
+    required Best50DisplayMode mode,
+    required List<Best50CardData> items,
+    required List<Best50CardData> remaining,
+    required String? remainingLabel,
+    required VoidCallback? onSelectTies,
+    required int maxIdLength,
+    required bool animateEntrance,
+  }) {
+    if (index >= items.length) {
+      final cell = _Best50RemainingCell(
+        compact: mode == Best50DisplayMode.oneColumn,
+        count: remaining.length,
+        label: remainingLabel ?? '',
+        onTap: onSelectTies ??
+            () => showBest50RemainingDialog(
+                  context,
+                  items: remaining,
+                  label: remainingLabel ?? '',
+                ),
+      );
+      return animateEntrance ? EntranceAnimation(index: index, child: cell) : cell;
+    }
+    final data = items[index];
+    void open() => showBest50SongSheet(context, data);
+    return switch (mode) {
+      Best50DisplayMode.cover => Best50CoverCard(
+          data: data,
+          rank: index + 1,
+          entranceIndex: index,
+          animateEntrance: animateEntrance,
+          onTap: open,
+        ),
+      Best50DisplayMode.twoColumns => Best50ScoreCard(
+          data: data,
+          rank: index + 1,
+          entranceIndex: index,
+          animateEntrance: animateEntrance,
+          maxIdLength: maxIdLength,
+          onTap: open,
+        ),
+      Best50DisplayMode.oneColumn => Best50StripCard(
+          data: data,
+          rank: index + 1,
+          entranceIndex: index,
+          animateEntrance: animateEntrance,
+          onTap: open,
+        ),
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     final count = items.length + (remaining.isEmpty ? 0 : 1);
@@ -752,6 +868,8 @@ class Best50Grid extends StatelessWidget {
         remaining.isNotEmpty &&
         tieSelectedCount != null &&
         tieTotalCount != null;
+    final maxIdLength =
+        items.any((item) => item.songId.toString().length == 6) ? 6 : 5;
     return ValueListenableBuilder<Best50DisplayMode>(
       valueListenable: Best50DisplayPreference.instance,
       builder: (context, mode, _) => Column(
@@ -778,50 +896,17 @@ class Best50Grid extends StatelessWidget {
               padding: EdgeInsets.zero,
               gridDelegate: delegate(context, constraints.maxWidth, mode: mode),
               itemCount: count,
-              itemBuilder: (context, index) {
-                if (index >= items.length) {
-                  return EntranceAnimation(
-                    index: index,
-                    child: _Best50RemainingCell(
-                      compact: mode == Best50DisplayMode.oneColumn,
-                      count: remaining.length,
-                      label: remainingLabel ?? '',
-                      onTap: onSelectTies ??
-                          () => showBest50RemainingDialog(
-                                context,
-                                items: remaining,
-                                label: remainingLabel ?? '',
-                              ),
-                    ),
-                  );
-                }
-                final data = items[index];
-                void open() => showBest50SongSheet(context, data);
-                return switch (mode) {
-                  Best50DisplayMode.cover => Best50CoverCard(
-                      data: data,
-                      rank: index + 1,
-                      entranceIndex: index,
-                      onTap: open,
-                    ),
-                  Best50DisplayMode.twoColumns => Best50ScoreCard(
-                      data: data,
-                      rank: index + 1,
-                      entranceIndex: index,
-                      maxIdLength: items
-                              .any((item) => item.songId.toString().length == 6)
-                          ? 6
-                          : 5,
-                      onTap: open,
-                    ),
-                  Best50DisplayMode.oneColumn => Best50StripCard(
-                      data: data,
-                      rank: index + 1,
-                      entranceIndex: index,
-                      onTap: open,
-                    ),
-                };
-              },
+              itemBuilder: (context, index) => _buildGridItem(
+                context,
+                index: index,
+                mode: mode,
+                items: items,
+                remaining: remaining,
+                remainingLabel: remainingLabel,
+                onSelectTies: onSelectTies,
+                maxIdLength: maxIdLength,
+                animateEntrance: index < 15,
+              ),
             ),
           ),
         ],
@@ -839,6 +924,7 @@ class Best50StripCard extends StatelessWidget {
   /// 自定义 Best50 用来标出不合法的条目。
   final Color? outlineColor;
   final int entranceIndex;
+  final bool animateEntrance;
 
   const Best50StripCard({
     super.key,
@@ -847,6 +933,7 @@ class Best50StripCard extends StatelessWidget {
     required this.onTap,
     this.outlineColor,
     this.entranceIndex = 0,
+    this.animateEntrance = true,
   });
 
   static const double _coverSize = 52;
@@ -866,6 +953,7 @@ class Best50StripCard extends StatelessWidget {
             : Colors.black87;
     return EntranceAnimation(
       index: entranceIndex,
+      enabled: animateEntrance,
       offset: const Offset(0, 8),
       duration: const Duration(milliseconds: 300),
       child: PressScale(
@@ -1062,6 +1150,7 @@ class Best50ScoreCard extends StatelessWidget {
   /// 自定义 Best50 用来标出不合法的条目。
   final Color? outlineColor;
   final int entranceIndex;
+  final bool animateEntrance;
 
   const Best50ScoreCard({
     super.key,
@@ -1071,6 +1160,7 @@ class Best50ScoreCard extends StatelessWidget {
     this.maxIdLength = 5,
     this.outlineColor,
     this.entranceIndex = 0,
+    this.animateEntrance = true,
   });
 
   @override
@@ -1098,6 +1188,7 @@ class Best50ScoreCard extends StatelessWidget {
     final badge = data.badge;
     return EntranceAnimation(
       index: entranceIndex,
+      enabled: animateEntrance,
       scaleFrom: 0.96,
       child: PressScale(
         child: Semantics(
@@ -1145,6 +1236,7 @@ class Best50CoverCard extends StatelessWidget {
 
   /// 入场动画的错开序号。
   final int entranceIndex;
+  final bool animateEntrance;
 
   const Best50CoverCard({
     super.key,
@@ -1153,6 +1245,7 @@ class Best50CoverCard extends StatelessWidget {
     required this.onTap,
     this.outlineColor,
     this.entranceIndex = 0,
+    this.animateEntrance = true,
   });
 
   @override
@@ -1270,6 +1363,7 @@ class Best50CoverCard extends StatelessWidget {
     );
     return EntranceAnimation(
       index: entranceIndex,
+      enabled: animateEntrance,
       scaleFrom: 0.96,
       child: PressScale(child: card),
     );

@@ -756,47 +756,77 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
       ],
       contentPadding:
           EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(AppDesignTokens.gutter, 8,
-            AppDesignTokens.gutter, AppDesignTokens.gutter),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Best50ActionButton(
-              icon: Icons.tune_rounded,
-              onPressed: _showTypeSelectionDialog,
-              label: _selectedType == 'best_n'
-                  ? context.l10n.flowCategoryBestP0('$_selectedN')
-                  : context.l10n.flowCategoryP0(context.featureText(category)),
-            ),
-            if (selectSubOption != null) ...[
-              const SizedBox(height: 8),
-              Best50ActionButton(
-                icon: Icons.expand_more_rounded,
-                label: _subOptionLabel(context),
-                onPressed: selectSubOption,
+      child: ValueListenableBuilder<Best50DisplayMode>(
+        valueListenable: Best50DisplayPreference.instance,
+        builder: (context, mode, _) => CustomScrollView(
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(AppDesignTokens.gutter, 8,
+                  AppDesignTokens.gutter, AppDesignTokens.gutter),
+              sliver: SliverMainAxisGroup(
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Best50ActionButton(
+                          icon: Icons.tune_rounded,
+                          onPressed: _showTypeSelectionDialog,
+                          label: _selectedType == 'best_n'
+                              ? context.l10n.flowCategoryBestP0('$_selectedN')
+                              : context.l10n
+                                  .flowCategoryP0(context.featureText(category)),
+                        ),
+                        if (selectSubOption != null) ...[
+                          const SizedBox(height: 8),
+                          Best50ActionButton(
+                            icon: Icons.expand_more_rounded,
+                            label: _subOptionLabel(context),
+                            onPressed: selectSubOption,
+                          ),
+                        ],
+                        const SizedBox(height: 12.0),
+                        // 包容关系模式开关（仅对连击/同步50类型显示）
+                        if (_supportsInclusiveMode()) _buildInclusiveModeToggle(),
+                        if (_supportsInclusiveMode())
+                          const SizedBox(height: 12.0),
+                        // 数据统计区域
+                        _buildStatsSection(),
+                        const SizedBox(height: 12.0),
+                        // 随机50 专属：再抽一次按钮
+                        if (_selectedType == 'random_50') _buildRerollButton(),
+                        if (_selectedType == 'random_50')
+                          const SizedBox(height: 12.0),
+                        // Best N 专属：输入框 + 生成按钮
+                        if (_selectedType == 'best_n') _buildBestNInputRow(),
+                        if (_selectedType == 'best_n')
+                          const SizedBox(height: 12.0),
+                      ],
+                    ),
+                  ),
+                  if (_personalizedSongs.isEmpty)
+                    SliverToBoxAdapter(child: _buildSongList())
+                  else
+                    ...Best50Grid.buildSlivers(
+                      context: context,
+                      mode: mode,
+                      items: [
+                        for (final s in _personalizedSongs) _cardData(s)
+                      ],
+                      remaining: [
+                        for (final s in _remainingSongs) _cardData(s)
+                      ],
+                      remainingLabel: _remainingLabel,
+                      onSelectTies:
+                          _tiePool != null && _tiePool!.hasTies ? _pickTies : null,
+                      tieSelectedCount: _tiePool?.slotCount,
+                      tieTotalCount: _tiePool?.candidates.length,
+                      tieCustomized: _tiePool?.isCustomized ?? false,
+                      contentKey: _resultVersion,
+                    ),
+                ],
               ),
-            ],
-            SizedBox(height: 12.0),
-
-            // 包容关系模式开关（仅对连击/同步50类型显示）
-            if (_supportsInclusiveMode()) _buildInclusiveModeToggle(),
-            if (_supportsInclusiveMode()) SizedBox(height: 12.0),
-
-            // 数据统计区域
-            _buildStatsSection(),
-            SizedBox(height: 12.0),
-
-            // 随机50 专属：再抽一次按钮
-            if (_selectedType == 'random_50') _buildRerollButton(),
-            if (_selectedType == 'random_50') SizedBox(height: 12.0),
-
-            // Best N 专属：输入框 + 生成按钮
-            if (_selectedType == 'best_n') _buildBestNInputRow(),
-            if (_selectedType == 'best_n') SizedBox(height: 12.0),
-
-            // 歌曲列表
-            _buildSongList(),
+            ),
           ],
         ),
       ),

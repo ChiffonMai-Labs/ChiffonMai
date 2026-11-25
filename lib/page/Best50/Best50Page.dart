@@ -753,29 +753,44 @@ class _B50PageState extends State<B50Page> {
           },
         ),
       ],
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(AppDesignTokens.gutter, 4,
-            AppDesignTokens.gutter, AppDesignTokens.gutter + 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildRatingSection(),
-            if (!_isTheoreticalMode) ...[
-              const SizedBox(height: AppDesignTokens.cardGap),
-              _buildTagStatsSection(context),
-            ],
-            const SizedBox(height: AppDesignTokens.cardGap),
-            Best50Grid(
-              contentKey: '$_isTheoreticalMode-$_segment-$_tieVersion',
-              items: [for (final s in songs) _cardData(s)],
-              remaining: [for (final s in remaining) _cardData(s)],
-              remainingLabel: remainingLabel,
-              onSelectTies: activePool != null && activePool.hasTies
-                  ? () => _pickTiesForSegment(_segment)
-                  : null,
-              tieSelectedCount: activePool?.slotCount,
-              tieTotalCount: activePool?.candidates.length,
-              tieCustomized: activePool?.isCustomized ?? false,
+      child: ValueListenableBuilder<Best50DisplayMode>(
+        valueListenable: Best50DisplayPreference.instance,
+        builder: (context, mode, _) => CustomScrollView(
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(AppDesignTokens.gutter, 4,
+                  AppDesignTokens.gutter, AppDesignTokens.gutter + 8),
+              sliver: SliverMainAxisGroup(
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildRatingSection(),
+                        if (!_isTheoreticalMode) ...[
+                          const SizedBox(height: AppDesignTokens.cardGap),
+                          _buildTagStatsSection(context),
+                        ],
+                        const SizedBox(height: AppDesignTokens.cardGap),
+                      ],
+                    ),
+                  ),
+                  ...Best50Grid.buildSlivers(
+                    context: context,
+                    mode: mode,
+                    contentKey: '$_isTheoreticalMode-$_segment-$_tieVersion',
+                    items: [for (final s in songs) _cardData(s)],
+                    remaining: [for (final s in remaining) _cardData(s)],
+                    remainingLabel: remainingLabel,
+                    onSelectTies: activePool != null && activePool.hasTies
+                        ? () => _pickTiesForSegment(_segment)
+                        : null,
+                    tieSelectedCount: activePool?.slotCount,
+                    tieTotalCount: activePool?.candidates.length,
+                    tieCustomized: activePool?.isCustomized ?? false,
+                  ),
+                ],
+              ),
             ),
           ],
         ),

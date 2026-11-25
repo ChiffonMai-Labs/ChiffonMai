@@ -19,6 +19,7 @@ import '../utils/SearchInteractionPreferences.dart';
 import '../widgets/MarqueeText.dart';
 import '../widgets/AppDialogs.dart';
 import '../widgets/AppToast.dart';
+import '../widgets/ProgressUi.dart' show GroupedRowShell;
 
 class UserScoreSearchPage extends StatefulWidget {
   /// 进入页面时直接打开搜索框（成绩 Hub 的搜索入口）。
@@ -141,6 +142,7 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
   List<dynamic>? _visibleCache;
 
   final ScrollController _scrollController = ScrollController();
+  final ListEntrance _entrance = ListEntrance();
   int _currentPage = 1;
   int _pageSize = 50;
   final TextEditingController _pageSizeController =
@@ -614,95 +616,127 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Expanded(
-                      child: SingleChildScrollView(
+                      child: CustomScrollView(
                         controller: _scrollController,
-                        // 「搜索区域避让输入法」开启时把可滚动范围抬到输入法上方，背景不动
-                        padding: EdgeInsets.fromLTRB(
-                            AppDesignTokens.gutter,
-                            4,
-                            AppDesignTokens.gutter,
-                            AppDesignTokens.gutter +
-                                (SearchInteractionPreferences
-                                        .instance.avoidKeyboard
-                                    ? MediaQuery.viewInsetsOf(context).bottom
-                                    : 0)),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            // 搜索框展开 / 收起：高度过渡 + 淡入淡出与轻微下滑
-                            AnimatedSize(
-                              duration: AppDesignTokens.motion(
-                                  context, AppDesignTokens.mediumMotion),
-                              curve: AppDesignTokens.emphasizedCurve,
-                              alignment: Alignment.topCenter,
-                              child: AnimatedSwitcher(
-                                duration: AppDesignTokens.motion(
-                                    context, AppDesignTokens.mediumMotion),
-                                switchInCurve: AppDesignTokens.emphasizedCurve,
-                                switchOutCurve: Curves.easeIn,
-                                transitionBuilder: (child, animation) =>
-                                    FadeTransition(
-                                  opacity: animation,
-                                  child: SlideTransition(
-                                    position: Tween<Offset>(
-                                      begin: const Offset(0, -0.15),
-                                      end: Offset.zero,
-                                    ).animate(animation),
-                                    child: child,
+                        slivers: [
+                          // 「搜索区域避让输入法」开启时把可滚动范围抬到输入法上方，背景不动
+                          SliverPadding(
+                            padding: EdgeInsets.fromLTRB(
+                                AppDesignTokens.gutter,
+                                4,
+                                AppDesignTokens.gutter,
+                                AppDesignTokens.gutter +
+                                    (SearchInteractionPreferences
+                                            .instance.avoidKeyboard
+                                        ? MediaQuery.viewInsetsOf(context).bottom
+                                        : 0)),
+                            sliver: SliverMainAxisGroup(
+                              slivers: [
+                                SliverToBoxAdapter(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      // 搜索框展开 / 收起：高度过渡 + 淡入淡出与轻微下滑
+                                      AnimatedSize(
+                                        duration: AppDesignTokens.motion(
+                                            context,
+                                            AppDesignTokens.mediumMotion),
+                                        curve: AppDesignTokens.emphasizedCurve,
+                                        alignment: Alignment.topCenter,
+                                        child: AnimatedSwitcher(
+                                          duration: AppDesignTokens.motion(
+                                              context,
+                                              AppDesignTokens.mediumMotion),
+                                          switchInCurve:
+                                              AppDesignTokens.emphasizedCurve,
+                                          switchOutCurve: Curves.easeIn,
+                                          transitionBuilder:
+                                              (child, animation) =>
+                                                  FadeTransition(
+                                            opacity: animation,
+                                            child: SlideTransition(
+                                              position: Tween<Offset>(
+                                                begin: const Offset(0, -0.15),
+                                                end: Offset.zero,
+                                              ).animate(animation),
+                                              child: child,
+                                            ),
+                                          ),
+                                          layoutBuilder:
+                                              (current, previous) => Stack(
+                                            alignment: Alignment.topCenter,
+                                            children: [
+                                              ...previous,
+                                              if (current != null) current,
+                                            ],
+                                          ),
+                                          child: _searchOpen
+                                              ? Padding(
+                                                  key: const ValueKey(
+                                                      'search-open'),
+                                                  padding:
+                                                      const EdgeInsets.only(
+                                                          bottom:
+                                                              AppDesignTokens
+                                                                  .cardGap),
+                                                  child: _buildSearchField(),
+                                                )
+                                              : const SizedBox(
+                                                  key: ValueKey(
+                                                      'search-closed'),
+                                                  width: double.infinity,
+                                                ),
+                                        ),
+                                      ),
+                                      _buildDistributionCard(),
+                                      const SizedBox(
+                                          height: AppDesignTokens.cardGap),
+                                      _buildFilterRow(),
+                                      const SizedBox(
+                                          height: AppDesignTokens.cardGap),
+                                      if (_isCoverMode) ...[
+                                        SegmentedTabs(
+                                          height: 40,
+                                          items: [
+                                            SegmentedTabItem(
+                                                context.l10n.flowGrade),
+                                            SegmentedTabItem(
+                                                context.l10n.flowCombo),
+                                            SegmentedTabItem(
+                                                context.l10n.flowSync),
+                                            SegmentedTabItem(
+                                                context.l10n.flowScore),
+                                            SegmentedTabItem(
+                                                context.l10n.flowStars),
+                                            SegmentedTabItem(
+                                                context.l10n.flowConstant),
+                                          ],
+                                          selectedIndex: _selectedButtonIndex,
+                                          onChanged: (i) => setState(
+                                              () => _selectedButtonIndex = i),
+                                        ),
+                                        const SizedBox(
+                                            height: AppDesignTokens.cardGap),
+                                      ],
+                                    ],
                                   ),
                                 ),
-                                layoutBuilder: (current, previous) => Stack(
-                                  alignment: Alignment.topCenter,
-                                  children: [
-                                    ...previous,
-                                    if (current != null) current,
-                                  ],
+                                if (_isCoverMode)
+                                  _buildCoverGridSliver()
+                                else
+                                  _buildListSliver(),
+                                SliverToBoxAdapter(
+                                  child: Padding(
+                                    padding: const EdgeInsets.only(
+                                        top: AppDesignTokens.cardGap),
+                                    child: _buildPageSizeRow(),
+                                  ),
                                 ),
-                                child: _searchOpen
-                                    ? Padding(
-                                        key: const ValueKey('search-open'),
-                                        padding: const EdgeInsets.only(
-                                            bottom: AppDesignTokens.cardGap),
-                                        child: _buildSearchField(),
-                                      )
-                                    : const SizedBox(
-                                        key: ValueKey('search-closed'),
-                                        width: double.infinity,
-                                      ),
-                              ),
+                              ],
                             ),
-                            _buildDistributionCard(),
-                            const SizedBox(height: AppDesignTokens.cardGap),
-                            _buildFilterRow(),
-                            const SizedBox(height: AppDesignTokens.cardGap),
-                            if (_isCoverMode) ...[
-                              SegmentedTabs(
-                                height: 40,
-                                items: [
-                                  SegmentedTabItem(context.l10n.flowGrade),
-                                  SegmentedTabItem(context.l10n.flowCombo),
-                                  SegmentedTabItem(context.l10n.flowSync),
-                                  SegmentedTabItem(context.l10n.flowScore),
-                                  SegmentedTabItem(context.l10n.flowStars),
-                                  SegmentedTabItem(context.l10n.flowConstant),
-                                ],
-                                selectedIndex: _selectedButtonIndex,
-                                onChanged: (i) =>
-                                    setState(() => _selectedButtonIndex = i),
-                              ),
-                              const SizedBox(height: AppDesignTokens.cardGap),
-                              ConstrainedBox(
-                                // 设置最小高度确保内容显示
-                                constraints:
-                                    const BoxConstraints(minHeight: 300),
-                                child: _buildCoverGrid(),
-                              ),
-                            ] else
-                              _buildListGrid(),
-                            const SizedBox(height: AppDesignTokens.cardGap),
-                            _buildPageSizeRow(),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
                     _buildPaginationBar(),
@@ -1097,273 +1131,279 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
     );
   }
 
-  // 构建曲绘网格（5列）
-  Widget _buildCoverGrid() {
-    double screenWidth = MediaQuery.of(context).size.width;
-
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: NeverScrollableScrollPhysics(),
-      padding: EdgeInsets.all(2),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 5,
-        crossAxisSpacing: 2,
-        mainAxisSpacing: 2,
-        childAspectRatio: 1.0,
-      ),
-      itemCount: _pagedSongs.length,
-      itemBuilder: (context, index) {
-        final song = _pagedSongs[index];
-        final levelIndex = song['level_index'] ?? 0;
-        var borderColor = _service.getBorderColor(levelIndex);
-
-        final songId = song['song_id']?.toString() ?? '';
-        if (songId.length == 6 && int.tryParse(songId) != null) {
-          borderColor = Color(0xFFFF69B4);
-        }
-
-        final itemSize = (screenWidth - 4 - (4 * 2)) / 5;
-
-        String displayText = '';
-        String displaySubText = '';
-        Color displayColor = Colors.white;
-
-        switch (_selectedButtonIndex) {
-          case 0: // 评级
-            if (song.containsKey('achievements')) {
-              double achievements =
-                  double.tryParse(song['achievements'].toString()) ?? 0;
-              if (achievements >= 100.5) {
-                displayText = 'SSS+';
-                displayColor = Colors.yellow;
-              } else if (achievements >= 100.0) {
-                displayText = 'SSS';
-                displayColor = Colors.yellow;
-              } else if (achievements >= 99.5) {
-                displayText = 'SS+';
-                displayColor = Colors.orange;
-              } else if (achievements >= 99.0) {
-                displayText = 'SS';
-                displayColor = Colors.orange;
-              } else if (achievements >= 98.0) {
-                displayText = 'S+';
-                displayColor = Colors.orange;
-              } else if (achievements >= 97.0) {
-                displayText = 'S';
-                displayColor = Colors.orange;
-              } else if (achievements >= 94.0) {
-                displayText = 'AAA';
-                displayColor = Colors.red;
-              } else if (achievements >= 90.0) {
-                displayText = 'AA';
-                displayColor = Colors.red;
-              } else if (achievements >= 80.0) {
-                displayText = 'A';
-                displayColor = Colors.red;
-              } else if (achievements >= 75.0) {
-                displayText = 'BBB';
-                displayColor = Colors.blue;
-              } else if (achievements >= 70.0) {
-                displayText = 'BB';
-                displayColor = Colors.blue;
-              } else if (achievements >= 60.0) {
-                displayText = 'B';
-                displayColor = Colors.blue;
-              } else if (achievements >= 50.0) {
-                displayText = 'C';
-                displayColor = Colors.grey;
-              } else {
-                displayText = 'D';
-                displayColor = Colors.grey;
-              }
-            }
-            break;
-          case 1: // 连击
-            if (song.containsKey('fc')) {
-              String fc = song['fc'].toString().toLowerCase();
-              if (fc == 'app') {
-                displayText = 'AP+';
-                displayColor = Colors.yellow;
-              } else if (fc == 'ap') {
-                displayText = 'AP';
-                displayColor = Colors.orange;
-              } else if (fc == 'fcp') {
-                displayText = 'FC+';
-                displayColor = Colors.green;
-              } else if (fc == 'fc') {
-                displayText = 'FC';
-                displayColor = Colors.blue;
-              }
-            }
-            break;
-          case 2: // 同步
-            if (song.containsKey('fs')) {
-              String fs = song['fs'].toString().toLowerCase();
-              if (fs == 'fsdp') {
-                displayText = 'FDX+';
-                displayColor = Colors.yellow;
-              } else if (fs == 'fsd') {
-                displayText = 'FDX';
-                displayColor = Colors.orange;
-              } else if (fs == 'fsp') {
-                displayText = 'FS+';
-                displayColor = Colors.green;
-              } else if (fs == 'fs') {
-                displayText = 'FS';
-                displayColor = Colors.blue;
-              }
-            }
-            break;
-          case 3: // 得分
-            if (song.containsKey('ra')) {
-              displayText = song['ra'].toString();
-              displayColor = Colors.white;
-            }
-            break;
-          case 4: // 星数
-            if (song.containsKey('dxScore')) {
-              double rate = 0.0;
-              if (_dxRateCache.containsKey(song)) {
-                rate = _dxRateCache[song]!;
-              } else {
-                rate = _calculateDXScoreRate(song);
-                _dxRateCache[song] = rate;
-              }
-
-              String stars = '';
-              if (rate >= 0.99) {
-                stars = '\u2726 6';
-                displayColor = Colors.yellow;
-              } else if (rate >= 0.98) {
-                stars = '\u2726 5.5';
-                displayColor = Colors.yellow;
-              } else if (rate >= 0.97) {
-                stars = '\u2726 5';
-                displayColor = Colors.yellow;
-              } else if (rate >= 0.95) {
-                stars = '\u2726 4';
-                displayColor = Colors.orange;
-              } else if (rate >= 0.93) {
-                stars = '\u2726 3';
-                displayColor = Colors.orange;
-              } else if (rate >= 0.90) {
-                stars = '\u2726 2';
-                displayColor = Colors.green.shade200;
-              } else if (rate >= 0.85) {
-                stars = '\u2726 1';
-                displayColor = Colors.green.shade200;
-              } else {
-                stars = '\u2726 0';
-                displayColor = Colors.grey.shade300;
-              }
-
-              displayText = stars;
-              displaySubText = '${(rate * 100).toStringAsFixed(2)}%';
-            }
-            break;
-          case 5: // 定数
-            if (song.containsKey('ds')) {
-              displayText = song['ds'].toString();
-              displayColor = Colors.white;
-            }
-            break;
-        }
-
-        return GestureDetector(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => SongInfoPage(
-                  songId: song['song_id'].toString(),
-                  initialLevelIndex:
-                      ChartDifficulty.parseStandardIndex(song['level_index']),
-                ),
-              ),
-            );
-          },
-          child: Container(
-            width: itemSize,
-            height: itemSize,
-            decoration: BoxDecoration(
-              border: Border.all(
-                color: Color(borderColor.value),
-                width: 2,
-              ),
-              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-              color: Color(borderColor.value).withOpacity(0.3),
+  // 按需构建曲绘网格（5列）
+  Widget _buildCoverGridSliver() {
+    return SliverPadding(
+      padding: const EdgeInsets.all(2),
+      sliver: SliverLayoutBuilder(
+        builder: (context, constraints) {
+          final itemSize = (constraints.crossAxisExtent - 8) / 5;
+          return SliverGrid.builder(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 5,
+              crossAxisSpacing: 2,
+              mainAxisSpacing: 2,
+              childAspectRatio: 1.0,
             ),
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                CoverUtil.buildCoverWidgetWithContextRRect(context,
-                    song['song_id']?.toString() ?? '', double.infinity),
-                if (displayText.isNotEmpty)
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.4),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Center(
-                      child: _selectedButtonIndex == 4
-                          ? Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  displayText,
-                                  style: TextStyle(
-                                    color: displayColor,
-                                    fontSize: itemSize * 0.18,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                if (displaySubText.isNotEmpty)
-                                  Text(
-                                    displaySubText,
-                                    style: TextStyle(
-                                      color: displayColor,
-                                      fontSize: itemSize * 0.15,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                              ],
-                            )
-                          : Text(
-                              displayText,
-                              style: TextStyle(
-                                color: displayColor,
-                                fontSize: itemSize * 0.2,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                    ),
-                  ),
-              ],
+            itemCount: _pagedSongs.length,
+            itemBuilder: (context, index) =>
+                _buildCoverTile(_pagedSongs[index], itemSize),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildCoverTile(dynamic song, double itemSize) {
+    final levelIndex = song['level_index'] ?? 0;
+    var borderColor = _service.getBorderColor(levelIndex);
+
+    final songId = song['song_id']?.toString() ?? '';
+    if (songId.length == 6 && int.tryParse(songId) != null) {
+      borderColor = const Color(0xFFFF69B4);
+    }
+
+    String displayText = '';
+    String displaySubText = '';
+    Color displayColor = Colors.white;
+
+    switch (_selectedButtonIndex) {
+      case 0: // 评级
+        if (song.containsKey('achievements')) {
+          final achievements =
+              double.tryParse(song['achievements'].toString()) ?? 0;
+          if (achievements >= 100.5) {
+            displayText = 'SSS+';
+            displayColor = Colors.yellow;
+          } else if (achievements >= 100.0) {
+            displayText = 'SSS';
+            displayColor = Colors.yellow;
+          } else if (achievements >= 99.5) {
+            displayText = 'SS+';
+            displayColor = Colors.orange;
+          } else if (achievements >= 99.0) {
+            displayText = 'SS';
+            displayColor = Colors.orange;
+          } else if (achievements >= 98.0) {
+            displayText = 'S+';
+            displayColor = Colors.orange;
+          } else if (achievements >= 97.0) {
+            displayText = 'S';
+            displayColor = Colors.orange;
+          } else if (achievements >= 94.0) {
+            displayText = 'AAA';
+            displayColor = Colors.red;
+          } else if (achievements >= 90.0) {
+            displayText = 'AA';
+            displayColor = Colors.red;
+          } else if (achievements >= 80.0) {
+            displayText = 'A';
+            displayColor = Colors.red;
+          } else if (achievements >= 75.0) {
+            displayText = 'BBB';
+            displayColor = Colors.blue;
+          } else if (achievements >= 70.0) {
+            displayText = 'BB';
+            displayColor = Colors.blue;
+          } else if (achievements >= 60.0) {
+            displayText = 'B';
+            displayColor = Colors.blue;
+          } else if (achievements >= 50.0) {
+            displayText = 'C';
+            displayColor = Colors.grey;
+          } else {
+            displayText = 'D';
+            displayColor = Colors.grey;
+          }
+        }
+        break;
+      case 1: // 连击
+        if (song.containsKey('fc')) {
+          final fc = song['fc'].toString().toLowerCase();
+          if (fc == 'app') {
+            displayText = 'AP+';
+            displayColor = Colors.yellow;
+          } else if (fc == 'ap') {
+            displayText = 'AP';
+            displayColor = Colors.orange;
+          } else if (fc == 'fcp') {
+            displayText = 'FC+';
+            displayColor = Colors.green;
+          } else if (fc == 'fc') {
+            displayText = 'FC';
+            displayColor = Colors.blue;
+          }
+        }
+        break;
+      case 2: // 同步
+        if (song.containsKey('fs')) {
+          final fs = song['fs'].toString().toLowerCase();
+          if (fs == 'fsdp') {
+            displayText = 'FDX+';
+            displayColor = Colors.yellow;
+          } else if (fs == 'fsd') {
+            displayText = 'FDX';
+            displayColor = Colors.orange;
+          } else if (fs == 'fsp') {
+            displayText = 'FS+';
+            displayColor = Colors.green;
+          } else if (fs == 'fs') {
+            displayText = 'FS';
+            displayColor = Colors.blue;
+          }
+        }
+        break;
+      case 3: // 得分
+        if (song.containsKey('ra')) {
+          displayText = song['ra'].toString();
+          displayColor = Colors.white;
+        }
+        break;
+      case 4: // 星数
+        if (song.containsKey('dxScore')) {
+          double rate = 0.0;
+          if (_dxRateCache.containsKey(song)) {
+            rate = _dxRateCache[song]!;
+          } else {
+            rate = _calculateDXScoreRate(song);
+            _dxRateCache[song] = rate;
+          }
+
+          String stars = '';
+          if (rate >= 0.99) {
+            stars = '\u2726 6';
+            displayColor = Colors.yellow;
+          } else if (rate >= 0.98) {
+            stars = '\u2726 5.5';
+            displayColor = Colors.yellow;
+          } else if (rate >= 0.97) {
+            stars = '\u2726 5';
+            displayColor = Colors.yellow;
+          } else if (rate >= 0.95) {
+            stars = '\u2726 4';
+            displayColor = Colors.orange;
+          } else if (rate >= 0.93) {
+            stars = '\u2726 3';
+            displayColor = Colors.orange;
+          } else if (rate >= 0.90) {
+            stars = '\u2726 2';
+            displayColor = Colors.green.shade200;
+          } else if (rate >= 0.85) {
+            stars = '\u2726 1';
+            displayColor = Colors.green.shade200;
+          } else {
+            stars = '\u2726 0';
+            displayColor = Colors.grey.shade300;
+          }
+
+          displayText = stars;
+          displaySubText = '${(rate * 100).toStringAsFixed(2)}%';
+        }
+        break;
+      case 5: // 定数
+        if (song.containsKey('ds')) {
+          displayText = song['ds'].toString();
+          displayColor = Colors.white;
+        }
+        break;
+    }
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => SongInfoPage(
+              songId: song['song_id'].toString(),
+              initialLevelIndex:
+                  ChartDifficulty.parseStandardIndex(song['level_index']),
             ),
           ),
         );
       },
+      child: Container(
+        width: itemSize,
+        height: itemSize,
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: Color(borderColor.value),
+            width: 2,
+          ),
+          borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+          color: Color(borderColor.value).withOpacity(0.3),
+        ),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // 传入实际格子宽度以限制曲绘解码尺寸，避免小格子按原图解码。
+            CoverUtil.buildCoverWidgetWithContextRRect(
+                context, song['song_id']?.toString() ?? '', itemSize),
+            if (displayText.isNotEmpty)
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.4),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Center(
+                  child: _selectedButtonIndex == 4
+                      ? Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              displayText,
+                              style: TextStyle(
+                                color: displayColor,
+                                fontSize: itemSize * 0.18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            if (displaySubText.isNotEmpty)
+                              Text(
+                                displaySubText,
+                                style: TextStyle(
+                                  color: displayColor,
+                                  fontSize: itemSize * 0.15,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                          ],
+                        )
+                      : Text(
+                          displayText,
+                          style: TextStyle(
+                            color: displayColor,
+                            fontSize: itemSize * 0.2,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 
-  // 构建列表网格（2列）
-  Widget _buildListGrid() {
-    return AppCard(
-      padding: EdgeInsets.zero,
-      child: Column(
-        // 换页、筛选、排序后重播入场动画
-        key: ValueKey(
-            '$_currentPage-$_bucketFilter-$_currentSortBy-$_searchQuery'),
-        children: [
-          for (var i = 0; i < _pagedSongs.length; i++)
-            EntranceAnimation(
-              index: i,
-              stagger: const Duration(milliseconds: 25),
-              duration: const Duration(milliseconds: 300),
-              offset: const Offset(0, 8),
-              child: _buildListRow(_pagedSongs[i], showDivider: i > 0),
-            ),
-        ],
+  // 按需构建列表行，首尾行连接成完整白卡片并仅对首屏播放入场动画。
+  Widget _buildListSliver() {
+    final token =
+        '$_currentPage-$_bucketFilter-$_currentSortBy-$_searchQuery';
+    final count = _pagedSongs.length;
+    if (count == 0) {
+      return const SliverToBoxAdapter(child: SizedBox.shrink());
+    }
+    return SliverList.builder(
+      itemCount: count,
+      itemBuilder: (context, index) => _entrance.wrap(
+        token,
+        index,
+        GroupedRowShell(
+          first: index == 0,
+          last: index == count - 1,
+          child: _buildListRow(_pagedSongs[index], showDivider: index > 0),
+        ),
+        duration: const Duration(milliseconds: 300),
+        offset: const Offset(0, 8),
       ),
     );
   }

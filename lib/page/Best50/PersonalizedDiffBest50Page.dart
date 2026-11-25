@@ -519,13 +519,22 @@ class _PersonalizedDiffBest50PageState
                     _selectedTagId != null &&
                     _diffSongs.isNotEmpty)
                   Expanded(
-                    child: SingleChildScrollView(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _buildRatingSection(),
-                          const SizedBox(height: AppDesignTokens.cardGap),
-                          Best50Grid(
+                    child: ValueListenableBuilder<Best50DisplayMode>(
+                      valueListenable: Best50DisplayPreference.instance,
+                      builder: (context, mode, _) => CustomScrollView(
+                        slivers: [
+                          SliverToBoxAdapter(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                _buildRatingSection(),
+                                const SizedBox(height: AppDesignTokens.cardGap),
+                              ],
+                            ),
+                          ),
+                          ...Best50Grid.buildSlivers(
+                            context: context,
+                            mode: mode,
                             items: [
                               for (final s in _diffSongs)
                                 _cardData(Map<String, dynamic>.from(s))
