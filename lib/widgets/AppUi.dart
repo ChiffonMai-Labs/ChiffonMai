@@ -2051,6 +2051,7 @@ class _EntranceAnimationState extends State<EntranceAnimation>
   late final AnimationController _controller;
   late final Animation<double> _progress;
   bool _started = false;
+  bool _completed = false;
 
   @override
   void initState() {
@@ -2067,6 +2068,13 @@ class _EntranceAnimationState extends State<EntranceAnimation>
         curve: AppDesignTokens.emphasizedCurve,
       ),
     );
+    _controller.addStatusListener(_onStatusChanged);
+  }
+
+  void _onStatusChanged(AnimationStatus status) {
+    if (status == AnimationStatus.completed && !_completed && mounted) {
+      setState(() => _completed = true);
+    }
   }
 
   @override
@@ -2078,6 +2086,7 @@ class _EntranceAnimationState extends State<EntranceAnimation>
         AppModePreferences.instance.isSimple ||
         MediaQuery.maybeDisableAnimationsOf(context) == true) {
       _controller.value = 1;
+      _completed = true;
     } else {
       _controller.forward();
     }
@@ -2085,28 +2094,46 @@ class _EntranceAnimationState extends State<EntranceAnimation>
 
   @override
   void dispose() {
+    _controller.removeStatusListener(_onStatusChanged);
     _controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _progress,
-      child: widget.child,
-      builder: (context, child) {
-        final t = _progress.value;
-        return Opacity(
-          opacity: t.clamp(0.0, 1.0),
-          child: Transform.translate(
-            offset: widget.offset * (1 - t),
-            child: Transform.scale(
-              scale: widget.scaleFrom + (1 - widget.scaleFrom) * t,
-              child: child,
-            ),
-          ),
-        );
-      },
+    // 完成或无需播放动画时直接返回子树，避免长驻 Opacity / Transform 包装层。
+    if (_completed || !widget.enabled) {
+      return widget.child;
+    }
+    final hasTransform =
+        widget.offset != Offset.zero || widget.scaleFrom != 1.0;
+    final animatedChild = hasTransform
+        ? AnimatedBuilder(
+            animation: _progress,
+            child: widget.child,
+            builder: (context, child) {
+              final t = _progress.value;
+              Widget current = child!;
+              if (widget.scaleFrom != 1.0) {
+                current = Transform.scale(
+                  scale: widget.scaleFrom + (1 - widget.scaleFrom) * t,
+                  child: current,
+                );
+              }
+              if (widget.offset != Offset.zero) {
+                current = Transform.translate(
+                  offset: widget.offset * (1 - t),
+                  child: current,
+                );
+              }
+              return current;
+            },
+          )
+        : widget.child;
+    // 用 FadeTransition 走合成层透明度，避免每帧触发 Opacity 的离屏 saveLayer。
+    return FadeTransition(
+      opacity: _progress,
+      child: animatedChild,
     );
   }
 }
@@ -2140,10 +2167,14 @@ class ListEntrance {
     final shouldAnimate = enabled &&
         index < maxAnimatedIndex &&
         DateTime.now().difference(_shownAt) < _window;
+    // 不需要动画的滚动条目直接透传，避免为屏外重建行分配 AnimationController。
+    if (!shouldAnimate) {
+      return key == null ? child : KeyedSubtree(key: key, child: child);
+    }
     return EntranceAnimation(
       key: key,
       index: index,
-      enabled: shouldAnimate,
+      enabled: true,
       duration: duration,
       offset: offset,
       child: child,

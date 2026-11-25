@@ -27,8 +27,45 @@ class _MainNavigationViewportState extends State<MainNavigationViewport>
     duration: const Duration(milliseconds: 280),
     value: 1,
   );
+  late final CurvedAnimation _curve = CurvedAnimation(
+    parent: _controller,
+    curve: Curves.easeOutCubic,
+  );
+  late final Animation<double> _fadeIn = _curve;
+  late final Animation<double> _fadeOut =
+      Tween<double>(begin: 1.0, end: 0.0).animate(_curve);
+  late Animation<Offset> _slideIn =
+      const AlwaysStoppedAnimation<Offset>(Offset.zero);
+  late Animation<Offset> _slideOut =
+      const AlwaysStoppedAnimation<Offset>(Offset.zero);
   late int _fromIndex = widget.index;
   Size? _windowSize;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addStatusListener(_onAnimationStatus);
+    _updateSlideAnimations(forward: true);
+  }
+
+  void _onAnimationStatus(AnimationStatus status) {
+    // 动画完成时刷一次把上一页放入 Offstage，平时不触发整棵页面重建。
+    if (status == AnimationStatus.completed && mounted) {
+      setState(() {});
+    }
+  }
+
+  void _updateSlideAnimations({required bool forward}) {
+    final dx = forward ? 0.035 : -0.035;
+    _slideIn = Tween<Offset>(
+      begin: Offset(dx, 0),
+      end: Offset.zero,
+    ).animate(_curve);
+    _slideOut = Tween<Offset>(
+      begin: Offset.zero,
+      end: Offset(-dx, 0),
+    ).animate(_curve);
+  }
 
   @override
   void didChangeDependencies() {
@@ -51,6 +88,7 @@ class _MainNavigationViewportState extends State<MainNavigationViewport>
     super.didUpdateWidget(oldWidget);
     if (widget.index != oldWidget.index) {
       _fromIndex = oldWidget.index;
+      _updateSlideAnimations(forward: widget.index > _fromIndex);
       if (widget.transitionEnabled) {
         _controller.forward(from: 0);
       } else {
@@ -64,50 +102,55 @@ class _MainNavigationViewportState extends State<MainNavigationViewport>
 
   @override
   void dispose() {
+    _controller.removeStatusListener(_onAnimationStatus);
+    _curve.dispose();
     _controller.dispose();
     super.dispose();
   }
+
+  static const _zeroOffset = AlwaysStoppedAnimation<Offset>(Offset.zero);
+  static const _fullOpacity = AlwaysStoppedAnimation<double>(1.0);
 
   @override
   Widget build(BuildContext context) {
     final current = widget.index;
     final previous = _fromIndex;
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, _) {
-        final progress = widget.transitionEnabled
-            ? Curves.easeOutCubic.transform(_controller.value)
-            : 1.0;
-        final forward = current > previous;
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            for (var i = 0; i < widget.pages.length; i++)
-              // 每个页面始终处于同一层级。切换包装组件的类型会销毁页面 State，
-              // 导致账号、头像等重新加载，不能按可见性使用不同的组件结构。
-              Offstage(
-                offstage: i != current && (i != previous || progress == 1),
-                child: IgnorePointer(
-                  ignoring: i != current,
-                  child: FractionalTranslation(
-                    translation: i == current
-                        ? Offset((forward ? 1 : -1) * (1 - progress) * .035, 0)
-                        : Offset((forward ? -1 : 1) * progress * .035, 0),
-                    child: Opacity(
-                      opacity: i == current ? progress : 1 - progress,
-                      child: TickerMode(
-                        enabled: i == current,
-                        child: DeferredAppModeScope(
-                          child: widget.pages[i],
-                        ),
-                      ),
+    final animating = widget.transitionEnabled && !_controller.isCompleted;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        for (var i = 0; i < widget.pages.length; i++)
+          // 每个页面始终处于同一层级。切换包装组件的类型会销毁页面 State，
+          // 导致账号、头像等重新加载，不能按可见性使用不同的组件结构。
+          Offstage(
+            offstage: i != current && (!animating || i != previous),
+            child: IgnorePointer(
+              ignoring: i != current,
+              // 用 SlideTransition + FadeTransition 走渲染合成层，避免每帧
+              // rebuild 整棵页面并用 Opacity 触发全屏离屏 saveLayer。
+              child: SlideTransition(
+                position: !animating
+                    ? _zeroOffset
+                    : (i == current
+                        ? _slideIn
+                        : (i == previous ? _slideOut : _zeroOffset)),
+                child: FadeTransition(
+                  opacity: !animating
+                      ? _fullOpacity
+                      : (i == current
+                          ? _fadeIn
+                          : (i == previous ? _fadeOut : _fullOpacity)),
+                  child: TickerMode(
+                    enabled: i == current,
+                    child: DeferredAppModeScope(
+                      child: widget.pages[i],
                     ),
                   ),
                 ),
               ),
-          ],
-        );
-      },
+            ),
+          ),
+      ],
     );
   }
 }

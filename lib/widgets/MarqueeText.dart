@@ -56,6 +56,14 @@ class _MarqueeTextState extends State<MarqueeText>
   /// 本帧是否真的需要滚动（帧后回调据此决定要不要起 ticker）。
   bool _wantScroll = false;
 
+  TextPainter? _painter;
+  String? _measuredText;
+  TextStyle? _measuredStyle;
+  TextScaler? _measuredScaler;
+  TextDirection? _measuredDirection;
+  double _measuredWidth = 0;
+  double _measuredHeight = 0;
+
   @override
   void initState() {
     super.initState();
@@ -67,8 +75,38 @@ class _MarqueeTextState extends State<MarqueeText>
 
   @override
   void dispose() {
+    _painter?.dispose();
+    _painter = null;
     _controller.dispose();
     super.dispose();
+  }
+
+  void _ensureMeasured({
+    required TextStyle style,
+    required TextDirection direction,
+    required TextScaler scaler,
+  }) {
+    if (_painter != null &&
+        _measuredText == widget.text &&
+        _measuredStyle == style &&
+        _measuredScaler == scaler &&
+        _measuredDirection == direction) {
+      return;
+    }
+    _painter?.dispose();
+    final painter = TextPainter(
+      text: TextSpan(text: widget.text, style: style),
+      textDirection: direction,
+      textScaler: scaler,
+      maxLines: 1,
+    )..layout();
+    _painter = painter;
+    _measuredText = widget.text;
+    _measuredStyle = style;
+    _measuredScaler = scaler;
+    _measuredDirection = direction;
+    _measuredWidth = painter.size.width;
+    _measuredHeight = painter.height;
   }
 
   /// 滚动占整个周期的比例，剩下的就是轮末停顿。
@@ -104,19 +142,32 @@ class _MarqueeTextState extends State<MarqueeText>
     // 只拿 widget.style 去量会**少算**每个字的字距（15 个字就是 3.5px），
     // 于是周期量短了、停顿落在第一个字前面空出那几个像素 —— 正是这次要修的观感。
     final style = DefaultTextStyle.of(context).style.merge(widget.style);
+    final disableAnimations =
+        MediaQuery.maybeDisableAnimationsOf(context) == true;
+    if (disableAnimations) {
+      _syncTicker(overflows: false);
+      return Text(
+        widget.text,
+        style: style,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      );
+    }
+
+    final direction = Directionality.of(context);
+    final scaler = MediaQuery.textScalerOf(context);
 
     return LayoutBuilder(
       builder: (context, constraints) {
         // textScaler 也必须带上：用户把系统字体调大时，实际渲染宽度是放大过的。
         // 不带的话「是否溢出」会按缩小后的宽度判断 —— 明明放不下却走静态分支，
         // 用户看到的就是被省略号截断的半句话。
-        final painter = TextPainter(
-          text: TextSpan(text: widget.text, style: style),
-          textDirection: Directionality.of(context),
-          textScaler: MediaQuery.textScalerOf(context),
-          maxLines: 1,
-        )..layout();
-        final textWidth = painter.size.width;
+        _ensureMeasured(
+          style: style,
+          direction: direction,
+          scaler: scaler,
+        );
+        final textWidth = _measuredWidth;
 
         if (textWidth <= constraints.maxWidth) {
           _syncTicker(overflows: false);
@@ -135,48 +186,51 @@ class _MarqueeTextState extends State<MarqueeText>
         // 纵向滚动页面中的 Column 不约束高度。OverflowBox 会取无限高度，
         // 必须先按实际字体、缩放和行高给出单行高度，再允许横向溢出。
         return SizedBox(
-          height: painter.height,
-          child: ClipRect(
-            child: AnimatedBuilder(
-              animation: _controller,
-              builder: (context, child) {
-                // 同一个 Text 摆两份（widget 是不可变配置，同实例放两处没问题）
-                final copy = child!;
-                // 相位 0→1 = 滚完一整个周期；之后（到本周期结束）停在相位 1。
-                // 相位 1 时位移正好 = 周期 → 第二个副本贴在左边缘 = 第一个字对齐。
-                final raw = _controller.value / scrollFraction;
-                final phase = raw <= 0 ? 0.0 : (raw >= 1 ? 1.0 : raw);
-                final shift = phase * period;
-                return Transform.translate(
-                  offset: Offset(-shift, 0),
-                  // ⚠️ 必须 OverflowBox 放开宽度：Row 的两份文本加起来比视口宽得多，
-                  // 不放开就会被压缩/省略号截断，跑马灯就没内容可滚。
-                  // 它自己的尺寸仍是外层给的（220 × 16.2），照旧被 ClipRect 裁掉溢出。
-                  // 父级给固定高度时静态 Text 贴顶绘制，这里也必须贴顶，
-                  // 否则滚动时文字会被垂直居中，比静态时偏下。
-                  child: OverflowBox(
-                    alignment: Alignment.topLeft,
-                    maxWidth: double.infinity,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        copy,
-                        // 两轮之间的空隙：由 SizedBox 给，所以**不依赖量出来的宽度**，
-                        // 量歪了也只是空隙大小变化，不会让停顿位置偏掉。
-                        SizedBox(width: widget.gap),
-                        copy,
-                      ],
+          height: _measuredHeight,
+          // 用 RepaintBoundary 隔离每帧位移重绘，避免标脏外层列表卡片。
+          child: RepaintBoundary(
+            child: ClipRect(
+              child: AnimatedBuilder(
+                animation: _controller,
+                builder: (context, child) {
+                  // 同一个 Text 摆两份（widget 是不可变配置，同实例放两处没问题）
+                  final copy = child!;
+                  // 相位 0→1 = 滚完一整个周期；之后（到本周期结束）停在相位 1。
+                  // 相位 1 时位移正好 = 周期 → 第二个副本贴在左边缘 = 第一个字对齐。
+                  final raw = _controller.value / scrollFraction;
+                  final phase = raw <= 0 ? 0.0 : (raw >= 1 ? 1.0 : raw);
+                  final shift = phase * period;
+                  return Transform.translate(
+                    offset: Offset(-shift, 0),
+                    // ⚠️ 必须 OverflowBox 放开宽度：Row 的两份文本加起来比视口宽得多，
+                    // 不放开就会被压缩/省略号截断，跑马灯就没内容可滚。
+                    // 它自己的尺寸仍是外层给的（220 × 16.2），照旧被 ClipRect 裁掉溢出。
+                    // 父级给固定高度时静态 Text 贴顶绘制，这里也必须贴顶，
+                    // 否则滚动时文字会被垂直居中，比静态时偏下。
+                    child: OverflowBox(
+                      alignment: Alignment.topLeft,
+                      maxWidth: double.infinity,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          copy,
+                          // 两轮之间的空隙：由 SizedBox 给，所以**不依赖量出来的宽度**，
+                          // 量歪了也只是空隙大小变化，不会让停顿位置偏掉。
+                          SizedBox(width: widget.gap),
+                          copy,
+                        ],
+                      ),
                     ),
-                  ),
-                );
-              },
-              child: Text(
-                widget.text,
-                style: style,
-                maxLines: 1,
-                softWrap: false,
-                overflow: TextOverflow.visible,
+                  );
+                },
+                child: Text(
+                  widget.text,
+                  style: style,
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.visible,
+                ),
               ),
             ),
           ),

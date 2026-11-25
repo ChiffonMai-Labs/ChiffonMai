@@ -108,91 +108,40 @@ class _LiquidGlassNavigationBarState extends State<LiquidGlassNavigationBar>
       ),
       child: ClipRRect(
         borderRadius: radius,
-        // 模糊范围严格限制在导航栏内，图标与文字在滤镜之后绘制。
-        child: BackdropFilter(
-          filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              borderRadius: radius,
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  scheme.surface.withValues(alpha: dark ? 0.78 : 0.76),
-                  scheme.surfaceContainerHigh
-                      .withValues(alpha: dark ? 0.60 : 0.48),
-                  scheme.surface.withValues(alpha: dark ? 0.70 : 0.64),
-                ],
+        // 隔离模糊层与背景反光重绘范围，并把模糊限制在导航栏内部。
+        child: RepaintBoundary(
+          child: BackdropFilter(
+            filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: radius,
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    scheme.surface.withValues(alpha: dark ? 0.78 : 0.76),
+                    scheme.surfaceContainerHigh
+                        .withValues(alpha: dark ? 0.60 : 0.48),
+                    scheme.surface.withValues(alpha: dark ? 0.70 : 0.64),
+                  ],
+                ),
+                border: Border.all(color: scheme.outlineVariant),
               ),
-              border: Border.all(color: scheme.outlineVariant),
-            ),
-            child: SizedBox(
-              height: widget.height,
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  const inset = 5.0;
-                  final tabWidth = (constraints.maxWidth - inset * 2) /
-                      widget.destinations.length;
-                  // 高亮比单个 tab 略宽，避免「曲库与数据」两端的字形外沿
-                  // 贴到甚至越过胶囊边界；两侧仍保留清晰的分隔。
-                  final lensWidth = tabWidth + 2;
-                  return Stack(
-                    children: [
-                      Positioned.fill(
-                        child: IgnorePointer(
-                          child: CustomPaint(
-                            painter: _GlassReflectionPainter(
-                              color: dark ? scheme.onSurface : scheme.surface,
-                              dark: dark,
-                            ),
-                          ),
-                        ),
-                      ),
-                      AnimatedBuilder(
-                        animation: _controller,
-                        builder: (context, _) {
-                          final stretch = math
-                                  .sin(_controller.value * math.pi) *
-                              math.min(
-                                  (_to - _from).abs() * tabWidth * 0.18, 16.0);
-                          return Positioned(
-                            left:
-                                (inset + _position * tabWidth - 1 - stretch / 2)
-                                    .clamp(
-                                        inset,
-                                        constraints.maxWidth -
-                                            inset -
-                                            lensWidth -
-                                            stretch),
-                            top: 5,
-                            width: lensWidth + stretch,
-                            height: widget.height - 10,
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(23),
-                                gradient: LinearGradient(
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                  colors: [
-                                    scheme.primary
-                                        .withValues(alpha: dark ? 0.28 : 0.18),
-                                    scheme.primary
-                                        .withValues(alpha: dark ? 0.12 : 0.07),
-                                    scheme.primary
-                                        .withValues(alpha: dark ? 0.22 : 0.14),
-                                  ],
-                                ),
-                                border:
-                                    Border.all(color: scheme.outlineVariant),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color:
-                                        scheme.primary.withValues(alpha: 0.08),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
+              child: SizedBox(
+                height: widget.height,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    const inset = 5.0;
+                    final tabWidth = (constraints.maxWidth - inset * 2) /
+                        widget.destinations.length;
+                    // 高亮比单个 tab 略宽，避免「曲库与数据」两端的字形外沿
+                    // 贴到甚至越过胶囊边界；两侧仍保留清晰的分隔。
+                    final lensWidth = tabWidth + 2;
+                    return Stack(
+                      children: [
+                        Positioned.fill(
+                          child: IgnorePointer(
+                            child: RepaintBoundary(
                               child: CustomPaint(
                                 painter: _GlassReflectionPainter(
                                   color:
@@ -201,29 +150,88 @@ class _LiquidGlassNavigationBarState extends State<LiquidGlassNavigationBar>
                                 ),
                               ),
                             ),
-                          );
-                        },
-                      ),
-                      Positioned.fill(
-                        child: Padding(
-                          padding:
-                              const EdgeInsets.symmetric(horizontal: inset),
-                          child: Material(
-                            type: MaterialType.transparency,
-                            child: Row(
-                              children: [
-                                for (var i = 0;
-                                    i < widget.destinations.length;
-                                    i++)
-                                  Expanded(child: _buildDestination(i, scheme)),
+                          ),
+                        ),
+                        AnimatedBuilder(
+                          animation: _controller,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(23),
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  scheme.primary
+                                      .withValues(alpha: dark ? 0.28 : 0.18),
+                                  scheme.primary
+                                      .withValues(alpha: dark ? 0.12 : 0.07),
+                                  scheme.primary
+                                      .withValues(alpha: dark ? 0.22 : 0.14),
+                                ],
+                              ),
+                              border: Border.all(color: scheme.outlineVariant),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: scheme.primary.withValues(alpha: 0.08),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
                               ],
+                            ),
+                            child: RepaintBoundary(
+                              child: CustomPaint(
+                                painter: _GlassReflectionPainter(
+                                  color:
+                                      dark ? scheme.onSurface : scheme.surface,
+                                  dark: dark,
+                                ),
+                              ),
+                            ),
+                          ),
+                          builder: (context, child) {
+                            final stretch = math
+                                    .sin(_controller.value * math.pi) *
+                                math.min(
+                                    (_to - _from).abs() * tabWidth * 0.18, 16.0);
+                            return Positioned(
+                              left: (inset +
+                                      _position * tabWidth -
+                                      1 -
+                                      stretch / 2)
+                                  .clamp(
+                                      inset,
+                                      constraints.maxWidth -
+                                          inset -
+                                          lensWidth -
+                                          stretch),
+                              top: 5,
+                              width: lensWidth + stretch,
+                              height: widget.height - 10,
+                              child: child!,
+                            );
+                          },
+                        ),
+                        Positioned.fill(
+                          child: Padding(
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: inset),
+                            child: Material(
+                              type: MaterialType.transparency,
+                              child: Row(
+                                children: [
+                                  for (var i = 0;
+                                      i < widget.destinations.length;
+                                      i++)
+                                    Expanded(child: _buildDestination(i, scheme)),
+                                ],
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    ],
-                  );
-                },
+                      ],
+                    );
+                  },
+                ),
               ),
             ),
           ),
