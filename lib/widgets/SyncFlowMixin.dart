@@ -208,12 +208,23 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
       if (outcome.refreshError != null && mounted) {
         await showErrorMessageDialog(
           context,
+          title: context.l10n.flowCouldNotRefreshData,
+          error: outcome.refreshError,
+          stage: '同步后刷新水鱼数据',
+          source: 'shuiyu',
           message: context.l10n.flowSyncSucceededButDataRefreshFailedP0(
               (outcome.refreshError).toString()),
         );
       }
-    } else if (outcome.message != null) {
-      await showErrorMessageDialog(context, message: outcome.message!);
+    } else if (outcome.error != null || outcome.message != null) {
+      await showErrorMessageDialog(
+        context,
+        appError: outcome.error,
+        message: outcome.message,
+        title: context.l10n.featureSyncFailed,
+        stage: '同步至水鱼',
+        source: 'shuiyu',
+      );
     }
     // 统计是异步写进 Redis 的，稍等一下再刷新，让这一行尽快反映本次结果
     SyncRouteNotifier.instance.refreshStatsSoon();
@@ -239,12 +250,23 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
       if (outcome.refreshError != null && mounted) {
         await showErrorMessageDialog(
           context,
+          title: context.l10n.flowCouldNotRefreshData,
+          error: outcome.refreshError,
+          stage: '同步后刷新落雪数据',
+          source: 'luoxue',
           message: context.l10n.flowSyncSucceededButDataRefreshFailedP0(
               (outcome.refreshError).toString()),
         );
       }
-    } else if (outcome.message != null) {
-      await showErrorMessageDialog(context, message: outcome.message!);
+    } else if (outcome.error != null || outcome.message != null) {
+      await showErrorMessageDialog(
+        context,
+        appError: outcome.error,
+        message: outcome.message,
+        title: context.l10n.featureSyncFailed,
+        stage: '同步至落雪',
+        source: 'luoxue',
+      );
     }
     SyncRouteNotifier.instance.refreshStatsSoon();
   }
@@ -271,12 +293,22 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
       if (outcome.refreshError != null && mounted) {
         await showErrorMessageDialog(
           context,
+          title: context.l10n.flowCouldNotRefreshData,
+          error: outcome.refreshError,
+          stage: '同步后刷新 AWMC 数据',
+          source: 'awmc',
           message: context.l10n.flowSyncSucceededButDataRefreshFailedP0(
               (outcome.refreshError).toString()),
         );
       }
     } else {
-      await showErrorMessageDialog(context, message: message);
+      await showErrorMessageDialog(
+        context,
+        message: message,
+        title: context.l10n.featureSyncFailed,
+        stage: '同步至 AWMC NET',
+        source: 'awmc',
+      );
     }
   }
 
@@ -540,6 +572,8 @@ mixin SyncFlowMixin<T extends StatefulWidget> on State<T> {
       } else {
         await showErrorMessageDialog(
           context,
+          title: context.l10n.featureSyncFailed,
+          stage: '多平台同步',
           message: context.l10n.flowSyncCompleteP0P1P2(
               (successes.isEmpty ? context.l10n.flowNone2 : successes.join('、'))
                   .toString(),

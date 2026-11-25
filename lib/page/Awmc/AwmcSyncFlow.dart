@@ -15,6 +15,7 @@ import '../../service/AWMC/AwmcQuickSyncService.dart';
 import '../../service/AWMC/AwmcStore.dart';
 import '../../service/PostSyncRefreshService.dart';
 import '../../service/SyncStatsService.dart';
+import '../../utils/AppError.dart';
 import '../../utils/SecureCredentialStore.dart';
 import '../../widgets/AccountAuthorizationDialog.dart';
 import '../../widgets/AppDialogs.dart';
@@ -85,6 +86,7 @@ class AwmcSyncOutcome {
 
   final String? message;
   final String? refreshError;
+  final AppError? error;
 
   const AwmcSyncOutcome({
     this.quickUpdate = false,
@@ -96,6 +98,7 @@ class AwmcSyncOutcome {
     this.readErrorMessage,
     this.message,
     this.refreshError,
+    this.error,
   });
 
   static const AwmcSyncOutcome userCancelled = AwmcSyncOutcome(cancelled: true);
@@ -395,6 +398,7 @@ class AwmcSyncFlow {
     var ok = false;
     var count = 0;
     String? errorMsg;
+    AppError? structuredError;
     AwmcCallResult? legacyResult;
 
     onBusy?.call(appL10n
@@ -409,7 +413,17 @@ class AwmcSyncFlow {
         );
         await AwmcAuditLog.record(legacyResult, note: '通过 AWMC 网关推送到水鱼');
         ok = legacyResult.ok;
-        if (!ok) errorMsg = legacyResult.displayMessage;
+        if (!ok) {
+          errorMsg = legacyResult.displayMessage;
+          structuredError = AppError(
+            code: 'SYNC-AWMC-LEGACY-FISH',
+            title: appL10n.featureSyncFailed,
+            stage: 'AWMC 网关写入水鱼',
+            source: 'shuiyu',
+            httpStatus: legacyResult.httpStatus,
+            userMessage: errorMsg,
+          );
+        }
       } else {
         final qrRes = prefetchedQrSync ??
             await AwmcQrSyncService.syncByQr(
@@ -419,6 +433,16 @@ class AwmcSyncFlow {
         if (!qrRes.ok) {
           ok = false;
           errorMsg = qrRes.errorMessage ?? appL10n.featureSyncFailed;
+          structuredError = qrRes.error ??
+              AppError(
+                code: 'SYNC-QR-FAILED',
+                title: appL10n.featureSyncFailed,
+                stage: 'AWMC 单码同步',
+                source: 'shuiyu',
+                httpStatus: qrRes.httpStatus > 0 ? qrRes.httpStatus : null,
+                requestId: qrRes.requestId,
+                userMessage: errorMsg,
+              );
         } else {
           final fishRes = qrRes.fish;
           if (fishRes != null && fishRes.ok) {
@@ -429,6 +453,17 @@ class AwmcSyncFlow {
             errorMsg = fishRes?.message ??
                 qrRes.errorMessage ??
                 appL10n.featureSyncFailed;
+            structuredError = AppError(
+              code: fishRes?.code != null
+                  ? 'SYNC-${fishRes!.code}'
+                  : 'SYNC-FISH-TARGET',
+              title: appL10n.featureSyncFailed,
+              stage: 'AWMC 同步写入水鱼',
+              source: 'shuiyu',
+              httpStatus: fishRes?.httpStatus,
+              requestId: qrRes.requestId,
+              userMessage: errorMsg,
+            );
           }
         }
       }
@@ -442,6 +477,16 @@ class AwmcSyncFlow {
         if (!qrRes.ok) {
           ok = false;
           errorMsg = qrRes.errorMessage ?? appL10n.featureSyncFailed;
+          structuredError = qrRes.error ??
+              AppError(
+                code: 'SYNC-QR-FAILED',
+                title: appL10n.featureSyncFailed,
+                stage: 'AWMC 单码同步',
+                source: 'luoxue',
+                httpStatus: qrRes.httpStatus > 0 ? qrRes.httpStatus : null,
+                requestId: qrRes.requestId,
+                userMessage: errorMsg,
+              );
         } else {
           final uploadRes = await AwmcQrSyncService.uploadLxScores(
             qrRes.lxScores,
@@ -453,9 +498,16 @@ class AwmcSyncFlow {
           ok = true;
           count = uploadRes.submitted;
         }
-      } catch (e) {
+      } catch (e, stack) {
         ok = false;
-        errorMsg = AwmcApiService.redact('$e').replaceFirst('Bad state: ', '');
+        structuredError = AppErrorMapper.from(
+          e,
+          stack: stack,
+          title: appL10n.featureSyncFailed,
+          stage: 'AWMC 同步写入落雪',
+          source: 'luoxue',
+        );
+        errorMsg = structuredError.userMessage;
       }
     }
 
@@ -486,6 +538,7 @@ class AwmcSyncFlow {
       cachedRecords: count,
       message: ok ? null : appL10n.flowSyncFailedP0((errorMsg ?? '').toString()),
       refreshError: refreshError,
+      error: ok ? null : structuredError,
     );
   }
 

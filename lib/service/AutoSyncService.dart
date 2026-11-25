@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../api/ApiUrls.dart';
 import '../constant/CacheKeyConstant.dart';
 import '../utils/ApiClient.dart';
+import '../utils/AppError.dart';
 import '../utils/SecureCredentialStore.dart';
 import 'SyncStatsService.dart';
 import 'AWMC/AwmcQuickIdentityStore.dart';
@@ -22,7 +23,16 @@ import '../utils/CurrentDataSourceNotifier.dart';
 class AutoSyncException implements Exception {
   final String message;
   final String? code;
-  const AutoSyncException(this.message, {this.code});
+  final String? requestId;
+  final int? httpStatus;
+  final String? stage;
+  const AutoSyncException(
+    this.message, {
+    this.code,
+    this.requestId,
+    this.httpStatus,
+    this.stage,
+  });
   @override
   String toString() => message;
 }
@@ -476,11 +486,18 @@ class AutoSyncService {
           data['task'] is! Map ||
           data['task']['enabled'] is! bool) {
         final code = data is Map ? data['error']?.toString() : null;
+        final requestId = ApiClient.requestIdOf(response);
         if (code == 'invalid_config') {
           debugPrint('[AutoSync] ${registration.platform.name} $method '
-              'HTTP ${response.statusCode}: invalid_config');
+              'HTTP ${response.statusCode}: invalid_config req=${requestId ?? '-'}');
         }
-        throw AutoSyncException(errorMessage(code), code: code);
+        throw AutoSyncException(
+          errorMessage(code),
+          code: code,
+          requestId: requestId,
+          httpStatus: response.statusCode,
+          stage: '自动同步 $method',
+        );
       }
       final task =
           AutoSyncTask.fromJson(Map<String, dynamic>.from(data['task']));
@@ -504,9 +521,13 @@ class AutoSyncService {
       return task;
     } on AutoSyncException {
       rethrow;
-    } catch (_) {
+    } catch (error) {
       // 不把 HTTP 异常或服务端原始响应带到 UI/日志中。
-      throw AutoSyncException(appL10n.svcTheAutoSyncServiceIsUnavailableCheck);
+      throw AutoSyncException(
+        appL10n.svcTheAutoSyncServiceIsUnavailableCheck,
+        requestId: AppErrorRegistry.recentRequestId(host: 'chiffonmai.cloud'),
+        stage: '自动同步 $method',
+      );
     }
   }
 
@@ -697,7 +718,13 @@ class AutoSyncService {
         token == null ||
         !RegExp(r'^[A-Za-z0-9_-]{43}$').hasMatch(token)) {
       final code = data is Map ? data['error']?.toString() : null;
-      throw AutoSyncException(errorMessage(code), code: code);
+      throw AutoSyncException(
+        errorMessage(code),
+        code: code,
+        requestId: ApiClient.requestIdOf(response),
+        httpStatus: response.statusCode,
+        stage: '找回自动同步任务',
+      );
     }
     await _store(
         platform,

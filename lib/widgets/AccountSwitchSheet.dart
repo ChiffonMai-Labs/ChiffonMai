@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../service/AccountStore.dart';
 import '../service/AccountSwitchService.dart';
+import '../utils/AppError.dart';
 import '../utils/CurrentDataSourceNotifier.dart';
 import 'FishIcon.dart';
 import 'MarqueeText.dart';
@@ -174,10 +175,9 @@ class _AccountSwitchSheetState extends State<_AccountSwitchSheet> {
           context.l10n
               .flowClearedP0AccountData(appLocalizeLabel(source.displayName)),
           tone: AppToastTone.success);
-    } catch (e) {
+    } catch (e, stack) {
       if (!mounted) return;
-      AppToast.show(context.l10n.flowCouldNotClearP0(e.toString()),
-          tone: AppToastTone.error);
+      AppToast.showError(e, stack: stack, stage: '清除账号数据');
     } finally {
       if (mounted) {
         setState(() {
@@ -230,8 +230,15 @@ class _AccountSwitchSheetState extends State<_AccountSwitchSheet> {
         Navigator.of(context).pop();
         break;
       case SwitchOutcome.failed:
-        AppToast.show(context.l10n.flowAccountSwitchFailedAttemptedToRestoreThe,
-            tone: AppToastTone.error);
+        AppToast.showError(
+          AppError(
+            code: 'DATA-ACCOUNT-SWITCH',
+            userMessage: context.l10n.flowAccountSwitchFailedAttemptedToRestoreThe,
+            stage: '切换账号',
+            source: source.key,
+          ),
+          stage: '切换账号',
+        );
         break;
       case SwitchOutcome.busy:
         AppToast.show(context.l10n.flowSwitchingPleaseWait,

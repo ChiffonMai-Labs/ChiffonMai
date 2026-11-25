@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../api/ApiUrls.dart';
 import '../../utils/ApiClient.dart';
+import '../../utils/SensitiveRedactor.dart';
 
 /// AWMC 网关代理客户端。
 ///
@@ -371,24 +372,11 @@ class AwmcApiService {
   ///
   /// 官方文档要求「切勿在日志中记录二维码与第三方 Token」，
   /// 所以本文件内所有日志、错误文案都必须经过它。
-  static String redact(String input) {
-    var out = input;
-    out = out.replaceAllMapped(
-        RegExp(r'gw_[A-Za-z0-9]+'), (m) => maskSecret(m.group(0)));
-    out = out.replaceAllMapped(
-        RegExp(r'SGWCMAID[A-Za-z0-9]+'), (m) => maskSecret(m.group(0)));
-    // 水鱼/落雪 之类的长 token
-    out = out.replaceAllMapped(
-        RegExp(r'\b[A-Za-z0-9_\-]{32,}\b'), (m) => maskSecret(m.group(0)));
-    return out;
-  }
+  static String redact(String input) => SensitiveRedactor.redact(input);
 
   /// 只保留前 6 位 + 长度，用于 UI 展示。
-  static String maskSecret(String? secret) {
-    if (secret == null || secret.isEmpty) return '(未设置)';
-    if (secret.length <= 8) return '****(len=${secret.length})';
-    return '${secret.substring(0, 6)}…(len=${secret.length})';
-  }
+  static String maskSecret(String? secret) =>
+      SensitiveRedactor.maskSecret(secret);
 }
 
 /// 一次 AWMC 调用的结果。

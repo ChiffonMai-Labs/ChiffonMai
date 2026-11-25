@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../constant/CacheKeyConstant.dart';
 import '../entity/LuoXue/Collection.dart';
 import '../utils/ApiClient.dart';
+import '../utils/AppError.dart';
 import '../utils/CurrentDataSourceNotifier.dart';
 import '../utils/SecureCredentialStore.dart';
 import 'AccountStore.dart';
@@ -93,8 +94,14 @@ class CommunityAvatarStore extends ValueNotifier<AvatarSyncState> {
       _read(prefs, _key(player));
   Future<void> _persist(
       SharedPreferences prefs, String key, Map<String, dynamic> entry) async {
-    if (!await prefs.setString(key, jsonEncode(entry)))
-      throw StateError('无法保存装扮');
+    if (!await prefs.setString(key, jsonEncode(entry))) {
+      throw AppError(
+        code: 'DATA-AVATAR-SAVE',
+        userMessage: '无法保存装扮，请检查存储空间后重试',
+        stage: '保存社区装扮',
+        source: 'local',
+      ).asStateError();
+    }
   }
 
   Set<String> _dirty(Map<String, dynamic> entry) => entry['dirtyFields'] is List
@@ -513,10 +520,25 @@ class CommunityAvatarStore extends ValueNotifier<AvatarSyncState> {
       }
       final readBody = jsonDecode(utf8.decode(get.bodyBytes)) as Map;
       if (readBody['success'] != true || readBody['data'] is! Map) {
-        throw StateError('装扮读取未被确认');
+        throw AppError(
+          code: 'SRV-AVATAR-UNCONFIRMED',
+          userMessage: '装扮读取未被服务端确认，请稍后重试',
+          stage: '读取云端装扮',
+          source: 'chiffonmai',
+          httpStatus: get.statusCode,
+          requestId: ApiClient.requestIdOf(get),
+        ).asStateError();
       }
       var remote = Map<String, dynamic>.from(readBody['data'] as Map);
-      if (remote['playerId'] != player) throw StateError('装扮账号不匹配');
+      if (remote['playerId'] != player) {
+        throw AppError(
+          code: 'AUTH-AVATAR-MISMATCH',
+          userMessage: '装扮账号不匹配，请重新登录后再试',
+          stage: '校验装扮账号归属',
+          source: 'chiffonmai',
+          retryable: false,
+        ).asStateError();
+      }
       await _restorePendingTravel(prefs, player, remote);
       await _writes;
       entry = _entry(prefs, player);
@@ -553,7 +575,17 @@ class CommunityAvatarStore extends ValueNotifier<AvatarSyncState> {
           final latest = _entry(prefs, player);
           if (result.statusCode == 409 && body['data'] is Map) {
             remote = Map<String, dynamic>.from(body['data'] as Map);
-            if (remote['playerId'] != player) throw StateError('装扮账号不匹配');
+            if (remote['playerId'] != player) {
+              throw AppError(
+                code: 'AUTH-AVATAR-MISMATCH',
+                userMessage: '装扮账号不匹配，请重新登录后再试',
+                stage: '更新云端装扮',
+                source: 'chiffonmai',
+                httpStatus: result.statusCode,
+                requestId: ApiClient.requestIdOf(result),
+                retryable: false,
+              ).asStateError();
+            }
             entry = latest;
             continue;
           }

@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../constant/CacheKeyConstant.dart';
+import '../utils/AppError.dart';
 import '../utils/CurrentDataSourceNotifier.dart';
 import 'AWMC/AwmcQuickIdentityStore.dart';
 
@@ -178,7 +179,14 @@ class AccountStore {
   }
 
   static Future<void> _requireWrite(Future<bool> result) async {
-    if (!await result) throw StateError(appL10n.svcCouldNotWriteTheAccountArchive);
+    if (!await result) {
+      throw AppError(
+        code: 'DATA-ACCOUNT-WRITE',
+        userMessage: appL10n.svcCouldNotWriteTheAccountArchive,
+        stage: '写入账号存档',
+        source: 'local',
+      ).asStateError();
+    }
   }
 
   /// 账号列表每次写入后递增，供「切换账号」下方的状态标签即时刷新。
@@ -289,7 +297,14 @@ class AccountStore {
         }
       });
       for (final result in await Future.wait(writes)) {
-        if (!result) throw StateError(appL10n.svcCouldNotRestoreTheAccountArchive);
+        if (!result) {
+          throw AppError(
+            code: 'DATA-ACCOUNT-RESTORE',
+            userMessage: appL10n.svcCouldNotRestoreTheAccountArchive,
+            stage: '恢复账号存档',
+            source: source,
+          ).asStateError();
+        }
       }
     } catch (e) {
       debugPrint('读账号存档失败($archiveKey): $e');
@@ -379,12 +394,26 @@ class AccountStore {
       }
     }
     if (owner != accountId || raw == null) {
-      throw StateError(appL10n.svcRefreshTheTargetP0AccountSData((appLocalizeLabel(source.displayName)).toString()));
+      throw AppError(
+        code: 'DATA-ACCOUNT-NEED-REFRESH',
+        userMessage: appL10n.svcRefreshTheTargetP0AccountSData(
+            (appLocalizeLabel(source.displayName)).toString()),
+        stage: '校验目标账号缓存',
+        source: source.key,
+        retryable: false,
+      ).asStateError();
     }
     final data = jsonDecode(raw);
     final records = data is Map ? data['records'] : null;
-    if (records is! List)
-      throw StateError(appL10n.svcTheP0ScoreCacheIsInvalidRefresh((appLocalizeLabel(source.displayName)).toString()));
+    if (records is! List) {
+      throw AppError(
+        code: 'DATA-ACCOUNT-CACHE-INVALID',
+        userMessage: appL10n.svcTheP0ScoreCacheIsInvalidRefresh(
+            (appLocalizeLabel(source.displayName)).toString()),
+        stage: '校验目标账号成绩缓存',
+        source: source.key,
+      ).asStateError();
+    }
     return records;
   }
 

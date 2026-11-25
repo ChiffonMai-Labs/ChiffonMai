@@ -18,6 +18,7 @@ import 'PaiziProgressService.dart';
 import 'PersonalizedScoreService.dart';
 import 'PlayerExperienceService.dart';
 import '../utils/AppTaskActivity.dart';
+import '../utils/AppError.dart';
 
 enum SwitchOutcome { switched, noCache, sameSource, busy, failed }
 
@@ -100,7 +101,12 @@ class AccountSwitchService {
     }
     if (!await prefs.setString(
         CacheKeyConstant.accountRotationPending, json.encode(checkpoint))) {
-      throw StateError(appL10n.svcCouldNotSaveAccountRecoveryInformation);
+      throw AppError(
+        code: 'DATA-ACCOUNT-RECOVERY',
+        userMessage: appL10n.svcCouldNotSaveAccountRecoveryInformation,
+        stage: '保存账号恢复点',
+        source: 'local',
+      ).asStateError();
     }
   }
 
@@ -149,7 +155,13 @@ class AccountSwitchService {
     final previous = CurrentDataSourceNotifier.instance.value;
     try {
       if (guard != null && !guard()) {
-        throw StateError(appL10n.svcTheAccountChangedSoTheDataRefresh);
+        throw AppError(
+          code: 'AUTH-ACCOUNT-CHANGED',
+          userMessage: appL10n.svcTheAccountChangedSoTheDataRefresh,
+          stage: '校验刷新账号归属',
+          source: source.key,
+          retryable: false,
+        ).asStateError();
       }
       revision++;
       await AccountStore.writeActiveSlotToArchive(previous.key);
@@ -184,17 +196,36 @@ class AccountSwitchService {
     if (!_busy ||
         Zone.current[_refreshScope] != source ||
         CurrentDataSourceNotifier.instance.value != source) {
-      throw StateError('成绩写入缺少对应账号的刷新事务');
+      throw AppError(
+        code: 'DATA-ACCOUNT-TX',
+        userMessage: '成绩写入缺少对应账号的刷新事务，请重新刷新后再试',
+        stage: '校验账号刷新事务',
+        source: source.key,
+      ).asStateError();
     }
   }
 
   /// 身份已从本次响应确认后调用。换人时丢弃旧人的派生缓存和评论身份。
   static Future<void> bindIdentity(RefreshDataSource source, String id) async {
     requireRefresh(source);
-    if (id.isEmpty) throw StateError('账号 ID 不能为空');
+    if (id.isEmpty) {
+      throw AppError(
+        code: 'DATA-ACCOUNT-ID',
+        userMessage: '账号 ID 不能为空',
+        stage: '绑定刷新账号身份',
+        source: source.key,
+        retryable: false,
+      ).asStateError();
+    }
     final expected = Zone.current[_expectedRefreshIdentity] as String?;
     if (expected != null && expected.isNotEmpty && id != expected) {
-      throw StateError(appL10n.svcTheReturnedDataBelongsToAnotherAccount);
+      throw AppError(
+        code: 'AUTH-ACCOUNT-MISMATCH',
+        userMessage: appL10n.svcTheReturnedDataBelongsToAnotherAccount,
+        stage: '校验返回账号身份',
+        source: source.key,
+        retryable: false,
+      ).asStateError();
     }
     final prefs = await SharedPreferences.getInstance();
     final oldId = RefreshDataSource.parseUserIdMarker(
@@ -267,13 +298,24 @@ class AccountSwitchService {
           final ok = entry.value == null
               ? await prefs.remove(entry.key)
               : await prefs.setString(entry.key, entry.value as String);
-          if (!ok)
-            throw StateError(appL10n.svcCouldNotRollBackTheAccountArchive);
+          if (!ok) {
+            throw AppError(
+              code: 'DATA-ACCOUNT-ROLLBACK',
+              userMessage: appL10n.svcCouldNotRollBackTheAccountArchive,
+              stage: '回滚账号存档',
+              source: target,
+            ).asStateError();
+          }
         }
       }
     }
     if (!RefreshDataSource.values.any((s) => s.key == key)) {
-      throw StateError(appL10n.svcCouldNotIdentifyTheAccountToRestore);
+      throw AppError(
+        code: 'DATA-ACCOUNT-ROLLBACK',
+        userMessage: appL10n.svcCouldNotIdentifyTheAccountToRestore,
+        stage: '识别待恢复账号',
+        source: 'local',
+      ).asStateError();
     }
     await _activate(RefreshDataSource.fromKey(key));
     await _finish();
@@ -309,7 +351,12 @@ class AccountSwitchService {
           ? RefreshDataSource.shuiyu
           : RefreshDataSource.defaultSource;
       if (!await prefs.setString(CacheKeyConstant.lastDataSource, source.key)) {
-        throw StateError('保存当前数据源失败');
+        throw AppError(
+          code: 'DATA-ACCOUNT-SOURCE-SAVE',
+          userMessage: '保存当前数据源设置失败，请检查存储空间后重试',
+          stage: '初始化数据源设置',
+          source: source.key,
+        ).asStateError();
       }
     }
     await CurrentDataSourceNotifier.load();
@@ -329,7 +376,12 @@ class AccountSwitchService {
         rawOwners =
             json.encode({for (final e in metas.entries) e.key: e.value.id});
         if (!await prefs.setString(ownersKey, rawOwners)) {
-          throw StateError(appL10n.svcCouldNotSaveHistoryMigrationInformation);
+          throw AppError(
+            code: 'DATA-ACCOUNT-HISTORY-MIGRATE',
+            userMessage: appL10n.svcCouldNotSaveHistoryMigrationInformation,
+            stage: '迁移账号历史归属',
+            source: 'local',
+          ).asStateError();
         }
       }
       final owners = Map<String, dynamic>.from(json.decode(rawOwners) as Map);

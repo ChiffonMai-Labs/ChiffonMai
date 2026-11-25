@@ -361,7 +361,7 @@ class _AutoSyncPageState extends State<AutoSyncPage>
               : context.l10n.flowP0AutoSyncDisabledHostedCredentialsDeleted(
                   appLocalizeLabel(platform.label)),
           tone: AppToastTone.success);
-    } catch (error) {
+    } catch (error, stack) {
       if (error is! AutoSyncException) {
         debugPrint(
             '[AutoSync] 设置 ${platform.name} 自动同步失败: ${error.runtimeType}');
@@ -374,15 +374,21 @@ class _AutoSyncPageState extends State<AutoSyncPage>
         await showErrorMessageDialog(
           context,
           title: context.l10n.flowAutoSyncTemporarilyLimited,
-          message: error.message,
+          error: error,
+          stage: '配置自动同步',
+          source: platform.name,
         );
         return;
       }
-      AppToast.show(
-          error is AutoSyncException
-              ? error.message
-              : context.l10n.flowCouldNotConfigureAutoSyncCheckYour,
-          tone: AppToastTone.error);
+      AppToast.showError(
+        error is AutoSyncException
+            ? error
+            : context.l10n.flowCouldNotConfigureAutoSyncCheckYour,
+        stack: stack,
+        title: context.l10n.featureAutoSync,
+        stage: '配置自动同步',
+        source: platform.name,
+      );
     } finally {
       if (mounted) {
         await _load();

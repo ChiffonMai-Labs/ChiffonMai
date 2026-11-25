@@ -11,6 +11,7 @@ import '../../manager/DivingFish/DivingFishOAuthManager.dart';
 import '../../manager/DivingFishProbeManager.dart';
 import '../../manager/LuoXue/LuoXueOAuthManager.dart';
 import '../../utils/ApiClient.dart';
+import '../../utils/AppError.dart';
 import '../../utils/AppTaskActivity.dart';
 import '../../utils/ChartDifficulty.dart';
 import '../../utils/QuotaRetryHint.dart';
@@ -140,6 +141,8 @@ class AwmcQrSyncResponse {
   final List<AwmcParsedScore> lxScores;
   final String? code;
   final String? errorMessage;
+  final String? requestId;
+  final AppError? error;
 
   const AwmcQrSyncResponse({
     required this.ok,
@@ -153,6 +156,8 @@ class AwmcQrSyncResponse {
     this.lxScores = const [],
     this.code,
     this.errorMessage,
+    this.requestId,
+    this.error,
   });
 
   bool get fishConsentRequired =>
@@ -200,6 +205,8 @@ class AwmcQuickServerResponse {
   final List<AwmcParsedScore> lxScores;
   final String? code;
   final String? errorMessage;
+  final String? requestId;
+  final AppError? error;
 
   const AwmcQuickServerResponse({
     required this.ok,
@@ -211,6 +218,8 @@ class AwmcQuickServerResponse {
     this.lxScores = const [],
     this.code,
     this.errorMessage,
+    this.requestId,
+    this.error,
   });
 
   bool get fishConsentRequired =>
@@ -330,6 +339,13 @@ class AwmcQrSyncService {
 
           if (!ok) {
             final msg = _formatError(response, decoded, code);
+            final parsedError = ApiClient.parseError(
+              response,
+              title: appL10n.featureSyncFailed,
+              stage: 'AWMC 单码同步',
+              fallbackCode: code != null ? 'SYNC-$code' : 'SYNC-QR-FAILED',
+            );
+            final errWithMsg = parsedError.copyWith(userMessage: msg);
             unawaited(AwmcAuditLog.record(
               AwmcCallResult(
                 method: 'POST',
@@ -352,6 +368,8 @@ class AwmcQrSyncService {
               elapsedMs: elapsed,
               code: code,
               errorMessage: msg,
+              requestId: errWithMsg.requestId,
+              error: errWithMsg,
             );
           }
 
@@ -411,10 +429,16 @@ class AwmcQrSyncService {
             awmc: awmcRes,
             lxScores: lxList,
           );
-        } on TimeoutException {
+        } on TimeoutException catch (e, stack) {
           final elapsed = sw.elapsedMilliseconds;
           final msg =
               appL10n.flowRequestTimedOutP0S(_syncTimeout.inSeconds.toString());
+          final mapped = AppErrorMapper.from(
+            e,
+            stack: stack,
+            title: appL10n.featureSyncFailed,
+            stage: 'AWMC 单码同步',
+          ).copyWith(userMessage: msg);
           unawaited(AwmcAuditLog.record(
             AwmcCallResult.failure(
               method: 'POST',
@@ -428,13 +452,21 @@ class AwmcQrSyncService {
             ok: false,
             elapsedMs: elapsed,
             errorMessage: msg,
+            requestId: mapped.requestId,
+            error: mapped,
           );
-        } catch (e) {
+        } catch (e, stack) {
           final elapsed = sw.elapsedMilliseconds;
           final raw = e.toString();
           final msg = raw.contains('Invalid media type')
               ? appL10n.svcTheGatewayCouldNotReachItsOrigin
               : appL10n.svcRequestFailedP0(AwmcApiService.redact(raw));
+          final mapped = AppErrorMapper.from(
+            e,
+            stack: stack,
+            title: appL10n.featureSyncFailed,
+            stage: 'AWMC 单码同步',
+          ).copyWith(userMessage: msg);
           unawaited(AwmcAuditLog.record(
             AwmcCallResult.failure(
               method: 'POST',
@@ -448,6 +480,8 @@ class AwmcQrSyncService {
             ok: false,
             elapsedMs: elapsed,
             errorMessage: msg,
+            requestId: mapped.requestId,
+            error: mapped,
           );
         }
       });
@@ -511,6 +545,12 @@ class AwmcQrSyncService {
 
           if (!ok && (decoded?['results'] is! Map || response.statusCode >= 400)) {
             final msg = _formatError(response, decoded, code);
+            final parsedError = ApiClient.parseError(
+              response,
+              title: appL10n.featureSyncFailed,
+              stage: 'AWMC 快速同步',
+              fallbackCode: code != null ? 'SYNC-$code' : 'SYNC-QUICK-FAILED',
+            ).copyWith(userMessage: msg);
             unawaited(AwmcAuditLog.record(
               AwmcCallResult(
                 method: 'POST',
@@ -533,6 +573,8 @@ class AwmcQrSyncService {
               elapsedMs: elapsed,
               code: code,
               errorMessage: msg,
+              requestId: parsedError.requestId,
+              error: parsedError,
             );
           }
 
@@ -582,10 +624,16 @@ class AwmcQrSyncService {
             awmc: awmcRes,
             lxScores: lxList,
           );
-        } on TimeoutException {
+        } on TimeoutException catch (e, stack) {
           final elapsed = sw.elapsedMilliseconds;
           final msg =
               appL10n.flowRequestTimedOutP0S(_syncTimeout.inSeconds.toString());
+          final mapped = AppErrorMapper.from(
+            e,
+            stack: stack,
+            title: appL10n.featureSyncFailed,
+            stage: 'AWMC 快速同步',
+          ).copyWith(userMessage: msg);
           unawaited(AwmcAuditLog.record(
             AwmcCallResult.failure(
               method: 'POST',
@@ -599,13 +647,21 @@ class AwmcQrSyncService {
             ok: false,
             elapsedMs: elapsed,
             errorMessage: msg,
+            requestId: mapped.requestId,
+            error: mapped,
           );
-        } catch (e) {
+        } catch (e, stack) {
           final elapsed = sw.elapsedMilliseconds;
           final raw = e.toString();
           final msg = raw.contains('Invalid media type')
               ? appL10n.svcTheGatewayCouldNotReachItsOrigin
               : appL10n.svcRequestFailedP0(AwmcApiService.redact(raw));
+          final mapped = AppErrorMapper.from(
+            e,
+            stack: stack,
+            title: appL10n.featureSyncFailed,
+            stage: 'AWMC 快速同步',
+          ).copyWith(userMessage: msg);
           unawaited(AwmcAuditLog.record(
             AwmcCallResult.failure(
               method: 'POST',
@@ -619,6 +675,8 @@ class AwmcQrSyncService {
             ok: false,
             elapsedMs: elapsed,
             errorMessage: msg,
+            requestId: mapped.requestId,
+            error: mapped,
           );
         }
       });
@@ -649,7 +707,12 @@ class AwmcQrSyncService {
   }) =>
       AppTaskActivity.run(() async {
         if (scores.isEmpty) {
-          throw StateError(appL10n.svcNoValidScoresWereReadNothingWas);
+          throw AppError(
+            code: 'DATA-SYNC-NO-SCORES',
+            userMessage: appL10n.svcNoValidScoresWereReadNothingWas,
+            stage: '读取待上传成绩',
+            source: 'luoxue',
+          ).asStateError();
         }
         onProgress?.call(
             0.55,
@@ -674,7 +737,12 @@ class AwmcQrSyncService {
           });
         }
         if (payload.isEmpty) {
-          throw StateError(appL10n.svcNoValidScoresMatchedTheLocalSong);
+          throw AppError(
+            code: 'DATA-SYNC-NO-MATCH',
+            userMessage: appL10n.svcNoValidScoresMatchedTheLocalSong,
+            stage: '匹配落雪曲库',
+            source: 'luoxue',
+          ).asStateError();
         }
 
         var oauthToken = await LuoXueOAuthManager().getAccessToken();
@@ -685,7 +753,14 @@ class AwmcQrSyncService {
                   CacheKeyConstant.probeLxnsImportToken))
               ?.trim();
           if (apiKey == null || apiKey.isEmpty) {
-            throw StateError(appL10n.svcYourLXNSAccountIsNotAuthorizedComplete);
+            throw AppError(
+              code: 'AUTH-LXNS-NOT-AUTHORIZED',
+              userMessage: appL10n.svcYourLXNSAccountIsNotAuthorizedComplete,
+              stage: '校验落雪同步授权',
+              source: 'luoxue',
+              suggestion: appL10n.errSuggestionReauth,
+              retryable: false,
+            ).asStateError();
           }
         }
 
@@ -722,20 +797,45 @@ class AwmcQrSyncService {
           } catch (_) {}
 
           if (response.statusCode == 401) {
-            throw StateError(appL10n.svcLXNSAuthorizationExpiredOrTheKeyIs);
+            throw AppError(
+              code: 'AUTH-LXNS-EXPIRED',
+              userMessage: appL10n.svcLXNSAuthorizationExpiredOrTheKeyIs,
+              stage: '上传成绩至落雪',
+              source: 'luoxue',
+              httpStatus: 401,
+              requestId: ApiClient.requestIdOf(response),
+              suggestion: appL10n.errSuggestionReauth,
+              retryable: false,
+            ).asStateError();
           }
           if (response.statusCode == 403) {
-            throw StateError(
-                appL10n.svcLXNSRejectedThisWriteInsufficientPermissions);
+            throw AppError(
+              code: 'AUTH-LXNS-FORBIDDEN',
+              userMessage:
+                  appL10n.svcLXNSRejectedThisWriteInsufficientPermissions,
+              stage: '上传成绩至落雪',
+              source: 'luoxue',
+              httpStatus: 403,
+              requestId: ApiClient.requestIdOf(response),
+              suggestion: appL10n.errSuggestionReauth,
+              retryable: false,
+            ).asStateError();
           }
           if (response.statusCode < 200 ||
               response.statusCode >= 300 ||
               decoded == null ||
               decoded['success'] != true) {
-            throw StateError(appL10n.svcUploadToP0FailedHTTPP1Remaining(
-              appLocalizeLabel(SyncPlatform.luoXue.label),
-              response.statusCode.toString(),
-            ));
+            throw AppError(
+              code: 'SRV-LXNS-UPLOAD',
+              userMessage: appL10n.svcUploadToP0FailedHTTPP1Remaining(
+                appLocalizeLabel(SyncPlatform.luoXue.label),
+                response.statusCode.toString(),
+              ),
+              stage: '上传成绩至落雪',
+              source: 'luoxue',
+              httpStatus: response.statusCode,
+              requestId: ApiClient.requestIdOf(response),
+            ).asStateError();
           }
           submitted += batch.length;
         }
@@ -774,8 +874,15 @@ class AwmcQrSyncService {
     }
     if (data is Map) data = data['songs'];
     if (data is! List) {
-      throw StateError(appL10n.svcCouldNotReadTheP0SongLibrary(
-          appLocalizeLabel(SyncPlatform.luoXue.label)));
+      throw AppError(
+        code: 'SRV-LXNS-SONG-LIST',
+        userMessage: appL10n.svcCouldNotReadTheP0SongLibrary(
+            appLocalizeLabel(SyncPlatform.luoXue.label)),
+        stage: '读取落雪曲库',
+        source: 'luoxue',
+        httpStatus: response.statusCode != 200 ? response.statusCode : null,
+        requestId: ApiClient.requestIdOf(response),
+      ).asStateError();
     }
     final charts = <String>{};
     for (final song in data.whereType<Map>()) {
@@ -797,8 +904,13 @@ class AwmcQrSyncService {
       }
     }
     if (charts.isEmpty) {
-      throw StateError(appL10n.svcTheP0SongLibraryIsEmptyNo(
-          appLocalizeLabel(SyncPlatform.luoXue.label)));
+      throw AppError(
+        code: 'DATA-LXNS-SONG-LIST-EMPTY',
+        userMessage: appL10n.svcTheP0SongLibraryIsEmptyNo(
+            appLocalizeLabel(SyncPlatform.luoXue.label)),
+        stage: '校验落雪曲库',
+        source: 'luoxue',
+      ).asStateError();
     }
     return charts;
   }

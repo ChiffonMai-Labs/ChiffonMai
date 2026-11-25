@@ -7,7 +7,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 
 import 'AppHeader.dart';
 import '../utils/AppDesignTokens.dart';
-import '../utils/AppTheme.dart';
+import '../utils/AppError.dart';
 import '../widgets/AppDialogs.dart';
 import '../widgets/AppToast.dart';
 
@@ -136,8 +136,15 @@ class QrQuickFillButtons extends StatelessWidget {
         }
         final qrText = barcodes.barcodes.first.rawValue ?? '';
         if (qrText.isEmpty) {
-          AppToast.show(context.l10n.flowCouldNotReadQRContentFromThe,
-              tone: AppToastTone.error);
+          AppToast.showError(
+            AppError(
+              code: 'DATA-QR-DECODE',
+              userMessage: context.l10n.flowCouldNotReadQRContentFromThe,
+              stage: '识别相册二维码',
+              retryable: false,
+            ),
+            stage: '识别相册二维码',
+          );
           return;
         }
         _fill(qrText);
@@ -146,10 +153,9 @@ class QrQuickFillButtons extends StatelessWidget {
       } finally {
         scanner.dispose();
       }
-    } catch (e) {
+    } catch (e, stack) {
       if (!context.mounted) return;
-      AppToast.show(context.l10n.flowRecognitionFailedP0((e).toString()),
-          tone: AppToastTone.error);
+      AppToast.showError(e, stack: stack, stage: '识别相册二维码');
     }
   }
 
@@ -162,10 +168,9 @@ class QrQuickFillButtons extends StatelessWidget {
       _fill(result);
       AppToast.show(context.l10n.flowQRCodeDetectedAndFilledIn,
           tone: AppToastTone.success);
-    } catch (e) {
+    } catch (e, stack) {
       if (!context.mounted) return;
-      AppToast.show(context.l10n.flowScanFailedP0((e).toString()),
-          tone: AppToastTone.error);
+      AppToast.showError(e, stack: stack, stage: '扫码识别二维码');
     }
   }
 

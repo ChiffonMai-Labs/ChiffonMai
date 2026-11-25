@@ -11,6 +11,7 @@ import '../../utils/ChartDifficulty.dart';
 import '../../manager/DivingFish/MaimaiMusicDataManager.dart';
 import '../../manager/LuoXue/LuoXueOAuthManager.dart';
 import '../../utils/ApiClient.dart';
+import '../../utils/AppError.dart';
 import '../../utils/CurrentDataSourceNotifier.dart';
 import '../../utils/SecureCredentialStore.dart';
 import '../AccountStore.dart';
@@ -76,19 +77,37 @@ class AwmcQuickSyncService {
     if (platform == SyncPlatform.divingFish) {
       if (requireData) {
         if (account == null || account.id.isEmpty) {
-          throw StateError(appL10n.svcSetUpYourP0AccountFirst(
-              (appLocalizeLabel(platform.label)).toString()));
+          throw AppError(
+            code: 'AUTH-SYNC-ACCOUNT-MISSING',
+            userMessage: appL10n.svcSetUpYourP0AccountFirst(
+                (appLocalizeLabel(platform.label)).toString()),
+            stage: '校验快速同步账号',
+            source: source.key,
+            retryable: false,
+          ).asStateError();
         }
         if (!account.hasData) {
-          throw StateError(appL10n.svcRefreshYourP0AccountDataBeforeUsing(
-              (appLocalizeLabel(platform.label)).toString()));
+          throw AppError(
+            code: 'DATA-SYNC-NEED-REFRESH',
+            userMessage: appL10n.svcRefreshYourP0AccountDataBeforeUsing(
+                (appLocalizeLabel(platform.label)).toString()),
+            stage: '校验快速同步缓存',
+            source: source.key,
+            retryable: false,
+          ).asStateError();
         }
       }
       final qq = AwmcQrSyncService.normalizeDivingFishQq(storedId) ??
           await AwmcQrSyncService.resolveDivingFishQq();
       if (qq == null || qq.isEmpty) {
-        throw StateError(appL10n.svcSetUpYourP0AccountFirst(
-            (appLocalizeLabel(platform.label)).toString()));
+        throw AppError(
+          code: 'AUTH-SYNC-ACCOUNT-MISSING',
+          userMessage: appL10n.svcSetUpYourP0AccountFirst(
+              (appLocalizeLabel(platform.label)).toString()),
+          stage: '校验快速同步账号',
+          source: source.key,
+          retryable: false,
+        ).asStateError();
       }
       return AwmcQuickAccount(
         source,
@@ -101,20 +120,38 @@ class AwmcQuickSyncService {
     if (platform == SyncPlatform.awmc) {
       if (requireData) {
         if (account == null || account.id.isEmpty) {
-          throw StateError(appL10n.svcSetUpYourP0AccountFirst(
-              (appLocalizeLabel(platform.label)).toString()));
+          throw AppError(
+            code: 'AUTH-SYNC-ACCOUNT-MISSING',
+            userMessage: appL10n.svcSetUpYourP0AccountFirst(
+                (appLocalizeLabel(platform.label)).toString()),
+            stage: '校验快速同步账号',
+            source: source.key,
+            retryable: false,
+          ).asStateError();
         }
         if (!account.hasData) {
-          throw StateError(appL10n.svcRefreshYourP0AccountDataBeforeUsing(
-              (appLocalizeLabel(platform.label)).toString()));
+          throw AppError(
+            code: 'DATA-SYNC-NEED-REFRESH',
+            userMessage: appL10n.svcRefreshYourP0AccountDataBeforeUsing(
+                (appLocalizeLabel(platform.label)).toString()),
+            stage: '校验快速同步缓存',
+            source: source.key,
+            retryable: false,
+          ).asStateError();
         }
       }
       final qq = AwmcQrSyncService.qqPattern.hasMatch(storedId)
           ? storedId
           : await AwmcQrSyncService.resolveAwmcNetQq();
       if (qq == null || !AwmcQrSyncService.qqPattern.hasMatch(qq)) {
-        throw StateError(appL10n.svcSetUpYourP0AccountFirst(
-            (appLocalizeLabel(platform.label)).toString()));
+        throw AppError(
+          code: 'AUTH-SYNC-ACCOUNT-MISSING',
+          userMessage: appL10n.svcSetUpYourP0AccountFirst(
+              (appLocalizeLabel(platform.label)).toString()),
+          stage: '校验快速同步账号',
+          source: source.key,
+          retryable: false,
+        ).asStateError();
       }
       return AwmcQuickAccount(
         source,
@@ -126,20 +163,38 @@ class AwmcQuickSyncService {
 
     // 落雪：自动同步由服务端执行，必须使用个人 API 密钥；手动快速同步优先使用官方 OAuth。
     if (account == null || account.id.isEmpty) {
-      throw StateError(appL10n.svcSetUpYourP0AccountFirst(
-          (appLocalizeLabel(platform.label)).toString()));
+      throw AppError(
+        code: 'AUTH-SYNC-ACCOUNT-MISSING',
+        userMessage: appL10n.svcSetUpYourP0AccountFirst(
+            (appLocalizeLabel(platform.label)).toString()),
+        stage: '校验快速同步账号',
+        source: source.key,
+        retryable: false,
+      ).asStateError();
     }
     if (requireData && !account.hasData) {
-      throw StateError(appL10n.svcRefreshYourP0AccountDataBeforeUsing(
-          (appLocalizeLabel(platform.label)).toString()));
+      throw AppError(
+        code: 'DATA-SYNC-NEED-REFRESH',
+        userMessage: appL10n.svcRefreshYourP0AccountDataBeforeUsing(
+            (appLocalizeLabel(platform.label)).toString()),
+        stage: '校验快速同步缓存',
+        source: source.key,
+        retryable: false,
+      ).asStateError();
     }
     final personalKey = (await SecureCredentialStore.read(
             CacheKeyConstant.probeLxnsImportToken))
         ?.trim();
     if (forAutoSync) {
       if (personalKey == null || personalKey.isEmpty) {
-        throw StateError(appL10n.svcSetUpTheSyncCredentialsForP0(
-            (appLocalizeLabel(platform.label)).toString()));
+        throw AppError(
+          code: 'AUTH-SYNC-CRED-MISSING',
+          userMessage: appL10n.svcSetUpTheSyncCredentialsForP0(
+              (appLocalizeLabel(platform.label)).toString()),
+          stage: '校验自动同步凭据',
+          source: source.key,
+          retryable: false,
+        ).asStateError();
       }
       return AwmcQuickAccount(source, account.id, personalKey);
     }
@@ -149,7 +204,14 @@ class AwmcQuickSyncService {
     if (personalKey != null && personalKey.isNotEmpty) {
       return AwmcQuickAccount(source, account.id, personalKey);
     }
-    throw StateError(appL10n.svcYourLXNSAccountIsNotAuthorizedComplete);
+    throw AppError(
+      code: 'AUTH-LXNS-NOT-AUTHORIZED',
+      userMessage: appL10n.svcYourLXNSAccountIsNotAuthorizedComplete,
+      stage: '校验落雪同步授权',
+      source: source.key,
+      suggestion: appL10n.errSuggestionReauth,
+      retryable: false,
+    ).asStateError();
   }
 
   /// 普通二维码读取前捕获目标账号，后续回包不得绑定到新切换的账号上。
@@ -229,11 +291,23 @@ class AwmcQuickSyncService {
     final result = await AwmcApiService.userData(token: '', qrcode: qrcode);
     await AwmcAuditLog.record(result, note: '二维码绑定快速同步机台身份');
     if (!result.ok) {
-      throw StateError(appL10n.flowCouldNotLinkCabinetIdentityP0(result.displayMessage.toString()));
+      throw AppError(
+        code: 'SRV-AWMC-BIND-IDENTITY',
+        userMessage: appL10n
+            .flowCouldNotLinkCabinetIdentityP0(result.displayMessage.toString()),
+        stage: '绑定机台身份',
+        source: 'awmc',
+        httpStatus: result.httpStatus > 0 ? result.httpStatus : null,
+      ).asStateError();
     }
     final userId = _extractUserId(result.businessData);
     if (userId == null) {
-      throw StateError(appL10n.svcAWMCReportedSuccessWithoutAUserIdThe);
+      throw AppError(
+        code: 'SRV-AWMC-USER-ID-MISSING',
+        userMessage: appL10n.svcAWMCReportedSuccessWithoutAUserIdThe,
+        stage: '解析机台身份',
+        source: 'awmc',
+      ).asStateError();
     }
     await AwmcQuickIdentityStore.write(userId);
     return userId;
@@ -269,7 +343,15 @@ class AwmcQuickSyncService {
     AwmcQuickServerResponse? prefetchedServerQuickSync,
   }) =>
       AppTaskActivity.run(() async {
-        if (_running) throw StateError(appL10n.svcQuickSyncIsInProgressPleaseWait);
+        if (_running) {
+          throw AppError(
+            code: 'SYNC-QUICK-BUSY',
+            userMessage: appL10n.svcQuickSyncIsInProgressPleaseWait,
+            stage: '启动快速同步',
+            source: platform.name,
+            retryable: true,
+          ).asStateError();
+        }
         _running = true;
         SyncAttemptTracker? attempt;
         var syncOk = false;
@@ -277,7 +359,13 @@ class AwmcQuickSyncService {
           final account = await accountFor(platform);
           final userId = await AwmcQuickIdentityStore.read();
           if (userId == null) {
-            throw StateError(appL10n.svcUserCredentialsAreNotCachedEnterA);
+            throw AppError(
+              code: 'AUTH-QUICK-IDENTITY-MISSING',
+              userMessage: appL10n.svcUserCredentialsAreNotCachedEnterA,
+              stage: '读取机台身份',
+              source: platform.name,
+              retryable: false,
+            ).asStateError();
           }
           // 先确认目标账号的本地归属，再读取同一目标服务，异步切换活动账号不改变回填来源。
           await AccountStore.recordsForAccount(account.source, account.id);
@@ -304,23 +392,58 @@ class AwmcQuickSyncService {
                 : serverRes.awmc;
             if (targetRes == null) {
               if (serverRes.fishConsentRequired) {
-                throw StateError(
-                    appL10n.flowDivingFishWriteConsentRequiredMessage);
+                throw AppError(
+                  code: 'AUTH-FISH-CONSENT',
+                  stage: 'AWMC 快速同步',
+                  source: 'shuiyu',
+                  httpStatus: serverRes.httpStatus,
+                  requestId: serverRes.requestId,
+                  userMessage: appL10n.flowDivingFishWriteConsentRequiredMessage,
+                  suggestion: appL10n.errSuggestionReauth,
+                ).asStateError();
               }
-              throw StateError(serverRes.errorMessage ??
-                  appL10n.svcQuickReadFailedP0(
-                      serverRes.code ?? 'HTTP ${serverRes.httpStatus}'));
+              if (serverRes.error != null) {
+                throw serverRes.error!.asStateError();
+              }
+              throw AppError(
+                code: serverRes.code != null
+                    ? 'SYNC-${serverRes.code}'
+                    : 'SYNC-QUICK-FAILED',
+                stage: 'AWMC 快速同步',
+                source: platform.name,
+                httpStatus: serverRes.httpStatus > 0 ? serverRes.httpStatus : null,
+                requestId: serverRes.requestId,
+                userMessage: serverRes.errorMessage ??
+                    appL10n.svcQuickReadFailedP0(
+                        serverRes.code ?? 'HTTP ${serverRes.httpStatus}'),
+              ).asStateError();
             }
             if (!targetRes.ok) {
               if (targetRes.code == 'FISH_CONSENT_REQUIRED') {
-                throw StateError(
-                    appL10n.flowDivingFishWriteConsentRequiredMessage);
+                throw AppError(
+                  code: 'AUTH-FISH-CONSENT',
+                  stage: '水鱼写入校验',
+                  source: 'shuiyu',
+                  httpStatus: targetRes.httpStatus,
+                  requestId: serverRes.requestId,
+                  userMessage: appL10n.flowDivingFishWriteConsentRequiredMessage,
+                  suggestion: appL10n.errSuggestionReauth,
+                ).asStateError();
               }
-              throw StateError(targetRes.message ??
-                  appL10n.svcUploadToP0FailedHTTPP1Remaining(
-                    appLocalizeLabel(platform.label),
-                    '${targetRes.httpStatus ?? 502}',
-                  ));
+              throw AppError(
+                code: targetRes.code != null
+                    ? 'SYNC-${targetRes.code}'
+                    : 'SYNC-TARGET-UPLOAD',
+                stage: '上传至目标平台',
+                source: platform.name,
+                httpStatus: targetRes.httpStatus ?? 502,
+                requestId: serverRes.requestId,
+                userMessage: targetRes.message ??
+                    appL10n.svcUploadToP0FailedHTTPP1Remaining(
+                      appLocalizeLabel(platform.label),
+                      '${targetRes.httpStatus ?? 502}',
+                    ),
+              ).asStateError();
             }
             syncOk = true;
             onProgress?.call(
@@ -341,8 +464,15 @@ class AwmcQuickSyncService {
                   appLocalizeLabel(platform.label)));
           final targetRecords = await _targetRecords(platform, account);
           final songs = await MaimaiMusicDataManager().getCachedSongs();
-          if (songs == null || songs.isEmpty)
-            throw StateError(appL10n.svcUpdateTheSongLibraryBeforeUsingQuick);
+          if (songs == null || songs.isEmpty) {
+            throw AppError(
+              code: 'DATA-SYNC-SONGS-EMPTY',
+              userMessage: appL10n.svcUpdateTheSongLibraryBeforeUsingQuick,
+              stage: '读取本地曲库',
+              source: 'local',
+              retryable: false,
+            ).asStateError();
+          }
           onProgress?.call(
               .04,
               appL10n.flowCheckingChartsSupportedByP02(
@@ -398,8 +528,14 @@ class AwmcQuickSyncService {
               if (score.fs != null) 'fs': score.fs,
             });
           }
-          if (payload.isEmpty && unchanged == 0)
-            throw StateError(appL10n.svcNoValidScoresMatchedTheLocalSong);
+          if (payload.isEmpty && unchanged == 0) {
+            throw AppError(
+              code: 'DATA-SYNC-NO-MATCH',
+              userMessage: appL10n.svcNoValidScoresMatchedTheLocalSong,
+              stage: '匹配本地曲库',
+              source: platform.name,
+            ).asStateError();
+          }
           // 每批串行上传；失败立即停止，不自动重试，避免不确定的重复写入。
           for (var start = 0; start < payload.length; start += 100) {
             final end = (start + 100).clamp(0, payload.length);
@@ -432,21 +568,59 @@ class AwmcQuickSyncService {
     final probeTimeout = await AwmcGatewaySettings.loadProbeTimeout();
     final health =
         await AwmcApiService.health(token: '', timeout: probeTimeout);
-    if (!health.ok) throw StateError(appL10n.svcTheAWMCGatewayIsUnavailableP0(health.displayMessage.toString()));
+    if (!health.ok) {
+      throw AppError(
+        code: 'SRV-AWMC-GATEWAY',
+        userMessage: appL10n
+            .svcTheAWMCGatewayIsUnavailableP0(health.displayMessage.toString()),
+        stage: '检查 AWMC 网关',
+        source: 'awmc',
+        httpStatus: health.httpStatus > 0 ? health.httpStatus : null,
+      ).asStateError();
+    }
     final incoming = <String, AwmcQuickScore>{};
     final visited = <int>{};
     while (true) {
-      if (!visited.add(0) || visited.length > 1)
-        throw StateError(appL10n.svcScorePagingWasAbnormalTheUpdateStopped);
+      if (!visited.add(0) || visited.length > 1) {
+        throw AppError(
+          code: 'SYNC-QUICK-PAGING',
+          userMessage: appL10n.svcScorePagingWasAbnormalTheUpdateStopped,
+          stage: '读取机台成绩分页',
+          source: 'awmc',
+        ).asStateError();
+      }
       onProgress?.call(.2, appL10n.flowQuicklyReadingCabinetScores);
       final result =
           await AwmcApiService.rivalMusic(rivalId: userId, nextIndex: 0);
       if (!result.ok) {
-        if (result.httpStatus == 404)
-          throw StateError(appL10n.svcTheServerDoesNotOfferQuickSync);
-        if (result.httpStatus == 410)
-          throw StateError(appL10n.svcTheCurrentGatewayUpstreamCannotReadWithout);
-        throw StateError(appL10n.svcQuickReadFailedP0(result.displayMessage.toString()));
+        if (result.httpStatus == 404) {
+          throw AppError(
+            code: 'SRV-AWMC-UNSUPPORTED',
+            userMessage: appL10n.svcTheServerDoesNotOfferQuickSync,
+            stage: '读取机台成绩',
+            source: 'awmc',
+            httpStatus: 404,
+            retryable: false,
+          ).asStateError();
+        }
+        if (result.httpStatus == 410) {
+          throw AppError(
+            code: 'SRV-AWMC-QR-REQUIRED',
+            userMessage: appL10n.svcTheCurrentGatewayUpstreamCannotReadWithout,
+            stage: '读取机台成绩',
+            source: 'awmc',
+            httpStatus: 410,
+            retryable: false,
+          ).asStateError();
+        }
+        throw AppError(
+          code: 'SRV-AWMC-GATEWAY',
+          userMessage:
+              appL10n.svcQuickReadFailedP0(result.displayMessage.toString()),
+          stage: '读取机台成绩',
+          source: 'awmc',
+          httpStatus: result.httpStatus > 0 ? result.httpStatus : null,
+        ).asStateError();
       }
       for (final score in AwmcQuickScore.parse(result.businessData)) {
         final old = incoming[score.key];
@@ -465,13 +639,32 @@ class AwmcQuickSyncService {
       final data = result.businessData;
       final next =
           data is Map ? int.tryParse('${data['nextIndex'] ?? 0}') ?? 0 : 0;
-      if (next < 0) throw StateError(appL10n.svcTheAWMCGatewayReturnedAnInvalidScore);
+      if (next < 0) {
+        throw AppError(
+          code: 'SRV-AWMC-INVALID-DATA',
+          userMessage: appL10n.svcTheAWMCGatewayReturnedAnInvalidScore,
+          stage: '解析机台成绩',
+          source: 'awmc',
+        ).asStateError();
+      }
       if (next != 0) {
-        throw StateError(appL10n.svcTheAWMCGatewayReturnedPagedResultsReading);
+        throw AppError(
+          code: 'SYNC-QUICK-PAGING',
+          userMessage: appL10n.svcTheAWMCGatewayReturnedPagedResultsReading,
+          stage: '解析机台成绩分页',
+          source: 'awmc',
+        ).asStateError();
       }
       break;
     }
-    if (incoming.isEmpty) throw StateError(appL10n.svcNoValidScoresWereReadNothingWas);
+    if (incoming.isEmpty) {
+      throw AppError(
+        code: 'DATA-SYNC-NO-SCORES',
+        userMessage: appL10n.svcNoValidScoresWereReadNothingWas,
+        stage: '解析机台成绩',
+        source: 'awmc',
+      ).asStateError();
+    }
     return List.unmodifiable(incoming.values);
   }
 
@@ -492,7 +685,17 @@ class AwmcQuickSyncService {
       } catch (_) {}
     }
     if (platform == SyncPlatform.luoXue && data is Map) data = data['songs'];
-    if (data is! List) throw StateError(appL10n.svcCouldNotReadTheP0SongLibrary((appLocalizeLabel(platform.label)).toString()));
+    if (data is! List) {
+      throw AppError(
+        code: 'SRV-SYNC-SONG-LIST',
+        userMessage: appL10n.svcCouldNotReadTheP0SongLibrary(
+            (appLocalizeLabel(platform.label)).toString()),
+        stage: '读取目标曲库',
+        source: sourceOf(platform).key,
+        httpStatus: response.statusCode != 200 ? response.statusCode : null,
+        requestId: ApiClient.requestIdOf(response),
+      ).asStateError();
+    }
     final charts = <String>{};
     for (final song in data.whereType<Map>()) {
       final id = int.tryParse('${song['id']}');
@@ -521,7 +724,15 @@ class AwmcQuickSyncService {
         }
       }
     }
-    if (charts.isEmpty) throw StateError(appL10n.svcTheP0SongLibraryIsEmptyNo((appLocalizeLabel(platform.label)).toString()));
+    if (charts.isEmpty) {
+      throw AppError(
+        code: 'DATA-SYNC-SONG-LIST-EMPTY',
+        userMessage: appL10n.svcTheP0SongLibraryIsEmptyNo(
+            (appLocalizeLabel(platform.label)).toString()),
+        stage: '校验目标曲库',
+        source: sourceOf(platform).key,
+      ).asStateError();
+    }
     return charts;
   }
 
@@ -539,7 +750,14 @@ class AwmcQuickSyncService {
     if (fallbackKey != null && fallbackKey.isNotEmpty) {
       return {'X-User-Token': fallbackKey};
     }
-    throw StateError(appL10n.svcLXNSAuthorizationExpiredOrTheKeyIs);
+    throw AppError(
+      code: 'AUTH-LXNS-EXPIRED',
+      userMessage: appL10n.svcLXNSAuthorizationExpiredOrTheKeyIs,
+      stage: '校验落雪同步授权',
+      source: 'luoxue',
+      suggestion: appL10n.errSuggestionReauth,
+      retryable: false,
+    ).asStateError();
   }
 
   /// 从落雪读取最新标记；读取失败直接停止，不用其它源或旧缓存猜测。
@@ -555,7 +773,15 @@ class AwmcQuickSyncService {
           headers: headers, timeout: const Duration(seconds: 45));
     }
     if (response.statusCode != 200) {
-      throw StateError(appL10n.svcCouldNotReadExistingP0ScoresSo((appLocalizeLabel(platform.label)).toString()));
+      throw AppError(
+        code: 'SRV-LXNS-READ-SCORES',
+        userMessage: appL10n.svcCouldNotReadExistingP0ScoresSo(
+            (appLocalizeLabel(platform.label)).toString()),
+        stage: '读取目标已有成绩',
+        source: 'luoxue',
+        httpStatus: response.statusCode,
+        requestId: ApiClient.requestIdOf(response),
+      ).asStateError();
     }
     dynamic data;
     try {
@@ -565,7 +791,15 @@ class AwmcQuickSyncService {
       if (data['success'] == false) break;
       data = data['records'] ?? data['data'] ?? data['scores'];
     }
-    if (data is! List) throw StateError(appL10n.svcP0ReturnedScoresInAnInvalidFormat((appLocalizeLabel(platform.label)).toString()));
+    if (data is! List) {
+      throw AppError(
+        code: 'SRV-LXNS-INVALID-SCORES',
+        userMessage: appL10n.svcP0ReturnedScoresInAnInvalidFormat(
+            (appLocalizeLabel(platform.label)).toString()),
+        stage: '解析目标已有成绩',
+        source: 'luoxue',
+      ).asStateError();
+    }
     // 兼容上传接口会把省略的标记视为空，不能把缺字段的异常响应当作“从未达成”。
     for (final record in data) {
       if (record is! Map ||
@@ -573,7 +807,13 @@ class AwmcQuickSyncService {
           int.tryParse('${record['level_index']}') == null ||
           !record.containsKey('fc') ||
           !record.containsKey('fs')) {
-        throw StateError(appL10n.svcP0ScoresAreMissingChartOrCombo((appLocalizeLabel(platform.label)).toString()));
+        throw AppError(
+          code: 'SRV-LXNS-INCOMPLETE-SCORES',
+          userMessage: appL10n.svcP0ScoresAreMissingChartOrCombo(
+              (appLocalizeLabel(platform.label)).toString()),
+          stage: '校验目标已有成绩字段',
+          source: 'luoxue',
+        ).asStateError();
       }
     }
     return data.whereType<Map>().map((record) {
@@ -629,8 +869,16 @@ class AwmcQuickSyncService {
         data is! Map ||
         data['success'] != true) {
       // 不回显第三方原始响应，避免请求凭据或机台身份被错误信息带出。
-      throw StateError(
-          appL10n.svcUploadToP0FailedHTTPP1Remaining((appLocalizeLabel(SyncPlatform.luoXue.label)).toString(), response.statusCode.toString()));
+      throw AppError(
+        code: 'SRV-LXNS-UPLOAD',
+        userMessage: appL10n.svcUploadToP0FailedHTTPP1Remaining(
+            (appLocalizeLabel(SyncPlatform.luoXue.label)).toString(),
+            response.statusCode.toString()),
+        stage: '上传成绩至落雪',
+        source: 'luoxue',
+        httpStatus: response.statusCode,
+        requestId: ApiClient.requestIdOf(response),
+      ).asStateError();
     }
   }
 }
