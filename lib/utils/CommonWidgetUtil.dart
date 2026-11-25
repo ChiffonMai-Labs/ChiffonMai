@@ -441,11 +441,15 @@ class _ThemeAwareChiffonWidget extends StatelessWidget {
         // 隐藏时直接不占位：省掉一张全屏图的布局/解码，也不会留下任何覆层
         if (opacity <= 0) return const SizedBox.shrink();
 
+        final media = MediaQuery.of(context);
+        final cacheWidth =
+            (media.size.width * media.devicePixelRatio).round().clamp(360, 1080);
         return Center(
           child: Transform.translate(
-            offset: Offset(0, -MediaQuery.of(context).size.height * 0.03),
+            offset: Offset(0, -media.size.height * 0.03),
             child: Image.asset(
               'assets/chiffon2.png',
+              cacheWidth: cacheWidth,
               fit: BoxFit.cover,
               gaplessPlayback: true,
               opacity: AlwaysStoppedAnimation(opacity),

@@ -182,11 +182,15 @@ class _ChiffonImage extends StatelessWidget {
         if (isSimple || opacity <= 0) {
           return const SizedBox.shrink();
         }
+        final media = MediaQuery.of(context);
+        final cacheWidth =
+            (media.size.width * media.devicePixelRatio).round().clamp(360, 1080);
         return Center(
           child: Transform.translate(
             offset: const Offset(0, -30),
             child: Image.asset(
               'assets/chiffon2.png',
+              cacheWidth: cacheWidth,
               fit: BoxFit.contain,
               gaplessPlayback: true,
               opacity: AlwaysStoppedAnimation(opacity),

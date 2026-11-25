@@ -416,77 +416,98 @@ class _VersionViewState extends State<VersionView> {
               : constraints.maxWidth >= 480
                   ? 3
                   : 2;
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-            children: [
-              AnimatedChoiceBar<bool>(
-                values: const [false, true],
-                value: _isJapaneseVersion,
-                label: (isJapanese) => isJapanese
-                    ? context.l10n.flowJapan
-                    : context.l10n.flowChina,
-                onChanged: (value) =>
-                    setState(() => _isJapaneseVersion = value),
-              ),
-              const SizedBox(height: 14),
-              Container(
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-                decoration: BoxDecoration(
-                  color: AppSurfaces.card(context),
-                  borderRadius:
-                      BorderRadius.circular(AppDesignTokens.radiusCard),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.auto_awesome_rounded,
-                        color: scheme.primary, size: 24),
-                    const SizedBox(width: 12),
-                    Expanded(
+          final cardWidth =
+              (constraints.maxWidth - 32 - 10 * (columns - 1)) / columns;
+          final imageCacheWidth =
+              (cardWidth * MediaQuery.devicePixelRatioOf(context))
+                  .round()
+                  .clamp(200, 600);
+          return CustomScrollView(
+            slivers: [
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                sliver: SliverMainAxisGroup(
+                  slivers: [
+                    SliverToBoxAdapter(
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Text(
-                            _isJapaneseVersion
-                                ? context.l10n.flowJapanVersion
-                                : context.l10n.flowChinaVersion,
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(fontWeight: FontWeight.w700),
+                          AnimatedChoiceBar<bool>(
+                            values: const [false, true],
+                            value: _isJapaneseVersion,
+                            label: (isJapanese) => isJapanese
+                                ? context.l10n.flowJapan
+                                : context.l10n.flowChina,
+                            onChanged: (value) =>
+                                setState(() => _isJapaneseVersion = value),
                           ),
-                          const SizedBox(height: 3),
-                          Text(
-                            context.l10n.flowP0VersionsInReleaseOrderTapAn(
-                                (versions.length).toString()),
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
-                                ?.copyWith(color: scheme.onSurfaceVariant),
+                          const SizedBox(height: 14),
+                          Container(
+                            padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                            decoration: BoxDecoration(
+                              color: AppSurfaces.card(context),
+                              borderRadius: BorderRadius.circular(
+                                  AppDesignTokens.radiusCard),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.auto_awesome_rounded,
+                                    color: scheme.primary, size: 24),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        _isJapaneseVersion
+                                            ? context.l10n.flowJapanVersion
+                                            : context.l10n.flowChinaVersion,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleMedium
+                                            ?.copyWith(
+                                                fontWeight: FontWeight.w700),
+                                      ),
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        context.l10n
+                                            .flowP0VersionsInReleaseOrderTapAn(
+                                                (versions.length).toString()),
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(
+                                                color:
+                                                    scheme.onSurfaceVariant),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
+                          const SizedBox(height: 12),
                         ],
                       ),
                     ),
+                    SliverGrid.builder(
+                      itemCount: versions.length,
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: columns,
+                        crossAxisSpacing: 10,
+                        mainAxisSpacing: 10,
+                        childAspectRatio: columns == 2 ? 0.86 : 0.9,
+                      ),
+                      itemBuilder: (context, index) => _buildVersionCard(
+                        context,
+                        versions[index],
+                        index,
+                        scheme,
+                        imageCacheWidth,
+                      ),
+                    ),
                   ],
-                ),
-              ),
-              Transform.translate(
-                offset: const Offset(0, -23),
-                child: GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: versions.length,
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: columns,
-                    crossAxisSpacing: 10,
-                    mainAxisSpacing: 10,
-                    childAspectRatio: columns == 2 ? 0.86 : 0.9,
-                  ),
-                  itemBuilder: (context, index) => _buildVersionCard(
-                    context,
-                    versions[index],
-                    index,
-                    scheme,
-                  ),
                 ),
               ),
             ],
@@ -501,6 +522,7 @@ class _VersionViewState extends State<VersionView> {
     VersionData version,
     int index,
     ColorScheme scheme,
+    int imageCacheWidth,
   ) {
     final name =
         _isJapaneseVersion ? version.japaneseName : version.chineseName;
@@ -571,6 +593,7 @@ class _VersionViewState extends State<VersionView> {
                           )
                         : Image.asset(
                             imagePath,
+                            cacheWidth: imageCacheWidth,
                             fit: BoxFit.contain,
                             errorBuilder: (_, __, ___) => Icon(
                               Icons.image_not_supported_outlined,

@@ -46,10 +46,13 @@ void main() {
         b == chiffonOverlayRgb.b;
   }
 
-  Finder chiffonImage() => find.byWidgetPredicate((w) =>
-      w is Image &&
-      w.image is AssetImage &&
-      (w.image as AssetImage).assetName == 'assets/chiffon2.png');
+  Finder chiffonImage() => find.byWidgetPredicate((w) {
+        if (w is! Image) return false;
+        final provider =
+            w.image is ResizeImage ? (w.image as ResizeImage).imageProvider : w.image;
+        return provider is AssetImage &&
+            provider.assetName == 'assets/chiffon2.png';
+      });
 
   /// 当前树里所有**真的会画出来**的 ColoredBox 颜色（全透明的忽略：
   /// Scaffold 之类会带一层透明 ColoredBox，它画不出任何东西）。
