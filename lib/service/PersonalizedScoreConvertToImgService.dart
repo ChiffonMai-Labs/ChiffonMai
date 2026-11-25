@@ -1,4 +1,6 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
+import '../utils/AppError.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'dart:async';
 import 'dart:io';
@@ -99,7 +101,14 @@ class PersonalizedScoreConvertToImg {
         _preloadImages(),
         ExportUserInfoWidget.precacheFrame(context),
       ]);
-      if (!context.mounted) return null;
+      if (!context.mounted) {
+        throw AppError(
+          code: 'EXP-CONTEXT-LOST',
+          stage: '预加载导出图片',
+          userMessage: appL10n.errExportContextLost,
+          suggestion: appL10n.errSuggestionRetryLater,
+        );
+      }
       debugPrint('Images preloaded');
 
       onProgress?.call(context.l10n.flowPreloadingImages, 0.2);
@@ -115,7 +124,12 @@ class PersonalizedScoreConvertToImg {
       final canvasNotReady = context.l10n.svcTheExportCanvasIsNotReady;
       await mountedAll.future.timeout(
         const Duration(seconds: 45),
-        onTimeout: () => throw StateError(canvasNotReady),
+        onTimeout: () => throw AppError(
+          code: 'EXP-CANVAS-NOT-READY',
+          stage: '等待成绩进度画布挂载',
+          userMessage: canvasNotReady,
+          suggestion: appL10n.errSuggestionRetryLater,
+        ),
       );
       await ImageEncodeUtil.waitForRender();
       debugPrint('Render wait completed');
@@ -124,9 +138,12 @@ class PersonalizedScoreConvertToImg {
           ?.findRenderObject() as RenderRepaintBoundary?;
       if (boundary == null) {
         debugPrint('Error: RenderRepaintBoundary not found');
-        overlayEntry.remove();
-        overlayInserted = false;
-        return null;
+        throw AppError(
+          code: 'EXP-BOUNDARY-MISSING',
+          stage: '查找导出画布',
+          userMessage: appL10n.errExportBoundaryMissing,
+          suggestion: appL10n.errSuggestionRetryLater,
+        );
       }
       debugPrint('RenderRepaintBoundary found successfully');
 
@@ -199,7 +216,12 @@ class PersonalizedScoreConvertToImg {
 
       if (directory == null) {
         debugPrint('Error: No storage directory found');
-        return null;
+        throw AppError(
+          code: 'EXP-NO-STORAGE-DIR',
+          stage: '选择导出目录',
+          userMessage: appL10n.errExportNoStorageDir,
+          suggestion: appL10n.errSuggestionCheckStorage,
+        );
       }
 
       debugPrint('Selected directory: ${directory.path}');
@@ -233,10 +255,16 @@ class PersonalizedScoreConvertToImg {
 
       onProgress?.call(context.l10n.flowExportComplete, 1.0);
       return file;
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('Error converting to image: $e');
       if (overlayInserted) overlayEntry?.remove();
-      return null;
+      if (e is AppError) rethrow;
+      throw AppErrorMapper.from(
+        e,
+        stack: stack,
+        stage: '导出成绩进度图片',
+        fallbackCode: 'EXP-IMAGE-FAILED',
+      );
     }
   }
 

@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart' show compute, debugPrint;
 import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/widgets.dart' show WidgetsBinding;
 import 'package:image/image.dart' as img;
+import 'AppError.dart';
 import 'ExportDiagnostics.dart';
 
 /// GPU 单边纹理尺寸的安全上限。
@@ -64,8 +65,12 @@ class ImageEncodeUtil {
     final binding = WidgetsBinding.instance;
     binding.scheduleFrame();
     return binding.endOfFrame.timeout(const Duration(seconds: 15),
-        onTimeout: () =>
-            throw StateError(appL10n.svcTheExportCanvasIsNotReady));
+        onTimeout: () => throw AppError(
+              code: 'EXP-CANVAS-NOT-READY',
+              stage: '等待导出帧渲染',
+              userMessage: appL10n.svcTheExportCanvasIsNotReady,
+              suggestion: appL10n.errSuggestionRetryLater,
+            ));
   }
 
   static Future<void> waitForRender(
@@ -102,7 +107,12 @@ class ImageEncodeUtil {
     });
     return pending.timeout(const Duration(seconds: 30), onTimeout: () {
       timedOut = true;
-      throw TimeoutException(appL10n.flowGeneratingImage);
+      throw AppError(
+        code: 'EXP-CAPTURE-TIMEOUT',
+        stage: '离屏画布截图',
+        userMessage: '${appL10n.flowGeneratingImage}超时，请尝试降低导出分辨率或稍后重试',
+        suggestion: appL10n.errSuggestionRetryLater,
+      );
     });
   }
 
@@ -118,7 +128,12 @@ class ImageEncodeUtil {
       ExportDiagnostics.run('图片生成', (log) async {
         final size = boundary.size;
         if (!size.isFinite || size.isEmpty) {
-          throw StateError(appL10n.svcTheExportCanvasIsNotReady);
+          throw AppError(
+            code: 'EXP-CANVAS-NOT-READY',
+            stage: '检查画布尺寸',
+            userMessage: appL10n.svcTheExportCanvasIsNotReady,
+            suggestion: appL10n.errSuggestionRetryLater,
+          );
         }
         final ratio = safeCapturePixelRatio(size.width, size.height,
             jpegQuality: jpegQuality);
@@ -161,7 +176,15 @@ class ImageEncodeUtil {
           image.dispose();
           log.note('截图资源已释放');
         }
-        if (data == null) throw Exception(appL10n.flowCouldNotReadImageData);
+        if (data == null) {
+          throw AppError(
+            code: 'EXP-ENCODE-READ-FAILED',
+            stage: jpegQuality == null ? 'PNG 编码' : 'RGBA 像素读回',
+            userMessage: appL10n.errExportEncodeFailed,
+            suggestion: appL10n.errSuggestionRetryLater,
+            technicalDetail: 'toByteData returned null ($width x $height)',
+          );
+        }
         final bytes =
             data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
         log.note('读回数据=${bytes.lengthInBytes}B');
@@ -194,9 +217,20 @@ class ImageEncodeUtil {
       final message = await result.first.timeout(const Duration(seconds: 60));
       if (message is Uint8List) return message;
       if (message is List && message.length == 2) {
-        throw RemoteError(message[0].toString(), message[1].toString());
+        throw AppError(
+          code: 'EXP-JPEG-ISOLATE-FAILED',
+          stage: 'JPEG 后台编码',
+          userMessage: appL10n.errExportEncodeFailed,
+          suggestion: appL10n.errSuggestionRetryLater,
+          technicalDetail: '${message[0]}\n${message[1]}',
+        );
       }
-      throw StateError(appL10n.flowCouldNotReadImageData);
+      throw AppError(
+        code: 'EXP-JPEG-ISOLATE-FAILED',
+        stage: 'JPEG 后台编码',
+        userMessage: appL10n.errExportEncodeFailed,
+        suggestion: appL10n.errSuggestionRetryLater,
+      );
     } finally {
       worker?.kill(priority: Isolate.immediate);
       result.close();

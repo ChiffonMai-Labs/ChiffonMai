@@ -31,7 +31,9 @@ import '../utils/SecureCredentialStore.dart';
 import '../widgets/BackgroundPageScaffold.dart';
 import '../utils/AppDesignTokens.dart';
 import '../widgets/AppUi.dart';
+import '../utils/AppError.dart';
 import '../widgets/AppToast.dart';
+import '../widgets/ErrorMessageDialog.dart';
 import '../widgets/QrQuickFillButtons.dart';
 
 /// 结算画面识别页（拍摄机台结算画面 → 裁剪 → 识别 → 显示结构化成绩）
@@ -422,12 +424,24 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
               : context.l10n.flowDivingFishScoreUpdatedP0(
                   (song.basicInfo.title).toString()),
           tone: AppToastTone.success);
-    } on ScoreUploadException catch (e) {
-      if (mounted) AppToast.show(e.message);
-    } catch (e) {
-      if (mounted)
-        AppToast.show(context.l10n.flowSyncFailedP0((e).toString()),
-            tone: AppToastTone.error);
+    } on ScoreUploadException catch (e, stack) {
+      if (mounted) {
+        await showErrorMessageDialog(
+          context,
+          error: e,
+          stack: stack,
+          stage: '同步成绩至水鱼',
+        );
+      }
+    } catch (e, stack) {
+      if (mounted) {
+        await showErrorMessageDialog(
+          context,
+          error: e,
+          stack: stack,
+          stage: '同步成绩至水鱼',
+        );
+      }
     } finally {
       if (mounted) setState(() => _uploadingIndex = null);
     }
@@ -452,8 +466,15 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
 
     final songId = int.tryParse(song.id);
     if (songId == null) {
-      AppToast.show(context.l10n.flowCannotParseSongIDForLXNSSync,
-          tone: AppToastTone.error);
+      AppToast.showError(
+        AppError(
+          code: 'DATA-OCR-SONG-ID',
+          userMessage: context.l10n.flowCannotParseSongIDForLXNSSync,
+          stage: '同步成绩至落雪',
+          retryable: false,
+        ),
+        stage: '同步成绩至落雪',
+      );
       return;
     }
 
@@ -481,12 +502,24 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
       );
       if (!mounted) return;
       AppToast.show(_composeLuoXueToast(song.basicInfo.title, result));
-    } on LuoXueUploadException catch (e) {
-      if (mounted) AppToast.show(e.message);
-    } catch (e) {
-      if (mounted)
-        AppToast.show(context.l10n.flowSyncFailedP0((e).toString()),
-            tone: AppToastTone.error);
+    } on LuoXueUploadException catch (e, stack) {
+      if (mounted) {
+        await showErrorMessageDialog(
+          context,
+          error: e,
+          stack: stack,
+          stage: '同步成绩至落雪',
+        );
+      }
+    } catch (e, stack) {
+      if (mounted) {
+        await showErrorMessageDialog(
+          context,
+          error: e,
+          stack: stack,
+          stage: '同步成绩至落雪',
+        );
+      }
     } finally {
       if (mounted) setState(() => _uploadingLuoXueIndex = null);
     }
@@ -620,10 +653,8 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
           });
         }
       }
-    } catch (e) {
-      if (mounted)
-        AppToast.show(context.l10n.flowCouldNotSelectImageP0((e).toString()),
-            tone: AppToastTone.error);
+    } catch (e, stack) {
+      if (mounted) AppToast.showError(e, stack: stack, stage: '选择识别图片');
     }
   }
 
@@ -655,23 +686,24 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
         AppToast.show(context.l10n.flowNoScoreRecognizedCropCloserToThe,
             tone: AppToastTone.warning);
       }
-    } on MaimaiHubOcrException catch (e) {
+    } on MaimaiHubOcrException catch (e, stack) {
       if (!mounted) return;
+      final mapped = AppErrorMapper.from(e, stack: stack, stage: '识别结算画面');
       setState(() {
-        _error = e.message;
+        _error = mapped.userMessage;
         _isRecognizing = false;
         // 401 或本机未登录时顺手刷新登录态提示
         if (e.loginRequired) _loggedIn = false;
       });
-      AppToast.show(e.message);
-    } catch (e) {
+      AppToast.showError(mapped);
+    } catch (e, stack) {
       if (!mounted) return;
+      final mapped = AppErrorMapper.from(e, stack: stack, stage: '识别结算画面');
       setState(() {
-        _error = e.toString();
+        _error = mapped.userMessage;
         _isRecognizing = false;
       });
-      AppToast.show(context.l10n.flowRecognitionErrorP0((e).toString()),
-          tone: AppToastTone.error);
+      AppToast.showError(mapped);
     }
   }
 
@@ -2262,12 +2294,19 @@ class _OcrImageCropPageState extends State<_OcrImageCropPage> {
       } finally {
         codec.dispose();
       }
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('OCR 裁剪页加载图片失败: $e');
       if (!mounted) return;
       setState(() => _loading = false);
-      AppToast.show(context.l10n.flowCannotReadThisImageTryAnother,
-          tone: AppToastTone.error);
+      AppToast.showError(
+        AppError(
+          code: 'DATA-OCR-IMAGE-READ',
+          userMessage: context.l10n.flowCannotReadThisImageTryAnother,
+          stage: '读取识别图片',
+          technicalDetail: '$e\n$stack',
+        ),
+        stage: '读取识别图片',
+      );
       Navigator.of(context).pop();
     }
   }
@@ -2486,18 +2525,37 @@ class _OcrImageCropPageState extends State<_OcrImageCropPage> {
         height: crop.height / _imageRect.height,
       );
       if (encoded == null) {
-        AppToast.show(context.l10n.flowCropFailedContinuingWithTheOriginalImage,
-            tone: AppToastTone.error);
+        if (mounted) {
+          AppToast.showError(
+            AppError(
+              code: 'DATA-OCR-CROP',
+              userMessage:
+                  context.l10n.flowCropFailedContinuingWithTheOriginalImage,
+              stage: '裁剪识别图片',
+            ),
+            stage: '裁剪识别图片',
+          );
+        }
         return widget.imagePath;
       }
       final outPath =
           '${Directory.systemTemp.path}/ocr_crop_${DateTime.now().millisecondsSinceEpoch}.jpg';
       await File(outPath).writeAsBytes(encoded, flush: true);
       return outPath;
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('OCR 裁剪出错: $e');
-      AppToast.show(context.l10n.flowCropFailedContinuingWithTheOriginalImage,
-          tone: AppToastTone.error);
+      if (mounted) {
+        AppToast.showError(
+          AppError(
+            code: 'DATA-OCR-CROP',
+            userMessage:
+                context.l10n.flowCropFailedContinuingWithTheOriginalImage,
+            stage: '裁剪识别图片',
+            technicalDetail: '$e\n$stack',
+          ),
+          stage: '裁剪识别图片',
+        );
+      }
       return widget.imagePath;
     }
   }

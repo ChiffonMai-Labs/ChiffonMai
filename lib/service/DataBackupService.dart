@@ -1,5 +1,6 @@
 import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import '../utils/AppTaskActivity.dart';
+import '../utils/AppError.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
@@ -238,8 +239,14 @@ class DataBackupService {
           // 3. 序列化为 JSON
           final jsonStr = const JsonEncoder.withIndent('  ').convert(backup);
           final bytes = utf8.encode(jsonStr);
-          if (bytes.length > maxImportBytes)
-            throw StateError(appL10n.svcTheBackupExceedsThe50MBLimit);
+          if (bytes.length > maxImportBytes) {
+            throw AppError(
+              code: 'EXP-BACKUP-TOO-LARGE',
+              userMessage: appL10n.svcTheBackupExceedsThe50MBLimit,
+              stage: '打包备份',
+              retryable: false,
+            ).asStateError();
+          }
 
           // 4. 文件名带时分秒：同一天导出多次不再互相覆盖
           final now = DateTime.now();
@@ -288,7 +295,13 @@ class DataBackupService {
           final file = File(result.files.single.path!);
           final fileLength = await file.length();
           if (fileLength > maxImportBytes) {
-            throw Exception(appL10n.svcTheBackupFileIsTooLargeLimit((maxImportBytes ~/ (1024 * 1024)).toString()));
+            throw AppError(
+              code: 'DATA-BACKUP-TOO-LARGE',
+              userMessage: appL10n.svcTheBackupFileIsTooLargeLimit(
+                  (maxImportBytes ~/ (1024 * 1024)).toString()),
+              stage: '读取备份文件',
+              retryable: false,
+            );
           }
           final jsonStr = await file.readAsString();
 
@@ -297,21 +310,41 @@ class DataBackupService {
 
           // 4. 验证结构
           if (!backup.containsKey('data')) {
-            throw Exception(appL10n.svcInvalidBackupFileMissingTheDataField);
+            throw AppError(
+              code: 'DATA-BACKUP-INVALID',
+              userMessage: appL10n.svcInvalidBackupFileMissingTheDataField,
+              stage: '校验备份格式',
+              retryable: false,
+            );
           }
           if (!backup.containsKey('version')) {
-            throw Exception(appL10n.svcInvalidBackupFileMissingTheVersionField);
+            throw AppError(
+              code: 'DATA-BACKUP-INVALID',
+              userMessage: appL10n.svcInvalidBackupFileMissingTheVersionField,
+              stage: '校验备份格式',
+              retryable: false,
+            );
           }
           if (backup['version'] is! int ||
               (backup['version'] as int) < 1 ||
               (backup['version'] as int) > 3 ||
               backup['appName'] != null && backup['appName'] != 'ChiffonMai') {
-            throw FormatException(appL10n.svcUnsupportedBackupVersionOrAppFormat);
+            throw AppError(
+              code: 'DATA-BACKUP-VERSION',
+              userMessage: appL10n.svcUnsupportedBackupVersionOrAppFormat,
+              stage: '校验备份格式',
+              retryable: false,
+            );
           }
 
           final data = backup['data'] as Map<String, dynamic>;
           if (data.isEmpty) {
-            throw Exception(appL10n.svcTheBackupFileIsEmptyThereIs);
+            throw AppError(
+              code: 'DATA-BACKUP-EMPTY',
+              userMessage: appL10n.svcTheBackupFileIsEmptyThereIs,
+              stage: '校验备份内容',
+              retryable: false,
+            );
           }
 
           debugPrint(
@@ -356,7 +389,14 @@ class DataBackupService {
     bool clearFirst = true,
   }) =>
       AppTaskActivity.run(() async {
-        if (_restoring) throw StateError(appL10n.svcADataRestoreIsAlreadyInProgress);
+        if (_restoring) {
+          throw AppError(
+            code: 'DATA-RESTORE-BUSY',
+            userMessage: appL10n.svcADataRestoreIsAlreadyInProgress,
+            stage: '恢复数据备份',
+            retryable: true,
+          ).asStateError();
+        }
         _restoring = true;
         // 服务是单例，先清掉上一次可能残留的快照。
         _rollbackSnapshot = null;
@@ -377,7 +417,13 @@ class DataBackupService {
           // 先完成旧凭据迁移；安全存储不可用时中止，避免覆盖恢复清掉本机授权。
           await SecureCredentialStore.migrateLegacy();
           if (prefs.getKeys().any(SecureCredentialStore.isCredentialKey)) {
-            throw StateError(appL10n.svcSecureCredentialsHaveNotFinishedMigratingTry);
+            throw AppError(
+              code: 'DATA-RESTORE-CRED-MIGRATING',
+              userMessage:
+                  appL10n.svcSecureCredentialsHaveNotFinishedMigratingTry,
+              stage: '校验凭据状态',
+              retryable: true,
+            ).asStateError();
           }
           final data = backupData;
 
@@ -387,7 +433,14 @@ class DataBackupService {
 
           if (clearFirst) {
             final before = prefs.getKeys().length;
-            if (!await prefs.clear()) throw StateError(appL10n.svcCouldNotClearTheOldSettings);
+            if (!await prefs.clear()) {
+              throw AppError(
+                code: 'DATA-RESTORE-CLEAR',
+                userMessage: appL10n.svcCouldNotClearTheOldSettings,
+                stage: '清理旧配置',
+                retryable: true,
+              ).asStateError();
+            }
             debugPrint('DataBackup: 已清空原有 $before 个键');
           }
 
@@ -411,8 +464,16 @@ class DataBackupService {
             final type = value['type'] as String;
             final rawValue = value['value'];
             if (!_validValue(type, rawValue)) continue;
-            if (!await _writeOne(prefs, key, type, rawValue))
-              throw StateError(appL10n.svcCouldNotWriteTheBackupSettingP0(key.toString()));
+            if (!await _writeOne(prefs, key, type, rawValue)) {
+              throw AppError(
+                code: 'DATA-RESTORE-WRITE',
+                userMessage: appL10n
+                    .svcCouldNotWriteTheBackupSettingP0(key.toString()),
+                stage: '写入备份项',
+                retryable: true,
+                technicalDetail: 'key=$key',
+              ).asStateError();
+            }
             restoredCount++;
           }
 

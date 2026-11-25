@@ -18,6 +18,13 @@ class ExportDiagnostics {
   final String label;
   final Stopwatch _clock = Stopwatch()..start();
   String _stage = '准备';
+
+  /// 当前正在执行的导出阶段名，供异常包装时定位卡点。
+  String get currentStage => _stage;
+
+  /// 导出诊断摘要：用于拼入失败时的技术详情。
+  String summary() =>
+      '阶段=$_stage, 总耗时=${_clock.elapsedMilliseconds}ms, 最大卡顿=${_maxLoopDelayMs}ms, ${_memory()}';
   Timer? _timer;
   bool _active = true;
   int _lastBeatMs = 0;

@@ -8,6 +8,7 @@ import '../widgets/ExportSuccessDialog.dart';
 import '../utils/AppDesignTokens.dart';
 import '../widgets/AppDialogs.dart';
 import '../widgets/AppToast.dart';
+import '../widgets/ErrorMessageDialog.dart';
 
 class DataBackupPage extends StatefulWidget {
   const DataBackupPage({super.key});
@@ -272,10 +273,16 @@ class _DataBackupPageState extends State<DataBackupPage> {
           AppToast.show(context.l10n.flowExportCancelled);
         }
       }
-    } catch (e) {
+    } catch (e, stack) {
       if (mounted) {
         setState(() => _isExporting = false);
-        AppToast.show(context.l10n.flowExportFailedP0((e.toString().replaceFirst("Exception: ", "")).toString()), tone: AppToastTone.error);
+        await showErrorMessageDialog(
+          context,
+          title: context.l10n.featureDataBackup,
+          error: e,
+          stack: stack,
+          stage: '导出本地备份',
+        );
       }
     }
   }
@@ -390,13 +397,19 @@ class _DataBackupPageState extends State<DataBackupPage> {
           if (mounted) setState(() => _isRestoring = false);
         }
       }
-    } catch (e) {
+    } catch (e, stack) {
       if (mounted) {
         setState(() {
           _isImporting = false;
           _isRestoring = false;
         });
-        AppToast.show(context.l10n.flowImportFailedP02((e.toString().replaceFirst("Exception: ", "")).toString()), tone: AppToastTone.error);
+        await showErrorMessageDialog(
+          context,
+          title: context.l10n.flowImportFailed,
+          error: e,
+          stack: stack,
+          stage: '导入并恢复备份',
+        );
       }
     }
   }

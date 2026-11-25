@@ -9,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../service/CoverRecognitionService.dart';
 import '../utils/CoverUtil.dart';
+import '../utils/AppError.dart';
 import '../utils/AppTheme.dart';
 import '../utils/OcrImageCropUtil.dart';
 import '../widgets/BackgroundPageScaffold.dart';
@@ -77,11 +78,10 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
         AppToast.show(context.l10n.flowCoverIndexReadyProcessedP0Covers(
             (_precomputeTotal).toString()));
       }
-    } catch (e) {
+    } catch (e, stack) {
       if (mounted) {
         setState(() => _isPrecomputing = false);
-        AppToast.show(context.l10n.flowCouldNotBuildIndexP0((e).toString()),
-            tone: AppToastTone.error);
+        AppToast.showError(e, stack: stack, stage: '构建曲绘索引');
       }
     }
   }
@@ -162,9 +162,10 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
           });
         }
       }
-    } catch (e) {
-      AppToast.show(context.l10n.flowCouldNotSelectImageP0((e).toString()),
-          tone: AppToastTone.error);
+    } catch (e, stack) {
+      if (mounted) {
+        AppToast.showError(e, stack: stack, stage: '读取曲绘图片');
+      }
     }
   }
 
@@ -178,14 +179,20 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
           _result = result;
           _isRecognizing = false;
         });
-        if (result == null)
-          AppToast.show(context.l10n.flowRecognitionFailedTryAgain,
-              tone: AppToastTone.error);
+        if (result == null) {
+          AppToast.showError(
+            AppError(
+              code: 'DATA-COVER-RECOGNIZE',
+              userMessage: context.l10n.flowRecognitionFailedTryAgain,
+              stage: '识别曲绘',
+            ),
+            stage: '识别曲绘',
+          );
+        }
       }
-    } catch (e) {
+    } catch (e, stack) {
       if (mounted) setState(() => _isRecognizing = false);
-      AppToast.show(context.l10n.flowRecognitionErrorP0((e).toString()),
-          tone: AppToastTone.error);
+      AppToast.showError(e, stack: stack, stage: '识别曲绘');
     }
   }
 
@@ -846,12 +853,19 @@ class _ImageCropPageState extends State<_ImageCropPage> {
         _image = frame.image;
         _loading = false;
       });
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('曲绘裁剪页加载图片失败: $e');
       if (!mounted) return;
       setState(() => _loading = false);
-      AppToast.show(context.l10n.flowCannotReadThisImageTryAnother,
-          tone: AppToastTone.error);
+      AppToast.showError(
+        AppError(
+          code: 'DATA-COVER-IMAGE-READ',
+          userMessage: context.l10n.flowCannotReadThisImageTryAnother,
+          stage: '读取曲绘图片',
+          technicalDetail: '$e\n$stack',
+        ),
+        stage: '读取曲绘图片',
+      );
       Navigator.of(context).pop();
     }
   }
@@ -1076,18 +1090,37 @@ class _ImageCropPageState extends State<_ImageCropPage> {
         height: crop.height / _imageRect.height,
       );
       if (encoded == null) {
-        AppToast.show(context.l10n.flowCropFailedContinuingWithTheOriginalImage,
-            tone: AppToastTone.error);
+        if (mounted) {
+          AppToast.showError(
+            AppError(
+              code: 'DATA-COVER-CROP',
+              userMessage:
+                  context.l10n.flowCropFailedContinuingWithTheOriginalImage,
+              stage: '裁剪曲绘图片',
+            ),
+            stage: '裁剪曲绘图片',
+          );
+        }
         return widget.imagePath;
       }
       final outPath =
           '${Directory.systemTemp.path}/crop_${DateTime.now().millisecondsSinceEpoch}.jpg';
       await File(outPath).writeAsBytes(encoded, flush: true);
       return outPath;
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('裁剪出错: $e');
-      AppToast.show(context.l10n.flowCropFailedContinuingWithTheOriginalImage,
-          tone: AppToastTone.error);
+      if (mounted) {
+        AppToast.showError(
+          AppError(
+            code: 'DATA-COVER-CROP',
+            userMessage:
+                context.l10n.flowCropFailedContinuingWithTheOriginalImage,
+            stage: '裁剪曲绘图片',
+            technicalDetail: '$e\n$stack',
+          ),
+          stage: '裁剪曲绘图片',
+        );
+      }
       return widget.imagePath;
     }
   }

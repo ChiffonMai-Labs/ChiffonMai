@@ -13,6 +13,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../widgets/AppDialogs.dart';
 import '../widgets/AppToast.dart';
 import '../utils/AppDesignTokens.dart';
+import '../utils/AppError.dart';
 
 /// 统一的「公开导出目录」工具。
 ///
@@ -270,7 +271,12 @@ class ExportPathUtil {
     }
 
     if (!allowPrivateFallback) {
-      throw StateError(appL10n.flowPublicExportDirectoryIsNotWritableWriting);
+      throw AppError(
+        code: 'EXP-PUBLIC-DIR-UNWRITABLE',
+        stage: '解析公开导出目录',
+        userMessage: appL10n.flowPublicExportDirectoryIsNotWritableWriting,
+        suggestion: appL10n.errSuggestionCheckStorage,
+      );
     }
     final docs = await getApplicationDocumentsDirectory();
     final fallback = build(docs);

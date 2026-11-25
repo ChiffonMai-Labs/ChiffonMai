@@ -24,6 +24,9 @@ import '../widgets/AppUi.dart';
 import '../widgets/MarqueeText.dart';
 import '../widgets/AppDialogs.dart';
 import '../widgets/AppToast.dart';
+import '../widgets/EmptyState.dart';
+import '../widgets/ErrorMessageDialog.dart';
+import '../utils/AppError.dart';
 import '../utils/ChartCodeFontPreference.dart';
 import '../utils/MaidataDecodeUtil.dart';
 
@@ -52,6 +55,7 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
   bool _isExporting = false;
   String _maidataContent = '';
   String? _errorMessage;
+  AppError? _loadError;
   List<String> _inoteList = [];
   String? _selectedInote;
   String? _displayedInote; // 当前显示的难度
@@ -96,8 +100,14 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
   Future<void> _setCodeHighlight(bool enabled) async {
     setState(() => _highlightCode = enabled);
     if (!await ChartCodeFontPreference.saveHighlight(enabled) && mounted) {
-      AppToast.show(context.l10n.chartCodeHighlightSaveFailed,
-          tone: AppToastTone.warning);
+      AppToast.showError(
+        AppError(
+          code: 'DATA-PREF-SAVE',
+          userMessage: context.l10n.chartCodeHighlightSaveFailed,
+          stage: '保存谱面代码设置',
+        ),
+        stage: '保存谱面代码设置',
+      );
     }
   }
 
@@ -193,8 +203,14 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
     if (picked == null || !mounted || picked == _codeFont) return;
     setState(() => _codeFont = picked);
     if (!await ChartCodeFontPreference.save(picked) && mounted) {
-      AppToast.show(context.l10n.chartCodeFontSaveFailed,
-          tone: AppToastTone.warning);
+      AppToast.showError(
+        AppError(
+          code: 'DATA-PREF-SAVE',
+          userMessage: context.l10n.chartCodeFontSaveFailed,
+          stage: '保存谱面代码设置',
+        ),
+        stage: '保存谱面代码设置',
+      );
     }
   }
 
@@ -210,6 +226,7 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _loadError = null;
     });
 
     try {
@@ -229,14 +246,28 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
           _maidataContent = content;
         });
       } else {
+        final err = AppError(
+          code: 'DATA-MAIDATA-EMPTY',
+          userMessage: appL10n.flowNoMatchingChartCodeFound,
+          stage: '获取谱面代码',
+          source: 'local',
+        );
         setState(() {
-          _errorMessage = appL10n.flowNoMatchingChartCodeFound;
+          _loadError = err;
+          _errorMessage = err.userMessage;
         });
       }
-    } catch (e) {
+    } catch (e, stack) {
       if (!mounted) return;
+      final err = AppErrorMapper.from(
+        e,
+        stack: stack,
+        stage: '获取谱面代码',
+        source: 'local',
+      );
       setState(() {
-        _errorMessage = appL10n.flowCouldNotFetchChartCodeP0((e).toString());
+        _loadError = err;
+        _errorMessage = err.userMessage;
       });
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -403,11 +434,16 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
       if (mounted && page?.isCurrent != false) {
         await _showExportSuccessDialog(path, fileName, warning: warning);
       }
-    } catch (e) {
+    } catch (e, stack) {
       dismissAppProgressDialog(progress);
       if (mounted && page?.isCurrent != false) {
-        AppToast.show(context.l10n.flowExportFailedP0((e).toString()),
-            tone: AppToastTone.error, duration: const Duration(seconds: 3));
+        await showErrorMessageDialog(
+          context,
+          error: e,
+          stack: stack,
+          title: context.l10n.flowCouldNotExportP0('谱面包'),
+          stage: '导出谱面包',
+        );
       }
       debugPrint('[DEBUG][SongMaidataPage] 导出失败: $e');
     } finally {
@@ -726,32 +762,18 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
                   )
                 : _errorMessage != null
                     ? Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.error_outline,
-                                size: 48,
-                                color: AppColors.errorRed(brightness),
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
+                        child: EmptyState(
+                          icon: Icons.error_outline,
+                          error: _loadError ??
+                              AppErrorMapper.fromMessage(
                                 _errorMessage!,
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  color: AppColors.errorRed(brightness),
-                                ),
+                                stage: '获取谱面代码',
+                                source: 'local',
                               ),
-                              const SizedBox(height: 16),
-                              FilledButton(
-                                onPressed: _fetchMaidata,
-                                child: Text(context.l10n.flowRetry),
-                              ),
-                            ],
-                          ),
+                          message: _errorMessage,
+                          actionLabel: context.l10n.flowRetry,
+                          actionIcon: Icons.refresh,
+                          onAction: _fetchMaidata,
                         ),
                       )
                     : _maidataContent.isEmpty

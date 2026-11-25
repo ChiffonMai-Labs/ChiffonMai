@@ -1,4 +1,6 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
+import '../../utils/AppError.dart';
 import 'ThunderBest50Export.dart';
 import 'dart:io';
 import 'dart:typed_data';
@@ -89,7 +91,14 @@ class PersonalizedB50ConvertToImg {
         background.precache(context),
         ExportUserInfoWidget.precacheFrame(context),
       ]);
-      if (!context.mounted) return null;
+      if (!context.mounted) {
+        throw AppError(
+          code: 'EXP-CONTEXT-LOST',
+          stage: '预加载导出图片',
+          userMessage: appL10n.errExportContextLost,
+          suggestion: appL10n.errSuggestionRetryLater,
+        );
+      }
       debugPrint('Images preloaded');
 
       // 将OverlayEntry添加到widget树中
@@ -106,9 +115,12 @@ class PersonalizedB50ConvertToImg {
           ?.findRenderObject() as RenderRepaintBoundary?;
       if (boundary == null) {
         debugPrint('Error: RenderRepaintBoundary not found');
-        overlayEntry.remove();
-        overlayInserted = false;
-        return null;
+        throw AppError(
+          code: 'EXP-BOUNDARY-MISSING',
+          stage: '查找导出画布',
+          userMessage: appL10n.errExportBoundaryMissing,
+          suggestion: appL10n.errSuggestionRetryLater,
+        );
       }
       debugPrint('RenderRepaintBoundary found successfully');
 
@@ -186,7 +198,12 @@ class PersonalizedB50ConvertToImg {
 
       if (directory == null) {
         debugPrint('Error: No storage directory found');
-        return null;
+        throw AppError(
+          code: 'EXP-NO-STORAGE-DIR',
+          stage: '选择导出目录',
+          userMessage: appL10n.errExportNoStorageDir,
+          suggestion: appL10n.errSuggestionCheckStorage,
+        );
       }
 
       debugPrint('Selected directory: ${directory.path}');
@@ -221,10 +238,16 @@ class PersonalizedB50ConvertToImg {
       }
 
       return file;
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('Error converting to image: $e');
       if (overlayInserted) overlayEntry?.remove();
-      return null;
+      if (e is AppError) rethrow;
+      throw AppErrorMapper.from(
+        e,
+        stack: stack,
+        stage: '导出自定义Best50图片',
+        fallbackCode: 'EXP-IMAGE-FAILED',
+      );
     }
   }
 

@@ -14,6 +14,7 @@ import 'package:my_first_flutter_app/utils/ColorUtil.dart';
 import 'package:my_first_flutter_app/utils/StringUtil.dart';
 import 'package:my_first_flutter_app/utils/ImageEncodeUtil.dart';
 import 'package:my_first_flutter_app/widgets/ExportStatsUi.dart';
+import '../../utils/AppError.dart';
 import '../../utils/MusicDataIndex.dart';
 import '../../utils/ExportDiagnostics.dart';
 import '../../utils/ExportUserInfoWidget.dart';
@@ -105,7 +106,14 @@ class B50ConvertToImg {
                     background.precache(context),
                     ExportUserInfoWidget.precacheFrame(context),
                   ]));
-          if (!context.mounted) return null;
+          if (!context.mounted) {
+            throw AppError(
+              code: 'EXP-CONTEXT-LOST',
+              stage: '预加载导出图片',
+              userMessage: appL10n.errExportContextLost,
+              suggestion: appL10n.errSuggestionRetryLater,
+            );
+          }
           debugPrint('Images preloaded');
 
           // 将OverlayEntry添加到widget树中
@@ -122,9 +130,12 @@ class B50ConvertToImg {
               ?.findRenderObject() as RenderRepaintBoundary?;
           if (boundary == null) {
             debugPrint('Error: RenderRepaintBoundary not found');
-            overlayEntry.remove();
-            overlayInserted = false;
-            return null;
+            throw AppError(
+              code: 'EXP-BOUNDARY-MISSING',
+              stage: '查找Best50画布',
+              userMessage: appL10n.errExportBoundaryMissing,
+              suggestion: appL10n.errSuggestionRetryLater,
+            );
           }
           debugPrint('RenderRepaintBoundary found successfully');
 
@@ -208,7 +219,12 @@ class B50ConvertToImg {
 
           if (directory == null) {
             debugPrint('Error: No storage directory found');
-            return null;
+            throw AppError(
+              code: 'EXP-NO-STORAGE-DIR',
+              stage: '选择导出目录',
+              userMessage: appL10n.errExportNoStorageDir,
+              suggestion: appL10n.errSuggestionCheckStorage,
+            );
           }
 
           debugPrint('Selected directory: ${directory.path}');
@@ -251,7 +267,13 @@ class B50ConvertToImg {
         } catch (e, stack) {
           log.note('Best50导出失败：$e\n$stack');
           if (overlayInserted) overlayEntry?.remove();
-          return null;
+          if (e is AppError) rethrow;
+          throw AppErrorMapper.from(
+            e,
+            stack: stack,
+            stage: log.currentStage,
+            fallbackCode: 'EXP-IMAGE-FAILED',
+          );
         }
       });
 

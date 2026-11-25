@@ -24,6 +24,7 @@ import '../utils/AppDesignTokens.dart';
 import '../widgets/MarqueeText.dart';
 import '../widgets/AppDialogs.dart';
 import '../widgets/AppToast.dart';
+import '../widgets/ErrorMessageDialog.dart';
 import '../widgets/ExportSuccessDialog.dart';
 
 /// 收藏夹管理页面：查看所有收藏夹、创建/重命名/删除收藏夹，浏览收藏夹内的谱面
@@ -1187,10 +1188,16 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
         description: context.l10n.flowImportItInTheAppOrOpen,
         fallbackPath: _fallbackPath,
       );
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('导出收藏夹失败: $e');
       if (mounted) {
-        AppToast.show(context.l10n.flowExportFailedP0((e).toString()), tone: AppToastTone.error);
+        await showErrorMessageDialog(
+          context,
+          error: e,
+          stack: stack,
+          title: context.l10n.flowCouldNotExportP0('收藏夹'),
+          stage: '导出收藏夹',
+        );
       }
     }
   }

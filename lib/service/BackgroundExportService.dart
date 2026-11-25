@@ -6,7 +6,9 @@ import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../widgets/AppToast.dart';
+import '../widgets/ErrorMessageDialog.dart';
 import '../widgets/ExportSuccessDialog.dart';
+import '../utils/AppError.dart';
 import '../utils/AppTaskActivity.dart';
 import '../utils/ExportDiagnostics.dart';
 import '../utils/ImageEncodeUtil.dart';
@@ -82,8 +84,16 @@ class BackgroundExport {
     final overlay = navigatorKey.currentState?.overlay;
     if (overlay == null) {
       log.note('导出取消：根Overlay不可用');
-      AppToast.show(appL10n.flowCouldNotExportP0PleaseRetry((label).toString()),
-          tone: AppToastTone.error);
+      _presentFailure(
+        AppError(
+          code: 'EXP-CONTEXT-LOST',
+          title: appL10n.flowCouldNotExportP0PleaseRetry(label),
+          stage: log.currentStage,
+          userMessage: appL10n.errExportContextLost,
+          suggestion: appL10n.errSuggestionRetryLater,
+          technicalDetail: log.summary(),
+        ),
+      );
       return;
     }
     // 在 Overlay 里面取一个 context，导出服务要从它往上找 Overlay。
@@ -98,15 +108,22 @@ class BackgroundExport {
       await log.step('等待导出上下文首帧', ImageEncodeUtil.waitForFrame);
       final context = taskContext;
       if (context == null || !context.mounted) {
-        throw StateError(appL10n.svcTheExportCanvasIsNotReady);
+        throw AppError(
+          code: 'EXP-CANVAS-NOT-READY',
+          stage: '等待导出上下文首帧',
+          userMessage: appL10n.errExportCanvasNotReady,
+          suggestion: appL10n.errSuggestionRetryLater,
+        );
       }
       final file = await log.step('生成并保存图片', () => task(context));
       if (file == null) {
         log.note('导出失败：生成服务返回空文件');
-        AppToast.show(
-            appL10n.flowCouldNotExportP0PleaseRetry(label),
-            tone: AppToastTone.error);
-        return;
+        throw AppError(
+          code: 'EXP-EMPTY-RESULT',
+          stage: log.currentStage,
+          userMessage: appL10n.flowCouldNotExportP0PleaseRetry(label),
+          suggestion: appL10n.errSuggestionContactDev,
+        );
       }
       log.note('生成服务已返回文件：${file.path}');
       String? photosWarning;
@@ -145,14 +162,38 @@ class BackgroundExport {
       log.note('应用内导出完成提示已提交');
     } catch (error, stack) {
       log.note('后台导出失败：$error\n$stack');
-      AppToast.show(
-          appL10n.flowCouldNotExportP0P1(
-              (label).toString(), (error).toString()),
-          tone: AppToastTone.error);
+      final mapped = AppErrorMapper.from(
+        error,
+        stack: stack,
+        title: appL10n.flowCouldNotExportP0PleaseRetry(label),
+        stage: log.currentStage,
+        fallbackCode: 'EXP-IMAGE-FAILED',
+      );
+      final enriched = mapped.copyWith(
+        technicalDetail: [
+          if (mapped.technicalDetail != null &&
+              mapped.technicalDetail!.trim().isNotEmpty)
+            mapped.technicalDetail!.trim(),
+          log.summary(),
+        ].join('\n'),
+      );
+      _presentFailure(enriched);
     } finally {
       log.note('开始移除导出上下文Overlay');
       anchor.remove();
       log.note('导出上下文Overlay已移除');
+    }
+  }
+
+  static void _presentFailure(AppError error) {
+    final recorded = AppErrorRegistry.record(error);
+    final ctx = navigatorKey.currentState?.overlay?.context;
+    final inForeground =
+        WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+    if (inForeground && ctx != null && ctx.mounted) {
+      showErrorMessageDialog(ctx, appError: recorded);
+    } else {
+      AppToast.showError(recorded);
     }
   }
 }

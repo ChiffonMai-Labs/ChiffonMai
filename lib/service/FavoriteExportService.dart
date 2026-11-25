@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import '../l10n/AppMessages.dart';
+import '../utils/AppError.dart';
 import '../utils/ExportPathUtil.dart';
 import '../utils/ImageEncodeUtil.dart';
 
@@ -41,7 +43,12 @@ class FavoriteExportService {
         frames: 1, settle: const Duration(milliseconds: 200));
     final boundary = key.currentContext?.findRenderObject() as RenderRepaintBoundary?;
     if (boundary == null) {
-      throw Exception('无法获取 RepaintBoundary');
+      throw AppError(
+        code: 'EXP-BOUNDARY-MISSING',
+        stage: '捕获收藏夹画布',
+        userMessage: appL10n.errExportBoundaryMissing,
+        suggestion: appL10n.errSuggestionRetryLater,
+      );
     }
     final encoded = await ImageEncodeUtil.encodeBoundary(boundary);
     return encoded.bytes;
